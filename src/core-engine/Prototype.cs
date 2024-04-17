@@ -1,5 +1,17 @@
 ﻿namespace core_engine;
 
+/// Gedanken: Ich glaube ich möchte es noch ein wenig mehr vereinfachen und auch die Interactions
+/// rausnehmen, sondern nur noch mit Tokens arbeiten. Wir sollten das Klassendiagramm genau so gestalten,
+/// wie es der BPMN-Standard vorgibt. Das heißt, dass wir die Interactions rausnehmen und nur noch mit
+/// Tokens arbeiten. Die Interactions sind dann nur noch ein Teil des Tokens. Über den aktuellen Token wissen
+/// wir ja genau, welche möglichen Interactions es gibt bzw. für mögliche Interactions, die mit einer Activity
+/// verbunden sind, können wir ja entsprechend viele Tokens erstellen. Wir müssen wir natürlich dann nur, wenn
+/// ein Token eine Activity wieder verlässt, die anderen damit verknüpften Tokens löschen.
+///  
+/// Tokens wiederrum sollten halt mit aller Art von Nodes verknüpft werden können. So auch z.B. mit Sequenzflows
+/// etc. Dann können wir immer die gleiche logik verwenden und die Engine kann Schritt für Schritt durchgehen bis 
+/// sie wieder an einem Punkt ankommt, an dem sie auf ein Event warten muss, sich beendet und die Tokens zurückgibt. 
+
 
 /// <summary>
 /// Das Interface für die eigentliche BPMN-Ausführung-Implementierung.
@@ -30,10 +42,15 @@ public interface ICore
     /// Gibt der Engine ein externes Event eines Services. Die Engine gibt dann den Token an die nächste
     /// BPMN-Node aus und gibt das Ergebnis der Ausführung zurück
     /// </summary>
-    /// <param name="data">Die Context-Daten, die die Node braucht. Diese sind *nicht*
-    /// die Eingangsdaten der Node</param>
+    /// <param name="instanceData">Die Daten der Instanz</param>
+    /// <param name="eventData">Die Daten des Events</param>
     /// <returns>Das Ergebnis der Ausführung des Events</returns>
-    public Task<EventResult> HandleEvent(EventData data);
+    public Task<EventResult> HandleEvent(InstanceData instanceData, EventData eventData);
+
+    /// <summary>
+    /// Event, dass aufgerufen wird, wenn ein Prozessschritt abgeschlossen wurde
+    /// </summary>
+    public event EventHandler<InstanceData> InteractionFinished;
 }
 
 public class Subscription
@@ -42,12 +59,6 @@ public class Subscription
     /// Die ID des Service, die für dieses Event zuständig sein soll. z.B. Chron/Webhook etc....
     /// </summary>
     public required string ServiceId { get; set; }
-    
-    /// <summary>
-    /// Daten, die dem Service Context-Informationen geben. Beim Webhook-Service z.B. die URL auf
-    /// der er hören soll
-    /// </summary>
-    public required string Data { get; set; }
     
     /// <summary>
     /// Die BPMN-Node an die Daten bei einem Event des Services übergeben werden sollen
@@ -61,22 +72,90 @@ public class Subscription
     public required Guid? InstanceId { get; set; }
 }
 
-public class EventData
+public class InstanceData
 {
     /// <summary>
-    /// Die ID des Services von der die Daten kommen
+    /// Die ID der Instanz
     /// </summary>
-    public required string ServiceId { get; set; }
+    public required Guid InstanceId { get; set; }
     
+    /// <summary>
+    /// Die globalen Variablen der Instanz
+    /// </summary>
+    public required Dictionary<string, object> InstanceData { get; set; }
+    
+    /// <summary>
+    /// Resultierenden Tokens aus diesem Prozessschritt
+    /// </summary>
+    public required Token[] Tokens { get; set; }
+
+    /// <summary>
+    /// Die Interaktionen, die in diesem Prozessschritt möglich sind
+    /// </summary>
+    public required Interaction[] PossibleInteractions { get; set; }
+}
+
+public abstract class Interaction
+{
+    public string Name { get; set; }
+    public string NodeId { get; set; }
+    public dict<string, object> AdditionalData { get; set; }
+    public dict<string processSource, object interactionTarget> InputDataLinking { get; set; }
+    public dict<string interactionSource, object processTarget> OutputDataLinking { get; set; }
+    public InteractionData InteractionData { get; set; }
+}
+
+public class UserTask : Interaction
+{
+    public string FormId { get; set; }
+}
+
+public class ServiceTask : Interaction
+{
+
+}
+
+public class Timer : Interaction
+{
+    public DateTime TimeToFire { get; set; }
+}
+
+public class SendMessage : Interaction
+{
+    public string MessageId { get; set; }
+}
+
+public class ReceiveMessage : Interaction
+{
+    public string MessageId { get; set; }
+}
+
+public class ThrowSignal : Interaction
+{
+    public string SignalId { get; set; }
+}
+
+public class CatchSignal : Interaction
+{
+    public string SignalId { get; set; }
+}
+
+public class ThrowError : Interaction
+{
+    public string ErrorDescription { get; set; }
+}
+
+public class CatchError : Interaction
+{
+}
+
+public class EventData
+{
+   
     /// <summary>
     /// Die BPMN-Node an die Daten übergeben werden sollen
     /// </summary>
     public required string BpmnNodeId { get; set; }
-    
-    /// <summary>
-    /// Die Context-Daten, die bei der Abonnierung des Events an den Service übergeben wurden
-    /// </summary>
-    public required string Data { get; set; }
     
     /// <summary>
     /// Die ID der Instance des BPMN-Flows auf die sich das Event bezieht.
@@ -85,11 +164,6 @@ public class EventData
     /// zu starten
     /// </summary>
     public required Guid InstanceId { get; set; }
-    
-    /// <summary>
-    /// Die globalen Variablen der Instanz des BPMN Flows
-    /// </summary>
-    public required Dictionary<string, object> InstanceData { get; set; }
 }
 
 /// <summary>
@@ -97,22 +171,14 @@ public class EventData
 /// </summary>
 public class EventResult
 {
-    /// <summary>
-    /// Resultierenden Tokens aus diesem Prozessschritt
-    /// </summary>
-    public required Token[] Tokens { get; set; }
-    
+   
+
     /// <summary>
     /// Die zu abonnierenden Events (durch Services) die nach diesem Prozessschritt aktiv sein sollen.
     /// Diese soll mindestens die Abonnierung eines Services enthalten, oder den Service "AUTO", um
     /// mitzuteilen, dass der nächste Prozessschritt unmittelbar erfolgen soll (z.B. bei einem Gate).
     /// </summary>
     public required Subscription[] ServiceSubscriptions { get; set; }
-    
-    /// <summary>
-    /// Die *geänderten* globalen Variablen der Instance des BPMN Flows
-    /// </summary>
-    public required Dictionary<string, object> DataChanges { get; set; }
     
     /// <summary>
     /// Gibt an, ob der Flow insgesamt abgeschlossen ist
