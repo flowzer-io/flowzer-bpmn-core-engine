@@ -45,12 +45,12 @@ public interface ICore
     /// <param name="instanceData">Die Daten der Instanz</param>
     /// <param name="eventData">Die Daten des Events</param>
     /// <returns>Das Ergebnis der Ausführung des Events</returns>
-    public Task<EventResult> HandleEvent(InstanceData instanceData, EventData eventData);
+    public Task<EventResult> HandleEvent(Instance instanceData, EventData eventData);
 
     /// <summary>
     /// Event, dass aufgerufen wird, wenn ein Prozessschritt abgeschlossen wurde
     /// </summary>
-    public event EventHandler<InstanceData> InteractionFinished;
+    public event EventHandler<Instance> InteractionFinished;
 }
 
 public class Subscription
@@ -72,7 +72,7 @@ public class Subscription
     public required Guid? InstanceId { get; set; }
 }
 
-public class InstanceData
+public class Instance
 {
     /// <summary>
     /// Die ID der Instanz
@@ -95,59 +95,58 @@ public class InstanceData
     public required Interaction[] PossibleInteractions { get; set; }
 }
 
-public abstract class Interaction
+public abstract class Interaction(string name, string nodeId)
 {
-    public string Name { get; set; }
-    public string NodeId { get; set; }
-    public dict<string, object> AdditionalData { get; set; }
-    public dict<string processSource, object interactionTarget> InputDataLinking { get; set; }
-    public dict<string interactionSource, object processTarget> OutputDataLinking { get; set; }
-    public InteractionData InteractionData { get; set; }
+    public string Name { get; set; } = name;
+    public string NodeId { get; set; } = nodeId;
+
+    public Dictionary<string, object> AdditionalData { get; set; } = new Dictionary<string, object>();
+    // public dict<string processSource, object interactionTarget> InputDataLinking { get; set; }
+    // public dict<string interactionSource, object processTarget> OutputDataLinking { get; set; }
+    // public InteractionData InteractionData { get; set; }
 }
 
-public class UserTask : Interaction
+public class UserTask(string name, string nodeId, string formId) : Interaction(name, nodeId)
 {
-    public string FormId { get; set; }
+    public string FormId { get; set; } = formId;
 }
 
-public class ServiceTask : Interaction
+public class ServiceTask(string name, string nodeId) : Interaction(name, nodeId)
 {
 
 }
 
-public class Timer : Interaction
+public class Timer(string name, string nodeId) : Interaction(name, nodeId)
 {
     public DateTime TimeToFire { get; set; }
 }
 
-public class SendMessage : Interaction
+public class SendMessage(string name, string nodeId, string messageId) : Interaction(name, nodeId)
 {
-    public string MessageId { get; set; }
+    public string MessageId { get; set; } = messageId;
 }
 
-public class ReceiveMessage : Interaction
+public class ReceiveMessage(string name, string nodeId, string messageId) : Interaction(name, nodeId)
 {
-    public string MessageId { get; set; }
+    public string MessageId { get; set; } = messageId;
 }
 
-public class ThrowSignal : Interaction
+public class ThrowSignal(string name, string nodeId, string signalId) : Interaction(name, nodeId)
 {
-    public string SignalId { get; set; }
+    public string SignalId { get; set; } = signalId;
 }
 
-public class CatchSignal : Interaction
+public class CatchSignal(string name, string nodeId, string signalId) : Interaction(name, nodeId)
 {
-    public string SignalId { get; set; }
+    public string SignalId { get; set; } = signalId;
 }
 
-public class ThrowError : Interaction
+public class ThrowError(string name, string nodeId, string errorDescription) : Interaction(name, nodeId)
 {
-    public string ErrorDescription { get; set; }
+    public string ErrorDescription { get; set; } = errorDescription;
 }
 
-public class CatchError : Interaction
-{
-}
+public class CatchError(string name, string nodeId) : Interaction(name, nodeId);
 
 public class EventData
 {
