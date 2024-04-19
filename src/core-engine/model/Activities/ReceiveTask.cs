@@ -4,7 +4,7 @@ using Service;
 
 namespace Activities;
 
-public class ReceiveTask : Task
+public class ReceiveTask(string name, IFlowElementContainer container) : Task(name, container)
 {
     [Required] public string Implementation { get; set; } = "";
     public bool Instantiate { get; set; }

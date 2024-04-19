@@ -1,8 +1,9 @@
+using Common;
 using Data;
 
 namespace Events;
 
-public abstract class CatchEvent(OutputSet outputSet) : Event
+public abstract class CatchEvent(string name, IFlowElementContainer container, OutputSet outputSet) : Event(name, container)
 {
     public OutputSet OutputSet { get; set; } = outputSet;
     public List<DataOutput> DataOutputs { get; set; } = [];

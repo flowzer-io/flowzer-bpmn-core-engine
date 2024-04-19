@@ -2,7 +2,7 @@ using Common;
 
 namespace Data;
 
-public class DataObject : FlowElement, IItemAwareElement
+public class DataObject(string name, IFlowElementContainer container) : FlowElement(name, container), IItemAwareElement
 {
     public bool IsCollection { get; set; }
     public ItemDefinition? ItemSubjectRef { get; set; }

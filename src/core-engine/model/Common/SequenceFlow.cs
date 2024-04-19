@@ -1,6 +1,6 @@
 namespace Common;
 
-public class SequenceFlow(FlowNode sourceRef, FlowNode targetRef) : FlowElement
+public class SequenceFlow(string name, IFlowElementContainer container, FlowNode sourceRef, FlowNode targetRef) : FlowElement(name, container)
 {
     public bool IsImmediate { get; set; }
     public FlowNode SourceRef { get; set; } = sourceRef;

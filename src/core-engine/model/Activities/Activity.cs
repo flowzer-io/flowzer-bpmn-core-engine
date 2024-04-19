@@ -1,11 +1,10 @@
 using Common;
 using Data;
 using Events;
-using Process;
 
 namespace Activities;
 
-public class Activity : FlowNode
+public class Activity(string name, IFlowElementContainer container) : FlowNode(name, container)
 {
     public bool IsForCompensation { get; set; }
     public int StartQuantity { get; set; }

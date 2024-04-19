@@ -1,8 +1,9 @@
+using Common;
 using Data;
 
 namespace Events;
 
-public abstract class ThrowEvent(InputSet inputSet) : Event
+public abstract class ThrowEvent(string name, IFlowElementContainer container, InputSet inputSet) : Event(name, container)
 {
     public InputSet InputSet { get; set; } = inputSet;
     public List<DataInput> DataInputs { get; set; } = [];

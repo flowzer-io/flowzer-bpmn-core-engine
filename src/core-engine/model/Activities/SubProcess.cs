@@ -2,7 +2,7 @@ using Common;
 
 namespace Activities;
 
-public class SubProcess : Activity, IFlowElementContainer
+public class SubProcess(string name, IFlowElementContainer container) : Activity(name, container), IFlowElementContainer
 {
     public bool TriggeredByEvent { get; set; }
     

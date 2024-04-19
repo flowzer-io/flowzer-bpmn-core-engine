@@ -1,5 +1,7 @@
+using Common;
 using Data;
 
 namespace Events;
 
-public class IntermediateThrowEvent(InputSet inputSet) : ThrowEvent(inputSet);
+public class IntermediateThrowEvent(string name, IFlowElementContainer container, InputSet inputSet) 
+    : ThrowEvent(name, container, inputSet);

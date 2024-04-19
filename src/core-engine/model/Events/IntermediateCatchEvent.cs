@@ -1,5 +1,7 @@
+using Common;
 using Data;
 
 namespace Events;
 
-public class IntermediateCatchEvent(OutputSet outputSet) : CatchEvent(outputSet);
+public class IntermediateCatchEvent(string name, IFlowElementContainer container, OutputSet outputSet) 
+    : CatchEvent(name, container, outputSet);

@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using Common;
 
 namespace HumanInteraction;
 
-public class UserTask : Activities.Task
+public class UserTask(string name, IFlowElementContainer container) : Activities.Task(name, container)
 {
     [Required] public string Implementation { get; set; } = "";
     

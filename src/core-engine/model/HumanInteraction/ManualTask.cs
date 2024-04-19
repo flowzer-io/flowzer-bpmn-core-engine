@@ -1,3 +1,5 @@
+using Common;
+
 namespace HumanInteraction;
 
-public class ManualTask : Activities.Task;
+public class ManualTask(string name, IFlowElementContainer container) : Activities.Task(name, container);

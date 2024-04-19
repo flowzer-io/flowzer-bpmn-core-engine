@@ -4,7 +4,7 @@ using Service;
 
 namespace Activities;
 
-public class SendTask : Task
+public class SendTask(string name, IFlowElementContainer container) : Task(name, container)
 {
     [Required] public string Implementation { get; set; } = "";
     

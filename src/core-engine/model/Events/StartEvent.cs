@@ -1,5 +1,6 @@
+using Common;
 using Data;
 
 namespace Events;
 
-public class StartEvent(OutputSet outputSet) : CatchEvent(outputSet);
+public class StartEvent(string name, IFlowElementContainer container, OutputSet outputSet) : CatchEvent(name, container, outputSet);
