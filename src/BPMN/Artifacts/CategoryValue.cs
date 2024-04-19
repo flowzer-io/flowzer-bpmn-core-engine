@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using BPMN.Common;
 using BPMN.Foundation;
 
