@@ -45,12 +45,12 @@ public interface ICore
     /// <param name="instanceData">Die Daten der Instanz</param>
     /// <param name="eventData">Die Daten des Events</param>
     /// <returns>Das Ergebnis der Ausführung des Events</returns>
-    public Task<EventResult> HandleEvent(InstanceData instanceData, EventData eventData);
+    public Task<EventResult> HandleEvent(Instance instanceData, EventData eventData);
 
     /// <summary>
     /// Event, dass aufgerufen wird, wenn ein Prozessschritt abgeschlossen wurde
     /// </summary>
-    public event EventHandler<InstanceData> InteractionFinished;
+    public event EventHandler<Instance> InteractionFinished;
 }
 
 public class Subscription
@@ -72,7 +72,7 @@ public class Subscription
     public required Guid? InstanceId { get; set; }
 }
 
-public class InstanceData
+public class Instance
 {
     /// <summary>
     /// Die ID der Instanz
@@ -99,10 +99,10 @@ public abstract class Interaction
 {
     public string Name { get; set; }
     public string NodeId { get; set; }
-    public dict<string, object> AdditionalData { get; set; }
-    public dict<string processSource, object interactionTarget> InputDataLinking { get; set; }
-    public dict<string interactionSource, object processTarget> OutputDataLinking { get; set; }
-    public InteractionData InteractionData { get; set; }
+    public Dictionary<string, object> AdditionalData { get; set; }
+    // public dict<string processSource, object interactionTarget> InputDataLinking { get; set; }
+    // public dict<string interactionSource, object processTarget> OutputDataLinking { get; set; }
+    // public InteractionData InteractionData { get; set; }
 }
 
 public class UserTask : Interaction

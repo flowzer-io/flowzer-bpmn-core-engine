@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>core_engine</RootNamespace>
+    <RootNamespace></RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>default</LangVersion>
   </PropertyGroup>
 
 </Project>
