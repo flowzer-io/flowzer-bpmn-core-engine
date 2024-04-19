@@ -3,6 +3,7 @@ using Activities;
 using Common;
 using Data;
 using Foundation;
+using HumanInteraction;
 
 namespace Process;
 
@@ -51,4 +52,32 @@ public class Lane(LaneSet laneSet) : BaseElement
     public LaneSet LaneSet { get; set; } = laneSet;
     public LaneSet? ChildLaneSet { get; set; }
     public List<FlowNode> FlowNodeRefs { get; set; } = [];
+    public IBaseElement? PartitionElementRef { get; set; }
+    public IBaseElement? PartitionElement { get; set; }
 }
+
+public abstract class GlobalTask(string name) : CallableElement(name)
+{
+    public List<ResourceRole> Resources { get; set; } = [];
+}
+
+public class GlobalBusinessRuleTask(string name, string implementation) : GlobalTask(name)
+{
+    public string Implementation { get; set; } = implementation;
+}
+
+public class GlobalUserTask(string name, string implementation) : GlobalTask(name)
+{
+    public string Implementation { get; set; } = implementation;
+
+    public List<Rendering> Renderings { get; set; } = [];
+}
+
+public class GlobalManualTask(string name) : GlobalTask(name);
+
+public class GlobalScriptTask(string name, string script) : GlobalTask(name)
+{
+    public string? ScriptLanguage { get; set; }
+    public string Script { get; set; } = script;
+}
+ 

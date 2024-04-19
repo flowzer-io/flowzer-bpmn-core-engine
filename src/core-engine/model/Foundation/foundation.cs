@@ -4,7 +4,8 @@ namespace Foundation;
 // ReSharper disable UnusedMember.Global
 // ReSharper disable UnusedType.Global
 
-public abstract class RootElement;
+public interface IRootElement;
+public abstract class RootElement : IRootElement;
 
 public interface IBaseElement
 {

@@ -1,8 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 using Activities;
 using Artifacts;
+using Data;
 using Foundation;
 using Process;
+using Service;
 
 namespace Common;
 
@@ -36,6 +38,10 @@ public interface IFlowElementContainer : IBaseElement
 public class CallableElement(string name) : RootElement
 {
     public string Name { get; set; } = name;
+    
+    public InputOutputSpecification? IoSpecification { get; set; }
+    public List<InputOutputBinding> IoBindings { get; set; } = [];
+    public List<Interface> SupportedInterfaceRefs { get; set; } = [];
 }
 
 public abstract class FlowElement : BaseElement
