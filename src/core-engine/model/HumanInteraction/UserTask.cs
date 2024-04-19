@@ -1,11 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using Process;
 
 namespace HumanInteraction;
-
-public abstract class HumanPerformer : Performer;
-public abstract class PotentialOwner : HumanPerformer;
-public class ManualTask : Activities.Task;
 
 public class UserTask : Activities.Task
 {
@@ -13,5 +8,3 @@ public class UserTask : Activities.Task
     
     public List<Rendering> Renderings { get; set; } = [];
 }
-
-public abstract class Rendering;

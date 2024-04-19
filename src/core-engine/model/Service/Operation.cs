@@ -13,12 +13,3 @@ public class Operation(Message inMessageRef)
     public Message? OutMessageRef { get; set; }
     public List<InputOutputBinding> IoBindings { get; set; } = [];
 }
-
-public class Interface
-{
-    [Required] public string Name { get; set; } = "";
-    public string? ImplementationRef { get; set; }
-    
-    public List<Operation> Operations { get; set; } = [];
-    public List<CallableElement> CallableElements { get; set; } = [];
-}
