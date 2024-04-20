@@ -1,54 +1,40 @@
 namespace core_engine;
-
-/// Gedanken: Ich glaube ich möchte es noch ein wenig mehr vereinfachen und auch die Interactions
-/// rausnehmen, sondern nur noch mit Tokens arbeiten. Wir sollten das Klassendiagramm genau so gestalten,
-/// wie es der BPMN-Standard vorgibt. Das heißt, dass wir die Interactions rausnehmen und nur noch mit
-/// Tokens arbeiten. Die Interactions sind dann nur noch ein Teil des Tokens. Über den aktuellen Token wissen
-/// wir ja genau, welche möglichen Interactions es gibt bzw. für mögliche Interactions, die mit einer Activity
-/// verbunden sind, können wir ja entsprechend viele Tokens erstellen. Wir müssen wir natürlich dann nur, wenn
-/// ein Token eine Activity wieder verlässt, die anderen damit verknüpften Tokens löschen.
-///  
-/// Tokens wiederrum sollten halt mit aller Art von Nodes verknüpft werden können. So auch z.B. mit Sequenzflows
-/// etc. Dann können wir immer die gleiche logik verwenden und die Engine kann Schritt für Schritt durchgehen bis 
-/// sie wieder an einem Punkt ankommt, an dem sie auf ein Event warten muss, sich beendet und die Tokens zurückgibt. 
-
-
 /// <summary>
-/// Das Interface für die eigentliche BPMN-Ausführung-Implementierung.
-/// Es soll für die Implementierung unabhängig sein, ob sie in einer dauerhaft laufenden Anwendung
-/// läuft, oder in einem MiroService oder Azure/Aws - Function oder in einem Test.
-/// Die Daten von externen Diensten (Webhook/UserTask/Zeitsteuerung etc.) werden über die HandleEvent - Methode
-/// in den Core "injected". Sofern der Dienst "AUTO" abonniert wird, wird der nächste Prozess Schritt unmittelbar ausgeführt.
-/// Die Ausführung des Prozesses erfolgt in Einzelschritten. Jeder Einzelschritt wird durch das Rufen der
-/// HandleEvent-Methode ausgelöst und as Ergebnis der Ausführung zurückgeliefert.
+/// The interface for the actual BPMN execution implementation.
+/// It should be independent of whether it runs in a continuously running application,
+/// a MicroService, an Azure/AWS Function, or a test.
+/// Data from external services (Webhook/UserTask/Timing control, etc.) are "injected" into the Core
+/// via the <see cref="Execute"/> method.
+/// The execution of the process continues until all tokens are at an activity waiting for external interactions.
 /// </summary>
 public interface ICore
 {
     /// <summary>
-    /// Lädt die BPMN Definition (xml) aus dem angegeben Stream und Prüft diese ggf. auf Richtigkeit
+    /// Loads the BPMN model data into the Core, which is required for the execution of the process.
+    /// This method is called before the execution of the process begins.
     /// </summary>
-    /// <param name="xmlDataStream">die XML Daten des BPMN</param>
-    /// <param name="verify">Gibt an, ob die Daten aus syntaktische und logische
-    /// Richtigkeit geprüft werden soll. </param>
-    public Task LoadBpmnFile(Stream xmlDataStream, bool verify);
+    /// <param name="process">the BPMN process data</param>
+    /// <returns>A task that represents the asynchronous load operation.</returns>
+    public Task LoadModel(BPMN.Process.Process process);
     
     /// <summary>
-    /// Ruf die Startpunkte bzw. Anfangs-Service-Abonements (Subscriptions) des Diagrams ab
+    /// Retrieves the starting points or initial service subscriptions (InteractionRequests) of the diagram.
     /// </summary>
-    /// <returns>Gibt die Anfangs-Service-Abonnements (Subscriptions) des Diagrams zurück</returns>
-    public Task<Subscription[]> GetInitialSubscriptions();
+    /// <returns>Returns the initial service subscriptions (InteractionRequests) of the diagram.</returns>
+    public Task<InteractionRequest[]> GetInitialInteractionRequests();
     
     /// <summary>
-    /// Gibt der Engine ein externes Event eines Services. Die Engine gibt dann den Token an die nächste
-    /// BPMN-Node aus und gibt das Ergebnis der Ausführung zurück
+    /// Submits an event into the Core to start or continue the execution of the process,
+    /// until all tokens are at an activity waiting for external interactions.
     /// </summary>
-    /// <param name="instanceData">Die Daten der Instanz</param>
-    /// <param name="interactionResult">Die Daten des Events</param>
-    /// <returns>Das Ergebnis der Ausführung des Events</returns>
-    public Task<EventResult> HandleInteraction(InstanceData instanceData, InteractionResult interactionResult);
+    /// <param name="interactionResult">The data resulting from the interaction</param>
+    /// <returns>The result of the execution</returns>
+    public Task<ExecutionResult> Execute(InteractionResult interactionResult);
 
     /// <summary>
-    /// Event, dass aufgerufen wird, wenn ein Prozessschritt abgeschlossen wurde
+    /// Loads the current state of the process instance.
     /// </summary>
-    public event EventHandler<InstanceData> InteractionFinished;
+    /// <param name="processInstanceState">The state of the process instance</param>
+    /// <returns>A task that represents the asynchronous load operation.</returns>
+    public Task LoadInstance(ProcessInstanceState processInstanceState);
 }

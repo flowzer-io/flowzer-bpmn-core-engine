@@ -1,22 +1,22 @@
 namespace core_engine;
 
 /// <summary>
-/// Der Token gibt an, an welcher stelle sich gerade die Ausführung der Prozessinstanz befindet
+/// The token indicates the current position of the process instance's execution.
 /// </summary>
 public class Token
 {
     /// <summary>
-    /// die eindeutige ID des Tokens
+    /// The unique ID of the token.
     /// </summary>
     public required Guid Id { get; set; }
     
     /// <summary>
-    /// der Zeitpunkt, zu dem der Token die Node erreicht hat
+    /// The time at which the token reached the node.
     /// </summary>
     public required DateTime Time { get; set; }
     
     /// <summary>
-    /// Die id der Node, an der sich der Token gerade befindet
+    /// The ID of the node where the token is currently located.
     /// </summary>
     public required string BpmnNodeId { get; set; }
 }
