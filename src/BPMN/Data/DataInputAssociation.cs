@@ -1,3 +1,3 @@
 namespace BPMN.Data;
 
-public class DataInputAssociation(ItemAwareElement targetRef) : DataAssociation(targetRef);
+public class DataInputAssociation : DataAssociation;

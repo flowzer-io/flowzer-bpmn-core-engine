@@ -2,9 +2,9 @@ using BPMN.Service;
 
 namespace BPMN.Data;
 
-public class InputOutputBinding(Operation operationRef, InputSet inputDataRef, OutputSet outputDataRef)
+public class InputOutputBinding
 {
-    public Operation OperationRef { get; set; } = operationRef;
-    public InputSet InputDataRef { get; set; } = inputDataRef;
-    public OutputSet OutputDataRef { get; set; } = outputDataRef;
+    public required Operation OperationRef { get; set; }
+    public required InputSet InputDataRef { get; set; }
+    public required OutputSet OutputDataRef { get; set; }
 }

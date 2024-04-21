@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class SubProcess(string name, IFlowElementContainer container) : Activity(name, container), IFlowElementContainer
+public class SubProcess : Activity, IFlowElementContainer
 {
     public bool TriggeredByEvent { get; set; }
     

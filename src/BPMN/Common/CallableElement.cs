@@ -4,9 +4,9 @@ using BPMN.Service;
 
 namespace BPMN.Common;
 
-public class CallableElement(string name) : RootElement
+public class CallableElement : RootElement
 {
-    public string Name { get; set; } = name;
+    public required string Name { get; set; }
     
     public InputOutputSpecification? IoSpecification { get; set; }
     public List<InputOutputBinding> IoBindings { get; set; } = [];

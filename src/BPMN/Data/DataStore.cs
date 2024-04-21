@@ -2,9 +2,9 @@ using BPMN.Foundation;
 
 namespace BPMN.Data;
 
-public class DataStore(string name) : ItemAwareElement, IRootElement
+public class DataStore : ItemAwareElement, IRootElement
 {
-    public string Name { get; set; } = name;
+    public required string Name { get; set; }
     public bool IsUnlimited { get; set; }
     public int? Capacity { get; set; }
 }

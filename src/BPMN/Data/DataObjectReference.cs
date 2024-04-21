@@ -1,6 +1,6 @@
 namespace BPMN.Data;
 
-public class DataObjectReference(DataObject dataObjectRef) : ItemAwareElement
+public class DataObjectReference : ItemAwareElement
 {
-    public DataObject DataObjectRef { get; set; } = dataObjectRef;
+    public required DataObject DataObjectRef { get; set; }
 }

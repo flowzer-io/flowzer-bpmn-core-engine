@@ -4,8 +4,8 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public class BoundaryEvent(string name, IFlowElementContainer container, OutputSet outputSet, Activity attachedToRef) : CatchEvent(name, container, outputSet)
+public class BoundaryEvent : CatchEvent
 {
-    public bool CancelActivity { get; set; }
-    public Activity AttachedToRef { get; set; } = attachedToRef;
+    public required bool CancelActivity { get; set; }
+    public required Activity AttachedToRef { get; set; }
 }

@@ -1,11 +1,8 @@
-using System.ComponentModel.DataAnnotations;
-using BPMN.Common;
-
 namespace BPMN.HumanInteraction;
 
-public class UserTask(string name, IFlowElementContainer container) : Activities.Task(name, container)
+public class UserTask : Activities.Task
 {
-    [Required] public string Implementation { get; set; } = "";
+    public required string Implementation { get; set; }
     
     public List<Rendering> Renderings { get; set; } = [];
 }

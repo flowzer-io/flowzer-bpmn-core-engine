@@ -4,7 +4,7 @@ using BPMN.Events;
 
 namespace BPMN.Activities;
 
-public class Activity(string name, IFlowElementContainer container) : FlowNode(name, container)
+public class Activity : FlowNode
 {
     public bool IsForCompensation { get; set; }
     public int StartQuantity { get; set; }

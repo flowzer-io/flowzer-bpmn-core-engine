@@ -5,7 +5,7 @@ using BPMN.Foundation;
 
 namespace BPMN.Process;
 
-public class Process(string id, string name) : CallableElement(name), IFlowElementContainer
+public class Process : CallableElement, IFlowElementContainer
 {
     public ProcessType ProcessType { get; set; }
     public bool IsExecutable { get; set; }
@@ -19,7 +19,7 @@ public class Process(string id, string name) : CallableElement(name), IFlowEleme
     public Monitoring? Monitoring { get; set; }
     public Auditing? Auditing { get; set; }
 
-    public string Id { get; set; } = id;
+    public required string Id { get; set; }
     public List<Documentation> Documentations { get; set; } = [];
     public List<ExtensionDefinition> ExtensionDefinitions { get; set; } = [];
     public List<FlowElement> FlowElements { get; set; } = [];
