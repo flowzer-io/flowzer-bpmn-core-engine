@@ -5,7 +5,7 @@ public class InteractionResult
     /// <summary>
     /// The activity that the result of the interaction pertains to.
     /// </summary>
-    public required string ActivityId { get; set; }
+    public required string FlowNodeId { get; set; }
     
     /// <summary>
     /// The ID of the token that triggered this activity. (This is necessary to clarify which of the

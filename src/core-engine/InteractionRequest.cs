@@ -10,7 +10,13 @@ public abstract class InteractionRequest
     /// <summary>
     /// The BPMN node to which data should be passed in the event of a service event.
     /// </summary>
-    public required string ActivityId { get; set; }
+    public required string FlowNodeId { get; set; }
+    
+    /// <summary>
+    /// The ID of the token that triggered this activity. (This is necessary to clarify which of the
+    /// tokens at the activity should be continued. This is important for distributed systems.)
+    /// </summary>
+    public required Guid TokenId { get; set; }
     
     /// <summary>
     /// The data that should be passed to the service.
