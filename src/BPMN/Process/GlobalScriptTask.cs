@@ -1,7 +1,7 @@
 namespace BPMN.Process;
 
-public class GlobalScriptTask(string name, string script) : GlobalTask(name)
+public class GlobalScriptTask : GlobalTask
 {
     public string? ScriptLanguage { get; set; }
-    public string Script { get; set; } = script;
+    public required string Script { get; set; }
 }

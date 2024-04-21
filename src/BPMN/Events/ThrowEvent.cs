@@ -1,11 +1,10 @@
-using BPMN.Common;
 using BPMN.Data;
 
 namespace BPMN.Events;
 
-public abstract class ThrowEvent(string name, IFlowElementContainer container, InputSet inputSet) : Event(name, container)
+public abstract class ThrowEvent : Event
 {
-    public InputSet InputSet { get; set; } = inputSet;
+    public required InputSet InputSet { get; set; }
     public List<DataInput> DataInputs { get; set; } = [];
     public List<DataInputAssociation> DataInputAssociations { get; set; } = [];
     public List<EventDefinition> EventDefinitions { get; set; } = [];

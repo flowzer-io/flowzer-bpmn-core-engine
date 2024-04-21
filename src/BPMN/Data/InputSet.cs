@@ -2,9 +2,9 @@ using BPMN.Foundation;
 
 namespace BPMN.Data;
 
-public class InputSet(string name) : BaseElement
+public class InputSet : BaseElement
 {
-    public string Name { get; set; } = name;
+    public required string Name { get; set; }
 
     public List<DataInput> DataInputRefs { get; set; } = [];
     public List<DataInput> OptionalInputRefs { get; set; } = [];

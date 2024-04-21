@@ -1,14 +1,13 @@
-using System.ComponentModel.DataAnnotations;
 using BPMN.Common;
 using BPMN.Foundation;
 
 namespace BPMN.Process;
 
-public class Lane(LaneSet laneSet) : BaseElement
+public class Lane : BaseElement
 {
-    [Required] public string Name { get; set; } = "";
+    public required string Name { get; set; }
     
-    public LaneSet LaneSet { get; set; } = laneSet;
+    public required LaneSet LaneSet { get; set; }
     public LaneSet? ChildLaneSet { get; set; }
     public List<FlowNode> FlowNodeRefs { get; set; } = [];
     public IBaseElement? PartitionElementRef { get; set; }

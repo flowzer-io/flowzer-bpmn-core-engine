@@ -1,10 +1,8 @@
-using System.ComponentModel.DataAnnotations;
-
 namespace BPMN.Data;
 
 public class DataOutput : ItemAwareElement
 {
-    [Required] public string Name { get; set; } = "";
+    public required string Name { get; set; }
     public bool IsCollection { get; set; }
     
     public List<OutputSet> OutputSetRefs { get; set; } = [];

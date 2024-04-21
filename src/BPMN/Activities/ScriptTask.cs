@@ -1,10 +1,7 @@
-using System.ComponentModel.DataAnnotations;
-using BPMN.Common;
-
 namespace BPMN.Activities;
 
-public class ScriptTask(string name, IFlowElementContainer container) : Task(name, container)
+public class ScriptTask : Task
 {
-    [Required] public string ScriptFormat { get; set; } = "";
-    [Required] public string Script { get; set; } = "";
+    public required string ScriptFormat { get; set; }
+    public required string Script { get; set; }
 }

@@ -2,10 +2,10 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class AdHocSubProcess(string name, IFlowElementContainer container, Expression completionCondition) : SubProcess(name, container)
+public class AdHocSubProcess : SubProcess
 {
     public bool CancelRemainingInstances { get; set; }
     public AdHocOrdering Ordering { get; set; }
     
-    public Expression CompletionCondition { get; set; } = completionCondition;
+    public required Expression CompletionCondition { get; set; }
 }

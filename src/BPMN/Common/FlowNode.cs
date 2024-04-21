@@ -1,3 +1,3 @@
 namespace BPMN.Common;
 
-public abstract class FlowNode(string name, IFlowElementContainer container) : FlowElement(name, container);
+public abstract class FlowNode : FlowElement;
