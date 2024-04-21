@@ -1,10 +1,11 @@
+using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Foundation;
 
 namespace BPMN.Artifacts;
 
-public class CategoryValue(string value) : BaseElement
+public class CategoryValue : BaseElement
 {
-    public string Value { get; set; } = value;
+    public required string Value { get; set; }
     public List<FlowElement> CategorizedFlowElements { get; set; } = [];
 }

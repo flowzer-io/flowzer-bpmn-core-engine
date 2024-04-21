@@ -3,8 +3,8 @@ using BPMN.Foundation;
 
 namespace BPMN.Activities;
 
-public abstract class ResourceParameterBinding(ResourceParameter parameterRef) : BaseElement
+public abstract class ResourceParameterBinding : BaseElement
 {
-    public ResourceParameter ParameterRef { get; set; } = parameterRef;
+    public required ResourceParameter ParameterRef { get; set; }
     public Expression? Expression { get; set; }
 }

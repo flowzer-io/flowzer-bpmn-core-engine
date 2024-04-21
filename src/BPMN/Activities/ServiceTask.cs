@@ -1,9 +1,8 @@
-using System.ComponentModel.DataAnnotations;
 using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class ServiceTask(string name, IFlowElementContainer container) : Task(name, container)
+public class ServiceTask : Task
 {
-    [Required] public string Implementation { get; set; } = "";
+    public required string Implementation { get; set; }
 }

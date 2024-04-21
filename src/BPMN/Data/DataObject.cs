@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Data;
 
-public class DataObject(string name, IFlowElementContainer container) : FlowElement(name, container), IItemAwareElement
+public class DataObject : FlowElement, IItemAwareElement
 {
     public bool IsCollection { get; set; }
     public ItemDefinition? ItemSubjectRef { get; set; }

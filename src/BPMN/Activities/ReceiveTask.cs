@@ -4,7 +4,7 @@ using BPMN.Service;
 
 namespace BPMN.Activities;
 
-public class ReceiveTask(string name, IFlowElementContainer container) : Task(name, container)
+public class ReceiveTask : Task
 {
     [Required] public string Implementation { get; set; } = "";
     public bool Instantiate { get; set; }

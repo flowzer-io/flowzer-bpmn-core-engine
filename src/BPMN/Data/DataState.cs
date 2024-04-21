@@ -4,5 +4,5 @@ namespace BPMN.Data;
 
 public class DataState : BaseElement
 {
-    public string Name { get; set; } = "";
+    public string? Name { get; set; }
 }
