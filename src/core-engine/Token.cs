@@ -1,3 +1,5 @@
+using BPMN.Common;
+
 namespace core_engine;
 
 /// <summary>
@@ -8,15 +10,10 @@ public class Token
     /// <summary>
     /// The unique ID of the token.
     /// </summary>
-    public required Guid Id { get; set; }
-    
-    /// <summary>
-    /// The time at which the token reached the node.
-    /// </summary>
-    public required DateTime Time { get; set; }
+    public required Guid Id { get; set; } = Guid.NewGuid();
     
     /// <summary>
     /// The ID of the node where the token is currently located.
     /// </summary>
-    public required string BpmnNodeId { get; set; }
+    public required FlowNode ActualNode { get; set; }
 }

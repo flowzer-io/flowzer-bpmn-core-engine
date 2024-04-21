@@ -1,3 +1,4 @@
+using BPMN.Common;
 using BPMN.Foundation;
 
 namespace BPMN.Infrastructure;
@@ -13,4 +14,5 @@ public class Definitions : BaseElement
     
     public List<Extension> Extensions { get; set; } = [];
     public List<RootElement> RootElements { get; set; } = [];
+    public List<FlowNode> FlowNodes { get; set; } = [];
 }
