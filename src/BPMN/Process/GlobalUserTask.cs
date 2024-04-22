@@ -2,9 +2,9 @@ using BPMN.HumanInteraction;
 
 namespace BPMN.Process;
 
-public class GlobalUserTask : GlobalTask
+public record GlobalUserTask : GlobalTask
 {
-    public required string Implementation { get; set; }
+    public required string Implementation { get; init; }
 
-    public List<Rendering> Renderings { get; set; } = [];
+    public List<Rendering> Renderings { get; init; } = [];
 }

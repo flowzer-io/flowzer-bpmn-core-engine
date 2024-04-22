@@ -3,4 +3,4 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public class EndEvent : ThrowEvent;
+public record EndEvent : ThrowEvent;

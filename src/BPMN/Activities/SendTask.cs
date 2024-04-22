@@ -3,10 +3,10 @@ using BPMN.Service;
 
 namespace BPMN.Activities;
 
-public class SendTask : Task
+public record SendTask : Task
 { 
-    public required string Implementation { get; set; }
+    public required string Implementation { get; init; }
     
-    public Message? MessageRef { get; set; }
-    public Operation? OperationRef { get; set; }
+    public Message? MessageRef { get; init; }
+    public Operation? OperationRef { get; init; }
 }

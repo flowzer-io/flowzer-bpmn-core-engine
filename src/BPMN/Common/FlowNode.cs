@@ -1,3 +1,3 @@
 namespace BPMN.Common;
 
-public abstract class FlowNode : FlowElement;
+public abstract record FlowNode : FlowElement;

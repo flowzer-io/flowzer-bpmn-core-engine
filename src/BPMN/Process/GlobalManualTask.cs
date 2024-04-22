@@ -1,3 +1,3 @@
 namespace BPMN.Process;
 
-public class GlobalManualTask : GlobalTask;
+public record GlobalManualTask : GlobalTask;

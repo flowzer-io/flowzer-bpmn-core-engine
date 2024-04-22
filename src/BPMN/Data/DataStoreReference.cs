@@ -1,6 +1,6 @@
 namespace BPMN.Data;
 
-public class DataStoreReference : ItemAwareElement
+public record DataStoreReference : ItemAwareElement
 {
-    public DataStore? DataStoreRef { get; set; }
+    public DataStore? DataStoreRef { get; init; }
 }

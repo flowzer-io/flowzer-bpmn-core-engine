@@ -1,8 +1,8 @@
 namespace BPMN.HumanInteraction;
 
-public class UserTask : Activities.Task
+public record UserTask : Activities.Task
 {
-    public required string Implementation { get; set; }
+    public required string Implementation { get; init; }
     
-    public List<Rendering> Renderings { get; set; } = [];
+    public List<Rendering> Renderings { get; init; } = [];
 }

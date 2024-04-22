@@ -1,3 +1,3 @@
 namespace BPMN.Common;
 
-public abstract class CorrelationSubscription;
+public abstract record CorrelationSubscription;

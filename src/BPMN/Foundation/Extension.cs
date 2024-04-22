@@ -1,6 +1,6 @@
 namespace BPMN.Foundation;
 
-public class Extension
+public record Extension
 {
-    public bool MustUnderstand { get; set; }
+    public bool MustUnderstand { get; init; }
 }

@@ -2,7 +2,7 @@ using BPMN.Foundation;
 
 namespace BPMN.Data;
 
-public class DataState : BaseElement
+public record DataState : BaseElement
 {
-    public string? Name { get; set; }
+    public string? Name { get; init; }
 }

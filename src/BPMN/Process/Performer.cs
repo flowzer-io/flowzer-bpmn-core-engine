@@ -2,4 +2,4 @@ using BPMN.Activities;
 
 namespace BPMN.Process;
 
-public abstract class Performer : ResourceRole;
+public abstract record Performer : ResourceRole;

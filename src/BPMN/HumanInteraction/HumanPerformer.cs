@@ -2,4 +2,4 @@ using BPMN.Process;
 
 namespace BPMN.HumanInteraction;
 
-public abstract class HumanPerformer : Performer;
+public abstract record HumanPerformer : Performer;

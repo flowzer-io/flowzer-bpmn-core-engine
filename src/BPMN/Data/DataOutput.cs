@@ -1,11 +1,11 @@
 namespace BPMN.Data;
 
-public class DataOutput : ItemAwareElement
+public record DataOutput : ItemAwareElement
 {
-    public required string Name { get; set; }
-    public bool IsCollection { get; set; }
+    public required string Name { get; init; }
+    public bool IsCollection { get; init; }
     
-    public List<OutputSet> OutputSetRefs { get; set; } = [];
-    public List<OutputSet> OutputSetWithWhileExecuting { get; set; } = [];
-    public List<OutputSet> OutputSetWithOptional { get; set; } = [];
+    public List<OutputSet> OutputSetRefs { get; init; } = [];
+    public List<OutputSet> OutputSetWithWhileExecuting { get; init; } = [];
+    public List<OutputSet> OutputSetWithOptional { get; init; } = [];
 }

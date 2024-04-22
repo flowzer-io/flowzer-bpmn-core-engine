@@ -3,7 +3,7 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class BusinessRuleTask : Task
+public record BusinessRuleTask : Task
 {
-    [Required] public string Implementation { get; set; } = "";
+    [Required] public string Implementation { get; init; } = "";
 }

@@ -2,9 +2,9 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class SubProcess : Activity, IFlowElementContainer
+public record SubProcess : Activity, IFlowElementContainer
 {
-    public bool TriggeredByEvent { get; set; }
+    public bool TriggeredByEvent { get; init; }
     
-    public List<FlowElement> FlowElements { get; set; } = [];
+    public List<FlowElement> FlowElements { get; init; } = [];
 }

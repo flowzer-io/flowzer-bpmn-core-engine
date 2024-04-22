@@ -1,6 +1,6 @@
 namespace BPMN.Events;
 
-public class SignalEventDefinition : EventDefinition
+public record SignalEventDefinition : EventDefinition
 {
-    public Signal? SignalRef { get; set; }
+    public Signal? SignalRef { get; init; }
 }

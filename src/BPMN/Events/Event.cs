@@ -3,8 +3,8 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public abstract class Event : FlowNode
+public abstract record Event : FlowNode
 {
-    public List<Escalation> Escalations { get; set; } = [];
-    public List<Property> Properties { get; set; } = [];
+    public List<Escalation> Escalations { get; init; } = [];
+    public List<Property> Properties { get; init; } = [];
 }

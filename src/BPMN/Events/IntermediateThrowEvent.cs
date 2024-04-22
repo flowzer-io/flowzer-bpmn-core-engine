@@ -3,4 +3,4 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public class IntermediateThrowEvent : ThrowEvent;
+public record IntermediateThrowEvent : ThrowEvent;

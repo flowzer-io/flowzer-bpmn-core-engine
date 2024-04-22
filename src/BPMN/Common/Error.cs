@@ -1,9 +1,9 @@
 namespace BPMN.Common;
 
-public class Error
+public record Error
 {
-    public required string Name { get; set; }
-    public string? ErrorCode { get; set; }
+    public required string Name { get; init; }
+    public string? ErrorCode { get; init; }
     
-    public ItemDefinition? StructureRef { get; set; }
+    public ItemDefinition? StructureRef { get; init; }
 }

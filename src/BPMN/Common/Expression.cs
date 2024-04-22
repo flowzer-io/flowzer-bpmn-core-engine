@@ -2,4 +2,4 @@ using BPMN.Foundation;
 
 namespace BPMN.Common;
 
-public abstract class Expression : BaseElement;
+public abstract record Expression : BaseElement;

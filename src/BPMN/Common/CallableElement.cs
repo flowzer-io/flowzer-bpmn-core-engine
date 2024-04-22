@@ -4,11 +4,11 @@ using BPMN.Service;
 
 namespace BPMN.Common;
 
-public class CallableElement : RootElement
+public record CallableElement : RootElement
 {
-    public required string Name { get; set; }
+    public required string Name { get; init; }
     
-    public InputOutputSpecification? IoSpecification { get; set; }
-    public List<InputOutputBinding> IoBindings { get; set; } = [];
-    public List<Interface> SupportedInterfaceRefs { get; set; } = [];
+    public InputOutputSpecification? IoSpecification { get; init; }
+    public List<InputOutputBinding> IoBindings { get; init; } = [];
+    public List<Interface> SupportedInterfaceRefs { get; init; } = [];
 }

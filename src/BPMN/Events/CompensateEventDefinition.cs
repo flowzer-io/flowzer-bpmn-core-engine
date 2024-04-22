@@ -2,8 +2,8 @@ using BPMN.Activities;
 
 namespace BPMN.Events;
 
-public class CompensateEventDefinition : EventDefinition
+public record CompensateEventDefinition : EventDefinition
 {
-    public bool WaitForCompletion { get; set; }
-    public Activity? ActivityRef { get; set; }
+    public bool WaitForCompletion { get; init; }
+    public Activity? ActivityRef { get; init; }
 }

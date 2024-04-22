@@ -1,3 +1,3 @@
 namespace BPMN.Data;
 
-public class DataOutputAssociation : DataAssociation;
+public record DataOutputAssociation : DataAssociation;

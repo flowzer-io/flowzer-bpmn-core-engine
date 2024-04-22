@@ -4,12 +4,12 @@ using BPMN.Data;
 
 namespace BPMN.Service;
 
-public class Operation
+public record Operation
 {
-    public required string Name { get; set; }
-    public string? ImplementationRef { get; set; }
+    public required string Name { get; init; }
+    public string? ImplementationRef { get; init; }
     
-    public required Message InMessageRef { get; set; }
-    public Message? OutMessageRef { get; set; }
-    public List<InputOutputBinding> IoBindings { get; set; } = [];
+    public required Message InMessageRef { get; init; }
+    public Message? OutMessageRef { get; init; }
+    public List<InputOutputBinding> IoBindings { get; init; } = [];
 }

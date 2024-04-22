@@ -4,18 +4,18 @@ using BPMN.Events;
 
 namespace BPMN.Activities;
 
-public class MultiInstanceLoopCharacteristics : LoopCharacteristics
+public record MultiInstanceLoopCharacteristics : LoopCharacteristics
 {
-    public bool IsSequential { get; set; }
-    public MultiInstanceBehavior Behavior { get; set; }
+    public bool IsSequential { get; init; }
+    public MultiInstanceBehavior Behavior { get; init; }
     
-    public Expression? LoopCardinality { get; set; }
-    public Expression? CompletionCondition { get; set; }
-    public List<ComplexBehaviorDefinition> ComplexBehaviorDefinitions { get; set; } = [];
-    public EventDefinition? OneBehaviorEventRef { get; set; }
-    public EventDefinition? NoneBehaviorEventRef { get; set; }
-    public ItemAwareElement? LoopDataInputRef { get; set; }
-    public ItemAwareElement? LoopDataOutputRef { get; set; }
-    public DataOutput? OutputDataItem { get; set; }
-    public DataInput? InputDataItem { get; set; }
+    public Expression? LoopCardinality { get; init; }
+    public Expression? CompletionCondition { get; init; }
+    public List<ComplexBehaviorDefinition> ComplexBehaviorDefinitions { get; init; } = [];
+    public EventDefinition? OneBehaviorEventRef { get; init; }
+    public EventDefinition? NoneBehaviorEventRef { get; init; }
+    public ItemAwareElement? LoopDataInputRef { get; init; }
+    public ItemAwareElement? LoopDataOutputRef { get; init; }
+    public DataOutput? OutputDataItem { get; init; }
+    public DataInput? InputDataItem { get; init; }
 }

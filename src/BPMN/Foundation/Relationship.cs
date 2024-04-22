@@ -1,7 +1,7 @@
 namespace BPMN.Foundation;
 
-public class Relationship : BaseElement
+public record Relationship : BaseElement
 {
-    public string Type { get; set; } = "";
-    public RelationshipDirection RelationshipDirection { get; set; }
+    public string Type { get; init; } = "";
+    public RelationshipDirection RelationshipDirection { get; init; }
 }

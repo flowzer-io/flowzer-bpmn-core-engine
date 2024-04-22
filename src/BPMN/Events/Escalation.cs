@@ -2,10 +2,10 @@ using BPMN.Common;
 
 namespace BPMN.Events;
 
-public class Escalation
+public record Escalation
 {
-    public string EscalationCode { get; set; } = "";
-    public string Name { get; set; } = "";
+    public string EscalationCode { get; init; } = "";
+    public string Name { get; init; } = "";
     
-    public ItemDefinition? StructureRef { get; set; }
+    public ItemDefinition? StructureRef { get; init; }
 }

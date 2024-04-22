@@ -1,7 +1,7 @@
 namespace BPMN.Foundation;
 
-public class ExtensionDefinition
+public record ExtensionDefinition
 {
-    public required string Name { get; set; }
-    public required List<ExtensionAttributeDefinition> ExtensionAttributeDefinitions { get; set; }
+    public required string Name { get; init; }
+    public required List<ExtensionAttributeDefinition> ExtensionAttributeDefinitions { get; init; }
 }

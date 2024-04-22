@@ -2,9 +2,9 @@ using BPMN.Foundation;
 
 namespace BPMN.Common;
 
-public class ItemDefinition : RootElement
+public record ItemDefinition : RootElement
 {
-    public ItemKind ItemKind { get; set; }
-    public object? StructureRef { get; set; }
-    public bool IsCollection { get; set; }
+    public ItemKind ItemKind { get; init; }
+    public object? StructureRef { get; init; }
+    public bool IsCollection { get; init; }
 }

@@ -4,8 +4,8 @@ using BPMN.Foundation;
 
 namespace BPMN.Artifacts;
 
-public class CategoryValue : BaseElement
+public record CategoryValue : BaseElement
 {
-    public required string Value { get; set; }
-    public List<FlowElement> CategorizedFlowElements { get; set; } = [];
+    public required string Value { get; init; }
+    public List<FlowElement> CategorizedFlowElements { get; init; } = [];
 }

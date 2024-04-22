@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Gateways;
 
-public class Gateway : FlowNode
+public record Gateway : FlowNode
 {
-    public GatewayDirection GatewayDirection { get; set; }
+    public GatewayDirection GatewayDirection { get; init; }
 }

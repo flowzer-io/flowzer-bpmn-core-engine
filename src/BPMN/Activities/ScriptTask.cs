@@ -1,7 +1,7 @@
 namespace BPMN.Activities;
 
-public class ScriptTask : Task
+public record ScriptTask : Task
 {
-    public required string ScriptFormat { get; set; }
-    public required string Script { get; set; }
+    public required string ScriptFormat { get; init; }
+    public required string Script { get; init; }
 }

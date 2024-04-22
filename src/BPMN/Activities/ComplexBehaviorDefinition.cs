@@ -3,8 +3,8 @@ using BPMN.Events;
 
 namespace BPMN.Activities;
 
-public class ComplexBehaviorDefinition
+public record ComplexBehaviorDefinition
 {
-    public FormalExpression? Condition { get; set; }
-    public ImplicitThrowEvent? Event { get; set; }
+    public FormalExpression? Condition { get; init; }
+    public ImplicitThrowEvent? Event { get; init; }
 }

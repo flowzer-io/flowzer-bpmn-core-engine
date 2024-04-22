@@ -1,9 +1,9 @@
 namespace BPMN.Process;
 
-public class LaneSet
+public record LaneSet
 {
-    public required string Name { get; set; }
+    public required string Name { get; init; }
     
-    public List<Lane> Lanes { get; set; } = [];
-    public Lane? ParentLane { get; set; }
+    public List<Lane> Lanes { get; init; } = [];
+    public Lane? ParentLane { get; init; }
 }

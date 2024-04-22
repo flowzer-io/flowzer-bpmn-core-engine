@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Events;
 
-public class ErrorEventDefinition : EventDefinition
+public record ErrorEventDefinition : EventDefinition
 {
-    public Error? Error { get; set; }
+    public Error? Error { get; init; }
 }

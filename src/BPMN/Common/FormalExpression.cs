@@ -1,9 +1,9 @@
 namespace BPMN.Common;
 
-public class FormalExpression : Expression
+public record FormalExpression : Expression
 {
-    public required string Body { get; set; }
-    public required string Language { get; set; }
+    public required string Body { get; init; }
+    public required string Language { get; init; }
     
-    public ItemDefinition? EvaluatesToTypeRef { get; set; }
+    public ItemDefinition? EvaluatesToTypeRef { get; init; }
 }

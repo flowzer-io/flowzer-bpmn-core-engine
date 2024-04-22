@@ -1,6 +1,6 @@
 namespace BPMN.Activities;
 
-public class StandardLoopCharacteristics : LoopCharacteristics
+public record StandardLoopCharacteristics : LoopCharacteristics
 {
-    public bool TestBefore { get; set; }
+    public bool TestBefore { get; init; }
 }

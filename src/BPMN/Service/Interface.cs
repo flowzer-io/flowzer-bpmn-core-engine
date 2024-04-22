@@ -2,11 +2,11 @@ using BPMN.Common;
 
 namespace BPMN.Service;
 
-public class Interface
+public record Interface
 {
-    public required string Name { get; set; }
-    public string? ImplementationRef { get; set; }
+    public required string Name { get; init; }
+    public string? ImplementationRef { get; init; }
     
-    public List<Operation> Operations { get; set; } = [];
-    public List<CallableElement> CallableElements { get; set; } = [];
+    public List<Operation> Operations { get; init; } = [];
+    public List<CallableElement> CallableElements { get; init; } = [];
 }
