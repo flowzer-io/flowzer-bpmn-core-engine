@@ -4,6 +4,7 @@ using BPMN.Events;
 using BPMN.Gateways;
 using BPMN.Infrastructure;
 using BPMN.Process;
+using CatchEvent = BPMN.Common.CatchEvent;
 
 // ReSharper disable MemberCanBePrivate.Global
 
@@ -18,9 +19,9 @@ public class BpmnModel(Definitions definitions)
     public List<StartEvent> StartEvents => Definitions.FlowNodes.OfType<StartEvent>().ToList();
     public string Id => Definitions.Id;
 
-    public List<FlowNode> GetThrowEvents(FlowNode actualNode)
+    public List<CatchEvent> GetCatchEvents(CatchEvent actualNode)
     {
-        var nodes = new List<FlowNode>();
+        var nodes = new List<CatchEvent>();
         nodes.Add(actualNode);
         if (actualNode.GetType().IsAssignableTo(typeof(Activity)))
         {
