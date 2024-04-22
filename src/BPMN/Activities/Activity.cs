@@ -1,11 +1,10 @@
 using BPMN.Common;
 using BPMN.Data;
 using BPMN.Events;
-using CatchEvent = BPMN.Common.CatchEvent;
 
 namespace BPMN.Activities;
 
-public class Activity : CatchEvent
+public class Activity : FlowNode
 {
     public bool IsForCompensation { get; set; }
     public int StartQuantity { get; set; }
@@ -15,7 +14,7 @@ public class Activity : CatchEvent
     public List<DataInputAssociation> DataInputAssociations { get; set; } = [];
     public List<DataOutputAssociation> DataOutputAssociations { get; set; } = [];
     public List<Property> Properties { get; set; } = [];
-    public CatchEvent? Default { get; set; }
+    public FlowNode? Default { get; set; }
     public List<ResourceRole> Resources { get; set; } = [];
     public LoopCharacteristics? LoopCharacteristics { get; set; }
     public List<BoundaryEvent> BoundaryEvents { get; set; } = [];

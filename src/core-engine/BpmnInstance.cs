@@ -2,7 +2,6 @@ using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
 using BPMN.Process;
-using CatchEvent = BPMN.Common.CatchEvent;
 
 namespace core_engine;
 
@@ -20,7 +19,7 @@ public class BpmnInstance
         return Model.GetCatchEvents(token.ActualNode);
     }
 
-    public void Start(CatchEvent? flowNode = null)
+    public void Start(FlowNode? flowNode = null)
     {
         // Wenn flowNode null ist, wird der Prozess gestartet mit allen StartEvents etc.
         // Wenn flowNode nicht null ist, wird der Prozess an der Stelle gestartet
@@ -28,17 +27,22 @@ public class BpmnInstance
         throw new NotImplementedException();
     }
     
-    public void CompleteActivity(Guid tokenId, Activity activity, Dictionary<string, object> variables)
+    public void CompleteActivity(Token token, Activity activity, Dictionary<string, object> variables)
     {
-        // Die ProcessAktivity wird abgeschlossen und die Variablen werden gesetzt
+        // Die ProcessActivity wird abgeschlossen und die Variablen werden gesetzt
         
         throw new NotImplementedException();
     }
     
-    public void HandleEvent(Guid tokenId, BPMN.Events.CatchEvent catchEvent, Dictionary<string, object> variables)
+    public void HandleEvent(Token token, BPMN.Events.CatchEvent catchEvent, Dictionary<string, object> variables)
     {
         // Hier wird ein Event verarbeitet, welches von Aussen "geworfen" wird.
         
         throw new NotImplementedException();
+    }
+    
+    public void Cancel()
+    {
+        // Hier wird die Instance abgebrochen
     }
 }

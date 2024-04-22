@@ -9,7 +9,7 @@ public class Lane : BaseElement
     
     public required LaneSet LaneSet { get; set; }
     public LaneSet? ChildLaneSet { get; set; }
-    public List<CatchEvent> FlowNodeRefs { get; set; } = [];
+    public List<FlowNode> FlowNodeRefs { get; set; } = [];
     public IBaseElement? PartitionElementRef { get; set; }
     public IBaseElement? PartitionElement { get; set; }
 }

@@ -15,5 +15,6 @@ public class Token
     /// <summary>
     /// The ID of the node where the token is currently located.
     /// </summary>
-    public required CatchEvent ActualNode { get; set; }
+    public required FlowNode ActualNode { get; set; }
+
 }
