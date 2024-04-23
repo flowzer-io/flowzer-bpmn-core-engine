@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Gateways;
 
-public class ExclusiveGateway : Gateway
+public record ExclusiveGateway : Gateway
 {
-    public SequenceFlow? Default { get; set; }
+    public SequenceFlow? Default { get; init; }
 }

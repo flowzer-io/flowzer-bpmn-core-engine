@@ -3,13 +3,13 @@ using BPMN.Foundation;
 
 namespace BPMN.Process;
 
-public class Lane : BaseElement
+public record Lane : BaseElement
 {
-    public required string Name { get; set; }
+    public required string Name { get; init; }
     
-    public required LaneSet LaneSet { get; set; }
-    public LaneSet? ChildLaneSet { get; set; }
-    public List<FlowNode> FlowNodeRefs { get; set; } = [];
-    public IBaseElement? PartitionElementRef { get; set; }
-    public IBaseElement? PartitionElement { get; set; }
+    public required LaneSet LaneSet { get; init; }
+    public LaneSet? ChildLaneSet { get; init; }
+    public List<FlowNode> FlowNodeRefs { get; init; } = [];
+    public IBaseElement? PartitionElementRef { get; init; }
+    public IBaseElement? PartitionElement { get; init; }
 }

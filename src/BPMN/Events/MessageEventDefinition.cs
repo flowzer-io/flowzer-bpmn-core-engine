@@ -3,8 +3,8 @@ using BPMN.Service;
 
 namespace BPMN.Events;
 
-public class MessageEventDefinition : EventDefinition
+public record MessageEventDefinition : EventDefinition
 {
-    public Operation? OperationRef { get; set; }
-    public Message? MessageRef { get; set; }
+    public Operation? OperationRef { get; init; }
+    public Message? MessageRef { get; init; }
 }

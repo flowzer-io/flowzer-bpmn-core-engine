@@ -2,10 +2,10 @@ using BPMN.Foundation;
 
 namespace BPMN.Data;
 
-public abstract class InputOutputSpecification : BaseElement
+public abstract record InputOutputSpecification : BaseElement
 {
-    public List<InputSet> InputSets { get; set; } = [];
-    public List<OutputSet> OutputSets { get; set; } = [];
-    public List<DataInput> DataInputs { get; set; } = [];
-    public List<DataOutput> DataOutputs { get; set; } = [];
+    public List<InputSet> InputSets { get; init; } = [];
+    public List<OutputSet> OutputSets { get; init; } = [];
+    public List<DataInput> DataInputs { get; init; } = [];
+    public List<DataOutput> DataOutputs { get; init; } = [];
 }

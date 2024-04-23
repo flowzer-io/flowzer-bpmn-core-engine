@@ -2,4 +2,4 @@ using BPMN.Foundation;
 
 namespace BPMN.Process;
 
-public class Auditing : BaseElement;
+public record Auditing : BaseElement;

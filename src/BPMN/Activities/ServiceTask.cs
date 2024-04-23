@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class ServiceTask : Task
+public record ServiceTask : Task
 {
-    public required string Implementation { get; set; }
+    public required string Implementation { get; init; }
 }

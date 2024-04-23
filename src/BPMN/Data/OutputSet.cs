@@ -1,11 +1,11 @@
 namespace BPMN.Data;
 
-public class OutputSet
+public record OutputSet
 {
-    public required string Name { get; set; }
+    public required string Name { get; init; }
 
-    public List<DataOutput> DataOutputRefs { get; set; } = [];
-    public List<DataOutput> OptionalOutputRefs { get; set; } = [];
-    public List<DataOutput> WhileExecutingOutputRefs { get; set; } = [];
-    public List<InputSet> InputSetRefs { get; set; } = [];
+    public List<DataOutput> DataOutputRefs { get; init; } = [];
+    public List<DataOutput> OptionalOutputRefs { get; init; } = [];
+    public List<DataOutput> WhileExecutingOutputRefs { get; init; } = [];
+    public List<InputSet> InputSetRefs { get; init; } = [];
 }

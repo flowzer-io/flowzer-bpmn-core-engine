@@ -3,7 +3,7 @@ using BPMN.Common;
 
 namespace BPMN.Process;
 
-public abstract class GlobalTask : CallableElement
+public abstract record GlobalTask : CallableElement
 {
-    public List<ResourceRole> Resources { get; set; } = [];
+    public List<ResourceRole> Resources { get; init; } = [];
 }

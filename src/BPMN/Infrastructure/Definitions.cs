@@ -3,16 +3,16 @@ using BPMN.Foundation;
 
 namespace BPMN.Infrastructure;
 
-public class Definitions : BaseElement
+public record Definitions : BaseElement
 {
-    //[Required] public string Name { get; set; } = "";
-    //[Required] public string TargetNamespace { get; set; } = "";
-    public string? ExpressionLanguage { get; set; }
-    public string? TypeLanguage { get; set; }
-    public string? Exporter { get; set; }
-    public string? ExporterVersion { get; set; }
+    //[Required] public string Name { get; init; } = "";
+    //[Required] public string TargetNamespace { get; init; } = "";
+    public string? ExpressionLanguage { get; init; }
+    public string? TypeLanguage { get; init; }
+    public string? Exporter { get; init; }
+    public string? ExporterVersion { get; init; }
     
-    public List<Extension> Extensions { get; set; } = [];
-    public List<RootElement> RootElements { get; set; } = [];
-    public List<FlowNode> FlowNodes { get; set; } = [];
+    public List<Extension> Extensions { get; init; } = [];
+    public List<RootElement> RootElements { get; init; } = [];
+    public List<FlowNode> FlowNodes { get; init; } = [];
 }

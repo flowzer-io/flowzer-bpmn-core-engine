@@ -1,9 +1,9 @@
 namespace BPMN.Common;
 
-public class SequenceFlow : FlowElement
+public record SequenceFlow : FlowElement
 {
-    public bool IsImmediate { get; set; }
-    public required FlowNode SourceRef { get; set; }
-    public required FlowNode TargetRef { get; set; }
-    public Expression? ConditionExpression { get; set; }
+    public bool IsImmediate { get; init; }
+    public required FlowNode SourceRef { get; init; }
+    public required FlowNode TargetRef { get; init; }
+    public Expression? ConditionExpression { get; init; }
 }

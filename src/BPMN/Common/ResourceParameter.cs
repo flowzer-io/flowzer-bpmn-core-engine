@@ -2,10 +2,10 @@ using BPMN.Foundation;
 
 namespace BPMN.Common;
 
-public class ResourceParameter : BaseElement
+public record ResourceParameter : BaseElement
 {
-    public required string Name { get; set; }
-    public bool IsRequired { get; set; }
+    public required string Name { get; init; }
+    public bool IsRequired { get; init; }
     
-    public ItemDefinition? Type { get; set; }
+    public ItemDefinition? Type { get; init; }
 }

@@ -2,9 +2,9 @@ using BPMN.Common;
 
 namespace BPMN.Events;
 
-public class TimerEventDefinition : EventDefinition
+public record TimerEventDefinition : EventDefinition
 {
-    public Expression? TimeDate { get; set; }
-    public Expression? TimeCycle { get; set; }
-    public Expression? TimeDuration { get; set; }
+    public Expression? TimeDate { get; init; }
+    public Expression? TimeCycle { get; init; }
+    public Expression? TimeDuration { get; init; }
 }

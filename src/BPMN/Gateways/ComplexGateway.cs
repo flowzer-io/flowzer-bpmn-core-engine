@@ -2,8 +2,8 @@ using BPMN.Common;
 
 namespace BPMN.Gateways;
 
-public class ComplexGateway : Gateway
+public record ComplexGateway : Gateway
 {
-    public Expression? ActivationCondition { get; set; }
-    public SequenceFlow? Default { get; set; }
+    public Expression? ActivationCondition { get; init; }
+    public SequenceFlow? Default { get; init; }
 }

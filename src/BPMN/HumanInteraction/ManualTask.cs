@@ -1,3 +1,3 @@
 namespace BPMN.HumanInteraction;
 
-public class ManualTask : Activities.Task;
+public record ManualTask : Activities.Task;

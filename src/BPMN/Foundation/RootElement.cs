@@ -1,3 +1,3 @@
 namespace BPMN.Foundation;
 
-public abstract class RootElement : IRootElement;
+public abstract record RootElement : IRootElement;

@@ -1,3 +1,3 @@
 namespace BPMN.HumanInteraction;
 
-public abstract class PotentialOwner : HumanPerformer;
+public abstract record PotentialOwner : HumanPerformer;

@@ -1,6 +1,6 @@
 namespace BPMN.Data;
 
-public class Property : ItemAwareElement
+public record Property : ItemAwareElement
 {
-    public required string Name { get; set; }
+    public required string Name { get; init; }
 }

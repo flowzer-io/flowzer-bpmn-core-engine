@@ -2,10 +2,10 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public abstract class ThrowEvent : Event
+public abstract record ThrowEvent : Event
 {
-    public required InputSet InputSet { get; set; }
-    public List<DataInput> DataInputs { get; set; } = [];
-    public List<DataInputAssociation> DataInputAssociations { get; set; } = [];
-    public List<EventDefinition> EventDefinitions { get; set; } = [];
+    public required InputSet InputSet { get; init; }
+    public List<DataInput> DataInputs { get; init; } = [];
+    public List<DataInputAssociation> DataInputAssociations { get; init; } = [];
+    public List<EventDefinition> EventDefinitions { get; init; } = [];
 }

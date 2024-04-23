@@ -4,11 +4,11 @@ using BPMN.Service;
 
 namespace BPMN.Activities;
 
-public class ReceiveTask : Task
+public record ReceiveTask : Task
 {
-    [Required] public string Implementation { get; set; } = "";
-    public bool Instantiate { get; set; }
+    [Required] public string Implementation { get; init; } = "";
+    public bool Instantiate { get; init; }
     
-    public Message? MessageRef { get; set; }
-    public Operation? OperationRef { get; set; }
+    public Message? MessageRef { get; init; }
+    public Operation? OperationRef { get; init; }
 }

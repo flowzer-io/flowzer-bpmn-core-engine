@@ -2,8 +2,8 @@ using BPMN.Foundation;
 
 namespace BPMN.Common;
 
-public class Message : RootElement
+public record Message : RootElement
 {
-    public required string Name { get; set; }
-    public ItemDefinition? ItemRef { get; set; }
+    public required string Name { get; init; }
+    public ItemDefinition? ItemRef { get; init; }
 }

@@ -2,8 +2,8 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public class Transaction : SubProcess
+public record Transaction : SubProcess
 {
-    public required string Method { get; set; }
-    public required string Protocol { get; set; }
+    public required string Method { get; init; }
+    public required string Protocol { get; init; }
 }

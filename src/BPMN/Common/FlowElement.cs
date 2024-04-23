@@ -4,11 +4,11 @@ using BPMN.Process;
 
 namespace BPMN.Common;
 
-public abstract class FlowElement : BaseElement
+public abstract record FlowElement : BaseElement
 {
-    public required string Name { get; set; }
-    public required IFlowElementContainer Container { get; set; }
-    public Auditing? Auditing { get; set; }
-    public Monitoring? Monitoring { get; set; }
-    public List<CategoryValue> CategoryValueRefs { get; set; } = [];
+    public required string Name { get; init; }
+    public required IFlowElementContainer Container { get; init; }
+    public Auditing? Auditing { get; init; }
+    public Monitoring? Monitoring { get; init; }
+    public List<CategoryValue> CategoryValueRefs { get; init; } = [];
 }

@@ -1,3 +1,3 @@
 namespace BPMN.Events;
 
-public class StartEvent : CatchEvent;
+public record StartEvent : CatchEvent;

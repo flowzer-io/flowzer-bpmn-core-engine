@@ -2,8 +2,8 @@ using BPMN.Common;
 
 namespace BPMN.Events;
 
-public class Signal
+public record Signal
 {
-    public string Name { get; set; } = "";
-    public ItemDefinition? StructureRef { get; set; }
+    public string Name { get; init; } = "";
+    public ItemDefinition? StructureRef { get; init; }
 }

@@ -5,22 +5,22 @@ using BPMN.Foundation;
 
 namespace BPMN.Process;
 
-public class Process : CallableElement, IFlowElementContainer
+public record Process : CallableElement, IFlowElementContainer
 {
-    public ProcessType ProcessType { get; set; }
-    public bool IsExecutable { get; set; }
-    public bool IsClosed { get; set; }
+    public ProcessType ProcessType { get; init; }
+    public bool IsExecutable { get; init; }
+    public bool IsClosed { get; init; }
     
-    public List<CorrelationSubscription> CorrelationSubscriptions { get; set; } = [];
-    public List<ResourceRole> Resources { get; set; } = [];
-    public Process? Supports { get; set; }
-    public LaneSet? LaneSet { get; set; }
-    public List<Property> Properties { get; set; } = [];
-    public Monitoring? Monitoring { get; set; }
-    public Auditing? Auditing { get; set; }
+    public List<CorrelationSubscription> CorrelationSubscriptions { get; init; } = [];
+    public List<ResourceRole> Resources { get; init; } = [];
+    public Process? Supports { get; init; }
+    public LaneSet? LaneSet { get; init; }
+    public List<Property> Properties { get; init; } = [];
+    public Monitoring? Monitoring { get; init; }
+    public Auditing? Auditing { get; init; }
 
-    public required string Id { get; set; }
-    public List<Documentation> Documentations { get; set; } = [];
-    public List<ExtensionDefinition> ExtensionDefinitions { get; set; } = [];
-    public List<FlowElement> FlowElements { get; set; } = [];
+    public required string Id { get; init; }
+    public List<Documentation> Documentations { get; init; } = [];
+    public List<ExtensionDefinition> ExtensionDefinitions { get; init; } = [];
+    public List<FlowElement> FlowElements { get; init; } = [];
 }

@@ -1,11 +1,11 @@
 namespace BPMN.Data;
 
-public class DataInput : ItemAwareElement
+public record DataInput : ItemAwareElement
 {
-    public required string Name { get; set; }
-    public bool IsCollection { get; set; }
+    public required string Name { get; init; }
+    public bool IsCollection { get; init; }
     
-    public List<InputSet> InputSetRefs { get; set; } = [];
-    public List<InputSet> InputSetWithWhileExecuting { get; set; } = [];
-    public List<InputSet> InputSetWithOptional { get; set; } = [];
+    public List<InputSet> InputSetRefs { get; init; } = [];
+    public List<InputSet> InputSetWithWhileExecuting { get; init; } = [];
+    public List<InputSet> InputSetWithOptional { get; init; } = [];
 }

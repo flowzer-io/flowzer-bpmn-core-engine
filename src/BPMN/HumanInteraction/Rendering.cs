@@ -1,3 +1,3 @@
 namespace BPMN.HumanInteraction;
 
-public abstract class Rendering;
+public abstract record Rendering;

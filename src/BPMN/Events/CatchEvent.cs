@@ -3,10 +3,10 @@ using BPMN.Data;
 
 namespace BPMN.Events;
 
-public abstract class CatchEvent : Event
+public abstract record CatchEvent : Event
 {
-    public required OutputSet OutputSet { get; set; }
-    public List<DataOutput> DataOutputs { get; set; } = [];
-    public List<DataOutputAssociation> DataOutputAssociations { get; set; } = [];
-    public List<EventDefinition> EventDefinitions { get; set; } = [];
+    public required OutputSet OutputSet { get; init; }
+    public List<DataOutput> DataOutputs { get; init; } = [];
+    public List<DataOutputAssociation> DataOutputAssociations { get; init; } = [];
+    public List<EventDefinition> EventDefinitions { get; init; } = [];
 }

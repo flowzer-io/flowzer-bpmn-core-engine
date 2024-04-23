@@ -2,7 +2,7 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public abstract class ResourceAssignmentExpression
+public abstract record ResourceAssignmentExpression
 {
-    public Expression? Expression { get; set; }
+    public Expression? Expression { get; init; }
 }

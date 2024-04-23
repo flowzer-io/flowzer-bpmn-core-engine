@@ -1,7 +1,7 @@
 namespace BPMN.Foundation;
 
-public class Documentation : BaseElement
+public record Documentation : BaseElement
 {
-    public required string Text { get; set; }
-    public string? TextFormat { get; set; }
+    public required string Text { get; init; }
+    public string? TextFormat { get; init; }
 }

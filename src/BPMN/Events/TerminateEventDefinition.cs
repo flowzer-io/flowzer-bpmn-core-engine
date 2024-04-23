@@ -1,3 +1,3 @@
 namespace BPMN.Events;
 
-public class TerminateEventDefinition : EventDefinition;
+public record TerminateEventDefinition : EventDefinition;

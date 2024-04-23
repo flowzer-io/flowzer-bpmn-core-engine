@@ -1,6 +1,6 @@
 namespace BPMN.Process;
 
-public class GlobalBusinessRuleTask : GlobalTask
+public record GlobalBusinessRuleTask : GlobalTask
 {
-    public required string Implementation { get; set; }
+    public required string Implementation { get; init; }
 }

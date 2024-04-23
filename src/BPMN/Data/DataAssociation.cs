@@ -3,10 +3,10 @@ using BPMN.Foundation;
 
 namespace BPMN.Data;
 
-public class DataAssociation : BaseElement
+public record DataAssociation : BaseElement
 {
-    public List<Assignment> Assignments { get; set; } = [];
-    public FormalExpression? Transformation { get; set; }
-    public required ItemAwareElement TargetRef { get; set; }
-    public ItemAwareElement? SourceRef { get; set; }
+    public List<Assignment> Assignments { get; init; } = [];
+    public FormalExpression? Transformation { get; init; }
+    public required ItemAwareElement TargetRef { get; init; }
+    public ItemAwareElement? SourceRef { get; init; }
 }

@@ -2,8 +2,8 @@ using BPMN.Common;
 
 namespace BPMN.Gateways;
 
-public class EventBasedGateway : Gateway
+public record EventBasedGateway : Gateway
 {
-    public EventBasedGatewayType EventBasedType { get; set; }
-    public bool Instantiate { get; set; }
+    public EventBasedGatewayType EventBasedType { get; init; }
+    public bool Instantiate { get; init; }
 }
