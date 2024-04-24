@@ -1,6 +1,6 @@
 namespace core_engine;
 
-public enum ActivityState
+public enum FlowNodeState
 {
     Ready,
     Active,

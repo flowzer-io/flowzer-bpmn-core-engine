@@ -7,23 +7,47 @@ namespace core_engine;
 
 public class BpmnInstance
 {
+    /// <summary>
+    /// Id der Instanz
+    /// </summary>
     public Guid Id { get; set; } = Guid.NewGuid();
+    
+    /// <summary>
+    /// Model des Prozesses
+    /// </summary>
     public required BpmnModel Model { get; set; }
+    
+    /// <summary>
+    /// Der Prozess innerhalb des Models, um den es sich handelt
+    /// </summary>
     public required Process Process { get; set; }
-    public List<Token> Tokens { get; private set; } = [];
-    public List<ProcessActivity> ProcessActivities { get; private set; } = [];
+    
+    /// <summary>
+    /// Aktuelle Tokens
+    /// </summary>
+    public List<Token> Tokens { get; init; } = [];
+    
+    /// <summary>
+    /// Aktuelle CatchEvents, auf welche alle gehorcht wird.
+    /// </summary>
+    public List<CatchEvent> PossibleCatchEvents { get; init; } = [];
+    
+    /// <summary>
+    /// 
+    /// </summary>
+    public List<ProcessFlowNode> ProcessActivities { get; init; } = [];
+    
+    /// <summary>
+    /// 
+    /// </summary>
     public Dictionary<string, object> ProcessVariables { get; set; } = new();
     
-    public List<CatchEvent> GetAdditionalCatchEvents(Token token)
+    /// <summary>
+    /// Startet den Prozess "normal". Zum Starten durch ein Event siehe Handle-Methoden
+    /// </summary>
+    /// <exception cref="NotImplementedException"></exception>
+    public void Start()
     {
-        return Model.GetCatchEvents(token.ActualNode);
-    }
-
-    public void Start(FlowNode? flowNode = null)
-    {
-        // Wenn flowNode null ist, wird der Prozess gestartet mit allen StartEvents etc.
-        // Wenn flowNode nicht null ist, wird der Prozess an der Stelle gestartet
-        
         throw new NotImplementedException();
     }
     
@@ -33,16 +57,37 @@ public class BpmnInstance
         
         throw new NotImplementedException();
     }
-    
-    public void HandleEvent(Token token, BPMN.Events.CatchEvent catchEvent, Dictionary<string, object> variables)
+
+    public void HandleMessage(string name, string? correlationKey = null, object? messageBody= null)
     {
-        // Hier wird ein Event verarbeitet, welches von Aussen "geworfen" wird.
-        
         throw new NotImplementedException();
     }
     
+    public void HandleSignal(string name, object? signalBody = null)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void HandleTime(DateTime time)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public void HandleEscalation(string escalationCode, string? code, object? escalationBody = null)
+    {
+        throw new NotImplementedException();
+    }
+    
+    public void HandleError(string name, string errorCode, string? errorMessage = null, object? errorBody = null)
+    {
+        throw new NotImplementedException();
+    }
+    
+    /// <summary>
+    /// Abbruch der Instanz
+    /// </summary>
     public void Cancel()
     {
-        // Hier wird die Instance abgebrochen
+        throw new NotImplementedException();
     }
 }
