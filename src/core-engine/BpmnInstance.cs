@@ -13,11 +13,6 @@ public class BpmnInstance
     public Guid Id { get; set; } = Guid.NewGuid();
     
     /// <summary>
-    /// Model des Prozesses
-    /// </summary>
-    public required BpmnModel Model { get; set; }
-    
-    /// <summary>
     /// Der Prozess innerhalb des Models, um den es sich handelt
     /// </summary>
     public required Process Process { get; set; }
@@ -27,15 +22,12 @@ public class BpmnInstance
     /// </summary>
     public List<Token> Tokens { get; init; } = [];
     
-    /// <summary>
-    /// Aktuelle CatchEvents, auf welche alle gehorcht wird.
-    /// </summary>
-    public List<CatchEvent> PossibleCatchEvents { get; init; } = [];
-    
-    /// <summary>
-    /// 
-    /// </summary>
-    public List<ProcessFlowNode> ProcessActivities { get; init; } = [];
+    Task<IEnumerable<TimerInfo>> GetActiveTimers();
+    Task<IEnumerable<MessageInfo>> GetActiveCatchMessages();
+    Task<IEnumerable<SignalInfo>> GetActiveCatchSignals();
+    Task<IEnumerable<ActivityInfo>> GetActiveActivity();
+    Task<IEnumerable<MessageInfo>> GetActiveThrowMessages();
+    Task<IEnumerable<SignalInfo>> GetActiveThrowSignals();
     
     /// <summary>
     /// 

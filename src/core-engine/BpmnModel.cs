@@ -16,6 +16,10 @@ public class BpmnModel(Definitions definitions)
 
     public List<Process> Processes => Definitions.RootElements.OfType<Process>().ToList();
     public List<Process> ExecutableProcesses => Processes.Where(p => p.IsExecutable).ToList();
+    
+    /// <summary>
+    /// Informationen, mit welchen Events der Prozess gestartet werden kann
+    /// </summary>
     public List<StartEvent> StartEvents => Definitions.FlowNodes.OfType<StartEvent>().ToList();
     public string Id => Definitions.Id;
 
