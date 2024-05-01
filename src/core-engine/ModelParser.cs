@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using BPMN_Model.Common;
 
 namespace core_engine;
@@ -14,7 +15,7 @@ public static class ModelParser
     {
         using var reader = new StreamReader(stream);
         var xml = await reader.ReadToEndAsync();
-        return await ParseModel(xml);
+        return ParseModel(xml);
     }
     
     /// <summary>
@@ -22,8 +23,15 @@ public static class ModelParser
     /// </summary>
     /// <param name="xml">The string to read the model from</param>
     /// <returns>The parsed BPMN_as_Standard model</returns>
-    public static Task<Model> ParseModel(string xml)
+    public static Model ParseModel(string xml)
     {
-        throw new NotImplementedException();
+        // Laden der XML-Datei
+        var xDocument = XDocument.Parse(xml);
+        var model = new Model()
+        {
+            Id = xDocument.Root!.Attribute("id")!.Value,
+        };
+
+        return model;
     }
 }

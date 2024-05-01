@@ -1,3 +1,4 @@
+using System.Text;
 using core_engine;
 using Microsoft.AspNetCore.Mvc;
 using StatefulWebApiEngine.StatefulWorkflowEngine;
@@ -15,18 +16,26 @@ public class Model(EngineState engineState) : ControllerBase
     [HttpGet]
     public IActionResult Index()
     {
-        throw new NotImplementedException();
+        return Ok(engineState.Models.Select(m => m.Id));
     }
-    
+
     /// <summary>
     /// Lädt ein Modell in den Speicher, um es für die Ausführung bereitzustellen
     /// </summary>
-    /// <param name="xmlModel">XML-Daten des Modells</param>
+    /// <param name="base64EncodedXmlModel">XML-Daten des Modells, Base64 codiert</param>
     /// <returns></returns>
     [HttpPost]
-    public async Task<IActionResult> LoadModel(string xmlModel)
+    [Consumes("application/xml")]
+    public async Task<IActionResult> LoadModel()
     {
-        var model = await ModelParser.ParseModel(xmlModel);
+        string xmlModel;
+        using (var stream = new StreamReader(Request.Body))
+        {
+            xmlModel = await stream.ReadToEndAsync();
+        }
+
+        // var xmlModel = Encoding.UTF8.GetString(base64EncodedXmlModel);
+        var model = ModelParser.ParseModel(xmlModel);
         model.Version = 1;
         var alreadyLoadedModel = engineState.Models.SingleOrDefault(m => m.Id == model.Id);
         if (alreadyLoadedModel is not null)
@@ -51,7 +60,7 @@ public class Model(EngineState engineState) : ControllerBase
                     .Select(m => new MessageSubscription(m, processEngine)));
         }
         
-        return new OkResult();
+        return Ok();
     }
     
     
