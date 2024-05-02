@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BPMN\BPMN.csproj" />
+    <ProjectReference Include="..\BPMN_Model\BPMN_Model.csproj" />
   </ItemGroup>
 
   <ItemGroup>

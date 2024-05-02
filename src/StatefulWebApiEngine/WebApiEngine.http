@@ -1,0 +1,6 @@
+@WebApiEngine_HostAddress = http://localhost:5182
+
+GET {{WebApiEngine_HostAddress}}/model/
+Accept: application/json
+
+###
