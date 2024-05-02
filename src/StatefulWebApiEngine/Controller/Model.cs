@@ -1,4 +1,5 @@
 using System.Text;
+using BPMN_Model.Common;
 using core_engine;
 using Microsoft.AspNetCore.Mvc;
 using StatefulWebApiEngine.StatefulWorkflowEngine;
@@ -6,7 +7,7 @@ using StatefulWebApiEngine.StatefulWorkflowEngine;
 namespace StatefulWebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
-public class Model(EngineState engineState) : ControllerBase
+public class Model(EngineState engineState, IWebHostEnvironment env) : ControllerBase
 {
     /// <summary>
     /// Gibt eine Liste geladener Modelle zurück
@@ -22,31 +23,25 @@ public class Model(EngineState engineState) : ControllerBase
     /// <summary>
     /// Lädt ein Modell in den Speicher, um es für die Ausführung bereitzustellen
     /// </summary>
-    /// <param name="base64EncodedXmlModel">XML-Daten des Modells, Base64 codiert</param>
-    /// <returns></returns>
     [HttpPost]
-    [Consumes("application/xml")]
-    public async Task<IActionResult> LoadModel()
+    public async Task<IActionResult> LoadModel([FromHeader] string filename = "model1.bpmn")
     {
-        string xmlModel;
-        using (var stream = new StreamReader(Request.Body))
-        {
-            xmlModel = await stream.ReadToEndAsync();
-        }
-
-        // var xmlModel = Encoding.UTF8.GetString(base64EncodedXmlModel);
-        var model = ModelParser.ParseModel(xmlModel);
+        var fileStream = new FileStream(filename, FileMode.Open);
+        var model = await ModelParser.ParseModel(fileStream);
+        // var model = definitions;
         model.Version = 1;
         var alreadyLoadedModel = engineState.Models.SingleOrDefault(m => m.Id == model.Id);
+        // ToDo: Hier die Hashes ermitteln und vergleichen. Nur wenn die unterschiedlich sind, weitermachen
         if (alreadyLoadedModel is not null)
         {
-            foreach (var processEngine in engineState.ProcessEngines.Where(pe => pe.Process.Model == alreadyLoadedModel))
+            foreach (var processEngine in engineState.ProcessEngines.Where(pe => pe.Process.Definitions == alreadyLoadedModel && pe.IsActive))
             {
                 processEngine.IsActive = false;
                 engineState.ActiveMessages.RemoveAll(m => m.CatchHandler == processEngine);
             }
 
             model.Version = alreadyLoadedModel.Version + 1;
+            engineState.Models.Remove(alreadyLoadedModel); // ToDo: Wirklich Removen?
         }
         engineState.Models.Add(model);
         var processEngines = 
@@ -55,13 +50,14 @@ public class Model(EngineState engineState) : ControllerBase
         foreach (var processEngine in processEngines)
         {
             engineState.ProcessEngines.Add(processEngine);
-            engineState.ActiveMessages
-                .AddRange( processEngine.GetActiveCatchMessages()
-                    .Select(m => new MessageSubscription(m, processEngine)));
+            // engineState.ActiveMessages
+            //     .AddRange( processEngine.GetActiveCatchMessages()
+            //         .Select(m => new MessageSubscription(m, processEngine)));
         }
         
+        if (env.IsDevelopment())
+             return Ok(model);
         return Ok();
     }
-    
     
 }
