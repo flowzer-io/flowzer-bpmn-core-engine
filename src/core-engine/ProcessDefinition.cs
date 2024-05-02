@@ -5,13 +5,13 @@ namespace core_engine;
 
 
 
-public class NotInstantiatedProcess : ICatchHandler
+public class ProcessDefinition : ICatchHandler
 {
     public DateTime DeployedAt { get; init; }
     public bool IsActive { get; set; }
     public required Process Process { get; init; }
     
-    Task<InstantiatedProcess> StartProcess(object? data = null)
+    Task<ProcessInstance> StartProcess(object? data = null)
     {
         throw new NotImplementedException();
     }
@@ -31,17 +31,17 @@ public class NotInstantiatedProcess : ICatchHandler
         throw new NotImplementedException();
     }
 
-    public Task<InstantiatedProcess> HandleTime(DateTime time)
+    public Task<ProcessInstance> HandleTime(DateTime time)
     {
         throw new NotImplementedException();
     }
 
-    public Task<InstantiatedProcess> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null)
+    public Task<ProcessInstance> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null)
     {
         throw new NotImplementedException();
     }
 
-    public Task<InstantiatedProcess> HandleSignal(string signalName, object? signalData = null)
+    public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)
     {
         throw new NotImplementedException();
     }

@@ -8,4 +8,5 @@ public record Process : BaseElement
 {
     // [JsonIgnore]
     public required Definitions Definitions { get; init; }
+    
 }

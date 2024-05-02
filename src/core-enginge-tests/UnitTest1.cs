@@ -1,6 +1,7 @@
 using BPMN_Model.Common;
 using BPMN_Model.Process;
 using core_engine;
+using FlowzerBPMN;
 
 namespace core_enginge_tests;
 
@@ -26,12 +27,8 @@ public class Tests
         };
         
         definitions.Processes.Add(process);
-
-
-        var engine = new NotInstantiatedProcess()
-        {
-            Process = process
-        };
+        
+        
         
 
 

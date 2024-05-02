@@ -24,6 +24,13 @@
 
     <ItemGroup>
       <ProjectReference Include="..\core-engine\core-engine.csproj" />
+      <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="embeddings\text1.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

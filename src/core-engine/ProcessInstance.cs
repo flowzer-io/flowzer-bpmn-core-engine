@@ -3,7 +3,7 @@ using BPMN_Model.Process;
 
 namespace core_engine;
 
-public class InstantiatedProcess : ICatchHandler
+public class ProcessInstance : ICatchHandler
 {
      /// <summary>
      /// Eindeutige Id der Instanz
@@ -81,17 +81,17 @@ public class InstantiatedProcess : ICatchHandler
          throw new NotImplementedException();
      }
 
-     public Task<InstantiatedProcess> HandleTime(DateTime time)
+     public Task<ProcessInstance> HandleTime(DateTime time)
      {
          throw new NotImplementedException();
      }
 
-     public Task<InstantiatedProcess> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null)
+     public Task<ProcessInstance> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null)
      {
          throw new NotImplementedException();
      }
 
-     public Task<InstantiatedProcess> HandleSignal(string signalName, object? signalData = null)
+     public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)
      {
          throw new NotImplementedException();
      }
