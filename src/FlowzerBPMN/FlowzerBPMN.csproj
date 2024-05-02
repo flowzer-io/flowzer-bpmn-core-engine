@@ -4,10 +4,7 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>BPMN</RootNamespace>
     </PropertyGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\BPMN_as_Standard\BPMN_as_Standard.csproj" />
-    </ItemGroup>
 
 </Project>

@@ -1,14 +1,15 @@
+using BPMN.Activities;
+using BPMN.Common;
 using BPMN.Data;
-using BPMN.Foundation;
 using BPMN.Service;
 
-namespace BPMN.Common;
+namespace BPMN.Process;
 
-public record CallableElement : RootElement
+public abstract record GlobalTask : ICallableElement
 {
-    public required string Name { get; init; }
-    
+    public string? Name { get; init; }
     public InputOutputSpecification? IoSpecification { get; init; }
     public List<InputOutputBinding> IoBindings { get; init; } = [];
     public List<Interface> SupportedInterfaceRefs { get; init; } = [];
+    public List<ResourceRole> Resources { get; init; } = [];
 }

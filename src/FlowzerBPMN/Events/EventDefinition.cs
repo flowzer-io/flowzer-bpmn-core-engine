@@ -2,4 +2,4 @@ using BPMN.Foundation;
 
 namespace BPMN.Events;
 
-public record EventDefinition : RootElement;
+public record EventDefinition : IRootElement;

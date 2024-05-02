@@ -2,7 +2,7 @@ using BPMN.Foundation;
 
 namespace BPMN.Common;
 
-public record Resource : RootElement
+public record Resource : IRootElement
 {
     public required string Name { get; init; }
     

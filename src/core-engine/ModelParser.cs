@@ -8,10 +8,10 @@ public static class ModelParser
 {
    
     /// <summary>
-    /// Parse a BPMN_as_Standard model from a stream
+    /// Parse a FlowzerBPMN model from a stream
     /// </summary>
     /// <param name="stream">The stream to read the model from</param>
-    /// <returns>The parsed BPMN_as_Standard model</returns>
+    /// <returns>The parsed FlowzerBPMN model</returns>
     public static async Task<Definitions> ParseModel(Stream stream)
     {
         using var reader = new StreamReader(stream);
@@ -20,10 +20,10 @@ public static class ModelParser
     }
     
     /// <summary>
-    /// Parse a BPMN_as_Standard model from a string
+    /// Parse a FlowzerBPMN model from a string
     /// </summary>
     /// <param name="xml">The string to read the model from</param>
-    /// <returns>The parsed BPMN_as_Standard model</returns>
+    /// <returns>The parsed FlowzerBPMN model</returns>
     public static Definitions ParseModel(string xml)
     {
         // Laden der XML-Datei
@@ -42,15 +42,15 @@ public static class ModelParser
 
         foreach (var xmlProcessNode in xmlProcessNodes)
         {
-            
+            var process = new Process
+            {
+                Name = xmlProcessNode.Attribute("name")!.Value,
+                Id = xmlProcessNode.Attribute("id")!.Value,
+                IsExecutable = true,
+                // FlowzerProcessHash = xmlProcessNode.Value
+            };
+            model.RootElements.Add(process);
         }
-        
-        var newProcesses = xmlProcessNodes.Select(e => new Process
-        {
-            Name = model,
-            Id = e.Attribute("id")!.Value
-        });
-        model.RootElements.AddRange(newProcesses);
 
         return model;
     }
