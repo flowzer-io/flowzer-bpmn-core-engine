@@ -10,10 +10,6 @@
     <bpmn:participant id="Participant_0j2hu6z" processRef="Process_02kj6iu" />
   </bpmn:collaboration>
   <bpmn:process id="Process_02kj6iu" isExecutable="true">
-    <bpmn:task id="Activity_1surs4y">
-      <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
-      <bpmn:outgoing>Flow_1lj7r4c</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:endEvent id="Event_031zqoo">
       <bpmn:incoming>Flow_1lj7r4c</bpmn:incoming>
     </bpmn:endEvent>
@@ -27,14 +23,20 @@
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
     </bpmn:startEvent>
+    <bpmn:serviceTask id="Activity_1surs4y">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=CustomerName" target="Bestellung.Kunde.Name" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1lj7r4c</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0i9idwd">
       <bpmndi:BPMNShape id="Participant_0j2hu6z_di" bpmnElement="Participant_0j2hu6z" isHorizontal="true">
-        <dc:Bounds x="158" y="80" width="542" height="170" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1surs4y_di" bpmnElement="Activity_1surs4y">
-        <dc:Bounds x="410" y="110" width="100" height="80" />
+        <dc:Bounds x="158" y="60" width="642" height="190" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_031zqoo_di" bpmnElement="Event_031zqoo">
         <dc:Bounds x="632" y="132" width="36" height="36" />
@@ -44,6 +46,9 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="299" y="173" width="81" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_0ywtuns_di" bpmnElement="Activity_1surs4y">
+        <dc:Bounds x="410" y="110" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0hqsrnf_di" bpmnElement="Flow_0hqsrnf">
         <di:waypoint x="358" y="150" />

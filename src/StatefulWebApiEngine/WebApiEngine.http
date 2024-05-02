@@ -1,11 +1,19 @@
 @WebApiEngine_HostAddress = http://localhost:5182
+@ModelId = 0
 
+### Get all models
 GET {{WebApiEngine_HostAddress}}/model/
 Accept: application/json
 
-###
+### Get model by id
+GET {{WebApiEngine_HostAddress}}/model/{{ModelId}}
+Accept: application/json
 
+### Create model
 POST {{WebApiEngine_HostAddress}}/model/
 Accept: application/json
 
-###
+> {%
+    console.log(response.body.id);
+    client.global.set("ModelId", response.body.id);
+%}
