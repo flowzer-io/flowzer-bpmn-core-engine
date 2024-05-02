@@ -46,7 +46,7 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
         engineState.Models.Add(model);
         var processEngines = 
             model.Processes
-            .Select(modelProcess => new ProcessEngine { Process = modelProcess });
+            .Select(modelProcess => new NotInstantiatedProcess { Process = modelProcess });
         foreach (var processEngine in processEngines)
         {
             engineState.ProcessEngines.Add(processEngine);

@@ -8,7 +8,7 @@ public interface ICatchHandler
     List<MessageDefinition> GetActiveCatchMessages();
     List<SignalDefinition> GetActiveCatchSignals();
     
-    Task<IInstanceEngine> HandleTime(DateTime time);
-    Task<IInstanceEngine> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null);
-    Task<IInstanceEngine> HandleSignal(string signalName, object? signalData = null);
+    Task<InstantiatedProcess> HandleTime(DateTime time);
+    Task<InstantiatedProcess> HandleMessage(string messageName, string? correlationKey = null, object? messageData = null);
+    Task<InstantiatedProcess> HandleSignal(string signalName, object? signalData = null);
 }
