@@ -6,4 +6,7 @@ public record SequenceFlow : FlowElement
     public required FlowNode SourceRef { get; init; }
     public required FlowNode TargetRef { get; init; }
     public Expression? ConditionExpression { get; init; }
+    
+    public string? FlowzerCondition { get; init; }
+    public bool? FlowzerIsDefault { get; init; }
 }

@@ -34,24 +34,31 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
     {
         var fileStream = new FileStream(filename, FileMode.Open);
         var model = await ModelParser.ParseModel(fileStream);
-        var definitionsInfo = new DefinitionsInfo { Definitions = model, IsDeployed = true, Version = 1 };
+        var definitionsInfo = new DefinitionsInfo
+        {
+            Definitions = model, 
+            IsDeployed = true, 
+            Version = 1,
+            BpmnFileHash = model.FlowzerFileHash
+        };
         
-        var alreadyLoadedDefinitionsInfo = 
+        var alreadyDeloyedDefinitionsInfo = 
             engineState.Models.SingleOrDefault(m => m.Definitions.Id == model.Id && m.IsDeployed);
         
-        if (alreadyLoadedDefinitionsInfo is not null)
+        if (alreadyDeloyedDefinitionsInfo is not null)
         {
-        // ToDo: Hier den Hash vergleichen
-        //     
-        //     // foreach (var processEngine in engineState.ProcessDefinitions.Where(pe =>
-        //     //              pe. == alreadyLoadedModel && pe.IsActive))
-        //     // {
-        //     //     processEngine.IsActive = false;
-        //     //     engineState.ActiveMessages.RemoveAll(m => m.CatchHandler == processEngine);
-        //     // }
-        //
-        //     model.Version = alreadyLoadedModel.Version + 1;
-        //     engineState.Models.Remove(alreadyLoadedModel); // ToDo: Wirklich Removen?
+            if (alreadyDeloyedDefinitionsInfo.BpmnFileHash == definitionsInfo.BpmnFileHash)
+                return Ok();
+            
+            // foreach (var processEngine in engineState.ProcessDefinitions.Where(pe =>
+            //              pe. == alreadyLoadedModel && pe.IsActive))
+            // {
+            //     processEngine.IsActive = false;
+            //     engineState.ActiveMessages.RemoveAll(m => m.CatchHandler == processEngine);
+            // }
+            
+            definitionsInfo.Version = alreadyDeloyedDefinitionsInfo.Version + 1;
+            alreadyDeloyedDefinitionsInfo.IsDeployed = false;
         }
         
         engineState.Models.Add(definitionsInfo);
@@ -66,6 +73,6 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
             //         .Select(m => new MessageSubscription(m, processEngine)));
         }
 
-        return CreatedAtAction(nameof(Get), new { Id = model.Id }, env.IsDevelopment() ? model : null);
+        return CreatedAtAction(nameof(Get), new { Id = model.Id }, env.IsDevelopment() ? definitionsInfo : null);
     }
 }

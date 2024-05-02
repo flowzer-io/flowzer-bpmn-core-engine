@@ -15,4 +15,6 @@ public record Definitions : BaseElement
     public List<Extension> Extensions { get; init; } = [];
     public List<IRootElement> RootElements { get; init; } = [];
     public List<FlowNode> FlowNodes { get; init; } = [];
+    
+    public string FlowzerFileHash { get; init; } = "";
 }

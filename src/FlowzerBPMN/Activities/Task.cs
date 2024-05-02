@@ -2,4 +2,4 @@ using BPMN.Common;
 
 namespace BPMN.Activities;
 
-public abstract record Task : Activity;
+public record Task : Activity;

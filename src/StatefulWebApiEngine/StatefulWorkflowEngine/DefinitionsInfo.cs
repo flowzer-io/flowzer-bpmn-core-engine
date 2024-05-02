@@ -1,10 +1,13 @@
+using System.Text.Json.Serialization;
 using BPMN.Infrastructure;
 
 namespace StatefulWebApiEngine.StatefulWorkflowEngine;
 
 public class DefinitionsInfo
 {
-    public required Definitions Definitions { get; init; }
+    [JsonIgnore]
+    public Definitions? Definitions { get; set; }
+    public required string BpmnFileHash { get; init; }
     public int Version { get; set; }
     public bool IsDeployed { get; set; }
 }
