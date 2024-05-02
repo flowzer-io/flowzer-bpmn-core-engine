@@ -8,11 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\BPMN_Model\BPMN_Model.csproj" />
+    <None Remove="core-engine.csproj.DotSettings" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Remove="core-engine.csproj.DotSettings" />
+    <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
   </ItemGroup>
 
 </Project>

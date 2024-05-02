@@ -4,5 +4,5 @@ namespace FlowzerBPMN;
 
 public record FlowzerServiceTask : ServiceTask
 {
-    public int Retrys { get; init; }
+    public int Retries { get; init; }
 }

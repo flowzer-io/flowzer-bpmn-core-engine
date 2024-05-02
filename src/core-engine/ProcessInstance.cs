@@ -1,5 +1,5 @@
-using BPMN_Model.Common;
-using BPMN_Model.Process;
+using BPMN.Process;
+using FlowzerBPMN;
 
 namespace core_engine;
 

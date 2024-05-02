@@ -1,5 +1,3 @@
-using BPMN_Model.Common;
-
 namespace StatefulWebApiEngine.StatefulWorkflowEngine;
 
 public class DefinitionsInfo

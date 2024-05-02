@@ -1,6 +1,6 @@
-using BPMN_Model.Foundation;
+using BPMN.Foundation;
 
-namespace BPMN_Model.Common;
+namespace FlowzerBPMN;
 
 public record SignalDefinition : BaseElement
 {

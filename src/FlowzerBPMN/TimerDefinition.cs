@@ -1,4 +1,4 @@
-namespace BPMN_Model.Common;
+namespace FlowzerBPMN;
 
 public class TimerDefinition
 {

@@ -1,7 +1,6 @@
-using System.Runtime.CompilerServices;
 using System.Xml.Linq;
-using BPMN_Model.Common;
-using BPMN_Model.Process;
+using BPMN.Infrastructure;
+using BPMN.Process;
 
 namespace core_engine;
 
@@ -37,16 +36,21 @@ public static class ModelParser
         
         // Gib mir alle Nodes unter root, die vom Typ "bpmn:process" sind
 
-        var processNodes = root.Elements().Where(n =>
+        var xmlProcessNodes = root.Elements().Where(n =>
             n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
             n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase) == true);
 
-        var newProcesses = processNodes.Select(e => new Process
+        foreach (var xmlProcessNode in xmlProcessNodes)
         {
-            Definitions = model,
+            
+        }
+        
+        var newProcesses = xmlProcessNodes.Select(e => new Process
+        {
+            Name = model,
             Id = e.Attribute("id")!.Value
         });
-        model.Processes.AddRange(newProcesses);
+        model.RootElements.AddRange(newProcesses);
 
         return model;
     }
