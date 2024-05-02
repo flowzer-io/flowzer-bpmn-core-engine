@@ -4,3 +4,8 @@ GET {{WebApiEngine_HostAddress}}/model/
 Accept: application/json
 
 ###
+
+POST {{WebApiEngine_HostAddress}}/model/
+Accept: application/json
+
+###

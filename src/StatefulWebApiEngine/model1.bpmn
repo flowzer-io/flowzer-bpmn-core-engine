@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0612tx2" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.22.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <bpmn:message id="Message_16rk16r" name="NeueBestellung">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=Customer.No" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:signal id="Signal_1aahmp3" name="Signal_1aahmp3" />
+  <bpmn:collaboration id="Collaboration_0i9idwd">
+    <bpmn:participant id="Participant_0j2hu6z" processRef="Process_02kj6iu" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_02kj6iu" isExecutable="true">
+    <bpmn:task id="Activity_1surs4y">
+      <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
+      <bpmn:outgoing>Flow_1lj7r4c</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="Event_031zqoo">
+      <bpmn:incoming>Flow_1lj7r4c</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0hqsrnf" sourceRef="Event_NeueBestellung" targetRef="Activity_1surs4y" />
+    <bpmn:sequenceFlow id="Flow_1lj7r4c" sourceRef="Activity_1surs4y" targetRef="Event_031zqoo" />
+    <bpmn:startEvent id="Event_NeueBestellung" name="Neue Bestellung">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=Kunde" target="Customer" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
+    </bpmn:startEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0i9idwd">
+      <bpmndi:BPMNShape id="Participant_0j2hu6z_di" bpmnElement="Participant_0j2hu6z" isHorizontal="true">
+        <dc:Bounds x="158" y="80" width="542" height="170" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1surs4y_di" bpmnElement="Activity_1surs4y">
+        <dc:Bounds x="410" y="110" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_031zqoo_di" bpmnElement="Event_031zqoo">
+        <dc:Bounds x="632" y="132" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0jfqwfl_di" bpmnElement="Event_NeueBestellung">
+        <dc:Bounds x="322" y="132" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="299" y="173" width="81" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0hqsrnf_di" bpmnElement="Flow_0hqsrnf">
+        <di:waypoint x="358" y="150" />
+        <di:waypoint x="410" y="150" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1lj7r4c_di" bpmnElement="Flow_1lj7r4c">
+        <di:waypoint x="510" y="150" />
+        <di:waypoint x="632" y="150" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

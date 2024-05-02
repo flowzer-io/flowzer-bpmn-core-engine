@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using BPMN_Model.Common;
+using BPMN_Model.Process;
 
 namespace core_engine;
 
@@ -11,7 +13,7 @@ public static class ModelParser
     /// </summary>
     /// <param name="stream">The stream to read the model from</param>
     /// <returns>The parsed BPMN_as_Standard model</returns>
-    public static async Task<Model> ParseModel(Stream stream)
+    public static async Task<Definitions> ParseModel(Stream stream)
     {
         using var reader = new StreamReader(stream);
         var xml = await reader.ReadToEndAsync();
@@ -23,14 +25,28 @@ public static class ModelParser
     /// </summary>
     /// <param name="xml">The string to read the model from</param>
     /// <returns>The parsed BPMN_as_Standard model</returns>
-    public static Model ParseModel(string xml)
+    public static Definitions ParseModel(string xml)
     {
         // Laden der XML-Datei
         var xDocument = XDocument.Parse(xml);
-        var model = new Model()
+        var root = xDocument.Root!;
+        var model = new Definitions
         {
-            Id = xDocument.Root!.Attribute("id")!.Value,
+            Id = root.Attribute("id")!.Value,
         };
+        
+        // Gib mir alle Nodes unter root, die vom Typ "bpmn:process" sind
+
+        var processNodes = root.Elements().Where(n =>
+            n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
+            n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase) == true);
+
+        var newProcesses = processNodes.Select(e => new Process
+        {
+            Definitions = model,
+            Id = e.Attribute("id")!.Value
+        });
+        model.Processes.AddRange(newProcesses);
 
         return model;
     }
