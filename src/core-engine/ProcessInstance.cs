@@ -5,10 +5,10 @@ namespace core_engine;
 
 public class ProcessInstance : ICatchHandler
 {
-     /// <summary>
-     /// Eindeutige Id der Instanz
-     /// </summary>
-     public required Guid Id { get; set; }
+    /// <summary>
+    /// Eindeutige Id der Instanz
+    /// </summary>
+    public Guid Id { get; set; } = Guid.NewGuid();
      
      /// <summary>
      /// Das Model, das den BPMN-Prozess beschreibt

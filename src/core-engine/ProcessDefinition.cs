@@ -9,9 +9,22 @@ public class ProcessDefinition : ICatchHandler
     public bool IsActive { get; set; }
     public required Process Process { get; init; }
     
-    Task<ProcessInstance> StartProcess(object? data = null)
+    public ProcessInstance StartProcess(object? data = null)
     {
-        throw new NotImplementedException();
+        var instance = new ProcessInstance
+        {
+            ProcessModel = Process
+        };
+        
+        foreach (var processStartFlowNode in Process.StartFlowNodes)
+        {
+            instance.Tokens.Add(new Token
+            {
+                CurrentFlowNode = processStartFlowNode
+            });
+        }
+
+        return instance;
     }
     
     public List<TimerDefinition> GetActiveTimers()

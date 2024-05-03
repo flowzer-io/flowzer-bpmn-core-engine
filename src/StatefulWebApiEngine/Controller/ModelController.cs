@@ -7,7 +7,7 @@ using StatefulWebApiEngine.StatefulWorkflowEngine;
 namespace StatefulWebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
-public class Model(EngineState engineState, IWebHostEnvironment env) : ControllerBase
+public class ModelController(EngineState engineState, IWebHostEnvironment env) : ControllerBase
 {
     /// <summary>
     /// Gibt eine Liste geladener Modelle zurück
@@ -23,7 +23,7 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
     [HttpGet, Route("{id}")]
     public IActionResult Get(string id)
     {
-        return Ok(engineState.Models.Single(m => m.Definitions.Id == id));
+        return Ok(engineState.Models.Single(m => m.Id == id));
     }
 
     /// <summary>
@@ -38,16 +38,17 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
         {
             Definitions = model, 
             IsDeployed = true, 
+            Id = model.Id,
             Version = 1,
             BpmnFileHash = model.FlowzerFileHash
         };
         
-        var alreadyDeloyedDefinitionsInfo = 
-            engineState.Models.SingleOrDefault(m => m.Definitions.Id == model.Id && m.IsDeployed);
+        var alreadyDeployedDefinitionsInfo = 
+            engineState.Models.SingleOrDefault(m => m.Id == model.Id && m.IsDeployed);
         
-        if (alreadyDeloyedDefinitionsInfo is not null)
+        if (alreadyDeployedDefinitionsInfo is not null)
         {
-            if (alreadyDeloyedDefinitionsInfo.BpmnFileHash == definitionsInfo.BpmnFileHash)
+            if (alreadyDeployedDefinitionsInfo.BpmnFileHash == definitionsInfo.BpmnFileHash)
                 return Ok();
             
             // foreach (var processEngine in engineState.ProcessDefinitions.Where(pe =>
@@ -57,8 +58,8 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
             //     engineState.ActiveMessages.RemoveAll(m => m.CatchHandler == processEngine);
             // }
             
-            definitionsInfo.Version = alreadyDeloyedDefinitionsInfo.Version + 1;
-            alreadyDeloyedDefinitionsInfo.IsDeployed = false;
+            definitionsInfo.Version = alreadyDeployedDefinitionsInfo.Version + 1;
+            alreadyDeployedDefinitionsInfo.IsDeployed = false;
         }
         
         engineState.Models.Add(definitionsInfo);
@@ -67,12 +68,13 @@ public class Model(EngineState engineState, IWebHostEnvironment env) : Controlle
                 .Select(modelProcess => new ProcessDefinition { Process = modelProcess });
         foreach (var process in processes)
         {
+            process.IsActive = true;
             engineState.ProcessDefinitions.Add(process);
             // engineState.ActiveMessages
             //     .AddRange( processEngine.GetActiveCatchMessages()
             //         .Select(m => new MessageSubscription(m, processEngine)));
         }
 
-        return CreatedAtAction(nameof(Get), new { Id = model.Id }, env.IsDevelopment() ? definitionsInfo : null);
+        return CreatedAtAction(nameof(Get), new { Id = model.Id }, env.IsDevelopment() ? definitionsInfo.Definitions.RootElements.OfType<Process>() : null);
     }
 }
