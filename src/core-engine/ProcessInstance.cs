@@ -39,7 +39,7 @@ public class ProcessInstance : ICatchHandler
                 throw new Exception("Endlosschleife erkannt");
             }
             
-            foreach (var token in Tokens.Where(token => token.State == FlowNodeState.Ready))
+            foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Ready))
             {
                 PrepareInputData(token);
                 token.State = FlowNodeState.Active;
@@ -69,6 +69,13 @@ public class ProcessInstance : ICatchHandler
     /// <exception cref="NotImplementedException"></exception>
     private void GoToNextFlowNode(Token token)
     {
+        // 1. Finde alle ausgehenden Sequenzflüsse des aktuellen FlowNodes
+        // 2. Filtere die Sequenzflüsse, die Bedingungen haben und deren Bedingungen erfüllt sind
+        // 3. Erzeuge für jeden Sequenzfluss ein neues Token
+        // 4. Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
+        // 5. Setze den State des Tokens auf Ready
+        // 6. Füge das Token der Liste der Tokens hinzu
+        
         throw new NotImplementedException();
     }
 
@@ -97,23 +104,16 @@ public class ProcessInstance : ICatchHandler
         throw new NotImplementedException();
     }
 
-    public IEnumerable<string> GetActiveUserTasks()
-    {
-        return Tokens
-            .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready })
-            .Select(token => token.CurrentFlowNode.Id);
-    }
+    public IEnumerable<Token> GetActiveUserTasks() => Tokens
+            .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready });
     
     public Token GetToken(Guid tokenId)
     {
         return Tokens.Single(token => token.Id == tokenId);
     }
     
-    public IEnumerable<Token> GetActiveServiceTasks()
-    {
-        return Tokens
-            .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Ready });
-    }
+    public IEnumerable<Token> GetActiveServiceTasks() => Tokens
+        .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Ready });
 
     Task<IEnumerable<MessageInfo>> GetActiveThrowMessages()
     {
