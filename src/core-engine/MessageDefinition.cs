@@ -1,8 +1,6 @@
-using BPMN.Foundation;
+namespace core_engine;
 
-namespace FlowzerBPMN;
-
-public record MessageDefinition : BaseElement
+public record MessageDefinition
 {
     public required string Name { get; init; }
     public string? CorrelationKey { get; init; }

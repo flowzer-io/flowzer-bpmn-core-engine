@@ -9,12 +9,12 @@ public class ProcessDefinition : ICatchHandler
     public bool IsActive { get; set; }
     public required Process Process { get; init; }
     
-    public ProcessInstance StartProcess(string? data = null)
+    public ProcessInstance StartProcess(Variables? data = null)
     {
         var instance = new ProcessInstance
         {
             ProcessModel = Process,
-            ProcessVariables = data ?? "{}"
+            ProcessVariables = data ?? new Variables()
         };
         
         foreach (var processStartFlowNode in Process.StartFlowNodes)

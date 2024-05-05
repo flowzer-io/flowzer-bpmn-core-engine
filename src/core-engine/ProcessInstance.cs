@@ -22,12 +22,14 @@ public class ProcessInstance : ICatchHandler
     /// <summary>
     /// Variablen des Prozesses
     /// </summary>
-    public Variables ProcessVariables { get; set; } = "{}";
+    public Variables ProcessVariables { get; set; } = new();
 
     /// <summary>
     /// Aktuelle Tokens
     /// </summary>
     public List<Token> Tokens { get; init; } = [];
+    
+    public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State <= FlowNodeState.Ready);
     
     public void Run()
     {
@@ -114,7 +116,7 @@ public class ProcessInstance : ICatchHandler
     
     public IEnumerable<Token> GetActiveServiceTasks() => Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Ready });
-
+    
     Task<IEnumerable<MessageInfo>> GetActiveThrowMessages()
     {
         throw new NotImplementedException();
@@ -138,16 +140,36 @@ public class ProcessInstance : ICatchHandler
 
     public void HandleUserTaskResponse(Guid tokenId, string response, string? userId = null)
     {
-        throw new NotImplementedException();
+        var jResponse = Variables.Parse(response);
+        var token = GetToken(tokenId);
+        if (token.State != FlowNodeState.Active)
+        {
+            throw new Exception("Token ist nicht aktiv");
+        }
+        token.OutputData = jResponse; // ToDo: Hier sollte noch die UserID gesetzt werden
+        token.State = FlowNodeState.Completing;
     }
     
-    public void HandleServiceTaskResult(Guid tokenId, string result)
+    /// <summary>
+    /// Wird aufgerufen, wenn ein ServiceTask ein Ergebnis zurückliefert.
+    /// </summary>
+    /// <param name="tokenId">ID des Tokens</param>
+    /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
+    /// <exception cref="NotImplementedException"></exception>
+    public void HandleServiceTaskResult(Guid tokenId, Variables result)
     {
-        throw new NotImplementedException();
+        var token = GetToken(tokenId);
+        if (token.State != FlowNodeState.Active)
+        {
+            throw new Exception("Token ist nicht aktiv");
+        }
+        token.OutputData = result;
+        token.State = FlowNodeState.Completing;
     }
 
     /// <summary>
-    /// Abbruch der Instanz
+    /// Abbruch der Instanz. Dabei werden alle Tokens terminiert und die bereits durchlaufenen Activities kompensiert.
+    /// Subprozesse werden ebenfalls abgebrochen.
     /// </summary>
     public void Cancel()
     {
@@ -159,9 +181,32 @@ public class ProcessInstance : ICatchHandler
         throw new NotImplementedException();
     }
 
+    /// <summary>
+    /// Gibt eine Liste aktuell erwarteter Nachrichten zurück
+    /// </summary>
+    /// <returns>Liste von Nachrichten inkl. CorrelationKey</returns>
+    /// <exception cref="NotImplementedException"></exception>
     public List<MessageDefinition> GetActiveCatchMessages()
     {
-        throw new NotImplementedException();
+        var messageDefinitions = new List<MessageDefinition>();
+        foreach (var token in Tokens)
+        {
+            if (token.CurrentFlowNode is not IntermediateCatchEvent
+                {
+                    EventDefinition: MessageEventDefinition messageEventDefinition
+                }) continue;
+            if (messageEventDefinition.MessageRef is null) continue;
+            
+            messageDefinitions.Add(new MessageDefinition
+            {
+                Name = messageEventDefinition.MessageRef.Name,
+                CorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+            });
+            
+            // ToDo: Mögliche BoundaryEvents und ReceiveTasks berücksichtigen
+        }
+
+        return messageDefinitions;
     }
 
     public List<SignalDefinition> GetActiveCatchSignals()

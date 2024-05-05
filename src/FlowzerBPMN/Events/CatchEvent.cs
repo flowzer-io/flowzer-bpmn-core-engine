@@ -8,5 +8,5 @@ public abstract record CatchEvent : Event
     public OutputSet? OutputSet { get; init; }
     public List<DataOutput> DataOutputs { get; init; } = [];
     public List<DataOutputAssociation> DataOutputAssociations { get; init; } = [];
-    public List<EventDefinition> EventDefinitions { get; init; } = [];
+    public EventDefinition? EventDefinition { get; init; }
 }

@@ -1,1 +1,1 @@
-global using Variables = string;
+global using Variables = Newtonsoft.Json.Linq.JObject;
