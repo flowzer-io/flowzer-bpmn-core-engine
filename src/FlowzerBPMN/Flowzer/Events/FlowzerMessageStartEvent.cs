@@ -1,7 +1,7 @@
 using BPMN.Common;
 using BPMN.Events;
 
-namespace BPMN.Flowzer;
+namespace BPMN.Flowzer.Events;
 
 public record FlowzerMessageStartEvent : StartEvent
 {

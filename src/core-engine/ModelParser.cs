@@ -5,6 +5,7 @@ using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer;
+using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Infrastructure;
