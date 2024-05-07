@@ -243,18 +243,18 @@ public static class ModelParser
             return;
         }
 
-        // if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
-        // {
-        //     process.FlowElements.Add(new FlowzerMessageStartEvent
-        //     {
-        //         Id = xmlFlowNode.Attribute("id")!.Value,
-        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-        //         Container = process,
-        //         Message = model.RootElements.OfType<Message>()
-        //             .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
-        //     });
-        //     return;
-        // }
+        if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
+        {
+            process.FlowElements.Add(new FlowzerIntermediateMessageEvent()
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                Message = model.RootElements.OfType<Message>()
+                    .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+            });
+            return;
+        }
 
         // if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
         // {
