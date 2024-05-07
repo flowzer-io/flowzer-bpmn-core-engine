@@ -43,6 +43,42 @@ public static class ModelParser
             FlowzerFileHash = GetHash(xml),
         };
 
+        ParseMessages(root, model);
+        ParseSignals(root, model);
+        ParseProcess(root, model);
+
+        return model;
+    }
+
+    private static void ParseMessages(XElement root, Definitions model)
+    {
+        var messages = root.Elements().Where(n =>
+                n.Name.LocalName.Equals("message", StringComparison.InvariantCultureIgnoreCase))
+            .Select(m => new Message
+            {
+                Name = m.Attribute("name")!.Value,
+                FlowzerId = m.Attribute("id")?.Value,
+                FlowzerCorrelationKey = m.Descendants()
+                    .SingleOrDefault(s => s.Name.LocalName == "subscription")?
+                    .Attribute("correlationKey")?.Value,
+            });
+        model.RootElements.AddRange(messages);
+    }
+
+    private static void ParseSignals(XElement root, Definitions model)
+    {
+        var messages = root.Elements().Where(n =>
+                n.Name.LocalName.Equals("signal", StringComparison.InvariantCultureIgnoreCase))
+            .Select(m => new Signal()
+            {
+                Name = m.Attribute("name")!.Value,
+                FlowzerId = m.Attribute("id")?.Value,
+            });
+        model.RootElements.AddRange(messages);
+    }
+
+    private static void ParseProcess(XElement root, Definitions model)
+    {
         // Gib mir alle Nodes unter root, die vom Typ "bpmn:process" sind
 
         var xmlProcessNodes = root.Elements().Where(n =>
@@ -79,53 +115,15 @@ public static class ModelParser
                 switch (xmlFlowNode.Name.LocalName)
                 {
                     case "startEvent":
-                        HandleStartEvent(process, xmlFlowNode);
+                        HandleStartEvent(process, xmlFlowNode, model);
                         break;
 
                     case "serviceTask":
-                        process.FlowElements.Add(new ServiceTask
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            Container = process,
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
-                            Implementation =
-                                xmlFlowNode.Attribute("Implementation")?.Value
-                                ?? xmlFlowNode.Descendants()
-                                    .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
-                                    ?.Attribute("type")?.Value
-                                ?? throw new ModelValidationException(
-                                    $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
-                            InputMappings = inputMappings,
-                            OutputMappings = outputMappings,
-                        });
+                        HandleServiceTask(process, xmlFlowNode, inputMappings, outputMappings);
                         break;
 
                     case "userTask":
-                        var formDefinition = xmlFlowNode.Descendants()
-                            .FirstOrDefault(e => e.Name.LocalName == "formDefinition");
-                        var assignmentDefinition = xmlFlowNode.Descendants()
-                            .FirstOrDefault(e => e.Name.LocalName == "assignmentDefinition");
-                        var taskSchedule = xmlFlowNode.Descendants()
-                            .FirstOrDefault(e => e.Name.LocalName == "taskSchedule");
-                        process.FlowElements.Add(new UserTask
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            Container = process,
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
-                            Implementation =
-                                formDefinition?.Attribute("formKey")?.Value
-                                ?? formDefinition?.Attribute("formId")?.Value
-                                ?? throw new Exception("No implementation found"),
-                            FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
-                            FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
-                            FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
-                            FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
-                            FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
-                            InputMappings = inputMappings,
-                            OutputMappings = outputMappings,
-                        });
+                        HandleUserTask(xmlFlowNode, process, inputMappings, outputMappings);
                         break;
 
                     case "task":
@@ -223,11 +221,59 @@ public static class ModelParser
                 process.FlowElements.Add(newSequenceFlow);
             }
         }
-
-        return model;
     }
 
-    private static void HandleStartEvent(Process process, XElement xmlFlowNode)
+    private static void HandleServiceTask(Process process, XElement xmlFlowNode, List<FlowzerIoMapping>? inputMappings,
+        List<FlowzerIoMapping>? outputMappings)
+    {
+        process.FlowElements.Add(new ServiceTask
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+            Container = process,
+            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+            Implementation =
+                xmlFlowNode.Attribute("Implementation")?.Value
+                ?? xmlFlowNode.Descendants()
+                    .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
+                    ?.Attribute("type")?.Value
+                ?? throw new ModelValidationException(
+                    $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
+            InputMappings = inputMappings,
+            OutputMappings = outputMappings,
+        });
+    }
+
+    private static void HandleUserTask(XElement xmlFlowNode, Process process, List<FlowzerIoMapping>? inputMappings,
+        List<FlowzerIoMapping>? outputMappings)
+    {
+        var formDefinition = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "formDefinition");
+        var assignmentDefinition = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "assignmentDefinition");
+        var taskSchedule = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "taskSchedule");
+        process.FlowElements.Add(new UserTask
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+            Container = process,
+            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+            Implementation =
+                formDefinition?.Attribute("formKey")?.Value
+                ?? formDefinition?.Attribute("formId")?.Value
+                ?? throw new Exception("No implementation found"),
+            FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
+            FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
+            FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
+            FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
+            FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
+            InputMappings = inputMappings,
+            OutputMappings = outputMappings,
+        });
+    }
+
+    private static void HandleStartEvent(Process process, XElement xmlFlowNode, Definitions model)
     {
         var definition = xmlFlowNode.Descendants().SingleOrDefault(x => x.Name.LocalName == "timerEventDefinition");
         if (definition != null)
@@ -238,6 +284,36 @@ public static class ModelParser
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 Container = process,
                 TimerDefinition = ParseTimerEventDefinition(definition),
+            });
+            return;
+        }
+
+        definition = xmlFlowNode.Descendants().SingleOrDefault(x => x.Name.LocalName == "messageEventDefinition");
+        if (definition != null)
+        {
+            process.FlowElements.Add(new FlowzerMessageStartEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                Message = model.RootElements.OfType<Message>()
+                    .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+            });
+            return;
+        }
+
+        definition = xmlFlowNode.Descendants()
+            .SingleOrDefault(x => x.Name.LocalName
+                .Equals("signalEventDefinition", StringComparison.InvariantCultureIgnoreCase));
+        if (definition != null)
+        {
+            process.FlowElements.Add(new FlowzerSignalStartEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                Signal = model.RootElements.OfType<Signal>()
+                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
             });
             return;
         }
@@ -264,6 +340,7 @@ public static class ModelParser
                 }
             };
         }
+
         element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDate");
         if (element != null)
         {
@@ -275,6 +352,7 @@ public static class ModelParser
                 }
             };
         }
+
         element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDuration");
         if (element != null)
         {
@@ -287,7 +365,8 @@ public static class ModelParser
             };
         }
 
-        if (timerEventDefinition == null) throw new ArgumentException("TimerEventDefinition found, but no Implementation.");
+        if (timerEventDefinition == null)
+            throw new ArgumentException("TimerEventDefinition found, but no Implementation.");
         return timerEventDefinition;
     }
 

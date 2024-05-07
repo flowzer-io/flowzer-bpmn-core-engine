@@ -5,7 +5,7 @@
       <zeebe:subscription correlationKey="=Customer.No" />
     </bpmn:extensionElements>
   </bpmn:message>
-  <bpmn:signal id="Signal_1aahmp3" name="Signal_1aahmp3" />
+  <bpmn:signal id="Signal_1aahmp3" name="Signal_testtest" />
   <bpmn:collaboration id="Collaboration_0i9idwd">
     <bpmn:participant id="Participant_0j2hu6z" processRef="Process_02kj6iu" />
   </bpmn:collaboration>
@@ -42,9 +42,7 @@
     </bpmn:userTask>
     <bpmn:startEvent id="Event_NeueBestellung" name="Neue Bestellung">
       <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
-      <bpmn:timerEventDefinition id="TimerEventDefinition_006wy3c">
-        <bpmn:timeDate xsi:type="bpmn:tFormalExpression">2020-01-01T15:00:00Z</bpmn:timeDate>
-      </bpmn:timerEventDefinition>
+      <bpmn:signalEventDefinition id="SignalEventDefinition_1uf4fpv" signalRef="Signal_1aahmp3" />
     </bpmn:startEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -61,7 +59,7 @@
       <bpmndi:BPMNShape id="Activity_1jib0gg_di" bpmnElement="Activity_04cp0f7">
         <dc:Bounds x="500" y="190" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_11l5kb8_di" bpmnElement="Event_NeueBestellung">
+      <bpmndi:BPMNShape id="Event_1yasicp_di" bpmnElement="Event_NeueBestellung">
         <dc:Bounds x="234" y="212" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="211" y="188" width="81" height="14" />
