@@ -256,18 +256,18 @@ public static class ModelParser
             return;
         }
 
-        // if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
-        // {
-        //     process.FlowElements.Add(new FlowzerSignalStartEvent
-        //     {
-        //         Id = xmlFlowNode.Attribute("id")!.Value,
-        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-        //         Container = process,
-        //         Signal = model.RootElements.OfType<Signal>()
-        //             .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
-        //     });
-        //     return;
-        // }
+        if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+        {
+            process.FlowElements.Add(new FlowzerIntermediateSignalEvent()
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                Signal = model.RootElements.OfType<Signal>()
+                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+            });
+            return;
+        }
         
         throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
     }
