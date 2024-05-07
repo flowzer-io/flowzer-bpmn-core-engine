@@ -14,6 +14,6 @@ public record UserTask : Activities.Task, IFlowzerInputMapping, IFlowzerOutputMa
     public string? FlowzerDueDate { get; init; }
     public string? FlowzerFollowUpDate { get; init; }
     public string? FlowzerPriority { get; init; }
-    public FlowzerIoMapping? InputMapping { get; init; }
-    public FlowzerIoMapping? OutputMapping { get; init; }
+    public List<FlowzerIoMapping>? InputMappings { get; init; }
+    public List<FlowzerIoMapping>? OutputMappings { get; init; }
 }

@@ -12,5 +12,5 @@ public record ReceiveTask : Task, IFlowzerOutputMapping
     
     public Message? MessageRef { get; init; }
     public Operation? OperationRef { get; init; }
-    public FlowzerIoMapping? OutputMapping { get; init; }
+    public List<FlowzerIoMapping>? OutputMappings { get; init; }
 }

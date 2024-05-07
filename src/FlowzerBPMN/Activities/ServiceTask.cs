@@ -8,6 +8,6 @@ public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping
     public required string Implementation { get; init; }
     
     public int FlowzerRetries { get; init; }
-    public FlowzerIoMapping? InputMapping { get; init; }
-    public FlowzerIoMapping? OutputMapping { get; init; }
+    public List<FlowzerIoMapping>? InputMappings { get; init; }
+    public List<FlowzerIoMapping>? OutputMappings { get; init; }
 }

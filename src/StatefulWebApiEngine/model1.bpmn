@@ -14,35 +14,55 @@
       <zeebe:userTaskForm id="UserTaskForm_3ricepe">[]</zeebe:userTaskForm>
       <zeebe:userTaskForm id="UserTaskForm_2oqvl0e">[]</zeebe:userTaskForm>
     </bpmn:extensionElements>
+    <bpmn:sequenceFlow id="Flow_0hqsrnf" sourceRef="Event_NeueBestellung" targetRef="Activity_1surs4y" />
+    <bpmn:sequenceFlow id="Flow_007ecv3" sourceRef="Activity_1surs4y" targetRef="Activity_04cp0f7" />
+    <bpmn:serviceTask id="Activity_1surs4y" name="Tu was tolles">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="TuEs" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=InputProcess" target="InputLocal" />
+          <zeebe:input source="=InputProcess2" target="InputLocal2" />
+          <zeebe:output source="=OutputService" target="OutputProcess" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
+      <bpmn:outgoing>Flow_007ecv3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_1pxq0uj" sourceRef="Activity_04cp0f7" targetRef="Event_031zqoo" />
+    <bpmn:endEvent id="Event_031zqoo">
+      <bpmn:incoming>Flow_1pxq0uj</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:userTask id="Activity_04cp0f7">
+      <bpmn:extensionElements>
+        <zeebe:assignmentDefinition assignee="lukas" />
+        <zeebe:formDefinition formKey="GuteFrage" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_007ecv3</bpmn:incoming>
+      <bpmn:outgoing>Flow_1pxq0uj</bpmn:outgoing>
+    </bpmn:userTask>
     <bpmn:startEvent id="Event_NeueBestellung" name="Neue Bestellung">
       <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_0hqsrnf" sourceRef="Event_NeueBestellung" targetRef="Activity_1surs4y" />
-    <bpmn:sequenceFlow id="Flow_007ecv3" sourceRef="Activity_1surs4y" targetRef="Event_031zqoo" />
-    <bpmn:task id="Activity_1surs4y" name="Tu was tolles">
-      <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
-      <bpmn:outgoing>Flow_007ecv3</bpmn:outgoing>
-    </bpmn:task>
-    <bpmn:endEvent id="Event_031zqoo">
-      <bpmn:incoming>Flow_007ecv3</bpmn:incoming>
-    </bpmn:endEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0i9idwd">
       <bpmndi:BPMNShape id="Participant_0j2hu6z_di" bpmnElement="Participant_0j2hu6z" isHorizontal="true">
-        <dc:Bounds x="160" y="90" width="470" height="310" />
+        <dc:Bounds x="160" y="90" width="658" height="310" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0racy6x_di" bpmnElement="Event_NeueBestellung">
+      <bpmndi:BPMNShape id="Activity_0jkpd4p_di" bpmnElement="Activity_1surs4y">
+        <dc:Bounds x="330" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_031zqoo_di" bpmnElement="Event_031zqoo">
+        <dc:Bounds x="682" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1jib0gg_di" bpmnElement="Activity_04cp0f7">
+        <dc:Bounds x="550" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0aol80c_di" bpmnElement="Event_NeueBestellung">
         <dc:Bounds x="234" y="212" width="36" height="36" />
         <bpmndi:BPMNLabel>
           <dc:Bounds x="211" y="188" width="81" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1se0idg_di" bpmnElement="Activity_1surs4y">
-        <dc:Bounds x="330" y="190" width="100" height="80" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_031zqoo_di" bpmnElement="Event_031zqoo">
-        <dc:Bounds x="492" y="212" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0hqsrnf_di" bpmnElement="Flow_0hqsrnf">
         <di:waypoint x="270" y="230" />
@@ -50,7 +70,11 @@
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_007ecv3_di" bpmnElement="Flow_007ecv3">
         <di:waypoint x="430" y="230" />
-        <di:waypoint x="492" y="230" />
+        <di:waypoint x="550" y="230" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1pxq0uj_di" bpmnElement="Flow_1pxq0uj">
+        <di:waypoint x="650" y="230" />
+        <di:waypoint x="682" y="230" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

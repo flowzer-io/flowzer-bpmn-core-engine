@@ -10,5 +10,5 @@ public abstract record CatchEvent : Event, IFlowzerOutputMapping
     public List<DataOutput> DataOutputs { get; init; } = [];
     public List<DataOutputAssociation> DataOutputAssociations { get; init; } = [];
     public EventDefinition? EventDefinition { get; init; }
-    public FlowzerIoMapping? OutputMapping { get; init; }
+    public List<FlowzerIoMapping>? OutputMappings { get; init; }
 }

@@ -10,5 +10,5 @@ public record SendTask : Task, IFlowzerInputMapping
     
     public Message? MessageRef { get; init; }
     public Operation? OperationRef { get; init; }
-    public FlowzerIoMapping? InputMapping { get; init; }
+    public List<FlowzerIoMapping>? InputMappings { get; init; }
 }

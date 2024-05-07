@@ -2,5 +2,5 @@ namespace BPMN.Flowzer;
 
 public interface IFlowzerOutputMapping
 {
-    FlowzerIoMapping? OutputMapping { get; init; }
+    List<FlowzerIoMapping>? OutputMappings { get; init; }
 }

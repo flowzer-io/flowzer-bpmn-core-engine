@@ -9,5 +9,5 @@ public abstract record ThrowEvent : Event, IFlowzerInputMapping
     public List<DataInput> DataInputs { get; init; } = [];
     public List<DataInputAssociation> DataInputAssociations { get; init; } = [];
     public List<EventDefinition> EventDefinitions { get; init; } = [];
-    public FlowzerIoMapping? InputMapping { get; init; }
+    public List<FlowzerIoMapping>? InputMappings { get; init; }
 }

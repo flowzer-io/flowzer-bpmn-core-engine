@@ -62,27 +62,24 @@ public static class ModelParser
 
             foreach (var xmlFlowNode in xmlProcessNode.Elements())
             {
-                FlowzerIoMapping? inputMapping = null, outputMapping = null;
-                var inputNode = xmlFlowNode.Descendants().FirstOrDefault(x => x.Name.LocalName == "input");
-                if (inputNode is not null)
-                    inputMapping = new FlowzerIoMapping(
-                        inputNode.Attribute("source")!.Value,
-                        inputNode.Attribute("target")!.Value);
-                var outputNode = xmlFlowNode.Descendants().FirstOrDefault(x => x.Name.LocalName == "output");
-                if (outputNode is not null)
-                    outputMapping = new FlowzerIoMapping(
-                        outputNode.Attribute("source")!.Value,
-                        outputNode.Attribute("target")!.Value);
+                var inputMappings = 
+                    xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
+                        .Select(x => new FlowzerIoMapping(
+                        x.Attribute("source")!.Value,
+                        x.Attribute("target")!.Value)).ToList();
+                if (inputMappings.Count == 0) inputMappings = null;
+
+                var outputMappings = 
+                    xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
+                    .Select(x => new FlowzerIoMapping(
+                        x.Attribute("source")!.Value,
+                        x.Attribute("target")!.Value)).ToList();
+                if (outputMappings.Count == 0) outputMappings = null;
 
                 switch (xmlFlowNode.Name.LocalName)
                 {
                     case "startEvent":
-                        process.FlowElements.Add(new StartEvent
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            Container = process,
-                        });
+                        HandleStartEvent(process, xmlFlowNode);
                         break;
 
                     case "serviceTask":
@@ -98,8 +95,8 @@ public static class ModelParser
                                     .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
                                     ?.Attribute("type")?.Value
                                 ?? throw new Exception("No implementation found"),
-                            InputMapping = inputMapping,
-                            OutputMapping = outputMapping,
+                            InputMappings = inputMappings,
+                            OutputMappings = outputMappings,
                         });
                         break;
 
@@ -125,8 +122,8 @@ public static class ModelParser
                             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
                             FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
                             FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
-                            InputMapping = inputMapping,
-                            OutputMapping = outputMapping,
+                            InputMappings = inputMappings,
+                            OutputMappings = outputMappings,
                         });
                         break;
 
@@ -227,6 +224,27 @@ public static class ModelParser
         }
 
         return model;
+    }
+
+    private static void HandleStartEvent(Process process, XElement xmlFlowNode)
+    {
+        // if (xmlFlowNode.Descendants().Any(x => x.Name.LocalName == "messageEventDefinition"))
+        // {
+        //     process.FlowElements.Add(new MessageStartEvent
+        //     {
+        //         Id = xmlFlowNode.Attribute("id")!.Value,
+        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+        //         Container = process,
+        //     });
+        //     return;
+        // }
+        
+        process.FlowElements.Add(new StartEvent
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+            Container = process,
+        });
     }
 
     /// <summary>
