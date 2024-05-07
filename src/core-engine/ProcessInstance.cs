@@ -212,7 +212,7 @@ public class ProcessInstance : ICatchHandler
         throw new NotImplementedException();
     }
 
-    public List<TimerDefinition> GetActiveTimers()
+    public List<TimerEventDefinition> GetActiveTimers()
     {
         throw new NotImplementedException();
     }

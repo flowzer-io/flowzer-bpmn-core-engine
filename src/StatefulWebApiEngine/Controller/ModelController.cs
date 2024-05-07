@@ -51,13 +51,6 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
             if (alreadyDeployedDefinitionsInfo.BpmnFileHash == definitionsInfo.BpmnFileHash)
                 return Ok();
             
-            // foreach (var processEngine in engineState.ProcessDefinitions.Where(pe =>
-            //              pe. == alreadyLoadedModel && pe.IsActive))
-            // {
-            //     processEngine.IsActive = false;
-            //     engineState.ActiveMessages.RemoveAll(m => m.CatchHandler == processEngine);
-            // }
-            
             definitionsInfo.Version = alreadyDeployedDefinitionsInfo.Version + 1;
             alreadyDeployedDefinitionsInfo.IsDeployed = false;
         }

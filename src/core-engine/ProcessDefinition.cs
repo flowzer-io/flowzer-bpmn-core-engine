@@ -1,3 +1,4 @@
+using BPMN.Events;
 using BPMN.Process;
 using FlowzerBPMN;
 
@@ -33,7 +34,7 @@ public class ProcessDefinition : ICatchHandler
         return instance;
     }
     
-    public List<TimerDefinition> GetActiveTimers()
+    public List<TimerEventDefinition> GetActiveTimers()
     {
         throw new NotImplementedException();
     }

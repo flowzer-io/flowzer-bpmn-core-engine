@@ -26,7 +26,7 @@ public static class ModelParser
         var xml = await reader.ReadToEndAsync();
         return ParseModel(xml);
     }
-    
+
 
     /// <summary>
     /// Parse a FlowzerBPMN model from a string
@@ -62,18 +62,18 @@ public static class ModelParser
 
             foreach (var xmlFlowNode in xmlProcessNode.Elements())
             {
-                var inputMappings = 
+                var inputMappings =
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
                         .Select(x => new FlowzerIoMapping(
-                        x.Attribute("source")!.Value,
-                        x.Attribute("target")!.Value)).ToList();
+                            x.Attribute("source")!.Value,
+                            x.Attribute("target")!.Value)).ToList();
                 if (inputMappings.Count == 0) inputMappings = null;
 
-                var outputMappings = 
+                var outputMappings =
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
-                    .Select(x => new FlowzerIoMapping(
-                        x.Attribute("source")!.Value,
-                        x.Attribute("target")!.Value)).ToList();
+                        .Select(x => new FlowzerIoMapping(
+                            x.Attribute("source")!.Value,
+                            x.Attribute("target")!.Value)).ToList();
                 if (outputMappings.Count == 0) outputMappings = null;
 
                 switch (xmlFlowNode.Name.LocalName)
@@ -94,7 +94,8 @@ public static class ModelParser
                                 ?? xmlFlowNode.Descendants()
                                     .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
                                     ?.Attribute("type")?.Value
-                                ?? throw new ModelValidationException($"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
+                                ?? throw new ModelValidationException(
+                                    $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
                             InputMappings = inputMappings,
                             OutputMappings = outputMappings,
                         });
@@ -228,23 +229,66 @@ public static class ModelParser
 
     private static void HandleStartEvent(Process process, XElement xmlFlowNode)
     {
-        // if (xmlFlowNode.Descendants().Any(x => x.Name.LocalName == "messageEventDefinition"))
-        // {
-        //     process.FlowElements.Add(new MessageStartEvent
-        //     {
-        //         Id = xmlFlowNode.Attribute("id")!.Value,
-        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-        //         Container = process,
-        //     });
-        //     return;
-        // }
-        
+        var definition = xmlFlowNode.Descendants().SingleOrDefault(x => x.Name.LocalName == "timerEventDefinition");
+        if (definition != null)
+        {
+            process.FlowElements.Add(new FlowzerTimerStartEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                TimerDefinition = ParseTimerEventDefinition(definition),
+            });
+            return;
+        }
+
         process.FlowElements.Add(new StartEvent
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             Container = process,
         });
+    }
+
+    private static TimerEventDefinition ParseTimerEventDefinition(XElement xElementTimerEventDefinition)
+    {
+        TimerEventDefinition? timerEventDefinition = null;
+        var element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeCycle");
+        if (element != null)
+        {
+            timerEventDefinition = new TimerEventDefinition()
+            {
+                TimeCycle = new Expression
+                {
+                    Body = element.Value,
+                }
+            };
+        }
+        element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDate");
+        if (element != null)
+        {
+            timerEventDefinition = new TimerEventDefinition()
+            {
+                TimeDate = new Expression
+                {
+                    Body = element.Value,
+                }
+            };
+        }
+        element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDuration");
+        if (element != null)
+        {
+            timerEventDefinition = new TimerEventDefinition()
+            {
+                TimeDuration = new Expression
+                {
+                    Body = element.Value,
+                }
+            };
+        }
+
+        if (timerEventDefinition == null) throw new ArgumentException("TimerEventDefinition found, but no Implementation.");
+        return timerEventDefinition;
     }
 
     /// <summary>

@@ -1,10 +1,11 @@
+using BPMN.Events;
 using FlowzerBPMN;
 
 namespace core_engine;
 
 public interface ICatchHandler
 {
-    List<TimerDefinition> GetActiveTimers();
+    List<TimerEventDefinition> GetActiveTimers();
     List<MessageDefinition> GetActiveCatchMessages();
     List<SignalDefinition> GetActiveCatchSignals();
     
