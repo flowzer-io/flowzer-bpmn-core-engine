@@ -1,5 +1,6 @@
 using BPMN.Activities;
 using BPMN.Events;
+using BPMN.Flowzer;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
@@ -31,6 +32,11 @@ public class ProcessInstance : ICatchHandler
     /// </summary>
     public List<Token> Tokens { get; init; } = [];
     
+    /// <summary>
+    /// Status der Instanz
+    /// </summary>
+    public ProcessInstanceState State {private set; get;}
+    
     public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State <= FlowNodeState.Ready);
     
     public void Run()
@@ -38,9 +44,12 @@ public class ProcessInstance : ICatchHandler
         var loopDetection = 200;
         while (Tokens.Any(token => token.State is FlowNodeState.Ready or FlowNodeState.Completing))
         {
+            if (State != ProcessInstanceState.Running)
+                State = ProcessInstanceState.Running;
+            
             if (loopDetection-- == 0)
             {
-                throw new Exception("Endlosschleife erkannt");
+                throw new EndlessLoopException();
             }
             
             foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Ready))
@@ -64,6 +73,16 @@ public class ProcessInstance : ICatchHandler
                 GoToNextFlowNode(token);
             }
         }
+        
+        if (Tokens.Any(x=>x.State == FlowNodeState.Active))
+        {
+            State = ProcessInstanceState.Waiting;
+        }
+        else
+        {
+            State = ProcessInstanceState.Completed;
+        }
+        
     }
 
     /// <summary>
@@ -93,7 +112,19 @@ public class ProcessInstance : ICatchHandler
     /// <param name="token">Der Token, in welchen der aktuelle Input Datensatz persistiert wird.</param>
     private void PrepareInputData(Token token)
     {
-        throw new NotImplementedException();
+        if (!(token.CurrentFlowNode is IFlowzerInputMapping mapping))
+            return;
+        
+        if (mapping.InputMappings == null) return;
+        
+        
+        mapping.InputMappings.ForEach(x =>
+        {
+            if (ProcessVariables.TryGetValue(x.Source, out var variable))
+                token.InputData[x.Target] = variable;
+            else
+                throw new FlowzerRuntimeException($"Variable {x.Source} not found in global Globals at node {token.CurrentFlowNode.Id}");
+        });
     }
 
     /// <summary>
@@ -166,7 +197,7 @@ public class ProcessInstance : ICatchHandler
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
         {
-            throw new Exception("Token ist nicht aktiv");
+            throw new FlowzerRuntimeException($"Token {tokenId} is not active");
         }
         token.OutputData = result;
         token.State = FlowNodeState.Completing;
@@ -251,4 +282,7 @@ public class ProcessInstance : ICatchHandler
         // {typeof(SequenceFlow), new SequenceFlowHandler()},
         // {typeof(FlowNode), new FlowNodeHandler()}
     };
+
+    
+   
 }

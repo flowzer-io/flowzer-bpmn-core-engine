@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="embeddings\text1.bpmn">
+      <None Update="embeddings\Test.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>

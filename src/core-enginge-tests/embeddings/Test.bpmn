@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1avqf6e" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1avqf6e" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
   <bpmn:process id="Process_0r3pov9" isExecutable="true">
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_199owjh</bpmn:outgoing>
@@ -10,6 +10,9 @@
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_13fjwkr" sourceRef="Activity_152l1tg" targetRef="Event_0pibhov" />
     <bpmn:serviceTask id="Activity_152l1tg" name="Tu was">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="TuWas" />
+      </bpmn:extensionElements>
       <bpmn:incoming>Flow_199owjh</bpmn:incoming>
       <bpmn:outgoing>Flow_13fjwkr</bpmn:outgoing>
     </bpmn:serviceTask>

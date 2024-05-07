@@ -94,7 +94,7 @@ public static class ModelParser
                                 ?? xmlFlowNode.Descendants()
                                     .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
                                     ?.Attribute("type")?.Value
-                                ?? throw new Exception("No implementation found"),
+                                ?? throw new ModelValidationException($"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
                             InputMappings = inputMappings,
                             OutputMappings = outputMappings,
                         });
