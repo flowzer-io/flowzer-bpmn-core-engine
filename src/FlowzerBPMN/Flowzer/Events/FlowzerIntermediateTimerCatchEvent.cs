@@ -2,9 +2,8 @@ using BPMN.Events;
 
 namespace BPMN.Flowzer.Events;
 
-public record FlowzerTimerStartEvent : StartEvent, IFlowzerTimerEvent
+public record FlowzerIntermediateTimerCatchEvent : IntermediateCatchEvent, IFlowzerTimerEvent
 {
     public FlowzerTimerType? TimerType => FlowzerTimerTypeResolver.GetTimerType(TimerDefinition);
-
     public required TimerEventDefinition TimerDefinition { get; init; }
 }

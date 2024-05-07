@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
 using System.Xml.Linq;
@@ -119,6 +120,10 @@ public static class ModelParser
                         HandleStartEvent(process, xmlFlowNode, model);
                         break;
 
+                    case "intermediateCatchEvent":
+                        HandleIntermediateCatchEvent(process, xmlFlowNode, model);
+                        break;
+                    
                     case "serviceTask":
                         HandleServiceTask(process, xmlFlowNode, inputMappings, outputMappings);
                         break;
@@ -224,6 +229,49 @@ public static class ModelParser
         }
     }
 
+    private static void HandleIntermediateCatchEvent(Process process, XElement xmlFlowNode, Definitions model)
+    {
+        if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
+        {
+            process.FlowElements.Add(new FlowzerIntermediateTimerCatchEvent()
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Container = process,
+                TimerDefinition = ParseTimerEventDefinition(definition),
+            });
+            return;
+        }
+
+        // if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
+        // {
+        //     process.FlowElements.Add(new FlowzerMessageStartEvent
+        //     {
+        //         Id = xmlFlowNode.Attribute("id")!.Value,
+        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+        //         Container = process,
+        //         Message = model.RootElements.OfType<Message>()
+        //             .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+        //     });
+        //     return;
+        // }
+
+        // if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+        // {
+        //     process.FlowElements.Add(new FlowzerSignalStartEvent
+        //     {
+        //         Id = xmlFlowNode.Attribute("id")!.Value,
+        //         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+        //         Container = process,
+        //         Signal = model.RootElements.OfType<Signal>()
+        //             .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+        //     });
+        //     return;
+        // }
+        
+        throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+    }
+
     private static void HandleServiceTask(Process process, XElement xmlFlowNode, List<FlowzerIoMapping>? inputMappings,
         List<FlowzerIoMapping>? outputMappings)
     {
@@ -274,10 +322,16 @@ public static class ModelParser
         });
     }
 
+    private static bool HasDescendant(this XElement element, string name, [NotNullWhen(returnValue:true)] out XElement? descendant)
+    {
+        descendant = element.Descendants()
+            .SingleOrDefault(x => x.Name.LocalName.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+        return descendant != null;
+    }
+    
     private static void HandleStartEvent(Process process, XElement xmlFlowNode, Definitions model)
     {
-        var definition = xmlFlowNode.Descendants().SingleOrDefault(x => x.Name.LocalName == "timerEventDefinition");
-        if (definition != null)
+        if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
             process.FlowElements.Add(new FlowzerTimerStartEvent
             {
@@ -289,8 +343,7 @@ public static class ModelParser
             return;
         }
 
-        definition = xmlFlowNode.Descendants().SingleOrDefault(x => x.Name.LocalName == "messageEventDefinition");
-        if (definition != null)
+        if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
             process.FlowElements.Add(new FlowzerMessageStartEvent
             {
@@ -303,10 +356,7 @@ public static class ModelParser
             return;
         }
 
-        definition = xmlFlowNode.Descendants()
-            .SingleOrDefault(x => x.Name.LocalName
-                .Equals("signalEventDefinition", StringComparison.InvariantCultureIgnoreCase));
-        if (definition != null)
+        if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
         {
             process.FlowElements.Add(new FlowzerSignalStartEvent
             {
