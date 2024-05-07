@@ -23,7 +23,7 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
     [HttpGet, Route("{id}")]
     public IActionResult Get(string id)
     {
-        return Ok(engineState.Models.Single(m => m.Id == id));
+        return Ok(engineState.Models.Single(m => m.Id == id).Definitions);
     }
 
     /// <summary>
@@ -66,10 +66,16 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
         var processes =
             model.RootElements.OfType<Process>()
                 .Select(modelProcess => new ProcessDefinition { Process = modelProcess });
-        foreach (var process in processes)
+        foreach (var processDefinition in processes)
         {
-            process.IsActive = true;
-            engineState.ProcessDefinitions.Add(process);
+            processDefinition.IsActive = true;
+            foreach (var otherProcessDefinitions in engineState.ProcessDefinitions.Where(pd =>
+                         pd.Process.Id == processDefinition.Process.Id && pd.IsActive))
+            {
+                otherProcessDefinitions.IsActive = false;
+            }
+            engineState.ProcessDefinitions.Add(processDefinition);
+            
             // engineState.ActiveMessages
             //     .AddRange( processEngine.GetActiveCatchMessages()
             //         .Select(m => new MessageSubscription(m, processEngine)));

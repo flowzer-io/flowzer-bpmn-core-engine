@@ -4,6 +4,7 @@ using BPMN.HumanInteraction;
 using BPMN.Process;
 using core_engine.Handler;
 using FlowzerBPMN;
+using Task = BPMN.Activities.Task;
 
 namespace core_engine;
 
@@ -33,7 +34,7 @@ public class ProcessInstance : ICatchHandler
     
     public void Run()
     {
-        var loopDetection = 30;
+        var loopDetection = 200;
         while (Tokens.Any(token => token.State is FlowNodeState.Ready or FlowNodeState.Completing))
         {
             if (loopDetection-- == 0)
@@ -51,6 +52,7 @@ public class ProcessInstance : ICatchHandler
             {
                 if (!FlowNodeHandlers.ContainsKey(token.CurrentFlowNode.GetType())) continue;
                 FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(token.InputData);
+                // ToDo: TryCatch?
                 token.State = FlowNodeState.Completing;
             }
 
@@ -77,6 +79,7 @@ public class ProcessInstance : ICatchHandler
         // 4. Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
         // 5. Setze den State des Tokens auf Ready
         // 6. Füge das Token der Liste der Tokens hinzu
+        
         
         throw new NotImplementedException();
     }
@@ -232,9 +235,9 @@ public class ProcessInstance : ICatchHandler
     
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
-        {typeof(StartEvent), new StartEventHandler()},
+        {typeof(StartEvent), new TuNichtsHandler()},
         // {typeof(EndEvent), new EndEventHandler()},
-        // {typeof(Task), new TaskHandler()},
+        {typeof(Task), new TuNichtsHandler()},
         // {typeof(ExclusiveGateway), new ExclusiveGatewayHandler()},
         // {typeof(ParallelGateway), new ParallelGatewayHandler()},
         // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},
