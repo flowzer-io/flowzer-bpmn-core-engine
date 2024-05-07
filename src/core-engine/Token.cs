@@ -25,6 +25,6 @@ public class Token
     public Token? PreviousToken { get; set; }
     public SequenceFlow? LastSequenceFlow { get; set; }
 
-    public Variables? InputData { get; set; }
+    public Variables InputData { get; set; } = new();
     public Variables? OutputData { get; set; }
 }
