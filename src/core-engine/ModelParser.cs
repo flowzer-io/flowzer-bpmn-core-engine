@@ -4,6 +4,7 @@ using System.Xml.Linq;
 using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
+using BPMN.Flowzer;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Infrastructure;
@@ -25,6 +26,7 @@ public static class ModelParser
         var xml = await reader.ReadToEndAsync();
         return ParseModel(xml);
     }
+    
 
     /// <summary>
     /// Parse a FlowzerBPMN model from a string
@@ -60,6 +62,18 @@ public static class ModelParser
 
             foreach (var xmlFlowNode in xmlProcessNode.Elements())
             {
+                FlowzerIoMapping? inputMapping = null, outputMapping = null;
+                var inputNode = xmlFlowNode.Descendants().FirstOrDefault(x => x.Name.LocalName == "input");
+                if (inputNode is not null)
+                    inputMapping = new FlowzerIoMapping(
+                        inputNode.Attribute("source")!.Value,
+                        inputNode.Attribute("target")!.Value);
+                var outputNode = xmlFlowNode.Descendants().FirstOrDefault(x => x.Name.LocalName == "output");
+                if (outputNode is not null)
+                    outputMapping = new FlowzerIoMapping(
+                        outputNode.Attribute("source")!.Value,
+                        outputNode.Attribute("target")!.Value);
+
                 switch (xmlFlowNode.Name.LocalName)
                 {
                     case "startEvent":
@@ -84,6 +98,8 @@ public static class ModelParser
                                     .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
                                     ?.Attribute("type")?.Value
                                 ?? throw new Exception("No implementation found"),
+                            InputMapping = inputMapping,
+                            OutputMapping = outputMapping,
                         });
                         break;
 
@@ -109,6 +125,8 @@ public static class ModelParser
                             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
                             FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
                             FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
+                            InputMapping = inputMapping,
+                            OutputMapping = outputMapping,
                         });
                         break;
 

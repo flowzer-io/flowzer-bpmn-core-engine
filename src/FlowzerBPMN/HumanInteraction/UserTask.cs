@@ -1,6 +1,8 @@
+using BPMN.Flowzer;
+
 namespace BPMN.HumanInteraction;
 
-public record UserTask : Activities.Task
+public record UserTask : Activities.Task, IFlowzerInputMapping, IFlowzerOutputMapping
 {
     public required string Implementation { get; init; }
 
@@ -12,4 +14,6 @@ public record UserTask : Activities.Task
     public string? FlowzerDueDate { get; init; }
     public string? FlowzerFollowUpDate { get; init; }
     public string? FlowzerPriority { get; init; }
+    public FlowzerIoMapping? InputMapping { get; init; }
+    public FlowzerIoMapping? OutputMapping { get; init; }
 }
