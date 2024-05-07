@@ -13,8 +13,7 @@ public class ProcessDefinition : ICatchHandler
     {
         var instance = new ProcessInstance
         {
-            ProcessModel = Process,
-            ProcessVariables = data ?? new Variables()
+            ProcessModel = Process
         };
         
         foreach (var processStartFlowNode in Process.StartFlowNodes)
@@ -23,7 +22,9 @@ public class ProcessDefinition : ICatchHandler
             {
                 ProcessInstance = instance,
                 ProcessInstanceId = instance.Id,
-                CurrentFlowNode = processStartFlowNode
+                CurrentFlowNode = processStartFlowNode,
+                InputData = data ?? new Variables(),
+                OutputData = data
             });
         }
 
