@@ -1,5 +1,6 @@
 using BPMN.Activities;
 using BPMN.Events;
+using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
 using core_engine.Handler;
@@ -51,7 +52,7 @@ public class ProcessInstance : ICatchHandler
             foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Active))
             {
                 if (!FlowNodeHandlers.ContainsKey(token.CurrentFlowNode.GetType())) continue;
-                FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(token.InputData);
+                FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(this, token);
                 // ToDo: TryCatch?
                 token.State = FlowNodeState.Completing;
             }
@@ -86,7 +87,8 @@ public class ProcessInstance : ICatchHandler
 
     /// <summary>
     /// Überträgt die Variablen des Prozesses in die Input-Daten des Tokens. Dabei wird auf die InputSet des
-    /// FlowNodes geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
+    /// FlowNode
+    /// ,s geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
     /// </summary>
     /// <param name="token">Der Token, in welchen der aktuelle Input Datensatz persistiert wird.</param>
     private void PrepareInputData(Token token)
@@ -236,10 +238,10 @@ public class ProcessInstance : ICatchHandler
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
         {typeof(StartEvent), new TuNichtsHandler()},
-        // {typeof(EndEvent), new EndEventHandler()},
+        {typeof(EndEvent), new TuNichtsHandler()},
         {typeof(Task), new TuNichtsHandler()},
-        // {typeof(ExclusiveGateway), new ExclusiveGatewayHandler()},
-        // {typeof(ParallelGateway), new ParallelGatewayHandler()},
+        {typeof(ExclusiveGateway), new TuNichtsHandler()},
+        {typeof(ParallelGateway), new TuNichtsHandler()},
         // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
