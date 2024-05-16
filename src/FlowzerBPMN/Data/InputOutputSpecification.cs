@@ -4,8 +4,8 @@ namespace BPMN.Data;
 
 public abstract record InputOutputSpecification : BaseElement
 {
-    public List<InputSet> InputSets { get; init; } = [];
-    public List<OutputSet> OutputSets { get; init; } = [];
-    public List<DataInput> DataInputs { get; init; } = [];
-    public List<DataOutput> DataOutputs { get; init; } = [];
+    public ImmutableList<InputSet>? InputSets { get; init; }
+    public ImmutableList<OutputSet>? OutputSets { get; init; }
+    public ImmutableList<DataInput>? DataInputs { get; init; }
+    public ImmutableList<DataOutput>? DataOutputs { get; init; }
 }

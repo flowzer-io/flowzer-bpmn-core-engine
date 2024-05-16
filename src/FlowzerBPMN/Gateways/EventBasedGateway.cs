@@ -1,5 +1,3 @@
-using BPMN.Common;
-
 namespace BPMN.Gateways;
 
 public record EventBasedGateway : Gateway

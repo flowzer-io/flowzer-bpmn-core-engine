@@ -1,5 +1,3 @@
-using BPMN.Common;
-
 namespace BPMN.Activities;
 
 public record Transaction : SubProcess

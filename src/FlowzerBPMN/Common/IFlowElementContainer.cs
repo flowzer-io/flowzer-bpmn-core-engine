@@ -4,5 +4,5 @@ namespace BPMN.Common;
 
 public interface IFlowElementContainer : IBaseElement
 {
-    public List<FlowElement> FlowElements { get; init; }
+    public ImmutableList<FlowElement> FlowElements { get; init; }
 }

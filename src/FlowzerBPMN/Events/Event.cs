@@ -5,6 +5,6 @@ namespace BPMN.Events;
 
 public abstract record Event : FlowNode
 {
-    public List<Escalation> Escalations { get; init; } = [];
-    public List<Property> Properties { get; init; } = [];
+    public ImmutableList<Escalation>? Escalations { get; init; }
+    public ImmutableList<Property>? Properties { get; init; }
 }

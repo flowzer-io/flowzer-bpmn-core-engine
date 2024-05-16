@@ -11,7 +11,7 @@ public record MultiInstanceLoopCharacteristics : LoopCharacteristics
     
     public Expression? LoopCardinality { get; init; }
     public Expression? CompletionCondition { get; init; }
-    public List<ComplexBehaviorDefinition> ComplexBehaviorDefinitions { get; init; } = [];
+    public ImmutableList<ComplexBehaviorDefinition>? ComplexBehaviorDefinitions { get; init; }
     public EventDefinition? OneBehaviorEventRef { get; init; }
     public EventDefinition? NoneBehaviorEventRef { get; init; }
     public ItemAwareElement? LoopDataInputRef { get; init; }

@@ -6,8 +6,8 @@ public record InputSet : BaseElement
 {
     public required string Name { get; init; }
 
-    public List<DataInput> DataInputRefs { get; init; } = [];
-    public List<DataInput> OptionalInputRefs { get; init; } = [];
-    public List<DataInput> WhileExecutingInputRefs { get; init; } = [];
-    public List<OutputSet> OutputSetRefs { get; init; } = [];
+    public ImmutableList<DataInput>? DataInputRefs { get; init; }
+    public ImmutableList<DataInput>? OptionalInputRefs { get; init; }
+    public ImmutableList<DataInput>? WhileExecutingInputRefs { get; init; }
+    public ImmutableList<OutputSet>? OutputSetRefs { get; init; }
 }

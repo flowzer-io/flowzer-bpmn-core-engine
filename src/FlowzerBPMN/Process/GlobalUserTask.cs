@@ -6,5 +6,5 @@ public record GlobalUserTask : GlobalTask
 {
     public required string Implementation { get; init; }
 
-    public List<Rendering> Renderings { get; init; } = [];
+    public ImmutableList<Rendering> Renderings { get; init; } = [];
 }

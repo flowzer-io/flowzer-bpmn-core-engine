@@ -9,6 +9,6 @@ public interface ICallableElement : IRootElement
     public string? Name { get; init; }
     
     public InputOutputSpecification? IoSpecification { get; init; }
-    public List<InputOutputBinding> IoBindings { get; init; }
-    public List<Interface> SupportedInterfaceRefs { get; init; }
+    public ImmutableList<InputOutputBinding> IoBindings { get; init; }
+    public ImmutableList<Interface> SupportedInterfaceRefs { get; init; }
 }

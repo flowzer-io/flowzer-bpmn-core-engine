@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using BPMN.Common;
 using BPMN.Data;
 
@@ -11,5 +10,5 @@ public record Operation
     
     public required Message InMessageRef { get; init; }
     public Message? OutMessageRef { get; init; }
-    public List<InputOutputBinding> IoBindings { get; init; } = [];
+    public ImmutableList<InputOutputBinding> IoBindings { get; init; } = [];
 }
