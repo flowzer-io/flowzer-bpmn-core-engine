@@ -9,7 +9,7 @@ public record Lane : BaseElement
     
     public required LaneSet LaneSet { get; init; }
     public LaneSet? ChildLaneSet { get; init; }
-    public ImmutableList<FlowNode> FlowNodeRefs { get; init; } = [];
+    public FlowzerList<FlowNode> FlowNodeRefs { get; init; } = [];
     public IBaseElement? PartitionElementRef { get; init; }
     public IBaseElement? PartitionElement { get; init; }
 }

@@ -8,9 +8,7 @@ namespace BPMN.Common;
 public abstract record FlowElement : BaseElement
 {
     public required string Name { get; init; }
-    [JsonIgnore]
-    //public IFlowElementContainer? Container { get; init; }
     public Auditing? Auditing { get; init; }
     public Monitoring? Monitoring { get; init; }
-    public ImmutableList<CategoryValue> CategoryValueRefs { get; init; } = [];
+    public FlowzerList<CategoryValue>? CategoryValueRefs { get; init; }
 }

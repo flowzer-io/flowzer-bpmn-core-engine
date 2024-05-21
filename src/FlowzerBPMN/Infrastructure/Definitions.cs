@@ -12,9 +12,9 @@ public record Definitions : BaseElement
     public string? Exporter { get; init; }
     public string? ExporterVersion { get; init; }
     
-    public ImmutableList<Extension> Extensions { get; init; } = [];
-    public ImmutableList<IRootElement> RootElements { get; init; } = [];
-    public ImmutableList<FlowNode> FlowNodes { get; init; } = [];
+    public FlowzerList<Extension> Extensions { get; init; } = [];
+    public FlowzerList<IRootElement> RootElements { get; init; } = [];
+    public FlowzerList<FlowNode> FlowNodes { get; init; } = [];
     
     public string FlowzerFileHash { get; init; } = "";
 }

@@ -14,6 +14,10 @@ POST {{WebApiEngine_HostAddress}}/model/
 Accept: application/json
 
 > {%
-    console.log(response.body.id);
-    client.global.set("ModelId", response.body.id);
+    console.log(response.body[0].definitionsId);
+    client.global.set("ModelId", response.body[0].definitionsId);
 %}
+
+### Get hashes
+POST {{WebApiEngine_HostAddress}}/model/hash
+Accept: application/json

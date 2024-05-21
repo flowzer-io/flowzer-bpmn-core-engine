@@ -1,3 +1,4 @@
+using BPMN.Common;
 using BPMN.Process;
 using core_engine;
 using Microsoft.AspNetCore.Mvc;
@@ -16,13 +17,30 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
     [HttpGet]
     public IActionResult Index()
     {
-        return Ok(engineState.Models.Select(m => m.Definitions));
+        return Ok(engineState.ProcessInfos
+            .Select(m => m.ProcessDefinition.Process.DefinitionsId).Distinct());
     }
 
+    /// <summary>
+    /// Gibt eine Liste der Prozesse für ein Modell zurück
+    /// </summary>
+    /// <param name="id"></param>
+    /// <returns></returns>
     [HttpGet, Route("{id}")]
-    public IActionResult Get(string id)
+    public IActionResult GetProcesses(string id)
     {
-        return Ok(engineState.Models.Single(m => m.Id == id).Definitions);
+        return Ok(new
+        {
+            DefinitionId = id,
+            Processes = engineState.ProcessInfos
+                .Where(p => p.ProcessDefinition.Process.DefinitionsId == id && p.ProcessDefinition.IsActive)
+                .Select(p => new
+                {
+                    p.ProcessDefinition.Process.Id,
+                    p.ProcessDefinition.Process.Name,
+                    // p.ProcessDefinition.Process.StartFlowNodes
+                })
+        });
     }
 
     /// <summary>
@@ -32,47 +50,72 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
     public async Task<IActionResult> LoadModel([FromHeader] string filename = "model1.bpmn")
     {
         var fileStream = new FileStream(filename, FileMode.Open);
+        var fileStream2 = new FileStream(filename, FileMode.Open);
         var model = await ModelParser.ParseModel(fileStream);
-        var definitionsInfo = new DefinitionsInfo
-        {
-            Definitions = model, 
-            IsDeployed = true, 
-            Id = model.Id,
-            Version = 1,
-            BpmnFileHash = model.FlowzerFileHash
-        };
+
+        var created = false;
+        var updated = false;
         
-        var alreadyDeployedDefinitionsInfo = 
-            engineState.Models.SingleOrDefault(m => m.Id == model.Id && m.IsDeployed);
-        
-        if (alreadyDeployedDefinitionsInfo is not null)
-        {
-            if (alreadyDeployedDefinitionsInfo.BpmnFileHash == definitionsInfo.BpmnFileHash)
-                return Ok();
-            
-            definitionsInfo.Version = alreadyDeployedDefinitionsInfo.Version + 1;
-            alreadyDeployedDefinitionsInfo.IsDeployed = false;
-        }
-        
-        engineState.Models.Add(definitionsInfo);
         var processes =
-            model.RootElements.OfType<Process>()
-                .Select(modelProcess => new ProcessDefinition { Process = modelProcess });
-        foreach (var processDefinition in processes)
+            model.RootElements.OfType<Process>().ToList();
+
+        foreach (var process in processes)
         {
-            processDefinition.IsActive = true;
-            foreach (var otherProcessDefinitions in engineState.ProcessDefinitions.Where(pd =>
-                         pd.Process.Id == processDefinition.Process.Id && pd.IsActive))
+            var version = 1;
+
+            var oldProcessInfo = engineState.ProcessInfos.SingleOrDefault(p =>
+                p.ProcessDefinition.Process.Id == process.Id && p.ProcessDefinition.IsActive);
+            
+            if(process == oldProcessInfo?.ProcessDefinition.Process)
+                continue;
+            
+            if (oldProcessInfo is not null)
             {
-                otherProcessDefinitions.IsActive = false;
+                version = oldProcessInfo.Version + 1;
+                oldProcessInfo.ProcessDefinition.IsActive = false;
+                updated = true;
+                // ToDo: Hier noch das deaktivieren des Prozesses implementieren
             }
-            engineState.ProcessDefinitions.Add(processDefinition);
+            else created = true;
+
+            var processInfo = new ProcessInfo
+            {
+                ProcessDefinition = new ProcessDefinition
+                {
+                    Process = process,
+                    DeployedAt = DateTime.Now,
+                    IsActive = true
+                },
+                Version = version
+            };
+
+            engineState.ProcessInfos.Add(processInfo);
+
+            // ToDo: Hier dann das aktivieren des Prozesses implementieren
             
             // engineState.ActiveMessages
             //     .AddRange( processEngine.GetActiveCatchMessages()
             //         .Select(m => new MessageSubscription(m, processEngine)));
         }
 
-        return CreatedAtAction(nameof(Get), new { Id = model.Id }, env.IsDevelopment() ? definitionsInfo.Definitions.RootElements.OfType<Process>() : null);
+        if (!created && !updated)
+            return Ok(env.IsDevelopment() ? processes : null);
+        return CreatedAtAction(nameof(GetProcesses), new { model.Id },
+            env.IsDevelopment() ? processes : null);
+    }
+    
+    /// <summary>
+    /// Gibt den Hash der Prozesse eines Models zurück
+    /// </summary>
+    [HttpPost, Route("hash")]
+    public async Task<IActionResult> GetHash([FromHeader] string filename = "model1.bpmn")
+    {
+        var fileStream = new FileStream(filename, FileMode.Open);
+        var model = await ModelParser.ParseModel(fileStream);
+
+        var processes =
+            model.RootElements.OfType<Process>().ToList();
+        
+        return Ok(processes.ToDictionary(p => p.Id, p => p.GetHashCode()));
     }
 }

@@ -10,5 +10,5 @@ public record Operation
     
     public required Message InMessageRef { get; init; }
     public Message? OutMessageRef { get; init; }
-    public ImmutableList<InputOutputBinding> IoBindings { get; init; } = [];
+    public FlowzerList<InputOutputBinding> IoBindings { get; init; } = [];
 }

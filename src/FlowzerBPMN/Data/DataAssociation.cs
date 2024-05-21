@@ -5,7 +5,7 @@ namespace BPMN.Data;
 
 public record DataAssociation : BaseElement
 {
-    public required ImmutableList<Assignment> Assignments { get; init; }
+    public required FlowzerList<Assignment> Assignments { get; init; }
     public FormalExpression? Transformation { get; init; }
     public required ItemAwareElement TargetRef { get; init; }
     public ItemAwareElement? SourceRef { get; init; }

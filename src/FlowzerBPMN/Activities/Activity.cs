@@ -11,18 +11,12 @@ public record Activity : FlowNode, IHasDefault
     public int CompletionQuantity { get; init; }
     
     public InputOutputSpecification? IoSpecification { get; init; }
-    public ImmutableList<DataInputAssociation>? DataInputAssociations { get; init; }
-    public ImmutableList<DataOutputAssociation>? DataOutputAssociations { get; init; }
-    public ImmutableList<Property>? Properties { get; init; }
-    public SequenceFlow? Default { get; set; }
-    public string? DefaultId { get; init; }
-    public ImmutableList<ResourceRole>? Resources { get; init; }
-    public LoopCharacteristics? LoopCharacteristics { get; init; }
-    public ImmutableList<BoundaryEvent>? BoundaryEvents { get; init; }
-}
+    public FlowzerList<DataInputAssociation>? DataInputAssociations { get; init; }
+    public FlowzerList<DataOutputAssociation>? DataOutputAssociations { get; init; }
+    public FlowzerList<Property>? Properties { get; init; }
 
-public interface IHasDefault
-{
-    public SequenceFlow? Default { get; set; }
     public string? DefaultId { get; init; }
+    public FlowzerList<ResourceRole>? Resources { get; init; }
+    public LoopCharacteristics? LoopCharacteristics { get; init; }
+    public FlowzerList<BoundaryEvent>? BoundaryEvents { get; init; }
 }

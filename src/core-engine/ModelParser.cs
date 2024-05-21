@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Text;
@@ -41,21 +40,21 @@ public static class ModelParser
     {
         var xDocument = XDocument.Parse(xml);
         var root = xDocument.Root!;
+        var definitionsId = root.Attribute("id")!.Value;
 
-        List<IRootElement> rootElements = [];
-        
+        FlowzerList<IRootElement> rootElements = [];
+
         rootElements.AddRange(ParseMessages(root));
         rootElements.AddRange(ParseSignals(root));
-        rootElements.AddRange(ParseProcess(root, rootElements));
+        rootElements.AddRange(ParseProcess(root, rootElements, definitionsId));
 
-        var model = new Definitions
+        var definitions = new Definitions
         {
-            Id = root.Attribute("id")!.Value,
-            FlowzerFileHash = GetHash(xml),
-            RootElements = rootElements.ToImmutableList()
+            Id = definitionsId,
+            RootElements = rootElements
         };
-        
-        return model;
+
+        return definitions;
     }
 
     private static IEnumerable<Message> ParseMessages(XElement root)
@@ -83,35 +82,42 @@ public static class ModelParser
             });
     }
 
-    private static List<Process> ParseProcess(XElement root, List<IRootElement> rootElements)
+    private static List<Process> ParseProcess(XElement root, List<IRootElement> rootElements,
+        string definitionsId)
     {
         // Gib mir alle Nodes unter root, die vom Typ "bpmn:process" sind
-        
-        List<Process> processes = [];
-        
+
+        FlowzerList<Process> processes = [];
+
         var xmlProcessNodes = root.Elements().Where(n =>
             n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
             n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase) == true);
 
         foreach (var xmlProcessNode in xmlProcessNodes)
         {
-            List<FlowElement> flowElements = [];
-            
+            FlowzerList<FlowElement> flowElements = [];
+
             foreach (var xmlFlowNode in xmlProcessNode.Elements())
             {
                 var inputMappings =
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
-                        .Select(x => new FlowzerIoMapping(
-                            x.Attribute("source")!.Value,
-                            x.Attribute("target")!.Value)).ToImmutableList();
-                if (inputMappings.Count == 0) inputMappings = null;
+                        .Select(x =>
+                            new FlowzerIoMapping(
+                                x.Attribute("source")!.Value, 
+                                x.Attribute("target")!.Value))
+                        .ToFlowzerList();
+                if (inputMappings.Any()) inputMappings = null;
+                Console.WriteLine(inputMappings);
+                Console.WriteLine(inputMappings?.GetHashCode());
 
                 var outputMappings =
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
-                        .Select(x => new FlowzerIoMapping(
-                            x.Attribute("source")!.Value,
-                            x.Attribute("target")!.Value)).ToImmutableList();
-                if (outputMappings.Count == 0) outputMappings = null;
+                        .Select(x =>
+                            new FlowzerIoMapping(
+                                x.Attribute("source")!.Value, 
+                                x.Attribute("target")!.Value))
+                        .ToFlowzerList();
+                if (outputMappings.Any()) outputMappings = null;
 
                 switch (xmlFlowNode.Name.LocalName)
                 {
@@ -122,7 +128,7 @@ public static class ModelParser
                     case "intermediateCatchEvent":
                         flowElements.Add(HandleIntermediateCatchEvent(xmlFlowNode, rootElements));
                         break;
-                    
+
                     case "serviceTask":
                         flowElements.Add(HandleServiceTask(xmlFlowNode, inputMappings, outputMappings));
                         break;
@@ -204,35 +210,31 @@ public static class ModelParser
                 var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
                 var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
                 var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
+                var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
+                                && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
                 var newSequenceFlow = new SequenceFlow
                 {
                     Id = xmlFlowNode.Attribute("id")!.Value,
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                     SourceRef = source,
                     TargetRef = target,
+                    FlowzerIsDefault = isDefault,
                     // Container = process,
                     FlowzerCondition = xmlFlowNode.Descendants()
                         .FirstOrDefault(e => e.Name.LocalName == "conditionExpression")
                         ?.Value,
                 };
-                if (source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
-                    && ((IHasDefault)source).DefaultId == newSequenceFlow.Id)
-                {
-                    newSequenceFlow = newSequenceFlow with { FlowzerIsDefault = true };
-                    ((IHasDefault)source).Default = newSequenceFlow;
-                    Console.WriteLine("Implementiert Default");
-                }
 
                 flowElements.Add(newSequenceFlow);
             }
-            
+
             var process = new Process
             {
                 Id = xmlProcessNode.Attribute("id")!.Value,
                 Name = xmlProcessNode.Attribute("name")?.Value,
                 IsExecutable = true,
-                FlowzerProcessHash = GetHash(xmlProcessNode.ToString()),
-                FlowElements = flowElements.ToImmutableList(),
+                FlowElements = flowElements,
+                DefinitionsId = definitionsId,
             };
             processes.Add(process);
         }
@@ -244,7 +246,7 @@ public static class ModelParser
     {
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
-             return new FlowzerIntermediateTimerCatchEvent()
+            return new FlowzerIntermediateTimerCatchEvent()
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
@@ -276,12 +278,12 @@ public static class ModelParser
                     .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
             };
         }
-        
+
         throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
     }
 
-    private static ServiceTask HandleServiceTask(XElement xmlFlowNode, ImmutableList<FlowzerIoMapping>? inputMappings,
-        ImmutableList<FlowzerIoMapping>? outputMappings)
+    private static ServiceTask HandleServiceTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
+        FlowzerList<FlowzerIoMapping>? outputMappings)
     {
         return new ServiceTask
         {
@@ -301,8 +303,8 @@ public static class ModelParser
         };
     }
 
-    private static UserTask HandleUserTask(XElement xmlFlowNode, ImmutableList<FlowzerIoMapping>? inputMappings,
-        ImmutableList<FlowzerIoMapping>? outputMappings)
+    private static UserTask HandleUserTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
+        FlowzerList<FlowzerIoMapping>? outputMappings)
     {
         var formDefinition = xmlFlowNode.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "formDefinition");
@@ -330,13 +332,14 @@ public static class ModelParser
         };
     }
 
-    private static bool HasDescendant(this XElement element, string name, [NotNullWhen(returnValue:true)] out XElement? descendant)
+    private static bool HasDescendant(this XElement element, string name,
+        [NotNullWhen(returnValue: true)] out XElement? descendant)
     {
         descendant = element.Descendants()
             .SingleOrDefault(x => x.Name.LocalName.Equals(name, StringComparison.InvariantCultureIgnoreCase));
         return descendant != null;
     }
-    
+
     private static StartEvent HandleStartEvent(XElement xmlFlowNode, IEnumerable<IRootElement> rootElements)
     {
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))

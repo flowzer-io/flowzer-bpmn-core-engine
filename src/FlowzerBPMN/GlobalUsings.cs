@@ -1,1 +1,1 @@
-global using System.Collections.Immutable;
+global using BPMN.Flowzer;

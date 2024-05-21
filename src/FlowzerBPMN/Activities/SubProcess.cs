@@ -7,7 +7,7 @@ public record SubProcess : Activity, IFlowElementContainer, IFlowzerInputMapping
 {
     public bool TriggeredByEvent { get; init; }
     
-    public required ImmutableList<FlowElement> FlowElements { get; init; }
-    public ImmutableList<FlowzerIoMapping>? InputMappings { get; init; }
-    public ImmutableList<FlowzerIoMapping>? OutputMappings { get; init; }
+    public required FlowzerList<FlowElement> FlowElements { get; init; }
+    public FlowzerList<FlowzerIoMapping>? InputMappings { get; init; }
+    public FlowzerList<FlowzerIoMapping>? OutputMappings { get; init; }
 }

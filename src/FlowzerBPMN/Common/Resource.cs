@@ -6,5 +6,5 @@ public record Resource : IRootElement
 {
     public required string Name { get; init; }
     
-    public ImmutableList<ResourceParameter> ResourceParameters { get; init; } = [];
+    public FlowzerList<ResourceParameter> ResourceParameters { get; init; } = [];
 }

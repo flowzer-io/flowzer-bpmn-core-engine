@@ -9,6 +9,6 @@ public record ResourceRole : BaseElement
     
     public Process.Process? Process { get; init; }
     public Resource? ResourceRef { get; init; }
-    public ImmutableList<ResourceParameterBinding>? ResourceParameterBindings { get; init; }
+    public FlowzerList<ResourceParameterBinding>? ResourceParameterBindings { get; init; }
     public ResourceAssignmentExpression? ResourceAssignmentExpression { get; init; }
 }

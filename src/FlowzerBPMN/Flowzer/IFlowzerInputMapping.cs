@@ -2,5 +2,5 @@ namespace BPMN.Flowzer;
 
 public interface IFlowzerInputMapping
 {
-    ImmutableList<FlowzerIoMapping>? InputMappings { get; init; }
+    FlowzerList<FlowzerIoMapping>? InputMappings { get; init; }
 }

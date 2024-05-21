@@ -7,6 +7,6 @@ public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping
     public required string Implementation { get; init; }
     
     public int FlowzerRetries { get; init; }
-    public ImmutableList<FlowzerIoMapping>? InputMappings { get; init; }
-    public ImmutableList<FlowzerIoMapping>? OutputMappings { get; init; }
+    public FlowzerList<FlowzerIoMapping>? InputMappings { get; init; }
+    public FlowzerList<FlowzerIoMapping>? OutputMappings { get; init; }
 }

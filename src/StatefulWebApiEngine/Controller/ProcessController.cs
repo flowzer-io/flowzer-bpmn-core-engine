@@ -9,18 +9,18 @@ public class ProcessController(EngineState engineState) : ControllerBase
     [HttpGet]
     public IActionResult Index()
     {
-        return Ok(engineState.ProcessDefinitions
-            .Where(definition => definition.IsActive)
-            .Select(processDefinition => processDefinition.Process.Id));
+        return Ok(engineState.ProcessInfos
+            .Where(definition => definition.ProcessDefinition.IsActive)
+            .Select(processInfo => processInfo.ProcessDefinition.Process.Id));
     }
 
     [HttpPost, Route("{id}")]
     public IActionResult Start(string id)
     {
-        var processDefinition =
-            engineState.ProcessDefinitions.Single(p => p.Process.Id == id);
+        var processInfo =
+            engineState.ProcessInfos.Single(p => p.ProcessDefinition.Process.Id == id);
 
-        var instance = processDefinition.StartProcess();
+        var instance = processInfo.ProcessDefinition.StartProcess();
 
         return Ok(instance);
     }

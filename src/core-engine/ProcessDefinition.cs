@@ -17,17 +17,17 @@ public class ProcessDefinition : ICatchHandler
             ProcessModel = Process
         };
         
-        foreach (var processStartFlowNode in Process.StartFlowNodes)
-        {
-            instance.Tokens.Add(new Token
-            {
-                ProcessInstance = instance,
-                ProcessInstanceId = instance.Id,
-                CurrentFlowNode = processStartFlowNode,
-                InputData = data ?? new Variables(),
-                OutputData = data
-            });
-        }
+        // foreach (var processStartFlowNode in Process.StartFlowNodes)
+        // {
+        //     instance.Tokens.Add(new Token
+        //     {
+        //         ProcessInstance = instance,
+        //         ProcessInstanceId = instance.Id,
+        //         CurrentFlowNode = processStartFlowNode,
+        //         InputData = data ?? new Variables(),
+        //         OutputData = data
+        //     });
+        // }
 
         instance.Run();
 
