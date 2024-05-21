@@ -18,8 +18,10 @@ public class ProcessController(EngineState engineState) : ControllerBase
     public IActionResult Start(string id)
     {
         var processInfo =
-            engineState.ProcessInfos.Single(p => p.ProcessDefinition.Process.Id == id);
+            engineState.ProcessInfos.SingleOrDefault(p => p.ProcessDefinition.Process.Id == id && p.ProcessDefinition.IsActive);
 
+        if (processInfo is null) return NotFound();
+        
         var instance = processInfo.ProcessDefinition.StartProcess();
 
         return Ok(instance);
