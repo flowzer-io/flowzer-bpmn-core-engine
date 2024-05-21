@@ -103,7 +103,7 @@ public static class ModelParser
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
                         .Select(x =>
                             new FlowzerIoMapping(
-                                x.Attribute("source")!.Value, 
+                                x.Attribute("source")!.Value,
                                 x.Attribute("target")!.Value))
                         .ToFlowzerList();
                 if (inputMappings.Any()) inputMappings = null;
@@ -114,7 +114,7 @@ public static class ModelParser
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
                         .Select(x =>
                             new FlowzerIoMapping(
-                                x.Attribute("source")!.Value, 
+                                x.Attribute("source")!.Value,
                                 x.Attribute("target")!.Value))
                         .ToFlowzerList();
                 if (outputMappings.Any()) outputMappings = null;
@@ -126,7 +126,9 @@ public static class ModelParser
                         break;
 
                     case "intermediateCatchEvent":
-                        flowElements.Add(HandleIntermediateCatchEvent(xmlFlowNode, rootElements));
+                    case "intermediateThrowEvent":
+                        flowElements.Add(HandleIntermediateEvent(xmlFlowNode, rootElements,
+                            xmlFlowNode.Name.LocalName));
                         break;
 
                     case "serviceTask":
@@ -142,7 +144,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                             DefaultId = xmlFlowNode.Attribute("name")?.Value,
                         });
                         break;
@@ -152,7 +153,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                             DefaultId = xmlFlowNode.Attribute("name")?.Value,
                         });
                         break;
@@ -162,7 +162,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                             DefaultId = xmlFlowNode.Attribute("name")?.Value,
                         });
                         break;
@@ -172,7 +171,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                             DefaultId = xmlFlowNode.Attribute("name")?.Value,
                         });
                         break;
@@ -182,7 +180,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                         });
                         break;
 
@@ -191,7 +188,6 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            // Container = process,
                         });
                         break;
 
@@ -242,43 +238,65 @@ public static class ModelParser
         return processes;
     }
 
-    private static CatchEvent HandleIntermediateCatchEvent(XElement xmlFlowNode, List<IRootElement> rootElements)
+    private static Event HandleIntermediateEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
+        string name)
     {
+        var catchEvent = name.Contains("catch", StringComparison.InvariantCultureIgnoreCase);
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
             return new FlowzerIntermediateTimerCatchEvent()
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                // Container = process,
                 TimerDefinition = ParseTimerEventDefinition(definition),
             };
         }
 
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
-            return new FlowzerIntermediateMessageEvent()
-            {
-                Id = xmlFlowNode.Attribute("id")!.Value,
-                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                // Container = process,
-                Message = rootElements.OfType<Message>()
-                    .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
-            };
+            return catchEvent
+                ? new FlowzerIntermediateMessageCatchEvent()
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Message = rootElements.OfType<Message>()
+                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                }
+                : new FlowzerIntermediateMessageThrowEvent()
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Message = rootElements.OfType<Message>()
+                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                };
         }
 
         if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
         {
-            return new FlowzerIntermediateSignalEvent()
+            return catchEvent
+                ? new FlowzerIntermediateSignalCatchEvent()
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Signal = rootElements.OfType<Signal>()
+                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                }
+                : new FlowzerIntermediateSignalThrowEvent()
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Signal = rootElements.OfType<Signal>()
+                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                };
+        }
+
+        if (!catchEvent)
+            return new IntermediateCatchEvent()
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                // Container = process,
-                Signal = rootElements.OfType<Signal>()
-                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
             };
-        }
-
+            
         throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
     }
 
