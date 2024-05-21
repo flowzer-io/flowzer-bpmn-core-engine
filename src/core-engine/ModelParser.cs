@@ -106,7 +106,7 @@ public static class ModelParser
                                 x.Attribute("source")!.Value,
                                 x.Attribute("target")!.Value))
                         .ToFlowzerList();
-                if (inputMappings.Any()) inputMappings = null;
+                if (!inputMappings.Any()) inputMappings = null;
                 Console.WriteLine(inputMappings);
                 Console.WriteLine(inputMappings?.GetHashCode());
 
@@ -117,7 +117,7 @@ public static class ModelParser
                                 x.Attribute("source")!.Value,
                                 x.Attribute("target")!.Value))
                         .ToFlowzerList();
-                if (outputMappings.Any()) outputMappings = null;
+                if (!outputMappings.Any()) outputMappings = null;
 
                 switch (xmlFlowNode.Name.LocalName)
                 {
