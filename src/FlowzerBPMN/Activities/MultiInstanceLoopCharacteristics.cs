@@ -1,7 +1,3 @@
-using BPMN.Common;
-using BPMN.Data;
-using BPMN.Events;
-
 namespace BPMN.Activities;
 
 public record MultiInstanceLoopCharacteristics : LoopCharacteristics

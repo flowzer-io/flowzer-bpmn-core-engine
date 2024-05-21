@@ -1,5 +1,3 @@
-using BPMN.Common;
-
 namespace BPMN.Data;
 
 public record Assignment(Expression from, Expression to)

@@ -1,5 +1,3 @@
-using BPMN.Activities;
-
 namespace BPMN.Events;
 
 public record CompensateEventDefinition : EventDefinition

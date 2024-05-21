@@ -1,10 +1,3 @@
-using BPMN.Activities;
-using BPMN.Common;
-using BPMN.Data;
-using BPMN.Events;
-using BPMN.Foundation;
-using BPMN.Service;
-
 namespace BPMN.Process;
 
 public record Process : IFlowElementContainer, ICallableElement

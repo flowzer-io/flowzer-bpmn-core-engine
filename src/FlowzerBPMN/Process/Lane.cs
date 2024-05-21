@@ -1,6 +1,3 @@
-using BPMN.Common;
-using BPMN.Foundation;
-
 namespace BPMN.Process;
 
 public record Lane : BaseElement

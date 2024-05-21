@@ -1,5 +1,3 @@
-using BPMN.Service;
-
 namespace BPMN.Data;
 
 public record InputOutputBinding

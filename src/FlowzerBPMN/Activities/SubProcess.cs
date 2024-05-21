@@ -1,6 +1,3 @@
-using BPMN.Common;
-using BPMN.Flowzer;
-
 namespace BPMN.Activities;
 
 public record SubProcess : Activity, IFlowElementContainer, IFlowzerInputMapping, IFlowzerOutputMapping

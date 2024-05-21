@@ -1,5 +1,3 @@
-using BPMN.Foundation;
-
 namespace BPMN.Common;
 
 public interface IFlowElementContainer : IBaseElement

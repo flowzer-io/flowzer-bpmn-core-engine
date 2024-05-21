@@ -1,8 +1,3 @@
-using BPMN.Activities;
-using BPMN.Common;
-using BPMN.Data;
-using BPMN.Service;
-
 namespace BPMN.Process;
 
 public abstract record GlobalTask : ICallableElement

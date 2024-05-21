@@ -1,5 +1,3 @@
-using BPMN.Flowzer;
-
 namespace BPMN.Activities;
 
 public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping

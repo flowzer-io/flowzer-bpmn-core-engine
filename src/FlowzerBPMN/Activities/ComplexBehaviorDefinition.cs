@@ -1,6 +1,3 @@
-using BPMN.Common;
-using BPMN.Events;
-
 namespace BPMN.Activities;
 
 public record ComplexBehaviorDefinition

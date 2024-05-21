@@ -1,7 +1,3 @@
-using BPMN.Data;
-using BPMN.Foundation;
-using BPMN.Service;
-
 namespace BPMN.Common;
 
 public interface ICallableElement : IRootElement

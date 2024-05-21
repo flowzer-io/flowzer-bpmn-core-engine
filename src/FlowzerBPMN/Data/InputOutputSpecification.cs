@@ -1,5 +1,3 @@
-using BPMN.Foundation;
-
 namespace BPMN.Data;
 
 public abstract record InputOutputSpecification : BaseElement

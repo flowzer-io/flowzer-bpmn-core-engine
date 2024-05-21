@@ -1,5 +1,3 @@
-using BPMN.Common;
-
 namespace BPMN.Service;
 
 public record Interface

@@ -1,6 +1,3 @@
-using BPMN.Common;
-using BPMN.Foundation;
-
 namespace BPMN.Data;
 
 public record ItemAwareElement : BaseElement

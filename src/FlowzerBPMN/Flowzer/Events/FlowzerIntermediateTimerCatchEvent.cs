@@ -1,5 +1,3 @@
-using BPMN.Events;
-
 namespace BPMN.Flowzer.Events;
 
 public record FlowzerIntermediateTimerCatchEvent : IntermediateCatchEvent, IFlowzerTimerEvent

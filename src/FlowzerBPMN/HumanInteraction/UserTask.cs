@@ -1,5 +1,3 @@
-using BPMN.Flowzer;
-
 namespace BPMN.HumanInteraction;
 
 public record UserTask : Activities.Task, IFlowzerInputMapping, IFlowzerOutputMapping

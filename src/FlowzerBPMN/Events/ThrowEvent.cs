@@ -1,6 +1,3 @@
-using BPMN.Data;
-using BPMN.Flowzer;
-
 namespace BPMN.Events;
 
 public abstract record ThrowEvent : Event, IFlowzerInputMapping

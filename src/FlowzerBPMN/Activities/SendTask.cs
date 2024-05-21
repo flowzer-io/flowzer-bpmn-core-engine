@@ -1,7 +1,3 @@
-using BPMN.Common;
-using BPMN.Flowzer;
-using BPMN.Service;
-
 namespace BPMN.Activities;
 
 public record SendTask : Task, IFlowzerInputMapping

@@ -1,7 +1,4 @@
-using System.Text.Json.Serialization;
 using BPMN.Artifacts;
-using BPMN.Foundation;
-using BPMN.Process;
 
 namespace BPMN.Common;
 

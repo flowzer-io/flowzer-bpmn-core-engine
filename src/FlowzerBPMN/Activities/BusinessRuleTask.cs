@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using BPMN.Flowzer;
 
 namespace BPMN.Activities;
 
