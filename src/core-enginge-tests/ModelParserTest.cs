@@ -29,7 +29,10 @@ public class ModelParserTest
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
         
         
-        instance.HandleServiceTaskResult(serviceTaskToken.Id, new JObject(new {Result = "Hello World"}));
+        instance.HandleServiceTaskResult(serviceTaskToken.Id, JObject.FromObject(new {ServiceResult = "Hello World"}));
         Assert.That(instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        
+        Assert.That(instance.ProcessVariables?.GetValue("GlobalResult")?.Value<string>(), Is.EqualTo("Hello World"));
+        
     }
 }

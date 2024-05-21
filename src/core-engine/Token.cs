@@ -3,7 +3,7 @@ using BPMN.Common;
 namespace core_engine;
 
 public class Token
-{
+{ 
     public Guid Id { get; } = Guid.NewGuid();
     public Guid ProcessInstanceId { get; init; }
     public virtual ProcessInstance? ProcessInstance { get; init; }

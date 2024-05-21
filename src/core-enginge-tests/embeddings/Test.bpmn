@@ -4,14 +4,17 @@
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:outgoing>Flow_199owjh</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:sequenceFlow id="Flow_199owjh" sourceRef="StartEvent_1" targetRef="Activity_152l1tg" />
+    <bpmn:sequenceFlow id="Flow_199owjh" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
     <bpmn:endEvent id="Event_0pibhov">
       <bpmn:incoming>Flow_13fjwkr</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_13fjwkr" sourceRef="Activity_152l1tg" targetRef="Event_0pibhov" />
-    <bpmn:serviceTask id="Activity_152l1tg" name="Tu was">
+    <bpmn:sequenceFlow id="Flow_13fjwkr" sourceRef="ServiceTask_1" targetRef="Event_0pibhov" />
+    <bpmn:serviceTask id="ServiceTask_1" name="Tu was">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="TuWas" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=ServiceResult" target="GlobalResult" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_199owjh</bpmn:incoming>
       <bpmn:outgoing>Flow_13fjwkr</bpmn:outgoing>
@@ -25,7 +28,7 @@
       <bpmndi:BPMNShape id="Event_0pibhov_di" bpmnElement="Event_0pibhov">
         <dc:Bounds x="432" y="99" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_0xtphfp_di" bpmnElement="Activity_152l1tg">
+      <bpmndi:BPMNShape id="Activity_0xtphfp_di" bpmnElement="ServiceTask_1">
         <dc:Bounds x="270" y="77" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_199owjh_di" bpmnElement="Flow_199owjh">

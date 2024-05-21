@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using BPMN.Activities;
+using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer;
 using BPMN.Gateways;
@@ -6,12 +8,16 @@ using BPMN.HumanInteraction;
 using BPMN.Process;
 using core_engine.Handler;
 using FlowzerBPMN;
+using Newtonsoft.Json.Linq;
 using Task = BPMN.Activities.Task;
 
 namespace core_engine;
 
 public class ProcessInstance : ICatchHandler
 {
+
+    public FrozerConfig FrozerConfig { get; set; } = FrozerConfig.Default;
+    
     /// <summary>
     /// Eindeutige Id der Instanz
     /// </summary>
@@ -39,7 +45,13 @@ public class ProcessInstance : ICatchHandler
     
     public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State <= FlowNodeState.Ready);
     
-    public void Run()
+    public void Start(Variables? data)
+    {
+        CreateInitialTokens(data);  
+        Run();
+    }
+
+    private void Run()
     {
         var loopDetection = 200;
         while (Tokens.Any(token => token.State is FlowNodeState.Ready or FlowNodeState.Completing))
@@ -66,7 +78,7 @@ public class ProcessInstance : ICatchHandler
                 token.State = FlowNodeState.Completing;
             }
 
-            foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Completing))
+            foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
             {
                 PrepareOutputData(token);
                 token.State = FlowNodeState.Completed;
@@ -82,7 +94,21 @@ public class ProcessInstance : ICatchHandler
         {
             State = ProcessInstanceState.Completed;
         }
-        
+    }
+
+    private void CreateInitialTokens(Variables? data)
+    {
+        foreach (var processStartFlowNode in ProcessModel.StartFlowNodes)
+        {
+            Tokens.Add(new Token
+            {
+                ProcessInstance = this,
+                ProcessInstanceId = this.Id,
+                CurrentFlowNode = processStartFlowNode,
+                InputData = data ?? new Variables(),
+                OutputData = data
+            });
+        }
     }
 
     /// <summary>
@@ -94,14 +120,29 @@ public class ProcessInstance : ICatchHandler
     private void GoToNextFlowNode(Token token)
     {
         // 1. Finde alle ausgehenden Sequenzflüsse des aktuellen FlowNodes
+        var outgoingSequenceFlows = this.ProcessModel.FlowElements
+            .OfType<SequenceFlow>()
+            .Where(x => x.SourceRef == token.CurrentFlowNode);
+        
         // 2. Filtere die Sequenzflüsse, die Bedingungen haben und deren Bedingungen erfüllt sind
+        outgoingSequenceFlows = outgoingSequenceFlows.Where(x => FrozerConfig.ExpresssionHandler.MatchExpression(this, x.ConditionExpression));
+        
         // 3. Erzeuge für jeden Sequenzfluss ein neues Token
-        // 4. Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
-        // 5. Setze den State des Tokens auf Ready
-        // 6. Füge das Token der Liste der Tokens hinzu
+        // 3.1 Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
+        // 3.2 Setze den State des Tokens auf Ready
+        // 3.3 Füge das Token der Liste der Tokens hinzu
+        foreach (var outgoingSequenceFlow in outgoingSequenceFlows)
+        {
+            Tokens.Add(new Token
+                {
+                    ProcessInstance = this,
+                    ProcessInstanceId = this.Id,
+                    CurrentFlowNode = outgoingSequenceFlow.TargetRef,
+                    State = FlowNodeState.Ready
+                }
+            );
+        }
         
-        
-        throw new NotImplementedException();
     }
 
     /// <summary>
@@ -117,13 +158,9 @@ public class ProcessInstance : ICatchHandler
         
         if (mapping.InputMappings == null) return;
         
-        
         mapping.InputMappings.ForEach(x =>
         {
-            if (ProcessVariables.TryGetValue(x.Source, out var variable))
-                token.InputData[x.Target] = variable;
-            else
-                throw new FlowzerRuntimeException($"Variable {x.Source} not found in global Globals at node {token.CurrentFlowNode.Id}");
+             token.InputData.Add(x.Target, FrozerConfig.ExpresssionHandler.GetValue(this, x.Source));
         });
     }
 
@@ -134,7 +171,15 @@ public class ProcessInstance : ICatchHandler
     /// <param name="token">Der Token, in welchen der aktuelle Output Datensatz persistiert ist.</param>
     private void PrepareOutputData(Token token)
     {
-        throw new NotImplementedException();
+        if (!(token.CurrentFlowNode is IFlowzerOutputMapping mapping))
+            return;
+        
+        if (mapping.OutputMappings == null) return;
+        
+        mapping.OutputMappings.ForEach(x =>
+        {
+            ProcessVariables[x.Target] = FrozerConfig.ExpresssionHandler.GetValue(token.OutputData as dynamic, x.Source);
+        });
     }
     
     Task<IEnumerable<Escalation>> GetActiveEscalations()
@@ -151,7 +196,7 @@ public class ProcessInstance : ICatchHandler
     }
     
     public IEnumerable<Token> GetActiveServiceTasks() => Tokens
-        .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Ready });
+        .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
     
     Task<IEnumerable<MessageInfo>> GetActiveThrowMessages()
     {
@@ -201,6 +246,8 @@ public class ProcessInstance : ICatchHandler
         }
         token.OutputData = result;
         token.State = FlowNodeState.Completing;
+        
+        Run();
     }
 
     /// <summary>
@@ -285,4 +332,27 @@ public class ProcessInstance : ICatchHandler
 
     
    
+}
+
+public class FrozerConfig
+{
+    public IExpresssionHandler ExpresssionHandler { get; set; }
+
+    public static FrozerConfig Default => new FrozerConfig()
+    {
+        ExpresssionHandler = new JavaScriptV8ExpressionHandler()
+    };
+}
+
+public interface IExpresssionHandler
+{
+    /// <summary>
+    /// Get the value by expression from the process variables 
+    /// </summary>
+    JToken GetValue(ProcessInstance processInstance, string expression);
+    
+    /// <summary>
+    /// Checks if the expression matches the conditions of the sequence flow
+    /// </summary>
+    bool MatchExpression(ProcessInstance processInstance, Expression? expression);
 }

@@ -12,25 +12,11 @@ public class ProcessDefinition : ICatchHandler
     
     public ProcessInstance StartProcess(Variables? data = null)
     {
-        var instance = new ProcessInstance
+        var instance = new ProcessInstance()
         {
             ProcessModel = Process
         };
-        
-        // foreach (var processStartFlowNode in Process.StartFlowNodes)
-        // {
-        //     instance.Tokens.Add(new Token
-        //     {
-        //         ProcessInstance = instance,
-        //         ProcessInstanceId = instance.Id,
-        //         CurrentFlowNode = processStartFlowNode,
-        //         InputData = data ?? new Variables(),
-        //         OutputData = data
-        //     });
-        // }
-
-        instance.Run();
-
+        instance.Start(data);
         return instance;
     }
     
