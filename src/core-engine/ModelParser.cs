@@ -139,6 +139,10 @@ public static class ModelParser
                         flowElements.Add(HandleUserTask(xmlFlowNode, inputMappings, outputMappings));
                         break;
 
+                    case "scriptTask":
+                        flowElements.Add(HandleScriptTask(xmlFlowNode, inputMappings, outputMappings));
+                        break;
+
                     case "task":
                         flowElements.Add(new Task
                         {
@@ -318,6 +322,38 @@ public static class ModelParser
                     $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
+        };
+    }
+    
+    private static FlowzerScriptTask HandleScriptTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
+        FlowzerList<FlowzerIoMapping>? outputMappings)
+    {
+        var script = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "script");
+        
+        return new FlowzerScriptTask
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")
+                       ?.Value ??
+                   "",
+            // Container = process,
+            DefaultId = xmlFlowNode.Attribute("name")
+                ?.Value,
+            Type = script is not null
+                ? FlowzerScriptTaskType.Script
+                : FlowzerScriptTaskType.Service,
+            Implementation =
+                xmlFlowNode.Descendants()
+                    .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
+                    ?.Attribute("type")
+                    ?.Value,
+            ResultVar = script?.Attribute("resultVariable")
+                ?.Value,
+            InputMappings = inputMappings,
+            OutputMappings = outputMappings,
+            ScriptFormat = script is null ? "Service" : "FEEL",
+            Script = script?.Attribute("expression")?.Value,
         };
     }
 
