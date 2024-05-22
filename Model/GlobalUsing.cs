@@ -1,0 +1,1 @@
+global using Variables = Newtonsoft.Json.Linq.JObject;

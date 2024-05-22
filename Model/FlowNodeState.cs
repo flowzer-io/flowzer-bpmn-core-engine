@@ -1,16 +1,16 @@
-namespace core_engine;
+namespace Model;
 
-public enum ProcessInstanceState
+public enum FlowNodeState
 {
-    Initialized,
-    Running,
-    Waiting,
+    Ready,
+    Active,
     Completing,
     Completed,
     Failing,
-    Failed,
     Terminating,
+    Failed,
     Terminated,
+    Withdrawn,
     Compensating,
     Compensated
 }

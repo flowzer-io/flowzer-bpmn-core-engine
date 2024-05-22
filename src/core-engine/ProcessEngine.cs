@@ -1,26 +1,20 @@
 using BPMN.Events;
 using BPMN.Process;
-using FlowzerBPMN;
+using Model;
 
 namespace core_engine;
 
-public class ProcessDefinition : ICatchHandler
+public class ProcessEngine(Process process)
 {
-    public DateTime DeployedAt { get; init; }
-    public bool IsActive { get; set; }
-    public required Process Process { get; init; }
     
-    public ProcessInstance StartProcess(Variables? data = null)
+    public InstanceEngine StartProcess(Variables? data = null)
     {
-        var instance = new ProcessInstance()
-        {
-            ProcessModel = Process
-        };
+        var instance = new InstanceEngine(new ProcessInstance {ProcessModel = process});
         instance.Start(data);
         return instance;
     }
     
-    public List<TimerEventDefinition> GetActiveTimers()
+    public List<TimerEventDefinition> ActiveTimers()
     {
         throw new NotImplementedException();
     }

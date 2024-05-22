@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>StorageSystem</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\core-engine\core-engine.csproj" />
+      <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
+    </ItemGroup>
+
+</Project>

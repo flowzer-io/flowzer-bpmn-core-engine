@@ -1,12 +1,13 @@
 using BPMN.Common;
 using Microsoft.ClearScript.V8;
+using Model;
 using Newtonsoft.Json.Linq;
 
 namespace core_engine;
 
 
 
-public class JavaScriptV8ExpressionHandler : IExpresssionHandler
+public class JavaScriptV8ExpressionHandler : IExpressionHandler
 {
    
     public JToken GetValue(ProcessInstance processInstance, string expression)

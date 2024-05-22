@@ -1,13 +1,13 @@
-using BPMN.Common;
 using BPMN.Process;
 using core_engine;
 using Microsoft.AspNetCore.Mvc;
-using StatefulWebApiEngine.StatefulWorkflowEngine;
+using Model;
+using StorageSystem;
 
-namespace StatefulWebApiEngine.Controller;
+namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
-public class ModelController(EngineState engineState, IWebHostEnvironment env) : ControllerBase
+public class ModelController(IWebHostEnvironment env, IStorageSystem storageSystem) : ControllerBase
 {
     /// <summary>
     /// Gibt eine Liste geladener Modelle zurück
@@ -17,8 +17,7 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
     [HttpGet]
     public IActionResult Index()
     {
-        return Ok(engineState.ProcessInfos
-            .Select(m => m.ProcessDefinition.Process.DefinitionsId).Distinct());
+        return Ok(storageSystem.ProcessStorage.GetAllProcessDefinitionIds());
     }
 
     /// <summary>
@@ -32,13 +31,12 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
         return Ok(new
         {
             DefinitionId = id,
-            Processes = engineState.ProcessInfos
-                .Where(p => p.ProcessDefinition.Process.DefinitionsId == id && p.ProcessDefinition.IsActive)
+            Processes = storageSystem.ProcessStorage.GetAllProcessesInfos()
+                .Where(p => p.Process.DefinitionsId == id && p.IsActive)
                 .Select(p => new
                 {
-                    p.ProcessDefinition.Process.Id,
-                    p.ProcessDefinition.Process.Name,
-                    // p.ProcessDefinition.Process.StartFlowNodes
+                    p.Process.Id,
+                    p.Process.Name,
                 })
         });
     }
@@ -50,12 +48,11 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
     public async Task<IActionResult> LoadModel([FromHeader] string filename = "model1.bpmn")
     {
         var fileStream = new FileStream(filename, FileMode.Open);
-        var fileStream2 = new FileStream(filename, FileMode.Open);
         var model = await ModelParser.ParseModel(fileStream);
 
         var created = false;
         var updated = false;
-        
+
         var processes =
             model.RootElements.OfType<Process>().ToList();
 
@@ -63,16 +60,17 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
         {
             var version = 1;
 
-            var oldProcessInfo = engineState.ProcessInfos.SingleOrDefault(p =>
-                p.ProcessDefinition.Process.Id == process.Id && p.ProcessDefinition.IsActive);
-            
-            if(process == oldProcessInfo?.ProcessDefinition.Process)
+            var oldProcessInfo = storageSystem.ProcessStorage.GetAllProcessesInfos()
+                .SingleOrDefault(p =>
+                    p.Process.Id == process.Id && p.IsActive);
+
+            if (process == oldProcessInfo?.Process)
                 continue;
-            
+
             if (oldProcessInfo is not null)
             {
                 version = oldProcessInfo.Version + 1;
-                oldProcessInfo.ProcessDefinition.IsActive = false;
+                storageSystem.ProcessStorage.DeactivateProcessInfo(oldProcessInfo.Process.Id);
                 updated = true;
                 // ToDo: Hier noch das deaktivieren des Prozesses implementieren
             }
@@ -80,22 +78,13 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
 
             var processInfo = new ProcessInfo
             {
-                ProcessDefinition = new ProcessDefinition
-                {
-                    Process = process,
-                    DeployedAt = DateTime.Now,
-                    IsActive = true
-                },
-                Version = version
+                Process = process,
+                Version = version,
+                DeployedAt = DateTime.Now,
+                IsActive = true
             };
 
-            engineState.ProcessInfos.Add(processInfo);
-
-            // ToDo: Hier dann das aktivieren des Prozesses implementieren
-            
-            // engineState.ActiveMessages
-            //     .AddRange( processEngine.GetActiveCatchMessages()
-            //         .Select(m => new MessageSubscription(m, processEngine)));
+            storageSystem.ProcessStorage.AddProcessInfo(processInfo);
         }
 
         if (!created && !updated)
@@ -103,7 +92,7 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
         return CreatedAtAction(nameof(GetProcesses), new { model.Id },
             env.IsDevelopment() ? processes : null);
     }
-    
+
     /// <summary>
     /// Gibt den Hash der Prozesse eines Models zurück
     /// </summary>
@@ -115,7 +104,7 @@ public class ModelController(EngineState engineState, IWebHostEnvironment env) :
 
         var processes =
             model.RootElements.OfType<Process>().ToList();
-        
+
         return Ok(processes.ToDictionary(p => p.Id, p => p.GetHashCode()));
     }
 }

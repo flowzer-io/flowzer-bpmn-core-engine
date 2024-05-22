@@ -1,9 +1,8 @@
-using BPMN.Common;
+namespace Model;
 
-namespace core_engine;
+public class Token : ICatchHandler
 
-public class Token
-{ 
+{
     public Guid Id { get; } = Guid.NewGuid();
     public Guid ProcessInstanceId { get; init; }
     public virtual ProcessInstance? ProcessInstance { get; init; }
@@ -27,4 +26,7 @@ public class Token
 
     public Variables InputData { get; set; } = new();
     public Variables? OutputData { get; set; }
+    public List<TimerEventDefinition> ActiveTimers { get; set; } = [];
+    public List<MessageDefinition> ActiveCatchMessages { get; set; } = [];
+    public List<SignalDefinition> ActiveCatchSignals { get; set; } = [];
 }

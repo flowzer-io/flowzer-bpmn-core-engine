@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Model\Model.csproj" />
     <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
   </ItemGroup>
 

@@ -1,4 +1,4 @@
-namespace core_engine;
+namespace Model;
 
 public record MessageDefinition
 {
