@@ -1,0 +1,10 @@
+@WebApiEngine_HostAddress = http://localhost:5182
+@MessageId = Process_02kj6io
+
+### Get all deployed ProcessDefinitions
+GET {{WebApiEngine_HostAddress}}/message/
+Accept: application/json
+
+### Starts a new process instance
+POST {{WebApiEngine_HostAddress}}/message/{{MessageId}}
+Accept: application/json

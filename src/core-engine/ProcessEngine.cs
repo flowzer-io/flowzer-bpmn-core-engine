@@ -1,3 +1,4 @@
+using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer.Events;
 using BPMN.Process;
@@ -23,11 +24,11 @@ public class ProcessEngine(Process process)
             .Select(e => e.TimerDefinition);
     }
 
-    public IEnumerable<Message> GetActiveCatchMessages()
+    public IEnumerable<MessageDefinition> GetActiveCatchMessages()
     {
         return Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
-            .Select(e => new Message { Name = e.MessageDefinition.Name });
+            .Select(e => new MessageDefinition() { Name = e.MessageDefinition.Name });
     }
 
     public IEnumerable<SignalDefinition> GetActiveCatchSignals()

@@ -1,11 +1,18 @@
 using Model;
 using Newtonsoft.Json.Linq;
+using StorageSystem;
 
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
-public class MessageController : ControllerBase
+public class MessageController(IStorageSystem storageSystem) : ControllerBase
 {
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return Ok(storageSystem.MessageSubscriptionStorage.GetAllMessageSubscriptions().Select(m => m.Message));
+    }
+    
     [HttpPost]
     public IActionResult SendMessage([FromBody] Message message)
     {

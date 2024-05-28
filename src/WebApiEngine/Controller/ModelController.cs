@@ -1,3 +1,4 @@
+using BPMN.Flowzer.Events;
 using BPMN.Process;
 using core_engine;
 using Model;
@@ -71,6 +72,7 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
                 version = oldProcessInfo.Version + 1;
                 storageSystem.ProcessStorage.DeactivateProcessInfo(oldProcessInfo.Process.Id);
                 updated = true;
+                storageSystem.MessageSubscriptionStorage.RemoveProcessMessageSubscriptions(oldProcessInfo.Process.Id);
                 // ToDo: Hier noch das deaktivieren des Prozesses implementieren
             }
             else created = true;
@@ -84,6 +86,14 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
             };
 
             storageSystem.ProcessStorage.AddProcessInfo(processInfo);
+            foreach (var flowzerMessageStartEvent in
+                     processInfo.Process.StartFlowNodes.OfType<FlowzerMessageStartEvent>())
+            {
+                var messageDefinition = flowzerMessageStartEvent.MessageDefinition;
+                var messageSubscription =
+                    new MessageSubscription(messageDefinition with { FlowzerCorrelationKey = null }, process);
+                storageSystem.MessageSubscriptionStorage.AddMessageSubscription(messageSubscription);
+            }
         }
 
         if (!created && !updated)
