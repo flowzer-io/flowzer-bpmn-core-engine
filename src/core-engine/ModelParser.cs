@@ -57,11 +57,11 @@ public static class ModelParser
         return definitions;
     }
 
-    private static IEnumerable<Message> ParseMessages(XElement root)
+    private static IEnumerable<MessageDefinition> ParseMessages(XElement root)
     {
         return root.Elements().Where(n =>
                 n.Name.LocalName.Equals("message", StringComparison.InvariantCultureIgnoreCase))
-            .Select(m => new Message
+            .Select(m => new MessageDefinition
             {
                 Name = m.Attribute("name")!.Value,
                 FlowzerId = m.Attribute("id")?.Value,
@@ -263,14 +263,14 @@ public static class ModelParser
                 {
                     Id = xmlFlowNode.Attribute("id")!.Value,
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Message = rootElements.OfType<Message>()
+                    MessageDefinition = rootElements.OfType<MessageDefinition>()
                         .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
                 }
                 : new FlowzerIntermediateMessageThrowEvent()
                 {
                     Id = xmlFlowNode.Attribute("id")!.Value,
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Message = rootElements.OfType<Message>()
+                    MessageDefinition = rootElements.OfType<MessageDefinition>()
                         .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
                 };
         }
@@ -414,7 +414,7 @@ public static class ModelParser
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
-                Message = rootElements.OfType<Message>()
+                MessageDefinition = rootElements.OfType<MessageDefinition>()
                     .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
             };
         }

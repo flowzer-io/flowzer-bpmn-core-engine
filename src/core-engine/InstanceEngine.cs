@@ -169,7 +169,7 @@ public class InstanceEngine(ProcessInstance instance)
     public IEnumerable<Token> GetActiveServiceTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
     
-    Task<IEnumerable<MessageInfo>> GetActiveThrowMessages()
+    Task<IEnumerable<MessageDefinition>> GetActiveThrowMessages()
     {
         throw new NotImplementedException();
     }
@@ -240,9 +240,9 @@ public class InstanceEngine(ProcessInstance instance)
     /// </summary>
     /// <returns>Liste von Nachrichten inkl. CorrelationKey</returns>
     /// <exception cref="NotImplementedException"></exception>
-    public List<MessageDefinition> GetActiveCatchMessages()
+    public List<Message> GetActiveCatchMessages()
     {
-        var messageDefinitions = new List<MessageDefinition>();
+        var messageDefinitions = new List<Message>();
         foreach (var token in Instance.Tokens)
         {
             if (token.CurrentFlowNode is not IntermediateCatchEvent
@@ -251,7 +251,7 @@ public class InstanceEngine(ProcessInstance instance)
                 }) continue;
             if (messageEventDefinition.MessageRef is null) continue;
             
-            messageDefinitions.Add(new MessageDefinition
+            messageDefinitions.Add(new Message
             {
                 Name = messageEventDefinition.MessageRef.Name,
                 CorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden

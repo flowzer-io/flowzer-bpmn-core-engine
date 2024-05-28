@@ -3,4 +3,4 @@ using Model;
 
 namespace WebApiEngine.StatefulWorkflowEngine;
 
-public record MessageSubscription(MessageDefinition MessageDefinition, ICatchHandler CatchHandler);
+public record MessageSubscription(Message Message, ICatchHandler CatchHandler);

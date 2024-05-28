@@ -23,11 +23,11 @@ public class ProcessEngine(Process process)
             .Select(e => e.TimerDefinition);
     }
 
-    public IEnumerable<MessageDefinition> GetActiveCatchMessages()
+    public IEnumerable<Message> GetActiveCatchMessages()
     {
         return Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
-            .Select(e => new MessageDefinition { Name = e.Message.Name });
+            .Select(e => new Message { Name = e.MessageDefinition.Name });
     }
 
     public IEnumerable<SignalDefinition> GetActiveCatchSignals()
