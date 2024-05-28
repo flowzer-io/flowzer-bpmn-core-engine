@@ -6,17 +6,20 @@ using Newtonsoft.Json.Linq;
 namespace core_engine;
 
 
-
 public class JavaScriptV8ExpressionHandler : IExpressionHandler
 {
    
-    public JToken GetValue(ProcessInstance processInstance, string expression)
+    public JToken? GetValue(JToken? jToken, string expression)
     {
+        if (jToken == null)
+            return null;
         using var engine = new V8ScriptEngine();
-        engine.AddHostObject("globals", processInstance.ProcessVariables );
+        engine.AddHostObject("globals", jToken);
         var fullExpression = "globals." + expression;
         return JToken.FromObject(engine.Evaluate(fullExpression));   
     }
+
+ 
 
     public bool MatchExpression(ProcessInstance processInstance, Expression? expression)
     {
@@ -24,7 +27,7 @@ public class JavaScriptV8ExpressionHandler : IExpressionHandler
         {
             FormalExpression => throw new Exception("FormalExpressions are not supported in JavaScriptV8ExpressionHandler"),
             null => true,
-            _ => GetValue(processInstance, expression.Body).Value<bool>()
+            _ => GetValue(processInstance.ProcessVariables, expression.Body).Value<bool>()
         };
     }
 }

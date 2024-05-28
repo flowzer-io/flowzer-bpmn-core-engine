@@ -131,7 +131,7 @@ public class InstanceEngine(ProcessInstance instance)
 
         mapping.InputMappings?.ForEach(x =>
         {
-            token.InputData.Add(x.Target, FlowzerConfig.ExpressionHandler.GetValue(Instance, x.Source));
+            token.InputData.Add(x.Target, FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
         });
     }
 
