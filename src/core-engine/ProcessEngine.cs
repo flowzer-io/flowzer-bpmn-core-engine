@@ -47,7 +47,7 @@ public class ProcessEngine(Process process)
         throw new NotImplementedException();
     }
 
-    public InstanceEngine HandleMessage(Message message)
+    public ProcessInstance HandleMessage(Message message)
     {
         var startEvent = Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
@@ -67,7 +67,7 @@ public class ProcessEngine(Process process)
         processInstance.Tokens.Add(token);
         var instance = new InstanceEngine(processInstance);
         instance.Run();
-        return instance;
+        return processInstance;
     }
 
     public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)

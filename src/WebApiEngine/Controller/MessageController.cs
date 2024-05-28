@@ -1,7 +1,6 @@
 using core_engine;
 using Model;
 using Newtonsoft.Json.Linq;
-using StorageSystem;
 
 namespace WebApiEngine.Controller;
 
@@ -32,12 +31,12 @@ public class MessageController(IStorageSystem storageSystem) : ControllerBase
         
         if (messageSubscription.ProcessInstance != null)
         {
-            new InstanceEngine(messageSubscription.ProcessInstance)
-                .HandleMessage(message);
+            storageSystem.InstanceStorage.AddInstance(new InstanceEngine(messageSubscription.ProcessInstance)
+                .HandleMessage(message));
         }
         
-        new ProcessEngine(messageSubscription.Process)
-            .HandleMessage(message);
+        storageSystem.InstanceStorage.AddInstance(new ProcessEngine(messageSubscription.Process)
+            .HandleMessage(message));
 
         var response =
             $"Message \" {message.Name} \" with correlation Key \" {message.CorrelationKey} \" was sent to the process instance.";

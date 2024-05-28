@@ -6,4 +6,5 @@ internal class EngineState
 {
     public List<ProcessInfo> ProcessInfos { get; } = [];
     public List<MessageSubscription> ActiveMessages { get; } = [];
+    public List<ProcessInstance> Instances { get; } = [];
 }

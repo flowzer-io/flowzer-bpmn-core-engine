@@ -2,6 +2,7 @@ using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer;
+using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using core_engine.Handler;
@@ -20,7 +21,8 @@ public class InstanceEngine(ProcessInstance instance)
     
     public void Start(Variables? data)
     {
-        CreateInitialTokens(data);  
+        CreateInitialTokens(data);
+        if (instance.Tokens.Count == 0) throw new Exception("No tokens created");
         Run();
     }
 
@@ -71,7 +73,7 @@ public class InstanceEngine(ProcessInstance instance)
 
     private void CreateInitialTokens(Variables? data)
     {
-        foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes)
+        foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode => flowNode.GetType() == typeof(StartEvent) || flowNode.GetType() == typeof(Activity)))
         {
             Instance.Tokens.Add(new Token
             {
@@ -286,6 +288,7 @@ public class InstanceEngine(ProcessInstance instance)
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
         {typeof(StartEvent), new TuNichtsHandler()},
+        {typeof(FlowzerMessageStartEvent), new TuNichtsHandler()},
         {typeof(EndEvent), new TuNichtsHandler()},
         {typeof(Task), new TuNichtsHandler()},
         {typeof(ExclusiveGateway), new TuNichtsHandler()},
