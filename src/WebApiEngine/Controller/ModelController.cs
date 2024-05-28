@@ -93,6 +93,7 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
                 var messageSubscription =
                     new MessageSubscription(messageDefinition with { FlowzerCorrelationKey = null }, process);
                 storageSystem.MessageSubscriptionStorage.AddMessageSubscription(messageSubscription);
+                // ToDo: Hier noch überprüfen, ob bereits eine Message mit dem Namen vorhanden ist und ggf. direkt die Instance starten
             }
         }
 

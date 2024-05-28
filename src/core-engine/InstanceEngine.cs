@@ -24,7 +24,7 @@ public class InstanceEngine(ProcessInstance instance)
         Run();
     }
 
-    private void Run()
+    internal void Run()
     {
         var loopDetection = 200;
         while (Instance.Tokens.Any(token => token.State is FlowNodeState.Ready or FlowNodeState.Completing))
@@ -273,8 +273,7 @@ public class InstanceEngine(ProcessInstance instance)
         throw new NotImplementedException();
     }
 
-    public Task<ProcessInstance> HandleMessage(string messageName, string? correlationKey = null,
-        object? messageData = null)
+    public ProcessInstance HandleMessage(Message message)
     {
         throw new NotImplementedException();
     }
