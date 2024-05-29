@@ -11,7 +11,7 @@ public interface IExpressionHandler
     /// <summary>
     /// Get the value by expression from the process variables 
     /// </summary>
-    JToken? GetValue(JToken @object, string expression);
+    JToken? GetValue(JObject obj, string expression);
     
     /// <summary>
     /// Checks if the expression matches the conditions of the sequence flow

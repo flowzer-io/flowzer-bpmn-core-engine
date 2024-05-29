@@ -15,18 +15,34 @@ public class FeelinExpressionHandler : IExpressionHandler
         _jsEngine.Execute(File.ReadAllText("feelin/bundle.js"));
     }
 
-    public JToken? GetValue(JToken @object, string expression)
+    public JToken? GetValue(JObject obj, string expression)
     {
-        _jsEngine.Script.
-        _jsEngine.Evaluate(@"
-                           return libfeelin.evaluate(""Mike's dauther.name"", {
-                             'Mike\'s dauther.name': 'Lisa'}));
-                           ");
-        return null;
+        if (!expression.StartsWith("="))
+            return JToken.FromObject(expression);
+        
+        
+        _jsEngine.AddHostObject("vars", (dynamic)obj);
+        
+     
+        var expressionWithoutAssignmentSign = expression.Substring(1);
+        var svript = $$$"""
+                              libfeelin.evaluate("{{{expressionWithoutAssignmentSign}}}", vars)
+                              """;
+        var resultValue = _jsEngine.Evaluate(svript);
+
+        return JToken.FromObject(resultValue);
+        
     }
 
     public bool MatchExpression(ProcessInstance processInstance, Expression? expression)
     {
-        return false;
+        if (expression == null)
+            return true;
+        
+        _jsEngine.AddHostObject("vars", (dynamic)processInstance.ProcessVariables);
+        var resultValue = _jsEngine.Evaluate($$$"""
+                                                libfeelin.unaryTest({{{expression.Body}}}, obj)
+                                                """).ToString();
+        return resultValue == "true";
     }
 }

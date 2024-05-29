@@ -41,12 +41,8 @@ public class JavaScriptExpressionTest
             // Lade und führe das Hauptskript aus
             string indexScript = File.ReadAllText(indexPath);
             engine.Execute(indexScript);
-
-            engine.Execute("""
-                            function test(x) {console.log(x.name);}
-                           """);
-
-            for (int i = 0; i < 1; i++)
+            
+            for (int i = 0; i < 1000; i++)
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -60,10 +56,10 @@ public class JavaScriptExpressionTest
                     }
                 };
 
-var fromObject = (dynamic)JObject.FromObject(x);
-                
-                engine.Script.test(fromObject);
-                
+                engine.AddHostObject("obj", (dynamic)x);
+
+                var ret = engine.Evaluate("""libfeelin.evaluate("name", obj)""");
+                TestContext.WriteLine(ret);
                 sw.Stop();
                 Console.WriteLine(sw.ElapsedMilliseconds);
             }
