@@ -14,8 +14,9 @@ namespace core_engine;
 
 public class InstanceEngine(ProcessInstance instance)
 {
-    public ProcessInstance Instance { get; set; } = instance;
-    
+    public ProcessInstance Instance { get; } = instance;
+
+
     public FlowzerConfig FlowzerConfig { get; set; } = FlowzerConfig.Default;
     
     public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State <= FlowNodeState.Ready);
@@ -23,7 +24,7 @@ public class InstanceEngine(ProcessInstance instance)
     public void Start(Variables? data)
     {
         CreateInitialTokens(data);
-        if (instance.Tokens.Count == 0) throw new Exception("No tokens created");
+        if (Instance.Tokens.Count == 0) throw new Exception("No tokens created");
         Run();
     }
 
@@ -150,10 +151,11 @@ public class InstanceEngine(ProcessInstance instance)
         
         if (mapping.OutputMappings == null) return;
         
+
         mapping.OutputMappings.ForEach(x =>
         {
-            
-            ((IDictionary<string,object>)Instance.ProcessVariables)[x.Target] = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
+            var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
+            ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value); ;
         });
     }
     
@@ -304,6 +306,5 @@ public class InstanceEngine(ProcessInstance instance)
         // {typeof(FlowNode), new FlowNodeHandler()}
     };
 
-    
    
 }

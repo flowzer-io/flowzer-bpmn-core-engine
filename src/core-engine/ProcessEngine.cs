@@ -57,10 +57,15 @@ public class ProcessEngine(Process process)
         {
             ProcessModel = Process
         };
+        
+        Variables? data = JsonConvert.DeserializeObject<Variables>(message.Variables ?? "{}");
+        if (data is null)
+            data = new Variables();
+        
         var token = new Token
         {
             CurrentFlowNode = startEvent,
-            InputData = JsonConvert.DeserializeObject<Variables>( message.Variables ?? "{}"),
+            InputData = data,
             ProcessInstance = processInstance
         };
         token.OutputData = token.InputData; //TODO @christian: korrekt?
