@@ -1,0 +1,15 @@
+@WebApiEngine_HostAddress = http://localhost:5182
+@MessageId = NeueBestellung
+
+### Get all deployed ProcessDefinitions
+GET {{WebApiEngine_HostAddress}}/message/
+Accept: application/json
+
+### Starts a new process instance
+POST {{WebApiEngine_HostAddress}}/message/
+Content-Type: application/json
+Accept: application/json
+
+{
+"Name": "NeueBestellung"
+}

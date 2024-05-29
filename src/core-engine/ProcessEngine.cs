@@ -1,3 +1,4 @@
+using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer.Events;
 using BPMN.Process;
@@ -27,7 +28,7 @@ public class ProcessEngine(Process process)
     {
         return Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
-            .Select(e => new MessageDefinition { Name = e.Message.Name });
+            .Select(e => new MessageDefinition() { Name = e.MessageDefinition.Name });
     }
 
     public IEnumerable<SignalDefinition> GetActiveCatchSignals()
@@ -46,10 +47,27 @@ public class ProcessEngine(Process process)
         throw new NotImplementedException();
     }
 
-    public Task<ProcessInstance> HandleMessage(string messageName, string? correlationKey = null,
-        object? messageData = null)
+    public ProcessInstance HandleMessage(Message message)
     {
-        throw new NotImplementedException();
+        var startEvent = Process.FlowElements
+            .OfType<FlowzerMessageStartEvent>()
+            .First(e => e.MessageDefinition.Name == message.Name);
+        var variables = Variables.Parse(message.Variables?.ToString() ?? "{}");
+        var processInstance = new ProcessInstance
+        {
+            ProcessModel = Process
+        };
+        var token = new Token
+        {
+            CurrentFlowNode = startEvent,
+            InputData = variables,
+            OutputData = variables,
+            ProcessInstance = processInstance
+        };
+        processInstance.Tokens.Add(token);
+        var instance = new InstanceEngine(processInstance);
+        instance.Run();
+        return processInstance;
     }
 
     public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)

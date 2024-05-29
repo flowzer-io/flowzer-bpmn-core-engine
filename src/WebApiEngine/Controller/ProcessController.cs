@@ -1,6 +1,4 @@
 using core_engine;
-using Microsoft.AspNetCore.Mvc;
-using StorageSystem;
 
 namespace WebApiEngine.Controller;
 
@@ -26,6 +24,7 @@ public class ProcessController(IStorageSystem storageSystem) : ControllerBase
         if (processInfo is null) return NotFound();
         
         var instanceEngine = new ProcessEngine(processInfo.Process).StartProcess();
+        storageSystem.InstanceStorage.AddInstance(instanceEngine.Instance);
 
         return Ok(instanceEngine.Instance);
     }

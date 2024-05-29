@@ -1,0 +1,6 @@
+@WebApiEngine_HostAddress = http://localhost:5182
+@InstanceId = Process_02kj6io
+
+### Get all active process instances
+GET {{WebApiEngine_HostAddress}}/instance/
+Accept: application/json

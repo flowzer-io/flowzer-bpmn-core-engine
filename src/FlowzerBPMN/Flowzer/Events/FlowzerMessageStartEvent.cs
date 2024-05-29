@@ -2,5 +2,5 @@ namespace BPMN.Flowzer.Events;
 
 public record FlowzerMessageStartEvent : StartEvent
 {
-    public required Message Message { get; init; }
+    public required MessageDefinition MessageDefinition { get; init; }
 }

@@ -1,8 +1,7 @@
+using BPMN.Flowzer.Events;
 using BPMN.Process;
 using core_engine;
-using Microsoft.AspNetCore.Mvc;
 using Model;
-using StorageSystem;
 
 namespace WebApiEngine.Controller;
 
@@ -72,6 +71,7 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
                 version = oldProcessInfo.Version + 1;
                 storageSystem.ProcessStorage.DeactivateProcessInfo(oldProcessInfo.Process.Id);
                 updated = true;
+                storageSystem.MessageSubscriptionStorage.RemoveProcessMessageSubscriptions(oldProcessInfo.Process.Id);
                 // ToDo: Hier noch das deaktivieren des Prozesses implementieren
             }
             else created = true;
@@ -85,6 +85,15 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
             };
 
             storageSystem.ProcessStorage.AddProcessInfo(processInfo);
+            foreach (var flowzerMessageStartEvent in
+                     processInfo.Process.StartFlowNodes.OfType<FlowzerMessageStartEvent>())
+            {
+                var messageDefinition = flowzerMessageStartEvent.MessageDefinition;
+                var messageSubscription =
+                    new MessageSubscription(messageDefinition with { FlowzerCorrelationKey = null }, process);
+                storageSystem.MessageSubscriptionStorage.AddMessageSubscription(messageSubscription);
+                // ToDo: Hier noch überprüfen, ob bereits eine Message mit dem Namen vorhanden ist und ggf. direkt die Instance starten
+            }
         }
 
         if (!created && !updated)

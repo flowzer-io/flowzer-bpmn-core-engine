@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0612tx2" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.22.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0612tx2" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.23.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
   <bpmn:message id="Message_16rk16r" name="NeueBestellung">
     <bpmn:extensionElements>
       <zeebe:subscription correlationKey="=Customer.No" />
@@ -26,10 +26,6 @@
       <bpmn:incoming>Flow_0hqsrnf</bpmn:incoming>
       <bpmn:outgoing>Flow_007ecv3</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:startEvent id="Event_NeueBestellung" name="Neue Bestellung">
-      <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
-      <bpmn:signalEventDefinition id="SignalEventDefinition_1uf4fpv" signalRef="Signal_1aahmp3" />
-    </bpmn:startEvent>
     <bpmn:endEvent id="Event_031zqoo">
       <bpmn:incoming>Flow_1pxq0uj</bpmn:incoming>
     </bpmn:endEvent>
@@ -48,6 +44,10 @@
       <bpmn:incoming>Flow_15us14v</bpmn:incoming>
       <bpmn:outgoing>Flow_1pxq0uj</bpmn:outgoing>
     </bpmn:scriptTask>
+    <bpmn:startEvent id="Event_NeueBestellung" name="Neue Bestellung">
+      <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1ipw790" messageRef="Message_16rk16r" />
+    </bpmn:startEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0i9idwd">
@@ -57,12 +57,6 @@
       <bpmndi:BPMNShape id="Activity_0jkpd4p_di" bpmnElement="Activity_1surs4y">
         <dc:Bounds x="330" y="190" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_1yasicp_di" bpmnElement="Event_NeueBestellung">
-        <dc:Bounds x="234" y="212" width="36" height="36" />
-        <bpmndi:BPMNLabel>
-          <dc:Bounds x="211" y="188" width="81" height="14" />
-        </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_031zqoo_di" bpmnElement="Event_031zqoo">
         <dc:Bounds x="692" y="212" width="36" height="36" />
       </bpmndi:BPMNShape>
@@ -71,6 +65,12 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_16kc0w4_di" bpmnElement="Activity_04cp0f7">
         <dc:Bounds x="560" y="190" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0ij5nzh_di" bpmnElement="Event_NeueBestellung">
+        <dc:Bounds x="234" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="211" y="188" width="81" height="14" />
+        </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0hqsrnf_di" bpmnElement="Flow_0hqsrnf">
         <di:waypoint x="270" y="230" />
