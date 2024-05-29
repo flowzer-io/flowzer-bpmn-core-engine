@@ -13,28 +13,8 @@ public class JavaScriptExpressionTest
     {
         var globals = new JObject();
         globals.Add("a", "fghjk");
-
-        var t = globals as dynamic;
-        TestContext.Out.WriteLine(t.a);
-
-        for (var i = 0; i < 100; i++)
-        {
-            var handler = new JavaScriptV8ExpressionHandler();
-            var sw = new Stopwatch();
-            sw.Start();
-            var value = handler.GetValue(t , "a");
-            sw.Stop();
-
-            TestContext.Out.WriteLine(sw.ElapsedMilliseconds.ToString());
-        }
     }
-
-    public string importModule(string modulePath)
-    {
-        string scriptDirectory = @"/Users/lukasbauhaus/repos/feel/feelin/src";
-        string fullModulePath = Path.Combine(scriptDirectory, modulePath);
-        return File.ReadAllText(fullModulePath);
-    }
+    
     
     [Test]
     public async Task JavsScriptFeelTest()
@@ -45,7 +25,7 @@ public class JavaScriptExpressionTest
         using var engine = new V8ScriptEngine() ;
             
         // Lade die Index.js Datei
-        string indexPath = Path.Combine(scriptDirectory, "Index.js");
+        string indexPath = Path.Combine(scriptDirectory, "/Users/lukasbauhaus/repos/feelin/dist/bundle.js");
 
         // Definiere eine Funktion zum Laden von Modulen
         
@@ -55,19 +35,40 @@ public class JavaScriptExpressionTest
         engine.AddHostObject("console", new ConsoleWrapper());
         engine.DocumentSettings.AccessFlags = DocumentAccessFlags.EnableFileLoading;
         
-
-        // Lade und führe das Hauptskript aus
-        string indexScript = File.ReadAllText(indexPath);
-        engine.Execute(indexScript);
-
+        
         try
         {
-            // Beispiel für die Verwendung einer Funktion aus den geladenen Modulen
-            engine.Execute(@"
-                // Da die importierten Module bereits evaluiert wurden, kannst du ihre Funktionen direkt verwenden
-                console.log(unaryTest('1', { '?': 1 })); // true
-                // unaryTest('[1..end]', { '?': 1, end: 10 }); // true
-            ");
+            // Lade und führe das Hauptskript aus
+            string indexScript = File.ReadAllText(indexPath);
+            engine.Execute(indexScript);
+
+            engine.Execute("""
+                            function test(x) {console.log(x.name);}
+                           """);
+
+            for (int i = 0; i < 1; i++)
+            {
+                var sw = new Stopwatch();
+                sw.Start();
+
+                var x = new
+                {
+                    name = "Mike",
+                    daughter = new
+                    {
+                        name = "Lisa"
+                    }
+                };
+
+var fromObject = (dynamic)JObject.FromObject(x);
+                
+                engine.Script.test(fromObject);
+                
+                sw.Stop();
+                Console.WriteLine(sw.ElapsedMilliseconds);
+            }
+            
+
         }
         catch (Exception e)
         {
@@ -86,5 +87,6 @@ public class ConsoleWrapper
     public void log(string message)
     {
         Console.WriteLine(message);
+        TestContext.WriteLine(message);
     }
 }

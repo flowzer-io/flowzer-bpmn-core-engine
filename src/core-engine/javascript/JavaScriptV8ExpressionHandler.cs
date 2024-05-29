@@ -9,12 +9,12 @@ namespace core_engine;
 public class JavaScriptV8ExpressionHandler : IExpressionHandler
 {
    
-    public JToken? GetValue(JToken? jToken, string expression)
+    public JToken? GetValue(JToken? @object, string expression)
     {
-        if (jToken == null)
+        if (@object == null)
             return null;
         using var engine = new V8ScriptEngine();
-        engine.AddHostObject("globals", jToken);
+        engine.AddHostObject("globals", @object);
         var fullExpression = "globals." + expression;
         return JToken.FromObject(engine.Evaluate(fullExpression));   
     }

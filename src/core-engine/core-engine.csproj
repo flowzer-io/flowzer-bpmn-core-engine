@@ -9,6 +9,9 @@
 
   <ItemGroup>
     <None Remove="core-engine.csproj.DotSettings" />
+    <None Update="feelin\bundle.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

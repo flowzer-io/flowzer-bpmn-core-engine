@@ -6,6 +6,6 @@ public class FlowzerConfig
 
     public static FlowzerConfig Default => new FlowzerConfig()
     {
-        ExpressionHandler = new JavaScriptV8ExpressionHandler()
+        ExpressionHandler = new FeelinExpressionHandler()
     };
 }
