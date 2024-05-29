@@ -110,18 +110,14 @@ public class InstanceEngine(ProcessInstance instance)
         // 3.3 Füge das Token der Liste der Tokens hinzu
         foreach (var outgoingSequenceFlow in outgoingSequenceFlows)
         {
-            if (outgoingSequenceFlow.TargetRef is not EndEvent)
-            {
-                Instance.Tokens.Add(new Token
-                    {
-                        ProcessInstance = Instance,
-                        ProcessInstanceId = Instance.Id,
-                        CurrentFlowNode = outgoingSequenceFlow.TargetRef,
-                        State = FlowNodeState.Ready
-                    }
-                );
-            }
-          
+            Instance.Tokens.Add(new Token
+                {
+                    ProcessInstance = Instance,
+                    ProcessInstanceId = Instance.Id,
+                    CurrentFlowNode = outgoingSequenceFlow.TargetRef,
+                    State = FlowNodeState.Ready
+                }
+            );
         }
         
     }
