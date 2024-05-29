@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Dynamic;
 using core_engine;
 using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
@@ -11,8 +12,8 @@ public class JavaScriptExpressionTest
     [Test]
     public void JavaScriptTest1()
     {
-        var globals = new JObject();
-        globals.Add("a", "fghjk");
+        var globals = new ExpandoObject();
+        globals.TryAdd("a", "fghjk");
     }
     
     

@@ -11,5 +11,8 @@ Content-Type: application/json
 Accept: application/json
 
 {
-"Name": "NeueBestellung"
+"Name": "NeueBestellung",
+"Variables": {
+  "Bestellnummer": "123456"
+}
 }

@@ -1,3 +1,4 @@
+using System.Dynamic;
 using BPMN.Activities;
 using core_engine;
 using Model;
@@ -25,12 +26,15 @@ public class ModelParserTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
+
+        var variables = new ExpandoObject();
+        variables.TryAdd("ServiceResult", "World123");
         
-        
-        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id, JObject.FromObject(new {ServiceResult = "Hello World"}));
+        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables );
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        
-        Assert.That(instanceEngine.Instance.ProcessVariables.GetValue("GlobalResult")?.Value<string>(), Is.EqualTo("Hello World"));
+
+        IDictionary<string,object> instanceProcessVariables = instanceEngine.Instance.ProcessVariables;
+        Assert.That(instanceProcessVariables["GlobalResult"], Is.EqualTo("World123"));
         
     }
 }

@@ -1,1 +1,1 @@
-global using Variables = Newtonsoft.Json.Linq.JObject;
+global using Variables = System.Dynamic.ExpandoObject;

@@ -3,6 +3,7 @@ using BPMN.Events;
 using BPMN.Flowzer.Events;
 using BPMN.Process;
 using Model;
+using Newtonsoft.Json;
 
 namespace core_engine;
 
@@ -52,7 +53,6 @@ public class ProcessEngine(Process process)
         var startEvent = Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
             .First(e => e.MessageDefinition.Name == message.Name);
-        var variables = Variables.Parse(message.Variables?.ToString() ?? "{}");
         var processInstance = new ProcessInstance
         {
             ProcessModel = Process
@@ -60,13 +60,15 @@ public class ProcessEngine(Process process)
         var token = new Token
         {
             CurrentFlowNode = startEvent,
-            InputData = variables,
-            OutputData = variables,
+            InputData = JsonConvert.DeserializeObject<Variables>( message.Variables ?? "{}"),
             ProcessInstance = processInstance
         };
+        token.OutputData = token.InputData; //TODO @christian: korrekt?
+        
         processInstance.Tokens.Add(token);
         var instance = new InstanceEngine(processInstance);
         instance.Run();
+        
         return processInstance;
     }
 

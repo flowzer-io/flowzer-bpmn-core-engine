@@ -133,7 +133,7 @@ public class InstanceEngine(ProcessInstance instance)
 
         mapping.InputMappings?.ForEach(x =>
         {
-            token.InputData.Add(x.Target, FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
+            token.InputData.TryAdd(x.Target, FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
         });
     }
 
@@ -151,7 +151,8 @@ public class InstanceEngine(ProcessInstance instance)
         
         mapping.OutputMappings.ForEach(x =>
         {
-            Instance.ProcessVariables[x.Target] = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
+            
+            ((IDictionary<string,object>)Instance.ProcessVariables)[x.Target] = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
         });
     }
     
@@ -194,14 +195,16 @@ public class InstanceEngine(ProcessInstance instance)
 
     public void HandleUserTaskResponse(Guid tokenId, string response, string? userId = null)
     {
-        var jResponse = Variables.Parse(response);
-        var token = GetToken(tokenId);
-        if (token.State != FlowNodeState.Active)
-        {
-            throw new Exception("Token ist nicht aktiv");
-        }
-        token.OutputData = jResponse; // ToDo: Hier sollte noch die UserID gesetzt werden
-        token.State = FlowNodeState.Completing;
+        //TODO: hier muss aus dem reponse ein expandoobject gemacht werden
+        
+        // var jResponse = Variables.Parse(response);
+        // var token = GetToken(tokenId);
+        // if (token.State != FlowNodeState.Active)
+        // {
+        //     throw new Exception("Token ist nicht aktiv");
+        // }
+        // token.OutputData = jResponse; // ToDo: Hier sollte noch die UserID gesetzt werden
+        // token.State = FlowNodeState.Completing;
     }
     
     /// <summary>

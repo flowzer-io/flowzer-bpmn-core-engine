@@ -31,11 +31,13 @@ public class MessageController(IStorageSystem storageSystem) : ControllerBase
         
         if (messageSubscription.ProcessInstance != null)
         {
-            storageSystem.InstanceStorage.AddInstance(new InstanceEngine(messageSubscription.ProcessInstance)
+            storageSystem.InstanceStorage.AddInstance(
+                new InstanceEngine(messageSubscription.ProcessInstance)
                 .HandleMessage(message));
         }
         
-        storageSystem.InstanceStorage.AddInstance(new ProcessEngine(messageSubscription.Process)
+        storageSystem.InstanceStorage.AddInstance(
+            new ProcessEngine(messageSubscription.Process)
             .HandleMessage(message));
 
         var response =

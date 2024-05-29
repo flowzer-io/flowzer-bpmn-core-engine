@@ -9,7 +9,7 @@ namespace core_engine;
 public class JavaScriptV8ExpressionHandler : IExpressionHandler
 {
    
-    public JToken? GetValue(JObject? obj, string expression)
+    public object? GetValue(object? obj, string expression)
     {
         if (obj == null)
             return null;
@@ -27,7 +27,7 @@ public class JavaScriptV8ExpressionHandler : IExpressionHandler
         {
             FormalExpression => throw new Exception("FormalExpressions are not supported in JavaScriptV8ExpressionHandler"),
             null => true,
-            _ => GetValue(processInstance.ProcessVariables, expression.Body).Value<bool>()
+            _ => string.Compare(GetValue(processInstance.ProcessVariables, expression.Body) as string, "true", StringComparison.InvariantCultureIgnoreCase) == 0
         };
     }
 }

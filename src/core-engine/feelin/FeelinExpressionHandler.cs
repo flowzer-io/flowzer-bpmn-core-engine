@@ -12,13 +12,17 @@ public class FeelinExpressionHandler : IExpressionHandler
     public FeelinExpressionHandler()
     {
         _jsEngine = new V8ScriptEngine();
-        _jsEngine.Execute(File.ReadAllText("feelin/bundle.js"));
+        var directory = System.IO.Path.GetDirectoryName(GetType().Assembly.Location);
+        if (directory == null)
+            throw new IOException("Could not find the directory of the assembly");
+        var fullPath = System.IO.Path.Combine(directory, "feelin/bundle.js");
+        _jsEngine.Execute(File.ReadAllText(fullPath));
     }
 
-    public JToken? GetValue(JObject obj, string expression)
+    public object? GetValue(object obj, string expression)
     {
         if (!expression.StartsWith("="))
-            return JToken.FromObject(expression);
+            return expression;
         
         
         _jsEngine.AddHostObject("vars", (dynamic)obj);
@@ -28,9 +32,9 @@ public class FeelinExpressionHandler : IExpressionHandler
         var svript = $$$"""
                               libfeelin.evaluate("{{{expressionWithoutAssignmentSign}}}", vars)
                               """;
-        var resultValue = _jsEngine.Evaluate(svript);
+        return _jsEngine.Evaluate(svript);
 
-        return JToken.FromObject(resultValue);
+
         
     }
 
