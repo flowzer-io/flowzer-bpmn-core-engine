@@ -32,7 +32,8 @@ public class EngineTest
         IDictionary<string,object> instanceProcessVariables = instanceEngine.Instance.ProcessVariables;
         Assert.That(instanceProcessVariables["GlobalResult"], Is.EqualTo("World123"));
         
-        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(2));
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(2));
+       
     }
 }
