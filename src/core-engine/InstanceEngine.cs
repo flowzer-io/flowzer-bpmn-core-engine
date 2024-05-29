@@ -7,6 +7,7 @@ using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using core_engine.Handler;
 using Model;
+using Newtonsoft.Json;
 using Task = BPMN.Activities.Task;
 
 namespace core_engine;
@@ -195,16 +196,13 @@ public class InstanceEngine(ProcessInstance instance)
 
     public void HandleUserTaskResponse(Guid tokenId, string response, string? userId = null)
     {
-        //TODO: hier muss aus dem reponse ein expandoobject gemacht werden
-        
-        // var jResponse = Variables.Parse(response);
-        // var token = GetToken(tokenId);
-        // if (token.State != FlowNodeState.Active)
-        // {
-        //     throw new Exception("Token ist nicht aktiv");
-        // }
-        // token.OutputData = jResponse; // ToDo: Hier sollte noch die UserID gesetzt werden
-        // token.State = FlowNodeState.Completing;
+        var token = GetToken(tokenId);
+        if (token.State != FlowNodeState.Active)
+        {
+            throw new Exception("Token ist nicht aktiv");
+        }
+        token.OutputData = JsonConvert.DeserializeObject<Variables>(response); // ToDo: Hier sollte noch die UserID gesetzt werden
+        token.State = FlowNodeState.Completing;
     }
     
     /// <summary>
