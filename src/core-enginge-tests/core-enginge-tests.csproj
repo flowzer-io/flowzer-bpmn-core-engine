@@ -27,7 +27,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="embeddings\Test.bpmn">
+      <None Update="embeddings\StartStopWithVariables.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
     </ItemGroup>
