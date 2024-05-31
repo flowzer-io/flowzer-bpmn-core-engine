@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_05smibm" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <bpmn:process id="Process_07ovi3u" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="={&#10;  &#34;Address&#34;: {&#10;    &#34;Firstname&#34;: &#34;Lukas&#34;&#10;    },&#10;  &#34;Tags&#34;: [{&#10;      &#34;Index&#34;: 1&#10;    },&#10;    {&#10;      &#34;Index&#34;: 2&#10;    }&#10;  ]&#10;}" target="Order" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_1v26ox2</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_0y4e3eh" name="ShouldNotReached">
+      <bpmn:incoming>Flow_0dso6ug</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="Event_09ghz9t" name="ShouldReached">
+      <bpmn:incoming>Flow_0xjrebt</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1v26ox2" sourceRef="StartEvent_1" targetRef="Gateway_082z48b" />
+    <bpmn:exclusiveGateway id="Gateway_082z48b">
+      <bpmn:incoming>Flow_1v26ox2</bpmn:incoming>
+      <bpmn:outgoing>Flow_0xjrebt</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0dso6ug</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:sequenceFlow id="Flow_0xjrebt" name="Lukas?" sourceRef="Gateway_082z48b" targetRef="Event_09ghz9t">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Order.Address.Firstname = "Lukas"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0dso6ug" name="Paul?" sourceRef="Gateway_082z48b" targetRef="Event_0y4e3eh">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Order.Address.Firstname = "Paul"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_07ovi3u">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="89" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_12au6ge" bpmnElement="Event_09ghz9t">
+        <dc:Bounds x="482" y="212" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="461" y="255" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0y4e3eh_di" bpmnElement="Event_0y4e3eh">
+        <dc:Bounds x="542" y="89" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="519" y="132" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_082z48b_di" bpmnElement="Gateway_082z48b" isMarkerVisible="true">
+        <dc:Bounds x="324" y="82" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1v26ox2_di" bpmnElement="Flow_1v26ox2">
+        <di:waypoint x="215" y="107" />
+        <di:waypoint x="324" y="107" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0xjrebt_di" bpmnElement="Flow_0xjrebt">
+        <di:waypoint x="349" y="132" />
+        <di:waypoint x="349" y="230" />
+        <di:waypoint x="482" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="362" y="178" width="36" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0dso6ug_di" bpmnElement="Flow_0dso6ug">
+        <di:waypoint x="374" y="107" />
+        <di:waypoint x="542" y="107" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="445" y="89" width="29" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

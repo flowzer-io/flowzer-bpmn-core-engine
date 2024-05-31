@@ -11,8 +11,7 @@ public class EngineTest
     [Test]
     public async Task StartStopWithVariables()
     {
-
-        var instanceEngine = await StartFirstProcessOfFile("StartStopWithVariables.bpmn");
+        var instanceEngine = await Helper.StartFirstProcessOfFile("StartStopWithVariables.bpmn");
         
         //should wait for service task
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
@@ -43,7 +42,7 @@ public class EngineTest
     [Test]
     public async Task VariableMappingTest()
     {
-        var instanceEngine = await StartFirstProcessOfFile("VariablesTest.bpmn");
+        var instanceEngine = await Helper.StartFirstProcessOfFile("VariablesTest.bpmn");
         
         //should have one active service task
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
@@ -63,12 +62,17 @@ public class EngineTest
         Assert.That(instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"), Is.EqualTo("LukasNeu"));
     }
 
-    private static async Task<InstanceEngine> StartFirstProcessOfFile(string fileName)
+
+    [Test]
+    public async Task ConditionalSequenceFlow()
     {
-        var model = await ModelParser.ParseModel(File.Open("embeddings/" + fileName,FileMode.Open));
-        var process = model.GetProcesses();
-        var processEngine = new ProcessEngine(process.First());
-        var instanceEngine = processEngine.StartProcess();
-        return instanceEngine;
+        var instanceEngine = await Helper.StartFirstProcessOfFile("ConditionalSequenceFlow.bpmn");
+        
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
+        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"), Is.EqualTo(1));
+        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"), Is.EqualTo(0));
     }
+    
+
 }

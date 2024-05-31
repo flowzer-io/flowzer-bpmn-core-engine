@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
@@ -8,6 +9,7 @@ using BPMN.HumanInteraction;
 using core_engine.Handler;
 using Model;
 using Newtonsoft.Json;
+using Activity = BPMN.Activities.Activity;
 using Task = BPMN.Activities.Task;
 
 namespace core_engine;
@@ -101,11 +103,14 @@ public class InstanceEngine(ProcessInstance instance)
             .OfType<SequenceFlow>()
             .Where(x => x.SourceRef == token.CurrentFlowNode);
         
+
         // 2.1 Filtere die Sequenzflüsse, entferne alle die Bedingungen haben und deren Bedingungen NICHT erfüllt sind
         outgoingSequenceFlows = outgoingSequenceFlows.Where(x => 
-            x.ConditionExpression is null 
+            x.FlowzerCondition is null 
             || x.FlowzerIsDefault is true 
-            || FlowzerConfig.ExpressionHandler.MatchExpression(Instance, x.ConditionExpression));
+            || FlowzerConfig.ExpressionHandler.MatchExpression(Instance.ProcessVariables, x.FlowzerCondition)
+            );
+        
         // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
         var sequenceFlows = outgoingSequenceFlows.ToList();
         if (sequenceFlows.Any(s => s.ConditionExpression is not null) && sequenceFlows.Any(s => s.FlowzerIsDefault is true))

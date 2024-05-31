@@ -48,13 +48,19 @@ public class FeelinExpressionHandler : IExpressionHandler
         return str.Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
     }
 
-    public bool MatchExpression(ProcessInstance processInstance, Expression expression)
+    public bool MatchExpression(object obj, string expression)
     {
        
-        _jsEngine.AddHostObject("vars", (dynamic)processInstance.ProcessVariables);
-        var resultValue = _jsEngine.Evaluate($$$"""
-                                                libfeelin.unaryTest({{{expression.Body}}}, obj)
-                                                """).ToString();
-        return resultValue == "true";
+        if (!expression.StartsWith("="))
+            return string.Compare(expression, "true", StringComparison.InvariantCultureIgnoreCase) == 0;
+        
+        expression = expression.Substring(1);
+        expression = JsonQuote(expression);
+        _jsEngine.AddHostObject("vars", obj);
+        var fullScript = $$$"""
+                              libfeelin.unaryTest("{{{expression}}}", vars)
+                              """;
+        var resultValue = _jsEngine.Evaluate(fullScript).ToString();
+        return string.Compare( resultValue, "true", StringComparison.InvariantCultureIgnoreCase) == 0;
     }
 }
