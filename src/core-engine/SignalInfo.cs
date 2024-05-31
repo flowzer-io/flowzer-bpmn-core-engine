@@ -1,5 +1,5 @@
 namespace core_engine;
 
-internal class SignalInfo
+public class SignalInfo
 {
 }
