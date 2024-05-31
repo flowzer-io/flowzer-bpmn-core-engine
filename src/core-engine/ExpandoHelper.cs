@@ -39,10 +39,35 @@ public static class ExpandoHelper
                value.GetType() != typeof(string);
     }
 
-    public static object? GetValue(this Variables expandoObject, string propertyName)
+    public static object? GetValue(this Variables? vars, string propertyName)
+    {
+        if (vars is null)
+            return null;
+        return GetValue((IDictionary<string,object?>) vars, propertyName);
+    }
+    public static object? GetValue(this IDictionary<string, object?> expandoObject, string propertyName)
     {
         var dict = (IDictionary<string, object?>)expandoObject;
-        return dict[propertyName];
+
+        if (propertyName.Contains("["))
+            throw new NotSupportedException("getting values of object arrays is not implemented yet.");
+
+        
+        if (propertyName.Contains("."))
+        {
+            var firstPart = propertyName.Substring(0, propertyName.IndexOf('.'));
+            var rest = propertyName.Substring(propertyName.IndexOf('.') + 1);
+            var varContent = (Variables?)dict[firstPart];
+            if (varContent == null)
+                return null;
+            return GetValue(varContent, rest);
+        }
+        else
+        {
+            if (!dict.ContainsKey(propertyName))
+                return null;
+            return dict[propertyName];
+        }
     }
     
     public static void SetValue(this Variables expandoObject, string propertyName, object? value)
