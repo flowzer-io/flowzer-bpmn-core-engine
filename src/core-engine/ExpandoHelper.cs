@@ -6,10 +6,16 @@ public static class ExpandoHelper
 {
     public static Variables ToDynamic(this object? obj)
     {
+
         var expandoObject = new ExpandoObject();
         if (obj == null)
         {
             return expandoObject;
+        }
+        
+        if (!IsComlexValue(obj))
+        {
+            throw new InvalidOperationException($"could not convert {obj.GetType()} to dynamic object.");
         }
 
         var expandoDictionary = expandoObject as IDictionary<string, object?>;
@@ -56,6 +62,10 @@ public static class ExpandoHelper
             }
             if (!(subObject is Variables)) // convert to dynamic object if property value is not dynamic
             {
+                if (!IsComlexValue(subObject))
+                    throw new InvalidOperationException(
+                        $"could not set property {propertyName} to not complex object.");
+                
                 subObject = subObject.ToDynamic();
                 dict[firstPart] = subObject;
             }
