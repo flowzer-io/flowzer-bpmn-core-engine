@@ -42,6 +42,9 @@ public static class ExpandoHelper
     public static void SetValue(this Variables expandoObject, string propertyName, object? value)
     {
         var dict = (IDictionary<string, object?>)expandoObject;
+        if (propertyName.Contains("["))
+            throw new NotSupportedException("setting values to object arrays is not implemented yet.");
+        
         if (propertyName.Contains("."))
         {
             var firstPart = propertyName.Substring(0, propertyName.IndexOf('.'));
