@@ -38,11 +38,9 @@ public class FeelinExpressionHandler : IExpressionHandler
         
     }
 
-    public bool MatchExpression(ProcessInstance processInstance, Expression? expression)
+    public bool MatchExpression(ProcessInstance processInstance, Expression expression)
     {
-        if (expression == null)
-            return true;
-        
+       
         _jsEngine.AddHostObject("vars", (dynamic)processInstance.ProcessVariables);
         var resultValue = _jsEngine.Evaluate($$$"""
                                                 libfeelin.unaryTest({{{expression.Body}}}, obj)

@@ -16,5 +16,5 @@ public interface IExpressionHandler
     /// <summary>
     /// Checks if the expression matches the conditions of the sequence flow
     /// </summary>
-    bool MatchExpression(ProcessInstance processInstance, Expression? expression);
+    bool MatchExpression(ProcessInstance processInstance, Expression expression);
 }

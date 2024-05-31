@@ -91,7 +91,7 @@ public static class ModelParser
 
         var xmlProcessNodes = root.Elements().Where(n =>
             n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
-            n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase) == true);
+            (bool)n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase));
 
         foreach (var xmlProcessNode in xmlProcessNodes)
         {

@@ -28,13 +28,16 @@ public class EngineTest
         instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables );
         
         
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed), "Process should be completed");
 
         IDictionary<string,object> instanceProcessVariables = instanceEngine.Instance.ProcessVariables;
-        Assert.That(instanceProcessVariables["GlobalResult"], Is.EqualTo("World123"));
-        
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
-       
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceProcessVariables["GlobalResult"], Is.EqualTo("World123"));
+
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
+        });
+
     }
 }
