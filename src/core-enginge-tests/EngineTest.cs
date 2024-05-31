@@ -22,11 +22,12 @@ public class EngineTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
-
+        
         var variables = new ExpandoObject();
         variables.TryAdd("ServiceResult", "World123");
-        
         instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables );
+        
+        
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
 
         IDictionary<string,object> instanceProcessVariables = instanceEngine.Instance.ProcessVariables;

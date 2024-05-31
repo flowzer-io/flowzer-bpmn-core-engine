@@ -30,6 +30,9 @@
       <None Update="embeddings\StartStopWithVariables.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="embeddings\VariablesTest.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>
