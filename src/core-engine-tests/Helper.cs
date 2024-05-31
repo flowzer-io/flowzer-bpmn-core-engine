@@ -1,7 +1,7 @@
 using BPMN.Activities;
 using core_engine;
 
-namespace core_enginge_tests;
+namespace core_engine_tests;
 
 public class Helper
 {

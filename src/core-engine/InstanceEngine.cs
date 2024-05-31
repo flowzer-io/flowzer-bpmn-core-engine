@@ -125,7 +125,7 @@ public class InstanceEngine(ProcessInstance instance)
                 {
                     ProcessInstance = Instance,
                     ProcessInstanceId = Instance.Id,
-                    CurrentFlowNode = outgoingSequenceFlow.TargetRef,
+                    CurrentFlowNode = outgoingSequenceFlow.TargetRef with { },
                     State = FlowNodeState.Ready
                 }
             );
@@ -158,11 +158,8 @@ public class InstanceEngine(ProcessInstance instance)
     {
         if (token.CurrentFlowNode is not IFlowzerOutputMapping mapping)
             return;
-        
-        if (mapping.OutputMappings == null) return;
-        
 
-        mapping.OutputMappings.ForEach(x =>
+        mapping.OutputMappings?.ForEach(x =>
         {
             var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
             ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value);
@@ -263,9 +260,9 @@ public class InstanceEngine(ProcessInstance instance)
     /// </summary>
     /// <returns>Liste von Nachrichten inkl. CorrelationKey</returns>
     /// <exception cref="NotImplementedException"></exception>
-    public List<Message> GetActiveCatchMessages()
+    public List<MessageDefinition> GetActiveCatchMessages()
     {
-        var messageDefinitions = new List<Message>();
+        var messageDefinitions = new List<MessageDefinition>();
         foreach (var token in Instance.Tokens)
         {
             if (token.CurrentFlowNode is not IntermediateCatchEvent
@@ -274,10 +271,10 @@ public class InstanceEngine(ProcessInstance instance)
                 }) continue;
             if (messageEventDefinition.MessageRef is null) continue;
             
-            messageDefinitions.Add(new Message
+            messageDefinitions.Add(new MessageDefinition()
             {
                 Name = messageEventDefinition.MessageRef.Name,
-                CorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
             });
             
             // ToDo: Mögliche BoundaryEvents und ReceiveTasks berücksichtigen

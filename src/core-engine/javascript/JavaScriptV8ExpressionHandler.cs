@@ -1,15 +1,12 @@
-using BPMN.Common;
 using Microsoft.ClearScript.V8;
-using Model;
 using Newtonsoft.Json.Linq;
 
 namespace core_engine;
 
-
-public class JavaScriptV8ExpressionHandler : IExpressionHandler
+public class JavaScriptV8ExpressionHandler : ExpressionHandler
 {
    
-    public object? GetValue(object? obj, string expression)
+    public override object? GetValue(object? obj, string expression)
     {
         if (obj == null)
             return null;
@@ -19,9 +16,7 @@ public class JavaScriptV8ExpressionHandler : IExpressionHandler
         return JToken.FromObject(engine.Evaluate(fullExpression));   
     }
 
- 
-
-    public bool MatchExpression(object obj, string expression)
+    public override bool MatchExpression(object obj, string expression)
     {
         return string.Compare(GetValue(obj, expression) as string, "true",
             StringComparison.InvariantCultureIgnoreCase) == 0;
