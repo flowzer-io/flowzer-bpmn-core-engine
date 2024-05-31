@@ -1,11 +1,9 @@
 using System.Diagnostics;
 using System.Dynamic;
-using core_engine;
 using Microsoft.ClearScript;
 using Microsoft.ClearScript.V8;
-using Newtonsoft.Json.Linq;
 
-namespace core_enginge_tests;
+namespace core_engine_tests;
 
 public class JavaScriptExpressionTest
 {
@@ -18,15 +16,15 @@ public class JavaScriptExpressionTest
     
     
     [Test]
-    public async Task JavsScriptFeelTest()
+    public void JavaScriptFeelTest()
     {
-        string scriptDirectory = @"/Users/lukasbauhaus/repos/feel/feelin/src";
+        const string scriptDirectory = @"/Users/lukasbauhaus/repos/feel/feelin/src"; // ToDo: Weg vom absoluten Pfad auf deinem Rechner
 
         // Erstelle eine V8-Engine
         using var engine = new V8ScriptEngine() ;
             
         // Lade die Index.js Datei
-        string indexPath = Path.Combine(scriptDirectory, "/Users/lukasbauhaus/repos/feelin/dist/bundle.js");
+        var indexPath = Path.Combine(scriptDirectory, "/Users/lukasbauhaus/repos/feelin/dist/bundle.js"); // ToDo: Weg vom absoluten Pfad auf deinem Rechner
 
         // Definiere eine Funktion zum Laden von Modulen
         
@@ -40,10 +38,10 @@ public class JavaScriptExpressionTest
         try
         {
             // Lade und führe das Hauptskript aus
-            string indexScript = File.ReadAllText(indexPath);
+            var indexScript = File.ReadAllText(indexPath);
             engine.Execute(indexScript);
             
-            for (int i = 0; i < 1000; i++)
+            for (var i = 0; i < 1000; i++)
             {
                 var sw = new Stopwatch();
                 sw.Start();
@@ -73,15 +71,13 @@ public class JavaScriptExpressionTest
             
         }
         
-        
     }
-        
     
 }
 
 public class ConsoleWrapper
 {
-    public void log(string message)
+    public void Log(string message)
     {
         Console.WriteLine(message);
         TestContext.WriteLine(message);

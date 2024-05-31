@@ -1,10 +1,9 @@
-using System.Dynamic;
 using BPMN.Activities;
 using core_engine;
 using Model;
 using Task = System.Threading.Tasks.Task;
 
-namespace core_enginge_tests;
+namespace core_engine_tests;
 
 public class EngineTest
 {
@@ -21,22 +20,24 @@ public class EngineTest
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
         
-        //inject servie result
+        //inject service result
         var variables = new
         {
             ServiceResult= "World123"
         };
         instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables.ToDynamic());
         
-        //should be comleted
+        //should be completed
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
 
         //check if global variable is set
         Assert.That(((dynamic)instanceEngine.Instance.ProcessVariables).GlobalResult, Is.EqualTo("World123"));
-        
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
-       
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
+        });
+
     }
 
     [Test]
@@ -59,7 +60,7 @@ public class EngineTest
         instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables.ToDynamic());
 
         //check if global variable is set
-        Assert.That(instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"), Is.EqualTo("LukasNeu"));
+        Assert.That((string?) instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"), Is.EqualTo("LukasNeu"));
     }
 
 
@@ -67,11 +68,13 @@ public class EngineTest
     public async Task ConditionalSequenceFlow()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ConditionalSequenceFlow.bpmn");
-        
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
-        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"), Is.EqualTo(1));
-        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"), Is.EqualTo(0));
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"), Is.EqualTo(1));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"), Is.EqualTo(0));
+        });
     }
     
 

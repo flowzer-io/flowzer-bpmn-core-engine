@@ -1,16 +1,19 @@
-using System.Net.Sockets;
-using System.Threading.Channels;
 using core_engine;
 
-namespace core_enginge_tests;
+namespace core_engine_tests;
 
 public class ExpandoHelperTest
 {
     [Test]
     public void ToDynamicTest()
     {
-        var order = new Order();
-        order.Address.Firstname = "Lukas";
+        var order = new Order
+        {
+            Address =
+            {
+                Firstname = "Lukas"
+            }
+        };
         var dynamicOrder = order.ToDynamic();
         Assert.That(dynamicOrder.GetValue("Address.Firstname"), Is.EqualTo("Lukas"));
     }
@@ -25,7 +28,7 @@ public class ExpandoHelperTest
     }
     
     [Test]
-    public void AddPropertxTest()
+    public void AddPropertyTest()
     {
         var order = new Order();
         var dynamicOrder = order.ToDynamic();
@@ -36,7 +39,7 @@ public class ExpandoHelperTest
 
 public class Order
 {
-    public Address Address { get; set; } = new Address();
+    public Address Address { get; } = new();
 
 }
 

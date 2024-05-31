@@ -1,5 +1,4 @@
 using System.Dynamic;
-using System.Reflection.Metadata;
 using Microsoft.ClearScript.JavaScript;
 
 namespace core_engine;

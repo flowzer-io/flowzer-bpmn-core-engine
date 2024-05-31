@@ -1,11 +1,7 @@
-using System.Dynamic;
-using BPMN.Activities;
 using core_engine;
-using Model;
-using Newtonsoft.Json.Linq;
 using Task = System.Threading.Tasks.Task;
 
-namespace core_enginge_tests;
+namespace core_engine_tests;
 
 public class ModelParserTest
 {

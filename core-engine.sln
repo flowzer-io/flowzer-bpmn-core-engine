@@ -11,7 +11,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowzerBPMN", "src\FlowzerB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApiEngine", "src\WebApiEngine\WebApiEngine.csproj", "{B4F933D0-DAF3-4C57-9CFF-026C8EE7839C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "core-enginge-tests", "src\core-enginge-tests\core-enginge-tests.csproj", "{21DD5405-19BF-4F4B-AB30-F7A877645DF0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "core-engine-tests", "src\core-engine-tests\core-engine-tests.csproj", "{21DD5405-19BF-4F4B-AB30-F7A877645DF0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StorageSystemShared", "src\StorageSystemShared\StorageSystemShared.csproj", "{22D2EEB7-FC82-4AF0-9443-0F65CA88343C}"
 EndProject
