@@ -1,4 +1,5 @@
 using BPMN.Common;
+using Microsoft.ClearScript.JavaScript;
 using Microsoft.ClearScript.V8;
 using Model;
 using Newtonsoft.Json.Linq;
@@ -19,23 +20,32 @@ public class FeelinExpressionHandler : IExpressionHandler
         _jsEngine.Execute(File.ReadAllText(fullPath));
     }
 
-    public object? GetValue(object obj, string expression)
+    public object? GetValue(object? obj, string expression)
     {
         if (!expression.StartsWith("="))
             return expression;
-        
+
+        obj ??= new Variables();
         
         _jsEngine.AddHostObject("vars", (dynamic)obj);
-        
      
-        var expressionWithoutAssignmentSign = expression.Substring(1);
-        var svript = $$$"""
+        var expressionWithoutAssignmentSign = JsonQuote(expression.Substring(1));
+        var script = $$$"""
                               libfeelin.evaluate("{{{expressionWithoutAssignmentSign}}}", vars)
                               """;
-        return _jsEngine.Evaluate(svript);
-
-
         
+        var ret = _jsEngine.Evaluate(script);
+        if (ExpandoHelper.IsComlexValue(ret))
+            return ret.ToDynamic();
+        else
+        {
+            return ret;
+        }
+    }
+
+    private string JsonQuote(string str)
+    {
+        return str.Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
     }
 
     public bool MatchExpression(ProcessInstance processInstance, Expression? expression)

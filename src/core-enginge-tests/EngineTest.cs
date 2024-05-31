@@ -11,30 +11,64 @@ public class EngineTest
     [Test]
     public async Task StartStopWithVariables()
     {
-        var model = await ModelParser.ParseModel(File.Open("embeddings/StartStopWithVariables.bpmn",FileMode.Open));
-        var process = model.GetProcesses();
+
+        var instanceEngine = await StartFirstProcessOfFile("StartStopWithVariables.bpmn");
         
-        var processEngine = new ProcessEngine(process.First());
-        var instanceEngine = processEngine.StartProcess();
-        
+        //should wait for service task
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
         
+        //should have one active service task
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
         
-        var variables = new ExpandoObject();
-        variables.TryAdd("ServiceResult", "World123");
-        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables );
+        //inject servie result
+        var variables = new
+        {
+            ServiceResult= "World123"
+        };
+        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables.ToDynamic());
         
-        
+        //should be comleted
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
 
-        IDictionary<string,object> instanceProcessVariables = instanceEngine.Instance.ProcessVariables;
-        Assert.That(instanceProcessVariables["GlobalResult"], Is.EqualTo("World123"));
+        //check if global variable is set
+        Assert.That(((dynamic)instanceEngine.Instance.ProcessVariables).GlobalResult, Is.EqualTo("World123"));
         
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
         Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
        
+    }
+
+    [Test]
+    public async Task VariableMappingTest()
+    {
+        var instanceEngine = await StartFirstProcessOfFile("VariablesTest.bpmn");
+        
+        //should have one active service task
+        var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
+ 
+        Assert.That(((dynamic)serviceTaskToken.InputData).Firstname, Is.EqualTo("Lukas"));
+        
+        var variables = new
+        {
+            Out= new
+            {
+                Firstname = "LukasNeu"
+            } 
+        };
+        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id,variables.ToDynamic());
+
+        //check if global variable is set
+        Assert.That(instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"), Is.EqualTo("LukasNeu"));
+    }
+
+    private static async Task<InstanceEngine> StartFirstProcessOfFile(string fileName)
+    {
+        var model = await ModelParser.ParseModel(File.Open("embeddings/" + fileName,FileMode.Open));
+        var process = model.GetProcesses();
+        var processEngine = new ProcessEngine(process.First());
+        var instanceEngine = processEngine.StartProcess();
+        return instanceEngine;
     }
 }

@@ -4,7 +4,7 @@
     <bpmn:startEvent id="Event_0fu5xk1">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:output source="={&#10;  &#34;Address&#34;: {&#10;    &#34;Firstname&#34;: &#34;Lukas&#34;&#10;  }&#10;}" target="Order" />
+          <zeebe:output source="={&#10;  &#34;Address&#34;: {&#10;    &#34;Firstname&#34;: &#34;Lukas&#34;&#10;    },&#10;  &#34;Tags&#34;: [{&#10;      &#34;Index&#34;: 1&#10;    },&#10;    {&#10;      &#34;Index&#34;: 2&#10;    }&#10;  ]&#10;}" target="Order" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_0qk9gg6</bpmn:outgoing>
@@ -28,22 +28,22 @@
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0r3pov9">
-      <bpmndi:BPMNShape id="Event_0bdiux2_di" bpmnElement="Event_0bdiux2">
-        <dc:Bounds x="502" y="102" width="36" height="36" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Event_0fu5xk1_di" bpmnElement="Event_0fu5xk1">
         <dc:Bounds x="152" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0bdiux2_di" bpmnElement="Event_0bdiux2">
+        <dc:Bounds x="502" y="102" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1d5v3mh_di" bpmnElement="Activity_1ohyd9d">
         <dc:Bounds x="280" y="80" width="100" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_1gko2f9_di" bpmnElement="Flow_1gko2f9">
-        <di:waypoint x="380" y="120" />
-        <di:waypoint x="502" y="120" />
-      </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_0qk9gg6_di" bpmnElement="Flow_0qk9gg6">
         <di:waypoint x="188" y="120" />
         <di:waypoint x="280" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1gko2f9_di" bpmnElement="Flow_1gko2f9">
+        <di:waypoint x="380" y="120" />
+        <di:waypoint x="502" y="120" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

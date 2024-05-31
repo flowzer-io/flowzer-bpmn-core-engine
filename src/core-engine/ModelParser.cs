@@ -122,7 +122,7 @@ public static class ModelParser
                 switch (xmlFlowNode.Name.LocalName)
                 {
                     case "startEvent":
-                        flowElements.Add(HandleStartEvent(xmlFlowNode, rootElements));
+                        flowElements.Add(HandleStartEvent(xmlFlowNode, rootElements, outputMappings));
                         break;
 
                     case "intermediateCatchEvent":
@@ -394,49 +394,62 @@ public static class ModelParser
         return descendant != null;
     }
 
-    private static StartEvent HandleStartEvent(XElement xmlFlowNode, IEnumerable<IRootElement> rootElements)
+    private static StartEvent HandleStartEvent(XElement xmlFlowNode,
+        IEnumerable<IRootElement> rootElements,
+        FlowzerList<FlowzerIoMapping>? outputMappings)
     {
+        StartEvent returnEvent;
+        
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
-            return new FlowzerTimerStartEvent
+            returnEvent = new FlowzerTimerStartEvent
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
                 TimerDefinition = ParseTimerEventDefinition(definition),
+                OutputMappings = outputMappings
             };
         }
 
-        if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
+        else if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
-            return new FlowzerMessageStartEvent
+            returnEvent = new FlowzerMessageStartEvent
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
                 MessageDefinition = rootElements.OfType<MessageDefinition>()
                     .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                OutputMappings = outputMappings
             };
         }
 
-        if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+        else if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
         {
-            return new FlowzerSignalStartEvent
+            returnEvent = new FlowzerSignalStartEvent
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
                 Signal = rootElements.OfType<Signal>()
                     .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                OutputMappings = outputMappings
             };
         }
 
-        return new StartEvent
+        else
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
-            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-            // Container = process,
-        };
+            returnEvent = new StartEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                OutputMappings = outputMappings
+            };
+        }
+        
+        
+        return returnEvent;
     }
 
     private static TimerEventDefinition ParseTimerEventDefinition(XElement xElementTimerEventDefinition)

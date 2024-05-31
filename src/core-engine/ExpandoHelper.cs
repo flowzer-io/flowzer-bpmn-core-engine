@@ -1,23 +1,66 @@
 using System.Dynamic;
+using System.Reflection.Metadata;
+using Microsoft.ClearScript.JavaScript;
 
 namespace core_engine;
 
 public static class ExpandoHelper
 {
-    public static Variables ToDynamic(this object? obj)
+    public static object? ToDynamic(this IJavaScriptObject? obj)
     {
+        if (obj == null)
+            return null;
+        
+        if (obj.Kind == JavaScriptObjectKind.Array)
+        {
+            var ret = new List<object>();
+            foreach (var o in obj.ToEnumerable())
+            {
+                if (IsComlexValue(o))
+                    ret.Add(ToDynamic(o));
+                else
+                    ret.Add(o);
+            }
+            return ret;
+        }
+        else
+        {
+            var ret = new ExpandoObject();
+            foreach (var objPropertyName in obj.PropertyNames)
+            {
+                var value = obj.GetProperty(objPropertyName);
+                if (IsComlexValue(value))
+                    ret.TryAdd(objPropertyName, value.ToDynamic());
+                else
+                    ret.TryAdd(objPropertyName, value);
+            }
 
-        var expandoObject = new ExpandoObject();
+            return ret;
+        }
+    }
+    
+    public static object? ToDynamic(this object? obj)
+    {
         if (obj == null)
         {
-            return expandoObject;
+            return null;
+        }
+        
+        if (obj is IJavaScriptObject jsObj)
+        {
+            return jsObj.ToDynamic();
+        }
+        
+        if (obj is ExpandoObject)
+        {
+            return obj;
         }
         
         if (!IsComlexValue(obj))
         {
             throw new InvalidOperationException($"could not convert {obj.GetType()} to dynamic object.");
         }
-
+        var expandoObject = new ExpandoObject();
         var expandoDictionary = expandoObject as IDictionary<string, object?>;
         foreach (var prob in obj.GetType().GetProperties())
         {
@@ -32,23 +75,24 @@ public static class ExpandoHelper
         return expandoObject;
     }
 
-    private static bool IsComlexValue(object? value)
+    internal static bool IsComlexValue(object? value)
     {
         return value != null && 
                !value.GetType().IsPrimitive &&
                value.GetType() != typeof(string);
     }
 
-    public static object? GetValue(this Variables? vars, string propertyName)
+    public static object? GetValue(this object? vars, string propertyName)
     {
         if (vars is null)
             return null;
         return GetValue((IDictionary<string,object?>) vars, propertyName);
     }
-    public static object? GetValue(this IDictionary<string, object?> expandoObject, string propertyName)
+    public static object? GetValue(this IDictionary<string, object?>? dict, string propertyName)
     {
-        var dict = (IDictionary<string, object?>)expandoObject;
-
+        if (dict is null)
+                return null;
+          
         if (propertyName.Contains("["))
             throw new NotSupportedException("getting values of object arrays is not implemented yet.");
 
@@ -70,9 +114,12 @@ public static class ExpandoHelper
         }
     }
     
-    public static void SetValue(this Variables expandoObject, string propertyName, object? value)
+    public static void SetValue(this object? obj, string propertyName, object? value)
     {
-        var dict = (IDictionary<string, object?>)expandoObject;
+        if (!(obj is ExpandoObject))
+            throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
+        
+        var dict = (IDictionary<string, object?>)obj;
         if (propertyName.Contains("["))
             throw new NotSupportedException("setting values to object arrays is not implemented yet.");
         

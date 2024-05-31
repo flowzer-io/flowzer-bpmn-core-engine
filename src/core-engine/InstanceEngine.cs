@@ -213,16 +213,20 @@ public class InstanceEngine(ProcessInstance instance)
     /// <param name="tokenId">ID des Tokens</param>
     /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
     /// <exception cref="NotImplementedException"></exception>
-    public void HandleServiceTaskResult(Guid tokenId, Variables result)
+    public void HandleServiceTaskResult(Guid tokenId, object? result)
     {
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
         {
             throw new FlowzerRuntimeException($"Token {tokenId} is not active");
         }
-        token.OutputData = result;
+
+        if (result != null)
+        {
+            token.OutputData = (Variables?)result.ToDynamic();
+        }
+       
         token.State = FlowNodeState.Completing;
-        
         Run();
     }
 
