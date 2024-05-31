@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
@@ -8,7 +7,6 @@ using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using core_engine.Handler;
 using Model;
-using Newtonsoft.Json;
 using Activity = BPMN.Activities.Activity;
 using Task = BPMN.Activities.Task;
 
@@ -109,20 +107,19 @@ public class InstanceEngine(ProcessInstance instance)
             x.FlowzerCondition is null 
             || x.FlowzerIsDefault is true 
             || FlowzerConfig.ExpressionHandler.MatchExpression(Instance.ProcessVariables, x.FlowzerCondition)
-            );
+            ).ToArray();
         
         // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
-        var sequenceFlows = outgoingSequenceFlows.ToList();
-        if (sequenceFlows.Any(s => s.ConditionExpression is not null) && sequenceFlows.Any(s => s.FlowzerIsDefault is true))
+        if (outgoingSequenceFlows.Any(s => s.ConditionExpression is not null) && outgoingSequenceFlows.Any(s => s.FlowzerIsDefault is true))
         {
-            outgoingSequenceFlows = sequenceFlows.Where(s => s.FlowzerIsDefault is null or false);
+            outgoingSequenceFlows = outgoingSequenceFlows.Where(s => s.FlowzerIsDefault is null or false);
         }
         
         // 3. Erzeuge für jeden Sequenzfluss ein neues Token
         // 3.1 Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
         // 3.2 Setze den State des Tokens auf Ready
         // 3.3 Füge das Token der Liste der Tokens hinzu
-        foreach (var outgoingSequenceFlow in sequenceFlows)
+        foreach (var outgoingSequenceFlow in outgoingSequenceFlows)
         {
             Instance.Tokens.Add(new Token
                 {
@@ -168,7 +165,7 @@ public class InstanceEngine(ProcessInstance instance)
         mapping.OutputMappings.ForEach(x =>
         {
             var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
-            ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value); ;
+            ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value);
         });
     }
     
