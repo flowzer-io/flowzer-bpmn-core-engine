@@ -101,14 +101,23 @@ public class InstanceEngine(ProcessInstance instance)
             .OfType<SequenceFlow>()
             .Where(x => x.SourceRef == token.CurrentFlowNode);
         
-        // 2. Filtere die Sequenzflüsse, die Bedingungen haben und deren Bedingungen erfüllt sind
-        outgoingSequenceFlows = outgoingSequenceFlows.Where(x => FlowzerConfig.ExpressionHandler.MatchExpression(Instance, x.ConditionExpression));
+        // 2.1 Filtere die Sequenzflüsse, entferne alle die Bedingungen haben und deren Bedingungen NICHT erfüllt sind
+        outgoingSequenceFlows = outgoingSequenceFlows.Where(x => 
+            x.ConditionExpression is null 
+            || x.FlowzerIsDefault is true 
+            || FlowzerConfig.ExpressionHandler.MatchExpression(Instance, x.ConditionExpression));
+        // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
+        var sequenceFlows = outgoingSequenceFlows.ToList();
+        if (sequenceFlows.Any(s => s.ConditionExpression is not null) && sequenceFlows.Any(s => s.FlowzerIsDefault is true))
+        {
+            outgoingSequenceFlows = sequenceFlows.Where(s => s.FlowzerIsDefault is null or false);
+        }
         
         // 3. Erzeuge für jeden Sequenzfluss ein neues Token
         // 3.1 Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
         // 3.2 Setze den State des Tokens auf Ready
         // 3.3 Füge das Token der Liste der Tokens hinzu
-        foreach (var outgoingSequenceFlow in outgoingSequenceFlows)
+        foreach (var outgoingSequenceFlow in sequenceFlows)
         {
             Instance.Tokens.Add(new Token
                 {
@@ -124,8 +133,7 @@ public class InstanceEngine(ProcessInstance instance)
 
     /// <summary>
     /// Überträgt die Variablen des Prozesses in die Input-Daten des Tokens. Dabei wird auf die InputSet des
-    /// FlowNode
-    /// ,s geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
+    /// FlowNodes geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
     /// </summary>
     /// <param name="token">Der Token, in welchen der aktuelle Input Datensatz persistiert wird.</param>
     private void PrepareInputData(Token token)
@@ -196,15 +204,19 @@ public class InstanceEngine(ProcessInstance instance)
         throw new NotImplementedException();
     }
 
-    public void HandleUserTaskResponse(Guid tokenId, string response, string? userId = null)
+    public void HandleUserTaskResponse(Guid tokenId, Variables response, string? userId = null)
     {
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
         {
             throw new Exception("Token ist nicht aktiv");
         }
-        token.OutputData = JsonConvert.DeserializeObject<Variables>(response); // ToDo: Hier sollte noch die UserID gesetzt werden
+
+        response.TryAdd("UserId", userId);
+        token.OutputData = response;
         token.State = FlowNodeState.Completing;
+
+        Run();
     }
     
     /// <summary>

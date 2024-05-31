@@ -21,12 +21,11 @@ public class JavaScriptV8ExpressionHandler : IExpressionHandler
 
  
 
-    public bool MatchExpression(ProcessInstance processInstance, Expression? expression)
+    public bool MatchExpression(ProcessInstance processInstance, Expression expression)
     {
         return expression switch
         {
             FormalExpression => throw new Exception("FormalExpressions are not supported in JavaScriptV8ExpressionHandler"),
-            null => true,
             _ => string.Compare(GetValue(processInstance.ProcessVariables, expression.Body) as string, "true", StringComparison.InvariantCultureIgnoreCase) == 0
         };
     }
