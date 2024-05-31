@@ -2,7 +2,7 @@ using Microsoft.ClearScript.V8;
 
 namespace core_engine;
 
-public class FeelinExpressionHandler : IExpressionHandler
+public class FeelinExpressionHandler : ExpressionHandler
 {
     private V8ScriptEngine _jsEngine;
 
@@ -16,7 +16,7 @@ public class FeelinExpressionHandler : IExpressionHandler
         _jsEngine.Execute(File.ReadAllText(fullPath));
     }
 
-    public object? GetValue(object? obj, string expression)
+    public override object? GetValue(object? obj, string expression)
     {
         if (!expression.StartsWith("="))
             return expression;
@@ -44,7 +44,7 @@ public class FeelinExpressionHandler : IExpressionHandler
         return str.Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
     }
 
-    public bool MatchExpression(object obj, string expression)
+    public override bool MatchExpression(object obj, string expression)
     {
        
         if (!expression.StartsWith("="))
