@@ -126,7 +126,10 @@ public static class ExpandoHelper
         if (propertyName.Contains("."))
         {
             var firstPart = propertyName.Substring(0, propertyName.IndexOf('.'));
-            object? subObject = dict[firstPart];
+            object? subObject = null;
+            if (dict.TryGetValue(firstPart, out var outValue))
+                subObject = outValue;
+                
             if (subObject == null) // create new object if property value not exists
             {
                 subObject = new Variables();

@@ -36,6 +36,9 @@
       <None Update="embeddings\ConditionalSequenceFlow.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="embeddings\GatewayJoin.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

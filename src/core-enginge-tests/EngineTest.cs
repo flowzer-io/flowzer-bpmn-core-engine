@@ -1,5 +1,5 @@
-using System.Dynamic;
 using BPMN.Activities;
+using BPMN.Events;
 using core_engine;
 using Model;
 using Task = System.Threading.Tasks.Task;
@@ -64,7 +64,7 @@ public class EngineTest
 
 
     [Test]
-    public async Task ConditionalSequenceFlow()
+    public async Task ConditionalSequenceFlowTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ConditionalSequenceFlow.bpmn");
         
@@ -72,6 +72,20 @@ public class EngineTest
         Assert.That(instanceEngine.Instance.Tokens.Count, Is.EqualTo(3));
         Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"), Is.EqualTo(1));
         Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"), Is.EqualTo(0));
+    }
+    
+    [Test]
+    public async Task ParallelGatewayTest()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoin.bpmn");
+        Helper.DoTestServiceThings(instanceEngine);
+        
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        
+        var endEventTokens = instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).ToList();
+        
+        Assert.That(endEventTokens.Count, Is.EqualTo(1));
+        
     }
     
 

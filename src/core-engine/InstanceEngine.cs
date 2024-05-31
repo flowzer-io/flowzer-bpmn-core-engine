@@ -19,7 +19,7 @@ public class InstanceEngine(ProcessInstance instance)
 
     public FlowzerConfig FlowzerConfig { get; set; } = FlowzerConfig.Default;
     
-    public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State <= FlowNodeState.Ready);
+    public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State == FlowNodeState.Active);
     
     public void Start(Variables? data)
     {

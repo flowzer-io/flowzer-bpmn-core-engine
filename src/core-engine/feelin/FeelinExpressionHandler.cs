@@ -4,7 +4,7 @@ namespace core_engine;
 
 public class FeelinExpressionHandler : IExpressionHandler
 {
-    private V8ScriptEngine _jsEngine;
+    private readonly V8ScriptEngine _jsEngine;
 
     public FeelinExpressionHandler()
     {
@@ -26,9 +26,7 @@ public class FeelinExpressionHandler : IExpressionHandler
         _jsEngine.AddHostObject("vars", (dynamic)obj);
      
         var expressionWithoutAssignmentSign = JsonQuote(expression.Substring(1));
-        var script = $$$"""
-                              libfeelin.evaluate("{{{expressionWithoutAssignmentSign}}}", vars)
-                              """;
+        var script = $$$"""libfeelin.evaluate("{{{expressionWithoutAssignmentSign}}}", vars)""";
         
         var ret = _jsEngine.Evaluate(script);
         if (ExpandoHelper.IsComlexValue(ret))
@@ -53,9 +51,7 @@ public class FeelinExpressionHandler : IExpressionHandler
         expression = expression.Substring(1);
         expression = JsonQuote(expression);
         _jsEngine.AddHostObject("vars", obj);
-        var fullScript = $$$"""
-                              libfeelin.unaryTest("{{{expression}}}", vars)
-                              """;
+        var fullScript = $$$"""libfeelin.unaryTest("{{{expression}}}", vars)""";
         var resultValue = _jsEngine.Evaluate(fullScript).ToString();
         return string.Compare( resultValue, "true", StringComparison.InvariantCultureIgnoreCase) == 0;
     }
