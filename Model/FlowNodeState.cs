@@ -12,5 +12,6 @@ public enum FlowNodeState
     Terminated,
     Withdrawn,
     Compensating,
-    Compensated
+    Compensated,
+    Merged
 }
