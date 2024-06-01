@@ -92,17 +92,19 @@ public static class ExpandoHelper
     {
         while (true)
         {
-            if (obj is not Variables) throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
+            if (obj is not Variables) 
+                throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
 
             var dict = (IDictionary<string, object?>)obj;
-            if (propertyName.Contains('[')) throw new NotSupportedException("setting values to object arrays is not implemented yet.");
+            if (propertyName.Contains('[')) 
+                throw new NotSupportedException("setting values to object arrays is not implemented yet.");
 
             if (propertyName.Contains('.'))
             {
                 var firstPart = propertyName[..propertyName.IndexOf('.')];
-                var subObject = null;
-            if (dict.TryGetValue(firstPart, out var outValue))
-                subObject = outValue;
+
+                dict.TryGetValue(firstPart, out var subObject);
+  
                 
                 if (subObject == null) // create new object if property value not exists
                 {

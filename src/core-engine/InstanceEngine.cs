@@ -33,37 +33,51 @@ public class InstanceEngine(ProcessInstance instance)
         var loopDetection = 200;
         while (Instance.Tokens.Any(token => token.State is FlowNodeState.Ready or FlowNodeState.Completing))
         {
-            if (Instance.State != ProcessInstanceState.Running)
-                Instance.State = ProcessInstanceState.Running;
-            
             if (loopDetection-- == 0)
             {
                 throw new EndlessLoopException();
             }
             
-            foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready))
-            {
-                PrepareInputData(token);
-                token.State = FlowNodeState.Active;
-            }
-
-            foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Active))
-            {
-                if (!FlowNodeHandlers.ContainsKey(token.CurrentFlowNode.GetType())) continue;
-                FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(Instance, token);
-                // ToDo: TryCatch?
-                token.State = FlowNodeState.Completing;
-            }
-
-            foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
-            {
-                PrepareOutputData(token);
-                token.State = FlowNodeState.Completed;
-                GoToNextFlowNode(token);
-            }
+            if (Instance.State != ProcessInstanceState.Running)
+                Instance.State = ProcessInstanceState.Running;
+            
+            RunSingleStep();
         }
         
-        Instance.State = Instance.Tokens.Any(x=>x.State == FlowNodeState.Active) ? ProcessInstanceState.Waiting : ProcessInstanceState.Completed;
+        Instance.State = Instance.Tokens.Any(x=>x.State == FlowNodeState.Active) 
+            ? ProcessInstanceState.Waiting : ProcessInstanceState.Completed;
+    }
+
+    private void RunSingleStep()
+    {
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready))
+        {
+            PrepareInputData(token);
+            token.State = FlowNodeState.Active;
+        }
+
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Active))
+        {
+            if (!FlowNodeHandlers.ContainsKey(token.CurrentFlowNode.GetType())) continue;
+            try
+            {
+                FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(Instance, token);
+            }
+            catch (Exception e)
+            {
+                //TODO: Handle Exception
+                throw;
+            }
+            token.State = FlowNodeState.Completing;
+        }
+
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
+        {
+            PrepareOutputData(token);
+            token.State = FlowNodeState.Completed;
+            if (!token.IsDistroyed)
+                GoToNextFlowNode(token);
+        }
     }
 
     private void CreateInitialTokens(Variables? data)
@@ -119,6 +133,7 @@ public class InstanceEngine(ProcessInstance instance)
                     ProcessInstance = Instance,
                     ProcessInstanceId = Instance.Id,
                     CurrentFlowNode = outgoingSequenceFlow.TargetRef with { },
+                    LastSequenceFlow = outgoingSequenceFlow,
                     State = FlowNodeState.Ready
                 }
             );
@@ -303,7 +318,7 @@ public class InstanceEngine(ProcessInstance instance)
         {typeof(EndEvent), new TuNichtsHandler()},
         {typeof(Task), new TuNichtsHandler()},
         {typeof(ExclusiveGateway), new TuNichtsHandler()},
-        {typeof(ParallelGateway), new TuNichtsHandler()},
+        {typeof(ParallelGateway), new ParallelGatewayHandler()},
         // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
