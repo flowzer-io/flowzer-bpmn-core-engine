@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1avqf6e" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1avqf6e" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.23.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
   <bpmn:process id="Process_0r3pov9" isExecutable="true">
     <bpmn:startEvent id="Event_0fu5xk1">
       <bpmn:extensionElements>
@@ -20,10 +20,12 @@
       <bpmn:incoming>Flow_0iweg8p</bpmn:incoming>
       <bpmn:outgoing>Flow_0skqgui</bpmn:outgoing>
       <bpmn:outgoing>Flow_1umrstw</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0h21stj</bpmn:outgoing>
     </bpmn:parallelGateway>
     <bpmn:parallelGateway id="Gateway_1m39lw5">
       <bpmn:incoming>Flow_0e21l5v</bpmn:incoming>
       <bpmn:incoming>Flow_0olk02f</bpmn:incoming>
+      <bpmn:incoming>Flow_0l4nwpp</bpmn:incoming>
       <bpmn:outgoing>Flow_06dlay1</bpmn:outgoing>
     </bpmn:parallelGateway>
     <bpmn:serviceTask id="Activity_12aujya" name="Tue nichts">
@@ -50,6 +52,15 @@
     </bpmn:serviceTask>
     <bpmn:sequenceFlow id="Flow_1umrstw" sourceRef="Gateway_0ebtpzf" targetRef="Activity_15crcqg" />
     <bpmn:sequenceFlow id="Flow_0olk02f" sourceRef="Activity_15crcqg" targetRef="Gateway_1m39lw5" />
+    <bpmn:sequenceFlow id="Flow_0h21stj" sourceRef="Gateway_0ebtpzf" targetRef="Activity_14qnc1n" />
+    <bpmn:serviceTask id="Activity_14qnc1n" name="Tue nichts">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="InputAsOutput" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_0h21stj</bpmn:incoming>
+      <bpmn:outgoing>Flow_0l4nwpp</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_0l4nwpp" sourceRef="Activity_14qnc1n" targetRef="Gateway_1m39lw5" />
   </bpmn:process>
   <bpmn:message id="Message_2j4bst5" name="Auftragsbestätigung">
     <bpmn:extensionElements>
@@ -76,6 +87,10 @@
       <bpmndi:BPMNShape id="BPMNShape_1l88amu" bpmnElement="Activity_15crcqg">
         <dc:Bounds x="370" y="220" width="100" height="80" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1hcxpae_di" bpmnElement="Activity_14qnc1n">
+        <dc:Bounds x="360" y="330" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0iweg8p_di" bpmnElement="Flow_0iweg8p">
         <di:waypoint x="188" y="120" />
         <di:waypoint x="245" y="120" />
@@ -100,6 +115,16 @@
       <bpmndi:BPMNEdge id="Flow_0olk02f_di" bpmnElement="Flow_0olk02f">
         <di:waypoint x="470" y="260" />
         <di:waypoint x="590" y="260" />
+        <di:waypoint x="590" y="145" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0h21stj_di" bpmnElement="Flow_0h21stj">
+        <di:waypoint x="270" y="145" />
+        <di:waypoint x="270" y="370" />
+        <di:waypoint x="360" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0l4nwpp_di" bpmnElement="Flow_0l4nwpp">
+        <di:waypoint x="460" y="370" />
+        <di:waypoint x="590" y="370" />
         <di:waypoint x="590" y="145" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
