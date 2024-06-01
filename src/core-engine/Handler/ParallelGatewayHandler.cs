@@ -10,7 +10,7 @@ internal class ParallelGatewayHandler : IFlowNodeHandler
     {
         var targetFlowNodeIds = processInstance.ProcessModel.FlowElements.OfType<SequenceFlow>()
             .Where(x => x.TargetRef.Id == token.CurrentFlowNode.Id)
-            .Select(sf => sf.TargetRef.Id)
+            .Select(sf => sf.Id)
             .ToList();
 
         var actualActiveTokens = processInstance.Tokens
@@ -19,7 +19,7 @@ internal class ParallelGatewayHandler : IFlowNodeHandler
 
         if (targetFlowNodeIds.Count > actualActiveTokens.Count) return;
         
-        targetFlowNodeIds.RemoveAll(fn => actualActiveTokens.Any(f => f.CurrentFlowNode.Id == fn));
+        targetFlowNodeIds.RemoveAll(fn => actualActiveTokens.Any(t => t.LastSequenceFlow?.Id == fn));
 
         if (targetFlowNodeIds.Count != 0)
             return;
