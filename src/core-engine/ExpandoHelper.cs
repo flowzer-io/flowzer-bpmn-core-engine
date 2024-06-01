@@ -12,49 +12,31 @@ public static class ExpandoHelper
         
         if (obj.Kind == JavaScriptObjectKind.Array)
         {
-            var ret = new List<object>();
-            foreach (var o in obj.ToEnumerable())
-            {
-                if (IsComlexValue(o))
-                    ret.Add(ToDynamic(o));
-                else
-                    ret.Add(o);
-            }
-            return ret;
+            return obj.ToEnumerable().Select(o => IsComlexValue(o) ? ToDynamic(o) : o).ToList();
         }
-        else
-        {
-            var ret = new ExpandoObject();
-            foreach (var objPropertyName in obj.PropertyNames)
-            {
-                var value = obj.GetProperty(objPropertyName);
-                if (IsComlexValue(value))
-                    ret.TryAdd(objPropertyName, value.ToDynamic());
-                else
-                    ret.TryAdd(objPropertyName, value);
-            }
 
-            return ret;
+        var ret = new Variables();
+        foreach (var objPropertyName in obj.PropertyNames)
+        {
+            var value = obj.GetProperty(objPropertyName);
+            ret.TryAdd(objPropertyName, IsComlexValue(value) ? value.ToDynamic() : value);
         }
+
+        return ret;
     }
     
     public static object? ToDynamic(this object? obj)
     {
-        if (obj == null)
+        switch (obj)
         {
-            return null;
+            case null:
+                return null;
+            case IJavaScriptObject jsObj:
+                return jsObj.ToDynamic();
+            case Variables:
+                return obj;
         }
-        
-        if (obj is IJavaScriptObject jsObj)
-        {
-            return jsObj.ToDynamic();
-        }
-        
-        if (obj is ExpandoObject)
-        {
-            return obj;
-        }
-        
+
         if (!IsComlexValue(obj))
         {
             throw new InvalidOperationException($"could not convert {obj.GetType()} to dynamic object.");
@@ -83,74 +65,71 @@ public static class ExpandoHelper
 
     public static object? GetValue(this object? vars, string propertyName)
     {
-        if (vars is null)
-            return null;
-        return GetValue((IDictionary<string,object?>) vars, propertyName);
+        return vars is null ? null : GetValue((IDictionary<string,object?>) vars, propertyName);
     }
+
     public static object? GetValue(this IDictionary<string, object?>? dict, string propertyName)
     {
-        if (dict is null)
-                return null;
-          
-        if (propertyName.Contains("["))
-            throw new NotSupportedException("getting values of object arrays is not implemented yet.");
+        while (true)
+        {
+            if (dict is null) return null;
 
-        
-        if (propertyName.Contains("."))
-        {
-            var firstPart = propertyName.Substring(0, propertyName.IndexOf('.'));
-            var rest = propertyName.Substring(propertyName.IndexOf('.') + 1);
+            if (propertyName.Contains('[')) throw new NotSupportedException("getting values of object arrays is not implemented yet.");
+
+
+            if (!propertyName.Contains('.')) return !dict.TryGetValue(propertyName, out var value) ? null : value;
+
+            var firstPart = propertyName[..propertyName.IndexOf('.')];
+            var rest = propertyName[(propertyName.IndexOf('.') + 1)..];
             var varContent = (Variables?)dict[firstPart];
-            if (varContent == null)
-                return null;
-            return GetValue(varContent, rest);
-        }
-        else
-        {
-            if (!dict.ContainsKey(propertyName))
-                return null;
-            return dict[propertyName];
+            if (varContent == null) return null;
+            dict = varContent;
+            propertyName = rest;
         }
     }
-    
+
     public static void SetValue(this object? obj, string propertyName, object? value)
     {
-        if (!(obj is ExpandoObject))
-            throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
-        
-        var dict = (IDictionary<string, object?>)obj;
-        if (propertyName.Contains("["))
-            throw new NotSupportedException("setting values to object arrays is not implemented yet.");
-        
-        if (propertyName.Contains("."))
+        while (true)
         {
-            var firstPart = propertyName.Substring(0, propertyName.IndexOf('.'));
-            object? subObject = null;
+            if (obj is not Variables) throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
+
+            var dict = (IDictionary<string, object?>)obj;
+            if (propertyName.Contains('[')) throw new NotSupportedException("setting values to object arrays is not implemented yet.");
+
+            if (propertyName.Contains('.'))
+            {
+                var firstPart = propertyName[..propertyName.IndexOf('.')];
+                var subObject = null;
             if (dict.TryGetValue(firstPart, out var outValue))
                 subObject = outValue;
                 
-            if (subObject == null) // create new object if property value not exists
-            {
-                subObject = new Variables();
-                dict[firstPart] = subObject;
+                if (subObject == null) // create new object if property value not exists
+                {
+                    subObject = new Variables();
+                    dict[firstPart] = subObject;
+                }
+
+                if (subObject is not Variables) // convert to dynamic object if property value is not dynamic
+                {
+                    if (!IsComlexValue(subObject)) throw new InvalidOperationException($"could not set property {propertyName} to not complex object.");
+
+                    subObject = subObject.ToDynamic();
+                    dict[firstPart] = subObject;
+                }
+
+                //call recursively to set value
+                var rest = propertyName[(propertyName.IndexOf('.') + 1)..];
+                obj = (Variables)subObject!;
+                propertyName = rest;
+                continue;
             }
-            if (!(subObject is Variables)) // convert to dynamic object if property value is not dynamic
+            else
             {
-                if (!IsComlexValue(subObject))
-                    throw new InvalidOperationException(
-                        $"could not set property {propertyName} to not complex object.");
-                
-                subObject = subObject.ToDynamic();
-                dict[firstPart] = subObject;
+                dict[propertyName] = value;
             }
-            //call recursively to set value
-            var rest = propertyName.Substring(propertyName.IndexOf('.') + 1);
-            SetValue((Variables)subObject, rest, value);
+
+            break;
         }
-        else
-        {
-            dict[propertyName] = value;
-        }
-        
     }
 }

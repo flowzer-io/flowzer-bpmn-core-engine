@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace core_engine;
 
-public abstract class ExpressionHandler
+public abstract partial class ExpressionHandler
 {
     /// <summary>
     /// Get the value by expression from the process variables 
@@ -27,7 +27,7 @@ public abstract class ExpressionHandler
             return GetValue(obj, expression[1..])?.ToString() ?? expression;
 
         // Regex to match {{Expression}} in the string
-        var regex = new Regex(@"{{(.*?)}}");
+        var regex = DoubleCurlyBraceRegex();
         var matches = regex.Matches(expression);
         foreach (Match match in matches)
         {
@@ -37,4 +37,7 @@ public abstract class ExpressionHandler
 
         return expression;
     }
+
+    [GeneratedRegex("{{(.*?)}}")]
+    private static partial Regex DoubleCurlyBraceRegex();
 }

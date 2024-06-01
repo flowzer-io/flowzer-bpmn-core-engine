@@ -63,14 +63,7 @@ public class InstanceEngine(ProcessInstance instance)
             }
         }
         
-        if (Instance.Tokens.Any(x=>x.State == FlowNodeState.Active))
-        {
-            Instance.State = ProcessInstanceState.Waiting;
-        }
-        else
-        {
-            Instance.State = ProcessInstanceState.Completed;
-        }
+        Instance.State = Instance.Tokens.Any(x=>x.State == FlowNodeState.Active) ? ProcessInstanceState.Waiting : ProcessInstanceState.Completed;
     }
 
     private void CreateInitialTokens(Variables? data)
@@ -165,8 +158,8 @@ public class InstanceEngine(ProcessInstance instance)
             ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value);
         });
     }
-    
-    Task<IEnumerable<Escalation>> GetActiveEscalations()
+
+    public Task<IEnumerable<Escalation>> GetActiveEscalations()
     {
         throw new NotImplementedException();
     }
@@ -182,12 +175,12 @@ public class InstanceEngine(ProcessInstance instance)
     public IEnumerable<Token> GetActiveServiceTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
     
-    Task<IEnumerable<MessageDefinition>> GetActiveThrowMessages()
+    public Task<IEnumerable<MessageDefinition>> GetActiveThrowMessages()
     {
         throw new NotImplementedException();
     }
 
-    Task<IEnumerable<SignalInfo>> GetActiveThrowSignals()
+    public Task<IEnumerable<SignalInfo>> GetActiveThrowSignals()
     {
         throw new NotImplementedException();
     }
