@@ -68,7 +68,6 @@ public class InstanceEngine(ProcessInstance instance)
                 //TODO: Handle Exception
                 throw;
             }
-            token.State = FlowNodeState.Completing;
         }
 
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())

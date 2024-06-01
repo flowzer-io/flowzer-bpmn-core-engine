@@ -17,6 +17,8 @@ internal class ParallelGatewayHandler : IFlowNodeHandler
             .Where(t => t.CurrentFlowNode.Id == token.CurrentFlowNode.Id && t.State == FlowNodeState.Active)
             .ToList();
 
+        if (targetFlowNodeIds.Count > actualActiveTokens.Count) return;
+        
         targetFlowNodeIds.RemoveAll(fn => actualActiveTokens.Any(f => f.CurrentFlowNode.Id == fn));
 
         if (targetFlowNodeIds.Count != 0)
