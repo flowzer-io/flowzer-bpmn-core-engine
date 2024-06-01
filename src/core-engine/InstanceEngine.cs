@@ -75,8 +75,7 @@ public class InstanceEngine(ProcessInstance instance)
         {
             PrepareOutputData(token);
             token.State = FlowNodeState.Completed;
-            if (!token.IsDistroyed)
-                GoToNextFlowNode(token);
+            GoToNextFlowNode(token);
         }
     }
 

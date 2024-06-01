@@ -24,11 +24,6 @@ public class Token
     public Token? PreviousToken { get; set; }
     public SequenceFlow? LastSequenceFlow { get; set; }
 
-    public Variables InputData { get; set; } = new Variables();
+    public Variables InputData { get; init; } = new Variables();
     public Variables? OutputData { get; set; }
-    
-    /// <summary>
-    /// If this token is destroyed, it will not be used to create new tokens
-    /// </summary>
-    public bool IsDistroyed { get; set; }
 }
