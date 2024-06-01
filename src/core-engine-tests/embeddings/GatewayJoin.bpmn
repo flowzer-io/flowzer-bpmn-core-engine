@@ -42,7 +42,7 @@
         <zeebe:taskDefinition type="InputAsOutput" />
         <zeebe:ioMapping>
           <zeebe:input source="=&#34;val2&#34;" target="inputValue" />
-          <zeebe:output source="=inputValue" target="node1.outut" />
+          <zeebe:output source="=inputValue" target="node2.outut" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_1umrstw</bpmn:incoming>

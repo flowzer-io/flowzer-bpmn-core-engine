@@ -6,16 +6,27 @@ namespace core_engine;
 
 internal class ParallelGatewayHandler : IFlowNodeHandler
 {
-    private Dictionary<FlowNode, List<Token>> _receivedTokens = new();
+    
     public void Execute(ProcessInstance processInstance, Token token)
     {
-        List<Token> tokensOfNode;
-        if(!_receivedTokens.TryGetValue(token.CurrentFlowNode, out tokensOfNode))
+        Dictionary<FlowNode, List<Token>> receivedTokens;
+        if (processInstance.ContextData.TryGetValue("ParallelGatewayHandler", out var value))
+        {
+            receivedTokens = (Dictionary<FlowNode, List<Token>>)value!;
+        }
+        else
+        {
+            receivedTokens = new Dictionary<FlowNode, List<Token>>();
+            processInstance.ContextData.Add("ParallelGatewayHandler", receivedTokens);
+        }
+        
+        List<Token>? tokensOfNode;
+        if(!receivedTokens.TryGetValue(token.CurrentFlowNode, out tokensOfNode))
         {
             tokensOfNode = new List<Token>();
             if (token.LastSequenceFlow == null)
                 throw new InvalidOperationException("Token must have a last sequence flow. on parallelgateway handler. ");
-            _receivedTokens.Add(token.CurrentFlowNode, tokensOfNode);
+            receivedTokens.Add(token.CurrentFlowNode, tokensOfNode);
         }
         tokensOfNode.Add(token);
         
@@ -46,7 +57,7 @@ internal class ParallelGatewayHandler : IFlowNodeHandler
         
         // If there are no more tokens for the current node, remove it from the dictionary
         if (!tokensOfNode.Any())
-            _receivedTokens.Remove(token.CurrentFlowNode);
+            receivedTokens.Remove(token.CurrentFlowNode);
         
     }
 }
