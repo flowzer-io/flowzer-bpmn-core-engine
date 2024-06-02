@@ -1,14 +1,4 @@
-using BPMN.Activities;
-using BPMN.Common;
-using BPMN.Events;
-using BPMN.Flowzer;
-using BPMN.Flowzer.Events;
-using BPMN.Gateways;
-using BPMN.HumanInteraction;
 using core_engine.Handler;
-using Model;
-using Activity = BPMN.Activities.Activity;
-using Task = BPMN.Activities.Task;
 
 namespace core_engine;
 
@@ -16,8 +6,7 @@ public class InstanceEngine(ProcessInstance instance)
 {
     public ProcessInstance Instance { get; } = instance;
 
-
-    public FlowzerConfig FlowzerConfig { get; set; } = FlowzerConfig.Default;
+    private FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
 
     public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State == FlowNodeState.Active);
 
@@ -64,8 +53,9 @@ public class InstanceEngine(ProcessInstance instance)
             {
                 FlowNodeHandlers[token.CurrentFlowNode.GetType()].Execute(Instance, token);
             }
-            catch (Exception e)
+            catch (Exception)
             {
+                token.State = FlowNodeState.Failing;
                 //TODO: Handle Exception
                 throw;
             }
@@ -183,7 +173,7 @@ public class InstanceEngine(ProcessInstance instance)
     public IEnumerable<Token> GetActiveUserTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready });
 
-    public Token GetToken(Guid tokenId)
+    private Token GetToken(Guid tokenId)
     {
         return Instance.Tokens.Single(token => token.Id == tokenId);
     }
@@ -298,7 +288,7 @@ public class InstanceEngine(ProcessInstance instance)
                 });
             }
 
-            messageDefinitions.AddRange(instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>()
+            messageDefinitions.AddRange(Instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>()
                 .Where(be => be.AttachedToRef == token.CurrentFlowNode)
                 .Select(boundaryEvent => new MessageDefinition()
                 {
@@ -334,7 +324,7 @@ public class InstanceEngine(ProcessInstance instance)
         { typeof(StartEvent), new TuNichtsHandler() },
         { typeof(FlowzerMessageStartEvent), new TuNichtsHandler() },
         { typeof(EndEvent), new TuNichtsHandler() },
-        { typeof(Task), new TuNichtsHandler() },
+        { typeof(BPMN.Activities.Task), new TuNichtsHandler() },
         { typeof(ExclusiveGateway), new TuNichtsHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
         // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},

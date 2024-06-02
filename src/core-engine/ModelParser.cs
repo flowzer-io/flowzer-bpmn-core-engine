@@ -1,17 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Security.Cryptography;
-using System.Text;
 using System.Xml.Linq;
-using BPMN.Activities;
-using BPMN.Common;
-using BPMN.Events;
-using BPMN.Flowzer;
-using BPMN.Flowzer.Events;
 using BPMN.Foundation;
-using BPMN.Gateways;
-using BPMN.HumanInteraction;
-using BPMN.Infrastructure;
-using BPMN.Process;
 using Task = BPMN.Activities.Task;
 
 namespace core_engine;
@@ -36,7 +25,7 @@ public static class ModelParser
     /// </summary>
     /// <param name="xml">The string to read the model from</param>
     /// <returns>The parsed FlowzerBPMN model</returns>
-    public static Definitions ParseModel(string xml)
+    private static Definitions ParseModel(string xml)
     {
         var xDocument = XDocument.Parse(xml);
         var root = xDocument.Root!;
@@ -107,8 +96,6 @@ public static class ModelParser
                                 x.Attribute("target")!.Value))
                         .ToFlowzerList();
                 if (!inputMappings.Any()) inputMappings = null;
-                Console.WriteLine(inputMappings);
-                Console.WriteLine(inputMappings?.GetHashCode());
 
                 var outputMappings =
                     xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
@@ -142,6 +129,18 @@ public static class ModelParser
                     case "scriptTask":
                         flowElements.Add(HandleScriptTask(xmlFlowNode, inputMappings, outputMappings));
                         break;
+                    
+                    case "receiveTask":
+                        flowElements.Add(new ReceiveTask
+                        {
+                            Id = xmlFlowNode.Attribute("id")!.Value,
+                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+                            MessageRef = rootElements.OfType<MessageDefinition>()
+                                .Single(m => m.FlowzerId == xmlFlowNode.Attribute("messageRef")?.Value),
+                        });
+                        break;
+
 
                     case "task":
                         flowElements.Add(new Task
@@ -197,11 +196,7 @@ public static class ModelParser
                         break;
 
                     case "endEvent":
-                        flowElements.Add(new EndEvent
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                        });
+                        flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements));
                         break;
 
                     case "extensionElements":
@@ -273,6 +268,35 @@ public static class ModelParser
         }
 
         return processes;
+    }
+
+    private static EndEvent HandleEndEvent(XElement xmlFlowNode, List<IRootElement> rootElements)
+    {
+        if (xmlFlowNode.HasDescendant("terminateEventDefinition", out _))
+        {
+            return new FlowzerTerminateEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+            };
+        }
+        
+        if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
+        {
+            xmlFlowNode.HasDescendant("taskDefinition", out var taskDefinition);
+            return new FlowzerMessageEndEvent
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
+            };
+                            
+        }
+        return new EndEvent
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+        };
     }
 
     private static Event HandleIntermediateEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
@@ -528,18 +552,5 @@ public static class ModelParser
         if (timerEventDefinition == null)
             throw new ArgumentException("TimerEventDefinition found, but no Implementation.");
         return timerEventDefinition;
-    }
-
-    /// <summary>
-    /// Gibt den Hash eines Strings zurück
-    /// </summary>
-    /// <param name="value">Den zu verarbeitenden Wert</param>
-    /// <returns>Den MD5 Hash als String</returns>
-    private static string GetHash(string value)
-    {
-        using var md5 = MD5.Create();
-        var bytes = Encoding.UTF8.GetBytes(value);
-        var hash = md5.ComputeHash(bytes);
-        return BitConverter.ToString(hash).Replace("-", "").ToLower();
     }
 }
