@@ -25,7 +25,7 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerScriptTask>(process, 1, "Activity_04cp0f7");
             AssertFlowNodeOfTypes<ServiceTask>(process, 1);
             AssertFlowNodeOfTypes<StartEvent>(process, 1);
-            AssertFlowNodeOfTypes<EndEvent>(process, 1);
+            AssertFlowNodeOfTypes<EndEvent>(process, 3);
             AssertFlowNodeOfTypes<FlowzerBoundaryMessageEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerBoundarySignalEvent>(process, 1);
             AssertFlowNodeOfTypes<IntermediateThrowEvent>(process, 1);
@@ -39,12 +39,16 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerMessageEndEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerSignalStartEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerSignalEndEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerTimerStartEvent>(process, 2);
             AssertFlowNodeOfTypes<FlowzerIntermediateMessageCatchEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateMessageThrowEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalCatchEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalThrowEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerIntermediateTimerCatchEvent>(process, 1);
             
-            AssertFlowNodeOfTypes<SequenceFlow>(process, 18);
+            AssertFlowNodeOfTypes<SequenceFlow>(process, 21);
+            
+            // ToDo: Als nächstes wollen wir uns dem SubProzess widmen
         });
 
         var secondModel = await ModelParser.ParseModel(File.Open("embeddings/AllFlowNodes.bpmn", FileMode.Open));
