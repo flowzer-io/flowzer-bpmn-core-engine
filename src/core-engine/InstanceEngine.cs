@@ -18,9 +18,9 @@ public class InstanceEngine(ProcessInstance instance)
 
 
     public FlowzerConfig FlowzerConfig { get; set; } = FlowzerConfig.Default;
-    
+
     public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State == FlowNodeState.Active);
-    
+
     public void Start(Variables? data)
     {
         CreateInitialTokens(data);
@@ -37,15 +37,16 @@ public class InstanceEngine(ProcessInstance instance)
             {
                 throw new EndlessLoopException();
             }
-            
+
             if (Instance.State != ProcessInstanceState.Running)
                 Instance.State = ProcessInstanceState.Running;
-            
+
             RunSingleStep();
         }
-        
-        Instance.State = Instance.Tokens.Any(x=>x.State == FlowNodeState.Active) 
-            ? ProcessInstanceState.Waiting : ProcessInstanceState.Completed;
+
+        Instance.State = Instance.Tokens.Any(x => x.State == FlowNodeState.Active)
+            ? ProcessInstanceState.Waiting
+            : ProcessInstanceState.Completed;
     }
 
     private void RunSingleStep()
@@ -80,7 +81,8 @@ public class InstanceEngine(ProcessInstance instance)
 
     private void CreateInitialTokens(Variables? data)
     {
-        foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode => flowNode.GetType() == typeof(StartEvent) || flowNode.GetType() == typeof(Activity)))
+        foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode =>
+                     flowNode.GetType() == typeof(StartEvent) || flowNode.GetType() == typeof(Activity)))
         {
             Instance.Tokens.Add(new Token
             {
@@ -105,21 +107,22 @@ public class InstanceEngine(ProcessInstance instance)
         var outgoingSequenceFlows = Instance.ProcessModel.FlowElements
             .OfType<SequenceFlow>()
             .Where(x => x.SourceRef == token.CurrentFlowNode);
-        
+
 
         // 2.1 Filtere die Sequenzflüsse, entferne alle die Bedingungen haben und deren Bedingungen NICHT erfüllt sind
-        outgoingSequenceFlows = outgoingSequenceFlows.Where(x => 
-            x.FlowzerCondition is null 
-            || x.FlowzerIsDefault is true 
+        outgoingSequenceFlows = outgoingSequenceFlows.Where(x =>
+            x.FlowzerCondition is null
+            || x.FlowzerIsDefault is true
             || FlowzerConfig.ExpressionHandler.MatchExpression(Instance.ProcessVariables, x.FlowzerCondition)
-            ).ToArray();
-        
+        ).ToArray();
+
         // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
-        if (outgoingSequenceFlows.Any(s => s.ConditionExpression is not null) && outgoingSequenceFlows.Any(s => s.FlowzerIsDefault is true))
+        if (outgoingSequenceFlows.Any(s => s.ConditionExpression is not null) &&
+            outgoingSequenceFlows.Any(s => s.FlowzerIsDefault is true))
         {
             outgoingSequenceFlows = outgoingSequenceFlows.Where(s => s.FlowzerIsDefault is null or false);
         }
-        
+
         // 3. Erzeuge für jeden Sequenzfluss ein neues Token
         // 3.1 Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
         // 3.2 Setze den State des Tokens auf Ready
@@ -136,7 +139,6 @@ public class InstanceEngine(ProcessInstance instance)
                 }
             );
         }
-        
     }
 
     /// <summary>
@@ -151,7 +153,8 @@ public class InstanceEngine(ProcessInstance instance)
 
         mapping.InputMappings?.ForEach(x =>
         {
-            token.InputData.TryAdd(x.Target, FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
+            token.InputData.TryAdd(x.Target,
+                FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
         });
     }
 
@@ -179,21 +182,21 @@ public class InstanceEngine(ProcessInstance instance)
 
     public IEnumerable<Token> GetActiveUserTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready });
-    
+
     public Token GetToken(Guid tokenId)
     {
         return Instance.Tokens.Single(token => token.Id == tokenId);
     }
-    
+
     public IEnumerable<Token> GetActiveServiceTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
-    
+
     public Task<IEnumerable<MessageDefinition>> GetActiveThrowMessages()
     {
         throw new NotImplementedException();
     }
 
-    public Task<IEnumerable<SignalInfo>> GetActiveThrowSignals()
+    public Task<IEnumerable<SignalDefinition>> GetActiveThrowSignals()
     {
         throw new NotImplementedException();
     }
@@ -223,7 +226,7 @@ public class InstanceEngine(ProcessInstance instance)
 
         Run();
     }
-    
+
     /// <summary>
     /// Wird aufgerufen, wenn ein ServiceTask ein Ergebnis zurückliefert.
     /// </summary>
@@ -242,7 +245,7 @@ public class InstanceEngine(ProcessInstance instance)
         {
             token.OutputData = (Variables?)result.ToDynamic();
         }
-       
+
         token.State = FlowNodeState.Completing;
         Run();
     }
@@ -271,19 +274,36 @@ public class InstanceEngine(ProcessInstance instance)
         var messageDefinitions = new List<MessageDefinition>();
         foreach (var token in Instance.Tokens)
         {
-            if (token.CurrentFlowNode is not IntermediateCatchEvent
+            if (token.CurrentFlowNode is IntermediateCatchEvent
                 {
-                    EventDefinition: MessageEventDefinition messageEventDefinition
-                }) continue;
-            if (messageEventDefinition.MessageRef is null) continue;
-            
-            messageDefinitions.Add(new MessageDefinition()
+                    EventDefinition: MessageEventDefinition { MessageRef: not null } messageEventDefinition
+                })
             {
-                Name = messageEventDefinition.MessageRef.Name,
-                FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
-            });
-            
-            // ToDo: Mögliche BoundaryEvents und ReceiveTasks berücksichtigen
+                messageDefinitions.Add(new MessageDefinition()
+                {
+                    Name = messageEventDefinition.MessageRef.Name,
+                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                });
+            }
+
+            if (token.CurrentFlowNode is ReceiveTask
+                {
+                    MessageRef: not null
+                } messageDefinition)
+            {
+                messageDefinitions.Add(new MessageDefinition()
+                {
+                    Name = messageDefinition.Name,
+                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                });
+            }
+
+            messageDefinitions.AddRange(instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>()
+                .Where(be => be.AttachedToRef == token.CurrentFlowNode)
+                .Select(boundaryEvent => new MessageDefinition()
+                {
+                    Name = boundaryEvent.MessageDefinition.Name, FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                }));
         }
 
         return messageDefinitions;
@@ -308,15 +328,15 @@ public class InstanceEngine(ProcessInstance instance)
     {
         throw new NotImplementedException();
     }
-    
+
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
-        {typeof(StartEvent), new TuNichtsHandler()},
-        {typeof(FlowzerMessageStartEvent), new TuNichtsHandler()},
-        {typeof(EndEvent), new TuNichtsHandler()},
-        {typeof(Task), new TuNichtsHandler()},
-        {typeof(ExclusiveGateway), new TuNichtsHandler()},
-        {typeof(ParallelGateway), new ParallelGatewayHandler()},
+        { typeof(StartEvent), new TuNichtsHandler() },
+        { typeof(FlowzerMessageStartEvent), new TuNichtsHandler() },
+        { typeof(EndEvent), new TuNichtsHandler() },
+        { typeof(Task), new TuNichtsHandler() },
+        { typeof(ExclusiveGateway), new TuNichtsHandler() },
+        { typeof(ParallelGateway), new ParallelGatewayHandler() },
         // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
@@ -326,6 +346,4 @@ public class InstanceEngine(ProcessInstance instance)
         // {typeof(SequenceFlow), new SequenceFlowHandler()},
         // {typeof(FlowNode), new FlowNodeHandler()}
     };
-
-   
 }

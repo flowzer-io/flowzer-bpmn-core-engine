@@ -48,6 +48,9 @@
       <bpmn:outgoing>Flow_0hqsrnf</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_1ipw790" messageRef="Message_16rk16r" />
     </bpmn:startEvent>
+    <bpmn:boundaryEvent id="Event_1335nno" cancelActivity="false" attachedToRef="Activity_1surs4y">
+      <bpmn:messageEventDefinition id="MessageEventDefinition_09oczm7" />
+    </bpmn:boundaryEvent>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_0i9idwd">
@@ -72,6 +75,9 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="211" y="188" width="81" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0acbzxe_di" bpmnElement="Event_1335nno">
+        <dc:Bounds x="382" y="252" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_0hqsrnf_di" bpmnElement="Flow_0hqsrnf">
         <di:waypoint x="270" y="230" />

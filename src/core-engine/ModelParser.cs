@@ -151,13 +151,22 @@ public static class ModelParser
                             DefaultId = xmlFlowNode.Attribute("name")?.Value,
                         });
                         break;
+                    
+                    case "manualTask":
+                        flowElements.Add(new ManualTask
+                        {
+                            Id = xmlFlowNode.Attribute("id")!.Value,
+                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        });
+                        break;
 
                     case "exclusiveGateway":
                         flowElements.Add(new ExclusiveGateway
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         });
                         break;
 
@@ -166,7 +175,7 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         });
                         break;
 
@@ -175,7 +184,7 @@ public static class ModelParser
                         {
                             Id = xmlFlowNode.Attribute("id")!.Value,
                             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         });
                         break;
 
@@ -197,6 +206,7 @@ public static class ModelParser
 
                     case "extensionElements":
                     case "sequenceFlow":
+                    case "boundaryEvent":
                         break;
 
                     default:
@@ -226,6 +236,29 @@ public static class ModelParser
                 };
 
                 flowElements.Add(newSequenceFlow);
+            }
+
+            foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "boundaryEvent"))
+            {
+                var attachedToRef = xmlFlowNode.Attribute("attachedToRef")!.Value;
+                var attachedTo = (Activity)flowElements.Single(e => e.Id == attachedToRef);
+                if (!bool.TryParse(xmlFlowNode.Attribute("cancelActivity")?.Value, out var cancelActivity))
+                    cancelActivity = true;
+                if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
+                {
+                    flowElements.Add(new FlowzerBoundaryMessageEvent
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        MessageDefinition = rootElements.OfType<MessageDefinition>()
+                            .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                        AttachedToRef = attachedTo,
+                        CancelActivity = cancelActivity
+                    });
+                    continue;
+                }
+
+                throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
             }
 
             var process = new Process
@@ -294,14 +327,17 @@ public static class ModelParser
                 };
         }
 
-        if (!catchEvent)
+        if (catchEvent)
             return new IntermediateCatchEvent()
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             };
-            
-        throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+        return new IntermediateThrowEvent()
+        {
+            Id = xmlFlowNode.Attribute("id")!.Value,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+        };
     }
 
     private static ServiceTask HandleServiceTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
@@ -312,7 +348,7 @@ public static class ModelParser
             Id = xmlFlowNode.Attribute("id")!.Value,
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
-            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+            DefaultId = xmlFlowNode.Attribute("default")?.Value,
             Implementation =
                 xmlFlowNode.Attribute("Implementation")?.Value
                 ?? xmlFlowNode.Descendants()
@@ -324,22 +360,20 @@ public static class ModelParser
             OutputMappings = outputMappings,
         };
     }
-    
-    private static FlowzerScriptTask HandleScriptTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
+
+    private static FlowzerScriptTask HandleScriptTask(XElement xmlFlowNode,
+        FlowzerList<FlowzerIoMapping>? inputMappings,
         FlowzerList<FlowzerIoMapping>? outputMappings)
     {
         var script = xmlFlowNode.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "script");
-        
+
         return new FlowzerScriptTask
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
-            Name = xmlFlowNode.Attribute("name")
-                       ?.Value ??
-                   "",
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
-            DefaultId = xmlFlowNode.Attribute("name")
-                ?.Value,
+            DefaultId = xmlFlowNode.Attribute("default")?.Value,
             Type = script is not null
                 ? FlowzerScriptTaskType.Script
                 : FlowzerScriptTaskType.Service,
@@ -371,7 +405,7 @@ public static class ModelParser
             Id = xmlFlowNode.Attribute("id")!.Value,
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
-            DefaultId = xmlFlowNode.Attribute("name")?.Value,
+            DefaultId = xmlFlowNode.Attribute("default")?.Value,
             Implementation =
                 formDefinition?.Attribute("formKey")?.Value
                 ?? formDefinition?.Attribute("formId")?.Value
@@ -399,7 +433,7 @@ public static class ModelParser
         FlowzerList<FlowzerIoMapping>? outputMappings)
     {
         StartEvent returnEvent;
-        
+
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
             returnEvent = new FlowzerTimerStartEvent
@@ -447,8 +481,8 @@ public static class ModelParser
                 OutputMappings = outputMappings
             };
         }
-        
-        
+
+
         return returnEvent;
     }
 
