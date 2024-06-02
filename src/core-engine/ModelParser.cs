@@ -252,7 +252,20 @@ public static class ModelParser
                     });
                     continue;
                 }
-
+                
+                if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+                {
+                    flowElements.Add(new FlowzerBoundarySignalEvent()
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        Signal = rootElements.OfType<Signal>()
+                            .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                        AttachedToRef = attachedTo,
+                        CancelActivity = cancelActivity
+                    });
+                    continue;
+                }
                 throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
             }
 
@@ -290,8 +303,19 @@ public static class ModelParser
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
             };
-                            
         }
+        
+        if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+        {
+            return new FlowzerSignalEndEvent()
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Signal = rootElements.OfType<Signal>()
+                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+            };
+        }
+        
         return new EndEvent
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
@@ -302,7 +326,6 @@ public static class ModelParser
     private static Event HandleIntermediateEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
         string name)
     {
-        var catchEvent = name.Contains("catch", StringComparison.InvariantCultureIgnoreCase);
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
             return new FlowzerIntermediateTimerCatchEvent()
@@ -312,9 +335,11 @@ public static class ModelParser
                 TimerDefinition = ParseTimerEventDefinition(definition),
             };
         }
-
+        
+        var catchEvent = name.Contains("catch", StringComparison.InvariantCultureIgnoreCase);
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
+            xmlFlowNode.HasDescendant("taskDefinition", out var taskDefinition);
             return catchEvent
                 ? new FlowzerIntermediateMessageCatchEvent()
                 {
@@ -327,8 +352,7 @@ public static class ModelParser
                 {
                     Id = xmlFlowNode.Attribute("id")!.Value,
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    MessageDefinition = rootElements.OfType<MessageDefinition>()
-                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                    Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
                 };
         }
 

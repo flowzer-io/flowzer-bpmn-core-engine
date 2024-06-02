@@ -27,6 +27,7 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<StartEvent>(process, 1);
             AssertFlowNodeOfTypes<EndEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerBoundaryMessageEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerBoundarySignalEvent>(process, 1);
             AssertFlowNodeOfTypes<IntermediateThrowEvent>(process, 1);
             AssertFlowNodeOfTypes<UserTask>(process, 1);
             AssertFlowNodeOfTypes<ParallelGateway>(process, 2);
@@ -36,8 +37,14 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerMessageStartEvent>(process, 1);
             AssertFlowNodeOfTypes<ReceiveTask>(process, 1);
             AssertFlowNodeOfTypes<FlowzerMessageEndEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerSignalStartEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerSignalEndEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerIntermediateMessageCatchEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerIntermediateMessageThrowEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerIntermediateSignalCatchEvent>(process, 1);
+            AssertFlowNodeOfTypes<FlowzerIntermediateSignalThrowEvent>(process, 1);
             
-            AssertFlowNodeOfTypes<SequenceFlow>(process, 13);
+            AssertFlowNodeOfTypes<SequenceFlow>(process, 18);
         });
 
         var secondModel = await ModelParser.ParseModel(File.Open("embeddings/AllFlowNodes.bpmn", FileMode.Open));
