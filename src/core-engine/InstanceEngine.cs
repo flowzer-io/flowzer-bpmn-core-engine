@@ -1,5 +1,3 @@
-using core_engine.Handler;
-
 namespace core_engine;
 
 public class InstanceEngine(ProcessInstance instance)
@@ -50,7 +48,7 @@ public class InstanceEngine(ProcessInstance instance)
         {
             if (!FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler))
                 throw new InvalidOperationException($"No handler found for {token.CurrentFlowNode.GetType()}");
-            
+
             try
             {
                 handler.Execute(Instance, token);
@@ -58,6 +56,7 @@ public class InstanceEngine(ProcessInstance instance)
             catch (Exception)
             {
                 token.State = FlowNodeState.Failing;
+                instance.State = ProcessInstanceState.Failing;
                 //TODO: Handle Exception
                 throw;
             }
@@ -67,12 +66,20 @@ public class InstanceEngine(ProcessInstance instance)
         {
             PrepareOutputData(token);
             token.State = FlowNodeState.Completed;
-            if (FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler))
-            {
-                var newTokens = handler.GenerateOutgoingTokens(FlowzerConfig, Instance, token);
-                if (newTokens != null)
-                    Instance.Tokens.AddRange(newTokens);
-            }
+            
+            if (!FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler)) 
+                continue; // There is no handler for this flow node
+            
+            var newTokens = handler.GenerateOutgoingTokens(FlowzerConfig, Instance, token);
+            if (newTokens != null)
+                Instance.Tokens.AddRange(newTokens);
+        }
+
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Terminating))
+        {
+            // ToDo: Hier kann man noch Nachrichtenflüsse einbauen etc.
+            token.State = FlowNodeState.Terminated;
+            instance.State = ProcessInstanceState.Terminated;
         }
     }
 
@@ -253,7 +260,8 @@ public class InstanceEngine(ProcessInstance instance)
                 .Where(be => be.AttachedToRef == token.CurrentFlowNode)
                 .Select(boundaryEvent => new MessageDefinition()
                 {
-                    Name = boundaryEvent.MessageDefinition.Name, FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                    Name = boundaryEvent.MessageDefinition.Name,
+                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
                 }));
         }
 
@@ -289,7 +297,8 @@ public class InstanceEngine(ProcessInstance instance)
         { typeof(ExclusiveGateway), new ExclusiveGatewayHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
         { typeof(ServiceTask), new ServiceTaskFlowNodeHandler() },
-        // {typeof(InclusiveGateway), new InclusiveGatewayHandler()},
+        { typeof(InclusiveGateway), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerTerminateEvent), new TerminateEndEventHandler() },
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},
@@ -306,6 +315,4 @@ internal class ServiceTaskFlowNodeHandler : DefaultFlowNodeHandler
     {
         token.State = FlowNodeState.Active; //active until 
     }
-
-  
 }

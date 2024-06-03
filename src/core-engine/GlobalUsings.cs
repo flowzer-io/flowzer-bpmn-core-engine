@@ -9,4 +9,5 @@ global using BPMN.Gateways;
 global using BPMN.HumanInteraction;
 global using BPMN.Infrastructure;
 global using BPMN.Process;
+global using core_engine.Handler;
 global using Model;

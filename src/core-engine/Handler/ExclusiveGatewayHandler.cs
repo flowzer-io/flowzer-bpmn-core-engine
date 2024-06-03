@@ -1,29 +1,19 @@
-using core_engine.Handler;
-
-namespace core_engine;
+namespace core_engine.Handler;
 
 internal class ExclusiveGatewayHandler : DefaultFlowNodeHandler
 {
-    public override List<Token>? GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
+    public override List<Token> GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
     {
+        if (processInstance.ProcessModel.FlowElements
+            .OfType<SequenceFlow>()
+            .Any(x => x.SourceRef == token.CurrentFlowNode && x.FlowzerCondition is null && x.FlowzerIsDefault is null or false))
+            throw new FlowzerRuntimeException("There is a SequenceFlow without a Condition and not default for Exclusive Gateway");
+        
         var outgoingTokens = base.GenerateOutgoingTokens(config, processInstance, token);
+
         if (outgoingTokens is null)
-            return null;
+            throw new FlowzerRuntimeException("No Condition is true for Exclusive Gateway");
         
-        if (outgoingTokens.Count > 1)
-        {
-            outgoingTokens.RemoveRange(1,outgoingTokens.Count -1);
-        }
-        
-        
-        // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
-        // if (outgoingSequenceFlows.Any(s => s.ConditionExpression is not null) &&
-        //     outgoingSequenceFlows.Any(s => s.FlowzerIsDefault is true))
-        // {
-        //     outgoingSequenceFlows = outgoingSequenceFlows.Where(s => s.FlowzerIsDefault is null or false);
-        // }
-        //
-        
-        return outgoingTokens;
+        return outgoingTokens[..1];
     }
 }
