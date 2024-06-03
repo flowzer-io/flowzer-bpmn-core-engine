@@ -49,6 +49,9 @@
       <None Update="embeddings\ExklusiveGateway.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="embeddings\TerminateEndEvent.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

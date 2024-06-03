@@ -31,9 +31,13 @@ public class InstanceEngine(ProcessInstance instance)
             RunSingleStep();
         }
 
-        Instance.State = Instance.Tokens.Any(x => x.State == FlowNodeState.Active)
-            ? ProcessInstanceState.Waiting
-            : ProcessInstanceState.Completed;
+        if (Instance.Tokens.Any(x => x.State is FlowNodeState.Active))
+            Instance.State = ProcessInstanceState.Waiting;
+        if (Instance.Tokens.All(x => 
+                x.State is FlowNodeState.Completed or FlowNodeState.Merged ||
+                x.CurrentFlowNode is ParallelGateway or ComplexGateway
+                ))
+            Instance.State = ProcessInstanceState.Completed;
     }
 
     private void RunSingleStep()
@@ -66,10 +70,10 @@ public class InstanceEngine(ProcessInstance instance)
         {
             PrepareOutputData(token);
             token.State = FlowNodeState.Completed;
-            
-            if (!FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler)) 
+
+            if (!FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler))
                 continue; // There is no handler for this flow node
-            
+
             var newTokens = handler.GenerateOutgoingTokens(FlowzerConfig, Instance, token);
             if (newTokens != null)
                 Instance.Tokens.AddRange(newTokens);
@@ -191,7 +195,7 @@ public class InstanceEngine(ProcessInstance instance)
     /// <param name="tokenId">ID des Tokens</param>
     /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
     /// <exception cref="NotImplementedException"></exception>
-    public void HandleServiceTaskResult(Guid tokenId, object? result)
+    public void HandleServiceTaskResult(Guid tokenId, object? result = null)
     {
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
@@ -206,6 +210,21 @@ public class InstanceEngine(ProcessInstance instance)
 
         token.State = FlowNodeState.Completing;
         Run();
+    }
+
+    /// <summary>
+    /// Wird aufgerufen, wenn ein ServiceTask ein Ergebnis zurückliefert.
+    /// </summary>
+    /// <param name="taskType">Type (Implementation) des ServiceTasks. ACHTUNG: Funktioniert nur wenn genau ein ServiceTask mit dem Type wartet.</param>
+    /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
+    /// <exception cref="NotImplementedException"></exception>
+    public void HandleServiceTaskResult(string taskType, object? result = null)
+    {
+        var tokenId = Instance.Tokens.Single(token =>
+            token.CurrentFlowNode.GetType() == typeof(ServiceTask) &&
+            ((ServiceTask)token.CurrentFlowNode).Implementation == taskType &&
+            token.State == FlowNodeState.Active).Id;
+        HandleServiceTaskResult(tokenId, result);
     }
 
     /// <summary>
