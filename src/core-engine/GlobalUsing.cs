@@ -1,1 +1,0 @@
-global using Variables = System.Dynamic.ExpandoObject;

@@ -11,3 +11,4 @@ global using BPMN.Infrastructure;
 global using BPMN.Process;
 global using core_engine.Handler;
 global using Model;
+global using Variables = System.Dynamic.ExpandoObject;
