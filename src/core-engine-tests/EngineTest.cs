@@ -102,35 +102,46 @@ public class EngineTest
 
         var tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(0));
+        Assert.Multiple(() =>
+        {
+            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
+        });
 
 
         //do step1
         instanceEngine.HandleServiceTaskResult("step1");
         tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(2));
-        Assert.That(tokensAtParallelGateway.All(x =>
-            x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id));
-        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(0));
+        Assert.Multiple(() =>
+        {
+            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(2));
+            Assert.That(tokensAtParallelGateway.All(x =>
+                    x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
+        });
 
 
         //do step2
         instanceEngine.HandleServiceTaskResult("step2");
         tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(1));
+        Assert.Multiple(() =>
+        {
+            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(1));
+        });
 
 
         //do step3
         instanceEngine.HandleServiceTaskResult("step3");
-        Assert.That(instanceEngine.ActiveTokens.Count(), Is.EqualTo(0));
-        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(2));
-
-
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.ActiveTokens.Count(), Is.EqualTo(0));
+            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(2));
+            
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        });
     }
 
     [Test]
