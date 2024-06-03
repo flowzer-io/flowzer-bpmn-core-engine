@@ -2,34 +2,29 @@ using core_engine.Handler;
 
 namespace core_engine;
 
-internal class ParallelGatewayHandler : IFlowNodeHandler
+internal class ParallelGatewayHandler : DefaultFlowNodeHandler
 {
-    public void Execute(ProcessInstance processInstance, Token token)
+    public override void Execute(ProcessInstance processInstance, Token token)
     {
-        var sequenceFlowIds = processInstance.ProcessModel.FlowElements.OfType<SequenceFlow>()
+        var incomingSequenceFlowIds = processInstance.ProcessModel.FlowElements.OfType<SequenceFlow>()
             .Where(x => x.TargetRef.Id == token.CurrentFlowNode.Id)
             .Select(sf => sf.Id)
             .ToList();
-
-        var actualActiveTokens = processInstance.Tokens
-            .Where(t => t.CurrentFlowNode.Id == token.CurrentFlowNode.Id && t.State == FlowNodeState.Active)
-            .ToList();
-
-        if (sequenceFlowIds.Count > actualActiveTokens.Count) return;
         
-        var filteredSequenceFlowIds = 
-            sequenceFlowIds.Where(fn => actualActiveTokens.All(t => t.LastSequenceFlow?.Id != fn));
-
-        if (filteredSequenceFlowIds.Any())
-            return;
-
-        var first = true;
-        foreach (var sequenceFlowId in sequenceFlowIds)
+        var tokensAtInput = new List<Token>();
+        foreach (var incomingSequenceFlowId in incomingSequenceFlowIds)
         {
-            actualActiveTokens
-                .First(t => t.LastSequenceFlow?.Id == sequenceFlowId).State = 
-                first ? FlowNodeState.Completing : FlowNodeState.Merged;
-            first = false;
+            var tokenAtInput = processInstance.Tokens
+                .FirstOrDefault(x =>
+                    x.CurrentFlowNode.Id == token.CurrentFlowNode.Id &&
+                    x.LastSequenceFlow?.Id == incomingSequenceFlowId && x.State == FlowNodeState.Active);
+            if (tokenAtInput == null) 
+                return; //not all incoming flow nodes are active
+            tokensAtInput.Add(tokenAtInput);
         }
+        
+        tokensAtInput.First().State = FlowNodeState.Completing;
+        foreach (var tokenToMerge in tokensAtInput[1..])
+            tokenToMerge.State = FlowNodeState.Merged;
     }
 }

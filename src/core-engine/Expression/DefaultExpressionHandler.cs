@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
 
-namespace core_engine;
+namespace core_engine.Expression;
 
-public abstract partial class ExpressionHandler
+public abstract partial class DefaultExpressionHandler: IExpressionHandler
 {
     /// <summary>
     /// Get the value by expression from the process variables 

@@ -542,7 +542,7 @@ public static class ModelParser
         {
             timerEventDefinition = new TimerEventDefinition()
             {
-                TimeCycle = new Expression
+                TimeCycle = new BPMN.Common.Expression
                 {
                     Body = element.Value,
                 }
@@ -554,7 +554,7 @@ public static class ModelParser
         {
             timerEventDefinition = new TimerEventDefinition()
             {
-                TimeDate = new Expression
+                TimeDate = new BPMN.Common.Expression
                 {
                     Body = element.Value,
                 }
@@ -566,7 +566,7 @@ public static class ModelParser
         {
             timerEventDefinition = new TimerEventDefinition()
             {
-                TimeDuration = new Expression
+                TimeDuration = new BPMN.Common.Expression
                 {
                     Body = element.Value,
                 }

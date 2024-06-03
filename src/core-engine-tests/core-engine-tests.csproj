@@ -43,6 +43,12 @@
       <None Update="embeddings\AllFlowNodes.bpmn">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+      <None Update="embeddings\GatewayJoinComplex.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
+      <None Update="embeddings\ExklusiveGateway.bpmn">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

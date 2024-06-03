@@ -92,5 +92,53 @@ public class EngineTest
         
     }
     
+        
+    [Test]
+    public async Task ParallelGatewayComplexTest()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoinComplex.bpmn");
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+
+        var tokensAtParallelGateway = instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
+        Assert.That(tokensAtParallelGateway.Length, Is.EqualTo(1));
+        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(0));
+        
+        
+        //do step1
+        instanceEngine.HandleServiceTaskResult(instanceEngine.GetActiveServiceTasks().Single(x=>x.CurrentFlowNode is ServiceTask st && st.Implementation== "step1").Id, new object());
+        tokensAtParallelGateway = instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
+        Assert.That(tokensAtParallelGateway.Length, Is.EqualTo(2));
+        Assert.That(tokensAtParallelGateway.All(x=>x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id));
+        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(0));
+
+        
+        //do step2
+        instanceEngine.HandleServiceTaskResult(instanceEngine.GetActiveServiceTasks().Single(x=>x.CurrentFlowNode is ServiceTask st && st.Implementation== "step2").Id, new object());
+        tokensAtParallelGateway = instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
+        Assert.That(tokensAtParallelGateway.Length, Is.EqualTo(1));
+        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(1));
+        
+        
+        //do step3
+        instanceEngine.HandleServiceTaskResult(instanceEngine.GetActiveServiceTasks().Single(x=>x.CurrentFlowNode is ServiceTask st && st.Implementation== "step3").Id, new object());
+        Assert.That(instanceEngine.ActiveTokens.Count(), Is.EqualTo(0));
+        Assert.That(instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).Count, Is.EqualTo(2));
+        
+        
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+
+    }
+        
+    [Test]
+    public async Task ExklusiveGatewayTest()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("ExklusiveGateway.bpmn");
+        
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"), Is.EqualTo(1));
+        Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"), Is.EqualTo(0));
+    }
+
+    
 
 }

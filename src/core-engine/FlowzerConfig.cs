@@ -1,8 +1,12 @@
+using core_engine.Expression;
+using core_engine.Expression.Feelin;
+
+
 namespace core_engine;
 
 public class FlowzerConfig
 {
-    public required ExpressionHandler ExpressionHandler { get; init; }
+    public required IExpressionHandler ExpressionHandler { get; init; }
 
     public static FlowzerConfig Default => new()
     {

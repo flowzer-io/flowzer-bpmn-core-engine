@@ -1,8 +1,8 @@
+namespace core_engine.Expression.Feelin;
+
 using Microsoft.ClearScript.V8;
 
-namespace core_engine;
-
-public class FeelinExpressionHandler : ExpressionHandler
+public class FeelinExpressionHandler : DefaultExpressionHandler
 {
     private readonly V8ScriptEngine _jsEngine;
 
@@ -12,7 +12,7 @@ public class FeelinExpressionHandler : ExpressionHandler
         var directory = Path.GetDirectoryName(GetType().Assembly.Location);
         if (directory == null)
             throw new IOException("Could not find the directory of the assembly");
-        var fullPath = Path.Combine(directory, "feelin/bundle.js");
+        var fullPath = Path.Combine(directory, "Expression/Feelin/bundle.js");
         _jsEngine.Execute(File.ReadAllText(fullPath));
     }
 
