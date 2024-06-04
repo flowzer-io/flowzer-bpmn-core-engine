@@ -24,7 +24,7 @@ public abstract partial class DefaultExpressionHandler: IExpressionHandler
     public string ResolveString(object obj, string expression)
     {
         if (expression.StartsWith('='))
-            return GetValue(obj, expression[1..])?.ToString() ?? expression;
+            return GetValue(obj, expression)?.ToString() ?? expression;
 
         // Regex to match {{Expression}} in the string
         var regex = DoubleCurlyBraceRegex();
@@ -32,7 +32,7 @@ public abstract partial class DefaultExpressionHandler: IExpressionHandler
         foreach (Match match in matches)
         {
             var value = GetValue(obj, match.Groups[1].Value);
-            expression = expression.Replace(match.Value, value?.ToString() ?? "");
+            expression = expression.Replace(match.Value, $"={value}");
         }
 
         return expression;

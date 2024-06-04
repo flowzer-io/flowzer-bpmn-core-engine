@@ -62,7 +62,7 @@ public class ProcessEngine(Process process)
                 .FlowElements
                 .OfType<BoundaryEvent>()
                 .Where(b => b.AttachedToRef == startEvent)
-                .Select(b => b with {}).ToList(),
+                .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.Default.ExpressionHandler.ResolveString, processInstance.ProcessVariables)).ToList(),
             InputData = data,
             ProcessInstance = processInstance
         };

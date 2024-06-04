@@ -4,9 +4,12 @@ internal class ExclusiveGatewayHandler : DefaultFlowNodeHandler
 {
     public override List<Token> GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
     {
-        if (processInstance.ProcessModel.FlowElements
+        var outgoingSequenceFlows = processInstance.ProcessModel.FlowElements
             .OfType<SequenceFlow>()
-            .Any(x => x.SourceRef == token.CurrentFlowNode && x.FlowzerCondition is null && x.FlowzerIsDefault is null or false))
+            .Where(x => x.SourceRef == token.CurrentFlowNode)
+            .ToArray();
+        
+        if (outgoingSequenceFlows.Length > 1 && outgoingSequenceFlows.Any(x => x.FlowzerCondition is null && x.FlowzerIsDefault is null or false))
             throw new FlowzerRuntimeException("There is a SequenceFlow without a Condition and not default for Exclusive Gateway");
         
         var outgoingTokens = base.GenerateOutgoingTokens(config, processInstance, token);

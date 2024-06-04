@@ -1,7 +1,6 @@
 namespace Model;
 
 public class Token
-
 {
     public Guid Id { get; } = Guid.NewGuid();
     public Guid ProcessInstanceId { get; init; }

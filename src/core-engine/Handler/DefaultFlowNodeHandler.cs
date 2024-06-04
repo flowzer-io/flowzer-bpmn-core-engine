@@ -50,14 +50,15 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
             {
                 ProcessInstance = processInstance,
                 ProcessInstanceId = processInstance.Id,
-                CurrentFlowNode = x.TargetRef with { },
+                CurrentFlowNode = x.TargetRef.ApplyResolveExpression<FlowNode>(config.ExpressionHandler.ResolveString, processInstance.ProcessVariables),
                 LastSequenceFlow = x,
                 State = FlowNodeState.Ready,
                 ActiveBoundaryEvents = processInstance.ProcessModel
                     .FlowElements
                     .OfType<BoundaryEvent>()
                     .Where(b => b.AttachedToRef == x.TargetRef)
-                    .Select(b => b with {}).ToList()
+                    .Select(b => b.ApplyResolveExpression<BoundaryEvent>
+                        (config.ExpressionHandler.ResolveString, processInstance.ProcessVariables)).ToList()
             }
         ).ToList();
 

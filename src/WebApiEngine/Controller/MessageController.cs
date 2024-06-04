@@ -35,10 +35,10 @@ public class MessageController(IStorageSystem storageSystem) : ControllerBase
                 new InstanceEngine(messageSubscription.ProcessInstance)
                 .HandleMessage(message));
         }
-        
-        storageSystem.InstanceStorage.AddInstance(
-            new ProcessEngine(messageSubscription.Process)
-            .HandleMessage(message));
+        //
+        // storageSystem.InstanceStorage.AddInstance(
+        //     new ProcessEngine(messageSubscription.Process)
+        //     .HandleMessage(message));
 
         var response =
             $"Message \" {message.Name} \" with correlation Key \" {message.CorrelationKey} \" was sent to the process instance.";

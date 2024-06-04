@@ -101,7 +101,7 @@ public class InstanceEngine(ProcessInstance instance)
                     .FlowElements
                     .OfType<BoundaryEvent>()
                     .Where(b => b.AttachedToRef == processStartFlowNode)
-                    .Select(b => b with {}).ToList(),
+                    .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.ExpressionHandler.ResolveString, Instance.ProcessVariables)).ToList(),
                 InputData = data ?? new Variables(),
                 OutputData = data
             });
@@ -254,7 +254,7 @@ public class InstanceEngine(ProcessInstance instance)
     public List<MessageDefinition> GetActiveCatchMessages()
     {
         var messageDefinitions = new List<MessageDefinition>();
-        foreach (var token in Instance.Tokens)
+        foreach (var token in ActiveTokens)
         {
             if (token.CurrentFlowNode is IntermediateCatchEvent
                 {
