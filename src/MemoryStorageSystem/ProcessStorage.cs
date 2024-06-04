@@ -1,3 +1,4 @@
+using core_engine;
 using Model;
 
 namespace MemoryStorageSystem;
@@ -18,13 +19,19 @@ internal class ProcessStorage(EngineState engineState) : IProcessStorage
     {
         engineState.ProcessInfos.Add(processInfo);
         
-        // ToDo: Hier dann die MessageSubscription und Signale etc. hinzufügen
+        engineState.ActiveMessages.AddRange(
+            new ProcessEngine(processInfo.Process)
+                .GetActiveCatchMessages()
+                .Select(m => new MessageSubscription(m, processInfo.Process.Id)));
+        // ToDo: Hier dann die Signale etc. hinzufügen
     }
 
     public void DeactivateProcessInfo(string processId)
     {
         var oldProcessInfo = engineState.ProcessInfos.SingleOrDefault(p =>
             p.Process.Id == processId && p.IsActive);
-        if (oldProcessInfo is not null) oldProcessInfo.IsActive = false;
+        if (oldProcessInfo is null) throw new Exception("The process is not found or already deactivated.");
+        oldProcessInfo.IsActive = false;
+        engineState.ActiveMessages.RemoveAll(x => x.ProcessId == processId && x.ProcessInstanceId == null);
     }
 }
