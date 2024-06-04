@@ -25,20 +25,23 @@ public class MessageController(IStorageSystem storageSystem) : ControllerBase
         {
             return BadRequest(
                 $"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\".");
-            
+
             // ToDo: Hier noch einen Message zwischenspeicher einbauen, der dann wiederrum bei neuen Prozessdefinitionen und Instanzen geprüft wird
         }
-        
-        if (messageSubscription.ProcessInstance != null)
+
+        if (messageSubscription.ProcessInstanceId != null)
         {
-            storageSystem.InstanceStorage.AddInstance(
-                new InstanceEngine(messageSubscription.ProcessInstance)
-                .HandleMessage(message));
+            var instanceEngine =
+                new InstanceEngine(
+                    storageSystem.InstanceStorage.GetInstanceById(messageSubscription.ProcessInstanceId.Value));
+            instanceEngine.HandleMessage(message);
+            // TODO: Hier muss noch sowas wie SafeChanges eingebaut werden und die Subscriptions neu gesetzt werden etc.
         }
-        //
-        // storageSystem.InstanceStorage.AddInstance(
-        //     new ProcessEngine(messageSubscription.Process)
-        //     .HandleMessage(message));
+        else
+            storageSystem.InstanceStorage.AddInstance(
+                new ProcessEngine(storageSystem.ProcessStorage.GetActiveProcessInfo(messageSubscription.ProcessId)
+                        .Process)
+                    .HandleMessage(message).Instance);
 
         var response =
             $"Message \" {message.Name} \" with correlation Key \" {message.CorrelationKey} \" was sent to the process instance.";

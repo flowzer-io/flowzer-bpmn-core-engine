@@ -7,7 +7,7 @@ public partial class InstanceEngine
     /// <summary>
     /// Gibt eine Liste aktuell erwarteter Nachrichten zurück
     /// </summary>
-    /// <returns>Liste von Nachrichten inkl. CorrelationKey</returns>
+    /// <returns>Liste von Nachrichten inklusive CorrelationKey</returns>
     /// <exception cref="NotImplementedException"></exception>
     public List<MessageDefinition> GetActiveCatchMessages()
     {

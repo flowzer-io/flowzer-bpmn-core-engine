@@ -1,4 +1,3 @@
-using BPMN.Process;
 using Model;
 
 namespace MemoryStorageSystem;
@@ -12,6 +11,8 @@ internal class ProcessStorage(EngineState engineState) : IProcessStorage
     }
     
     public IEnumerable<ProcessInfo> GetAllProcessesInfos() => engineState.ProcessInfos;
+    public ProcessInfo GetActiveProcessInfo(string processId) => 
+        engineState.ProcessInfos.Single(p => p.Process.Id == processId && p.IsActive);
 
     public void AddProcessInfo(ProcessInfo processInfo)
     {

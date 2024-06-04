@@ -14,5 +14,5 @@ internal class MessageSubscriptionStorage(EngineState engineState) : IMessageSub
         engineState.ActiveMessages.Add(messageSubscription);
 
     public void RemoveProcessMessageSubscriptions(string processId)
-        => engineState.ActiveMessages.RemoveAll(x => x.Process.Id == processId);
+        => engineState.ActiveMessages.RemoveAll(x => x.ProcessId == processId);
 }

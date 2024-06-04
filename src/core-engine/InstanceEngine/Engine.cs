@@ -103,6 +103,44 @@ public partial class InstanceEngine
         }
     }
     
+    /// <summary>
+    /// Überträgt die Variablen des Prozesses in die Input-Daten des Tokens. Dabei wird auf die InputSet des
+    /// FlowNodes geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
+    /// </summary>
+    /// <param name="token">Der Token, in welchen der aktuelle Input Datensatz persistiert wird.</param>
+    private void PrepareInputData(Token token)
+    {
+        if (token.CurrentFlowNode is not IFlowzerInputMapping mapping)
+        {
+            token.InputData = Instance.ProcessVariables;
+            return;
+        }
+
+        token.InputData = new Variables();
+        mapping.InputMappings?.ForEach(x =>
+        {
+            token.InputData.TryAdd(x.Target,
+                FlowzerConfig.ExpressionHandler.GetValue(Instance.ProcessVariables, x.Source));
+        });
+    }
+
+    /// <summary>
+    /// Überträgt die Output-Variablen des Tokens in die Daten der Instanz. Dabei wird auf die OutputSet des
+    /// FlowNodes geachtet. Gibt es keine, so werden alle Variablen übertragen.
+    /// </summary>
+    /// <param name="token">Der Token, in welchen der aktuelle Output Datensatz persistiert ist.</param>
+    private void PrepareOutputData(Token token)
+    {
+        if (token.CurrentFlowNode is not IFlowzerOutputMapping mapping)
+            return;
+
+        mapping.OutputMappings?.ForEach(x =>
+        {
+            var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
+            ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value);
+        });
+    }
+    
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
         { typeof(StartEvent), new DefaultFlowNodeHandler() },
