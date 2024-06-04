@@ -194,11 +194,20 @@ public class EngineTest
         {
             Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
             Assert.That((int?)instanceEngine.Instance.ProcessVariables.GetValue("AuftragsNr"),
-                Is.EqualTo(12345));
+                Is.EqualTo(12345)); // ToDo: Hier muss ich das Token beim anlegen noch parsen
             Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
             Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("Nachricht1"));
+            Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("NachrichtBoundary"));
             Assert.That(instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey, Is.EqualTo("12345"));
+        });
+
+        instanceEngine =
+            new ProcessEngine(process).HandleMessage(new Message() { Name = "NachrichtStart", TimeToLive = 60 });
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
+            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(2));
         });
     }
 }

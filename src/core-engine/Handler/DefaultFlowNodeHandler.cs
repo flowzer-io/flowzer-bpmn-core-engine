@@ -44,7 +44,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         // 3.1 Setze den neuen FlowNode des Tokens auf den FlowNode des Sequenzflusses
         // 3.2 Setze den State des Tokens auf Ready
         // 3.3 Füge das Token der Liste der Tokens hinzu
-
+        
         return outgoingSequenceFlows.Select(x=>
             new Token
             {
@@ -52,7 +52,12 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
                 ProcessInstanceId = processInstance.Id,
                 CurrentFlowNode = x.TargetRef with { },
                 LastSequenceFlow = x,
-                State = FlowNodeState.Ready
+                State = FlowNodeState.Ready,
+                ActiveBoundaryEvents = processInstance.ProcessModel
+                    .FlowElements
+                    .OfType<BoundaryEvent>()
+                    .Where(b => b.AttachedToRef == x.TargetRef)
+                    .Select(b => b with {}).ToList()
             }
         ).ToList();
 

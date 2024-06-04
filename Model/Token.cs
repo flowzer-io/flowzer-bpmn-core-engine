@@ -7,6 +7,7 @@ public class Token
     public Guid ProcessInstanceId { get; init; }
     public virtual ProcessInstance? ProcessInstance { get; init; }
     public required FlowNode CurrentFlowNode { get; init; }
+    public required List<BoundaryEvent> ActiveBoundaryEvents { get; init; }
     private FlowNodeState _state = FlowNodeState.Ready;
 
     public FlowNodeState State

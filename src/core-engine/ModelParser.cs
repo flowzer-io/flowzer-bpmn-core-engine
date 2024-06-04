@@ -209,30 +209,6 @@ public static class ModelParser
                 }
             }
 
-            foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "sequenceFlow"))
-            {
-                var sourceRef = xmlFlowNode.Attribute("sourceRef")!.Value;
-                var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
-                var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
-                var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
-                var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
-                                && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
-                var newSequenceFlow = new SequenceFlow
-                {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
-                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    SourceRef = source,
-                    TargetRef = target,
-                    FlowzerIsDefault = isDefault,
-                    // Container = process,
-                    FlowzerCondition = xmlFlowNode.Descendants()
-                        .FirstOrDefault(e => e.Name.LocalName == "conditionExpression")
-                        ?.Value,
-                };
-
-                flowElements.Add(newSequenceFlow);
-            }
-
             foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "boundaryEvent"))
             {
                 var attachedToRef = xmlFlowNode.Attribute("attachedToRef")!.Value;
@@ -267,6 +243,30 @@ public static class ModelParser
                     continue;
                 }
                 throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+            }
+            
+            foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "sequenceFlow"))
+            {
+                var sourceRef = xmlFlowNode.Attribute("sourceRef")!.Value;
+                var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
+                var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
+                var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
+                var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
+                                && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
+                var newSequenceFlow = new SequenceFlow
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    SourceRef = source,
+                    TargetRef = target,
+                    FlowzerIsDefault = isDefault,
+                    // Container = process,
+                    FlowzerCondition = xmlFlowNode.Descendants()
+                        .FirstOrDefault(e => e.Name.LocalName == "conditionExpression")
+                        ?.Value,
+                };
+
+                flowElements.Add(newSequenceFlow);
             }
 
             var process = new Process

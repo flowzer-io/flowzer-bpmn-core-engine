@@ -97,6 +97,11 @@ public class InstanceEngine(ProcessInstance instance)
                 ProcessInstance = Instance,
                 ProcessInstanceId = Instance.Id,
                 CurrentFlowNode = processStartFlowNode,
+                ActiveBoundaryEvents = Instance.ProcessModel
+                    .FlowElements
+                    .OfType<BoundaryEvent>()
+                    .Where(b => b.AttachedToRef == processStartFlowNode)
+                    .Select(b => b with {}).ToList(),
                 InputData = data ?? new Variables(),
                 OutputData = data
             });
@@ -275,12 +280,11 @@ public class InstanceEngine(ProcessInstance instance)
                 });
             }
 
-            messageDefinitions.AddRange(Instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>() // ToDo: hier durch Persistierte Token.BoundaryEvents ersetzen
-                .Where(be => be.AttachedToRef == token.CurrentFlowNode)
+            messageDefinitions.AddRange(token.ActiveBoundaryEvents.OfType<FlowzerBoundaryMessageEvent>()
                 .Select(boundaryEvent => new MessageDefinition()
                 {
                     Name = boundaryEvent.MessageDefinition.Name,
-                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                    FlowzerCorrelationKey = boundaryEvent.MessageDefinition.FlowzerCorrelationKey
                 }));
         }
 

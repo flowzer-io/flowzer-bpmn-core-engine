@@ -43,7 +43,7 @@ public class ProcessEngine(Process process)
         throw new NotImplementedException();
     }
 
-    public ProcessInstance HandleMessage(Message message)
+    public InstanceEngine HandleMessage(Message message)
     {
         var startEvent = Process.FlowElements
             .OfType<FlowzerMessageStartEvent>()
@@ -53,13 +53,16 @@ public class ProcessEngine(Process process)
             ProcessModel = Process
         };
         
-        Variables? data = JsonConvert.DeserializeObject<Variables>(message.Variables ?? "{}");
-        if (data is null)
-            data = new Variables();
-        
+        var data = JsonConvert.DeserializeObject<Variables>(message.Variables ?? "{}") ?? new Variables();
+
         var token = new Token
         {
             CurrentFlowNode = startEvent,
+            ActiveBoundaryEvents = processInstance.ProcessModel
+                .FlowElements
+                .OfType<BoundaryEvent>()
+                .Where(b => b.AttachedToRef == startEvent)
+                .Select(b => b with {}).ToList(),
             InputData = data,
             ProcessInstance = processInstance
         };
@@ -69,7 +72,7 @@ public class ProcessEngine(Process process)
         var instance = new InstanceEngine(processInstance);
         instance.Run();
         
-        return processInstance;
+        return instance;
     }
 
     public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)
