@@ -23,7 +23,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         // 1. Finde alle ausgehenden Sequenzflüsse des aktuellen FlowNodes
         var outgoingSequenceFlows = processInstance.ProcessModel.FlowElements
             .OfType<SequenceFlow>()
-            .Where(x => x.SourceRef == token.CurrentFlowNode)
+            .Where(x => x.SourceRef.Id == token.CurrentFlowNode.Id)
             .ToArray();
         
 

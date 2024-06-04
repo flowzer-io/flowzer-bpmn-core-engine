@@ -19,18 +19,20 @@ public class JsonStringConverter : JsonConverter<string>
 {
     public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        if (reader.TokenType == JsonTokenType.String)
+        switch (reader.TokenType)
         {
-            return reader.GetString();
-        }
-        else if (reader.TokenType == JsonTokenType.StartObject)
-        {
-            using (var doc = JsonDocument.ParseValue(ref reader))
+            case JsonTokenType.String:
+                return reader.GetString();
+            
+            case JsonTokenType.StartObject:
             {
+                using var doc = JsonDocument.ParseValue(ref reader);
                 return doc.RootElement.GetRawText();
             }
+            
+            default:
+                throw new JsonException();
         }
-        throw new JsonException();
     }
 
     public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)

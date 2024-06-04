@@ -1,7 +1,5 @@
 using BPMN.Activities;
 using BPMN.Events;
-using BPMN.Infrastructure;
-using BPMN.Process;
 using core_engine;
 using Model;
 using Task = System.Threading.Tasks.Task;
@@ -196,11 +194,32 @@ public class EngineTest
             Assert.That((int?)instanceEngine.Instance.ProcessVariables.GetValue("AuftragsNr"),
                 Is.EqualTo(12345)); 
             Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("NachrichtBoundary"));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey, Is.EqualTo("12345")); // ToDo: Hier muss ich das Token beim anlegen noch parsen
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
+            Assert.That(instanceEngine.GetActiveCatchMessages().Select(i => i.Name), Contains.Item("NachrichtBoundary"));
+            Assert.That(instanceEngine.GetActiveCatchMessages().Select(i => i.Name), Contains.Item("NachrichtBoundaryNI"));
+            Assert.That(instanceEngine.GetActiveCatchMessages().First().FlowzerCorrelationKey, Is.EqualTo("12345"));
         });
         
+        instanceEngine.HandleMessage(new Message {Name = "NachrichtBoundaryNI", CorrelationKey = "12345", TimeToLive = 60});
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(2));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
+            instanceEngine.HandleServiceTaskResult("step2");
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
+        });
+        
+        instanceEngine.HandleMessage(new Message {Name = "NachrichtBoundary", CorrelationKey = "12345", TimeToLive = 60});
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(0));
+        });
+        
+        instanceEngine = new ProcessEngine(process).StartProcess();
         instanceEngine.HandleServiceTaskResult("step1");
         Assert.Multiple(() =>
         {
@@ -209,6 +228,22 @@ public class EngineTest
             Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
             Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("NachrichtReceive"));
             Assert.That(instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey, Is.EqualTo("12345"));
+        });
+        
+        instanceEngine.HandleMessage(new Message {Name = "NachrichtReceive", CorrelationKey = "12345", TimeToLive = 60});
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
+        });
+        
+        instanceEngine.HandleMessage(new Message {Name = "NachrichtIntermediate", CorrelationKey = "12345", TimeToLive = 60});
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(0));
         });
         
         instanceEngine =

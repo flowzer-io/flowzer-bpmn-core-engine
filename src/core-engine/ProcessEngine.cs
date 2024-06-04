@@ -45,34 +45,15 @@ public class ProcessEngine(Process process)
 
     public InstanceEngine HandleMessage(Message message)
     {
-        var startEvent = Process.FlowElements
-            .OfType<FlowzerMessageStartEvent>()
-            .First(e => e.MessageDefinition.Name == message.Name);
         var processInstance = new ProcessInstance
         {
             ProcessModel = Process
         };
-        
-        var data = JsonConvert.DeserializeObject<Variables>(message.Variables ?? "{}") ?? new Variables();
+        var instanceEngine = new InstanceEngine(processInstance);
 
-        var token = new Token
-        {
-            CurrentFlowNode = startEvent,
-            ActiveBoundaryEvents = processInstance.ProcessModel
-                .FlowElements
-                .OfType<BoundaryEvent>()
-                .Where(b => b.AttachedToRef == startEvent)
-                .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.Default.ExpressionHandler.ResolveString, processInstance.ProcessVariables)).ToList(),
-            InputData = data,
-            ProcessInstance = processInstance
-        };
-        token.OutputData = token.InputData; //TODO @christian: korrekt?
+        instanceEngine.HandleMessage(message);
         
-        processInstance.Tokens.Add(token);
-        var instance = new InstanceEngine(processInstance);
-        instance.Run();
-        
-        return instance;
+        return instanceEngine;
     }
 
     public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)

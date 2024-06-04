@@ -58,9 +58,9 @@
       <bpmn:incoming>Flow_0xur584</bpmn:incoming>
       <bpmn:outgoing>Flow_0btsdxf</bpmn:outgoing>
     </bpmn:exclusiveGateway>
-    <bpmn:sequenceFlow id="Flow_0xur584" sourceRef="Event_0fu5xk1" targetRef="Gateway_0sx872z" />
     <bpmn:sequenceFlow id="Flow_0q4macn" sourceRef="Activity_16x8anm" targetRef="Gateway_0sx872z" />
     <bpmn:sequenceFlow id="Flow_0btsdxf" sourceRef="Gateway_0sx872z" targetRef="ParallelGateway" />
+    <bpmn:sequenceFlow id="Flow_0xur584" sourceRef="Event_0fu5xk1" targetRef="Gateway_0sx872z" />
   </bpmn:process>
   <bpmn:message id="Message_2j4bst5" name="Auftragsbestätigung">
     <bpmn:extensionElements>
