@@ -33,10 +33,10 @@ public class InstanceEngine(ProcessInstance instance)
 
         if (Instance.Tokens.Any(x => x.State is FlowNodeState.Active))
             Instance.State = ProcessInstanceState.Waiting;
-        if (Instance.Tokens.All(x => 
+        if (Instance.Tokens.All(x =>
                 x.State is FlowNodeState.Completed or FlowNodeState.Merged ||
                 x.CurrentFlowNode is ParallelGateway or ComplexGateway
-                ))
+            ))
             Instance.State = ProcessInstanceState.Completed;
     }
 
@@ -259,23 +259,23 @@ public class InstanceEngine(ProcessInstance instance)
                 messageDefinitions.Add(new MessageDefinition()
                 {
                     Name = messageEventDefinition.MessageRef.Name,
-                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                    FlowzerCorrelationKey = messageEventDefinition.MessageRef.FlowzerCorrelationKey
                 });
             }
 
             if (token.CurrentFlowNode is ReceiveTask
                 {
                     MessageRef: not null
-                } messageDefinition)
+                } receiveTask)
             {
                 messageDefinitions.Add(new MessageDefinition()
                 {
-                    Name = messageDefinition.Name,
-                    FlowzerCorrelationKey = "" // ToDo: Hier muss noch der CorrelationKey gesetzt werden
+                    Name = receiveTask.MessageRef.Name,
+                    FlowzerCorrelationKey = receiveTask.MessageRef.FlowzerCorrelationKey
                 });
             }
 
-            messageDefinitions.AddRange(Instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>()
+            messageDefinitions.AddRange(Instance.ProcessModel.FlowElements.OfType<FlowzerBoundaryMessageEvent>() // ToDo: hier durch Persistierte Token.BoundaryEvents ersetzen
                 .Where(be => be.AttachedToRef == token.CurrentFlowNode)
                 .Select(boundaryEvent => new MessageDefinition()
                 {
@@ -315,9 +315,11 @@ public class InstanceEngine(ProcessInstance instance)
         { typeof(BPMN.Activities.Task), new DefaultFlowNodeHandler() },
         { typeof(ExclusiveGateway), new ExclusiveGatewayHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
-        { typeof(ServiceTask), new ServiceTaskFlowNodeHandler() },
+        { typeof(ServiceTask), new DoNothingFlowNodeHandler() },
         { typeof(InclusiveGateway), new DefaultFlowNodeHandler() },
         { typeof(FlowzerTerminateEvent), new TerminateEndEventHandler() },
+        { typeof(UserTask), new DoNothingFlowNodeHandler() },
+        { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},
@@ -326,12 +328,4 @@ public class InstanceEngine(ProcessInstance instance)
         // {typeof(SequenceFlow), new SequenceFlowHandler()},
         // {typeof(FlowNode), new FlowNodeHandler()}
     };
-}
-
-internal class ServiceTaskFlowNodeHandler : DefaultFlowNodeHandler
-{
-    public override void Execute(ProcessInstance processInstance, Token token)
-    {
-        token.State = FlowNodeState.Active; //active until 
-    }
 }

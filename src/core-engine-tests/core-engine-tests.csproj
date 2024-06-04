@@ -28,30 +28,9 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="embeddings\StartStopWithVariables.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\VariablesTest.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\ConditionalSequenceFlow.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\GatewayJoin.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\AllFlowNodes.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\GatewayJoinComplex.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\ExklusiveGateway.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
-      <None Update="embeddings\TerminateEndEvent.bpmn">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
+        <None Update="embeddings\**\*.*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

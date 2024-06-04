@@ -1,5 +1,7 @@
 using BPMN.Activities;
 using BPMN.Events;
+using BPMN.Infrastructure;
+using BPMN.Process;
 using core_engine;
 using Model;
 using Task = System.Threading.Tasks.Task;
@@ -165,13 +167,38 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile(filename);
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
         instanceEngine.HandleServiceTaskResult("stepEnd");
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-        Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
-        
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
+        });
+            
         instanceEngine = await Helper.StartFirstProcessOfFile(filename);
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
         instanceEngine.HandleServiceTaskResult("stepTerminate");
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Terminated));
-        Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Terminated));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
+        });
+    }
+
+    [Test]
+    public async Task MessageTest()
+    {
+        var definitions = await ModelParser.ParseModel(File.OpenRead("embeddings/Messages.bpmn"));
+        var process = definitions.GetProcesses().First();
+        
+        var instanceEngine = new ProcessEngine(process).StartProcess();
+        Assert.Multiple(() =>
+        {
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That((int?)instanceEngine.Instance.ProcessVariables.GetValue("AuftragsNr"),
+                Is.EqualTo(12345));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
+            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
+            Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("Nachricht1"));
+            Assert.That(instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey, Is.EqualTo("12345"));
+        });
     }
 }

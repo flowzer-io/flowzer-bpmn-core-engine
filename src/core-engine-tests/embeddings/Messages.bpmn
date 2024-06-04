@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_01wfl8z" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.23.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.5.0">
+  <bpmn:process id="Process_1hy75rl" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=12345" target="AuftragsNr" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_1lhgcnz</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1lhgcnz" sourceRef="StartEvent_1" targetRef="Activity_0nclr5l" />
+    <bpmn:receiveTask id="Activity_0nclr5l" name="Empfange Nachricht1 12345" messageRef="Message_1sdj1oc">
+      <bpmn:incoming>Flow_1lhgcnz</bpmn:incoming>
+      <bpmn:outgoing>Flow_1ph798v</bpmn:outgoing>
+    </bpmn:receiveTask>
+    <bpmn:endEvent id="Event_1hau12g">
+      <bpmn:incoming>Flow_1ph798v</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1ph798v" sourceRef="Activity_0nclr5l" targetRef="Event_1hau12g" />
+    <bpmn:startEvent id="Event_1v643s6">
+      <bpmn:outgoing>Flow_1xjikbz</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_0sc368c" messageRef="Message_1sdj1oc" />
+    </bpmn:startEvent>
+    <bpmn:endEvent id="Event_0wbgabe">
+      <bpmn:incoming>Flow_1xjikbz</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1xjikbz" sourceRef="Event_1v643s6" targetRef="Event_0wbgabe" />
+  </bpmn:process>
+  <bpmn:message id="Message_1sdj1oc" name="Nachricht1">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=AuftragsNr" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1hy75rl">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1x76opm_di" bpmnElement="Activity_0nclr5l">
+        <dc:Bounds x="270" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hau12g_di" bpmnElement="Event_1hau12g">
+        <dc:Bounds x="432" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1m99k4j_di" bpmnElement="Event_1v643s6">
+        <dc:Bounds x="179" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0wbgabe_di" bpmnElement="Event_0wbgabe">
+        <dc:Bounds x="272" y="212" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_1lhgcnz_di" bpmnElement="Flow_1lhgcnz">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="270" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1ph798v_di" bpmnElement="Flow_1ph798v">
+        <di:waypoint x="370" y="117" />
+        <di:waypoint x="432" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_1xjikbz_di" bpmnElement="Flow_1xjikbz">
+        <di:waypoint x="215" y="230" />
+        <di:waypoint x="272" y="230" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
