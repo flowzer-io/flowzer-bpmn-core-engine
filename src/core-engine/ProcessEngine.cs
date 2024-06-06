@@ -6,9 +6,9 @@ public class ProcessEngine(Process process)
 {
     public Process Process { get; set; } = process;
 
-    public InstanceEngine.InstanceEngine StartProcess(Variables? data = null)
+    public InstanceEngine StartProcess(Variables? data = null)
     {
-        var instance = new InstanceEngine.InstanceEngine(new ProcessInstance { ProcessModel = Process });
+        var instance = new InstanceEngine(new ProcessInstance { ProcessModel = Process });
         instance.Start(data);
         return instance;
     }
@@ -43,13 +43,13 @@ public class ProcessEngine(Process process)
         throw new NotImplementedException();
     }
 
-    public InstanceEngine.InstanceEngine HandleMessage(Message message)
+    public InstanceEngine HandleMessage(Message message)
     {
         var processInstance = new ProcessInstance
         {
             ProcessModel = Process
         };
-        var instanceEngine = new InstanceEngine.InstanceEngine(processInstance);
+        var instanceEngine = new InstanceEngine(processInstance);
 
         instanceEngine.HandleMessage(message);
         

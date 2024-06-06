@@ -1,12 +1,9 @@
-using BPMN.Activities;
 using BPMN.Common;
 using BPMN.Events;
 using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
-using core_engine;
-using core_engine.Extensions;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;

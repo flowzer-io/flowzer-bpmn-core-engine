@@ -1,7 +1,7 @@
 using core_engine.Exceptions;
 using core_engine.Extensions;
 
-namespace core_engine.InstanceEngine;
+namespace core_engine;
 
 public partial class InstanceEngine
 {
@@ -65,7 +65,7 @@ public partial class InstanceEngine
             catch (Exception)
             {
                 token.State = FlowNodeState.Failing;
-                instance.State = ProcessInstanceState.Failing;
+                Instance.State = ProcessInstanceState.Failing;
                 //TODO: Handle Exception
                 throw;
             }
@@ -88,7 +88,7 @@ public partial class InstanceEngine
         {
             // ToDo: Hier kann man noch Nachrichtenflüsse einbauen etc.
             token.State = FlowNodeState.Terminated;
-            instance.State = ProcessInstanceState.Terminated;
+            Instance.State = ProcessInstanceState.Terminated;
         }
     }
 

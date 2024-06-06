@@ -1,7 +1,7 @@
 using core_engine.Exceptions;
 using Newtonsoft.Json;
 
-namespace core_engine.InstanceEngine;
+namespace core_engine;
 
 public partial class InstanceEngine
 {
@@ -34,7 +34,7 @@ public partial class InstanceEngine
                     break;
             }
 
-            messageDefinitions.AddRange(token.ActiveBoundaryEvents.OfType<FlowzerBoundaryMessageEvent>()
+            messageDefinitions.AddRange(Enumerable.OfType<FlowzerBoundaryMessageEvent>(token.ActiveBoundaryEvents)
                 .Select(boundaryEvent => new MessageDefinition()
                 {
                     Name = boundaryEvent.MessageDefinition.Name,
@@ -45,9 +45,9 @@ public partial class InstanceEngine
         if (Instance.Tokens.Count == 0)
         {
             messageDefinitions.AddRange(
-                Instance.ProcessModel
-                    .StartFlowNodes
-                    .OfType<FlowzerMessageStartEvent>()
+                Enumerable
+                    .OfType<FlowzerMessageStartEvent>(Instance.ProcessModel
+                        .StartFlowNodes)
                     .Select(startEvent => new MessageDefinition() { Name = startEvent.MessageDefinition.Name }));
         }
 
@@ -60,7 +60,7 @@ public partial class InstanceEngine
 
         if (Instance.Tokens.Count == 0) // Wenn es noch keine Tokens gibt, muss es ein StartEvent sein.
         {
-            var startEvent = Instance.ProcessModel.StartFlowNodes.OfType<FlowzerMessageStartEvent>()
+            var startEvent = Enumerable.OfType<FlowzerMessageStartEvent>(Instance.ProcessModel.StartFlowNodes)
                 .First(e => e.MessageDefinition.Name == message.Name);
             Instance.Tokens.Add(new Token
             {
@@ -74,7 +74,7 @@ public partial class InstanceEngine
             return;
         }
         
-        var eventToken = ActiveTokens.FirstOrDefault(t =>
+        var eventToken = Enumerable.FirstOrDefault<Token>(ActiveTokens, t =>
             t.CurrentFlowNode is FlowzerIntermediateMessageCatchEvent messageCatchEvent &&
             messageCatchEvent.MessageDefinition.Name == message.Name &&
             messageCatchEvent.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey ||
@@ -92,9 +92,9 @@ public partial class InstanceEngine
 
         foreach (var activeToken in ActiveTokens)
         {
-            var boundaryEvent = activeToken
-                .ActiveBoundaryEvents
-                .OfType<FlowzerBoundaryMessageEvent>()
+            var boundaryEvent = Enumerable
+                .OfType<FlowzerBoundaryMessageEvent>(activeToken
+                    .ActiveBoundaryEvents)
                 .FirstOrDefault(x => 
                     x.MessageDefinition.Name == message.Name &&
                     x.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);

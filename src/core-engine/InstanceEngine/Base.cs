@@ -1,6 +1,6 @@
 using core_engine.Exceptions;
 
-namespace core_engine.InstanceEngine;
+namespace core_engine;
 
 public partial class InstanceEngine(ProcessInstance instance)
 {
@@ -9,8 +9,6 @@ public partial class InstanceEngine(ProcessInstance instance)
     private FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
 
     public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State == FlowNodeState.Active);
-
-
 
     public Task<IEnumerable<Escalation>> GetActiveEscalations()
     {

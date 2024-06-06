@@ -1,8 +1,3 @@
-using BPMN.Activities;
-using core_engine;
-using core_engine.Extensions;
-using core_engine.InstanceEngine;
-
 namespace core_engine_tests;
 
 public class Helper
@@ -22,7 +17,7 @@ public class Helper
         
         while (true)
         {
-            var tokens = instanceEngine.ActiveTokens.Where(x=>x.CurrentFlowNode is ServiceTask st && st.Implementation== "InputAsOutput").ToArray();
+            var tokens = instanceEngine.ActiveTokens.Where(x=>x.CurrentFlowNode is ServiceTask { Implementation: "InputAsOutput" }).ToArray();
             if (tokens.Length == 0)
                 break;
             
