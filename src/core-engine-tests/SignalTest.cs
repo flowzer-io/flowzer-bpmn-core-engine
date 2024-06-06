@@ -33,16 +33,16 @@ public class SignalTest
     public void Flow2Test()
     {
         var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartTwo");
+        var engine = instanceEngines.SingleOrDefault(engine => engine.Instance.State == ProcessInstanceState.Waiting);
         Assert.Multiple(() =>
         {
             Assert.That(instanceEngines, Has.Length.EqualTo(2));
-            Assert.That(instanceEngines.Count(engine => engine.Instance.State == ProcessInstanceState.Waiting),
+            Assert.That(engine, Is.Not.Null);
+            Assert.That(instanceEngines.Count(e => e.Instance.State == ProcessInstanceState.Completed),
                 Is.EqualTo(1));
-            Assert.That(instanceEngines.Count(engine => engine.Instance.State == ProcessInstanceState.Completed),
-                Is.EqualTo(1));
-            var engine = instanceEngines.Single(engine => engine.Instance.State == ProcessInstanceState.Waiting);
-            engine.HandleServiceTaskResult("step1");
-            Assert.That(engine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            
+            engine?.HandleServiceTaskResult("step1");
+            Assert.That(engine?.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
         });
     }
 }
