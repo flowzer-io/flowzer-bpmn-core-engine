@@ -95,8 +95,9 @@ public partial class InstanceEngine
             var boundaryEvent = activeToken
                 .ActiveBoundaryEvents
                 .OfType<FlowzerBoundaryMessageEvent>()
-                .FirstOrDefault(x => x.Name == message.Name &&
-                                     x.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);
+                .FirstOrDefault(x => 
+                    x.MessageDefinition.Name == message.Name &&
+                    x.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);
             if (boundaryEvent is null) continue;
             
             if (boundaryEvent.CancelActivity)
@@ -116,6 +117,6 @@ public partial class InstanceEngine
             return;
         }
 
-        throw new FlowzerRuntimeException("Es wurde keine passende Nachricht gefunden.");
+        throw new FlowzerRuntimeException($"Es wurde keine passende Nachricht für {message.Name} gefunden.");
     }
 }
