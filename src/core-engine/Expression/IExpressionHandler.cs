@@ -6,5 +6,5 @@ public interface IExpressionHandler
     
     public abstract bool MatchExpression(object obj, string expression);
 
-    public string ResolveString(object obj, string expression);
+    public object? ResolveString(object obj, string expression);
 }

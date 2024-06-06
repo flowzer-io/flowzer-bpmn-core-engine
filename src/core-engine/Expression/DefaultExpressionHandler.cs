@@ -21,10 +21,10 @@ public abstract partial class DefaultExpressionHandler: IExpressionHandler
     /// <param name="obj">Global Variables to use for resolving</param>
     /// <param name="expression">Expression String for resolving</param>
     /// <returns>Expression String with resolved Values</returns>
-    public string ResolveString(object obj, string expression)
+    public object? ResolveString(object obj, string expression)
     {
         if (expression.StartsWith('='))
-            return GetValue(obj, expression)?.ToString() ?? expression;
+            return GetValue(obj, expression);
 
         // Regex to match {{Expression}} in the string
         var regex = DoubleCurlyBraceRegex();

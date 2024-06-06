@@ -4,7 +4,7 @@ namespace core_engine.Extensions;
 
 public static class RecordExtensions
 {
-    public static T ApplyResolveExpression<T>(this object? record, Func<object, string, string> resolveExpression,
+    public static T ApplyResolveExpression<T>(this object? record, Func<object, string, object?> resolveExpression,
         object variables)
     {
         if (record == null)
@@ -29,7 +29,10 @@ public static class RecordExtensions
                     .Invoke(null, [propertyValue, resolveExpression, variables]);
             }
 
-            propertyInfo.SetValue(newObject, propertyValue);
+            if (propertyValue != null && propertyInfo.PropertyType == typeof(string) && propertyValue.GetType() != typeof(string)) //to string if types does not match
+                propertyInfo.SetValue(newObject, propertyValue.ToString());
+            else
+                propertyInfo.SetValue(newObject, propertyValue);
         }
 
         return (T)newObject!;

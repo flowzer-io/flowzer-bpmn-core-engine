@@ -4,7 +4,7 @@
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:output source="=[&#10;    {&#10;        &#34;Vorname&#34;: &#34;Lukas&#34;,&#10;        &#34;Nachname&#34;: &#34;Bauhaus&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Christian&#34;,&#10;        &#34;Nachname&#34;: &#34;Maaß&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Dennis&#34;,&#10;        &#34;Nachname&#34;: &#34;Scheidner&#34;&#10;    }&#10;]" target="Mitarbeiter" />
+          <zeebe:output source="=[&#10;    {&#10;        &#34;Vorname&#34;: &#34;Lukas&#34;,&#10;        &#34;Nachname&#34;: &#34;Bauhaus&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Christian&#34;,&#10;        &#34;Nachname&#34;: &#34;Maaß&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Max&#34;,&#10;        &#34;Nachname&#34;: &#34;Mustermann&#34;&#10;    }&#10;]" target="Mitarbeiter" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_07770cz</bpmn:outgoing>
@@ -20,9 +20,9 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07770cz</bpmn:incoming>
       <bpmn:outgoing>Flow_0amjzqv</bpmn:outgoing>
-      <bpmn:multiInstanceLoopCharacteristics isSequential="true">
+      <bpmn:multiInstanceLoopCharacteristics>
         <bpmn:extensionElements>
-          <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Vorname" outputCollection="MitarbeiterOut" outputElement="=Vorname" />
+          <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Person" outputCollection="MitarbeiterOut" outputElement="=Vorname" />
         </bpmn:extensionElements>
       </bpmn:multiInstanceLoopCharacteristics>
     </bpmn:serviceTask>

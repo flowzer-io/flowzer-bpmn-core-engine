@@ -13,6 +13,8 @@ public record Activity : FlowNode, IHasDefault
 
     public string? DefaultId { get; init; }
     public FlowzerList<ResourceRole>? Resources { get; init; }
+    
+    
     public LoopCharacteristics? LoopCharacteristics { get; init; }
     public FlowzerList<BoundaryEvent>? BoundaryEvents { get; init; }
 }

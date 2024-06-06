@@ -2,8 +2,8 @@ namespace BPMN.Flowzer;
 
 public record FlowzwerLoopCharacteristics
 {
-    public required string InputCollection { get; set; }
-    public string? InputElement { get; set; }
-    public string? OutputCollection { get; set; }
-    public string? OutputElement { get; set; }
+    public required object InputCollection { get; init; }
+    public string? InputElement { get; init; }
+    public string? OutputCollection { get; init; }
+    public string? OutputElement { get; init; }
 }

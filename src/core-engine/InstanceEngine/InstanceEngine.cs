@@ -1,3 +1,4 @@
+using System.Collections;
 using core_engine.Exceptions;
 using core_engine.Extensions;
 
@@ -39,18 +40,20 @@ public partial class InstanceEngine
 
     private void RunSingleStep()
     {
-        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready))
+        //generate new tokens for multi instance parallel activities
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready).ToArray())
         {
             if (token.CurrentFlowNode is Activity activity && IsMultiInstanceParallelTarget(activity))
             {
-                token.State = FlowNodeState.Terminated; // distroy original tokens
+                token.State = FlowNodeState.Completed ; // distroy original tokens
                 Instance.Tokens.AddRange(GenerateMultiInstanceParallelTokens(FlowzerConfig, Instance, token, activity));
             }
-            else
-            {
-                PrepareInputData(token);
-                token.State = FlowNodeState.Active;    
-            }
+        }
+        
+        foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready).ToArray())
+        {
+            PrepareInputData(token);
+            token.State = FlowNodeState.Active;    
         }
 
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Active))
@@ -95,9 +98,33 @@ public partial class InstanceEngine
     
     private IEnumerable<Token> GenerateMultiInstanceParallelTokens(FlowzerConfig config, ProcessInstance processInstance, Token token, Activity activity)
     {
-        throw new NotImplementedException();
-        return null;
-        //var collection = config.GetValue(processInstance.ProcessVariables, ((MultiInstanceLoopCharacteristics)activity.LoopCharacteristics).LoopDataInputRef. );
+        var flowzwerLoopCharacteristics = ((MultiInstanceLoopCharacteristics)((Activity)token.CurrentFlowNode).LoopCharacteristics!)
+            .FlowzerLoopCharacteristics!;
+        var data = flowzwerLoopCharacteristics.InputCollection;
+
+        if (data is not IEnumerable enumerableList)
+            throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
+
+        var ret = new List<Token>();
+        foreach (var item in enumerableList)
+        {
+           
+            Variables dataObj;
+            if (string.IsNullOrEmpty(flowzwerLoopCharacteristics.InputElement))
+            {
+                var expandoObject = (Variables?)item?.ToDynamic(true);
+                dataObj = expandoObject ?? new Variables();
+            }
+            else
+            {
+                var expandoObj = new Variables();
+                expandoObj.TryAdd(flowzwerLoopCharacteristics.InputElement, item.ToDynamic());
+                dataObj = expandoObj;
+            }
+            var newToken = CreateNewToken(dataObj, (Activity)token.CurrentFlowNode with {LoopCharacteristics = null} ); //the new node is not a loop node anymore!
+            ret.Add(newToken);
+        }
+        return ret;
     }
 
     private bool IsMultiInstanceParallelTarget(Activity targetFlowNode)
@@ -115,23 +142,30 @@ public partial class InstanceEngine
         foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode =>
                      flowNode.GetType() == typeof(StartEvent) || flowNode.GetType() == typeof(Activity)))
         {
-            Instance.Tokens.Add(new Token
-            {
-                ProcessInstance = Instance,
-                ProcessInstanceId = Instance.Id,
-                CurrentFlowNode = processStartFlowNode,
-                ActiveBoundaryEvents = Instance.ProcessModel
-                    .FlowElements
-                    .OfType<BoundaryEvent>()
-                    .Where(b => b.AttachedToRef == processStartFlowNode)
-                    .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.ExpressionHandler.ResolveString,
-                        Instance.ProcessVariables)).ToList(),
-                InputData = data ?? new Variables(),
-                OutputData = data
-            });
+            var token = CreateNewToken(data, processStartFlowNode);
+            Instance.Tokens.Add(token);
         }
     }
-    
+
+    private Token CreateNewToken(Variables? data, FlowNode currentFlowNode)
+    {
+        var token = new Token
+        {
+            ProcessInstance = Instance,
+            ProcessInstanceId = Instance.Id,
+            CurrentFlowNode = currentFlowNode.ApplyResolveExpression<FlowNode>(FlowzerConfig.ExpressionHandler.ResolveString, Instance.ProcessVariables),
+            ActiveBoundaryEvents = Instance.ProcessModel
+                .FlowElements
+                .OfType<BoundaryEvent>()
+                .Where(b => b.AttachedToRef == currentFlowNode)
+                .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.ExpressionHandler.ResolveString,
+                    Instance.ProcessVariables)).ToList(),
+            InputData = data ?? new Variables(),
+            OutputData = data
+        };
+        return token;
+    }
+
     /// <summary>
     /// Überträgt die Variablen des Prozesses in die Input-Daten des Tokens. Dabei wird auf die InputSet des
     /// FlowNodes geachtet. Gibt es keine, so werden alle Prozessvariablen übertragen.
@@ -145,7 +179,8 @@ public partial class InstanceEngine
             return;
         }
 
-        token.InputData = new Variables();
+        token.InputData ??= new Variables();
+        
         mapping.InputMappings?.ForEach(x =>
         {
             token.InputData.TryAdd(x.Target,

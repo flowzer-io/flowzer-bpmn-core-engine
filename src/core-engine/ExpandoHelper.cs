@@ -25,7 +25,7 @@ public static class ExpandoHelper
         return ret;
     }
     
-    public static object? ToDynamic(this object? obj)
+    public static object? ToDynamic(this object? obj, bool forceExpando = false)
     {
         switch (obj)
         {
@@ -41,6 +41,14 @@ public static class ExpandoHelper
         {
             throw new InvalidOperationException($"could not convert {obj.GetType()} to dynamic object.");
         }
+        
+        if (obj.GetType().IsArray || obj.GetType().Name == "List`1" )
+        {
+            if (forceExpando)
+                throw new InvalidOperationException("cannot convert array to dynamic object.");
+            return obj.ToEnumerable().Select(o => IsComlexValue(o) ? ToDynamic(o) : o).ToList();
+        }
+        
         var expandoObject = new ExpandoObject();
         var expandoDictionary = expandoObject as IDictionary<string, object?>;
         foreach (var prob in obj.GetType().GetProperties())

@@ -436,7 +436,7 @@ public static class ModelParser
             return null;
 
 
-        var varInputCollection = loopCharacteristicsNode.Attribute("InputCollection")?.Value;
+        var varInputCollection = loopCharacteristicsNode.Attribute("inputCollection")?.Value;
         if (varInputCollection == null)
             throw new ModelValidationException("InputCollection must be set on loopCharacteristicsXmlNode");
 

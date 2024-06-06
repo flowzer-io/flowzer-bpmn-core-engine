@@ -187,6 +187,10 @@ public class EngineTest
         var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
         Assert.That(activeTokens.Length, Is.EqualTo(3)); //3 Mitarbeiter
         
+        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas");
+        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian");
+        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max");
+        
         foreach (var activeToken in activeTokens)
         {
             var isLast = activeToken == activeTokens.Last();
@@ -197,7 +201,6 @@ public class EngineTest
                 Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
             
         }
-      
     }
 
     [Test]
