@@ -1,6 +1,6 @@
 using Newtonsoft.Json;
 
-namespace core_engine;
+namespace core_engine.InstanceEngine;
 
 public partial class InstanceEngine
 {

@@ -1,6 +1,8 @@
+using System.Dynamic;
 using BPMN.Activities;
 using BPMN.Events;
 using core_engine;
+using core_engine.Extensions;
 using Model;
 using Task = System.Threading.Tasks.Task;
 
@@ -179,6 +181,26 @@ public class EngineTest
             Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Terminated));
             Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
         });
+    }
+
+    [Test]
+    public async Task ParallelTaskTest()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowTest.bpmn");
+        var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
+        Assert.That(activeTokens.Length, Is.EqualTo(3)); //3 Mitarbeiter
+        
+        foreach (var activeToken in activeTokens)
+        {
+            var isLast = activeToken == activeTokens.Last();
+            instanceEngine.HandleUserTaskResponse(activeToken.Id, new ExpandoObject());
+            if (isLast)
+                Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+            else
+                Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            
+        }
+      
     }
 
     [Test]

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1mf651n" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <bpmn:process id="Step1" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=[&#10;    {&#10;        &#34;Vorname&#34;: &#34;Lukas&#34;,&#10;        &#34;Nachname&#34;: &#34;Bauhaus&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Christian&#34;,&#10;        &#34;Nachname&#34;: &#34;Maaß&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Dennis&#34;,&#10;        &#34;Nachname&#34;: &#34;Scheidner&#34;&#10;    }&#10;]" target="Mitarbeiter" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_07770cz</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_07770cz" sourceRef="StartEvent_1" targetRef="TestTask" />
+    <bpmn:endEvent id="Event_0psy673">
+      <bpmn:incoming>Flow_0amjzqv</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0amjzqv" sourceRef="TestTask" targetRef="Event_0psy673" />
+    <bpmn:serviceTask id="TestTask" name="Test">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="TestTask" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_07770cz</bpmn:incoming>
+      <bpmn:outgoing>Flow_0amjzqv</bpmn:outgoing>
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true">
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Vorname" outputCollection="MitarbeiterOut" outputElement="=Vorname" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Step1">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0psy673_di" bpmnElement="Event_0psy673">
+        <dc:Bounds x="592" y="99" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_10tfmsr_di" bpmnElement="TestTask">
+        <dc:Bounds x="350" y="77" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_07770cz_di" bpmnElement="Flow_07770cz">
+        <di:waypoint x="215" y="117" />
+        <di:waypoint x="350" y="117" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0amjzqv_di" bpmnElement="Flow_0amjzqv">
+        <di:waypoint x="450" y="117" />
+        <di:waypoint x="592" y="117" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,4 +1,7 @@
-namespace core_engine;
+using core_engine.Exceptions;
+using core_engine.Extensions;
+
+namespace core_engine.InstanceEngine;
 
 public partial class InstanceEngine
 {
@@ -38,8 +41,16 @@ public partial class InstanceEngine
     {
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready))
         {
-            PrepareInputData(token);
-            token.State = FlowNodeState.Active;
+            if (token.CurrentFlowNode is Activity activity && IsMultiInstanceParallelTarget(activity))
+            {
+                token.State = FlowNodeState.Terminated; // distroy original tokens
+                Instance.Tokens.AddRange(GenerateMultiInstanceParallelTokens(FlowzerConfig, Instance, token, activity));
+            }
+            else
+            {
+                PrepareInputData(token);
+                token.State = FlowNodeState.Active;    
+            }
         }
 
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Active))
@@ -81,6 +92,24 @@ public partial class InstanceEngine
         }
     }
 
+    
+    private IEnumerable<Token> GenerateMultiInstanceParallelTokens(FlowzerConfig config, ProcessInstance processInstance, Token token, Activity activity)
+    {
+        throw new NotImplementedException();
+        return null;
+        //var collection = config.GetValue(processInstance.ProcessVariables, ((MultiInstanceLoopCharacteristics)activity.LoopCharacteristics).LoopDataInputRef. );
+    }
+
+    private bool IsMultiInstanceParallelTarget(Activity targetFlowNode)
+    {
+        if (targetFlowNode.LoopCharacteristics != null && targetFlowNode.LoopCharacteristics is MultiInstanceLoopCharacteristics loopCharacteristics)
+        {
+            return loopCharacteristics.IsSequential == false;
+        }
+
+        return false;
+    }
+    
     private void CreateInitialTokens(Variables? data)
     {
         foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode =>

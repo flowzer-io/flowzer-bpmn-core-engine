@@ -1,64 +1,25 @@
 ﻿using System.Diagnostics;
 using System.Dynamic;
+using System.Reflection;
 using Microsoft.ClearScript.V8;
 using Newtonsoft.Json.Linq;
 
-string scriptDirectory = @"/Users/lukasbauhaus/repos/feel/feelin/src";
+MethodInfo cloneMethod = typeof(Person).GetMethod("<Clone>$");
 
-// Erstelle eine V8-Engine
-var engine = new V8ScriptEngine() ;
-            
-// Lade die Index.js Datei
-string indexPath = Path.Combine(scriptDirectory, "/Users/lukasbauhaus/repos/feelin/dist/bundle.js");
 
-// Definiere eine Funktion zum Laden von Modulen
-        
-
-        
-try
+Person p1 = new Person()
 {
-    System.Threading.Thread.Sleep(2000);
-    // Lade und führe das Hauptskript aus
-    string indexScript = File.ReadAllText(indexPath);
-    engine.Execute(indexScript);
-    
-    System.Threading.Thread.Sleep(2000);
-            
-    for (int i = 0; i < 1; i++)
-    {
-        if (i % 100000 == 0)
-        {
-            engine.Dispose();
-            engine = new V8ScriptEngine();
-            engine.Execute(indexScript);
-        }
+    FirstName = "John",
+    LastName ="Doe"
+};
+Person p2 = (Person)Activator.CreateInstance(typeof(Person));
+var ret = cloneMethod.Invoke(p1, null);
 
-        var x = new
-        {
-            name = "Mike",
-            daughter = new
-            {
-                name = "Lisa"
-            }
-        };
+typeof(Person).GetProperties(BindingFlags.Public).First().SetValue(ret, "Jane");
+p1 = p1;
 
-        //engine.AddHostObject("obj", (dynamic)x);
-
-        dynamic obj = new ExpandoObject();
-        obj.ServiceResult = "Hello World";
-        
-        engine.AddHostObject("obj", obj);
-
-        var ret = engine.Evaluate("""libfeelin.evaluate("ServiceResult", obj)""");
-        Console.WriteLine(ret);
-        
-    }
-    
-            
-
-}
-catch (Exception e)
+public record Person
 {
-    Console.WriteLine(e);
-            
+    public string FirstName { get; init; }
+    public string LastName { get; init; }
 }

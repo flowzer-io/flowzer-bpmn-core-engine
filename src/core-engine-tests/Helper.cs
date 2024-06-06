@@ -1,5 +1,7 @@
 using BPMN.Activities;
 using core_engine;
+using core_engine.Extensions;
+using core_engine.InstanceEngine;
 
 namespace core_engine_tests;
 

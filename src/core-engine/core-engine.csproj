@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>default</LangVersion>
+    <RootNamespace>core_engine</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
