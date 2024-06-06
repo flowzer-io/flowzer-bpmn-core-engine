@@ -14,4 +14,5 @@ public record MultiInstanceLoopCharacteristics : LoopCharacteristics
     public ItemAwareElement? LoopDataOutputRef { get; init; }
     public DataOutput? OutputDataItem { get; init; }
     public DataInput? InputDataItem { get; init; }
+    public FlowzwerLoopCharacteristics? FlowzerLoopCharacteristics { get; set; }
 }

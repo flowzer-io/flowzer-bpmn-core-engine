@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_01cj974" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <bpmn:process id="Process_0c7krlu" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:output source="=2" target="Condition" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_0bpu388</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="ShouldNotReached1" name="ShouldNotReached">
+      <bpmn:incoming>Flow_0js4fdj</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ShouldReached" name="ShouldReached">
+      <bpmn:extensionElements />
+      <bpmn:incoming>Flow_13dtjc1</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="ShouldNotReached2" name="ShouldNotReached">
+      <bpmn:incoming>Flow_062disu</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_0bpu388" sourceRef="StartEvent_1" targetRef="Activity_09x5u16" />
+    <bpmn:task id="Activity_09x5u16">
+      <bpmn:incoming>Flow_0bpu388</bpmn:incoming>
+      <bpmn:outgoing>Flow_0js4fdj</bpmn:outgoing>
+      <bpmn:outgoing>Flow_062disu</bpmn:outgoing>
+      <bpmn:outgoing>Flow_13dtjc1</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_0js4fdj" name="Condition=1" sourceRef="Activity_09x5u16" targetRef="ShouldNotReached1">
+      <bpmn:extensionElements />
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Condition=1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_062disu" name="Condition=2&#10;" sourceRef="Activity_09x5u16" targetRef="ShouldNotReached2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Condition=2</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_13dtjc1" name="Condition=2" sourceRef="Activity_09x5u16" targetRef="ShouldReached">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Condition=2</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_0c7krlu">
+      <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
+        <dc:Bounds x="179" y="89" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_09x5u16_di" bpmnElement="Activity_09x5u16">
+        <dc:Bounds x="250" y="67" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1xjbzb8_di" bpmnElement="ShouldNotReached1">
+        <dc:Bounds x="672" y="72" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="649" y="115" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0ood85h" bpmnElement="ShouldReached">
+        <dc:Bounds x="682" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="661" y="205" width="79" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1do7r5r" bpmnElement="ShouldNotReached2">
+        <dc:Bounds x="682" y="252" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="659" y="295" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_0bpu388_di" bpmnElement="Flow_0bpu388">
+        <di:waypoint x="215" y="107" />
+        <di:waypoint x="250" y="107" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0js4fdj_di" bpmnElement="Flow_0js4fdj">
+        <di:waypoint x="350" y="90" />
+        <di:waypoint x="672" y="90" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="482" y="72" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_13dtjc1_di" bpmnElement="Flow_13dtjc1">
+        <di:waypoint x="349" y="141" />
+        <di:waypoint x="440" y="180" />
+        <di:waypoint x="682" y="180" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="519" y="153" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_062disu_di" bpmnElement="Flow_062disu">
+        <di:waypoint x="300" y="147" />
+        <di:waypoint x="300" y="270" />
+        <di:waypoint x="682" y="270" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="441" y="246" width="60" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace core_engine;
+namespace core_engine.Extensions;
 
 public static class RecordExtensions
 {

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Xml.Linq;
 using BPMN.Foundation;
+using core_engine.Exceptions;
 using Task = BPMN.Activities.Task;
 
 namespace core_engine;
@@ -406,6 +407,45 @@ public static class ModelParser
                     $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
+            LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+        };
+    }
+
+    private static LoopCharacteristics? ParseLoopCharacteristics(XElement xmlFlowNode)
+    {
+        var loopCharacteristicsXmlNode = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "multiInstanceLoopCharacteristics");
+        if (loopCharacteristicsXmlNode is null) return null;
+
+        var isSequential = loopCharacteristicsXmlNode.Attribute("isSequential")?.Value == "true";
+
+        return new MultiInstanceLoopCharacteristics
+        {
+            IsSequential = isSequential,
+            FlowzerLoopCharacteristics = ParseFlowzerLoopCharacteristics(loopCharacteristicsXmlNode),
+        };
+    }
+
+    private static FlowzwerLoopCharacteristics? ParseFlowzerLoopCharacteristics(XElement loopCharacteristicsXmlNode)
+    {
+        
+        if (!(loopCharacteristicsXmlNode.HasDescendant("extensionElements", out var extensionElements)))
+            return null;
+        
+        if (!(extensionElements.HasDescendant("loopCharacteristics", out var loopCharacteristicsNode)))
+            return null;
+
+
+        var varInputCollection = loopCharacteristicsNode.Attribute("InputCollection")?.Value;
+        if (varInputCollection == null)
+            throw new ModelValidationException("InputCollection must be set on loopCharacteristicsXmlNode");
+
+        return new FlowzwerLoopCharacteristics()
+        {
+            InputCollection = varInputCollection,
+            InputElement = loopCharacteristicsNode.Attribute("inputElement")?.Value,
+            OutputCollection = loopCharacteristicsNode.Attribute("outputCollection")?.Value,
+            OutputElement = loopCharacteristicsNode.Attribute("outputElement")?.Value,
         };
     }
 
@@ -436,6 +476,7 @@ public static class ModelParser
             OutputMappings = outputMappings,
             ScriptFormat = script is null ? "Service" : "FEEL",
             Script = script?.Attribute("expression")?.Value,
+            LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
         };
     }
 
@@ -465,6 +506,7 @@ public static class ModelParser
             FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
+            LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
         };
     }
 
@@ -490,7 +532,7 @@ public static class ModelParser
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
                 TimerDefinition = ParseTimerEventDefinition(definition),
-                OutputMappings = outputMappings
+                OutputMappings = outputMappings,
             };
         }
 

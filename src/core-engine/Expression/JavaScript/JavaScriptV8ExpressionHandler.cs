@@ -1,7 +1,7 @@
 using Microsoft.ClearScript.V8;
 using Newtonsoft.Json.Linq;
 
-namespace core_engine.Expression.Feelin.JavaScript;
+namespace core_engine.Expression.JavaScript;
 
 public class JavaScriptV8ExpressionHandler : DefaultExpressionHandler
 {

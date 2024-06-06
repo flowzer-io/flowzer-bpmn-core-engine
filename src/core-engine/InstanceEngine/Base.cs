@@ -1,6 +1,6 @@
-using Newtonsoft.Json;
+using core_engine.Exceptions;
 
-namespace core_engine;
+namespace core_engine.InstanceEngine;
 
 public partial class InstanceEngine(ProcessInstance instance)
 {

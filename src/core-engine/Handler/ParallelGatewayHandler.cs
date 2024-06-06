@@ -1,3 +1,5 @@
+using core_engine.Exceptions;
+
 namespace core_engine.Handler;
 
 internal class ParallelGatewayHandler : DefaultFlowNodeHandler
