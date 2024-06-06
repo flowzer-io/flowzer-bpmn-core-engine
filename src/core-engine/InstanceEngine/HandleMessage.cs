@@ -69,8 +69,10 @@ public partial class InstanceEngine
                 ProcessInstance = Instance,
                 State = FlowNodeState.Completing
             });
+            Run();
+            return;
         }
-
+        
         var eventToken = ActiveTokens.FirstOrDefault(t =>
             t.CurrentFlowNode is FlowzerIntermediateMessageCatchEvent messageCatchEvent &&
             messageCatchEvent.MessageDefinition.Name == message.Name &&
@@ -83,22 +85,22 @@ public partial class InstanceEngine
         {
             eventToken.OutputData = data;
             eventToken.State = FlowNodeState.Completing;
+            Run();
+            return;
         }
 
-        eventToken = ActiveTokens.FirstOrDefault(t => t.ActiveBoundaryEvents.Any(b =>
-            b is FlowzerBoundaryMessageEvent boundaryEvent &&
-            boundaryEvent.MessageDefinition.Name == message.Name &&
-            boundaryEvent.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey));
-
-        if (eventToken is not null) // Wenn es ein BoundaryEvent gibt, das auf die Nachricht wartet
+        foreach (var activeToken in ActiveTokens)
         {
-            var boundaryEvent = eventToken.ActiveBoundaryEvents.First(b =>
-                b is FlowzerBoundaryMessageEvent boundaryEvent &&
-                boundaryEvent.MessageDefinition.Name == message.Name &&
-                boundaryEvent.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);
+            var boundaryEvent = activeToken
+                .ActiveBoundaryEvents
+                .OfType<FlowzerBoundaryMessageEvent>()
+                .FirstOrDefault(x => x.Name == message.Name &&
+                                     x.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);
+            if (boundaryEvent is null) continue;
+            
             if (boundaryEvent.CancelActivity)
             {
-                eventToken.State = FlowNodeState.Withdrawn;
+                activeToken.State = FlowNodeState.Withdrawn;
             }
 
             Instance.Tokens.Add(new Token
@@ -109,8 +111,10 @@ public partial class InstanceEngine
                 ProcessInstance = Instance,
                 State = FlowNodeState.Completing
             });
+            Run();
+            return;
         }
-        
-        Run();
+
+        throw new FlowzerRuntimeException("Es wurde keine passende Nachricht gefunden.");
     }
 }

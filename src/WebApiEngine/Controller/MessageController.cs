@@ -35,7 +35,7 @@ public class MessageController(IStorageSystem storageSystem) : ControllerBase
                 new InstanceEngine(
                     storageSystem.InstanceStorage.GetInstanceById(messageSubscription.ProcessInstanceId.Value));
             instanceEngine.HandleMessage(message);
-            // TODO: Hier muss noch sowas wie SafeChanges eingebaut werden und die Subscriptions neu gesetzt werden etc.
+            // TODO: Hier muss noch sowas wie SaveChanges eingebaut werden und die Subscriptions neu gesetzt werden etc.
         }
         else
             storageSystem.InstanceStorage.AddInstance(
