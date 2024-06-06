@@ -219,6 +219,7 @@ public partial class InstanceEngine
         { typeof(UserTask), new DoNothingFlowNodeHandler() },
         { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateMessageCatchEvent), new DoNothingFlowNodeHandler() },
+        { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
         // {typeof(ComplexGateway), new ComplexGatewayHandler()},
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},

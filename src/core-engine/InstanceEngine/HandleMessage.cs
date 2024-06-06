@@ -60,7 +60,7 @@ public partial class InstanceEngine
 
         if (Instance.Tokens.Count == 0) // Wenn es noch keine Tokens gibt, muss es ein StartEvent sein.
         {
-            var startEvent = Enumerable.OfType<FlowzerMessageStartEvent>(Instance.ProcessModel.StartFlowNodes)
+            var startEvent = Instance.ProcessModel.StartFlowNodes.OfType<FlowzerMessageStartEvent>()
                 .First(e => e.MessageDefinition.Name == message.Name);
             Instance.Tokens.Add(new Token
             {
@@ -74,7 +74,7 @@ public partial class InstanceEngine
             return;
         }
         
-        var eventToken = Enumerable.FirstOrDefault<Token>(ActiveTokens, t =>
+        var eventToken = ActiveTokens.FirstOrDefault<Token>(t =>
             t.CurrentFlowNode is FlowzerIntermediateMessageCatchEvent messageCatchEvent &&
             messageCatchEvent.MessageDefinition.Name == message.Name &&
             messageCatchEvent.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey ||
@@ -92,9 +92,9 @@ public partial class InstanceEngine
 
         foreach (var activeToken in ActiveTokens)
         {
-            var boundaryEvent = Enumerable
-                .OfType<FlowzerBoundaryMessageEvent>(activeToken
-                    .ActiveBoundaryEvents)
+            var boundaryEvent = activeToken
+                .ActiveBoundaryEvents
+                .OfType<FlowzerBoundaryMessageEvent>()
                 .FirstOrDefault(x => 
                     x.MessageDefinition.Name == message.Name &&
                     x.MessageDefinition.FlowzerCorrelationKey == message.CorrelationKey);

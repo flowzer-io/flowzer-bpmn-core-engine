@@ -56,8 +56,22 @@ public class ProcessEngine(Process process)
         return instanceEngine;
     }
 
-    public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)
+    public InstanceEngine[] HandleSignal(string signalName, object? signalData = null)
     {
-        throw new NotImplementedException();
+        return Process.FlowElements
+            .OfType<FlowzerSignalStartEvent>()
+            .Where(e => e.Signal.Name == signalName)
+            .Select(startEvent =>
+        {
+            var processInstance = new ProcessInstance
+            {
+                ProcessModel = Process
+            };
+            var instanceEngine = new InstanceEngine(processInstance);
+
+            instanceEngine.HandleSignal(signalName, JsonConvert.SerializeObject(signalData), startEvent);
+
+            return instanceEngine;
+        }).ToArray();
     }
 }
