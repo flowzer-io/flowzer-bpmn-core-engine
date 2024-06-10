@@ -20,7 +20,7 @@
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07770cz</bpmn:incoming>
       <bpmn:outgoing>Flow_0amjzqv</bpmn:outgoing>
-      <bpmn:multiInstanceLoopCharacteristics  >
+      <bpmn:multiInstanceLoopCharacteristics isSequential="true" >
         <bpmn:extensionElements>
           <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Person" outputCollection="MitarbeiterOut" outputElement="=OutProperty" />
         </bpmn:extensionElements>

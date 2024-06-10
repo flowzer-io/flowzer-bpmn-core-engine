@@ -43,10 +43,14 @@ public partial class InstanceEngine
         //generate new tokens for multi instance parallel activities
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready).ToArray())
         {
-            if (token.CurrentFlowNode is Activity activity && IsMultiInstanceParallelTarget(activity))
+            if (token.CurrentFlowNode is Activity activity)
             {
-                token.State = FlowNodeState.Completed ; // destroy original tokens
-                Instance.Tokens.AddRange(GenerateMultiInstanceParallelTokens(FlowzerConfig, Instance, token, activity));
+                var sequenceType = GetMultiInstanceType(activity);
+                if (sequenceType != MultiInstanceType.None)
+                {
+                  token.State = FlowNodeState.Completed ; // destroy original tokens
+                  Instance.Tokens.AddRange(GenerateMultiInstanceTokens(FlowzerConfig, Instance, token, activity,sequenceType));
+                }
             }
         }
         
@@ -80,18 +84,28 @@ public partial class InstanceEngine
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
         {
             
-            if (token.PreviousToken?.CurrentFlowNode is Activity activity && IsMultiInstanceParallelTarget(activity))
+            if (token.PreviousToken?.CurrentFlowNode is Activity activity)
             {
-                //the tokens comes from a multi instance parallel activity
-                //are all tokens with the same previosnode waiting for loop end?
-                if (Instance.Tokens.Any(x =>
-                        x.Id != token.Id && 
-                        x.PreviousToken?.Id == token.PreviousToken?.Id &&
-                        x.State != FlowNodeState.WaitingForLoopEnd))
+                var sequenceType = GetMultiInstanceType(activity);
+
+                if (sequenceType == MultiInstanceType.Parallel)
                 {
-                    token.State = FlowNodeState.WaitingForLoopEnd;
-                    continue;
+                    //the tokens comes from a multi instance parallel activity
+                    //are all tokens with the same previosnode waiting for loop end?
+                    if (Instance.Tokens.Any(x =>
+                            x.Id != token.Id && 
+                            x.PreviousToken?.Id == token.PreviousToken?.Id &&
+                            x.State != FlowNodeState.WaitingForLoopEnd))
+                    {
+                        token.State = FlowNodeState.WaitingForLoopEnd;
+                        continue;
+                    }
                 }
+                else if (sequenceType == MultiInstanceType.Sequential)
+                {
+                    throw new NotImplementedException();
+                }
+                
                 
                 //all tokens are completing
                 var completedTokens = instance.Tokens.Where(x => x.PreviousToken?.Id == token.PreviousToken.Id).ToArray();
@@ -138,7 +152,8 @@ public partial class InstanceEngine
     }
 
     
-    private IEnumerable<Token> GenerateMultiInstanceParallelTokens(FlowzerConfig config, ProcessInstance processInstance, Token token, Activity activity)
+    private IEnumerable<Token> GenerateMultiInstanceTokens(FlowzerConfig config, ProcessInstance processInstance,
+        Token token, Activity activity, MultiInstanceType sequenceType)
     {
         var currentFlowNode = (Activity)token.CurrentFlowNode;
         var multiInstanceLoopCharacteristics = ((MultiInstanceLoopCharacteristics)currentFlowNode.LoopCharacteristics!);
@@ -153,7 +168,6 @@ public partial class InstanceEngine
         int loopCounter = 1;
         foreach (var item in enumerableList)
         {
-           
             Variables dataObj;
             if (string.IsNullOrEmpty(flowzerLoopCharacteristics.InputElement))
             {
@@ -181,14 +195,16 @@ public partial class InstanceEngine
         return ret;
     }
 
-    private bool IsMultiInstanceParallelTarget(Activity targetFlowNode)
+    private MultiInstanceType GetMultiInstanceType(Activity targetFlowNode)
     {
         if (targetFlowNode.LoopCharacteristics != null && targetFlowNode.LoopCharacteristics is MultiInstanceLoopCharacteristics loopCharacteristics)
         {
-            return loopCharacteristics.IsSequential == false;
+            if (loopCharacteristics.IsSequential)
+                return MultiInstanceType.Sequential;
+            return MultiInstanceType.Parallel;
         }
 
-        return false;
+        return MultiInstanceType.None;
     }
     
     private void CreateInitialTokens(Variables? data)
