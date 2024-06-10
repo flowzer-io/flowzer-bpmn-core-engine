@@ -148,6 +148,7 @@ public partial class InstanceEngine
             throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
 
         var ret = new List<Token>();
+        int loopCounter = 1;
         foreach (var item in enumerableList)
         {
            
@@ -163,6 +164,7 @@ public partial class InstanceEngine
                 expandoObj.TryAdd(flowzwerLoopCharacteristics.InputElement, item.ToDynamic());
                 dataObj = expandoObj;
             }
+            dataObj.SetValue("loopCounter", loopCounter++);
             var newToken = CreateNewToken(dataObj, (Activity)token.CurrentFlowNode with {LoopCharacteristics = null}, token); //the new node is not a loop node anymore!
             ret.Add(newToken);
         }

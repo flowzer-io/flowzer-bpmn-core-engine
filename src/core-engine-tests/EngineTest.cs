@@ -191,10 +191,16 @@ public class EngineTest
         activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas");
         activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian");
         activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max");
+        Assert.That(activeTokens.Length, Is.EqualTo(3));
         
-        foreach (var activeToken in activeTokens)
+        Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas").InputData.GetValue("loopCounter"), Is.EqualTo(1));
+        Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian").InputData.GetValue("loopCounter"), Is.EqualTo(2));
+        Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max").InputData.GetValue("loopCounter"), Is.EqualTo(3));
+
+        var activeTokenList = activeTokens.OrderBy(x=> new Random().Next(0,1000)).ToArray();
+        foreach (var activeToken in activeTokenList)
         {
-            var isLast = activeToken == activeTokens.Last();
+            var isLast = activeToken == activeTokenList.Last();
             var data =  new ExpandoObject();
             data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
             instanceEngine.HandleUserTaskResponse(activeToken.Id,data);
@@ -205,14 +211,22 @@ public class EngineTest
             
         }
 
-        var outVar = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
-        Assert.That(outVar, Is.Not.Null);
-        Assert.That(outVar.Count, Is.EqualTo(3));
+        var outList = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
+        Assert.That(outList, Is.Not.Null);
+        Assert.That(outList.Count, Is.EqualTo(3));
         
-        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Lukas");
-        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Christian");
-        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Max");
+        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Lukas");
+        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Christian");
+        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Max");
     
+        
+        
+        //check if the order is correct
+        Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Lukas")), Is.EqualTo(0));
+        Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Christian")), Is.EqualTo(1));
+        Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Max")), Is.EqualTo(2));
+        
+            
         Assert.That(instanceEngine.Instance.Tokens.All(x=>x.State == FlowNodeState.Completed));
 
     }
