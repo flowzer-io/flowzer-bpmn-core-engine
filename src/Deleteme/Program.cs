@@ -1,8 +1,4 @@
-﻿using System.Diagnostics;
-using System.Dynamic;
-using System.Reflection;
-using Microsoft.ClearScript.V8;
-using Newtonsoft.Json.Linq;
+﻿using System.Reflection;
 
 MethodInfo cloneMethod = typeof(Person).GetMethod("<Clone>$");
 

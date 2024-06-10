@@ -1,6 +1,4 @@
-﻿using BPMN.Process;
-
-namespace StorageSystem;
+﻿namespace StorageSystem;
 
 public interface IProcessStorage
 {

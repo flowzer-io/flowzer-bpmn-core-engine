@@ -114,22 +114,9 @@ public partial class InstanceEngine(ProcessInstance instance)
         throw new NotImplementedException();
     }
 
-
-
-    public List<SignalDefinition> GetActiveCatchSignals()
-    {
-        throw new NotImplementedException();
-    }
-
     public Task<ProcessInstance> HandleTime(DateTime time)
     {
         throw new NotImplementedException();
     }
-
-    public Task<ProcessInstance> HandleSignal(string signalName, object? signalData = null)
-    {
-        throw new NotImplementedException();
-    }
-
 
 }
