@@ -422,8 +422,22 @@ public static class ModelParser
         return new MultiInstanceLoopCharacteristics
         {
             IsSequential = isSequential,
+            CompletionCondition = ParseExpression(loopCharacteristicsXmlNode, "completionCondition"),
             FlowzerLoopCharacteristics = ParseFlowzerLoopCharacteristics(loopCharacteristicsXmlNode),
         };
+    }
+
+    private static BPMN.Common.Expression? ParseExpression(XElement loopCharacteristicsXmlNode, string xmlNodeName)
+    {
+        var element = loopCharacteristicsXmlNode.Descendants().SingleOrDefault(x => x.Name.LocalName == xmlNodeName);
+        if (element != null)
+        {
+            return new BPMN.Common.Expression
+            {
+                Body = element.Value,
+            };
+        }
+        return null;
     }
 
     private static FlowzwerLoopCharacteristics? ParseFlowzerLoopCharacteristics(XElement loopCharacteristicsXmlNode)

@@ -230,4 +230,20 @@ public class EngineTest
         Assert.That(instanceEngine.Instance.Tokens.All(x=>x.State == FlowNodeState.Completed));
 
     }
+    
+    
+    [Test]
+    public async Task ParallelTaskWithCompletionConditionTest()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowWithCompletingConditionTest.bpmn");
+        var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
+
+        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas");
+        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian");
+        activeTokens.All(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() != "Max");
+        Assert.That(activeTokens.Length, Is.EqualTo(2));
+        
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+
+    }
 }

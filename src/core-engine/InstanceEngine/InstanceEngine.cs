@@ -45,7 +45,7 @@ public partial class InstanceEngine
         {
             if (token.CurrentFlowNode is Activity activity && IsMultiInstanceParallelTarget(activity))
             {
-                token.State = FlowNodeState.Completed ; // distroy original tokens
+                token.State = FlowNodeState.Completed ; // destroy original tokens
                 Instance.Tokens.AddRange(GenerateMultiInstanceParallelTokens(FlowzerConfig, Instance, token, activity));
             }
         }
@@ -140,9 +140,11 @@ public partial class InstanceEngine
     
     private IEnumerable<Token> GenerateMultiInstanceParallelTokens(FlowzerConfig config, ProcessInstance processInstance, Token token, Activity activity)
     {
-        var flowzwerLoopCharacteristics = ((MultiInstanceLoopCharacteristics)((Activity)token.CurrentFlowNode).LoopCharacteristics!)
+        var currentFlowNode = (Activity)token.CurrentFlowNode;
+        var multiInstanceLoopCharacteristics = ((MultiInstanceLoopCharacteristics)currentFlowNode.LoopCharacteristics!);
+        var flowzerLoopCharacteristics = multiInstanceLoopCharacteristics
             .FlowzerLoopCharacteristics!;
-        var data = flowzwerLoopCharacteristics.InputCollection;
+        var data = flowzerLoopCharacteristics.InputCollection;
         
         if (data is not IEnumerable enumerableList)
             throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
@@ -153,7 +155,7 @@ public partial class InstanceEngine
         {
            
             Variables dataObj;
-            if (string.IsNullOrEmpty(flowzwerLoopCharacteristics.InputElement))
+            if (string.IsNullOrEmpty(flowzerLoopCharacteristics.InputElement))
             {
                 var expandoObject = (Variables?)item?.ToDynamic(true);
                 dataObj = expandoObject ?? new Variables();
@@ -161,12 +163,20 @@ public partial class InstanceEngine
             else
             {
                 var expandoObj = new Variables();
-                expandoObj.TryAdd(flowzwerLoopCharacteristics.InputElement, item.ToDynamic());
+                expandoObj.TryAdd(flowzerLoopCharacteristics.InputElement, item.ToDynamic());
                 dataObj = expandoObj;
             }
             dataObj.SetValue("loopCounter", loopCounter++);
-            var newToken = CreateNewToken(dataObj, (Activity)token.CurrentFlowNode with {LoopCharacteristics = null}, token); //the new node is not a loop node anymore!
+            var newToken = CreateNewToken(dataObj, currentFlowNode with {LoopCharacteristics = null}, token); //the new node is not a loop node anymore!
             ret.Add(newToken);
+            
+            if (multiInstanceLoopCharacteristics.CompletionCondition?.Body != null)
+            {
+                var completionCondition = multiInstanceLoopCharacteristics.CompletionCondition.Body;
+                var completionConditionValue = FlowzerConfig.ExpressionHandler.MatchExpression(dataObj, completionCondition);
+                if (completionConditionValue)
+                    break;
+            }
         }
         return ret;
     }

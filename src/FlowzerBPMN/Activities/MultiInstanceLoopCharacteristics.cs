@@ -6,6 +6,7 @@ public record MultiInstanceLoopCharacteristics : LoopCharacteristics
     public MultiInstanceBehavior Behavior { get; init; }
     
     public Expression? LoopCardinality { get; init; }
+    [DoNotTranslate]
     public Expression? CompletionCondition { get; init; }
     public FlowzerList<ComplexBehaviorDefinition>? ComplexBehaviorDefinitions { get; init; }
     public EventDefinition? OneBehaviorEventRef { get; init; }
