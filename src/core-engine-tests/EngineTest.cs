@@ -1,6 +1,7 @@
 using System.Dynamic;
 using BPMN.Events;
 using Model;
+using NUnit.Framework.Constraints;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -194,13 +195,26 @@ public class EngineTest
         foreach (var activeToken in activeTokens)
         {
             var isLast = activeToken == activeTokens.Last();
-            instanceEngine.HandleUserTaskResponse(activeToken.Id, new ExpandoObject());
+            var data =  new ExpandoObject();
+            data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
+            instanceEngine.HandleUserTaskResponse(activeToken.Id,data);
             if (isLast)
                 Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
             else
                 Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
             
         }
+
+        var outVar = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
+        Assert.That(outVar, Is.Not.Null);
+        Assert.That(outVar.Count, Is.EqualTo(3));
+        
+        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Lukas");
+        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Christian");
+        outVar.Single(x=>x.GetValue("Vorname")?.ToString() == "Max");
+    
+        Assert.That(instanceEngine.Instance.Tokens.All(x=>x.State == FlowNodeState.Completed));
+
     }
 
     [Test]

@@ -1,4 +1,5 @@
 using System.Reflection;
+using BPMN;
 
 namespace core_engine.Extensions;
 
@@ -16,8 +17,14 @@ public static class RecordExtensions
 
         foreach (var propertyInfo in properties)
         {
+            
             var propertyValue = propertyInfo.GetValue(record);
-
+            if (propertyInfo.GetCustomAttribute<DoNotTranslateAttribute>() != null)
+            {
+                propertyInfo.SetValue(newObject, propertyValue);
+                continue;
+            }
+            
             if (propertyValue is string stringValue)
                 propertyValue = resolveExpression(variables, stringValue);
 
@@ -42,4 +49,6 @@ public static class RecordExtensions
     {
         return type.IsClass && type.GetMethod("<Clone>$") != null;
     }
+    
+   
 }

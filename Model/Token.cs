@@ -26,4 +26,9 @@ public class Token
 
     public Variables? InputData { get; set; }
     public Variables? OutputData { get; set; }
+
+    public override string ToString()
+    {
+        return CurrentFlowNode.Name + " (" + State + ")";   
+    }
 }

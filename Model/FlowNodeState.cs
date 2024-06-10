@@ -5,6 +5,7 @@ public enum FlowNodeState
     Ready,
     Active,
     Completing,
+    WaitingForLoopEnd,
     Completed,
     Failing,
     Terminating,
