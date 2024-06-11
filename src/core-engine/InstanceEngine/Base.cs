@@ -26,17 +26,9 @@ public partial class InstanceEngine(ProcessInstance instance)
     public IEnumerable<Token> GetActiveServiceTasks() => Instance.Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
 
-    public Task<IEnumerable<MessageDefinition>> GetActiveThrowMessages()
-    {
-        throw new NotImplementedException();
-    }
-
-    public Task<IEnumerable<SignalDefinition>> GetActiveThrowSignals()
-    {
-        throw new NotImplementedException();
-    }
-
-
+    public IEnumerable<Token> GetActiveTasks() => Instance.Tokens
+        .Where(token => token.State == FlowNodeState.Active);
+    
     public void HandleEscalation(string escalationCode, string? code, object? escalationBody = null)
     {
         throw new NotImplementedException();
@@ -47,7 +39,7 @@ public partial class InstanceEngine(ProcessInstance instance)
         throw new NotImplementedException();
     }
 
-    public void HandleUserTaskResponse(Guid tokenId, Variables response, string? userId = null)
+    public void HandleTaskResult(Guid tokenId, Variables? data, string? userId = null)
     {
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
@@ -55,33 +47,11 @@ public partial class InstanceEngine(ProcessInstance instance)
             throw new Exception("Token ist nicht aktiv");
         }
 
-        response.TryAdd("UserId", userId);
-        token.OutputData = response;
+        data ??= new Variables();
+        data.TryAdd("UserId", userId);
+        token.OutputData = data;
         token.State = FlowNodeState.Completing;
 
-        Run();
-    }
-
-    /// <summary>
-    /// Wird aufgerufen, wenn ein ServiceTask ein Ergebnis zurückliefert.
-    /// </summary>
-    /// <param name="tokenId">ID des Tokens</param>
-    /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
-    /// <exception cref="NotImplementedException"></exception>
-    public void HandleServiceTaskResult(Guid tokenId, object? result = null)
-    {
-        var token = GetToken(tokenId);
-        if (token.State != FlowNodeState.Active)
-        {
-            throw new FlowzerRuntimeException($"Token {tokenId} is not active");
-        }
-
-        if (result != null)
-        {
-            token.OutputData = (Variables?)result.ToDynamic();
-        }
-
-        token.State = FlowNodeState.Completing;
         Run();
     }
 
@@ -91,13 +61,13 @@ public partial class InstanceEngine(ProcessInstance instance)
     /// <param name="taskType">Type (Implementation) des ServiceTasks. ACHTUNG: Funktioniert nur wenn genau ein ServiceTask mit dem Type wartet.</param>
     /// <param name="result">Ergebnis-Daten des ServiceTasks</param>
     /// <exception cref="NotImplementedException"></exception>
-    public void HandleServiceTaskResult(string taskType, object? result = null)
+    public void HandleServiceTaskResult(string taskType, Variables? result = null)
     {
         var tokenId = Instance.Tokens.Single(token =>
             token.CurrentFlowNode.GetType() == typeof(ServiceTask) &&
             ((ServiceTask)token.CurrentFlowNode).Implementation == taskType &&
             token.State == FlowNodeState.Active).Id;
-        HandleServiceTaskResult(tokenId, result);
+        HandleTaskResult(tokenId, result);
     }
 
     /// <summary>

@@ -21,11 +21,11 @@ public class EngineTest
         Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
 
         //inject service result
-        var variables = new
+        var variables = (ExpandoObject?) new
         {
             ServiceResult = "World123"
-        };
-        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id, variables.ToDynamic());
+        }.ToDynamic();
+        instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //should be completed
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
@@ -50,14 +50,14 @@ public class EngineTest
 
         Assert.That(((dynamic)serviceTaskToken.InputData!).Firstname, Is.EqualTo("Lukas"));
 
-        var variables = new
+        var variables = (ExpandoObject) new
         {
             Out = new
             {
                 Firstname = "LukasNeu"
             }
-        };
-        instanceEngine.HandleServiceTaskResult(serviceTaskToken.Id, variables.ToDynamic());
+        }.ToDynamic()!;
+        instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //check if global variable is set
         Assert.That((string?)instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"),
@@ -218,7 +218,7 @@ public class EngineTest
             var isLast = activeToken == activeTokenList.Last();
             var data = new ExpandoObject();
             data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
-            instanceEngine.HandleUserTaskResponse(activeToken.Id, data);
+            instanceEngine.HandleTaskResult(activeToken.Id, data);
             Assert.That(instanceEngine.Instance.State,
                 isLast ? Is.EqualTo(ProcessInstanceState.Completed) : Is.EqualTo(ProcessInstanceState.Waiting));
         }
@@ -268,7 +268,7 @@ public class EngineTest
 
             var data = new ExpandoObject();
             data.SetValue("OutProperty", token.InputData.GetValue("Person"));
-            instanceEngine.HandleUserTaskResponse(token.Id, data);
+            instanceEngine.HandleTaskResult(token.Id, data);
             index++;
         }
 

@@ -14,7 +14,7 @@ public class MessageTest
     [Test]
     public void Flow1Test()
     {
-        var testMessage = new Message { Name = "", TimeToLive = 60, CorrelationKey = "12345" };
+        var testMessage = new Message { Name = string.Empty, TimeToLive = 60, CorrelationKey = "12345" };
         var instanceEngine = new ProcessEngine(Process).StartProcess();
         using (new AssertionScope())
         {

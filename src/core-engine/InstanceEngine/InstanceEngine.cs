@@ -6,7 +6,7 @@ namespace core_engine;
 
 public partial class InstanceEngine
 {
-        public void Start(Variables? data)
+    public void Start(Variables? data)
     {
         CreateInitialTokens(data);
         if (Instance.Tokens.Count == 0) throw new Exception("No tokens created");
@@ -43,22 +43,18 @@ public partial class InstanceEngine
         //generate new tokens for multi instance parallel activities
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready).ToArray())
         {
-            if (token.CurrentFlowNode is Activity activity)
-            {
-                var sequenceType = GetMultiInstanceType(activity);
-                if (sequenceType != MultiInstanceType.None)
-                {
-                  token.State = FlowNodeState.Completed ; // destroy original tokens
-                  Instance.Tokens.AddRange(GenerateMultiInstanceTokens(token,sequenceType));
-                }
-            }
+            if (token.CurrentFlowNode is not Activity activity) continue;
+            var sequenceType = GetMultiInstanceType(activity);
+            if (sequenceType == MultiInstanceType.None) continue;
+            token.State = FlowNodeState.Completed; // destroy original tokens
+            Instance.Tokens.AddRange(GenerateMultiInstanceTokens(token, sequenceType));
         }
-        
+
         //process all Ready tokens
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Ready).ToArray())
         {
             PrepareInputData(token);
-            token.State = FlowNodeState.Active;    
+            token.State = FlowNodeState.Active;
         }
 
         //Execute all active Tokens
@@ -83,42 +79,48 @@ public partial class InstanceEngine
         //Complete all Completing Tokens
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
         {
-            
             if (token.PreviousToken?.CurrentFlowNode is Activity previouseActivity)
             {
                 var sequenceType = GetMultiInstanceType(previouseActivity);
 
-                if (sequenceType == MultiInstanceType.Parallel)
+                switch (sequenceType)
                 {
-                    //the tokens commes from a multi instance parallel activity
-                    //are all tokens with the same previosnode waiting for loop end?
-                    if (Instance.Tokens.Any(x =>
-                            x.Id != token.Id && 
-                            x.PreviousToken?.Id == token.PreviousToken?.Id &&
-                            x.State != FlowNodeState.WaitingForLoopEnd))
+                    // The tokens come from a multi instance parallel activity
+                    // are all tokens with the same previousNode waiting for loop end?
+                    case MultiInstanceType.Parallel when Instance.Tokens.Any(x =>
+                        x.Id != token.Id &&
+                        x.PreviousToken?.Id == token.PreviousToken?.Id &&
+                        x.State != FlowNodeState.WaitingForLoopEnd):
+                            token.State = FlowNodeState.WaitingForLoopEnd;
+                            continue;
+                    case MultiInstanceType.Sequential:
                     {
-                        token.State = FlowNodeState.WaitingForLoopEnd;
-                        continue;
+                        var currentIndex = token.InputData.GetValue<int?>("loopCounter") - 1;
+                        if (currentIndex == null)
+                            throw new FlowzerRuntimeException("loopCounter is not set in the token");
+                        var generateMultiInstanceTokens = GenerateMultiInstanceTokens(token.PreviousToken,
+                            MultiInstanceType.Sequential, currentIndex.Value + 1);
+                        if (generateMultiInstanceTokens.Count != 0) //there are more tokens to generate
+                        {
+                            token.State = FlowNodeState.WaitingForLoopEnd;
+                            Instance.Tokens.AddRange(generateMultiInstanceTokens);
+                            continue;
+                        }
+
+                        break;
                     }
+                    case MultiInstanceType.None:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
                 }
-                else if (sequenceType == MultiInstanceType.Sequential)
-                {
-                    var currentIndex = token.InputData.GetValue<int?>("loopCounter") -1;
-                    if (currentIndex == null)
-                        throw new FlowzerRuntimeException("loopCounter is not set in the token");
-                    var generateMultiInstanceTokens = GenerateMultiInstanceTokens(token.PreviousToken, MultiInstanceType.Sequential, currentIndex.Value+1);
-                    if (generateMultiInstanceTokens.Any()) //there are more tokens to generate
-                    {
-                        token.State = FlowNodeState.WaitingForLoopEnd;
-                        Instance.Tokens.AddRange(generateMultiInstanceTokens);
-                        continue;
-                    }
-                }
-                
-                
+
+
                 //all tokens are completing
-                var completedTokens = instance.Tokens.Where(x => x.PreviousToken?.Id == token.PreviousToken.Id).ToArray();
-                var loopCharacteristics = ((MultiInstanceLoopCharacteristics)previouseActivity!.LoopCharacteristics!).FlowzerLoopCharacteristics!;
+                var completedTokens =
+                    Instance.Tokens.Where(x => x.PreviousToken?.Id == token.PreviousToken.Id).ToArray();
+                var loopCharacteristics = ((MultiInstanceLoopCharacteristics)previouseActivity.LoopCharacteristics!)
+                    .FlowzerLoopCharacteristics!;
                 var outCollection = new List<object?>();
                 foreach (var completedToken in completedTokens)
                 {
@@ -126,7 +128,8 @@ public partial class InstanceEngine
 
                     if (!string.IsNullOrEmpty(loopCharacteristics.OutputElement) && completedToken.OutputData != null)
                     {
-                        outCollection.Add(FlowzerConfig.ExpressionHandler.GetValue(completedToken.OutputData, loopCharacteristics.OutputElement));
+                        outCollection.Add(FlowzerConfig.ExpressionHandler.GetValue(completedToken.OutputData,
+                            loopCharacteristics.OutputElement));
                     }
                     else
                     {
@@ -134,12 +137,11 @@ public partial class InstanceEngine
                             outCollection.Add(completedToken.OutputData);
                     }
                 }
-                
-                if (loopCharacteristics.OutputCollection != null)
-                    Instance.ProcessVariables.SetValue(loopCharacteristics.OutputCollection, outCollection);                
 
+                if (loopCharacteristics.OutputCollection != null)
+                    Instance.ProcessVariables.SetValue(loopCharacteristics.OutputCollection, outCollection);
             }
-            
+
             PrepareOutputData(token);
             token.State = FlowNodeState.Completed;
 
@@ -151,7 +153,7 @@ public partial class InstanceEngine
                 Instance.Tokens.AddRange(newTokens);
         }
 
-        
+
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Terminating))
         {
             // ToDo: Hier kann man noch Nachrichtenflüsse einbauen etc.
@@ -160,7 +162,7 @@ public partial class InstanceEngine
         }
     }
 
-    
+
     private List<Token> GenerateMultiInstanceTokens(Token token, MultiInstanceType sequenceType, int startIndex = 0)
     {
         var currentFlowNode = (Activity)token.CurrentFlowNode;
@@ -168,21 +170,21 @@ public partial class InstanceEngine
         var flowzerLoopCharacteristics = multiInstanceLoopCharacteristics
             .FlowzerLoopCharacteristics!;
         var data = flowzerLoopCharacteristics.InputCollection;
-        
+
         if (data is not IEnumerable enumerableList)
             throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
-        
+
         var ret = new List<Token>();
-        int loopCounter = 1;
-        
+        var loopCounter = 1;
+
         foreach (var item in enumerableList)
         {
-            if (loopCounter -1 < startIndex)
+            if (loopCounter - 1 < startIndex)
             {
                 loopCounter++;
                 continue;
             }
-            
+
             Variables dataObj;
             if (string.IsNullOrEmpty(flowzerLoopCharacteristics.InputElement))
             {
@@ -195,18 +197,22 @@ public partial class InstanceEngine
                 expandoObj.TryAdd(flowzerLoopCharacteristics.InputElement, item.ToDynamic());
                 dataObj = expandoObj;
             }
+
             dataObj.SetValue("loopCounter", loopCounter++);
-            var newToken = CreateNewToken(dataObj, currentFlowNode with {LoopCharacteristics = null}, token); //the new node is not a loop node anymore!
+            var newToken =
+                CreateNewToken(dataObj, currentFlowNode with { LoopCharacteristics = null },
+                    token); //the new node is not a loop node anymore!
             ret.Add(newToken);
-            
+
             if (multiInstanceLoopCharacteristics.CompletionCondition?.Body != null)
             {
                 var completionCondition = multiInstanceLoopCharacteristics.CompletionCondition.Body;
-                var completionConditionValue = FlowzerConfig.ExpressionHandler.MatchExpression(dataObj, completionCondition);
+                var completionConditionValue =
+                    FlowzerConfig.ExpressionHandler.MatchExpression(dataObj, completionCondition);
                 if (completionConditionValue)
                     break;
             }
-            
+
             if (sequenceType == MultiInstanceType.Sequential) //only the first token for sequential
                 break;
         }
@@ -215,18 +221,14 @@ public partial class InstanceEngine
     }
 
 
-    private MultiInstanceType GetMultiInstanceType(Activity targetFlowNode)
+    private static MultiInstanceType GetMultiInstanceType(Activity targetFlowNode)
     {
-        if (targetFlowNode.LoopCharacteristics != null && targetFlowNode.LoopCharacteristics is MultiInstanceLoopCharacteristics loopCharacteristics)
-        {
-            if (loopCharacteristics.IsSequential)
-                return MultiInstanceType.Sequential;
-            return MultiInstanceType.Parallel;
-        }
+        if (targetFlowNode.LoopCharacteristics is not MultiInstanceLoopCharacteristics loopCharacteristics)
+            return MultiInstanceType.None;
 
-        return MultiInstanceType.None;
+        return loopCharacteristics.IsSequential ? MultiInstanceType.Sequential : MultiInstanceType.Parallel;
     }
-    
+
     private void CreateInitialTokens(Variables? data)
     {
         foreach (var processStartFlowNode in Instance.ProcessModel.StartFlowNodes.Where(flowNode =>
@@ -243,7 +245,9 @@ public partial class InstanceEngine
         {
             ProcessInstance = Instance,
             ProcessInstanceId = Instance.Id,
-            CurrentFlowNode = currentFlowNode.ApplyResolveExpression<FlowNode>(FlowzerConfig.ExpressionHandler.ResolveString, Instance.ProcessVariables),
+            CurrentFlowNode =
+                currentFlowNode.ApplyResolveExpression<FlowNode>(FlowzerConfig.ExpressionHandler.ResolveString,
+                    Instance.ProcessVariables),
             ActiveBoundaryEvents = Instance.ProcessModel
                 .FlowElements
                 .OfType<BoundaryEvent>()
@@ -271,7 +275,7 @@ public partial class InstanceEngine
         }
 
         token.InputData ??= new Variables();
-        
+
         mapping.InputMappings?.ForEach(x =>
         {
             token.InputData.TryAdd(x.Target,
@@ -295,7 +299,7 @@ public partial class InstanceEngine
             ExpandoHelper.SetValue(Instance.ProcessVariables, x.Target, value);
         });
     }
-    
+
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()
     {
         { typeof(StartEvent), new DefaultFlowNodeHandler() },
