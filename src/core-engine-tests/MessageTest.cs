@@ -1,5 +1,7 @@
 using BPMN.Infrastructure;
 using BPMN.Process;
+using FluentAssertions;
+using FluentAssertions.Execution;
 using Model;
 
 namespace core_engine_tests;
@@ -12,76 +14,77 @@ public class MessageTest
     [Test]
     public void Flow1Test()
     {
+        var testMessage = new Message { Name = "", TimeToLive = 60, CorrelationKey = "12345" };
         var instanceEngine = new ProcessEngine(Process).StartProcess();
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-            Assert.That((int?)instanceEngine.Instance.ProcessVariables.GetValue("AuftragsNr"),
-                Is.EqualTo(12345)); 
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Select(i => i.Name), Contains.Item("NachrichtBoundary"));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Select(i => i.Name), Contains.Item("NachrichtBoundaryNI"));
-            Assert.That(instanceEngine.GetActiveCatchMessages().First().FlowzerCorrelationKey, Is.EqualTo("12345"));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.Instance.ProcessVariables.GetValue("AuftragsNr").Should().Be(12345); 
+            instanceEngine.ActiveTokens.Should().ContainSingle();
+            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
+            instanceEngine.GetActiveCatchMessages().Select(i => i.Name)
+                .Should().Contain(["NachrichtBoundary", "NachrichtBoundaryNI"]);
+            instanceEngine.GetActiveCatchMessages().First().FlowzerCorrelationKey.Should().Be("12345");
+        }
         
         instanceEngine.HandleMessage(new Message {Name = "NachrichtBoundaryNI", CorrelationKey = "12345", TimeToLive = 60});
-        Assert.Multiple(() =>
-        {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(2));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
-            instanceEngine.HandleServiceTaskResult("step2");
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(2));
-        });
         
-        instanceEngine.HandleMessage(new Message {Name = "NachrichtBoundary", CorrelationKey = "12345", TimeToLive = 60});
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(0));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.ActiveTokens.Should().HaveCount(2);
+            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
+            instanceEngine.HandleServiceTaskResult("step2");
+            instanceEngine.ActiveTokens.Should().ContainSingle();
+            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
+        }
+        
+        instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundary"});
+        using (new AssertionScope())
+        {
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.GetActiveCatchMessages().Should().BeEmpty();
+        }
         
         instanceEngine = new ProcessEngine(Process).StartProcess();
         instanceEngine.HandleServiceTaskResult("step1");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Single().Name, Is.EqualTo("NachrichtReceive"));
-            Assert.That(instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey, Is.EqualTo("12345"));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.Instance.Tokens.Should().HaveCount(3);
+            instanceEngine.GetActiveCatchMessages().Should().ContainSingle();
+            instanceEngine.GetActiveCatchMessages().Single().Name.Should().Be("NachrichtReceive");
+            instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey.Should().Be("12345");
+        }
         
-        instanceEngine.HandleMessage(new Message {Name = "NachrichtReceive", CorrelationKey = "12345", TimeToLive = 60});
-        Assert.Multiple(() =>
+        instanceEngine.HandleMessage(testMessage with { Name = "NachrichtReceive" });
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(1));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.ActiveTokens.Should().ContainSingle();
+            instanceEngine.GetActiveCatchMessages().Should().ContainSingle();
+        }
         
-        instanceEngine.HandleMessage(new Message {Name = "NachrichtIntermediate", CorrelationKey = "12345", TimeToLive = 60});
-        Assert.Multiple(() =>
+        instanceEngine.HandleMessage(testMessage with { Name = "NachrichtIntermediate" });
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
-            Assert.That(instanceEngine.GetActiveCatchMessages(), Has.Count.EqualTo(0));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.GetActiveCatchMessages().Should().BeEmpty();
+        }
     }
 
     [Test]
     public void Flow2Test()
     {
         var instanceEngine =
-            new ProcessEngine(Process).HandleMessage(new Message() { Name = "NachrichtStart", TimeToLive = 60 });
-        Assert.Multiple(() =>
+            new ProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart", TimeToLive = 60 });
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(2));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.Instance.Tokens.Should().HaveCount(2);
+        }
     }
 }
