@@ -1,7 +1,6 @@
 using System.Dynamic;
 using BPMN.Events;
 using Model;
-using NUnit.Framework.Constraints;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -49,7 +48,7 @@ public class EngineTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
 
         
-        Assert.That((((dynamic)serviceTaskToken.InputData!)!).Firstname, Is.EqualTo("Lukas"));
+        Assert.That((((dynamic)serviceTaskToken.InputData!)).Firstname, Is.EqualTo("Lukas"));
 
         var variables = new
         {
@@ -189,9 +188,9 @@ public class EngineTest
         var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
         Assert.That(activeTokens.Length, Is.EqualTo(3)); //3 Mitarbeiter
         
-        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas");
-        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian");
-        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max");
+        Assert.That(activeTokens.SingleOrDefault(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas"), Is.Not.Null);
+        Assert.That(activeTokens.SingleOrDefault(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian"), Is.Not.Null);
+        Assert.That(activeTokens.SingleOrDefault(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max"), Is.Not.Null);
         Assert.That(activeTokens.Length, Is.EqualTo(3));
         
         Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas").InputData.GetValue("loopCounter"), Is.EqualTo(1));
@@ -212,14 +211,13 @@ public class EngineTest
             
         }
 
-        var outList = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
+        var outList = (List<object>?)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
         Assert.That(outList, Is.Not.Null);
         Assert.That(outList.Count, Is.EqualTo(3));
         
-        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Lukas");
-        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Christian");
-        outList.Single(x=>x.GetValue("Vorname")?.ToString() == "Max");
-    
+        Assert.That(outList.SingleOrDefault(x=>x.GetValue("Vorname")?.ToString() == "Lukas"), Is.Not.Null);
+        Assert.That(outList.SingleOrDefault(x=>x.GetValue("Vorname")?.ToString() == "Christian"), Is.Not.Null);
+        Assert.That(outList.SingleOrDefault(x=>x.GetValue("Vorname")?.ToString() == "Max"), Is.Not.Null);
         
         
         //check if the order is correct
@@ -280,9 +278,10 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowWithCompletingConditionTest.bpmn");
         var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
 
-        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas");
-        activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian");
-        activeTokens.All(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() != "Max");
+        Assert.That(activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas"), Is.Not.Null);
+        Assert.That(activeTokens.Single(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian"), Is.Not.Null);
+        Assert.That(activeTokens.All(x=>x.InputData?.GetValue("Person.Vorname")?.ToString() != "Max"));
+        
         Assert.That(activeTokens.Length, Is.EqualTo(2));
         
         Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
