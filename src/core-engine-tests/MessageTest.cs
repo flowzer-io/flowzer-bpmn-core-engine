@@ -27,7 +27,7 @@ public class MessageTest
             instanceEngine.GetActiveCatchMessages().First().FlowzerCorrelationKey.Should().Be("12345");
         }
         
-        instanceEngine.HandleMessage(new Message {Name = "NachrichtBoundaryNI", CorrelationKey = "12345", TimeToLive = 60});
+        instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundaryNI" });
         
         using (new AssertionScope())
         {
@@ -79,7 +79,7 @@ public class MessageTest
     public void Flow2Test()
     {
         var instanceEngine =
-            new ProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart", TimeToLive = 60 });
+            new ProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart" });
         using (new AssertionScope())
         {
             instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
