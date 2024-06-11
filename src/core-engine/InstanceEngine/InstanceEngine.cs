@@ -49,7 +49,7 @@ public partial class InstanceEngine
                 if (sequenceType != MultiInstanceType.None)
                 {
                   token.State = FlowNodeState.Completed ; // destroy original tokens
-                  Instance.Tokens.AddRange(GenerateMultiInstanceTokens(FlowzerConfig, Instance, token, activity,sequenceType));
+                  Instance.Tokens.AddRange(GenerateMultiInstanceTokens(token,sequenceType));
                 }
             }
         }
@@ -61,7 +61,7 @@ public partial class InstanceEngine
             token.State = FlowNodeState.Active;    
         }
 
-        //Execute all Actice Tokens
+        //Execute all active Tokens
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Active))
         {
             if (!FlowNodeHandlers.TryGetValue(token.CurrentFlowNode.GetType(), out var handler))
@@ -84,13 +84,13 @@ public partial class InstanceEngine
         foreach (var token in Instance.Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
         {
             
-            if (token.PreviousToken?.CurrentFlowNode is Activity activity)
+            if (token.PreviousToken?.CurrentFlowNode is Activity previouseActivity)
             {
-                var sequenceType = GetMultiInstanceType(activity);
+                var sequenceType = GetMultiInstanceType(previouseActivity);
 
                 if (sequenceType == MultiInstanceType.Parallel)
                 {
-                    //the tokens comes from a multi instance parallel activity
+                    //the tokens commes from a multi instance parallel activity
                     //are all tokens with the same previosnode waiting for loop end?
                     if (Instance.Tokens.Any(x =>
                             x.Id != token.Id && 
@@ -103,13 +103,22 @@ public partial class InstanceEngine
                 }
                 else if (sequenceType == MultiInstanceType.Sequential)
                 {
-                    throw new NotImplementedException();
+                    var currentIndex = token.InputData.GetValue<int?>("loopCounter") -1;
+                    if (currentIndex == null)
+                        throw new FlowzerRuntimeException("loopCounter is not set in the token");
+                    var generateMultiInstanceTokens = GenerateMultiInstanceTokens(token.PreviousToken, MultiInstanceType.Sequential, currentIndex.Value+1);
+                    if (generateMultiInstanceTokens.Any()) //there are more tokens to generate
+                    {
+                        token.State = FlowNodeState.WaitingForLoopEnd;
+                        Instance.Tokens.AddRange(generateMultiInstanceTokens);
+                        continue;
+                    }
                 }
                 
                 
                 //all tokens are completing
                 var completedTokens = instance.Tokens.Where(x => x.PreviousToken?.Id == token.PreviousToken.Id).ToArray();
-                var loopCharacteristics = ((MultiInstanceLoopCharacteristics)activity!.LoopCharacteristics!).FlowzerLoopCharacteristics!;
+                var loopCharacteristics = ((MultiInstanceLoopCharacteristics)previouseActivity!.LoopCharacteristics!).FlowzerLoopCharacteristics!;
                 var outCollection = new List<object?>();
                 foreach (var completedToken in completedTokens)
                 {
@@ -152,8 +161,7 @@ public partial class InstanceEngine
     }
 
     
-    private IEnumerable<Token> GenerateMultiInstanceTokens(FlowzerConfig config, ProcessInstance processInstance,
-        Token token, Activity activity, MultiInstanceType sequenceType)
+    private List<Token> GenerateMultiInstanceTokens(Token token, MultiInstanceType sequenceType, int startIndex = 0)
     {
         var currentFlowNode = (Activity)token.CurrentFlowNode;
         var multiInstanceLoopCharacteristics = ((MultiInstanceLoopCharacteristics)currentFlowNode.LoopCharacteristics!);
@@ -163,11 +171,18 @@ public partial class InstanceEngine
         
         if (data is not IEnumerable enumerableList)
             throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
-
+        
         var ret = new List<Token>();
         int loopCounter = 1;
+        
         foreach (var item in enumerableList)
         {
+            if (loopCounter -1 < startIndex)
+            {
+                loopCounter++;
+                continue;
+            }
+            
             Variables dataObj;
             if (string.IsNullOrEmpty(flowzerLoopCharacteristics.InputElement))
             {
@@ -191,9 +206,14 @@ public partial class InstanceEngine
                 if (completionConditionValue)
                     break;
             }
+            
+            if (sequenceType == MultiInstanceType.Sequential) //only the first token for sequential
+                break;
         }
+
         return ret;
     }
+
 
     private MultiInstanceType GetMultiInstanceType(Activity targetFlowNode)
     {

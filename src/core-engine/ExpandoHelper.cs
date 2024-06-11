@@ -71,6 +71,12 @@ public static class ExpandoHelper
                value.GetType() != typeof(string);
     }
 
+    public static T? GetValue<T>(this object? vars, string propertyName)
+    {
+        return vars is null ? default : (T?)GetValue((IDictionary<string,object?>) vars, propertyName);
+    }
+
+    
     public static object? GetValue(this object? vars, string propertyName)
     {
         return vars is null ? null : GetValue((IDictionary<string,object?>) vars, propertyName);

@@ -236,25 +236,30 @@ public class EngineTest
     public async Task SequentialTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("SequentialTest.bpmn");
-        var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
-        Assert.That(activeTokens.Length, Is.EqualTo(1));
-        
-        var activeTokenList = activeTokens.OrderBy(x=> new Random().Next(0,1000)).ToArray();
-        foreach (var activeToken in activeTokenList)
+
+        var index = 0;
+        while (true)
         {
-            var isLast = activeToken == activeTokenList.Last();
-            var data =  new ExpandoObject();
-            data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
-            instanceEngine.HandleUserTaskResponse(activeToken.Id,data);
-            if (isLast)
-                Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            else
-            {
-                Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-                Assert.That(activeTokens.Length, Is.EqualTo(1));
-            }
-        }
+            var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test").ToArray();
+            if (activeTokens.Length == 0)
+                break;
             
+            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(activeTokens.Length, Is.EqualTo(1));
+            
+            var token = activeTokens.Single();
+            
+            var data =  new ExpandoObject();
+            data.SetValue("OutProperty", token.InputData.GetValue("Person"));
+            instanceEngine.HandleUserTaskResponse(token.Id,data);
+            index++;
+        }
+        
+        Assert.That(index,Is.EqualTo(3));
+        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+       
+        
+        
         var outList = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut")!;
         Assert.That(outList, Is.Not.Null);
         Assert.That(outList.Count, Is.EqualTo(3));
