@@ -1,5 +1,7 @@
 using BPMN.Infrastructure;
 using BPMN.Process;
+using FluentAssertions;
+using FluentAssertions.Execution;
 using Model;
 
 namespace core_engine_tests;
@@ -15,18 +17,18 @@ public class SignalTest
     public void Flow1Test()
     {
         var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartOne");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngines, Has.Length.EqualTo(1));
-            Assert.That(instanceEngines[0].Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-        });
+            instanceEngines.Should().ContainSingle();
+            instanceEngines[0].Instance.State.Should().Be(ProcessInstanceState.Waiting);
+        }
         
         instanceEngines[0].HandleSignal("SignalIntermediate");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngines[0].Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngines[0].Instance.Tokens, Has.Count.EqualTo(3));
-        });
+            instanceEngines[0].Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngines[0].Instance.Tokens.Should().HaveCount(3);
+        }
     }
 
     [Test]
@@ -34,15 +36,15 @@ public class SignalTest
     {
         var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartTwo");
         var engine = instanceEngines.SingleOrDefault(engine => engine.Instance.State == ProcessInstanceState.Waiting);
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngines, Has.Length.EqualTo(2));
-            Assert.That(engine, Is.Not.Null);
-            Assert.That(instanceEngines.Count(e => e.Instance.State == ProcessInstanceState.Completed),
-                Is.EqualTo(1));
+            instanceEngines.Should().HaveCount(2);
+            engine.Should().NotBeNull();
+            instanceEngines.Where(e => e.Instance.State == ProcessInstanceState.Completed)
+                .Should().ContainSingle();
             
             engine?.HandleServiceTaskResult("step1");
-            Assert.That(engine?.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        });
+            engine?.Instance.State.Should().Be(ProcessInstanceState.Completed);
+        }
     }
 }
