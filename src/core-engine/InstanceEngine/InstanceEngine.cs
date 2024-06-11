@@ -110,9 +110,8 @@ public partial class InstanceEngine
                         break;
                     }
                     case MultiInstanceType.None:
-                        break;
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        break;
                 }
 
 
