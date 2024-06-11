@@ -1,5 +1,7 @@
 using System.Dynamic;
 using BPMN.Events;
+using FluentAssertions;
+using FluentAssertions.Execution;
 using Model;
 using Task = System.Threading.Tasks.Task;
 
@@ -13,30 +15,30 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("StartStopWithVariables.bpmn");
 
         //should wait for service task
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
 
         //should have one active service task
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
-        Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
+        serviceTask?.Id.Should().Be("ServiceTask_1");
 
         //inject service result
-        var variables = (ExpandoObject?) new
+        var variables = (ExpandoObject?)new
         {
             ServiceResult = "World123"
         }.ToDynamic();
         instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //should be completed
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
 
         //check if global variable is set
-        Assert.That(((dynamic)instanceEngine.Instance.ProcessVariables).GlobalResult, Is.EqualTo("World123"));
-        Assert.Multiple(() =>
+        instanceEngine.Instance.ProcessVariables.GetValue<string>("GlobalResult").Should().Be("World123");
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.Instance.Tokens.Should().HaveCount(3);
+        }
     }
 
     [Test]
@@ -48,9 +50,9 @@ public class EngineTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
 
 
-        Assert.That(((dynamic)serviceTaskToken.InputData!).Firstname, Is.EqualTo("Lukas"));
+        serviceTaskToken.InputData!.GetValue<string>("Firstname").Should().Be("Lukas");
 
-        var variables = (ExpandoObject) new
+        var variables = (ExpandoObject)new
         {
             Out = new
             {
@@ -60,8 +62,7 @@ public class EngineTest
         instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //check if global variable is set
-        Assert.That((string?)instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"),
-            Is.EqualTo("LukasNeu"));
+        instanceEngine.Instance.ProcessVariables.GetValue<string>("Order.Address.NewFirstname").Should().Be("LukasNeu");
     }
 
 
@@ -69,15 +70,13 @@ public class EngineTest
     public async Task ConditionalSequenceFlowTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ConditionalSequenceFlow.bpmn");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"),
-                Is.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"),
-                Is.EqualTo(0));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.Instance.Tokens.Should().HaveCount(3);
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached").Should().Be(1);
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached").Should().Be(0);
+        }
     }
 
     [Test]
@@ -86,11 +85,11 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoin.bpmn");
         Helper.DoTestServiceThings(instanceEngine);
 
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
 
         var endEventTokens = instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).ToList();
 
-        Assert.That(endEventTokens, Has.Count.EqualTo(1));
+        endEventTokens.Should().ContainSingle();
     }
 
 
@@ -98,51 +97,50 @@ public class EngineTest
     public async Task ParallelGatewayComplexTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoinComplex.bpmn");
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Waiting);
 
         var tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
-        });
+            tokensAtParallelGateway.Should().ContainSingle();
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(0);
+        }
 
 
         //do step1
         instanceEngine.HandleServiceTaskResult("step1");
         tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(2));
-            Assert.That(tokensAtParallelGateway.All(x =>
-                x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
-        });
+           tokensAtParallelGateway.Should().HaveCount(2);
+           tokensAtParallelGateway.All(x =>
+                x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id).Should().BeTrue();
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(0);
+        }
 
 
         //do step2
         instanceEngine.HandleServiceTaskResult("step2");
         tokensAtParallelGateway =
             instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(1));
-        });
+            tokensAtParallelGateway.Should().ContainSingle();
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(1);
+        }
 
 
         //do step3
         instanceEngine.HandleServiceTaskResult("step3");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.ActiveTokens.Count(), Is.EqualTo(0));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), 
-                Is.EqualTo(2));
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(2);
 
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        });
+            instanceEngine.Instance.State.Should().Be(ProcessInstanceState.Completed);
+        }
     }
 
     [Test]

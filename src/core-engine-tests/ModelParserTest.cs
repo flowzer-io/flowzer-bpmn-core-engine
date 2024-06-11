@@ -4,6 +4,7 @@ using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
+using FluentAssertions;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -45,13 +46,30 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerIntermediateTimerCatchEvent>(process, 1);
             
             AssertFlowNodeOfTypes<SequenceFlow>(process, 21);
-            
-            // ToDo: Als nächstes wollen wir uns dem SubProzess widmen
         });
 
         var secondModel = await ModelParser.ParseModel(File.Open("embeddings/AllFlowNodes.bpmn", FileMode.Open));
         Assert.That(process.GetHashCode(), Is.EqualTo(secondModel.GetProcesses().Single().GetHashCode()),
             "Der Hashcode des Processes muss bei mehrmaligem Aufruf gleich bleiben");
+    }
+
+    [Test]
+    public async Task SubprocessParseTest()
+    {
+        var model = await ModelParser.ParseModel(File.Open("embeddings/SubProcess.bpmn", FileMode.Open));
+        model.GetProcesses().Should().ContainSingle();
+        var process = model.GetProcesses().Single();
+        process.FlowElements.OfType<SubProcess>().Select(p => p.Id)
+            .Should().HaveCount(3)
+            .And.Contain(["Activity_Sub1", "Activity_Sub2", "Activity_Sub3"]);
+        process.FlowElements.OfType<SubProcess>().Single(p => p.Id == "Activity_Sub1").FlowElements
+            .OfType<ServiceTask>()
+            .Should().ContainSingle(t => t.Name == "Sub1_Step1");
+        var subProcess = process.FlowElements.OfType<SubProcess>().Single(p => p.Id == "Activity_Sub2");
+        subProcess.FlowElements.OfType<SubProcess>().Should().ContainSingle();
+        subProcess.FlowElements.OfType<ServiceTask>().Should().ContainSingle();
+        process.FlowElements.OfType<CallActivity>().Should().ContainSingle();
+        process.FlowElements.OfType<SubProcess>().Count(p => p.LoopCharacteristics != null).Should().Be(1);
     }
 
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)

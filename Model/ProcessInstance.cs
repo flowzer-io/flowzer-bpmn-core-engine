@@ -9,6 +9,11 @@ public class ProcessInstance : ICatchHandler
     /// Eindeutige Id der Instanz
     /// </summary>
     public Guid Id { get; set; } = Guid.NewGuid();
+    
+    /// <summary>
+    ///  ID eines übergeordneten Prozesses
+    /// </summary>
+    public Guid? ParentId { get; set; }
 
     /// <summary>
     /// Das Model, das den BPMN-Prozess beschreibt
