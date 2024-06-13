@@ -36,7 +36,7 @@ public static class ModelParser
 
         rootElements.AddRange(ParseMessages(root));
         rootElements.AddRange(ParseSignals(root));
-        rootElements.AddRange(ParseProcess(root, rootElements, definitionsId));
+        rootElements.AddRange(ParseProcesses(root, rootElements, definitionsId));
 
         var definitions = new Definitions
         {
@@ -72,7 +72,7 @@ public static class ModelParser
             });
     }
 
-    private static List<Process> ParseProcess(XElement root, List<IRootElement> rootElements,
+    private static List<Process> ParseProcesses(XElement root, List<IRootElement> rootElements,
         string definitionsId)
     {
         // Gib mir alle Nodes unter root, die vom Typ "bpmn:process" sind
@@ -83,205 +83,247 @@ public static class ModelParser
             n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
             (bool)n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase));
 
-        foreach (var xmlProcessNode in xmlProcessNodes)
-        {
-            FlowzerList<FlowElement> flowElements = [];
-
-            foreach (var xmlFlowNode in xmlProcessNode.Elements())
-            {
-                var inputMappings =
-                    xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
-                        .Select(x =>
-                            new FlowzerIoMapping(
-                                x.Attribute("source")!.Value,
-                                x.Attribute("target")!.Value))
-                        .ToFlowzerList();
-                if (!inputMappings.Any()) inputMappings = null;
-
-                var outputMappings =
-                    xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
-                        .Select(x =>
-                            new FlowzerIoMapping(
-                                x.Attribute("source")!.Value,
-                                x.Attribute("target")!.Value))
-                        .ToFlowzerList();
-                if (!outputMappings.Any()) outputMappings = null;
-
-                switch (xmlFlowNode.Name.LocalName)
-                {
-                    case "startEvent":
-                        flowElements.Add(HandleStartEvent(xmlFlowNode, rootElements, outputMappings));
-                        break;
-
-                    case "intermediateCatchEvent":
-                    case "intermediateThrowEvent":
-                        flowElements.Add(HandleIntermediateEvent(xmlFlowNode, rootElements,
-                            xmlFlowNode.Name.LocalName));
-                        break;
-
-                    case "serviceTask":
-                        flowElements.Add(HandleServiceTask(xmlFlowNode, inputMappings, outputMappings));
-                        break;
-
-                    case "userTask":
-                        flowElements.Add(HandleUserTask(xmlFlowNode, inputMappings, outputMappings));
-                        break;
-
-                    case "scriptTask":
-                        flowElements.Add(HandleScriptTask(xmlFlowNode, inputMappings, outputMappings));
-                        break;
-                    
-                    case "receiveTask":
-                        flowElements.Add(new ReceiveTask
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
-                            MessageRef = rootElements.OfType<MessageDefinition>()
-                                .Single(m => m.FlowzerId == xmlFlowNode.Attribute("messageRef")?.Value),
-                        });
-                        break;
-
-
-                    case "task":
-                        flowElements.Add(new Task
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("name")?.Value,
-                        });
-                        break;
-                    
-                    case "manualTask":
-                        flowElements.Add(new ManualTask
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        });
-                        break;
-
-                    case "exclusiveGateway":
-                        flowElements.Add(new ExclusiveGateway
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        });
-                        break;
-
-                    case "complexGateway":
-                        flowElements.Add(new ComplexGateway()
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        });
-                        break;
-
-                    case "inclusiveGateway":
-                        flowElements.Add(new InclusiveGateway()
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                            DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        });
-                        break;
-
-                    case "parallelGateway":
-                        flowElements.Add(new ParallelGateway
-                        {
-                            Id = xmlFlowNode.Attribute("id")!.Value,
-                            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                        });
-                        break;
-
-                    case "endEvent":
-                        flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements));
-                        break;
-
-                    case "extensionElements":
-                    case "sequenceFlow":
-                    case "boundaryEvent":
-                        break;
-
-                    default:
-                        throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
-                }
-            }
-
-            foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "boundaryEvent"))
-            {
-                var attachedToRef = xmlFlowNode.Attribute("attachedToRef")!.Value;
-                var attachedTo = (Activity)flowElements.Single(e => e.Id == attachedToRef);
-                if (!bool.TryParse(xmlFlowNode.Attribute("cancelActivity")?.Value, out var cancelActivity))
-                    cancelActivity = true;
-                if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
-                {
-                    flowElements.Add(new FlowzerBoundaryMessageEvent
-                    {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
-                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                        MessageDefinition = rootElements.OfType<MessageDefinition>()
-                            .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
-                        AttachedToRef = attachedTo,
-                        CancelActivity = cancelActivity
-                    });
-                    continue;
-                }
-                
-                if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
-                {
-                    flowElements.Add(new FlowzerBoundarySignalEvent()
-                    {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
-                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                        Signal = rootElements.OfType<Signal>()
-                            .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
-                        AttachedToRef = attachedTo,
-                        CancelActivity = cancelActivity
-                    });
-                    continue;
-                }
-                throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
-            }
-            
-            foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "sequenceFlow"))
-            {
-                var sourceRef = xmlFlowNode.Attribute("sourceRef")!.Value;
-                var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
-                var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
-                var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
-                var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
-                                && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
-                var newSequenceFlow = new SequenceFlow
-                {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
-                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    SourceRef = source,
-                    TargetRef = target,
-                    FlowzerIsDefault = isDefault,
-                    // Container = process,
-                    FlowzerCondition = xmlFlowNode.Descendants()
-                        .FirstOrDefault(e => e.Name.LocalName == "conditionExpression")
-                        ?.Value,
-                };
-
-                flowElements.Add(newSequenceFlow);
-            }
-
-            var process = new Process
+        processes.AddRange(
+            xmlProcessNodes.Select(xmlProcessNode => new Process
             {
                 Id = xmlProcessNode.Attribute("id")!.Value,
                 Name = xmlProcessNode.Attribute("name")?.Value,
                 IsExecutable = true,
-                FlowElements = flowElements,
+                FlowElements = GetFlowElements(rootElements, xmlProcessNode),
                 DefinitionsId = definitionsId,
-            };
-            processes.Add(process);
-        }
+            }));
 
         return processes;
+    }
+
+    private static FlowzerList<FlowElement> GetFlowElements(List<IRootElement> rootElements, XElement xmlProcessNode)
+    {
+        FlowzerList<FlowElement> flowElements = [];
+
+        foreach (var xmlFlowNode in xmlProcessNode.Elements())
+        {
+            var inputMappings =
+                xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
+                    .Select(x =>
+                        new FlowzerIoMapping(
+                            x.Attribute("source")!.Value,
+                            x.Attribute("target")!.Value))
+                    .ToFlowzerList();
+            if (!inputMappings.Any()) inputMappings = null;
+
+            var outputMappings =
+                xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
+                    .Select(x =>
+                        new FlowzerIoMapping(
+                            x.Attribute("source")!.Value,
+                            x.Attribute("target")!.Value))
+                    .ToFlowzerList();
+            if (!outputMappings.Any()) outputMappings = null;
+
+            switch (xmlFlowNode.Name.LocalName)
+            {
+                case "startEvent":
+                    flowElements.Add(HandleStartEvent(xmlFlowNode, rootElements, outputMappings));
+                    break;
+
+                case "intermediateCatchEvent":
+                case "intermediateThrowEvent":
+                    flowElements.Add(HandleIntermediateEvent(xmlFlowNode, rootElements,
+                        xmlFlowNode.Name.LocalName));
+                    break;
+
+                case "serviceTask":
+                    flowElements.Add(HandleServiceTask(xmlFlowNode, inputMappings, outputMappings));
+                    break;
+
+                case "userTask":
+                    flowElements.Add(HandleUserTask(xmlFlowNode, inputMappings, outputMappings));
+                    break;
+
+                case "scriptTask":
+                    flowElements.Add(HandleScriptTask(xmlFlowNode, inputMappings, outputMappings));
+                    break;
+
+                case "subProcess":
+                    flowElements.Add(new SubProcess
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        InputMappings = inputMappings,
+                        OutputMappings = outputMappings,
+                        FlowElements = GetFlowElements(rootElements, xmlFlowNode),
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "receiveTask":
+                    flowElements.Add(new ReceiveTask
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        MessageRef = rootElements.OfType<MessageDefinition>()
+                            .Single(m => m.FlowzerId == xmlFlowNode.Attribute("messageRef")?.Value),
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "callActivity":
+                    flowElements.Add(new CallActivity
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        FlowzerCalledElementProcessId = xmlFlowNode.Descendants()
+                            .Single(e => e.Name.LocalName == "calledElement")
+                            .Attribute("processId")!.Value,
+                        FlowzerPropagateAllChildVariables = bool.Parse(xmlFlowNode.Descendants()
+                            .Single(e => e.Name.LocalName == "calledElement")
+                            .Attribute("propagateAllChildVariables")?.Value ?? "true"),
+                        FlowzerPropagateAllParentVariables = bool.Parse(xmlFlowNode.Descendants()
+                            .Single(e => e.Name.LocalName == "calledElement")
+                            .Attribute("propagateAllParentVariables")?.Value ?? "true"),
+                        InputMappings = inputMappings,
+                        OutputMappings = outputMappings,
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "task":
+                    flowElements.Add(new Task
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "manualTask":
+                    flowElements.Add(new ManualTask
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "exclusiveGateway":
+                    flowElements.Add(new ExclusiveGateway
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                    });
+                    break;
+
+                case "complexGateway":
+                    flowElements.Add(new ComplexGateway()
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                    });
+                    break;
+
+                case "inclusiveGateway":
+                    flowElements.Add(new InclusiveGateway()
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                    });
+                    break;
+
+                case "parallelGateway":
+                    flowElements.Add(new ParallelGateway
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    });
+                    break;
+
+                case "endEvent":
+                    flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements));
+                    break;
+
+                case "extensionElements":
+                case "sequenceFlow":
+                case "boundaryEvent":
+                case "incoming":
+                case "outgoing":
+                case "multiInstanceLoopCharacteristics":
+                    break;
+
+                default:
+                    throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+            }
+        }
+
+        foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "boundaryEvent"))
+        {
+            var attachedToRef = xmlFlowNode.Attribute("attachedToRef")!.Value;
+            var attachedTo = (Activity)flowElements.Single(e => e.Id == attachedToRef);
+            if (!bool.TryParse(xmlFlowNode.Attribute("cancelActivity")?.Value, out var cancelActivity))
+                cancelActivity = true;
+            if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
+            {
+                flowElements.Add(new FlowzerBoundaryMessageEvent
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    MessageDefinition = rootElements.OfType<MessageDefinition>()
+                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                    AttachedToRef = attachedTo,
+                    CancelActivity = cancelActivity
+                });
+                continue;
+            }
+
+            if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
+            {
+                flowElements.Add(new FlowzerBoundarySignalEvent()
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Signal = rootElements.OfType<Signal>()
+                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                    AttachedToRef = attachedTo,
+                    CancelActivity = cancelActivity
+                });
+                continue;
+            }
+
+            throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+        }
+
+        foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "sequenceFlow"))
+        {
+            var sourceRef = xmlFlowNode.Attribute("sourceRef")!.Value;
+            var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
+            var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
+            var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
+            var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
+                            && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
+            var newSequenceFlow = new SequenceFlow
+            {
+                Id = xmlFlowNode.Attribute("id")!.Value,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                SourceRef = source,
+                TargetRef = target,
+                FlowzerIsDefault = isDefault,
+                // Container = process,
+                FlowzerCondition = xmlFlowNode.Descendants()
+                    .FirstOrDefault(e => e.Name.LocalName == "conditionExpression")
+                    ?.Value,
+            };
+
+            flowElements.Add(newSequenceFlow);
+        }
+
+        return flowElements;
     }
 
     private static EndEvent HandleEndEvent(XElement xmlFlowNode, List<IRootElement> rootElements)
@@ -294,7 +336,7 @@ public static class ModelParser
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             };
         }
-        
+
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
         {
             xmlFlowNode.HasDescendant("taskDefinition", out var taskDefinition);
@@ -305,7 +347,7 @@ public static class ModelParser
                 Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
             };
         }
-        
+
         if (xmlFlowNode.HasDescendant("signalEventDefinition", out definition))
         {
             return new FlowzerSignalEndEvent()
@@ -316,7 +358,7 @@ public static class ModelParser
                     .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
             };
         }
-        
+
         return new EndEvent
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
@@ -336,7 +378,7 @@ public static class ModelParser
                 TimerDefinition = ParseTimerEventDefinition(definition),
             };
         }
-        
+
         var catchEvent = name.Contains("catch", StringComparison.InvariantCultureIgnoreCase);
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
@@ -437,15 +479,15 @@ public static class ModelParser
                 Body = element.Value,
             };
         }
+
         return null;
     }
 
     private static FlowzwerLoopCharacteristics? ParseFlowzerLoopCharacteristics(XElement loopCharacteristicsXmlNode)
     {
-        
         if (!(loopCharacteristicsXmlNode.HasDescendant("extensionElements", out var extensionElements)))
             return null;
-        
+
         if (!(extensionElements.HasDescendant("loopCharacteristics", out var loopCharacteristicsNode)))
             return null;
 
