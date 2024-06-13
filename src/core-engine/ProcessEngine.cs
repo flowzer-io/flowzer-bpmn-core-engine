@@ -1,3 +1,4 @@
+using core_engine.Exceptions;
 using Newtonsoft.Json;
 
 namespace core_engine;
@@ -13,11 +14,26 @@ public class ProcessEngine(Process process)
         return instance;
     }
 
-    public IEnumerable<TimerEventDefinition> ActiveTimers()
+    public IEnumerable<DateTime> GetActiveTimers()
     {
         return Process.FlowElements
             .OfType<FlowzerTimerStartEvent>()
-            .Select(e => e.TimerDefinition);
+            .Select(e => GetDateFromTimerDefinition(DateTime.Now, e.TimerDefinition, e));
+    }
+
+    private DateTime GetDateFromTimerDefinition(DateTime referenceTime, TimerEventDefinition timerDefinition, FlowNode flowNode)
+    {
+        if (timerDefinition.TimeCycle != null)
+        {
+            var timeSpan = ISO8601Date.DateExtensions.ParseIso8601Duration(timerDefinition.TimeCycle.Body);
+            return referenceTime.Add(timeSpan);
+        }
+        else if (timerDefinition.TimeDate != null)
+        {
+            return DateTime.Parse(timerDefinition.TimeDate.Body);
+        }
+
+        throw new ModelValidationException("Timer definition is invalid. for node " + flowNode.Name);
     }
 
     public IEnumerable<MessageDefinition> GetActiveCatchMessages()
@@ -38,9 +54,13 @@ public class ProcessEngine(Process process)
             });
     }
 
-    public Task<ProcessInstance> HandleTime(DateTime time)
+    public async Task<InstanceEngine> HandleTime(DateTime time)
     {
-        throw new NotImplementedException();
+        var processInstance = new ProcessInstance
+        {
+            ProcessModel = Process
+        };
+        return  new InstanceEngine(processInstance);
     }
 
     public InstanceEngine HandleMessage(Message message)

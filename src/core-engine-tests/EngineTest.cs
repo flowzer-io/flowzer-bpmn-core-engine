@@ -2,6 +2,8 @@ using System.Dynamic;
 using BPMN.Events;
 using Model;
 using Task = System.Threading.Tasks.Task;
+using FluentAssertions;
+using FluentAssertions.Execution;
 
 namespace core_engine_tests;
 
@@ -316,4 +318,26 @@ public class EngineTest
             Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
         });
     }
+    
+    
+      
+    [Test]
+    public async Task SimpleTimerTest()
+    {
+        var model = await ModelParser.ParseModel(File.Open("embeddings/SimpleTimerEvent.bpmn", FileMode.Open));
+        var process = model.GetProcesses();
+        var processEngine = new ProcessEngine(process.First());
+        var activeTimers = processEngine.GetActiveTimers().ToArray();
+        activeTimers.Should().HaveCount(1);
+        activeTimers.Single().Should().BeCloseTo(DateTime.Now.AddSeconds(2), new TimeSpan(0, 0, 0, 0, 100));
+
+        // var instanceEngine = await processEngine.HandleTime(DateTime.Now);
+        // activeTimers = instanceEngine.ActiveTimers.ToArray();
+        // activeTimers.Should().HaveCount(0);
+        //
+
+
+    }
+    
+    
 }

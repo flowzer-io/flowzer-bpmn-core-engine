@@ -30,7 +30,7 @@ public class ProcessInstance : ICatchHandler
     /// </summary>
     public ProcessInstanceState State { set; get;}
     
-    public List<TimerEventDefinition> ActiveTimers { get; set; } = [];
+    public List<DateTime> ActiveTimers { get; set; } = [];
     public List<MessageDefinition> ActiveCatchMessages { get; set; } = [];
     public List<SignalDefinition> ActiveCatchSignals { get; set; } = [];
     public Dictionary<string, object> ContextData { get; set; } = new();
