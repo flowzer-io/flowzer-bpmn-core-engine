@@ -2,31 +2,50 @@ using core_engine.Exceptions;
 
 namespace core_engine;
 
-public partial class InstanceEngine(ProcessInstance instance)
+public partial class InstanceEngine
 {
-    public ProcessInstance Instance { get; } = instance;
-
+    public InstanceEngine(List<Token> tokens, bool allTokensIncluded = true)
+    {
+        if (tokens.SingleOrDefault(t => t.ParentTokenId == null) == null)
+            throw new ArgumentException("Es muss mindestens ein (Master)Token vorhanden sein", nameof(tokens));
+        Tokens = tokens;
+    }
+    
+    public List<Token> Tokens { get; }
     private FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
 
-    public IEnumerable<Token> ActiveTokens => Instance.Tokens.Where(token => token.State == FlowNodeState.Active);
+    public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State == FlowNodeState.Active);
+    
+    public Token MasterToken => Tokens.Single(t => t.ParentTokenId == null);
+    public Process Process => (Process)MasterToken.CurrentBaseElement;
+    public Variables ProcessVariables => MasterToken.OutputData!;
 
+    public ProcessInstanceState ProcessInstanceState => MasterToken.State switch
+    {
+        FlowNodeState.Active => ProcessInstanceState.Waiting,
+        FlowNodeState.Failed => ProcessInstanceState.Failed,
+        FlowNodeState.Completed => ProcessInstanceState.Completed,
+        FlowNodeState.Terminated => ProcessInstanceState.Terminated,
+        _ => throw new FlowzerRuntimeException("ProcessInstanceState nicht ermittelbar")
+    };
+    
     public Task<IEnumerable<Escalation>> GetActiveEscalations()
     {
         throw new NotImplementedException();
     }
 
-    public IEnumerable<Token> GetActiveUserTasks() => Instance.Tokens
+    public IEnumerable<Token> GetActiveUserTasks() => Tokens
         .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready });
 
     private Token GetToken(Guid tokenId)
     {
-        return Instance.Tokens.Single(token => token.Id == tokenId);
+        return Tokens.Single(token => token.Id == tokenId);
     }
 
-    public IEnumerable<Token> GetActiveServiceTasks() => Instance.Tokens
+    public IEnumerable<Token> GetActiveServiceTasks() => Tokens
         .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
 
-    public IEnumerable<Token> GetActiveTasks() => Instance.Tokens
+    public IEnumerable<Token> GetActiveTasks() => Tokens
         .Where(token => token.State == FlowNodeState.Active);
     
     public void HandleEscalation(string escalationCode, string? code, object? escalationBody = null)
@@ -63,9 +82,9 @@ public partial class InstanceEngine(ProcessInstance instance)
     /// <exception cref="NotImplementedException"></exception>
     public void HandleServiceTaskResult(string taskType, Variables? result = null)
     {
-        var tokenId = Instance.Tokens.Single(token =>
-            token.CurrentFlowNode.GetType() == typeof(ServiceTask) &&
-            ((ServiceTask)token.CurrentFlowNode).Implementation == taskType &&
+        var tokenId = Tokens.Single(token =>
+            token.CurrentBaseElement.GetType() == typeof(ServiceTask) &&
+            ((ServiceTask)token.CurrentBaseElement).Implementation == taskType &&
             token.State == FlowNodeState.Active).Id;
         HandleTaskResult(tokenId, result);
     }
@@ -84,9 +103,9 @@ public partial class InstanceEngine(ProcessInstance instance)
         throw new NotImplementedException();
     }
 
-    public Task<ProcessInstance> HandleTime(DateTime time)
-    {
-        throw new NotImplementedException();
-    }
+    // public Task<ProcessInstance> HandleTime(DateTime time)
+    // {
+    //     throw new NotImplementedException();
+    // }
 
 }

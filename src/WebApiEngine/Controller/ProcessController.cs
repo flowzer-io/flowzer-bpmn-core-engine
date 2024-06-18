@@ -1,5 +1,3 @@
-using core_engine;
-
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
@@ -26,6 +24,6 @@ public class ProcessController(IStorageSystem storageSystem) : ControllerBase
         var instanceEngine = new ProcessEngine(processInfo.Process).StartProcess();
         storageSystem.InstanceStorage.AddInstance(instanceEngine.Instance);
 
-        return Ok(instanceEngine.Instance);
+        return Ok();
     }
 }

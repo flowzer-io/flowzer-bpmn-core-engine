@@ -2,7 +2,7 @@ namespace core_engine.Handler;
 
 public class TerminateEndEventHandler : DefaultFlowNodeHandler
 {
-    public override void Execute(ProcessInstance processInstance, Token token)
+    public override void Execute(InstanceEngine processInstance, Token token)
     {
         foreach (var tokenToTerminate in processInstance.Tokens.Where(x => 
                      x.State is 
@@ -14,6 +14,5 @@ public class TerminateEndEventHandler : DefaultFlowNodeHandler
         {
             tokenToTerminate.State = FlowNodeState.Terminating;
         }
-        processInstance.State = ProcessInstanceState.Terminating;
     }
 }

@@ -80,7 +80,11 @@
     <bpmn:subProcess id="Activity_Sub3">
       <bpmn:incoming>Flow_1pf1ppc</bpmn:incoming>
       <bpmn:outgoing>Flow_07h5jyd</bpmn:outgoing>
-      <bpmn:multiInstanceLoopCharacteristics />
+      <bpmn:multiInstanceLoopCharacteristics>
+        <bpmn:extensionElements>
+          <zeebe:loopCharacteristics inputCollection="=Personen" inputElement="Person" outputCollection="NeuePersonen" outputElement="=Person" />
+        </bpmn:extensionElements>
+      </bpmn:multiInstanceLoopCharacteristics>
       <bpmn:scriptTask id="Activity_167985r" name="Setze Alter auf 18">
         <bpmn:extensionElements>
           <zeebe:script expression="=18" resultVariable="Alter" />

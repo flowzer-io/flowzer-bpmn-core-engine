@@ -4,7 +4,7 @@ namespace core_engine.Handler;
 
 public class DefaultFlowNodeHandler : IFlowNodeHandler
 {
-    public virtual void Execute(ProcessInstance processInstance, Token token)
+    public virtual void Execute(InstanceEngine processInstance, Token token)
     {
         token.State = FlowNodeState.Completing;
     }
@@ -19,13 +19,13 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
     /// <param name="token">Aktueller Token, von dem aus weitergelaufen werden soll</param>
     /// <param name="config">Flowzer Konfiguration</param>
     /// <exception cref="NotImplementedException"></exception>
-    public virtual List<Token>? GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
+    public virtual List<Token>? GenerateOutgoingTokens(FlowzerConfig config, InstanceEngine processInstance, Token token)
     {
         
         // 1. Finde alle ausgehenden Sequenzflüsse des aktuellen FlowNodes
-        var outgoingSequenceFlows = processInstance.ProcessModel.FlowElements
+        var outgoingSequenceFlows = processInstance.Process.FlowElements
             .OfType<SequenceFlow>()
-            .Where(x => x.SourceRef.Id == token.CurrentFlowNode.Id)
+            .Where(x => x.SourceRef.Id == token.CurrentBaseElement.Id)
             .ToArray();
         
 
@@ -50,12 +50,11 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         return outgoingSequenceFlows.Select(x=>
             new Token
             {
-                ProcessInstance = processInstance,
-                ProcessInstanceId = processInstance.Id,
-                CurrentFlowNode = x.TargetRef.ApplyResolveExpression<FlowNode>(config.ExpressionHandler.ResolveString, processInstance.ProcessVariables),
+                ParentTokenId = token.ParentTokenId,
+                CurrentBaseElement = x.TargetRef.ApplyResolveExpression<FlowNode>(config.ExpressionHandler.ResolveString, processInstance.ProcessVariables),
                 LastSequenceFlow = x,
                 State = FlowNodeState.Ready,
-                ActiveBoundaryEvents = processInstance.ProcessModel
+                ActiveBoundaryEvents = processInstance.Process
                     .FlowElements
                     .OfType<BoundaryEvent>()
                     .Where(b => b.AttachedToRef == x.TargetRef)

@@ -1,11 +1,14 @@
+using BPMN.Foundation;
+
 namespace Model;
 
 public class Token
 {
     public Guid Id { get; } = Guid.NewGuid();
-    public Guid ProcessInstanceId { get; init; }
-    public virtual ProcessInstance? ProcessInstance { get; init; }
-    public required FlowNode CurrentFlowNode { get; init; }
+
+    public required IBaseElement CurrentBaseElement { get; init; }
+    public FlowNode? CurrentFlowNode => CurrentBaseElement as FlowNode;
+
     public required List<BoundaryEvent> ActiveBoundaryEvents { get; init; }
     private FlowNodeState _state = FlowNodeState.Ready;
 
@@ -27,8 +30,14 @@ public class Token
     public Variables? InputData { get; set; }
     public Variables? OutputData { get; set; }
 
+    public Guid? ParentTokenId { get; init; }
+
     public override string ToString()
     {
-        return CurrentFlowNode.Name + " (" + State + ")";   
+        return $"{CurrentBaseElement.GetType()} " +
+               (CurrentBaseElement.GetType().IsAssignableTo(typeof(FlowNode))
+                   ? CurrentFlowNode?.Name
+                   : CurrentBaseElement.Id)
+               + $" ({State} + )";
     }
 }
