@@ -17,6 +17,9 @@
     <bpmn:serviceTask id="TestTask" name="Test">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="TestTask" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=MitarbeiterOut wo das und das" target="TolleMitarbeiter" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07770cz</bpmn:incoming>
       <bpmn:outgoing>Flow_0amjzqv</bpmn:outgoing>
@@ -32,12 +35,12 @@
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="152" y="92" width="36" height="36" />
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_0psy673_di" bpmnElement="Event_0psy673">
+        <dc:Bounds x="522" y="92" width="36" height="36" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_10tfmsr_di" bpmnElement="TestTask">
         <dc:Bounds x="310" y="70" width="100" height="80" />
         <bpmndi:BPMNLabel />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Event_0psy673_di" bpmnElement="Event_0psy673">
-        <dc:Bounds x="522" y="92" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_07770cz_di" bpmnElement="Flow_07770cz">
         <di:waypoint x="188" y="110" />

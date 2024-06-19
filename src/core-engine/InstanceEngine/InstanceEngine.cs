@@ -88,9 +88,10 @@ public partial class InstanceEngine
         }
         
         // Execute all MultiInstance Tokens
-        foreach (var token in activeTokens.Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
+        foreach (var token in activeTokens.Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
         {
             new ProcessFlowNodeHandler().Execute(this, token);
+            new DefaultFlowNodeHandler().GenerateOutgoingTokens(FlowzerConfig, this, token);
         }
         
         foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Terminating))

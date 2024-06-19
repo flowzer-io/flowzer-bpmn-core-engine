@@ -330,8 +330,6 @@ public class EngineTest
 
     }
     
-    
-
     [Test]
     public async Task SubProcessTest()
     {
@@ -340,6 +338,14 @@ public class EngineTest
         var instanceEngine = new ProcessEngine(process).StartProcess();
         
         instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
-        instanceEngine.Tokens.Should().HaveCount(4);
+        instanceEngine.Tokens.Should().HaveCount(5);
+        
+        instanceEngine.HandleServiceTaskResult("sub1_step1");
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        instanceEngine.Tokens.Should().HaveCount(9);
+        
+        instanceEngine.HandleServiceTaskResult("sub2_step1");
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        instanceEngine.Tokens.Should().HaveCount(12);
     }
 }
