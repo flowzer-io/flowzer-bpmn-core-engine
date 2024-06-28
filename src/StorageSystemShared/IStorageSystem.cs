@@ -5,5 +5,5 @@ public interface IStorageSystem
     IProcessStorage ProcessStorage { get; }
     IInstanceStorage InstanceStorage { get; }
     IMessageSubscriptionStorage MessageSubscriptionStorage { get; }
-    
+    IDefinitionStorage DefinitionStorage { get; set; }
 }

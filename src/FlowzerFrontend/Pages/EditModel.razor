@@ -1,0 +1,41 @@
+﻿@page "/models/{DefinitionId}"
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<div class="main-content">
+    <div id="header">
+        <div id="titel-info">
+            <a href=""><i class="fa-solid fa-chevron-left"></i></a>
+            @if (TitleEditMode)
+            {
+                <FluentTextField @bind-Value=@CurrentModelTitle AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
+            }
+            else
+            {
+                <span id="current-file-name">@CurrentModelTitle</span>
+            }
+            
+            <button class="button-flat" @onclick="ToggleTitleEditMode" ><i class="fa-solid fa-pencil"></i></button>    
+        </div>
+        <div>
+            <FluentStack Class="action-button-group">
+                <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent">
+                    Deploy
+                </FluentButton>
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Save())">
+                    Save
+                </FluentButton>
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())">
+                    Debug
+                </FluentButton>
+            </FluentStack>    
+        </div>
+    </div>
+
+    <div class="content with-diagram" id="designer-container">
+        <div class="canvas" id="js-canvas"></div>
+        <div class="properties-panel-parent" id="js-properties-panel"></div>
+    </div>
+</div>
+
+
+<script src="public/app.js"></script>

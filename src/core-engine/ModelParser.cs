@@ -26,7 +26,7 @@ public static class ModelParser
     /// </summary>
     /// <param name="xml">The string to read the model from</param>
     /// <returns>The parsed FlowzerBPMN model</returns>
-    private static Definitions ParseModel(string xml)
+    public static Definitions ParseModel(string xml)
     {
         var xDocument = XDocument.Parse(xml);
         var root = xDocument.Root!;
