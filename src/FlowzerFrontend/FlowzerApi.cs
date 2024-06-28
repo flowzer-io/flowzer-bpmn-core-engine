@@ -1,22 +1,16 @@
-using System;
-using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading.Tasks;
 using WebApiEngine.Shared;
 
-internal class FlowzerApi
+namespace FlowzerFrontend;
+
+public class FlowzerApi
 {
-    private readonly HttpClient _httpClient;
-
-    public FlowzerApi()
+    private readonly HttpClient _httpClient = new()
     {
-        _httpClient = new HttpClient()
-        {
-            BaseAddress = new Uri("http://localhost:5182/")
-        };
-    }
+        BaseAddress = new Uri("http://localhost:5182/")
+    };
 
-    public async Task<ProcessInfoDto[]> GetModels()
+    internal async Task<ProcessInfoDto[]> GetModels()
     {
         return await GetFromJsonAsyncSave<ProcessInfoDto[]>($"model");
     }
@@ -31,17 +25,27 @@ internal class FlowzerApi
         return result;
     }
 
-    public async Task<BpmnMetaDefinitionDto> GetMetaDefinitionById(string definitionId)
+    internal async Task<BpmnMetaDefinitionDto> GetMetaDefinitionById(string definitionId)
     {
-        return await _httpClient.GetFromJsonAsync<BpmnMetaDefinitionDto>($"definition/meta/{definitionId}");
+        var bpmnMetaDefinitionDto = await _httpClient.GetFromJsonAsync<BpmnMetaDefinitionDto>($"definition/meta/{definitionId}");
+        if (bpmnMetaDefinitionDto == null)
+        {
+            throw new Exception($"No meta definition found for definitionId {definitionId}");
+        }
+        return bpmnMetaDefinitionDto;
     }
 
-    public async Task<BpmnDefinitionDto> GetLatestDefinition(string definitionId)
+    internal async Task<BpmnDefinitionDto> GetLatestDefinition(string definitionId)
     {
-        return await _httpClient.GetFromJsonAsync<BpmnDefinitionDto>($"definition/meta/{definitionId}/latest");
+        var bpmnDefinitionDto = await _httpClient.GetFromJsonAsync<BpmnDefinitionDto>($"definition/meta/{definitionId}/latest");
+        if (bpmnDefinitionDto == null)
+        {
+            throw new Exception($"No definition found for definitionId {definitionId}");
+        }
+        return bpmnDefinitionDto;
     }
 
-    public async Task<string> GetXmlDefinition(Guid guid)
+    internal async Task<string> GetXmlDefinition(Guid guid)
     {
         return await _httpClient.GetStringAsync($"definition/xml/{guid}");
     }

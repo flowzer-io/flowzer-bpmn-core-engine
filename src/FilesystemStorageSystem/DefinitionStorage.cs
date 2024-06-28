@@ -87,16 +87,18 @@ public class DefinitionStorage(Storage storage) : IDefinitionStorage
     public async Task<BpmnDefinition> GetDefinitionById(string id)
     {
         var fullFileName = Path.Combine(_basePath, $"{id}.json");
-        var content = File.ReadAllText(fullFileName);
+        var content = await File.ReadAllTextAsync(fullFileName);
         return JsonConvert.DeserializeObject<BpmnDefinition>(content)!;
     }
 
     public async Task<BpmnDefinition> GetLatestDefinition(string definitionId)
     {
         var definitions = await GetAllDefinitions();
-        var latestDefinition = definitions.Where(x => x.DefinitionId == definitionId)
-            .OrderByDescending(x => x.Version)
-            .FirstOrDefault();
+        var latestDefinition = definitions.Where(x => x.DefinitionId == definitionId).MaxBy(x => x.Version);
+        if (latestDefinition == null)
+        {
+            throw new Exception($"No definition found for definitionId {definitionId}");
+        }
         return latestDefinition;
     }
 }

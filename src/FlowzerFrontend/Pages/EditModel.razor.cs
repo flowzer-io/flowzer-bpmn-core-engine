@@ -13,13 +13,13 @@ public partial class EditModel
     public string? DefinitionId { get; set; }
     
     [Inject]
-    public IJSRuntime JsRuntime { get; set; }
+    public required IJSRuntime JsRuntime { get; set; }
 
     [Inject]
-    internal FlowzerApi FlowzerApi { get; set; }
+    public required FlowzerApi FlowzerApi { get; set; }
 
-    public bool TitleEditMode { get; set; }
-    public string? CurrentModelTitle { get; set; } = "Some test titel.bpmn";
+    private bool TitleEditMode { get; set; }
+    private string? CurrentModelTitle { get; set; } = "Some test titel.bpmn";
     
     protected override async Task OnInitializedAsync()
     {
@@ -81,7 +81,7 @@ public partial class EditModel
     }
 
 
-    private async Task OnTitleEditKeyUp(KeyboardEventArgs keyboardEventArgs)
+    private void OnTitleEditKeyUp(KeyboardEventArgs keyboardEventArgs)
     {
         if (keyboardEventArgs.Key == "Enter")
         {
