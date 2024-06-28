@@ -18,7 +18,17 @@ internal class FlowzerApi
 
     public async Task<ProcessInfoDto[]> GetModels()
     {
-        return await _httpClient.GetFromJsonAsync<ProcessInfoDto[]>($"model");
+        return await GetFromJsonAsyncSave<ProcessInfoDto[]>($"model");
+    }
+
+    private async Task<T> GetFromJsonAsyncSave<T>(string url)
+    {
+        var result = await _httpClient.GetFromJsonAsync<T>(url);
+        if (result == null)
+        {
+            throw new Exception($"Failed to get data from server. Returned object was null on request: {url}");
+        }
+        return result;
     }
 
     public async Task<BpmnMetaDefinitionDto> GetMetaDefinitionById(string definitionId)
