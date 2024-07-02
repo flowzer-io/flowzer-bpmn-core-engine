@@ -70,7 +70,8 @@ public partial class InstanceEngine
                 ActiveBoundaryEvents = [],
                 OutputData = data,
                 State = FlowNodeState.Completing,
-                ParentTokenId = MasterToken.Id
+                ParentTokenId = MasterToken.Id,
+                ProcessInstanceId = MasterToken.Id,
             });
             Run();
             return;
@@ -113,7 +114,8 @@ public partial class InstanceEngine
                 ActiveBoundaryEvents = [],
                 OutputData = data,
                 State = FlowNodeState.Completing,
-                ParentTokenId = MasterToken.Id
+                ParentTokenId = activeToken.ParentTokenId,
+                ProcessInstanceId = activeToken.ProcessInstanceId,
             });
             Run();
             return;

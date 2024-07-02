@@ -16,6 +16,7 @@ public class ProcessEngine(Process process)
             Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
+            ProcessInstanceId = Guid.NewGuid(),
         };
         var instance = new InstanceEngine([masterToken]);
         instance.Start(data);
@@ -80,6 +81,7 @@ public class ProcessEngine(Process process)
             Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
+            ProcessInstanceId = Guid.NewGuid(),
         };
         var instanceEngine = new InstanceEngine([masterToken]);
 
@@ -102,6 +104,7 @@ public class ProcessEngine(Process process)
                 Variables = new Variables(),
                 ParentTokenId = null,
                 ActiveBoundaryEvents = [],
+                ProcessInstanceId = Guid.NewGuid(),
             };
             var instanceEngine = new InstanceEngine([masterToken]);
 

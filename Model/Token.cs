@@ -5,6 +5,7 @@ namespace Model;
 public class Token
 {
     public Guid Id { get; } = Guid.NewGuid();
+    public required Guid ProcessInstanceId { get; init; }
 
     public required IBaseElement CurrentBaseElement { get; init; }
     public FlowNode? CurrentFlowNode => CurrentBaseElement as FlowNode;

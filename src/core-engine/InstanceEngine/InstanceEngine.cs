@@ -126,7 +126,8 @@ public partial class InstanceEngine
                 .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.ExpressionHandler.ResolveString,
                     MasterToken.OutputData!)).ToList(),
             OutputData = data,
-            PreviousToken = previousToken
+            PreviousToken = previousToken,
+            ProcessInstanceId = MasterToken.ProcessInstanceId
         };
         return token;
     }

@@ -74,6 +74,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
                         processInstance.VariablesToken(token).Variables!),
                 LastSequenceFlow = x,
                 State = FlowNodeState.Ready,
+                ProcessInstanceId = token.ProcessInstanceId,
                 ActiveBoundaryEvents = processInstance.Process
                     .FlowElements
                     .OfType<BoundaryEvent>()

@@ -121,7 +121,8 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
                             processInstance.VariablesToken(token).Variables!)).ToList(),
                     Variables = dataObj,
-                    ParentTokenId = token.Id
+                    ParentTokenId = token.Id,
+                    ProcessInstanceId = token.ProcessInstanceId,
                 };
             ret.Add(newToken);
 
