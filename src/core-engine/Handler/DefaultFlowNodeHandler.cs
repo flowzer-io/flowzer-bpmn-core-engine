@@ -51,7 +51,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         var sequenceFlowsWithConditionsPresent = outgoingSequenceFlows.Any(x => x.FlowzerCondition is not null);
         outgoingSequenceFlows = outgoingSequenceFlows.Where(x =>
             x.FlowzerCondition is null
-            || config.ExpressionHandler.MatchExpression(processInstance.ProcessVariables, x.FlowzerCondition)
+            || config.ExpressionHandler.MatchExpression(processInstance.VariablesToken(token).Variables!, x.FlowzerCondition)
         ).ToArray();
 
         // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
@@ -71,7 +71,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
                 ParentTokenId = token.ParentTokenId,
                 CurrentBaseElement =
                     x.TargetRef.ApplyResolveExpression<FlowNode>(config.ExpressionHandler.ResolveString,
-                        processInstance.ProcessVariables),
+                        processInstance.VariablesToken(token).Variables!),
                 LastSequenceFlow = x,
                 State = FlowNodeState.Ready,
                 ActiveBoundaryEvents = processInstance.Process
@@ -79,7 +79,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
                     .OfType<BoundaryEvent>()
                     .Where(b => b.AttachedToRef == x.TargetRef)
                     .Select(b => b.ApplyResolveExpression<BoundaryEvent>
-                        (config.ExpressionHandler.ResolveString, processInstance.ProcessVariables)).ToList()
+                        (config.ExpressionHandler.ResolveString, processInstance.VariablesToken(token).Variables!)).ToList()
             }
         ).ToList();
     }

@@ -24,7 +24,11 @@ public static class ExpandoHelper
 
         return ret;
     }
-    
+
+    public static Variables? ToExpando(this object? obj)
+    {
+        return (Variables?) ToDynamic(obj, true);
+    }
     public static object? ToDynamic(this object? obj, bool forceExpando = false)
     {
         switch (obj)

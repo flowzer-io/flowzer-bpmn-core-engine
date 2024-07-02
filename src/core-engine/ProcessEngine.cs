@@ -13,10 +13,9 @@ public class ProcessEngine(Process process)
         {
             CurrentBaseElement = Process,
             State = FlowNodeState.Active,
-            OutputData = new Variables(),
+            Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
-            InputData = null,
         };
         var instance = new InstanceEngine([masterToken]);
         instance.Start(data);
@@ -78,10 +77,9 @@ public class ProcessEngine(Process process)
         {
             CurrentBaseElement = Process,
             State = FlowNodeState.Active,
-            OutputData = new Variables(),
+            Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
-            InputData = null,
         };
         var instanceEngine = new InstanceEngine([masterToken]);
 
@@ -101,10 +99,9 @@ public class ProcessEngine(Process process)
             {
                 CurrentBaseElement = Process,
                 State = FlowNodeState.Active,
-                OutputData = new Variables(),
+                Variables = new Variables(),
                 ParentTokenId = null,
                 ActiveBoundaryEvents = [],
-                InputData = null,
             };
             var instanceEngine = new InstanceEngine([masterToken]);
 

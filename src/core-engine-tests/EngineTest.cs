@@ -37,7 +37,7 @@ public class EngineTest
             instanceEngine.Tokens.Should().HaveCount(4);
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
             //check if global variable is set
-            instanceEngine.ProcessVariables.GetValue<string>("GlobalResult").Should().Be("World123");
+            instanceEngine.MasterToken.Variables.GetValue<string>("GlobalResult").Should().Be("World123");
         }
     }
 
@@ -50,7 +50,7 @@ public class EngineTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
 
 
-        serviceTaskToken.InputData!.GetValue<string>("Firstname").Should().Be("Lukas");
+        serviceTaskToken.Variables!.GetValue<string>("Firstname").Should().Be("Lukas");
 
         var variables = (ExpandoObject)new
         {
@@ -62,7 +62,7 @@ public class EngineTest
         instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //check if global variable is set
-        instanceEngine.ProcessVariables.GetValue<string>("Order.Address.NewFirstname").Should().Be("LukasNeu");
+        instanceEngine.MasterToken.Variables.GetValue<string>("Order.Address.NewFirstname").Should().Be("LukasNeu");
     }
 
 
@@ -191,7 +191,7 @@ public class EngineTest
         {
             var vornamen = activeTokens
                 .Where(x => x.CurrentFlowNode is Activity { LoopCharacteristics: null })
-                .Select(t => (string?) t.InputData?.GetValue("Person")?.GetValue("Vorname"))
+                .Select(t => (string?) t.Variables?.GetValue("Person")?.GetValue("Vorname"))
                 .ToArray();
             vornamen.Should().Contain(["Lukas", "Christian", "Max"]);
         }
@@ -204,7 +204,7 @@ public class EngineTest
         {
             var activeToken = activeTokensWithoutLoop[i];
             var data = new ExpandoObject();
-            data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
+            data.SetValue("OutProperty", activeToken.Variables.GetValue("Person"));
             instanceEngine.HandleTaskResult(activeToken.Id, data);
             instanceEngine.ProcessInstanceState.Should().Be(
                 i == 1 // Letzter Eintrag in der Liste
@@ -212,7 +212,7 @@ public class EngineTest
                     : ProcessInstanceState.Waiting);
         }
         
-        var outList = (List<object>?)instanceEngine.ProcessVariables.GetValue("MitarbeiterOut");
+        var outList = (List<object>?)instanceEngine.MasterToken.Variables.GetValue("MitarbeiterOut");
         outList.Should().HaveCount(3);
         
         using(new AssertionScope())
@@ -266,7 +266,7 @@ public class EngineTest
             
             var token = sequenzialChildToken[0];
             var data = new ExpandoObject();
-            data.SetValue("OutProperty", token.InputData.GetValue("Person"));
+            data.SetValue("OutProperty", token.Variables.GetValue("Person"));
             instanceEngine.HandleTaskResult(token.Id, data);
             index++;
         }
@@ -277,7 +277,7 @@ public class EngineTest
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
         }
 
-        var outList = (List<object>)instanceEngine.ProcessVariables.GetValue("MitarbeiterOut")!;
+        var outList = (List<object>)instanceEngine.MasterToken.Variables.GetValue("MitarbeiterOut")!;
         outList.Should().HaveCount(3);
         using(new AssertionScope())
         {
@@ -292,26 +292,40 @@ public class EngineTest
     public async Task ParallelTaskWithCompletionConditionTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowWithCompletingConditionTest.bpmn");
-        var activeTokens = instanceEngine.GetActiveServiceTasks()
-            .Where(x => x.CurrentFlowNode!.Name == "Test")
-            .ToArray();
+        var activeTokens = instanceEngine.GetActiveUserTasks().ToArray();
 
-        Assert.Multiple(() =>
+        var multiInstanceToken = activeTokens.SingleOrDefault(x => x.CurrentFlowNode is Activity
         {
-            Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas"),
-                Is.Not.Null);
-            Assert.That(activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian"),
-                Is.Not.Null);
-            Assert.That(activeTokens.All(x => x.InputData?.GetValue("Person.Vorname")?.ToString() != "Max"));
-
-            Assert.That(activeTokens, Has.Length.EqualTo(2));
-
-            Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Waiting));
+            LoopCharacteristics: MultiInstanceLoopCharacteristics
         });
+        var lukasTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Lukas");
+        var christianTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Christian");
+        var maxTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Max");
+        
+        using (new AssertionScope())
+        {
+            activeTokens.Should().HaveCount(4);
+            multiInstanceToken.Should().NotBeNull();
+            lukasTask.Should().NotBeNull();
+            christianTask.Should().NotBeNull();
+            maxTask.Should().NotBeNull();
+            
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        }
+
+        instanceEngine.HandleTaskResult(lukasTask!.Id, new {HatZeit = false}.ToExpando());
+        using (new AssertionScope())
+        {
+            instanceEngine.GetActiveUserTasks().Should().HaveCount(3);
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+            // instanceEngine.GetActiveUserTasks().SingleOrDefault(x => x.InputData?.GetValue("MitarbeiterZeit") != null).Should().ContainSingle;
+            // ToDo: Schauen, ob bereits im MultiInstanceToken ein Wert in der OutputCollection gesetzt wurde
+            var zeitInfo = multiInstanceToken!.Variables.GetValue("MitarbeiterZeitInfo");
+            zeitInfo.Should().NotBeNull();
+        }
+        
     }
     
-    
-      
     [Test]
     public async Task SimpleTimerTest()
     {
@@ -326,8 +340,6 @@ public class EngineTest
         // activeTimers = instanceEngine.ActiveTimers.ToArray();
         // activeTimers.Should().HaveCount(0);
         //
-
-
     }
     
     [Test]

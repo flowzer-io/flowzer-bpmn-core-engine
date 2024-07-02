@@ -18,7 +18,6 @@ public partial class InstanceEngine
     
     public Token MasterToken => Tokens.Single(t => t.ParentTokenId == null);
     public Process Process => (Process)MasterToken.CurrentBaseElement;
-    public Variables ProcessVariables => MasterToken.OutputData!;
 
     public ProcessInstanceState ProcessInstanceState => MasterToken.State switch
     {
@@ -35,7 +34,7 @@ public partial class InstanceEngine
     }
 
     public IEnumerable<Token> GetActiveUserTasks() => Tokens
-        .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Ready });
+        .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Active });
 
     private Token GetToken(Guid tokenId)
     {

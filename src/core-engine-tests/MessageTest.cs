@@ -19,7 +19,7 @@ public class MessageTest
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
-            instanceEngine.ProcessVariables.GetValue("AuftragsNr").Should().Be(12345); 
+            instanceEngine.MasterToken.Variables.GetValue("AuftragsNr").Should().Be(12345); 
             instanceEngine.ActiveTokens.Should().HaveCount(2);
             instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
             instanceEngine.GetActiveCatchMessages().Select(i => i.Name)

@@ -62,7 +62,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
         }
 
         if (loopCharacteristics.OutputCollection != null)
-            processInstance.ProcessVariables.SetValue(loopCharacteristics.OutputCollection, outCollection);
+            processInstance.VariablesToken(token).Variables!.SetValue(loopCharacteristics.OutputCollection, outCollection);
         
         token.State = FlowNodeState.Completing;
     }
@@ -76,7 +76,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
     }
 
     private List<Token> GenerateMultiInstanceTokens(Token token, MultiInstanceType sequenceType,
-        InstanceEngine instance)
+        InstanceEngine processInstance)
     {
         var currentFlowNode = (Activity)token.CurrentFlowNode!;
         var multiInstanceLoopCharacteristics = ((MultiInstanceLoopCharacteristics)currentFlowNode.LoopCharacteristics!);
@@ -112,16 +112,15 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                     CurrentBaseElement =
                         flowNodeWithoutLoop.ApplyResolveExpression<FlowNode>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            instance.ProcessVariables),
-                    ActiveBoundaryEvents = instance.Process
+                            processInstance.VariablesToken(token).Variables!),
+                    ActiveBoundaryEvents = processInstance.Process
                         .FlowElements
                         .OfType<BoundaryEvent>()
                         .Where(b => b.AttachedToRef.Id == flowNodeWithoutLoop.Id)
                         .Select(b => b.ApplyResolveExpression<BoundaryEvent>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            instance.ProcessVariables)).ToList(),
-                    InputData = dataObj,
-                    OutputData = dataObj,
+                            processInstance.VariablesToken(token).Variables!)).ToList(),
+                    Variables = dataObj,
                     ParentTokenId = token.Id
                 };
             ret.Add(newToken);
