@@ -1,5 +1,6 @@
 using System.Dynamic;
 using Microsoft.ClearScript.JavaScript;
+using Microsoft.ClearScript.Util.Web;
 
 namespace core_engine;
 
@@ -75,6 +76,13 @@ public static class ExpandoHelper
                value.GetType() != typeof(string);
     }
 
+    public static bool HasProperty(this object? vars, string propertyName)
+    {
+        if (propertyName.Contains('.'))
+            throw new Exception("nested properties are not supported.");
+        return vars != null && ((IDictionary<string,object?>) vars).TryGetValue(propertyName, out _);
+    }
+    
     public static T? GetValue<T>(this object? vars, string propertyName)
     {
         return vars is null ? default : (T?)GetValue((IDictionary<string,object?>) vars, propertyName);

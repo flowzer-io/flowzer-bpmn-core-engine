@@ -318,8 +318,15 @@ public class EngineTest
         {
             instanceEngine.GetActiveUserTasks().Should().HaveCount(3);
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
-            // instanceEngine.GetActiveUserTasks().SingleOrDefault(x => x.InputData?.GetValue("MitarbeiterZeit") != null).Should().ContainSingle;
-            // ToDo: Schauen, ob bereits im MultiInstanceToken ein Wert in der OutputCollection gesetzt wurde
+            var zeitInfo = multiInstanceToken!.Variables.GetValue("MitarbeiterZeitInfo");
+            zeitInfo.Should().BeNull();
+        }
+        
+        instanceEngine.HandleTaskResult(christianTask!.Id, new {HatZeit = true}.ToExpando());
+        using (new AssertionScope())
+        {
+            instanceEngine.GetActiveUserTasks().Should().HaveCount(2);
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
             var zeitInfo = multiInstanceToken!.Variables.GetValue("MitarbeiterZeitInfo");
             zeitInfo.Should().NotBeNull();
         }

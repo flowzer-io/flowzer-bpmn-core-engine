@@ -155,13 +155,22 @@ public partial class InstanceEngine
         });
     }
 
-    public Token VariablesToken(Token token)
+    public Token VariablesToken(Token token, string? name = null)
     {
         var variablesToken = token;
+        
+        if (name is null) return MasterToken;
+        
+        // Suche in der Kette bis zum MasterToken, ob es ein Token mit der definierten Variable gibt.
         do
+        {
+            if (variablesToken.Variables != null &&
+                variablesToken.Variables.HasProperty(name[..Math.Min(name.Length, name.IndexOf('.'))]))
+                return variablesToken;
             variablesToken = Tokens.Single(t => t.Id == variablesToken.ParentTokenId);
-        while (variablesToken.Variables == null);
-        return variablesToken;
+        } while (variablesToken.Variables == null);
+
+        return MasterToken;
     }
 
     /// <summary>

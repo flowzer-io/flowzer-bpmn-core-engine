@@ -12,7 +12,7 @@ public partial class InstanceEngine
     }
     
     public List<Token> Tokens { get; }
-    private FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
+    public FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
 
     public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State == FlowNodeState.Active);
     
