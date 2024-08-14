@@ -1,46 +1,63 @@
-using System.Text;
 using AutoMapper;
-using core_engine;
 using Model;
+using WebApiEngine.BusinessLogic;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
-public class DefinitionController(IStorageSystem storageSystem, IMapper mapper ) : ControllerBase
+public class DefinitionController(
+    IStorageSystem storageSystem,
+    IMapper mapper,
+    DefinitionBusinessLogic definitionBusinessLogic) : FlowzerControllerBase
 {
     
     [HttpPost]
     public async Task<ActionResult<BpmnDefinitionDto>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
-        using var reader = new StreamReader(Request.Body, encoding: Encoding.UTF8, detectEncodingFromByteOrderMarks: false);
-        var rawContent = await reader.ReadToEndAsync();
-        
-        var model = ModelParser.ParseModel(rawContent);
-
-
-        var highestVersion = await storageSystem.DefinitionStorage.GetMaxVersionId(model.Id);
-        if (highestVersion == null)
-            highestVersion = new BpmnVersion(1, 0);
-        else
-            highestVersion = highestVersion + 1;
-                
-        var definition = new BpmnDefinition()
-        {
-            Id = Guid.NewGuid(),
-            DefinitionId = model.Id,
-            PreviousGuid = previousGuid,
-            Hash = rawContent.GetHashCode().ToString(),
-            SavedByUser = Guid.Parse("D266F2B6-E96E-4D4A-9C20-C8E541394DF0"), // User.Claims["guid"] or something like that
-            SavedOn = DateTime.UtcNow,
-            Version = highestVersion
-        };
-
-        await storageSystem.DefinitionStorage.StoreDefinition(definition);
-        await storageSystem.DefinitionStorage.StoreBinary(definition.Id, rawContent);
-        
+        var rawContent = await GetRawContent();
+        var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid);
         return Ok(mapper.Map<BpmnDefinitionDto>(definition));
     }
+    
+    [HttpPost("deploy")]
+    public async Task<ActionResult<BpmnDefinitionDto>> DeployDefinition([FromQuery] Guid? previousGuid)
+    {
+        var rawContent = await GetRawContent();
+        var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
+        return Ok(mapper.Map<BpmnDefinitionDto>(definition));
+    }
+
+
+
+    [HttpGet("new")]
+    public async Task<ActionResult<BpmnMetaDefinitionDto>> NewDefinition()
+    {
+        
+        var definitionId = "definition_" + Guid.NewGuid();
+        var modelId = "model_" + Guid.NewGuid();
+        var emptyXml = $"""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" id="{definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+                          <bpmn:process id="{modelId}" isExecutable="true" />
+                          <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+                            <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="{modelId}" />
+                          </bpmndi:BPMNDiagram>
+                        </bpmn:definitions>
+                        """;
+        
+        await definitionBusinessLogic.StoreDefinition(emptyXml, null);
+        var metaDefinition = new BpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "New Definition",
+            IsActive = false
+        };
+        await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
+        
+        return Ok(mapper.Map<BpmnMetaDefinitionDto>(metaDefinition));
+    }
+
     
 
     [HttpGet]
@@ -59,7 +76,8 @@ public class DefinitionController(IStorageSystem storageSystem, IMapper mapper )
         var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(allBinaryDefinitions);
         return Ok(bpmnDefinitionDto);
     }
-
+    
+     
         
     [HttpGet("xml/{guid}")]
     public async Task<ActionResult<string>> GetDefinitionXml([FromRoute] Guid guid)
@@ -96,18 +114,26 @@ public class DefinitionController(IStorageSystem storageSystem, IMapper mapper )
         var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(latestDefinition);
         return Ok(bpmnDefinitionDto);
     }
-
     
 
     [HttpPost("meta")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPut(BpmnMetaDefinitionDto dto)
+    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
         var definition = mapper.Map<BpmnMetaDefinition>(dto);
         await storageSystem.DefinitionStorage.StoreMetaDefinition(definition);
         return Ok(mapper.Map<BpmnMetaDefinitionDto>(definition));
     }
     
+    
+    [HttpPut("meta")]
+    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
+    {
+        var definition = mapper.Map<BpmnMetaDefinition>(dto);
+        await storageSystem.DefinitionStorage.UpdateMetaDefinition(definition);
+        return Ok(mapper.Map<BpmnMetaDefinitionDto>(definition));
+    }
 
+ 
     #endregion
     
 }

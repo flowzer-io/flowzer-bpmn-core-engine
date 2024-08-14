@@ -26,6 +26,11 @@ public class BpmnVersion: IComparable<BpmnVersion>
         return version;
     }
 
+    public override string ToString()
+    {
+        return $"{Major}.{Minor}";
+    }
+
     public int CompareTo(BpmnVersion? other)
     {
         if (other == null)

@@ -1,0 +1,57 @@
+﻿@page "/definition/{DefinitionId}"
+@using Microsoft.FluentUI.AspNetCore.Components
+
+<div class="main-content">
+    <div id="header">
+        <div id="titel-info">
+            <a href="/models"><i class="fa-solid fa-chevron-left"></i></a>
+            @if (TitleEditMode)
+            {
+                <FluentTextField @bind-Value=@CurrentMetaDefinition.Name AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
+            }
+            else
+            {
+                <span id="current-file-name">@CurrentMetaDefinition.Name</span>
+            }
+            <button class="button-flat" @onclick="ToggleTitleEditMode"><i class="fa-solid fa-pencil"></i></button>
+            
+            <span id="current-file-version">Version: @CurrentDefinition.Version.ToString() </span>
+        </div>
+        <div>
+            <FluentStack Class="action-button-group">
+                @* <FluentCombobox AriaLabel="Pre-selected option" Items="@AvailableVersions" @bind-Value="@CurrentDefinition" Height="200px" /> *@
+
+                <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" @onclick="OnDeployClick">
+                    Deploy
+                </FluentButton>
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Save())" @onclick="OnSaveClick">
+                    Save
+                </FluentButton>
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())">
+                    Debug
+                </FluentButton>
+            </FluentStack>
+        </div>
+    </div>
+
+    <div class="content with-diagram" id="designer-container" style="@(IsDocumentLoading || ErrorString != null ? "display: none;" : "")">
+        <div class="canvas" id="js-canvas"></div>
+        <div class="properties-panel-parent" id="js-properties-panel"></div>
+    </div>
+
+    @if (IsDocumentLoading)
+    {
+        <div>Loading...</div>
+    }
+    else if (ErrorString != null)
+    {
+        <div>
+            <span>Error :-(</span><br/>
+            @ErrorString
+        </div>
+    }
+
+</div>
+
+
+<script src="public/app.js"></script>

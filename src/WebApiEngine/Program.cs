@@ -1,3 +1,5 @@
+using WebApiEngine.BusinessLogic;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -13,6 +15,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 //builder.Services.AddSingleton<IStorageSystem, MemoryStorageSystem.MemoryStorageSystem>();
 builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>();
+builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddCors(options =>
 {

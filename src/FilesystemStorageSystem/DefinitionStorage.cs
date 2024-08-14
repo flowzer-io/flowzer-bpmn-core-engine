@@ -73,6 +73,21 @@ public class DefinitionStorage(Storage storage) : IDefinitionStorage
     public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition)
     {
         var fullFileName = Path.Combine(_metabasePath, $"{metaDefinition.DefinitionId}.json");
+        if (File.Exists(fullFileName))
+        {
+            throw new Exception($"Meta definition already exists for definitionId {metaDefinition.DefinitionId}");
+        }
+        var data = JsonConvert.SerializeObject(metaDefinition);
+        return File.WriteAllTextAsync(fullFileName, data);
+    }
+
+    public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition)
+    {
+        var fullFileName = Path.Combine(_metabasePath, $"{metaDefinition.DefinitionId}.json");
+        if (!File.Exists(fullFileName))
+        {
+            throw new Exception($"No meta definition found for definitionId {metaDefinition.DefinitionId}");
+        }
         var data = JsonConvert.SerializeObject(metaDefinition);
         return File.WriteAllTextAsync(fullFileName, data);
     }

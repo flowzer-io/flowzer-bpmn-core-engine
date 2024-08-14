@@ -13,6 +13,7 @@ public interface IDefinitionStorage
     Task <BpmnVersion?> GetMaxVersionId(string modelId);
     Task<BpmnMetaDefinition[]> GetAllMetaDefinitions();
     Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition);
+    Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition);
     Task<BpmnMetaDefinition> GetMetaDefinitionById(string id);
     Task<BpmnDefinition> GetDefinitionById(string id);
     Task<BpmnDefinition> GetLatestDefinition(string definitionId);

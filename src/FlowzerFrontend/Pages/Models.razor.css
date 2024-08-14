@@ -1,0 +1,22 @@
+::deep .left-site-container{
+    padding: 4px;
+    height: 100%;
+}
+
+::deep #new-button
+{
+    width: 100%;
+}
+
+
+.grid-row-title{
+    font-weight: bold;    
+}
+
+.list-header{
+    padding-top: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 100%;
+}
+
