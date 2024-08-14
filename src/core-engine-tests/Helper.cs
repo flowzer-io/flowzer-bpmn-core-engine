@@ -23,7 +23,7 @@ public class Helper
             
             foreach (var token in tokens)
             {
-                instanceEngine.HandleTaskResult(token.Id, token.InputData);
+                instanceEngine.HandleTaskResult(token.Id, token.Variables);
             }    
         }
     }

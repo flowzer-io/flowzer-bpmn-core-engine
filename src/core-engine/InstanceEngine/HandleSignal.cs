@@ -43,6 +43,7 @@ public partial class InstanceEngine
                 ActiveBoundaryEvents = [],
                 OutputData = JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables(),
                 ParentTokenId = MasterToken.Id,
+                ProcessInstanceId = MasterToken.Id,
                 State = FlowNodeState.Completing
             });
             Run();
@@ -65,8 +66,21 @@ public partial class InstanceEngine
                 .SingleOrDefault(e => e.Signal.Name == signalName);
 
             if (boundaryEvent == null) continue;
-            token.OutputData = JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables();
-            token.State = FlowNodeState.Completing;
+            
+            if (boundaryEvent.CancelActivity)
+            {
+                token.State = FlowNodeState.Withdrawn;
+            }
+            
+            Tokens.Add(new Token
+            {
+                CurrentBaseElement = boundaryEvent,
+                ActiveBoundaryEvents = [],
+                OutputData = JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables(),
+                State = FlowNodeState.Completing,
+                ParentTokenId = token.ParentTokenId,
+                ProcessInstanceId = token.ProcessInstanceId,
+            });
             Run();
             return;
         }

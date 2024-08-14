@@ -125,9 +125,9 @@ public partial class InstanceEngine
                 .Where(b => b.AttachedToRef == currentFlowNode)
                 .Select(b => b.ApplyResolveExpression<BoundaryEvent>(FlowzerConfig.ExpressionHandler.ResolveString,
                     MasterToken.OutputData!)).ToList(),
-            InputData = data ?? new Variables(),
             OutputData = data,
-            PreviousToken = previousToken
+            PreviousToken = previousToken,
+            ProcessInstanceId = MasterToken.ProcessInstanceId
         };
         return token;
     }
@@ -139,23 +139,42 @@ public partial class InstanceEngine
     /// <param name="token">Der Token, in welchen der aktuelle Input Datensatz persistiert wird.</param>
     private void PrepareInputData(Token token)
     {
-        if (token.CurrentFlowNode is not IFlowzerInputMapping mapping)
+        if (token.CurrentFlowNode is not IFlowzerInputMapping mapping || mapping.InputMappings == null || mapping.InputMappings.Count == 0)
         {
-            token.InputData = MasterToken.OutputData; // ToDo: Hier muss die Logik so umgeschrieben werden, das nur die Variablen im "Kontext" (Parent) beachtet werden.
             return;
         }
 
-        token.InputData ??= new Variables();
+        token.Variables = new Variables();
 
-        mapping.InputMappings?.ForEach(x =>
+        var variablesToken = VariablesToken(token);
+
+        mapping.InputMappings?.ForEach(ioMapping =>
         {
-            token.InputData.TryAdd(x.Target,
-                FlowzerConfig.ExpressionHandler.GetValue(MasterToken.OutputData!, x.Source));
+            token.Variables.TryAdd(ioMapping.Target,
+                FlowzerConfig.ExpressionHandler.GetValue(variablesToken.Variables, ioMapping.Source));
         });
     }
 
+    public Token VariablesToken(Token token, string? name = null)
+    {
+        var variablesToken = token;
+        
+        if (name is null) return MasterToken;
+        
+        // Suche in der Kette bis zum MasterToken, ob es ein Token mit der definierten Variable gibt.
+        do
+        {
+            if (variablesToken.Variables != null &&
+                variablesToken.Variables.HasProperty(name[..Math.Min(name.Length, name.IndexOf('.'))]))
+                return variablesToken;
+            variablesToken = Tokens.Single(t => t.Id == variablesToken.ParentTokenId);
+        } while (variablesToken.Variables == null);
+
+        return MasterToken;
+    }
+
     /// <summary>
-    /// Überträgt die Output-Variablen des Tokens in die Daten der Instanz. Dabei wird auf die OutputSet des
+    /// Überträgt die Output-Variablen des Tokens in die Variablen des Parents. Dabei wird auf die OutputSet des
     /// FlowNodes geachtet. Gibt es keine, so werden alle Variablen übertragen.
     /// </summary>
     /// <param name="token">Der Token, in welchen der aktuelle Output Datensatz persistiert ist.</param>
@@ -164,11 +183,21 @@ public partial class InstanceEngine
         if (token.CurrentFlowNode is not IFlowzerOutputMapping mapping)
             return;
 
-        mapping.OutputMappings?.ForEach(x =>
+        var variablesToken = VariablesToken(token);
+
+        if (mapping.OutputMappings?.Count > 0)
+            mapping.OutputMappings?.ForEach(ioMapping =>
+            {
+                var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, ioMapping.Source);
+                ExpandoHelper.SetValue(variablesToken.Variables, ioMapping.Target, value);
+            });
+        else if (token.OutputData != null)
         {
-            var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, x.Source);
-            ExpandoHelper.SetValue(MasterToken.OutputData!, x.Target, value);
-        });
+            foreach (var (key, value) in token.OutputData!)
+            {
+                variablesToken.Variables.SetValue(key, value);
+            }
+        }
     }
 
     private static readonly Dictionary<Type, IFlowNodeHandler> FlowNodeHandlers = new()

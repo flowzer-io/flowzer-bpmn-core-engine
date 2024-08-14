@@ -5,6 +5,7 @@ namespace Model;
 public class Token
 {
     public Guid Id { get; } = Guid.NewGuid();
+    public required Guid ProcessInstanceId { get; init; }
 
     public required IBaseElement CurrentBaseElement { get; init; }
     public FlowNode? CurrentFlowNode => CurrentBaseElement as FlowNode;
@@ -27,7 +28,7 @@ public class Token
     public Token? PreviousToken { get; set; }
     public SequenceFlow? LastSequenceFlow { get; set; }
 
-    public Variables? InputData { get; set; }
+    public Variables? Variables { get; set; }
     public Variables? OutputData { get; set; }
 
     public Guid? ParentTokenId { get; init; }

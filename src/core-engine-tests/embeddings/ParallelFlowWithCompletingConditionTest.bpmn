@@ -1,10 +1,45 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1mf651n" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.21.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
-  <bpmn:process id="Step1" isExecutable="true">
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_1mf651n" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.25.0" modeler:executionPlatform="Camunda Cloud" modeler:executionPlatformVersion="8.4.0">
+  <bpmn:process id="Step1" name="Mitarbeiter hat Zeit finden" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:userTaskForm id="UserTaskForm_0jvb193">{
+  "components": [
+    {
+      "text": "# {{Person.Vorname}}",
+      "label": "Text view",
+      "type": "text",
+      "layout": {
+        "row": "Row_0f5e1en",
+        "columns": null
+      },
+      "id": "Field_19x6vpk"
+    },
+    {
+      "label": "Ich habe Zeit",
+      "type": "checkbox",
+      "layout": {
+        "row": "Row_0gv38h4",
+        "columns": null
+      },
+      "id": "Field_11q8hbp",
+      "key": "HatZeit"
+    }
+  ],
+  "type": "default",
+  "id": "Form_1r2n7wt",
+  "executionPlatform": "Camunda Cloud",
+  "executionPlatformVersion": "8.5.0",
+  "exporter": {
+    "name": "Camunda Modeler",
+    "version": "5.23.0"
+  },
+  "schemaVersion": 16
+}</zeebe:userTaskForm>
+    </bpmn:extensionElements>
     <bpmn:startEvent id="StartEvent_1">
       <bpmn:extensionElements>
         <zeebe:ioMapping>
-          <zeebe:output source="=[&#10;    {&#10;        &#34;Vorname&#34;: &#34;Lukas&#34;,&#10;        &#34;Nachname&#34;: &#34;Bauhaus&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Christian&#34;,&#10;        &#34;Nachname&#34;: &#34;Maaß&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Max&#34;,&#10;        &#34;Nachname&#34;: &#34;Mustermann&#34;&#10;    }&#10;]" target="Mitarbeiter" />
+          <zeebe:output source="=[&#10;    {&#10;        &#34;Vorname&#34;: &#34;Lukas&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Christian&#34;&#10;    },&#10;    {&#10;        &#34;Vorname&#34;: &#34;Max&#34;&#10;    }&#10;]" target="Mitarbeiter" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:outgoing>Flow_07770cz</bpmn:outgoing>
@@ -14,41 +49,42 @@
       <bpmn:incoming>Flow_0amjzqv</bpmn:incoming>
     </bpmn:endEvent>
     <bpmn:sequenceFlow id="Flow_0amjzqv" sourceRef="TestTask" targetRef="Event_0psy673" />
-    <bpmn:serviceTask id="TestTask" name="Test">
+    <bpmn:userTask id="TestTask" name="Test">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="TestTask" />
+        <zeebe:formDefinition formKey="camunda-forms:bpmn:UserTaskForm_0jvb193" />
+        <zeebe:assignmentDefinition assignee="demo" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=HatZeit" target="Person.HatZeit" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07770cz</bpmn:incoming>
       <bpmn:outgoing>Flow_0amjzqv</bpmn:outgoing>
       <bpmn:multiInstanceLoopCharacteristics>
         <bpmn:extensionElements>
-          <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Person" outputCollection="MitarbeiterOut" outputElement="=OutProperty" />
+          <zeebe:loopCharacteristics inputCollection="=Mitarbeiter" inputElement="Person" outputCollection="MitarbeiterZeitInfo" outputElement="=Person" />
         </bpmn:extensionElements>
-        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">=Person.Vorname = "Christian"</bpmn:completionCondition>
+        <bpmn:completionCondition xsi:type="bpmn:tFormalExpression">=Person.HatZeit = true</bpmn:completionCondition>
       </bpmn:multiInstanceLoopCharacteristics>
-    </bpmn:serviceTask>
+    </bpmn:userTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Step1">
-      <bpmndi:BPMNShape id="Event_0psy673_di" bpmnElement="Event_0psy673">
-        <dc:Bounds x="642" y="99" width="36" height="36" />
-      </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="_BPMNShape_StartEvent_2" bpmnElement="StartEvent_1">
         <dc:Bounds x="152" y="92" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_10tfmsr_di" bpmnElement="TestTask">
-        <dc:Bounds x="400" y="77" width="100" height="80" />
-        <bpmndi:BPMNLabel />
+      <bpmndi:BPMNShape id="Event_0psy673_di" bpmnElement="Event_0psy673">
+        <dc:Bounds x="512" y="92" width="36" height="36" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNEdge id="Flow_0amjzqv_di" bpmnElement="Flow_0amjzqv">
-        <di:waypoint x="500" y="117" />
-        <di:waypoint x="642" y="117" />
-      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="Activity_1g8ym2i_di" bpmnElement="TestTask">
+        <dc:Bounds x="300" y="70" width="100" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_07770cz_di" bpmnElement="Flow_07770cz">
         <di:waypoint x="188" y="110" />
-        <di:waypoint x="294" y="110" />
-        <di:waypoint x="294" y="117" />
-        <di:waypoint x="400" y="117" />
+        <di:waypoint x="300" y="110" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0amjzqv_di" bpmnElement="Flow_0amjzqv">
+        <di:waypoint x="400" y="110" />
+        <di:waypoint x="512" y="110" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

@@ -13,10 +13,10 @@ public class ProcessEngine(Process process) : ICatchHandler
         {
             CurrentBaseElement = Process,
             State = FlowNodeState.Active,
-            OutputData = new Variables(),
+            Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
-            InputData = null,
+            ProcessInstanceId = Guid.NewGuid(),
         };
         var instance = new InstanceEngine([masterToken]);
         instance.Start(data);
@@ -55,10 +55,10 @@ public class ProcessEngine(Process process) : ICatchHandler
         {
             CurrentBaseElement = Process,
             State = FlowNodeState.Active,
-            OutputData = new Variables(),
+            Variables = new Variables(),
             ParentTokenId = null,
             ActiveBoundaryEvents = [],
-            InputData = null,
+            ProcessInstanceId = Guid.NewGuid(),
         };
         var instanceEngine = new InstanceEngine([masterToken]);
 
@@ -78,10 +78,10 @@ public class ProcessEngine(Process process) : ICatchHandler
             {
                 CurrentBaseElement = Process,
                 State = FlowNodeState.Active,
-                OutputData = new Variables(),
+                Variables = new Variables(),
                 ParentTokenId = null,
                 ActiveBoundaryEvents = [],
-                InputData = null,
+                ProcessInstanceId = Guid.NewGuid(),
             };
             var instanceEngine = new InstanceEngine([masterToken]);
 

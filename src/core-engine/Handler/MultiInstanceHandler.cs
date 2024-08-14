@@ -40,19 +40,38 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                 throw new ArgumentOutOfRangeException(nameof(token));
         }
 
-        if (childTokens.Count != multiInstanceTokens.Count ||
-            childTokens.Any(t => t.State != FlowNodeState.Completed)) return;
-        
         var loopActivity = (Activity)token.CurrentFlowNode!;
-        var loopCharacteristics = ((MultiInstanceLoopCharacteristics)loopActivity.LoopCharacteristics!)
-            .FlowzerLoopCharacteristics!;
+        var loopCharacteristics = (MultiInstanceLoopCharacteristics)loopActivity.LoopCharacteristics!;
+
+        if (loopCharacteristics.CompletionCondition != null &&
+            !string.IsNullOrWhiteSpace(loopCharacteristics.CompletionCondition.Body))
+        {
+            foreach (var childToken in childTokens.Where(t => t.State == FlowNodeState.Completed))
+            {
+                var completionConditionResult
+                    = processInstance.FlowzerConfig.ExpressionHandler.MatchExpression(childToken.Variables!,
+                        loopCharacteristics.CompletionCondition!.Body);
+
+                if (!completionConditionResult) continue;
+                foreach (var activeChild in childTokens.Where(t => t.State == FlowNodeState.Active))
+                {
+                    activeChild.State = FlowNodeState.Withdrawn;
+                }
+
+                break;
+            }
+        }
+
+        if (childTokens.Count != multiInstanceTokens.Count ||
+            childTokens.Any(t => t.State != FlowNodeState.Completed && t.State != FlowNodeState.Withdrawn)) return;
+        
         var outCollection = new List<object?>();
         foreach (var completedToken in childTokens)
         {
-            if (!string.IsNullOrEmpty(loopCharacteristics.OutputElement) && completedToken.OutputData != null)
+            if (!string.IsNullOrEmpty(loopCharacteristics.FlowzerLoopCharacteristics!.OutputElement) && completedToken.OutputData != null)
             {
                 outCollection.Add(FlowzerConfig.Default.ExpressionHandler.GetValue(completedToken.OutputData,
-                    loopCharacteristics.OutputElement));
+                    loopCharacteristics.FlowzerLoopCharacteristics!.OutputElement));
             }
             else
             {
@@ -61,8 +80,8 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
             }
         }
 
-        if (loopCharacteristics.OutputCollection != null)
-            processInstance.ProcessVariables.SetValue(loopCharacteristics.OutputCollection, outCollection);
+        if (loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection != null)
+            processInstance.VariablesToken(token).Variables!.SetValue(loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection, outCollection);
         
         token.State = FlowNodeState.Completing;
     }
@@ -76,7 +95,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
     }
 
     private List<Token> GenerateMultiInstanceTokens(Token token, MultiInstanceType sequenceType,
-        InstanceEngine instance)
+        InstanceEngine processInstance)
     {
         var currentFlowNode = (Activity)token.CurrentFlowNode!;
         var multiInstanceLoopCharacteristics = ((MultiInstanceLoopCharacteristics)currentFlowNode.LoopCharacteristics!);
@@ -112,17 +131,17 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                     CurrentBaseElement =
                         flowNodeWithoutLoop.ApplyResolveExpression<FlowNode>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            instance.ProcessVariables),
-                    ActiveBoundaryEvents = instance.Process
+                            processInstance.VariablesToken(token).Variables!),
+                    ActiveBoundaryEvents = processInstance.Process
                         .FlowElements
                         .OfType<BoundaryEvent>()
                         .Where(b => b.AttachedToRef.Id == flowNodeWithoutLoop.Id)
                         .Select(b => b.ApplyResolveExpression<BoundaryEvent>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            instance.ProcessVariables)).ToList(),
-                    InputData = dataObj,
-                    OutputData = dataObj,
-                    ParentTokenId = token.Id
+                            processInstance.VariablesToken(token).Variables!)).ToList(),
+                    Variables = dataObj,
+                    ParentTokenId = token.Id,
+                    ProcessInstanceId = token.ProcessInstanceId,
                 };
             ret.Add(newToken);
 

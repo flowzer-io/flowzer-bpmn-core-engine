@@ -10,7 +10,7 @@ public class ProcessFlowNodeHandler : DefaultFlowNodeHandler
         if (processInstance.Tokens.All(t => t.ParentTokenId != token.Id)) // Wenn es noch keine ChildTokens gibt
         {
             var startFlowNodes = process.FlowElements.GetStartFlowNodes();
-            token.OutputData = processInstance.ProcessVariables;
+            token.OutputData = processInstance.VariablesToken(token).Variables!;
             foreach (var startFlowNode in startFlowNodes)
             {
                 processInstance.Tokens.Add(new Token
@@ -18,6 +18,7 @@ public class ProcessFlowNodeHandler : DefaultFlowNodeHandler
                     CurrentBaseElement = 
                         startFlowNode.ApplyResolveExpression<FlowNode>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString, token.OutputData),
+                    ProcessInstanceId = token.ProcessInstanceId,
                     ParentTokenId = token.Id,
                     State = FlowNodeState.Ready,
                     ActiveBoundaryEvents = [],
