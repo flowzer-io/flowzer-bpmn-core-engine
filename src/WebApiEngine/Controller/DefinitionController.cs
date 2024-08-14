@@ -9,7 +9,7 @@ namespace WebApiEngine.Controller;
 public class DefinitionController(
     IStorageSystem storageSystem,
     IMapper mapper,
-    DefinitionBusinessLogic definitionBusinessLogic) : FlowzerControllerBase
+    DefinitionBusinessLogic definitionBusinessLogic, BpmnLogic bpmnLogic) : FlowzerControllerBase
 {
     
     [HttpPost]
@@ -25,9 +25,9 @@ public class DefinitionController(
     {
         var rawContent = await GetRawContent();
         var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
+        bpmnLogic.DeployDefinition(definition.Id);
         return Ok(mapper.Map<BpmnDefinitionDto>(definition));
     }
-
 
 
     [HttpGet("new")]
@@ -70,10 +70,10 @@ public class DefinitionController(
     }
     
     [HttpGet("{id}")]
-    public async Task<ActionResult<BpmnDefinitionDto>> GetDefinitionById([FromRoute] string id)
+    public async Task<ActionResult<BpmnDefinitionDto>> GetDefinitionById([FromRoute] Guid id)
     {
-        var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetDefinitionById(id);
-        var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(allBinaryDefinitions);
+        var definitionById = await storageSystem.DefinitionStorage.GetDefinitionById(id);
+        var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(definitionById);
         return Ok(bpmnDefinitionDto);
     }
     

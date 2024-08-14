@@ -16,6 +16,7 @@ builder.Services.AddSwaggerGen();
 //builder.Services.AddSingleton<IStorageSystem, MemoryStorageSystem.MemoryStorageSystem>();
 builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
+builder.Services.AddSingleton<BpmnLogic>();
 builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddCors(options =>
 {
@@ -42,5 +43,7 @@ app.UseCors("AllowAllOrigins"); // Diese Zeile stellt sicher, dass die CORS-Rich
 // app.UseHttpsRedirection();
 
 app.MapControllers();
+
+app.Services.GetRequiredService<BpmnLogic>().Load();
 
 app.Run();

@@ -2,8 +2,8 @@ namespace Model;
 
 public interface ICatchHandler
 {
-    List<DateTime> ActiveTimers { get; set; }
-    List<MessageDefinition> ActiveCatchMessages { get; set; }
-    List<SignalDefinition> ActiveCatchSignals { get; set; }
+    List<DateTime> ActiveTimers { get; }
+    List<MessageDefinition> ActiveCatchMessages { get; }
+    List<SignalDefinition> ActiveCatchSignals { get;  }
     
 }

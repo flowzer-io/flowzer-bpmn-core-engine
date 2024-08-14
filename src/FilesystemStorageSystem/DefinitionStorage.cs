@@ -99,7 +99,7 @@ public class DefinitionStorage(Storage storage) : IDefinitionStorage
         return Task.FromResult(JsonConvert.DeserializeObject<BpmnMetaDefinition>(content)!);
     }
 
-    public async Task<BpmnDefinition> GetDefinitionById(string id)
+    public async Task<BpmnDefinition> GetDefinitionById(Guid id)
     {
         var fullFileName = Path.Combine(_basePath, $"{id}.json");
         var content = await File.ReadAllTextAsync(fullFileName);

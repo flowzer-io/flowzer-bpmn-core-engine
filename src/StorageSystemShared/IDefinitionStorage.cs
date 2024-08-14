@@ -15,6 +15,6 @@ public interface IDefinitionStorage
     Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition);
     Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition);
     Task<BpmnMetaDefinition> GetMetaDefinitionById(string id);
-    Task<BpmnDefinition> GetDefinitionById(string id);
+    Task<BpmnDefinition> GetDefinitionById(Guid id);
     Task<BpmnDefinition> GetLatestDefinition(string definitionId);
 }
