@@ -9,7 +9,16 @@ public class ProcessEngine(Process process) : ICatchHandler
 
     public InstanceEngine StartProcess(Variables? data = null)
     {
-        var instance = new InstanceEngine(new ProcessInstance { ProcessModel = Process });
+        var masterToken = new Token
+        {
+            CurrentBaseElement = Process,
+            State = FlowNodeState.Active,
+            OutputData = new Variables(),
+            ParentTokenId = null,
+            ActiveBoundaryEvents = [],
+            InputData = null,
+        };
+        var instance = new InstanceEngine([masterToken]);
         instance.Start(data);
         return instance;
     }
@@ -31,22 +40,27 @@ public class ProcessEngine(Process process) : ICatchHandler
     }
 
 
-    public async Task<InstanceEngine> HandleTime(DateTime time)
-    {
-        var processInstance = new ProcessInstance
-        {
-            ProcessModel = Process
-        };
-        return  new InstanceEngine(processInstance);
-    }
+    // public async Task<InstanceEngine> HandleTime(DateTime time)
+    // {
+    //     var processInstance = new ProcessInstance
+    //     {
+    //         ProcessModel = Process
+    //     };
+    //     return  new InstanceEngine(processInstance);
+    // }
 
     public InstanceEngine HandleMessage(Message message)
     {
-        var processInstance = new ProcessInstance
+        var masterToken = new Token
         {
-            ProcessModel = Process
+            CurrentBaseElement = Process,
+            State = FlowNodeState.Active,
+            OutputData = new Variables(),
+            ParentTokenId = null,
+            ActiveBoundaryEvents = [],
+            InputData = null,
         };
-        var instanceEngine = new InstanceEngine(processInstance);
+        var instanceEngine = new InstanceEngine([masterToken]);
 
         instanceEngine.HandleMessage(message);
         
@@ -60,11 +74,16 @@ public class ProcessEngine(Process process) : ICatchHandler
             .Where(e => e.Signal.Name == signalName)
             .Select(startEvent =>
         {
-            var processInstance = new ProcessInstance
+            var masterToken = new Token
             {
-                ProcessModel = Process
+                CurrentBaseElement = Process,
+                State = FlowNodeState.Active,
+                OutputData = new Variables(),
+                ParentTokenId = null,
+                ActiveBoundaryEvents = [],
+                InputData = null,
             };
-            var instanceEngine = new InstanceEngine(processInstance);
+            var instanceEngine = new InstanceEngine([masterToken]);
 
             instanceEngine.HandleSignal(signalName, JsonConvert.SerializeObject(signalData), startEvent);
 

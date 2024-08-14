@@ -4,9 +4,9 @@ namespace core_engine.Handler;
 
 internal class ExclusiveGatewayHandler : DefaultFlowNodeHandler
 {
-    public override List<Token> GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
+    public override List<Token> GenerateOutgoingTokens(FlowzerConfig config, InstanceEngine processInstance, Token token)
     {
-        var outgoingSequenceFlows = processInstance.ProcessModel.FlowElements
+        var outgoingSequenceFlows = processInstance.Process.FlowElements
             .OfType<SequenceFlow>()
             .Where(x => x.SourceRef == token.CurrentFlowNode)
             .ToArray();

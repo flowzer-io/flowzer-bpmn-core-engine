@@ -1,4 +1,5 @@
 using core_engine.Exceptions;
+using core_engine.Extensions;
 using Newtonsoft.Json;
 
 namespace core_engine;
@@ -24,11 +25,11 @@ public partial class InstanceEngine
 
     public void HandleSignal(string signalName, string? signalData = null, FlowNode? startNode = null)
     {
-        if (Instance.Tokens.Count == 0) // Da es noch keine Tokens gibt, muss es ein StartNode sein
+        if (Tokens.Count == 1) // Da es noch keine Tokens gibt, muss es ein StartNode sein  // ToDo: Das geht nicht mehr gut mit der neuen Tokenlogik
         {
             var startFlowNodes =
-                Instance.ProcessModel
-                    .StartFlowNodes
+                ((Process)MasterToken.CurrentBaseElement)
+                    .GetStartFlowNodes()
                     .OfType<FlowzerSignalStartEvent>()
                     .ToArray();
 
@@ -36,12 +37,12 @@ public partial class InstanceEngine
                 ? startFlowNodes.Single()
                 : startFlowNodes.Single(n => n == startNode);
 
-            Instance.Tokens.Add(new Token
+            Tokens.Add(new Token
             {
-                CurrentFlowNode = startFlowNode,
+                CurrentBaseElement = startFlowNode,
                 ActiveBoundaryEvents = [],
                 OutputData = JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables(),
-                ProcessInstance = Instance,
+                ParentTokenId = MasterToken.Id,
                 State = FlowNodeState.Completing
             });
             Run();

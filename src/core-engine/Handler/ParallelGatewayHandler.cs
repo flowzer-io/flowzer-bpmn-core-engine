@@ -4,10 +4,10 @@ namespace core_engine.Handler;
 
 internal class ParallelGatewayHandler : DefaultFlowNodeHandler
 {
-    public override void Execute(ProcessInstance processInstance, Token token)
+    public override void Execute(InstanceEngine processInstance, Token token)
     {
-        var incomingSequenceFlowIds = processInstance.ProcessModel.FlowElements.OfType<SequenceFlow>()
-            .Where(x => x.TargetRef.Id == token.CurrentFlowNode.Id)
+        var incomingSequenceFlowIds = processInstance.Process.FlowElements.OfType<SequenceFlow>()
+            .Where(x => x.TargetRef.Id == token.CurrentBaseElement.Id)
             .Select(sf => sf.Id)
             .ToList();
 
@@ -15,7 +15,7 @@ internal class ParallelGatewayHandler : DefaultFlowNodeHandler
         foreach (var tokenAtInput in incomingSequenceFlowIds
                      .Select(incomingSequenceFlowId => processInstance.Tokens
                          .FirstOrDefault(x =>
-                             x.CurrentFlowNode.Id == token.CurrentFlowNode.Id &&
+                             x.CurrentBaseElement.Id == token.CurrentBaseElement.Id &&
                              x.LastSequenceFlow?.Id == incomingSequenceFlowId && x.State == FlowNodeState.Active)))
         {
             if (tokenAtInput == null)
@@ -28,9 +28,9 @@ internal class ParallelGatewayHandler : DefaultFlowNodeHandler
             tokenToMerge.State = FlowNodeState.Merged;
     }
 
-    public override List<Token>? GenerateOutgoingTokens(FlowzerConfig config, ProcessInstance processInstance, Token token)
+    public override List<Token>? GenerateOutgoingTokens(FlowzerConfig config, InstanceEngine processInstance, Token token)
     {
-        if (processInstance.ProcessModel.FlowElements
+        if (processInstance.Process.FlowElements
             .OfType<SequenceFlow>()
             .Any(x => x.SourceRef == token.CurrentFlowNode && (x.FlowzerCondition is not null || x.FlowzerIsDefault is true)))
             throw new FlowzerRuntimeException("There is a SequenceFlow with a Condition or default for Parallel Gateway");

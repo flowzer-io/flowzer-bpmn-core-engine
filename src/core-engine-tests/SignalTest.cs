@@ -20,14 +20,14 @@ public class SignalTest
         using (new AssertionScope())
         {
             instanceEngines.Should().ContainSingle();
-            instanceEngines[0].Instance.State.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngines[0].ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
         }
         
         instanceEngines[0].HandleSignal("SignalIntermediate");
         using (new AssertionScope())
         {
-            instanceEngines[0].Instance.State.Should().Be(ProcessInstanceState.Completed);
-            instanceEngines[0].Instance.Tokens.Should().HaveCount(3);
+            instanceEngines[0].ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngines[0].Tokens.Should().HaveCount(4);
         }
     }
 
@@ -35,16 +35,16 @@ public class SignalTest
     public void Flow2Test()
     {
         var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartTwo");
-        var engine = instanceEngines.SingleOrDefault(engine => engine.Instance.State == ProcessInstanceState.Waiting);
+        var engine = instanceEngines.SingleOrDefault(engine => engine.ProcessInstanceState == ProcessInstanceState.Waiting);
         using (new AssertionScope())
         {
             instanceEngines.Should().HaveCount(2);
             engine.Should().NotBeNull();
-            instanceEngines.Where(e => e.Instance.State == ProcessInstanceState.Completed)
+            instanceEngines.Where(e => e.ProcessInstanceState == ProcessInstanceState.Completed)
                 .Should().ContainSingle();
             
             engine?.HandleServiceTaskResult("step1");
-            engine?.Instance.State.Should().Be(ProcessInstanceState.Completed);
+            engine?.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
         }
     }
 }

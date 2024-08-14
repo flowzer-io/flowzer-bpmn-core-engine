@@ -1,7 +1,5 @@
 using BPMN.Flowzer.Events;
 using BPMN.Process;
-using core_engine;
-using Model;
 
 namespace WebApiEngine.Controller;
 
@@ -86,7 +84,7 @@ public class ModelController(IWebHostEnvironment env, IStorageSystem storageSyst
 
             storageSystem.ProcessStorage.AddProcessInfo(processInfo);
             foreach (var flowzerMessageStartEvent in
-                     processInfo.Process.StartFlowNodes.OfType<FlowzerMessageStartEvent>())
+                     processInfo.Process.GetStartFlowNodes().OfType<FlowzerMessageStartEvent>())
             {
                 var messageDefinition = flowzerMessageStartEvent.MessageDefinition;
                 var messageSubscription =

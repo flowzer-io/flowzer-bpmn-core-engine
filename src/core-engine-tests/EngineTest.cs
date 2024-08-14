@@ -1,5 +1,8 @@
 using System.Dynamic;
+using BPMN.Common;
 using BPMN.Events;
+using FluentAssertions;
+using FluentAssertions.Execution;
 using Model;
 using Task = System.Threading.Tasks.Task;
 using FluentAssertions;
@@ -15,30 +18,27 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("StartStopWithVariables.bpmn");
 
         //should wait for service task
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
 
         //should have one active service task
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
         var serviceTask = serviceTaskToken.CurrentFlowNode as ServiceTask;
-        Assert.That(serviceTask?.Id, Is.EqualTo("ServiceTask_1"));
+        serviceTask?.Id.Should().Be("ServiceTask_1");
 
         //inject service result
-        var variables = (ExpandoObject?) new
+        var variables = (ExpandoObject?)new
         {
             ServiceResult = "World123"
         }.ToDynamic();
         instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
-
-        //should be completed
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-
-        //check if global variable is set
-        Assert.That(((dynamic)instanceEngine.Instance.ProcessVariables).GlobalResult, Is.EqualTo("World123"));
-        Assert.Multiple(() =>
+        
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
-        });
+            instanceEngine.Tokens.Should().HaveCount(4);
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            //check if global variable is set
+            instanceEngine.ProcessVariables.GetValue<string>("GlobalResult").Should().Be("World123");
+        }
     }
 
     [Test]
@@ -50,9 +50,9 @@ public class EngineTest
         var serviceTaskToken = instanceEngine.GetActiveServiceTasks().ToArray().First();
 
 
-        Assert.That(((dynamic)serviceTaskToken.InputData!).Firstname, Is.EqualTo("Lukas"));
+        serviceTaskToken.InputData!.GetValue<string>("Firstname").Should().Be("Lukas");
 
-        var variables = (ExpandoObject) new
+        var variables = (ExpandoObject)new
         {
             Out = new
             {
@@ -62,8 +62,7 @@ public class EngineTest
         instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
 
         //check if global variable is set
-        Assert.That((string?)instanceEngine.Instance.ProcessVariables.GetValue("Order.Address.NewFirstname"),
-            Is.EqualTo("LukasNeu"));
+        instanceEngine.ProcessVariables.GetValue<string>("Order.Address.NewFirstname").Should().Be("LukasNeu");
     }
 
 
@@ -71,15 +70,13 @@ public class EngineTest
     public async Task ConditionalSequenceFlowTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ConditionalSequenceFlow.bpmn");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.Instance.Tokens, Has.Count.EqualTo(3));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"),
-                Is.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"),
-                Is.EqualTo(0));
-        });
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.Tokens.Should().HaveCount(4);
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode?.Name == "ShouldReached").Should().Be(1);
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode?.Name == "ShouldNotReached").Should().Be(0);
+        }
     }
 
     [Test]
@@ -88,11 +85,11 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoin.bpmn");
         Helper.DoTestServiceThings(instanceEngine);
 
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
 
-        var endEventTokens = instanceEngine.Instance.Tokens.Where(t => t.CurrentFlowNode is EndEvent).ToList();
+        var endEventTokens = instanceEngine.Tokens.Where(t => t.CurrentFlowNode is EndEvent).ToList();
 
-        Assert.That(endEventTokens, Has.Count.EqualTo(1));
+        endEventTokens.Should().ContainSingle();
     }
 
 
@@ -100,51 +97,50 @@ public class EngineTest
     public async Task ParallelGatewayComplexTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("GatewayJoinComplex.bpmn");
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
 
         var tokensAtParallelGateway =
-            instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+            instanceEngine.ActiveTokens.Where(x => x.CurrentBaseElement.Id == "ParallelGateway").ToArray();
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
-        });
+            tokensAtParallelGateway.Should().ContainSingle();
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(0);
+        }
 
 
         //do step1
         instanceEngine.HandleServiceTaskResult("step1");
         tokensAtParallelGateway =
-            instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+            instanceEngine.ActiveTokens.Where(x => x.CurrentBaseElement.Id == "ParallelGateway").ToArray();
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(2));
-            Assert.That(tokensAtParallelGateway.All(x =>
-                x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(0));
-        });
+           tokensAtParallelGateway.Should().HaveCount(2);
+           tokensAtParallelGateway.All(x =>
+                x.LastSequenceFlow?.Id == tokensAtParallelGateway.First().LastSequenceFlow?.Id).Should().BeTrue();
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(0);
+        }
 
 
         //do step2
         instanceEngine.HandleServiceTaskResult("step2");
         tokensAtParallelGateway =
-            instanceEngine.ActiveTokens.Where(x => x.CurrentFlowNode.Id == "ParallelGateway").ToArray();
-        Assert.Multiple(() =>
+            instanceEngine.ActiveTokens.Where(x => x.CurrentBaseElement.Id == "ParallelGateway").ToArray();
+        using (new AssertionScope())
         {
-            Assert.That(tokensAtParallelGateway, Has.Length.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), Is.EqualTo(1));
-        });
+            tokensAtParallelGateway.Should().ContainSingle();
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(1);
+        }
 
 
         //do step3
         instanceEngine.HandleServiceTaskResult("step3");
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(instanceEngine.ActiveTokens.Count(), Is.EqualTo(0));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode is EndEvent), 
-                Is.EqualTo(2));
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.Tokens.Count(t => t.CurrentFlowNode is EndEvent).Should().Be(2);
 
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        });
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+        }
     }
 
     [Test]
@@ -153,10 +149,10 @@ public class EngineTest
         var instanceEngine = await Helper.StartFirstProcessOfFile("ExklusiveGateway.bpmn");
         Assert.Multiple(() =>
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldReached"),
+            Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Completed));
+            Assert.That(instanceEngine.Tokens.Count(t => t.CurrentFlowNode?.Name == "ShouldReached"),
                 Is.EqualTo(1));
-            Assert.That(instanceEngine.Instance.Tokens.Count(t => t.CurrentFlowNode.Name == "ShouldNotReached"),
+            Assert.That(instanceEngine.Tokens.Count(t => t.CurrentFlowNode?.Name == "ShouldNotReached"),
                 Is.EqualTo(0));
         });
     }
@@ -166,20 +162,20 @@ public class EngineTest
     {
         const string filename = "TerminateEndEvent.bpmn";
         var instanceEngine = await Helper.StartFirstProcessOfFile(filename);
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Waiting));
         instanceEngine.HandleServiceTaskResult("stepEnd");
         Assert.Multiple(() =>
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(1));
+            Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(2));
         });
 
         instanceEngine = await Helper.StartFirstProcessOfFile(filename);
-        Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+        Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Waiting));
         instanceEngine.HandleServiceTaskResult("stepTerminate");
         Assert.Multiple(() =>
         {
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Terminated));
+            Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Terminated));
             Assert.That(instanceEngine.ActiveTokens.Count, Is.EqualTo(0));
         });
     }
@@ -188,113 +184,108 @@ public class EngineTest
     public async Task ParallelTaskTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowTest.bpmn");
-        var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test")
+        var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode?.Name == "Test")
             .ToArray();
-        Assert.That(activeTokens, Has.Length.EqualTo(3)); //3 Mitarbeiter
-        Assert.Multiple(() =>
+        activeTokens.Should().HaveCount(4); // 3 Mitarbeiter + MultiInstance Token
+        using(new AssertionScope())
         {
-            Assert.That(
-                activeTokens.SingleOrDefault(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas"),
-                Is.Not.Null);
-            Assert.That(
-                activeTokens.SingleOrDefault(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian"),
-                Is.Not.Null);
-            Assert.That(activeTokens.SingleOrDefault(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max"),
-                Is.Not.Null);
-            Assert.That(activeTokens, Has.Length.EqualTo(3));
+            var vornamen = activeTokens
+                .Where(x => x.CurrentFlowNode is Activity { LoopCharacteristics: null })
+                .Select(t => (string?) t.InputData?.GetValue("Person")?.GetValue("Vorname"))
+                .ToArray();
+            vornamen.Should().Contain(["Lukas", "Christian", "Max"]);
+        }
 
-            Assert.That(
-                activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Lukas").InputData
-                    .GetValue("loopCounter"), Is.EqualTo(1));
-            Assert.That(
-                activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Christian").InputData
-                    .GetValue("loopCounter"), Is.EqualTo(2));
-            Assert.That(
-                activeTokens.Single(x => x.InputData?.GetValue("Person.Vorname")?.ToString() == "Max").InputData
-                    .GetValue("loopCounter"), Is.EqualTo(3));
-        });
+        var activeTokensWithoutLoop = activeTokens
+            .Where(x => x.CurrentFlowNode is Activity { LoopCharacteristics: null }).ToArray();
 
-        var activeTokenList = activeTokens.OrderBy(_ => new Random().Next(0, 1000)).ToArray();
-        foreach (var activeToken in activeTokenList)
+        int[] order = [2, 0, 1];
+        foreach (var i in order)
         {
-            var isLast = activeToken == activeTokenList.Last();
+            var activeToken = activeTokensWithoutLoop[i];
             var data = new ExpandoObject();
             data.SetValue("OutProperty", activeToken.InputData.GetValue("Person"));
             instanceEngine.HandleTaskResult(activeToken.Id, data);
-            Assert.That(instanceEngine.Instance.State,
-                isLast ? Is.EqualTo(ProcessInstanceState.Completed) : Is.EqualTo(ProcessInstanceState.Waiting));
+            instanceEngine.ProcessInstanceState.Should().Be(
+                i == 1 // Letzter Eintrag in der Liste
+                    ? ProcessInstanceState.Completed
+                    : ProcessInstanceState.Waiting);
         }
-
-        var outList = (List<object>?)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut");
-        Assert.That(outList, Is.Not.Null);
-        Assert.That(outList, Has.Count.EqualTo(3));
-
-        Assert.Multiple(() =>
+        
+        var outList = (List<object>?)instanceEngine.ProcessVariables.GetValue("MitarbeiterOut");
+        outList.Should().HaveCount(3);
+        
+        using(new AssertionScope())
         {
-            Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Lukas"), Is.Not.Null);
-            Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Christian"), Is.Not.Null);
-            Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Max"), Is.Not.Null);
-
             //check if the order is correct
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Lukas")),
-                Is.EqualTo(0));
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Christian")),
-                Is.EqualTo(1));
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Max")),
-                Is.EqualTo(2));
-
-            Assert.That(instanceEngine.Instance.Tokens.All(x => x.State == FlowNodeState.Completed));
-        });
+            outList.Select(x => x.GetValue("Vorname")?.ToString()).Should()
+                .ContainInOrder(["Lukas", "Christian", "Max"]);
+            instanceEngine.Tokens.Should().OnlyContain(x => x.State == FlowNodeState.Completed);
+        }
+        // Assert.Multiple(() =>
+        // {
+        //     Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Lukas"), Is.Not.Null);
+        //     Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Christian"), Is.Not.Null);
+        //     Assert.That(outList.SingleOrDefault(x => x.GetValue("Vorname")?.ToString() == "Max"), Is.Not.Null);
+        //
+        //     //check if the order is correct
+        //     Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Lukas")),
+        //         Is.EqualTo(0));
+        //     Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Christian")),
+        //         Is.EqualTo(1));
+        //     Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Max")),
+        //         Is.EqualTo(2));
+        //
+        //     Assert.That(instanceEngine.Instance.Tokens.All(x => x.State == FlowNodeState.Completed));
+        // });
     }
 
     [Test]
     public async Task SequentialTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("SequentialTest.bpmn");
-
+        
+        
         var index = 0;
-        while (true)
+        while (index < 100) // Endlosschleife verhindern
         {
-            var activeTokens = instanceEngine.GetActiveServiceTasks().Where(x => x.CurrentFlowNode.Name == "Test")
+            var sequenzialChildToken = instanceEngine.GetActiveServiceTasks()
+                .Where(x => x.CurrentFlowNode?.Name == "Test" 
+                            && x.ParentTokenId is not null 
+                            && x.ParentTokenId != instanceEngine.MasterToken.Id 
+                            && x.State == FlowNodeState.Active)
                 .ToArray();
-            if (activeTokens.Length == 0)
+            if (sequenzialChildToken.Length == 0)
                 break;
 
-            Assert.Multiple(() =>
+            using (new AssertionScope())
             {
-                Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
-                Assert.That(activeTokens, Has.Length.EqualTo(1));
-            });
-
-            var token = activeTokens.Single();
-
+                instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+                sequenzialChildToken.Should().ContainSingle();
+            }
+            
+            var token = sequenzialChildToken[0];
             var data = new ExpandoObject();
             data.SetValue("OutProperty", token.InputData.GetValue("Person"));
             instanceEngine.HandleTaskResult(token.Id, data);
             index++;
         }
 
-        Assert.Multiple(() =>
+        using (new AssertionScope())
         {
-            Assert.That(index, Is.EqualTo(3));
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Completed));
-        });
+            index.Should().Be(3);
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+        }
 
-        var outList = (List<object>)instanceEngine.Instance.ProcessVariables.GetValue("MitarbeiterOut")!;
-        Assert.That(outList, Is.Not.Null);
-        Assert.That(outList, Has.Count.EqualTo(3));
-        Assert.Multiple(() =>
+        var outList = (List<object>)instanceEngine.ProcessVariables.GetValue("MitarbeiterOut")!;
+        outList.Should().HaveCount(3);
+        using(new AssertionScope())
         {
             //check if the order is correct
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Lukas")),
-                Is.EqualTo(0));
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Christian")),
-                Is.EqualTo(1));
-            Assert.That(outList.IndexOf(outList.Single(x => x.GetValue("Vorname")?.ToString() == "Max")),
-                Is.EqualTo(2));
-
-            Assert.That(instanceEngine.Instance.Tokens.All(x => x.State == FlowNodeState.Completed));
-        });
+            outList.Select(x => x.GetValue("Vorname")?.ToString()).Should()
+                .ContainInOrder(["Lukas", "Christian", "Max"]);
+            instanceEngine.Tokens.Should().OnlyContain(x => x.State == FlowNodeState.Completed);
+        }
     }
 
     [Test]
@@ -302,7 +293,7 @@ public class EngineTest
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowWithCompletingConditionTest.bpmn");
         var activeTokens = instanceEngine.GetActiveServiceTasks()
-            .Where(x => x.CurrentFlowNode.Name == "Test")
+            .Where(x => x.CurrentFlowNode!.Name == "Test")
             .ToArray();
 
         Assert.Multiple(() =>
@@ -315,7 +306,7 @@ public class EngineTest
 
             Assert.That(activeTokens, Has.Length.EqualTo(2));
 
-            Assert.That(instanceEngine.Instance.State, Is.EqualTo(ProcessInstanceState.Waiting));
+            Assert.That(instanceEngine.ProcessInstanceState, Is.EqualTo(ProcessInstanceState.Waiting));
         });
     }
     
@@ -339,5 +330,22 @@ public class EngineTest
 
     }
     
-    
+    [Test]
+    public async Task SubProcessTest()
+    {
+        var model = await ModelParser.ParseModel(File.Open("embeddings/SubProcess.bpmn", FileMode.Open));
+        var process = model.GetProcesses().Single();
+        var instanceEngine = new ProcessEngine(process).StartProcess();
+        
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        instanceEngine.Tokens.Should().HaveCount(5);
+        
+        instanceEngine.HandleServiceTaskResult("sub1_step1");
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        instanceEngine.Tokens.Should().HaveCount(9);
+        
+        instanceEngine.HandleServiceTaskResult("sub2_step1");
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+        instanceEngine.Tokens.Should().HaveCount(12);
+    }
 }

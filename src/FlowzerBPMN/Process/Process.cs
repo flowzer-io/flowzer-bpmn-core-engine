@@ -7,15 +7,6 @@ public record Process : IFlowElementContainer, ICallableElement
     public FlowzerList<ExtensionDefinition>? ExtensionDefinitions { get; init; }
     public FlowzerList<FlowElement> FlowElements { get; init; } = [];
 
-    public List<FlowNode> StartFlowNodes =>
-        FlowElements
-            .Where(x =>
-                x is StartEvent ||
-                x.GetType().IsSubclassOf(typeof(Activity)))
-            .Where(x => FlowElements.OfType<SequenceFlow>().All(f => f.TargetRef != x))
-            .Cast<FlowNode>().ToList();
-
-
     public ProcessType ProcessType { get; init; }
     public bool IsExecutable { get; init; }
     public bool IsClosed { get; init; }
