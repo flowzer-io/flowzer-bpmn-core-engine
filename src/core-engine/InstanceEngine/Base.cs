@@ -2,8 +2,10 @@ using core_engine.Exceptions;
 
 namespace core_engine;
 
-public partial class InstanceEngine
+public partial class InstanceEngine: ICatchHandler
 {
+    public Guid InstanceId { get; set; }
+    
     public InstanceEngine(List<Token> tokens, bool allTokensIncluded = true)
     {
         if (tokens.SingleOrDefault(t => t.ParentTokenId == null) == null)
@@ -97,14 +99,10 @@ public partial class InstanceEngine
         throw new NotImplementedException();
     }
 
-    public List<TimerEventDefinition> ActiveTimers()
-    {
-        throw new NotImplementedException();
-    }
-
     // public Task<ProcessInstance> HandleTime(DateTime time)
     // {
     //     throw new NotImplementedException();
     // }
 
+    List<DateTime> ICatchHandler.ActiveTimers => throw new NotImplementedException();
 }

@@ -14,6 +14,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 //builder.Services.AddSingleton<IStorageSystem, MemoryStorageSystem.MemoryStorageSystem>();
+builder.Services.AddSingleton<ITransactionalStorageProvider, FilesystemStorageSystem.FileSystemTransactionalStorageProvider>();
 builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnLogic>();
@@ -47,3 +48,4 @@ app.MapControllers();
 app.Services.GetRequiredService<BpmnLogic>().Load();
 
 app.Run();
+

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 using WebApiEngine.Shared;
 
@@ -17,6 +18,8 @@ public partial class EditDefinition
     [Inject]
     public required FlowzerApi FlowzerApi { get; set; }
 
+    [Inject]
+    private IDialogService DialogService { get; set; }
 
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
@@ -141,8 +144,17 @@ public partial class EditDefinition
     private async void OnDeployClick()
     {
         var xmlData = await GetXmlData();
-        var definition = await FlowzerApi.DeployDefinition(xmlData);
-        CurrentDefinition = definition;
+        try
+        {
+            var definition = await FlowzerApi.DeployDefinition(xmlData);
+            CurrentDefinition = definition;
+        }
+        catch (Exception e)
+        {
+            var dialog = await DialogService.ShowErrorAsync(e.Message, "Error");
+            await dialog.Result;
+        }
+ 
         StateHasChanged();
     }
 

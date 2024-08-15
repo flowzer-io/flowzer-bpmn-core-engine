@@ -339,7 +339,7 @@ public class EngineTest
         var model = await ModelParser.ParseModel(File.Open("embeddings/SimpleTimerEvent.bpmn", FileMode.Open));
         var process = model.GetProcesses();
         var processEngine = new ProcessEngine(process.First());
-        var activeTimers = processEngine.GetActiveTimers().ToArray();
+        var activeTimers = processEngine.ActiveTimers.ToArray();
         activeTimers.Should().HaveCount(1);
         activeTimers.Single().Should().BeCloseTo(DateTime.Now.AddSeconds(2), new TimeSpan(0, 0, 0, 0, 100));
 

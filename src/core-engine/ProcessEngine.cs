@@ -5,6 +5,7 @@ namespace core_engine;
 
 public class ProcessEngine(Process process) : ICatchHandler
 {
+    
     public Process Process { get; set; } = process;
 
     public InstanceEngine StartProcess(Variables? data = null)
@@ -113,17 +114,13 @@ public class ProcessEngine(Process process) : ICatchHandler
         }
     }
 
-    public List<SignalDefinition> ActiveCatchSignals
+    public List<string> ActiveCatchSignals
     {
         get
         {
             return Process.FlowElements
                 .OfType<FlowzerSignalStartEvent>()
-                .Select(e => new SignalDefinition
-                {
-                    Id = e.Signal.FlowzerId ?? "", 
-                    Name = e.Signal.Name
-                }).ToList();
+                .Select(e => e.Signal.Name).ToList();
         }
     }
 }

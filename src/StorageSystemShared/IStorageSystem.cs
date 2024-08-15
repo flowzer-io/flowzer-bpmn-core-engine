@@ -2,8 +2,16 @@ namespace StorageSystem;
 
 public interface IStorageSystem
 {
-    IProcessStorage ProcessStorage { get; }
+    /// <summary>
+    /// MetaDefinition
+    ///  - Definition
+    ///    + Process
+    ///    + Process
+    ///  + Definition
+    /// </summary>
+    IDefinitionStorage DefinitionStorage { get; }
+    
+    IMessageSubscriptionStorage SubscriptionStorage { get; }
+    
     IInstanceStorage InstanceStorage { get; }
-    IMessageSubscriptionStorage MessageSubscriptionStorage { get; }
-    IDefinitionStorage DefinitionStorage { get; set; }
 }

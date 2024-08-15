@@ -21,12 +21,19 @@ public class DefinitionController(
     }
     
     [HttpPost("deploy")]
-    public async Task<ActionResult<BpmnDefinitionDto>> DeployDefinition([FromQuery] Guid? previousGuid)
+    public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
-        var rawContent = await GetRawContent();
-        var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
-        bpmnLogic.DeployDefinition(definition.Id);
-        return Ok(mapper.Map<BpmnDefinitionDto>(definition));
+        try
+        {
+            var rawContent = await GetRawContent();
+            var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
+            await bpmnLogic.DeployDefinition(definition);
+            return Ok(new ApiStatusResult<BpmnDefinitionDto>(mapper.Map<BpmnDefinitionDto>(definition)));
+        }
+        catch (Exception e)
+        {
+            return BadRequest(new ApiStatusResult<BpmnDefinitionDto>(e.Message));
+        }
     }
 
 

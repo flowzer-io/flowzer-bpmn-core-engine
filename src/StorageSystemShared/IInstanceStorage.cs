@@ -1,9 +1,15 @@
+using BPMN.Process;
+
 namespace StorageSystem;
 
 public interface IInstanceStorage
 {
-    IEnumerable<ProcessInstance> GetAllInstances();
-    void AddInstance(ProcessInstance instance);
-    ProcessInstance GetInstanceById(Guid instanceId);
-    
+    public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId);
+    Task AddInstance(ProcessInstanceInfo processInstanceInfo);
 }
+
+public record ProcessInstanceInfo (
+    Guid Id,
+    Guid DefinitionId,
+    string ProcessId,
+    List<Token> Tokens);

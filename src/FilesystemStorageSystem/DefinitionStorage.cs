@@ -6,11 +6,10 @@ namespace FilesystemStorageSystem;
 
 public class DefinitionStorage(Storage storage) : IDefinitionStorage
 {
-    private readonly string _binaryBasePath = storage.GetBasePath("Definitions/Binary");
-    private readonly string _basePath = storage.GetBasePath("Definitions");
-    private readonly string _metabasePath = storage.GetBasePath("Definitions/Meta");
+    private readonly string _binaryBasePath = storage.GetBasePath("FileStorage/Definitions/Binary");
+    private readonly string _basePath = storage.GetBasePath("FileStorage/Definitions");
+    private readonly string _metabasePath = storage.GetBasePath("FileStorage/Definitions/Meta");
     
-
 
     public async Task StoreBinary(Guid guid, string data)
     {

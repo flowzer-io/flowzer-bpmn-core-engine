@@ -11,48 +11,51 @@ public partial class InstanceEngine
     /// </summary>
     /// <returns>Liste von Nachrichten inklusive CorrelationKey</returns>
     /// <exception cref="NotImplementedException"></exception>
-    public List<MessageDefinition> GetActiveCatchMessages()
+    public List<MessageDefinition> ActiveCatchMessages
     {
-        var messageDefinitions = new List<MessageDefinition>();
-        foreach (var token in ActiveTokens)
+        get
         {
-            switch (token.CurrentFlowNode)
+            var messageDefinitions = new List<MessageDefinition>();
+            foreach (var token in ActiveTokens)
             {
-                case FlowzerIntermediateMessageCatchEvent catchEvent:
-                    messageDefinitions.Add(new MessageDefinition()
-                    {
-                        Name = catchEvent.MessageDefinition.Name,
-                        FlowzerCorrelationKey = catchEvent.MessageDefinition.FlowzerCorrelationKey
-                    });
-                    break;
+                switch (token.CurrentFlowNode)
+                {
+                    case FlowzerIntermediateMessageCatchEvent catchEvent:
+                        messageDefinitions.Add(new MessageDefinition()
+                        {
+                            Name = catchEvent.MessageDefinition.Name,
+                            FlowzerCorrelationKey = catchEvent.MessageDefinition.FlowzerCorrelationKey
+                        });
+                        break;
 
-                case ReceiveTask { MessageRef: not null } receiveTask:
-                    messageDefinitions.Add(new MessageDefinition()
+                    case ReceiveTask { MessageRef: not null } receiveTask:
+                        messageDefinitions.Add(new MessageDefinition()
+                        {
+                            Name = receiveTask.MessageRef.Name,
+                            FlowzerCorrelationKey = receiveTask.MessageRef.FlowzerCorrelationKey
+                        });
+                        break;
+                }
+
+                messageDefinitions.AddRange(token.ActiveBoundaryEvents.OfType<FlowzerBoundaryMessageEvent>()
+                    .Select(boundaryEvent => new MessageDefinition()
                     {
-                        Name = receiveTask.MessageRef.Name,
-                        FlowzerCorrelationKey = receiveTask.MessageRef.FlowzerCorrelationKey
-                    });
-                    break;
+                        Name = boundaryEvent.MessageDefinition.Name,
+                        FlowzerCorrelationKey = boundaryEvent.MessageDefinition.FlowzerCorrelationKey
+                    }));
             }
 
-            messageDefinitions.AddRange(token.ActiveBoundaryEvents.OfType<FlowzerBoundaryMessageEvent>()
-                .Select(boundaryEvent => new MessageDefinition()
-                {
-                    Name = boundaryEvent.MessageDefinition.Name,
-                    FlowzerCorrelationKey = boundaryEvent.MessageDefinition.FlowzerCorrelationKey
-                }));
-        }
+            if (Tokens.Count == 0)
+            {
+                messageDefinitions.AddRange(
+                    ((Process)MasterToken.CurrentBaseElement)
+                    .GetStartFlowNodes()
+                    .OfType<FlowzerMessageStartEvent>()
+                    .Select(startEvent => new MessageDefinition { Name = startEvent.MessageDefinition.Name }));
+            }
 
-        if (Tokens.Count == 0)
-        {
-            messageDefinitions.AddRange(
-                ((Process)MasterToken.CurrentBaseElement)
-                .GetStartFlowNodes()
-                .OfType<FlowzerMessageStartEvent>()
-                .Select(startEvent => new MessageDefinition { Name = startEvent.MessageDefinition.Name }));
+            return messageDefinitions;
         }
-
-        return messageDefinitions;
     }
 
     public void HandleMessage(Message message)

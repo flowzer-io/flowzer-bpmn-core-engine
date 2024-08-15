@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using core_engine.Exceptions;
 using core_engine.Extensions;
 using Newtonsoft.Json;
@@ -6,22 +7,26 @@ namespace core_engine;
 
 public partial class InstanceEngine
 {
-    public IEnumerable<string> GetActiveCatchSignals()
+    public List<string> ActiveCatchSignals
     {
-        List<string> signalDefinitions = [];
-
-        foreach (var token in ActiveTokens)
+        get
         {
-            if (token.CurrentFlowNode is FlowzerIntermediateSignalCatchEvent catchEvent)
-                signalDefinitions.Add(catchEvent.Signal.Name);
+            List<string> signalDefinitions = [];
 
-            signalDefinitions.AddRange(token.ActiveBoundaryEvents
-                .OfType<FlowzerBoundarySignalEvent>()
-                .Select(e => e.Signal.Name));
+            foreach (var token in ActiveTokens)
+            {
+                if (token.CurrentFlowNode is FlowzerIntermediateSignalCatchEvent catchEvent)
+                    signalDefinitions.Add(catchEvent.Signal.Name);
+
+                signalDefinitions.AddRange(token.ActiveBoundaryEvents
+                    .OfType<FlowzerBoundarySignalEvent>()
+                    .Select(e => e.Signal.Name));
+            }
+
+            return signalDefinitions.Distinct().ToList();
         }
-
-        return signalDefinitions.Distinct();
     }
+    
 
     public void HandleSignal(string signalName, string? signalData = null, FlowNode? startNode = null)
     {

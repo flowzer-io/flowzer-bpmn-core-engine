@@ -21,10 +21,10 @@ public class MessageTest
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
             instanceEngine.MasterToken.Variables.GetValue("AuftragsNr").Should().Be(12345); 
             instanceEngine.ActiveTokens.Should().HaveCount(2);
-            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
-            instanceEngine.GetActiveCatchMessages().Select(i => i.Name)
+            instanceEngine.ActiveCatchMessages.Should().HaveCount(2);
+            instanceEngine.ActiveCatchMessages.Select(i => i.Name)
                 .Should().Contain(["NachrichtBoundary", "NachrichtBoundaryNI"]);
-            instanceEngine.GetActiveCatchMessages().First().FlowzerCorrelationKey.Should().Be("12345");
+            instanceEngine.ActiveCatchMessages.First().FlowzerCorrelationKey.Should().Be("12345");
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundaryNI" });
@@ -33,10 +33,10 @@ public class MessageTest
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
             instanceEngine.ActiveTokens.Should().HaveCount(3);
-            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
+            instanceEngine.ActiveCatchMessages.Should().HaveCount(2);
             instanceEngine.HandleServiceTaskResult("step2");
             instanceEngine.ActiveTokens.Should().HaveCount(2);
-            instanceEngine.GetActiveCatchMessages().Should().HaveCount(2);
+            instanceEngine.ActiveCatchMessages.Should().HaveCount(2);
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtBoundary"});
@@ -44,7 +44,7 @@ public class MessageTest
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
             instanceEngine.ActiveTokens.Should().BeEmpty();
-            instanceEngine.GetActiveCatchMessages().Should().BeEmpty();
+            instanceEngine.ActiveCatchMessages.Should().BeEmpty();
         }
         
         instanceEngine = new ProcessEngine(Process).StartProcess();
@@ -53,9 +53,9 @@ public class MessageTest
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
             instanceEngine.Tokens.Should().HaveCount(4);
-            instanceEngine.GetActiveCatchMessages().Should().ContainSingle();
-            instanceEngine.GetActiveCatchMessages().Single().Name.Should().Be("NachrichtReceive");
-            instanceEngine.GetActiveCatchMessages().Single().FlowzerCorrelationKey.Should().Be("12345");
+            instanceEngine.ActiveCatchMessages.Should().ContainSingle();
+            instanceEngine.ActiveCatchMessages.Single().Name.Should().Be("NachrichtReceive");
+            instanceEngine.ActiveCatchMessages.Single().FlowzerCorrelationKey.Should().Be("12345");
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtReceive" });
@@ -63,7 +63,7 @@ public class MessageTest
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
             instanceEngine.ActiveTokens.Should().HaveCount(2);
-            instanceEngine.GetActiveCatchMessages().Should().ContainSingle();
+            instanceEngine.ActiveCatchMessages.Should().ContainSingle();
         }
         
         instanceEngine.HandleMessage(testMessage with { Name = "NachrichtIntermediate" });
@@ -71,7 +71,7 @@ public class MessageTest
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
             instanceEngine.ActiveTokens.Should().BeEmpty();
-            instanceEngine.GetActiveCatchMessages().Should().BeEmpty();
+            instanceEngine.ActiveCatchMessages.Should().BeEmpty();
         }
     }
 
