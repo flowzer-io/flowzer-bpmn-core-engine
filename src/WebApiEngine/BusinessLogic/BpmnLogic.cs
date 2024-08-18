@@ -7,7 +7,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     
     public void Load()
     {
-        
+        //TODO: load timers   
     }
     
     public async Task DeployDefinition(BpmnDefinition definition)
@@ -52,6 +52,9 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     private void SaveCatchMessages(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, 
         Guid definitionId, string processId, Guid? processInstanceId)
     {
+        if (processInstanceId != null) //if there are already stored catch messages subscriptions for this instance, remove them
+            storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(processInstanceId.Value);
+        
         foreach (var activeCatchMessage in catchHandler.ActiveCatchMessages)
         {
             storageSystem.SubscriptionStorage.AddMessageSubscription(
@@ -68,6 +71,10 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     private void SaveActiveSignals(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId,
         string processId, Guid? processInstanceId)
     {
+        if (processInstanceId != null) //if there are already stored signals subscriptions for this instance, remove them
+            storageSystem.SubscriptionStorage.RemoveProcessSingalSubscriptionsByProcessInstanceId(processInstanceId.Value);
+
+        
         foreach (var activeSignal in catchHandler.ActiveCatchSignals)
         {
             storageSystem.SubscriptionStorage.AddSignalSubscription(
@@ -101,6 +108,8 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         {
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(messageSubscription.ProcessInstanceId.Value);
             instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = messageSubscription.ProcessInstanceId.Value;
+            instance.HandleMessage(message);
         }
         else //the message is for a new instance, so create a new one
         {
@@ -110,29 +119,52 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
             var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
             if (process == null)
                 throw new Exception($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
-
-            instance = StartProcess(messageSubscription.DefinitionId, process);
+            
+            instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
             
         }
-        
-        
-        instance.HandleMessage(message);
-        SaveSubscriptions(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId, messageSubscription.ProcessInstanceId);
+
+        await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
 
         storageSystem.CommitChanges();
     }
 
-    private InstanceEngine StartProcess( Guid definitionsId, Process process)
+    private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
+    {
+        SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
+        
+        await storageSystem.InstanceStorage.AddOrUpdateInstance(
+            new ProcessInstanceInfo(
+                instance.InstanceId,
+                relatedDefinitionId,
+                definitionId,
+                processId,
+                instance.Tokens
+            ));
+
+        storageSystem.CommitChanges();
+    }
+    
+    private InstanceEngine StartProcessByMessage(Guid definitionsId, string relatedDefinitionId,
+        Process process, Message message)
+    {
+        var processEngine = new ProcessEngine(process);
+        var instance = processEngine.HandleMessage(message);
+        return instance;
+    }
+    
+    private InstanceEngine StartProcess(Guid definitionsId, string relatedDefinitionId,
+        Process process)
     {
         
         using var storageSystem = storageProvider.GetTransactionalStorage();
-        
         var processEngine = new ProcessEngine(process);
         var instance = processEngine.StartProcess();
         
-        storageSystem.InstanceStorage.AddInstance(
+        storageSystem.InstanceStorage.AddOrUpdateInstance(
             new ProcessInstanceInfo(
                instance.InstanceId,
+               relatedDefinitionId,
                definitionsId,
                process.Id,
                instance.Tokens

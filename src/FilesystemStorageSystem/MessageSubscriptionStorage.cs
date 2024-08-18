@@ -7,7 +7,7 @@ namespace FilesystemStorageSystem;
 public class MessageSubscriptionStorage(Storage storage) : IMessageSubscriptionStorage
 {
     private readonly string _messageSubscriptionsPath = storage.GetBasePath("FileStorage/MessageSubscriptions");
-
+    
     public Task<IEnumerable<MessageSubscription>> GetAllMessageSubscriptions()
     {
         return Task.FromResult(Directory.GetFiles(_messageSubscriptionsPath, "*.json").Select(file =>
@@ -20,15 +20,29 @@ public class MessageSubscriptionStorage(Storage storage) : IMessageSubscriptionS
 
     public async Task<IEnumerable<MessageSubscription>> GetMessageSubscription(string messageName, string? correlationKey = null)
     {
-        return (await GetAllMessageSubscriptions()).Where(x => x.Message.Name == messageName && x.Message.FlowzerCorrelationKey == correlationKey);
+        var allMessageSubscriptions = await GetAllMessageSubscriptions();
+        return allMessageSubscriptions.Where(x => x.Message.Name == messageName && x.Message.FlowzerCorrelationKey == correlationKey);
     }
 
     public Task AddMessageSubscription(MessageSubscription messageSubscription)
     {
-        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"message_{messageSubscription.RelatedDefinitionId}_{Guid.NewGuid()}.json");
-        var data = JsonConvert.SerializeObject(messageSubscription);
+        var randomIdOrInstanceId = messageSubscription.ProcessInstanceId ?? Guid.NewGuid();
+        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"message_{messageSubscription.RelatedDefinitionId}_{randomIdOrInstanceId}.json");
+        var data = JsonConvert.SerializeObject(messageSubscription, Formatting.Indented);
         return File.WriteAllTextAsync(fullFileName, data);
     }
+
+    public Task RemoveProcessMessageSubscriptionsByProcessInstanceId(Guid instanceId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, $"message_*_{instanceId}.json");
+        foreach (var file in files)
+        {
+            File.Delete(file);
+        }
+
+        return Task.CompletedTask;
+    }
+
 
     public Task RemoveProcessMessageSubscriptions(string relatedDefinitionId)
     {
@@ -54,7 +68,16 @@ public class MessageSubscriptionStorage(Storage storage) : IMessageSubscriptionS
     public void AddSignalSubscription(SingalSubscription signalSubscription)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"signal_{signalSubscription.RelatedDefinitionId}_{Guid.NewGuid()}.json");
-        var data = JsonConvert.SerializeObject(signalSubscription);
+        var data = JsonConvert.SerializeObject(signalSubscription, Formatting.Indented);
         File.WriteAllText(fullFileName, data);
+    }
+
+    public void RemoveProcessSingalSubscriptionsByProcessInstanceId(Guid instanceId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, $"signal_*_{instanceId}.json");
+        foreach (var file in files)
+        {
+            File.Delete(file);
+        }
     }
 }

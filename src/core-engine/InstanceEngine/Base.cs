@@ -4,7 +4,7 @@ namespace core_engine;
 
 public partial class InstanceEngine: ICatchHandler
 {
-    public Guid InstanceId { get; set; }
+    public Guid InstanceId { get; set; } = Guid.NewGuid();
     
     public InstanceEngine(List<Token> tokens, bool allTokensIncluded = true)
     {

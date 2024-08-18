@@ -4,7 +4,7 @@ namespace Model;
 
 public class Token
 {
-    public Guid Id { get; } = Guid.NewGuid();
+    public Guid Id { get; init; } = Guid.NewGuid();
     public required Guid ProcessInstanceId { get; init; }
 
     public required IBaseElement CurrentBaseElement { get; init; }

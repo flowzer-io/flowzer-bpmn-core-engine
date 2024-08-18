@@ -5,11 +5,12 @@ namespace StorageSystem;
 public interface IInstanceStorage
 {
     public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId);
-    Task AddInstance(ProcessInstanceInfo processInstanceInfo);
+    Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo);
 }
 
 public record ProcessInstanceInfo (
-    Guid Id,
+    Guid InstanceId,
+    string RelatedDefinitionId,
     Guid DefinitionId,
     string ProcessId,
     List<Token> Tokens);
