@@ -17,10 +17,10 @@ async function isReady(){
 
 async function importXML(xml)
 {
-    await bpmnModeler.importXML(xml);
+    await window.bpmnModeler.importXML(xml);
     console.log("importXML " + xml);
 }
 
  async function saveXML(){
-     return await bpmnModeler.saveXML({format: true})
+     return await window.bpmnModeler.saveXML({format: true})
  }
