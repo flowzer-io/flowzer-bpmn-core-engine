@@ -1,3 +1,4 @@
+using Model;
 using Newtonsoft.Json;
 using StorageSystem;
 
@@ -16,7 +17,7 @@ public class InstanceStorage : IInstanceStorage
         {
             TypeNameHandling = TypeNameHandling.Auto,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
-            Formatting = Formatting.Indented
+            Formatting = Formatting.Indented,
         };
 
     }
@@ -34,5 +35,23 @@ public class InstanceStorage : IInstanceStorage
         var fullFileName = Path.Combine(_instancesPath, $"instance_{processInstanceInfo.RelatedDefinitionId}_{processInstanceInfo.InstanceId}.json");
         var data = JsonConvert.SerializeObject(processInstanceInfo, _newtonSoftDefaultSettings);
         await File.WriteAllTextAsync(fullFileName, data);
+    }
+
+    public async Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances()
+    {
+        return (await GetAllInstances()).Where(x => !x.IsFinished);
+    }
+    public async Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances()
+    {
+        var files = Directory.GetFiles(_instancesPath, "*.json");
+        var instances = new List<ProcessInstanceInfo>();
+        foreach (var file in files)
+        {
+            var content = await File.ReadAllTextAsync(file);
+            var instance = JsonConvert.DeserializeObject<ProcessInstanceInfo>(content, _newtonSoftDefaultSettings);
+            instances.Add(instance!);
+        }
+
+        return instances;
     }
 }

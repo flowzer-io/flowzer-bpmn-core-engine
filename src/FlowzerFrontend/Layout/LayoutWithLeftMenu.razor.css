@@ -1,0 +1,8 @@
+.main-content{
+    height: 100%;
+}
+
+::deep .left-site-container{
+    padding: 4px;
+    height: 100%;
+}

@@ -1,6 +1,8 @@
 ﻿@page "/definition/{DefinitionId}"
 @using Microsoft.FluentUI.AspNetCore.Components
 
+
+
 <div class="main-content">
     <div id="header">
         <div id="titel-info">
@@ -55,3 +57,9 @@
 
 
 <script src="public/app.js"></script>
+<script>
+    window.notifyBlazorWhenScriptsLoaded = function () {
+        // Hier prüfst du, ob alle Skripte geladen sind, und rufst dann die C# Methode auf.
+        DotNet.invokeMethodAsync('YourBlazorAppNamespace', 'OnScriptsLoaded');
+    };
+</script>

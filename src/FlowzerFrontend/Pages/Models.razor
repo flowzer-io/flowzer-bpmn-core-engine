@@ -1,64 +1,60 @@
 @page "/models"
-@using System.ComponentModel
+
+
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
+<div class="main-content">
+    <LayoutWithLeftMenu>
+        <MenuContent>
+            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
+                New Model
+            </FluentButton>
+            <FluentNavMenu Collapsible="true" Title="Collapsible demo">
+                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
+            </FluentNavMenu>
+        </MenuContent>
+        <MainContent>
 
-
-<div style="height: 100%; ">
-    <FluentLayout>
-        <FluentSplitter BarSize="6" Panel1Size="200px" Panel2MinSize="50px" Style="height: 100%" >
-            <Panel1>
-                <FluentStack Class="left-site-container"  Orientation="Orientation.Vertical" Width="100%">
-                    <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
-                        New Model
-                    </FluentButton>
-                    <FluentNavMenu Collapsible="true" Title="Collapsible demo" >
-                        <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
-                    </FluentNavMenu>
-
-                </FluentStack>
-            </Panel1>
-            <Panel2>
-                <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                    <div class="list-header">
-                        <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                            <FluentTextField Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
-                                <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral"/>
-                            </FluentTextField>
-                            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"  Width="100%">
-                                <FluentCheckbox @bind-Value="CheckAll" Label="Check all" Style="min-width: 200px;" />
-                                <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.End" Width="100%">
-                                    <FluentCombobox Placeholder="Sort direction" Autofocus="true"
+            <FluentStack Orientation="Orientation.Vertical" Width="100%">
+                <div class="list-header">
+                    <FluentStack Orientation="Orientation.Vertical" Width="100%">
+                        <FluentTextField Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
+                            <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral"/>
+                        </FluentTextField>
+                        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"  Width="100%">
+                            <FluentCheckbox @bind-Value="CheckAll" Label="Check all" Style="min-width: 200px;" />
+                            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.End" Width="100%">
+                                <FluentCombobox Placeholder="Sort direction" Autofocus="true"
                                                 TOption="Option<SortDirection>"
                                                 Items="@SortDirections"
                                                 OptionText="@(i => i.Text)"
                                                 @bind-Value="@SelectedSortDirectionString"
                                                 @bind-SelectedOption="@SelectedSortDirection" Height="200px"/>
-                                </FluentStack>
-                                
-                                </FluentStack>
+                            </FluentStack>
+
                         </FluentStack>
-                    </div>
-                    
-                    <FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
-                    <div class="list-header">
-                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
-                            <SelectColumn TGridItem="BpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
-                            <TemplateColumn Title="Workflow">
-                                <div class="grid-row-title"><a href="@UriHelper.GetEdotDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
-                                <div class="grid-row-subtitle">Workflow</div>
-                                <div class="grid-row-description">@context.Description</div>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Lastchange">
-                                <div class="lastchange">15:51PM</div>
-                            </TemplateColumn>
-                        </FluentDataGrid>
-                    </div>
-                    
-                </FluentStack>
-            </Panel2>
+                    </FluentStack>
+                </div>
+
+                <FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
+                <div class="list-header">
+                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
+                        <SelectColumn TGridItem="BpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
+                        <TemplateColumn Title="Workflow">
+                            <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
+                            <div class="grid-row-subtitle">Workflow</div>
+                            <div class="grid-row-description">@context.Description</div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Lastchange">
+                            <div class="lastchange">15:51PM</div>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                </div>
+
+            </FluentStack>
+
+        </MainContent>
+    </LayoutWithLeftMenu>
 
 
-        </FluentSplitter>
-    </FluentLayout>
 </div>

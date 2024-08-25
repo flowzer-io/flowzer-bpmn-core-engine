@@ -1,6 +1,62 @@
 @page "/instances"
-<h3>Instances</h3>
+@using Microsoft.FluentUI.AspNetCore.Components
+@using WebApiEngine.Shared
 
-@code {
-    
-}
+
+
+<div style="height: 100%; ">
+    <LayoutWithLeftMenu>
+        <MenuContent>
+            <FluentNavMenu Collapsible="true" Title="Collapsible demo">
+                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
+            </FluentNavMenu>
+        </MenuContent>
+        <MainContent>
+            <FluentStack Orientation="Orientation.Vertical" Width="100%">
+
+                <div class="list-header">
+                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
+                        <SelectColumn TGridItem="ProcessInstanceInfoDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
+                        <TemplateColumn Title="Workflow">
+                            <div class="grid-row-title"><a href="@UriHelper.GetShowInstanceUrl(@context.InstanceId)">@context.RelatedDefinitionName</a></div>
+                            <div class="grid-row-subtitle">Instance @context.InstanceId</div>
+                            <div class="grid-row-description">
+                                @if (context.MessageSubscriptionCount > 0)
+                                {
+                                    <div class="batch">
+                                        <i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages
+                                    </div>
+                                }
+
+                                @if (context.SignalSubscriptionCount > 0)
+                                {
+                                    <div class="batch">
+                                        <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Singals
+                                    </div>
+                                }
+
+                                @if (context.UserTaskSubscriptionCount > 0)
+                                {
+                                    <div class="batch">
+                                        <i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount UserTasks
+                                    </div>
+                                }
+                                @if (context.ServiceSubscriptionCount > 0)
+                                {
+                                    <div class="batch">
+                                        <i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services
+                                    </div>
+                                }
+
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Status">
+                            <div class="state">@context.State</div>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                </div>
+
+            </FluentStack>
+        </MainContent>
+    </LayoutWithLeftMenu>
+</div>

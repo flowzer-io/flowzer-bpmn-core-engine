@@ -5,6 +5,37 @@ namespace core_engine;
 public partial class InstanceEngine: ICatchHandler
 {
     public Guid InstanceId { get; set; } = Guid.NewGuid();
+
+    public bool IsFinished
+    {
+        get
+        {
+            return State switch
+            {
+                ProcessInstanceState.Completed => true,
+                ProcessInstanceState.Failed => true,
+                ProcessInstanceState.Terminated => true,
+                _ => false
+            };
+        }
+    }
+
+    //TODO: @ChristianMaaß wie lösen wir die diskrepant zwischen ProcessInstanceState und TokenState?
+    public ProcessInstanceState State
+    {
+        get
+        {
+            return MasterToken.State switch
+            {
+                FlowNodeState.Active => ProcessInstanceState.Waiting,
+                FlowNodeState.Completed => ProcessInstanceState.Completed,
+                FlowNodeState.Failed => ProcessInstanceState.Failed,
+                FlowNodeState.Terminated => ProcessInstanceState.Terminated,
+                _ => throw new FlowzerRuntimeException("ProcessInstanceState nicht ermittelbar")
+            };
+        }
+        
+    }
     
     public InstanceEngine(List<Token> tokens, bool allTokensIncluded = true)
     {
@@ -105,4 +136,5 @@ public partial class InstanceEngine: ICatchHandler
     // }
 
     List<DateTime> ICatchHandler.ActiveTimers => throw new NotImplementedException();
+    
 }

@@ -1,0 +1,19 @@
+@using Microsoft.FluentUI.AspNetCore.Components
+@inherits ComponentBase
+
+
+
+<div class="main-content">
+    <FluentLayout>
+        <FluentSplitter BarSize="6" Panel1Size="200px" Panel2MinSize="50px" Style="height: 100%;"  >
+            <Panel1>
+                <FluentStack Class="left-site-container" Orientation="Orientation.Vertical" Width="100%">
+                    @MenuContent
+                </FluentStack>
+            </Panel1>
+            <Panel2>
+                @MainContent
+            </Panel2>
+        </FluentSplitter>
+    </FluentLayout>
+</div>

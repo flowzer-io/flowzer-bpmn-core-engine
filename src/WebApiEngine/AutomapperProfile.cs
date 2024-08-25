@@ -17,5 +17,6 @@ public class AutomapperProfile : Profile
         
         CreateMap<BpmnMetaDefinitionDto, BpmnMetaDefinition>();
         CreateMap<BpmnMetaDefinition, BpmnMetaDefinitionDto>();
+        
     }
 }

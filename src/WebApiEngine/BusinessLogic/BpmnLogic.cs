@@ -132,16 +132,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
     {
         SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
-        
-        await storageSystem.InstanceStorage.AddOrUpdateInstance(
-            new ProcessInstanceInfo(
-                instance.InstanceId,
-                relatedDefinitionId,
-                definitionId,
-                processId,
-                instance.Tokens
-            ));
-
+        await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
         storageSystem.CommitChanges();
     }
     
@@ -153,7 +144,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         return instance;
     }
     
-    private InstanceEngine StartProcess(Guid definitionsId, string relatedDefinitionId,
+    private async Task<InstanceEngine> StartProcess(Guid definitionsId, string relatedDefinitionId,
         Process process)
     {
         
@@ -161,17 +152,30 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         var processEngine = new ProcessEngine(process);
         var instance = processEngine.StartProcess();
         
-        storageSystem.InstanceStorage.AddOrUpdateInstance(
-            new ProcessInstanceInfo(
-               instance.InstanceId,
-               relatedDefinitionId,
-               definitionsId,
-               process.Id,
-               instance.Tokens
-            ));
+        await AddOrUpdateInstance(definitionsId, relatedDefinitionId, process.Id, storageSystem, instance);
 
         storageSystem.CommitChanges();
         
         return instance;
+    }
+
+    private async  Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
+        ITransactionalStorage storageSystem, InstanceEngine instance)
+    {
+        await storageSystem.InstanceStorage.AddOrUpdateInstance(
+            new ProcessInstanceInfo()
+            {
+                InstanceId = instance.InstanceId,
+                RelatedDefinitionId = relatedDefinitionId,
+                DefinitionId = definitionId,
+                ProcessId = processId,
+                Tokens = instance.Tokens,
+                IsFinished = instance.IsFinished,
+                State = instance.State,
+                MessageSubscriptionCount = instance.ActiveCatchMessages.Count,
+                SignalSubscriptionCount = instance.ActiveCatchSignals.Count,
+                UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),
+                ServiceSubscriptionCount = instance.GetActiveServiceTasks().Count()
+            });
     }
 }

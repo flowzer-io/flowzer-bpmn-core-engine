@@ -1,0 +1,29 @@
+
+
+.list-header{
+    padding-top: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 100%;
+}
+
+
+
+.grid-row-title a{
+    color: black;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+.grid-row-description{
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.batch{
+    display: inline;
+    background: lightgray;
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-right: 10px;
+}

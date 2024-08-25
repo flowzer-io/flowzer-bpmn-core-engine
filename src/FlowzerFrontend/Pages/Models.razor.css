@@ -1,5 +1,4 @@
-::deep .left-site-container{
-    padding: 4px;
+.main-content{
     height: 100%;
 }
 
@@ -7,6 +6,7 @@
 {
     width: 100%;
 }
+
 
 
 .grid-row-title{

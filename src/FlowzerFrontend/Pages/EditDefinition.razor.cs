@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -20,6 +21,9 @@ public partial class EditDefinition
 
     [Inject]
     private IDialogService DialogService { get; set; }
+    
+    [Inject]
+    public required NavigationManager NavigationManager { get; set; }
 
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
@@ -36,8 +40,22 @@ public partial class EditDefinition
     
     protected override async Task OnInitializedAsync()
     {
+        NavigationManager.LocationChanged += OnLocationChanged;
         await JsRuntime.EvalCodeBehindJsScripts(this);
+        await WaitForInitComplete();
+        await InitEditor();
         await LoadModel();
+    }
+
+    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        await JsRuntime.InvokeVoidAsync("resetInit");
+    }
+
+    private async Task InitEditor()
+    {
+        await JsRuntime.InvokeVoidAsync("InitEdit");
+        
     }
 
     private async Task LoadModel()
@@ -92,7 +110,6 @@ public partial class EditDefinition
 
     private async Task LoadDiagramXml(string xml)
     {
-        await WaitForEditorReady();
         await JsRuntime.InvokeVoidAsync("importXML", xml);
         ErrorString = null;
     }
@@ -100,7 +117,7 @@ public partial class EditDefinition
     
 
 
-    private async Task WaitForEditorReady()
+    private async Task WaitForInitComplete()
     {
         while (await JsRuntime.InvokeAsync<bool>("isReady") != true)
             await Task.Delay(500);
