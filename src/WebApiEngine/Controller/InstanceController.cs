@@ -1,4 +1,5 @@
 using AutoMapper;
+using Flowzer.Shared;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Shared;
 
@@ -39,7 +40,7 @@ public class InstanceController(
             SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
             ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
-            State = processInstanceInfo.State.ToString(),
+            State = (ProcessInstanceStateDto)processInstanceInfo.State,
             Tokens = processInstanceInfo.Tokens.Select(MapToken).ToList()
         };
     }
@@ -50,7 +51,12 @@ public class InstanceController(
         {
             Id = token.Id,
             State = (FlowNodeStateDto)token.State,
-            CurrentFlowNodeId = token.CurrentFlowNode?.Id
+            CurrentFlowNodeId = token.CurrentFlowNode?.Id,
+            CurrentFlowElement = token.CurrentFlowNode?.ToExpando(),
+            OutputData = token.OutputData?.ToExpando(),
+            Variables = token.Variables?.ToExpando(),
+            PreviousTokenId = token.PreviousToken?.Id,
+            ParentTokenId = token.ParentTokenId
         };
     }
 
@@ -62,5 +68,14 @@ public class InstanceController(
         return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mapInstance));
     }
     
+    [HttpGet("{instanceId}/subscription/messages")]
+    public async Task<ActionResult<MessageSubscriptionDto[]>> GetMessageSubscriptions(Guid instanceId)
+    {
+        var messageSubscriptions = await storageSystem.SubscriptionStorage.GetMessageSubscription(instanceId);
+        var result = mapper.Map<MessageSubscriptionDto[]>(messageSubscriptions);
+        return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
+    }
+    
+
   
 }

@@ -8,7 +8,7 @@ public record MessageSubscription(
     Guid? ProcessInstanceId = null //The instanceId that is waiting for the message
     );
 
-public record SingalSubscription(
+public record SignalSubscription(
     string Signal,
     string ProcessId, //The processIf within the xml definitions
     string RelatedDefinitionId, //The "parent" definitionId which are all the same for the same bpmn file in diffent versions

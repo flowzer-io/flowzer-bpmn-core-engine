@@ -1,3 +1,5 @@
+@import '/_content/Microsoft.FluentUI.AspNetCore.Components/css/reboot.css';
+
 *{
     box-sizing: border-box;
 }
@@ -6,8 +8,10 @@ html, body {
     font-family: 'Segoe UI','Helvetica Neue', Helvetica, Arial, sans-serif;
     padding: 0;
     margin: 0;
-    --control-gray: #E6E6E6;
     font-size: 14px;
+    --control-gray: #E6E6E6;
+    --header-tile-size: 1.1rem;
+    
 }
 
 

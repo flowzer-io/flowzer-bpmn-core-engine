@@ -7,8 +7,10 @@
 <div style="height: 100%; ">
     <LayoutWithLeftMenu>
         <MenuContent>
-            <FluentNavMenu Collapsible="true" Title="Collapsible demo">
-                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
+            <FluentNavMenu>
+                <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="/instances/all">All Instances</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="/instances/done">Done</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="/instances/active">Error</FluentNavLink>
             </FluentNavMenu>
         </MenuContent>
         <MainContent>

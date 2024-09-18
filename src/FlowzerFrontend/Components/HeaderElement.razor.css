@@ -1,0 +1,15 @@
+#header{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--control-gray) ;
+    padding-left: 20px;
+    padding-right: 20px;
+    height: 40px;
+}
+
+#titel-info{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

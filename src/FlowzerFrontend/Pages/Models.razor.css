@@ -13,6 +13,19 @@
     font-weight: bold;    
 }
 
+.grid-row-title a,
+.grid-row-title a:visited{
+    color: black;
+    text-decoration: none;
+}
+
+.icon
+{
+    color: #317145;
+    font-size: 30px;
+    margin-right: 20px;
+}
+
 .list-header{
     padding-top: 10px;
     padding-left: 10px;

@@ -1,5 +1,6 @@
 using BPMN.Infrastructure;
 using BPMN.Process;
+using Flowzer.Shared;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Model;

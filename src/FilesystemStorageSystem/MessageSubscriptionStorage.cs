@@ -18,10 +18,22 @@ public class MessageSubscriptionStorage(Storage storage) : IMessageSubscriptionS
         }));
     }
 
-    public async Task<IEnumerable<MessageSubscription>> GetMessageSubscription(string messageName, string? correlationKey = null)
+    public async Task<IEnumerable<MessageSubscription>> GetMessageSubscription(string messageName,
+        string? correlationKey, Guid? instanceId)
     {
         var allMessageSubscriptions = await GetAllMessageSubscriptions();
-        return allMessageSubscriptions.Where(x => x.Message.Name == messageName && x.Message.FlowzerCorrelationKey == correlationKey);
+        var messageSubscriptions = allMessageSubscriptions.Where(x => 
+            x.Message.Name == messageName && 
+            x.Message.FlowzerCorrelationKey == correlationKey &&
+            x.ProcessInstanceId == instanceId
+        );
+        return messageSubscriptions;
+    }
+
+    public async Task<IEnumerable<MessageSubscription>> GetMessageSubscription(Guid instanceId)
+    {
+        var allMessageSubscriptions = await GetAllMessageSubscriptions();
+        return allMessageSubscriptions.Where(x => x.ProcessInstanceId == instanceId);
     }
 
     public Task AddMessageSubscription(MessageSubscription messageSubscription)
@@ -65,7 +77,7 @@ public class MessageSubscriptionStorage(Storage storage) : IMessageSubscriptionS
         return Task.CompletedTask;
     }
 
-    public void AddSignalSubscription(SingalSubscription signalSubscription)
+    public void AddSignalSubscription(SignalSubscription signalSubscription)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"signal_{signalSubscription.RelatedDefinitionId}_{Guid.NewGuid()}.json");
         var data = JsonConvert.SerializeObject(signalSubscription, Formatting.Indented);

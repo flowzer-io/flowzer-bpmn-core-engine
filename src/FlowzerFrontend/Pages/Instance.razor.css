@@ -1,4 +1,39 @@
-.content,
+.main-content{
+    height: 100%;
+}
+
+#instance-name{
+    font-size: var(--header-tile-size);
+}
+
+.diagram-content
+{
+    height: 50%;
+    border-bottom: solid 1px #e0e0e0;
+}
 .canvas{
     height: 100%;
+}
+
+#information_container{
+    padding: 10px;
+}
+
+::deep .tree-button{
+    margin-left: 10px;
+}
+
+.token{
+    display: inline;
+    border-radius: 5px;
+    padding: 4px;
+    padding-left: 6px;
+    padding-right: 6px;
+    background: green;
+    color: white;
+}
+
+li{
+    margin: 0;
+    padding: 0;
 }

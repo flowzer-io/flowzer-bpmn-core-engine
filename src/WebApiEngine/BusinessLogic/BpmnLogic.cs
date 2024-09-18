@@ -78,7 +78,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         foreach (var activeSignal in catchHandler.ActiveCatchSignals)
         {
             storageSystem.SubscriptionStorage.AddSignalSubscription(
-                new SingalSubscription(
+                new SignalSubscription(
                     activeSignal,
                     processId,
                     relatedDefinitionId,
@@ -89,19 +89,17 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     }
 
 
-    public async Task HandleMessage(Message message)
+    public async Task<InstanceEngine> HandleMessage(Message message)
     {
         using var storageSystem = storageProvider.GetTransactionalStorage();
 
-        var messageSubscription = 
+        var messageSubscription =
             (await storageSystem.SubscriptionStorage
-                .GetMessageSubscription(message.Name, message.CorrelationKey))
-                .FirstOrDefault() ?? 
-            (await storageSystem.SubscriptionStorage.GetMessageSubscription(message.Name))
-                .FirstOrDefault();
+                .GetMessageSubscription(message.Name, message.CorrelationKey, message.InstanceId))
+            .FirstOrDefault();
 
         if (messageSubscription is null)
-            throw new Exception($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\".");
+            throw new Exception($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\" and instanceId {message.InstanceId}.");
 
         InstanceEngine instance;
         if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
@@ -125,8 +123,9 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         }
 
         await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
-
         storageSystem.CommitChanges();
+
+        return instance;
     }
 
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)

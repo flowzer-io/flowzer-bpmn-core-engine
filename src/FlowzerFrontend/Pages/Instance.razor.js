@@ -16,6 +16,9 @@ async function importXML(xml)
     await bpmnViewer.importXML(xml)
 }
 
+function clearTokens(){
+    bpmnViewer.get('overlays').clear();
+}
 
 function addToken(id, count){
     bpmnViewer.get('overlays').add(id, 'note', {

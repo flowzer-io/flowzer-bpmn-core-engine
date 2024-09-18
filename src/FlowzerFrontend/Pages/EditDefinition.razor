@@ -1,25 +1,28 @@
 ﻿@page "/definition/{DefinitionId}"
 @using Microsoft.FluentUI.AspNetCore.Components
+@using FlowzerFrontend.Components
 
 
 
 <div class="main-content">
-    <div id="header">
-        <div id="titel-info">
-            <a href="/models"><i class="fa-solid fa-chevron-left"></i></a>
+
+    <HeaderElement>
+        <LeftSide>
+            
             @if (TitleEditMode)
             {
-                <FluentTextField @bind-Value=@CurrentMetaDefinition.Name AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
+            <FluentTextField @bind-Value=@CurrentMetaDefinition.Name AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
             }
             else
             {
-                <span id="current-file-name">@CurrentMetaDefinition.Name</span>
+            <span id="current-file-name">@CurrentMetaDefinition.Name</span>
             }
             <button class="button-flat" @onclick="ToggleTitleEditMode"><i class="fa-solid fa-pencil"></i></button>
-            
+
             <span id="current-file-version">Version: @CurrentDefinition.Version.ToString() </span>
-        </div>
-        <div>
+        
+        </LeftSide>
+        <RigthSide>
             <FluentStack Class="action-button-group">
                 @* <FluentCombobox AriaLabel="Pre-selected option" Items="@AvailableVersions" @bind-Value="@CurrentDefinition" Height="200px" /> *@
 
@@ -33,8 +36,12 @@
                     Debug
                 </FluentButton>
             </FluentStack>
-        </div>
-    </div>
+        </RigthSide>
+  
+    </HeaderElement>
+    
+
+
 
     <div class="content with-diagram" id="designer-container" style="@(IsDocumentLoading || ErrorString != null ? "display: none;" : "")">
         <div class="canvas" id="js-canvas"></div>

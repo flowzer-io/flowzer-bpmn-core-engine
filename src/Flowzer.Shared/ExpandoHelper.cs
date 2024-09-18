@@ -1,8 +1,7 @@
 using System.Dynamic;
 using Microsoft.ClearScript.JavaScript;
-using Microsoft.ClearScript.Util.Web;
 
-namespace core_engine;
+namespace Flowzer.Shared;
 
 public static class ExpandoHelper
 {
@@ -16,7 +15,7 @@ public static class ExpandoHelper
             return obj.ToEnumerable().Select(o => IsComlexValue(o) ? ToDynamic(o) : o).ToList();
         }
 
-        var ret = new Variables();
+        var ret = new ExpandoObject();
         foreach (var objPropertyName in obj.PropertyNames)
         {
             var value = obj.GetProperty(objPropertyName);
@@ -26,9 +25,9 @@ public static class ExpandoHelper
         return ret;
     }
 
-    public static Variables? ToExpando(this object? obj)
+    public static ExpandoObject? ToExpando(this object? obj)
     {
-        return (Variables?) ToDynamic(obj, true);
+        return (ExpandoObject?) ToDynamic(obj, true);
     }
     public static object? ToDynamic(this object? obj, bool forceExpando = false)
     {
@@ -38,7 +37,7 @@ public static class ExpandoHelper
                 return null;
             case IJavaScriptObject jsObj:
                 return jsObj.ToDynamic();
-            case Variables:
+            case ExpandoObject:
                 return obj;
         }
 
@@ -69,7 +68,7 @@ public static class ExpandoHelper
         return expandoObject;
     }
 
-    internal static bool IsComlexValue(object? value)
+    public static bool IsComlexValue(object? value)
     {
         return value != null && 
                !value.GetType().IsPrimitive &&
@@ -107,7 +106,7 @@ public static class ExpandoHelper
 
             var firstPart = propertyName[..propertyName.IndexOf('.')];
             var rest = propertyName[(propertyName.IndexOf('.') + 1)..];
-            var varContent = (Variables?)dict[firstPart];
+            var varContent = (ExpandoObject?)dict[firstPart];
             if (varContent == null) return null;
             dict = varContent;
             propertyName = rest;
@@ -118,7 +117,7 @@ public static class ExpandoHelper
     {
         while (true)
         {
-            if (obj is not Variables) 
+            if (obj is not ExpandoObject) 
                 throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
 
             var dict = (IDictionary<string, object?>)obj;
@@ -134,11 +133,11 @@ public static class ExpandoHelper
                 
                 if (subObject == null) // create new object if property value not exists
                 {
-                    subObject = new Variables();
+                    subObject = new ExpandoObject();
                     dict[firstPart] = subObject;
                 }
 
-                if (subObject is not Variables) // convert to dynamic object if property value is not dynamic
+                if (subObject is not ExpandoObject) // convert to dynamic object if property value is not dynamic
                 {
                     if (!IsComlexValue(subObject)) throw new InvalidOperationException($"could not set property {propertyName} to not complex object.");
 
@@ -148,7 +147,7 @@ public static class ExpandoHelper
 
                 //call recursively to set value
                 var rest = propertyName[(propertyName.IndexOf('.') + 1)..];
-                obj = (Variables)subObject!;
+                obj = (ExpandoObject)subObject!;
                 propertyName = rest;
                 continue;
             }

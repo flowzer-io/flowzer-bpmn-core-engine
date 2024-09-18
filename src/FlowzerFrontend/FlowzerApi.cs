@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using FlowzerFrontend.Models;
 using WebApiEngine.Shared;
 
 namespace FlowzerFrontend;
@@ -73,6 +74,34 @@ public class FlowzerApi: ApiBase
     public async Task<ProcessInstanceInfoDto> GetProcessInstance(Guid instanceGuid)
     {
         return await GetAsJsonAndThrowOnErrorAsync<ProcessInstanceInfoDto>("instance/" + instanceGuid);
+    }
+
+
+
+    public async Task<MessageSubscriptionDto[]> GetMessageSubscriptions(Guid instanceGuid)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<MessageSubscriptionDto[]>("instance/" + instanceGuid + "/subscription/messages");
+    }
+    
+    public async Task<TokenDto[]> GetServiceSubscriptions(Guid instanceGuid)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<TokenDto[]>("instance/" + instanceGuid + "/subscription/services");
+    }
+
+    public async Task<SignalSubscriptionDto[]> GetSignalSubscriptions(Guid instanceGuid)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<SignalSubscriptionDto[]>("instance/" + instanceGuid + "/subscription/singals");
+    }
+
+    public async Task<TokenDto[]> GetUserTasks(Guid instanceGuid)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<TokenDto[]>("instance/" + instanceGuid + "/subscription/userTasks");
+    }
+
+
+    public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
+    {
+        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
     }
 }
 

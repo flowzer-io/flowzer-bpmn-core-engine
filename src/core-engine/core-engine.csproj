@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Model\Model.csproj" />
+    <ProjectReference Include="..\Flowzer.Shared\Flowzer.Shared.csproj" />
     <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
   </ItemGroup>
 

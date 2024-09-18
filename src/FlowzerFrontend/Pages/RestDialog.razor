@@ -1,0 +1,18 @@
+@using Microsoft.FluentUI.AspNetCore.Components
+@implements Microsoft.FluentUI.AspNetCore.Components.IDialogContentComponent<RestDialogParams>
+
+<div>
+    <FluentStack Width="100%" Orientation="Orientation.Vertical">
+        <FluentTextField Class="rest-input-field" Label="Url" @bind-Value="@Content.RestExampleRequest.Url" ></FluentTextField>
+        <FluentTextArea  Class="rest-input-field" Label="Body" @bind-Value="@Content.RestExampleRequest.Body" Rows="12"></FluentTextArea>
+
+        <FluentButton @onclick="SendRequst">Send</FluentButton>
+        
+        @if(Result != null)
+        {
+            <FluentLabel>Response:</FluentLabel>
+            <FluentTextArea  Class="rest-input-field" @bind-Value="@Result" Rows="12"></FluentTextArea>
+        }
+    </FluentStack>
+</div>
+

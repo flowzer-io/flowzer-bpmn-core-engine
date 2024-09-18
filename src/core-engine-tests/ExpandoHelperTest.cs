@@ -1,3 +1,5 @@
+using Flowzer.Shared;
+
 namespace core_engine_tests;
 
 public class ExpandoHelperTest

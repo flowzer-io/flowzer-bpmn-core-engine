@@ -13,6 +13,6 @@ public class ProcessInstanceInfoDto
     public int UserTaskSubscriptionCount { get; set; }
     public int ServiceSubscriptionCount { get; set; }
     
-    public string State { get; set; }
+    public ProcessInstanceStateDto State { get; set; }
     public List<TokenDto> Tokens { get; set; }
 }

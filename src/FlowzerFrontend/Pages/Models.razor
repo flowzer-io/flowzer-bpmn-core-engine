@@ -9,7 +9,7 @@
             <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
                 New Model
             </FluentButton>
-            <FluentNavMenu Collapsible="true" Title="Collapsible demo">
+            <FluentNavMenu Collapsible="false">
                 <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
             </FluentNavMenu>
         </MenuContent>
@@ -36,17 +36,25 @@
                     </FluentStack>
                 </div>
 
-                <FluentDivider Style="width: 100%;" Role="DividerRole.Presentation"></FluentDivider>
+                <FluentDivider Style="width: 100%;" Role="DividerRole.Separator"></FluentDivider>
                 <div class="list-header">
                     <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
                         <SelectColumn TGridItem="BpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
                         <TemplateColumn Title="Workflow">
-                            <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
-                            <div class="grid-row-subtitle">Workflow</div>
-                            <div class="grid-row-description">@context.Description</div>
+                            <FluentLayout Orientation="Orientation.Horizontal">
+                                <div>
+                                    <i class="fa-solid fa-code-compare icon"></i>    
+                                </div>
+                                <FluentLayout Orientation="Orientation.Vertical">
+                                    <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
+                                    <div class="grid-row-subtitle">Workflow</div>
+                                    <div class="grid-row-description">@context.Description</div>
+                                </FluentLayout>
+                            </FluentLayout>
+                            
                         </TemplateColumn>
                         <TemplateColumn Title="Lastchange">
-                            <div class="lastchange">15:51PM</div>
+                            <div class="lastchange">@context.Active</div>
                         </TemplateColumn>
                     </FluentDataGrid>
                 </div>
