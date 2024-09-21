@@ -7,7 +7,7 @@
 
 @inject ExampleRestRequestBuilder ExampleRestRequestBuilder
 
-
+<button @onclick="async () => {await Reload();}"></button>
 <div class="main-content">
     <HeaderElement Title="Hello world" BackLink="/models">
         <LeftSide>
@@ -19,7 +19,6 @@
 
     <div class="diagram-content with-diagram" id="designer-container">
         <div class="canvas" id="js-canvas"></div>
-        <div class="properties-panel-parent" id="js-properties-panel"></div>
     </div>
 
 
@@ -71,5 +70,3 @@
 </div>
 
 
-
-<script src="public/app.js"></script>

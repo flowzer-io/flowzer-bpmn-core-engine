@@ -70,9 +70,7 @@ public partial class Instance
     protected override async Task OnInitializedAsync()
     {
         await JsRuntime.EvalCodeBehindJsScripts(this);
-        await WaitForInitComplete();
-        await InitViewer();
-        await LoadData();
+        await Reload();
     }
 
     private async Task LoadData()
@@ -278,17 +276,11 @@ public partial class Instance
 
     private async Task LoadDiagramXml(string xml)
     {
-        await JsRuntime.InvokeVoidAsync("importXML", xml);
+        await JsRuntime.InvokeVoidAsync("window.bpmnViewer.importXML", xml);
         ErrorString = null;
     }
 
 
-    private async Task WaitForInitComplete()
-    {
-        while (await JsRuntime.InvokeAsync<bool>("isReady") != true)
-            await Task.Delay(500);
-    }
-    
 
     private async Task OpenSendRestRequestAsync(RestExampleRequest restData)
     {
@@ -328,5 +320,10 @@ public partial class Instance
     }
 
 
+    private async Task Reload()
+    {
+        await InitViewer();
+        await LoadData();
+    }
 }
 

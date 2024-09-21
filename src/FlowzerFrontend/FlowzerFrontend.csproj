@@ -30,9 +30,12 @@
 
     <ItemGroup>
       <None Remove="Pages\EditDefinition.razor.js" />
-      <EmbeddedResource Include="Pages\EditDefinition.razor.js" />
       <None Remove="Pages\Instance.razor.js" />
       <EmbeddedResource Include="Pages\Instance.razor.js" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Include="Pages\EditDefinition.razor.js" />
     </ItemGroup>
 
 </Project>

@@ -3,36 +3,37 @@
 
 <FluentBodyContent>
 
-<div class="page">
-    <nav>
-        <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-            <div class="nav-item">
-                Home    
-            </div>
-        </NavLink>
-        <NavLink class="nav-link" href="/models">
-            <div class="nav-item">
-                Models
-            </div>
-        </NavLink>
-        <NavLink class="nav-link" href="/instances">
-            <div class="nav-item">
-                Instances
-            </div>
-        </NavLink>
-        <NavLink class="nav-link" href="/forms">
-            <div class="nav-item">
-                Forms
-            </div>
-        </NavLink>
-    </nav>
-    <main>
-        @Body
-    </main>
-</div>
+    <div class="page">
+        <nav>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <div class="nav-item">
+                    Home    
+                </div>
+            </NavLink>
+            <NavLink class="nav-link" href="/models">
+                <div class="nav-item">
+                    Models
+                </div>
+            </NavLink>
+            <NavLink class="nav-link" href="/instances">
+                <div class="nav-item">
+                    Instances
+                </div>
+            </NavLink>
+            <NavLink class="nav-link" href="/forms">
+                <div class="nav-item">
+                    Forms
+                </div>
+            </NavLink>
+        </nav>
+        <main>
+            @Body
+        </main>
+    </div>
 
-<FluentToastProvider />
-<FluentDialogProvider />
-<FluentTooltipProvider />
-<FluentMessageBarProvider />
+    <FluentToastProvider />
+    <FluentDialogProvider />
+    <FluentTooltipProvider />
+    <FluentMessageBarProvider />
 </FluentBodyContent>
+

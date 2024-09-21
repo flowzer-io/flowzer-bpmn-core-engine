@@ -40,21 +40,18 @@ public partial class EditDefinition
     
     protected override async Task OnInitializedAsync()
     {
-        NavigationManager.LocationChanged += OnLocationChanged;
         await JsRuntime.EvalCodeBehindJsScripts(this);
-        await WaitForInitComplete();
-        await InitEditor();
-        await LoadModel();
+        
+        
+        InitEditor();
+        
     }
 
-    private async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
-    {
-        await JsRuntime.InvokeVoidAsync("resetInit");
-    }
 
-    private async Task InitEditor()
+    private async void InitEditor()
     {
         await JsRuntime.InvokeVoidAsync("InitEdit");
+        await LoadModel();
         
     }
 
@@ -78,14 +75,7 @@ public partial class EditDefinition
         }
         else
         {
-            try
-            {
                 await LoadDiagramXml(xml);
-            }
-            catch (Exception e)
-            {
-                ErrorString = e.Message;
-            }
         }
         
         IsDocumentLoading = false;
@@ -110,19 +100,10 @@ public partial class EditDefinition
 
     private async Task LoadDiagramXml(string xml)
     {
-        await JsRuntime.InvokeVoidAsync("importXML", xml);
+        await JsRuntime.InvokeVoidAsyncNoneCached("window.bpmnModeler.importXML", xml);
         ErrorString = null;
     }
-
     
-
-
-    private async Task WaitForInitComplete()
-    {
-        while (await JsRuntime.InvokeAsync<bool>("isReady") != true)
-            await Task.Delay(500);
-    }
-
 
     private async void ToggleTitleEditMode()
     {

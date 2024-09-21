@@ -1,20 +1,5 @@
 
-async function isReady(){
-    try {
-        
-        let ret = (typeof InitCompleted !== undefined) && (InitCompleted == true);
-        console.log("isReady: " + ret);
-        return ret;
-    }
-    catch (error) {
-        return false;
-    }
-}
 
-async function importXML(xml)
-{
-    await bpmnViewer.importXML(xml)
-}
 
 function clearTokens(){
     bpmnViewer.get('overlays').clear();

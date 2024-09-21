@@ -43,7 +43,7 @@
 
 
 
-    <div class="content with-diagram" id="designer-container" style="@(IsDocumentLoading || ErrorString != null ? "display: none;" : "")">
+    <div class="content with-diagram" id="designer-container">
         <div class="canvas" id="js-canvas"></div>
         <div class="properties-panel-parent" id="js-properties-panel"></div>
     </div>
@@ -62,11 +62,3 @@
 
 </div>
 
-
-<script src="public/app.js"></script>
-<script>
-    window.notifyBlazorWhenScriptsLoaded = function () {
-        // Hier prüfst du, ob alle Skripte geladen sind, und rufst dann die C# Methode auf.
-        DotNet.invokeMethodAsync('YourBlazorAppNamespace', 'OnScriptsLoaded');
-    };
-</script>

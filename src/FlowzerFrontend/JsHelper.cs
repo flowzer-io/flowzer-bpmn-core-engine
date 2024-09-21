@@ -23,4 +23,9 @@ public static class JsHelper
         var fileContent = await reader.ReadToEndAsync();
         await jsRuntime.InvokeVoidAsync("eval", fileContent);
     }
+
+    public static ValueTask InvokeVoidAsyncNoneCached(this IJSRuntime jsRuntime, params object[] args)
+    {
+        return jsRuntime.InvokeVoidAsync("callFunctionWithoutCaching", args); 
+    }
 }
