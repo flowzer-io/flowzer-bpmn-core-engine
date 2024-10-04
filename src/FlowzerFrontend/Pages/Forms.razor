@@ -1,15 +1,35 @@
 @page "/forms"
-<h3>Forms</h3>
+@using Microsoft.FluentUI.AspNetCore.Components
+@using WebApiEngine.Shared
 
-<head>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.form.io/formiojs/formio.full.min.css">
-    <script src='https://cdn.form.io/js/formio.full.min.js'></script>
-</head>
-<body>
-<div id='builder'></div>
-<script type='text/javascript'>
-      Formio.builder(document.getElementById('builder'), {}, {});
-    </script>
-</body>
+
+
+<div class="main-content">
+    <LayoutWithLeftMenu>
+        <MenuContent>
+            <FluentNavMenu>
+                <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
+                    New Form
+                </FluentButton>
+                @* <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="/instances/all">All Instances</FluentNavLink> *@
+                @* <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="/instances/done">Done</FluentNavLink> *@
+                @* <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="/instances/active">Error</FluentNavLink> *@
+            </FluentNavMenu>
+        </MenuContent>
+        <MainContent>
+            <FluentStack Orientation="Orientation.Vertical" Width="100%">
+
+                <div class="list-header">
+                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
+                        <SelectColumn TGridItem="FormMetaDataDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
+                        <TemplateColumn Title="Titel">
+                            <div class="grid-row-title"><a href="@UriHelper.GetShowFormUrl(@context.FormId)">@context.Name</a></div>
+                            <div class="grid-row-subtitle">Instance @context.FormId</div>
+                        </TemplateColumn>
+                    </FluentDataGrid>
+                </div>
+
+            </FluentStack>
+        </MainContent>
+    </LayoutWithLeftMenu>
+</div>

@@ -14,4 +14,6 @@ public interface IStorageSystem
     IMessageSubscriptionStorage SubscriptionStorage { get; }
     
     IInstanceStorage InstanceStorage { get; }
+    
+    IFormStorage FormStorage { get; }
 }

@@ -1,6 +1,4 @@
 using System.Net.Http.Json;
-using System.Text.Json.Nodes;
-using FlowzerFrontend.Models;
 using WebApiEngine.Shared;
 
 namespace FlowzerFrontend;
@@ -98,10 +96,31 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAndThrowOnErrorAsync<TokenDto[]>("instance/" + instanceGuid + "/subscription/userTasks");
     }
 
-
-    public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
+    
+    public async Task<FormMetaDataDto> GetFormMetaData(Guid metaDataId)
     {
-        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        return await GetAsJsonAndThrowOnErrorAsync<FormMetaDataDto>("form/meta/" + metaDataId);
+    }
+    
+    public async Task<FormDto> GetForm(Guid formId)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<FormDto>("form/" + formId);
+    }
+
+
+    public async Task SaveFormMetaData(FormMetaDataDto formMetaDataDto)
+    {
+        await PostAsJsonAsyncSave<ApiStatusResult>("form/meta/" + formMetaDataDto.FormId, formMetaDataDto);
+    }
+
+    public async Task SaveForm(FormDto formData)
+    {
+        await PostAsJsonAsyncSave<ApiStatusResult>("form/" + formData.FormId, formData);
+    }
+
+    public async Task<List<FormMetaDataDto>> GetFormMetaDatas()
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<List<FormMetaDataDto>>("form/meta");
     }
 }
 

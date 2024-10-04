@@ -4,21 +4,14 @@
 
 
 
+
+
 <div class="main-content">
 
-    <HeaderElement>
+    <HeaderElement BackLink="/models">
         <LeftSide>
             
-            @if (TitleEditMode)
-            {
-            <FluentTextField @bind-Value=@CurrentMetaDefinition.Name AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
-            }
-            else
-            {
-            <span id="current-file-name">@CurrentMetaDefinition.Name</span>
-            }
-            <button class="button-flat" @onclick="ToggleTitleEditMode"><i class="fa-solid fa-pencil"></i></button>
-
+            <LabelWithEdit @bind-Label=@CurrentMetaDefinition.Name AfterChanged="AfterChanged"/>
             <span id="current-file-version">Version: @CurrentDefinition.Version.ToString() </span>
         
         </LeftSide>
@@ -35,14 +28,18 @@
                 <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())">
                     Debug
                 </FluentButton>
+
+                <FluentMenuButton Text="Options" IconStart="new Icons.Regular.Size20.Options()" OnMenuChanged="OnSaveMenuChoosen" ButtonAppearance="Appearance.Neutral" >
+                    <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
+                </FluentMenuButton>
             </FluentStack>
         </RigthSide>
   
     </HeaderElement>
+  
+ 
     
-
-
-
+    
     <div class="content with-diagram" id="designer-container">
         <div class="canvas" id="js-canvas"></div>
         <div class="properties-panel-parent" id="js-properties-panel"></div>

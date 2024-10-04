@@ -1,0 +1,15 @@
+::deep #new-button
+{
+    width: 100%;
+}
+
+.main-content{
+    height: 100%;
+}
+
+.list-header{
+    padding-top: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: 100%;
+}

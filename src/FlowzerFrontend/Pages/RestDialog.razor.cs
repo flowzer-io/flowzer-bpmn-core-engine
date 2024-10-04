@@ -1,14 +1,12 @@
-using FlowzerFrontend.Models;
 using Microsoft.AspNetCore.Components;
 
 namespace FlowzerFrontend.Pages;
 
 public partial class RestDialog
 {
-    [Inject] public FlowzerApi FlowzerApi { get; set; }
+    [Inject] public required FlowzerApi FlowzerApi { get; set; }
     
-    [Parameter]
-    public RestDialogParams Content { get; set; }
+    [Parameter] public RestDialogParams Content { get; set; }
 
     public string? Result { get; set; }
     

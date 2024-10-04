@@ -1,6 +1,7 @@
 using BPMN.Infrastructure;
 using core_engine;
 using Model;
+using Version = Model.Version;
 
 namespace WebApiEngine.BusinessLogic;
 
@@ -16,12 +17,12 @@ public class DefinitionBusinessLogic(IStorageSystem storageSystem)
         var highestVersion = await storageSystem.DefinitionStorage.GetMaxVersionId(model.Id);
         
         if (highestVersion == null)
-            highestVersion = new BpmnVersion(1, 0);
+            highestVersion = new Version(1, 0);
         else
         {
             if (deploy)
             {
-                highestVersion = new BpmnVersion(highestVersion.Major +1, 0);
+                highestVersion = new Version(highestVersion.Major +1, 0);
             }
             else
             {

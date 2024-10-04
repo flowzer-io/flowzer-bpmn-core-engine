@@ -7,8 +7,18 @@ public class UriHelper
         return $"/definition/{definitionId}";
     }
 
-    public static object GetShowInstanceUrl(Guid instanceId)
+    public static string GetShowInstanceUrl(Guid instanceId)
     {
         return $"/instance/{instanceId}";
+    }
+
+    public static string GetShowFormUrl(Guid formId)
+    {
+        return $"/forms/{formId}";
+    }
+
+    public static string GetNewFormUrl()
+    {
+        return $"/forms/create";
     }
 }

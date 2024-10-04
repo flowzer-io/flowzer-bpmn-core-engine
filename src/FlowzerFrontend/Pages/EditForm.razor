@@ -1,0 +1,34 @@
+@page "/forms/{FormId}"
+@using Microsoft.FluentUI.AspNetCore.Components
+@using FlowzerFrontend.Components
+
+
+<div class="main-content">
+    <HeaderElement Title="Hello world" BackLink="/forms">
+        <LeftSide>
+            <LabelWithEdit @bind-Label=@CurrentFormMeta.Name AfterChanged="AfterTitleChanged"/>
+        </LeftSide>
+        <RigthSide>
+            <FluentStack Orientation="Orientation.Horizontal" >
+               
+                <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveForm" >
+                    Save
+                </FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" IconStart="new Icons.Regular.Size20.Form()">
+                    Test Form
+                </FluentButton>
+                <FluentMenuButton Text="Options" IconStart="new Icons.Regular.Size20.Options()" ButtonAppearance="Appearance.Neutral">
+                    <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
+                </FluentMenuButton>    
+            </FluentStack>
+        </RigthSide>
+    </HeaderElement>
+
+    <div class="iframe-container">
+        <iframe src="/formio" width="100%" height="100%"></iframe>
+    </div>
+    
+
+</div>
+
+

@@ -17,8 +17,6 @@ import {
   ZeebePropertiesProviderModule
 } from 'bpmn-js-properties-panel';
 
-import PropertiesProviderModul from './provider/flowzer';
-
 // Camunda 8 moddle extension
 import zeebeModdle from 'zeebe-bpmn-moddle/resources/zeebe';
 

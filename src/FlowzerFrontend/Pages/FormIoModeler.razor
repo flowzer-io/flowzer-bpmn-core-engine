@@ -1,0 +1,78 @@
+@page "/formio"
+@using Microsoft.FluentUI.AspNetCore.Components
+@layout EmptyLayout
+
+<head>
+    <link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css'>
+    <link rel='stylesheet' href='https://cdn.form.io/formiojs/formio.full.min.css'>
+</head>
+
+
+<body>
+
+<div>
+    <div id='builder'></div>
+</div>
+
+<script type='text/javascript'>
+    window.Formio = Formio;
+    Formio.builder(document.getElementById('builder'), {}).then(function(form){
+        window.form = form;
+        
+    });
+
+</script>
+
+
+
+<script>
+        
+    function GetFormData(){
+        return window.form.schema
+    }
+
+    function IsReady(){
+        return window.form !== undefined;
+    }
+    
+    window.addEventListener('message', async function(event) {
+        console.log("Executing " + event.data.func + " " + JSON.stringify(event.data.arguments)); // Message received from child
+        let ret = callFunctionWithoutCaching(event.data.func, ...event.data.arguments);
+
+        // Check if ret is a Promise
+        if (ret instanceof Promise) {
+            ret = await ret;
+        }
+
+        window.parent.postMessage(ret, '*');
+    });
+</script>
+
+
+</body>
+
+
+@* form.on("change", function(e){ *@
+@* window.currentFormSchema = form.schema; *@
+@* }); *@
+
+@* *@
+@* *@
+@* window.createdForm = Formio.createForm(document.getElementById('form'), {}) *@
+@* .then((form) => { *@
+@* window.createdForm = form; *@
+@* form.submission = { *@
+@* data: { *@
+@* firstName: 'Joe2', *@
+@* lastName: 'Smith', *@
+@* someArray: [ *@
+@* { *@
+@* name: 'foo' *@
+@* }, *@
+@* { *@
+@* name: 'bar' *@
+@* } *@
+@* ] *@
+@* } *@
+@* } *@
+@* }); *@

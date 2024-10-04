@@ -1,7 +1,5 @@
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Routing;
-using Microsoft.AspNetCore.Components.Web;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 using WebApiEngine.Shared;
@@ -20,16 +18,15 @@ public partial class EditDefinition
     public required FlowzerApi FlowzerApi { get; set; }
 
     [Inject]
-    private IDialogService DialogService { get; set; }
+    public required IDialogService DialogService { get; set; }
     
-    [Inject]
-    public required NavigationManager NavigationManager { get; set; }
-
+    private FluentMenuButton _menubutton = new();
+ 
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
     
     
-    private bool TitleEditMode { get; set; }
+
     private BpmnMetaDefinitionDto CurrentMetaDefinition { get; set; } = new BpmnMetaDefinitionDto()
     {
         Active = false,
@@ -41,10 +38,7 @@ public partial class EditDefinition
     protected override async Task OnInitializedAsync()
     {
         await JsRuntime.EvalCodeBehindJsScripts(this);
-        
-        
         InitEditor();
-        
     }
 
 
@@ -54,6 +48,7 @@ public partial class EditDefinition
         await LoadModel();
         
     }
+    
 
     private async Task LoadModel()
     {
@@ -79,9 +74,10 @@ public partial class EditDefinition
         }
         
         IsDocumentLoading = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    public BpmnDefinitionDto CurrentDefinition { get; set; } = new BpmnDefinitionDto()
+    private BpmnDefinitionDto CurrentDefinition { get; set; } = new BpmnDefinitionDto()
     {
         DefinitionId = "Loading...",
         Hash = "Loading...",
@@ -89,7 +85,7 @@ public partial class EditDefinition
         PreviousGuid = Guid.Empty,
         SavedByUser = Guid.Empty,
         SavedOn = DateTime.Now,
-        Version = new BpmnVersionDto()
+        Version = new VersionDto()
         {
             Major = 0,
             Minor = 0
@@ -103,33 +99,6 @@ public partial class EditDefinition
         await JsRuntime.InvokeVoidAsyncNoneCached("window.bpmnModeler.importXML", xml);
         ErrorString = null;
     }
-    
-
-    private async void ToggleTitleEditMode()
-    {
-        try
-        {
-            if (TitleEditMode)
-                await FlowzerApi.UpdateMetaDefinition(CurrentMetaDefinition);
-            
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-        }
-        TitleEditMode = !TitleEditMode;
-        StateHasChanged();
-    }
-
-
-    private void OnTitleEditKeyUp(KeyboardEventArgs keyboardEventArgs)
-    {
-        if (keyboardEventArgs.Key == "Enter")
-        {
-            ToggleTitleEditMode();
-        }
-    }
-
 
     private async void OnSaveClick()
     {
@@ -158,8 +127,18 @@ public partial class EditDefinition
 
     private async Task<string> GetXmlData()
     {
-        var saveXmlResult = await JsRuntime.InvokeAsync<JsonObject>("saveXML");
+        var saveXmlResult = await JsRuntime.InvokeAsyncNoneCached<JsonObject>("window.bpmnModeler.saveXML");
         var xmlData = saveXmlResult["xml"]!.GetValue<string>();
         return xmlData;
+    }
+
+    private async void AfterChanged(string obj)
+    {
+        await FlowzerApi.UpdateMetaDefinition(CurrentMetaDefinition);
+    }
+
+    private void OnSaveMenuChoosen(MenuChangeEventArgs obj)
+    {
+        JsRuntime.InvokeVoidAsync("console.writeline", obj?.Id ?? "null");
     }
 }

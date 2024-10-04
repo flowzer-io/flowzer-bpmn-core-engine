@@ -53,6 +53,12 @@ public class ApiBase
         return await SendAsyncSave<T>(url, value, HttpMethod.Put, isJson, throwOnUnsuccessfulStatusCodes);
     }
     
+    
+    public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
+    {
+        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+    }
+    
     protected async Task<T> SendAsyncSave<T>(string url, string value, HttpMethod method, bool isJson, bool throwOnUnsuccessfulStatusCodes = true)
     {
         HttpResponseMessage result;

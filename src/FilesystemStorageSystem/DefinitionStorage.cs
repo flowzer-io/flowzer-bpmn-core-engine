@@ -1,6 +1,7 @@
 using Model;
 using Newtonsoft.Json;
 using StorageSystem;
+using Version = Model.Version;
 
 namespace FilesystemStorageSystem;
 
@@ -9,21 +10,14 @@ public class DefinitionStorage : IDefinitionStorage
     private readonly string _binaryBasePath;
     private readonly string _basePath;
     private readonly string _metabasePath;
-    private JsonSerializerSettings _newtonSoftDefaultSettings;
+    private readonly Storage _storage;
 
     public DefinitionStorage(Storage storage)
     {
+        _storage = storage;
         _binaryBasePath = storage.GetBasePath("FileStorage/Definitions/Binary");
         _basePath = storage.GetBasePath("FileStorage/Definitions");
         _metabasePath = storage.GetBasePath("FileStorage/Definitions/Meta");
-        
-        _newtonSoftDefaultSettings = new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.Auto,
-            TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
-            Formatting = Formatting.Indented
-        };
-        
 
     }
 
@@ -62,11 +56,11 @@ public class DefinitionStorage : IDefinitionStorage
     public Task StoreDefinition(BpmnDefinition definition)
     {
         var fullFileName = Path.Combine(_basePath, $"{definition.Id}.json");
-        var data = JsonConvert.SerializeObject(definition, _newtonSoftDefaultSettings);
+        var data = JsonConvert.SerializeObject(definition,  _storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
     }
 
-    public async Task<BpmnVersion?> GetMaxVersionId(string modelId)
+    public async Task<Version?> GetMaxVersionId(string modelId)
     {
         var definitions = await GetAllDefinitions();
         var maxVersionId = definitions.Where(x => x.DefinitionId == modelId)
@@ -93,7 +87,7 @@ public class DefinitionStorage : IDefinitionStorage
         {
             throw new Exception($"Meta definition already exists for definitionId {metaDefinition.DefinitionId}");
         }
-        var data = JsonConvert.SerializeObject(metaDefinition,_newtonSoftDefaultSettings);
+        var data = JsonConvert.SerializeObject(metaDefinition, _storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
     }
 
@@ -104,7 +98,7 @@ public class DefinitionStorage : IDefinitionStorage
         {
             throw new Exception($"No meta definition found for definitionId {metaDefinition.DefinitionId}");
         }
-        var data = JsonConvert.SerializeObject(metaDefinition,_newtonSoftDefaultSettings);
+        var data = JsonConvert.SerializeObject(metaDefinition,_storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
     }
 

@@ -28,4 +28,9 @@ public static class JsHelper
     {
         return jsRuntime.InvokeVoidAsync("callFunctionWithoutCaching", args); 
     }
+    
+    public static ValueTask<T> InvokeAsyncNoneCached<T>(this IJSRuntime jsRuntime, params object[] args)
+    {
+        return jsRuntime.InvokeAsync<T>("callFunctionWithoutCaching", args); 
+    }
 }

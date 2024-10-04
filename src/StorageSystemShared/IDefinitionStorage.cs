@@ -1,4 +1,5 @@
 using BPMN.Flowzer.Events;
+using Version = Model.Version;
 
 namespace StorageSystem;
 
@@ -10,7 +11,7 @@ public interface IDefinitionStorage
     Task<Guid[]> GetAllBinaryDefinitions();
     Task<BpmnDefinition[]> GetAllDefinitions();
     Task StoreDefinition(BpmnDefinition definition);
-    Task <BpmnVersion?> GetMaxVersionId(string modelId);
+    Task <Version?> GetMaxVersionId(string modelId);
     Task<BpmnMetaDefinition[]> GetAllMetaDefinitions();
     Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition);
     Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition);

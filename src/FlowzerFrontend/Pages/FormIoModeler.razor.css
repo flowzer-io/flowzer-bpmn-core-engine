@@ -1,0 +1,24 @@
+::deep #builder{
+    font-family: "Segoe UI Variable", "Segoe UI", sans-serif !important;
+}
+
+::deep .btn-primary {
+    background-color: #036ac4;
+    
+}
+::deep [ref="sidebar-groups"] span.btn-primary{
+    padding: 8px !important;
+    background: #e6e6e6;
+    color: black;
+    border-color: #c6cbd1;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+
+
+::deep .alert-info{
+    /*border-color: #49a878;*/
+    /*background: #26b050;*/
+    /*color: white;*/
+}

@@ -1,4 +1,5 @@
-﻿using StorageSystem;
+﻿using Newtonsoft.Json;
+using StorageSystem;
 
 namespace FilesystemStorageSystem;
 
@@ -11,11 +12,21 @@ public class Storage : IStorageSystem
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         InstanceStorage = new InstanceStorage(this);
+        FormStorage = new FormStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
+    public IFormStorage FormStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
+
+    public JsonSerializerSettings NewtonSoftDefaultSettings =>
+        new()
+        {
+            TypeNameHandling = TypeNameHandling.Auto,
+            TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
+            Formatting = Formatting.Indented
+        };
 
     public string GetBasePath(string name)
     {
@@ -27,22 +38,4 @@ public class Storage : IStorageSystem
     
     
 
-}
-
-public class TransactionalStorage : Storage, ITransactionalStorage
-{
-    public void CommitChanges()
-    {
-        return;
-    }
-
-    public void RollbackTransaction()
-    {
-        return;
-    }
-
-    public void Dispose()
-    {
-        return;
-    }
 }

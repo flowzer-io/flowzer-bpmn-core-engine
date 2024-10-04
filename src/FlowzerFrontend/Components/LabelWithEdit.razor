@@ -1,0 +1,11 @@
+@using Microsoft.FluentUI.AspNetCore.Components
+
+@if (TitleEditMode)
+{
+    <FluentTextField @bind-Value=@Label AriaLabel="No label" @onkeyup="OnTitleEditKeyUp"></FluentTextField>
+}
+else
+{
+    <span id="current-file-name">@Label</span>
+}
+<button class="button-flat" @onclick="ToggleTitleEditMode"><i class="fa-solid fa-pencil"></i></button>

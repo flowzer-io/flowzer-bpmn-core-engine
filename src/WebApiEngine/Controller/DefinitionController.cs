@@ -1,5 +1,4 @@
 using AutoMapper;
-using Model;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Shared;
 

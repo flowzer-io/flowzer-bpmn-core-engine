@@ -10,5 +10,5 @@ public class BpmnDefinitionDto
     public DateTime SavedOn { get; set; }
     public Guid? DeployedByUser { get; set; }
     public DateTime? DeployedOn { get; set; }
-    public required BpmnVersionDto Version { get; set; }
+    public required VersionDto Version { get; set; }
 }
