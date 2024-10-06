@@ -11,22 +11,28 @@ function callFunctionWithoutCaching(functionPath, ...args) {
     }
 
     const functionName = parts[parts.length - 1];
+    if (context[functionName] == undefined)
+    {
+        throw new Error("Function not found: " + functionPath);
+    }
     return context[functionName](...args);
 }
 
 
-
-function executeInIframe(funcName, ...args) {
-    const iframe = document.querySelector("iframe");
-
+function executeInIframe(selector,funcName, ...args) {
+    const iframe = document.querySelector(selector);
+    
     return new Promise((resolve, reject) => {
         // Timeout to prevent waiting indefinitely
         const timeout = setTimeout(() => reject(new Error("No response received")), 1000);
     
         function messageHandler(event) {
-            clearTimeout(timeout); // Clear the timeout
-            window.removeEventListener('message', messageHandler); // Clean up listener
-            resolve(event.data); // Resolve the promise with response data
+            if (event.data.type === "response"){
+                clearTimeout(timeout); // Clear the timeout
+                window.removeEventListener('message', messageHandler); // Clean up listener
+                resolve(event.data.ret); // Resolve the promise with response data    
+            }
+            
         }
     
         // Listen for response from the iframe

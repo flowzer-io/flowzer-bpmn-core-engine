@@ -1,0 +1,11 @@
+@using FlowzerFrontend.Components
+@using Microsoft.FluentUI.AspNetCore.Components
+@implements Microsoft.FluentUI.AspNetCore.Components.IDialogContentComponent<TestFormParameters>
+
+
+<FormComponent Schema="@Content.Schema" @bind-Data="Content.Data" @bind-OutData="OutData"></FormComponent>
+
+<FluentLayout Orientation="Orientation.Horizontal">
+    <FluentTextArea @bind-Value="@Content.Data" Style="width: 50%" Rows="12"></FluentTextArea>
+    <FluentTextArea @bind-Value="@OutData" Style="width: 50%" Rows="12"></FluentTextArea>    
+</FluentLayout>

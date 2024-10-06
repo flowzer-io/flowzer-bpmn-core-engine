@@ -1,0 +1,26 @@
+
+
+<iframe id="iframe_viewer" src="/formioViewer" allowtransparency = "true"></iframe>
+
+
+<script>
+    
+    function SetDotNetRef(ref){
+        window.dotNetRef = ref;
+    }
+
+    function messageHandler(event){
+        if (event.data.type === "event" && event.data.eventTyp === "formChanged"){
+            console.log("sending formchange to dotnet");
+            window.dotNetRef.invokeMethodAsync('OnFormChange',  event.data);
+        }
+        
+    }
+
+    if (!window.messageHandlerSet) {
+        window.addEventListener('message', messageHandler);
+        window.messageHandlerSet = true;
+    }
+    
+    
+</script>

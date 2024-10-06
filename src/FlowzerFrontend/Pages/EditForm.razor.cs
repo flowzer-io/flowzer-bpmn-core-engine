@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 using WebApiEngine.Shared;
 
@@ -10,6 +11,7 @@ public partial class EditForm : ComponentBase
 {
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
     [Inject] public required IJSRuntime JsRuntime { get; set; }
+    [Inject] public required IDialogService DialogService { get; set; }
     [Inject] public required ILogger<EditForm> Logger { get; set; }
 
     
@@ -61,7 +63,7 @@ public partial class EditForm : ComponentBase
         {
             try
             {
-                var ret = await JsRuntime.InvokeAsyncNoneCached<bool>("executeInIframe", "IsReady");
+                var ret = await JsRuntime.InvokeAsyncNoneCached<bool>("executeInIframe", "iframe", "IsReady");
                 Logger.LogInformation("IsReady: {IsReady}", ret);
                 if (ret)
                     break;
@@ -75,11 +77,11 @@ public partial class EditForm : ComponentBase
         }
         
         using var doc = JsonDocument.Parse(data);
-        await JsRuntime.InvokeAsyncNoneCached<object>("executeInIframe", "window.form.setForm",doc.RootElement);
+        await JsRuntime.InvokeAsyncNoneCached<object>("executeInIframe", "iframe", "window.form.setForm",doc.RootElement);
     }
 
 
-    private async void SaveForm(MouseEventArgs obj)
+    private async void SaveFormClicked(MouseEventArgs obj)
     {
         try
         {
@@ -97,7 +99,7 @@ public partial class EditForm : ComponentBase
 
     private async Task<string?> GetFormData()
     {
-        var ret = await JsRuntime.InvokeAsyncNoneCached<object>("executeInIframe", "GetFormData");
+        var ret = await JsRuntime.InvokeAsyncNoneCached<object>("executeInIframe", "iframe", "GetFormData");
         return ((JsonElement)ret).GetRawText();
     }
     
@@ -105,5 +107,35 @@ public partial class EditForm : ComponentBase
     {
         await FlowzerApi.SaveFormMetaData(CurrentFormMeta);
     }
-    
+
+    private async void TestFormClicked(MouseEventArgs obj)
+    {
+        DialogParameters parameters = new()
+        {
+            Title = $"Test Form",
+            Width = "80%",
+            Height = "90%",
+            TrapFocus = true,
+            Modal = true,
+            PreventScroll = true,
+            ShowTitle = false,
+            SecondaryActionEnabled = false,
+            SecondaryAction = "",
+            PrimaryAction = ""
+        };
+
+        var testFormParameters = new TestFormParameters()
+        {
+            Schema = await GetFormData(),
+            Data = """
+                   {
+                    "firstName": "John",
+                    "lastName": "Doe"
+                   }
+                   """
+        };
+        IDialogReference dialog = await DialogService.ShowDialogAsync<Testform>(testFormParameters, parameters);
+        DialogResult? result = await dialog.Result;
+
+    }
 }

@@ -4,17 +4,17 @@
 
 
 <div class="main-content">
-    <HeaderElement Title="Hello world" BackLink="/forms">
+    <HeaderElement BackLink="/forms">
         <LeftSide>
             <LabelWithEdit @bind-Label=@CurrentFormMeta.Name AfterChanged="AfterTitleChanged"/>
         </LeftSide>
         <RigthSide>
             <FluentStack Orientation="Orientation.Horizontal" >
                
-                <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveForm" >
+                <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveFormClicked" >
                     Save
                 </FluentButton>
-                <FluentButton Appearance="Appearance.Neutral" IconStart="new Icons.Regular.Size20.Form()">
+                <FluentButton Appearance="Appearance.Neutral" IconStart="new Icons.Regular.Size20.Form()"  OnClick="TestFormClicked" >
                     Test Form
                 </FluentButton>
                 <FluentMenuButton Text="Options" IconStart="new Icons.Regular.Size20.Options()" ButtonAppearance="Appearance.Neutral">

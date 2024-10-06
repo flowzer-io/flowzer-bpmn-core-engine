@@ -1,0 +1,66 @@
+@page "/formioViewer"
+@layout EmptyLayout
+
+
+<head>
+    <link rel='stylesheet' href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css'>
+    <link rel='stylesheet' href='https://cdn.form.io/formiojs/formio.full.min.css'>
+</head>
+
+
+
+<div>
+    <div id='form'></div>
+</div>
+
+
+<script>
+    window.Formio = Formio;
+
+
+    function loadViewer(schema){
+        Formio.createForm(document.getElementById('form'), schema)
+            .then((form) => {
+                window.formViewer = form;
+                form.on('change', function() {
+                    console.log("sending formChanged to parent");
+                    window.parent.postMessage({type: "event", eventTyp: "formChanged"}, '*');
+                });
+            });
+    }
+
+    function setSubmission(data)
+    {
+        console.log("got setSubmission from dotnet");
+        window.formViewer.submission.data = data;
+        window.formViewer.redraw();
+    }
+
+    function getSubmission()
+    {
+        return window.formViewer.submission.data;
+    }
+
+    
+    function IsReady(){
+        return  window.Formio !== undefined;
+    }
+    
+    if (!window.messageHandlerSet) {
+        window.addEventListener('message', async function(event) {
+            console.log("Executing " + event.data.func + " " + JSON.stringify(event.data.arguments)); // Message received from child
+            let ret = callFunctionWithoutCaching(event.data.func, ...event.data.arguments);
+
+            // Check if ret is a Promise
+            if (ret instanceof Promise) {
+                ret = await ret;
+            }
+
+            window.parent.postMessage({ret: ret, type: "response"}, '*');
+        });
+        window.messageHandlerSet = true;
+    }
+    
+    console.log("Formio Viewer loaded");
+</script>
+
