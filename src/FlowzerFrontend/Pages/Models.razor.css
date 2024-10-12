@@ -15,6 +15,7 @@
 .grid-row-title a:visited{
     color: black;
     text-decoration: none;
+    cursor: pointer;
 }
 
 .icon

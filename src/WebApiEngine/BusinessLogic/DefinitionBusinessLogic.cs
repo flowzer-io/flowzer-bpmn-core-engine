@@ -41,7 +41,8 @@ public class DefinitionBusinessLogic(IStorageSystem storageSystem)
             Hash = rawContent.GetHashCode().ToString(),
             SavedByUser = Guid.Parse("D266F2B6-E96E-4D4A-9C20-C8E541394DF0"), // User.Claims["guid"] or something like that
             SavedOn = DateTime.UtcNow,
-            Version = highestVersion
+            Version = highestVersion,
+            IsActive = false
         };
 
         await storageSystem.DefinitionStorage.StoreDefinition(definition);

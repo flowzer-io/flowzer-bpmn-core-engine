@@ -123,4 +123,10 @@ public class ProcessEngine(Process process) : ICatchHandler
                 .Select(e => e.Signal.Name).ToList();
         }
     }
+
+    public List<Token> ActiveUserTasks()
+    {
+        //TODO: implement to support userasks as initialisation of a instancde
+        return new List<Token>();
+    }
 }

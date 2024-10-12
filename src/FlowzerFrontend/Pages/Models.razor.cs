@@ -17,7 +17,7 @@ public partial class Models
     public bool Expanded { get; set; } = true;
     public bool CheckAll { get; set; } = true;
 
-    public IEnumerable<BpmnMetaDefinitionDto> SelectedItems { get; set; } = new List<BpmnMetaDefinitionDto>(); 
+    public IEnumerable<ExtendedBpmnMetaDefinitionDto> SelectedItems { get; set; } = new List<ExtendedBpmnMetaDefinitionDto>(); 
     
     public List<Option<SortDirection>> SortDirections = new()
     {
@@ -27,7 +27,7 @@ public partial class Models
     
     public Option<SortDirection>? SelectedSortDirection { get; set; }
     public string? SelectedSortDirectionString { get; set; }
-    public IQueryable<BpmnMetaDefinitionDto>? Data { get; set; } = new List<BpmnMetaDefinitionDto>().AsQueryable();
+    public IQueryable<ExtendedBpmnMetaDefinitionDto>? Data { get; set; } = new List<ExtendedBpmnMetaDefinitionDto>().AsQueryable();
     
     
     

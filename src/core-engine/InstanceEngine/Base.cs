@@ -136,5 +136,8 @@ public partial class InstanceEngine: ICatchHandler
     // }
 
     List<DateTime> ICatchHandler.ActiveTimers => throw new NotImplementedException();
-    
+    public List<Token> ActiveUserTasks()
+    {
+        return GetActiveUserTasks().ToList();
+    }
 }

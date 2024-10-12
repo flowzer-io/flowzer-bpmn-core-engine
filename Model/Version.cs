@@ -16,8 +16,8 @@ public class Version: IComparable<Version>
         Minor = minor;
     }
 
-    public required int Major { get; set; }
-    public required int Minor { get; set; }
+    public int Major { get; set; }
+    public int Minor { get; set; }
     
     //+ operator which increases the minor version
     public static Version operator +(Version version, int increase)

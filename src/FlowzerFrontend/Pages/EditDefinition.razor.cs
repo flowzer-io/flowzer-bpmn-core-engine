@@ -9,7 +9,11 @@ namespace FlowzerFrontend.Pages;
 public partial class EditDefinition
 {
     [Parameter]
-    public string? DefinitionId { get; set; }
+    public string? MetaDefinitionId { get; set; }
+        
+    [Parameter]
+    public Guid? DefinitionId { get; set; }
+
     
     [Inject]
     public required IJSRuntime JsRuntime { get; set; }
@@ -29,7 +33,6 @@ public partial class EditDefinition
 
     private BpmnMetaDefinitionDto CurrentMetaDefinition { get; set; } = new BpmnMetaDefinitionDto()
     {
-        Active = false,
         Description = "",
         Name = "Loading...",
         DefinitionId = "Loading..."
@@ -53,15 +56,23 @@ public partial class EditDefinition
     private async Task LoadModel()
     {
 
-        if (string.IsNullOrEmpty(DefinitionId))
+        if (string.IsNullOrEmpty(MetaDefinitionId))
         {
             return;
         }
         
-        var metaModel = await FlowzerApi.GetMetaDefinitionById(DefinitionId);
+        var metaModel = await FlowzerApi.GetMetaDefinitionById(MetaDefinitionId);
         CurrentMetaDefinition = metaModel;
 
-        CurrentDefinition = await FlowzerApi.GetLatestDefinition(DefinitionId);
+        if (DefinitionId.HasValue)
+        {
+            CurrentDefinition = await FlowzerApi.GetDefinition(DefinitionId!);
+        }
+        else //if not definition id is given, load the latest definition
+        {
+            CurrentDefinition = await FlowzerApi.GetLatestDefinition(MetaDefinitionId);
+        }
+      
         var xml = await FlowzerApi.GetXmlDefinition(CurrentDefinition.Id);
 
         if (string.IsNullOrEmpty(xml))

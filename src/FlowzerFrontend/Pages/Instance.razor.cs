@@ -139,7 +139,7 @@ public partial class Instance
             OnExpandedAsync = OnMessageSubscriptionItemExpanded,
         };
         if (_instance.ServiceSubscriptionCount > 0)
-            messageSubscriptionsTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
+            serviceSubscriptiontTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
 
 
         var signalSubscriptionTreeItem = new TreeViewItem()
@@ -149,7 +149,7 @@ public partial class Instance
             OnExpandedAsync = OnMessageSubscriptionItemExpanded,
         };
         if (_instance.SignalSubscriptionCount > 0)
-            messageSubscriptionsTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
+            signalSubscriptionTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
 
 
         var userTaskSubscriptionTreeItem = new TreeViewItem()
@@ -159,7 +159,7 @@ public partial class Instance
             OnExpandedAsync = OnMessageSubscriptionItemExpanded,
         };
         if (_instance.UserTaskSubscriptionCount > 0)
-            messageSubscriptionsTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
+            userTaskSubscriptionTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
 
         Items = new[]
         {

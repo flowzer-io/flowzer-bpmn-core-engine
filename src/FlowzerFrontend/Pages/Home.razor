@@ -1,6 +1,16 @@
 @page "/"
 
 <div class="main-content">
-    <h3>Welcome to Flowzer</h3>    
+    <h3>Welcome to Flowzer</h3>
+
+
+    @foreach (var userTaskSubscriptionDto in _tasks)
+    {
+        <div class="task">
+            <div>@userTaskSubscriptionDto.Id</div>
+            <div>@userTaskSubscriptionDto.Name</div>
+      
+        </div>
+    }
 </div>
 

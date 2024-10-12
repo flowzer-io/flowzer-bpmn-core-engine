@@ -36,6 +36,8 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task<Guid[]> GetAllBinaryDefinitions()
     {
+        if (Directory.Exists(_binaryBasePath) == false)
+            Directory.CreateDirectory(_binaryBasePath);
         
         return Task.FromResult(Directory.GetFiles(_binaryBasePath, "*.json")
             .Select(Path.GetFileNameWithoutExtension)
@@ -69,15 +71,33 @@ public class DefinitionStorage : IDefinitionStorage
 
     }
 
-    public Task<BpmnMetaDefinition[]> GetAllMetaDefinitions()
+    public async Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions()
     {
-        var definitions = new List<BpmnMetaDefinition>();
+        var ret = new List<ExtendedBpmnMetaDefinition>();
+        
+        if (Directory.Exists(_metabasePath) == false)
+            Directory.CreateDirectory(_metabasePath);
+        
         foreach (var file in Directory.GetFiles(_metabasePath, "*.json"))
         {
-            var content = File.ReadAllText(file);
-            definitions.Add(JsonConvert.DeserializeObject<BpmnMetaDefinition>(content)!);
+            var content = await File.ReadAllTextAsync(file);
+            var bpmnMetaDefinition = JsonConvert.DeserializeObject<ExtendedBpmnMetaDefinition>(content)!;
+            var bpmnDefinition = await GetLatestDefinition(bpmnMetaDefinition.DefinitionId);
+
+            bpmnMetaDefinition.LatestVersion = bpmnDefinition.Version;
+            bpmnMetaDefinition.LatestVersionDateTime = bpmnDefinition.SavedOn;
+
+            var deployed = await GetDeployedDefinition(bpmnDefinition.DefinitionId);
+            if (deployed != null)
+            {
+                bpmnMetaDefinition.DeployedId = deployed.Id;
+                bpmnMetaDefinition.DeployedVersion = deployed.Version;
+                bpmnMetaDefinition.DeployedVersionDateTime = deployed.SavedOn;
+            }
+            ret.Add(bpmnMetaDefinition);
         }
-        return Task.FromResult(definitions.ToArray());
+        
+        return ret.ToArray();
     }
 
     public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition)
@@ -125,5 +145,10 @@ public class DefinitionStorage : IDefinitionStorage
             throw new Exception($"No definition found for definitionId {definitionId}");
         }
         return latestDefinition;
+    }
+
+    public async Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId)
+    {
+        return  (await GetAllDefinitions()).SingleOrDefault(x => x.DefinitionId == definitionDefinitionId && x.IsActive);
     }
 }

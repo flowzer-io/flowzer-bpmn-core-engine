@@ -14,7 +14,6 @@
             </FluentNavMenu>
         </MenuContent>
         <MainContent>
-
             <FluentStack Orientation="Orientation.Vertical" Width="100%">
                 <div class="list-header">
                     <FluentStack Orientation="Orientation.Vertical" Width="100%">
@@ -39,7 +38,7 @@
                 <FluentDivider Style="width: 100%;" Role="DividerRole.Separator"></FluentDivider>
                 <div class="list-header">
                     <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
-                        <SelectColumn TGridItem="BpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
+                        <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
                         <TemplateColumn Title="Workflow">
                             <FluentLayout Orientation="Orientation.Horizontal">
                                 <div>
@@ -52,17 +51,31 @@
                                 </FluentLayout>
                             </FluentLayout>
                             
+
                         </TemplateColumn>
-                        <TemplateColumn Title="Lastchange">
-                            <div class="lastchange">@context.Active</div>
+                        <TemplateColumn Title="Latest Version">
+                            <div class="lastchange">@(context.LatestVersion?.ToString() ?? "-")</div>
+                            @if (context.DeployedVersion == context.LatestVersion)
+                            {
+                                <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
+                                    <FluentBadge Appearance="Appearance.Neutral" BackgroundColor="green" Color="white">Deployed</FluentBadge>
+                                </a>
+                            }
+                            else if (context.DeployedVersion == null)
+                            {
+                                <FluentBadge  Appearance="Appearance.Lightweight">Not Deployed</FluentBadge>
+                            }
+                            else
+                            {
+                                <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
+                                    <FluentBadge Appearance="Appearance.Accent">@context.DeployedVersion Deployed</FluentBadge>
+                                </a>
+                            }
                         </TemplateColumn>
+    
                     </FluentDataGrid>
                 </div>
-
             </FluentStack>
-
         </MainContent>
     </LayoutWithLeftMenu>
-
-
 </div>

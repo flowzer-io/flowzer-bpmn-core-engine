@@ -2,9 +2,9 @@ namespace FlowzerFrontend;
 
 public class UriHelper
 {
-    public static string GetEditDefinitionUrl(string definitionId)
+    public static string GetEditDefinitionUrl(string metaDefinitionId, Guid? definitionId = null)
     {
-        return $"/definition/{definitionId}";
+        return $"/definition/{metaDefinitionId}" + (definitionId.HasValue ? $"/{definitionId}" : "");
     }
 
     public static string GetShowInstanceUrl(Guid instanceId)

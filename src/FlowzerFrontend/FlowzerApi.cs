@@ -20,9 +20,19 @@ public class FlowzerApi: ApiBase
         return bpmnMetaDefinitionDto;
     }
 
-    internal async Task<BpmnDefinitionDto> GetLatestDefinition(string definitionId)
+    internal async Task<BpmnDefinitionDto> GetLatestDefinition(string metaDefinitionId)
     {
-        var bpmnDefinitionDto = await HttpClient.GetFromJsonAsync<BpmnDefinitionDto>($"definition/meta/{definitionId}/latest");
+        var bpmnDefinitionDto = await HttpClient.GetFromJsonAsync<BpmnDefinitionDto>($"definition/meta/{metaDefinitionId}/latest");
+        if (bpmnDefinitionDto == null)
+        {
+            throw new Exception($"No definition found for definitionId {metaDefinitionId}");
+        }
+        return bpmnDefinitionDto;
+    }
+    
+    public async Task<BpmnDefinitionDto> GetDefinition(Guid? definitionId)
+    {
+        var bpmnDefinitionDto = await HttpClient.GetFromJsonAsync<BpmnDefinitionDto>($"definition/{definitionId}");
         if (bpmnDefinitionDto == null)
         {
             throw new Exception($"No definition found for definitionId {definitionId}");
@@ -40,9 +50,9 @@ public class FlowzerApi: ApiBase
         return await HttpClient.GetStringAsync($"definition/xml/{guid}");
     }
 
-    public Task<BpmnMetaDefinitionDto[]> GetAllBpmnMetaDefinitions()
+    public Task<ExtendedBpmnMetaDefinitionDto[]> GetAllBpmnMetaDefinitions()
     {
-        return GetAsJsonAsyncSave<BpmnMetaDefinitionDto[]>("definition/meta");
+        return GetAsJsonAsyncSave<ExtendedBpmnMetaDefinitionDto[]>("definition/meta");
     }
 
     public async Task<BpmnMetaDefinitionDto> CreateEmptyDefinition()
@@ -96,6 +106,10 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAndThrowOnErrorAsync<TokenDto[]>("instance/" + instanceGuid + "/subscription/userTasks");
     }
 
+    public async Task<UserTaskSubscriptionDto[]> GetUserTasks()
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<UserTaskSubscriptionDto[]>("usertask");
+    }
     
     public async Task<FormMetaDataDto> GetFormMetaData(Guid metaDataId)
     {
@@ -122,6 +136,7 @@ public class FlowzerApi: ApiBase
     {
         return await GetAsJsonAndThrowOnErrorAsync<List<FormMetaDataDto>>("form/meta");
     }
+
 }
 
 public class ApiException(string? errorMessage) : Exception(errorMessage);

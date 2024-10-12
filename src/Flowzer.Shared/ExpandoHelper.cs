@@ -57,12 +57,20 @@ public static class ExpandoHelper
         var expandoDictionary = expandoObject as IDictionary<string, object?>;
         foreach (var prob in obj.GetType().GetProperties())
         {
-            var value = prob.GetValue(obj);
-            if (IsComlexValue(value))
+            //TODO: warum schlägt das auf FlowzerList<Rendering> fehl?
+            try
             {
-                value = ToDynamic(value);
+                var value = prob.GetValue(obj);
+                if (IsComlexValue(value))
+                {
+                    value = ToDynamic(value);
+                }
+                expandoDictionary.Add(prob.Name, value);
             }
-            expandoDictionary.Add(prob.Name, value);
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
 
         return expandoObject;

@@ -18,4 +18,6 @@ public class BpmnDefinition
     public Guid? DeployedByUser { get; set; }
     public DateTime? DeployedOn { get; set; }
     public required Version Version { get; set; }
+    
+    public required bool IsActive { get; set; }
 }

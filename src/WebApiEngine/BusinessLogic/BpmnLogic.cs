@@ -1,3 +1,4 @@
+using BPMN.HumanInteraction;
 using BPMN.Process;
 
 namespace WebApiEngine.BusinessLogic;
@@ -19,27 +20,39 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         var model =  ModelParser.ParseModel(xmlData);
         
         
-        UndeployDefinition(definition, storageSystem);
+        await UndeployDefinition(definition, storageSystem);
         
         foreach (var process in model.GetProcesses())
         {
             var pe = new ProcessEngine(process);
             SaveSubscriptions(storageSystem, pe, definition.DefinitionId, definition.Id, process.Id);
         }
+
+
+        var deployedDefiniton = await storageSystem.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId);
+        if (deployedDefiniton != null)
+        {
+            deployedDefiniton.IsActive = false;
+            await storageSystem.DefinitionStorage.StoreDefinition(deployedDefiniton);
+        }
+
+        definition.IsActive = true;
+        await storageSystem.DefinitionStorage.StoreDefinition(definition);
         
         storageSystem.CommitChanges();
         
     }
 
-    private void UndeployDefinition(BpmnDefinition definition, ITransactionalStorage storageSystem)
+    private async Task UndeployDefinition(BpmnDefinition definition, ITransactionalStorage storageSystem)
     {
-        DeleteExistingSubscriptions(storageSystem, definition.DefinitionId);
+        await DeleteExistingSubscriptions(storageSystem, definition.DefinitionId);
     }
 
-    private void DeleteExistingSubscriptions(ITransactionalStorage storageSystem, string relatedDefinitionId)
+    private async Task DeleteExistingSubscriptions(ITransactionalStorage storageSystem, string relatedDefinitionId)
     {
-        storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptions(relatedDefinitionId);
-        storageSystem.SubscriptionStorage.RemoveProcessSignalSubscriptions(relatedDefinitionId);
+        await storageSystem.SubscriptionStorage.RemoveAllProcessMessageSubscriptionsWithNoInstancedId(relatedDefinitionId);
+        await storageSystem.SubscriptionStorage.RemoveAllProcessSignalSubscriptionsWithNoInstanceId(relatedDefinitionId);
+        await storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsWithNoInstanceId(relatedDefinitionId);
     }
 
 
@@ -47,6 +60,31 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     {
         SaveCatchMessages(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         SaveActiveSignals(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+    }
+
+    private void SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
+    {
+        if (processInstanceId != null) //if there are already stored user task subscriptions for this instance, remove them
+            storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(processInstanceId.Value);
+        
+        foreach (var activeUserTask in catchHandler.ActiveUserTasks())
+        {
+            var userTask = (UserTask)activeUserTask.CurrentFlowNode!; 
+            storageSystem.SubscriptionStorage.AddUserTaskSubscription(
+                new UserTaskSubscription()
+                {
+                    Id = Guid.NewGuid(),
+                    Token = activeUserTask,
+                    Name = userTask.Name, //todo: add user candidates
+                    UserCandidates = [], //todo: add user candidates
+                    UserGroups = [], //todo: add user groups
+                    CurrenAssignedUser = null,
+                    ProcessInstanceId = processInstanceId,
+                    DefinitionId = definitionId,
+                    ProcessId = processId
+                });
+        }
     }
 
     private void SaveCatchMessages(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, 
@@ -132,7 +170,6 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
     {
         SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
-        storageSystem.CommitChanges();
     }
     
     private InstanceEngine StartProcessByMessage(Guid definitionsId, string relatedDefinitionId,

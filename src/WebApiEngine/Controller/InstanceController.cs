@@ -41,24 +41,11 @@ public class InstanceController(
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
             ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(MapToken).ToList()
+            Tokens = processInstanceInfo.Tokens.Select(mapper.Map<TokenDto>).ToList(),
         };
     }
 
-    private TokenDto MapToken (Token token)
-    {
-        return new TokenDto()
-        {
-            Id = token.Id,
-            State = (FlowNodeStateDto)token.State,
-            CurrentFlowNodeId = token.CurrentFlowNode?.Id,
-            CurrentFlowElement = token.CurrentFlowNode?.ToExpando(),
-            OutputData = token.OutputData?.ToExpando(),
-            Variables = token.Variables?.ToExpando(),
-            PreviousTokenId = token.PreviousToken?.Id,
-            ParentTokenId = token.ParentTokenId
-        };
-    }
+
 
     [HttpGet("{instanceId}")]
     public async Task<ActionResult<ProcessInstanceInfoDto>> GetInstanceById(Guid instanceId)

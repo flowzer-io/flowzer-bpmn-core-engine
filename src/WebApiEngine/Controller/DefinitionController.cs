@@ -56,8 +56,7 @@ public class DefinitionController(
         var metaDefinition = new BpmnMetaDefinition
         {
             DefinitionId = definitionId,
-            Name = "New Definition",
-            IsActive = false
+            Name = "New Definition"
         };
         await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
         
@@ -70,7 +69,6 @@ public class DefinitionController(
     public async Task<ActionResult<BpmnDefinitionDto[]>> GetAllDefinitions()
     {
         var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetAllDefinitions();
-
         var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto[]>(allBinaryDefinitions);
         return Ok(bpmnDefinitionDto);
     }
@@ -96,11 +94,10 @@ public class DefinitionController(
     #region meta
 
     [HttpGet("meta")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto[]>> MetaIndex()
+    public async Task<ActionResult<ExtendedBpmnMetaDefinitionDto[]>> MetaIndex()
     {
-        var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
-
-        var bpmnDefinitionDto = mapper.Map<BpmnMetaDefinitionDto[]>(allBinaryDefinitions);
+        var allMetaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
+        var bpmnDefinitionDto = mapper.Map<ExtendedBpmnMetaDefinitionDto[]>(allMetaDefinitions);
         return Ok(bpmnDefinitionDto);
     }
     
