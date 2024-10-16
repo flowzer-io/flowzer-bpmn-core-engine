@@ -34,4 +34,14 @@ public class VersionDto
     {
         return $"{Major}.{Minor}";
     }
+
+    public static VersionDto FromString(string version)
+    {
+        var parts = version.Split('.');
+        return new VersionDto
+        {
+            Major = int.Parse(parts[0]),
+            Minor = int.Parse(parts[1])
+        };
+    }
 }

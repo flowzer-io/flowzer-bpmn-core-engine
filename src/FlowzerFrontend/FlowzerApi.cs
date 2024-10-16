@@ -106,9 +106,9 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAndThrowOnErrorAsync<TokenDto[]>("instance/" + instanceGuid + "/subscription/userTasks");
     }
 
-    public async Task<UserTaskSubscriptionDto[]> GetUserTasks()
+    public async Task<ExtendedUserTaskSubscriptionDto[]> GetAllUserTasks()
     {
-        return await GetAsJsonAndThrowOnErrorAsync<UserTaskSubscriptionDto[]>("usertask");
+        return await GetAsJsonAndThrowOnErrorAsync<ExtendedUserTaskSubscriptionDto[]>("usertask");
     }
     
     public async Task<FormMetaDataDto> GetFormMetaData(Guid metaDataId)
@@ -116,20 +116,26 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAndThrowOnErrorAsync<FormMetaDataDto>("form/meta/" + metaDataId);
     }
     
-    public async Task<FormDto> GetForm(Guid formId)
+    public async Task<FormDto> GetLatestForm(Guid formId)
     {
-        return await GetAsJsonAndThrowOnErrorAsync<FormDto>("form/" + formId);
+        return await GetAsJsonAndThrowOnErrorAsync<FormDto>("form/" + formId + "/latest");
+    }
+    
+        
+    public async Task<FormDto> GetForm(Guid formId, VersionDto version)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<FormDto>("form/" + formId + "/" + version);
     }
 
 
     public async Task SaveFormMetaData(FormMetaDataDto formMetaDataDto)
     {
-        await PostAsJsonAsyncSave<ApiStatusResult>("form/meta/" + formMetaDataDto.FormId, formMetaDataDto);
+        await PostAsJsonAndOnErrorAsync<dynamic>("form/meta/" + formMetaDataDto.FormId, formMetaDataDto);
     }
 
-    public async Task SaveForm(FormDto formData)
+    public async Task<FormDto> SaveForm(FormDto formData)
     {
-        await PostAsJsonAsyncSave<ApiStatusResult>("form/" + formData.FormId, formData);
+        return await PostAsJsonAndOnErrorAsync<FormDto>("form", formData);
     }
 
     public async Task<List<FormMetaDataDto>> GetFormMetaDatas()
@@ -137,6 +143,10 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAndThrowOnErrorAsync<List<FormMetaDataDto>>("form/meta");
     }
 
+    public async Task<List<FormMetaDataDto>> GetFormMetaByName(string formName)
+    {
+        return await GetAsJsonAndThrowOnErrorAsync<List<FormMetaDataDto>>("form/meta?search=" + formName);
+    }
 }
 
 public class ApiException(string? errorMessage) : Exception(errorMessage);

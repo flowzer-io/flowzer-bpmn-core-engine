@@ -20,9 +20,6 @@ public partial class Instance
 
     [Inject] public required IJSRuntime JsRuntime { get; set; }
 
-    [Inject] public required IDialogService DialogService { get; set; }
-
-    
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
 
     
@@ -246,9 +243,16 @@ public partial class Instance
     private async Task ShowTokens(List<TokenDto> instanceTokens)
     {
         await ClearTokens();
-        foreach (var instanceToken in instanceTokens.Where(x => IsActive(x.State)).GroupBy(x => x.CurrentFlowNodeId))
+        try
         {
-            await AddToken(instanceToken.Key, instanceToken.Count());
+            foreach (var instanceToken in instanceTokens.Where(x => IsActive(x.State)).GroupBy(x => x.CurrentFlowNodeId))
+            {
+                await AddToken(instanceToken.Key, instanceToken.Count());
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorDialog(e.Message);
         }
     }
 
@@ -259,9 +263,17 @@ public partial class Instance
 
     private async Task AddToken(string? instanceTokenKey, int instanceTokensCount)
     {
-        if (instanceTokenKey == null)
+        if (string.IsNullOrEmpty(instanceTokenKey))
             return;
-        await JsRuntime.InvokeVoidAsync("addToken", instanceTokenKey, instanceTokensCount);
+        
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("addToken", instanceTokenKey, instanceTokensCount);
+        }
+        catch (Exception e)
+        {
+            throw new Exception($"Error adding token '{instanceTokenKey}', Message:" + e.Message, e);
+        }
     }
     private async Task ClearTokens()
     {

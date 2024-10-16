@@ -7,11 +7,11 @@ using WebApiEngine.Shared;
 
 namespace FlowzerFrontend.Pages;
 
-public partial class EditForm : ComponentBase
+
+public partial class EditForm : FlowzerComponentBase
 {
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
     [Inject] public required IJSRuntime JsRuntime { get; set; }
-    [Inject] public required IDialogService DialogService { get; set; }
     [Inject] public required ILogger<EditForm> Logger { get; set; }
 
     
@@ -44,6 +44,7 @@ public partial class EditForm : ComponentBase
             };
             FormData = new FormDto()
             {
+                Id = Guid.NewGuid(),
                 FormId = CurrentFormMeta.FormId,
             };
         }
@@ -51,7 +52,7 @@ public partial class EditForm : ComponentBase
         {
             IsNew = false;
             CurrentFormMeta = await FlowzerApi.GetFormMetaData(Guid.Parse(FormId));    
-            FormData = await FlowzerApi.GetForm(Guid.Parse(FormId));
+            FormData = await FlowzerApi.GetLatestForm(Guid.Parse(FormId));
             if (!string.IsNullOrEmpty(FormData.FormData))
                 await LoadFormData(FormData.FormData);
         }
@@ -85,15 +86,20 @@ public partial class EditForm : ComponentBase
     {
         try
         {
-            
             await FlowzerApi.SaveFormMetaData(CurrentFormMeta);
             FormData.FormData = await GetFormData();
-            await FlowzerApi.SaveForm(FormData);
+                        
+            FormData = await FlowzerApi.SaveForm(FormData);
+            IsNew = false;
         }
+        
+        catch (ApiException e)
+        {
+            ErrorDialog("Server response was:\r\n" + e.Message);
+        }     
         catch (Exception e)
         {
-            //TODO: Was zutun?
-            Console.WriteLine(e);
+            ErrorDialog(e.Message + "\r\n" + e.StackTrace);
         }
     }
 
@@ -105,7 +111,8 @@ public partial class EditForm : ComponentBase
     
     private async void AfterTitleChanged(string obj)
     {
-        await FlowzerApi.SaveFormMetaData(CurrentFormMeta);
+        if (!IsNew) //if the object is new (it was never saved yet) we don't have to inform the server about the change
+            await FlowzerApi.SaveFormMetaData(CurrentFormMeta);
     }
 
     private async void TestFormClicked(MouseEventArgs obj)

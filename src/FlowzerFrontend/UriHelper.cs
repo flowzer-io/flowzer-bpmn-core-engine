@@ -21,4 +21,9 @@ public class UriHelper
     {
         return $"/forms/create";
     }
+
+    public static string GetFilloutFormUrl(Guid processInstanceId, Guid tokenId, string tokenCurrentFlowNodeId)
+    {
+        return $"/filloutform/{processInstanceId}/{tokenId}/{tokenCurrentFlowNodeId}";
+    }
 }

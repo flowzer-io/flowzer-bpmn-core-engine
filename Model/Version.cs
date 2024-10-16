@@ -39,4 +39,16 @@ public class Version: IComparable<Version>
             return Minor.CompareTo(other.Minor);
         return Major.CompareTo(other.Major);
     }
+
+    public static Version FromString(string versionString)
+    {
+        var parts = versionString.Split('.');
+        if (parts.Length != 2)
+            throw new ArgumentException("Version string must have two parts separated by a dot.");
+        if (!int.TryParse(parts[0], out var major))
+            throw new ArgumentException("Major version must be an integer.");
+        if (!int.TryParse(parts[1], out var minor))
+            throw new ArgumentException("Minor version must be an integer.");
+        return new Version(major, minor);
+    }
 }

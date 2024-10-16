@@ -12,3 +12,9 @@ public class UserTaskSubscriptionDto
     public required Guid DefinitionId { get; set; }
     public required string ProcessId { get; set; }
 }
+
+public class ExtendedUserTaskSubscriptionDto:UserTaskSubscriptionDto
+{
+    public string DefinitionMetaName { get; set; }
+    public VersionDto DefinitionVersion { get; set; }
+}

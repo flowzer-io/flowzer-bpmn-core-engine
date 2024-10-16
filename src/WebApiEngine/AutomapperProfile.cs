@@ -38,6 +38,9 @@ public class AutomapperProfile : Profile
             .ForMember(dest => dest.PreviousTokenId, opt => opt.MapFrom(src => src.PreviousToken != null ? src.PreviousToken.Id : (Guid?)null))
             .ForMember(dest => dest.ParentTokenId, opt => opt.MapFrom(src => src.ParentTokenId));
         
+        CreateMap<ExtendedUserTaskSubscriptionDto, ExtendedUserTaskSubscription>();
+        CreateMap<ExtendedUserTaskSubscription, ExtendedUserTaskSubscriptionDto>();
+        
         CreateMap<UserTaskSubscriptionDto, UserTaskSubscription>();
         CreateMap<UserTaskSubscription, UserTaskSubscriptionDto>();
         

@@ -10,15 +10,15 @@ public class UserTaskController(
     IStorageSystem storageSystem,
     IMapper mapper,
     DefinitionBusinessLogic definitionBusinessLogic,
-    BpmnLogic bpmnLogic) : FlowzerControllerBase
+    BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
 {
 
     [HttpGet]
-    public async Task<ActionResult<ApiStatusResult<UserTaskSubscriptionDto[]>>> GetAllUserTasks()
+    public async Task<ActionResult<ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>>> GetAllUserTasks()
     {
         //Todo nur für den user
-        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasks(Guid.Empty);
-        var dtos = mapper.Map<UserTaskSubscriptionDto[]>(userTaskSubscriptions);
-        return Ok(new ApiStatusResult<UserTaskSubscriptionDto[]>(dtos));
+        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(Guid.Empty);
+        var dtos = mapper.Map<ExtendedUserTaskSubscriptionDto[]>(userTaskSubscriptions);
+        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
 }

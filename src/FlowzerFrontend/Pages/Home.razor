@@ -1,16 +1,25 @@
 @page "/"
+@using Microsoft.FluentUI.AspNetCore.Components
+@inherits FlowzerComponentBase
+
 
 <div class="main-content">
     <h3>Welcome to Flowzer</h3>
 
+    <FluentGrid>
+        
+        @foreach (var userTaskSubscriptionDto in _tasks)
+        {
+            <FluentGridItem xs="12" sm="6">
+                <FluentCard @onclick="() => OnCardClick(userTaskSubscriptionDto)" Class="user-task-card" >
+                    <h2>@userTaskSubscriptionDto.Name</h2>
+                    <div>@userTaskSubscriptionDto.DefinitionMetaName</div>
+                </FluentCard>
+            </FluentGridItem>
+        }
+        
+    </FluentGrid>
+    
 
-    @foreach (var userTaskSubscriptionDto in _tasks)
-    {
-        <div class="task">
-            <div>@userTaskSubscriptionDto.Id</div>
-            <div>@userTaskSubscriptionDto.Name</div>
-      
-        </div>
-    }
 </div>
 

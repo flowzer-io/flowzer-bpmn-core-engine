@@ -26,7 +26,9 @@ public interface IMessageSubscriptionStorage
     
     #region UserTaskss
 
-    Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid userId);
+    Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId);
+    
+    Task<IEnumerable<ExtendedUserTaskSubscription>> GetAllUserTasksExtended(Guid userId);
     Task AddUserTaskSubscription(UserTaskSubscription userTasks);
     Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId);
 
@@ -36,5 +38,5 @@ public interface IMessageSubscriptionStorage
     #endregion
 
 
-    
+
 }

@@ -11,6 +11,9 @@ public class ApiBase
     {
         BaseAddress = new Uri("http://localhost:5182/")
     };
+
+
+    #region Get
     
     protected async Task<T> GetAsJsonAndThrowOnErrorAsync<T>(string url)
     {
@@ -21,6 +24,7 @@ public class ApiBase
         throw new ApiException(apiStatusResult.ErrorMessage);
     }
     
+    
     protected async Task<T> GetAsJsonAsyncSave<T>(string url)
     {
         var result = await HttpClient.GetFromJsonAsync<T>(url);
@@ -30,7 +34,28 @@ public class ApiBase
         }
         return result;
     }
+    
+        
+    public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
+    {
+        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+    }
 
+    
+    #endregion
+    
+    #region Post
+    protected async Task<T> PostAsJsonAndOnErrorAsync<T>(string url, object value)
+    {
+        var json = JsonSerializer.Serialize(value);
+        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<T>>(url,json, true);
+        if (apiStatusResult.Successful)
+            return apiStatusResult.Result!;
+        
+        throw new ApiException(apiStatusResult.ErrorMessage);
+    }
+    
+    
     protected async Task<T> PostAsJsonAsyncSave<T>(string url, string value, bool isJson = false, bool throwOnUnsuccessfulStatusCodes = true)
     {
         return await SendAsyncSave<T>(url, value, HttpMethod.Post, isJson,throwOnUnsuccessfulStatusCodes);
@@ -41,7 +66,14 @@ public class ApiBase
         var json = JsonSerializer.Serialize(value);
         return await SendAsyncSave<T>(url, json, HttpMethod.Post, true, throwOnUnsuccessfulStatusCodes);
     }    
-    
+
+
+    #endregion
+
+
+    #region Put
+
+
     protected async Task<T> PutAsJsonAsyncSave<T>(string url, object value, bool throwOnUnsuccessfulStatusCodes = true)
     {
         var json = JsonSerializer.Serialize(value);
@@ -53,11 +85,10 @@ public class ApiBase
         return await SendAsyncSave<T>(url, value, HttpMethod.Put, isJson, throwOnUnsuccessfulStatusCodes);
     }
     
+
+    #endregion
+
     
-    public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
-    {
-        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
-    }
     
     protected async Task<T> SendAsyncSave<T>(string url, string value, HttpMethod method, bool isJson, bool throwOnUnsuccessfulStatusCodes = true)
     {
@@ -85,6 +116,11 @@ public class ApiBase
             throw new Exception($"Failed to get data from server. Returned result was null on request: {url}");
         }
 
+        if (throwOnUnsuccessfulStatusCodes &&  !result.IsSuccessStatusCode)
+        {
+            throw new Exception($"Failed to get data from server. Returned status code was {result.StatusCode} on request: {url}");
+        }
+        
         var readFromJsonAsync = await result.Content.ReadFromJsonAsync<T>();
         
         if (readFromJsonAsync == null)
@@ -92,10 +128,6 @@ public class ApiBase
             throw new Exception($"Failed to get data from server. Returned object was null on request: {url}");
         }
         
-        if (throwOnUnsuccessfulStatusCodes &&  !result.IsSuccessStatusCode)
-        {
-            throw new Exception($"Failed to get data from server. Returned status code was {result.StatusCode} on request: {url}");
-        }
         
         return readFromJsonAsync;
     }

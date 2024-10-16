@@ -1,3 +1,5 @@
+using Version = System.Version;
+
 namespace StorageSystem;
 
 public interface IFormStorage
@@ -12,6 +14,6 @@ public interface IFormStorage
     Task SaveForm(Form form);
     Task<Form> GetForm(Guid id);
     Task<IEnumerable<Form>> GetForms(Guid formId);
-    Task UpdateForm(Form form);
     Task DeleteForm(Guid id);
+    Task<Model.Version> GetMaxVersion(Guid formId);
 }

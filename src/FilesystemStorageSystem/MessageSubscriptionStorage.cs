@@ -8,10 +8,12 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 {
     private readonly string _messageSubscriptionsPath;
     private readonly JsonSerializerSettings _newtonSoftDefaultSettings;
+    private Storage _storage;
 
     public MessageSubscriptionStorage(Storage storage)
     {
-        _messageSubscriptionsPath = storage.GetBasePath("FileStorage/MessageSubscriptions");
+        _storage = storage;
+        _messageSubscriptionsPath = _storage.GetBasePath("FileStorage/MessageSubscriptions");
         
         _newtonSoftDefaultSettings = new JsonSerializerSettings
         {
@@ -110,20 +112,43 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         }
     }
 
-    public async Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid userId)
+    public async Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId)
     {
         var files = Directory.GetFiles(_messageSubscriptionsPath, $"usertask_*.json");
         var ret = new List<UserTaskSubscription>();
         foreach (var file in files)
         {
-            var content = File.ReadAllText(file);
-            var userTaskSubscription = JsonConvert.DeserializeObject<UserTaskSubscription>(content,_newtonSoftDefaultSettings)!;
-            ret.Add(userTaskSubscription);
+            var content = await File.ReadAllTextAsync(file);
+            var subscription = JsonConvert.DeserializeObject<UserTaskSubscription>(content,_newtonSoftDefaultSettings)!;
+            if (subscription.ProcessInstanceId == instanceId)
+                ret.Add(subscription);
         }
 
         return ret;
     }
 
+
+    public async Task<IEnumerable<ExtendedUserTaskSubscription>> GetAllUserTasksExtended(Guid userId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, $"usertask_*.json");
+        var ret = new List<ExtendedUserTaskSubscription>();
+        foreach (var file in files)
+        {
+            var content = File.ReadAllText(file);
+            var userTaskSubscription = JsonConvert.DeserializeObject<ExtendedUserTaskSubscription>(content,_newtonSoftDefaultSettings)!;
+
+            var metaDefinition = await _storage.DefinitionStorage.GetMetaDefinitionById(userTaskSubscription.MetaDefinitionId);
+            var definition = await _storage.DefinitionStorage.GetDefinitionById(userTaskSubscription.DefinitionId);
+            userTaskSubscription.DefinitionMetaName = metaDefinition.Name;
+            userTaskSubscription.DefinitionVersion = definition.Version;
+            
+            ret.Add(userTaskSubscription);
+        }
+
+        return ret;
+    }
+    
+ 
     public Task AddUserTaskSubscription(UserTaskSubscription userTasks)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"usertask_{userTasks.Id}.json");

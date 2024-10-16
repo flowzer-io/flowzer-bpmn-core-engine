@@ -8,7 +8,7 @@ namespace WebApiEngine.Controller;
 public class DefinitionController(
     IStorageSystem storageSystem,
     IMapper mapper,
-    DefinitionBusinessLogic definitionBusinessLogic, BpmnLogic bpmnLogic) : FlowzerControllerBase
+    DefinitionBusinessLogic definitionBusinessLogic, BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
 {
     
     [HttpPost]
@@ -26,7 +26,7 @@ public class DefinitionController(
         {
             var rawContent = await GetRawContent();
             var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
-            await bpmnLogic.DeployDefinition(definition);
+            await bpmnBusinessLogic.DeployDefinition(definition);
             return Ok(new ApiStatusResult<BpmnDefinitionDto>(mapper.Map<BpmnDefinitionDto>(definition)));
         }
         catch (Exception e)

@@ -9,7 +9,15 @@ public class UserTaskSubscription
     public List<Guid> UserGroups { get; set; } = new List<Guid>();
     public Guid? CurrenAssignedUser { get; set; }
     public Guid? ProcessInstanceId { get; set; }
+    
+    public required string MetaDefinitionId { get; set; }
     public required Guid DefinitionId { get; set; }
     public required string ProcessId { get; set; }
     
+}
+
+public class ExtendedUserTaskSubscription: UserTaskSubscription
+{
+    public string DefinitionMetaName { get; set; }
+    public Model.Version DefinitionVersion { get; set; }
 }

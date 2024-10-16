@@ -1,3 +1,18 @@
 .main-content{
     padding: 10px;
 }
+
+.task-container{
+    width: 500px;
+}
+
+h2{
+    font-size: 1rem;
+    font-weight: bold;
+    margin-bottom: 0;
+}
+
+
+.user-task-card{
+    cursor: pointer;
+}

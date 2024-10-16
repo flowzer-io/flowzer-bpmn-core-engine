@@ -10,7 +10,7 @@ public class InstanceController(
     IStorageSystem storageSystem,
     IMapper mapper,
     DefinitionBusinessLogic definitionBusinessLogic,
-    BpmnLogic bpmnLogic) : FlowzerControllerBase
+    BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProcessInstanceInfoDto>>> GetAllRunningInstances()
@@ -61,6 +61,14 @@ public class InstanceController(
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetMessageSubscription(instanceId);
         var result = mapper.Map<MessageSubscriptionDto[]>(messageSubscriptions);
         return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
+    }
+    
+    [HttpGet("{instanceId}/subscription/userTasks")]
+    public async Task<ActionResult<TokenDto[]>> GetUserTasksSubscriptions(Guid instanceId)
+    {
+        var messageSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasks(instanceId);
+        var result = mapper.Map<TokenDto[]>(messageSubscriptions.Select(x=>x.Token));
+        return Ok(new ApiStatusResult<TokenDto[]>(result));
     }
     
 

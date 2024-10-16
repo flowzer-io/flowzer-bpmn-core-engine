@@ -45,9 +45,10 @@ public partial class FormComponent : ComponentBase
         }
     }
 
-    protected async override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        await LoadWithSchema(Schema);
+        if (! string.IsNullOrEmpty(Schema))
+            await LoadWithSchema(Schema);
     }
     
     [JSInvokable]

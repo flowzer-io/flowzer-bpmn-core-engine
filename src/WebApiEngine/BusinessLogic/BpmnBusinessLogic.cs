@@ -3,7 +3,7 @@ using BPMN.Process;
 
 namespace WebApiEngine.BusinessLogic;
 
-public class BpmnLogic(ITransactionalStorageProvider storageProvider)
+public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
 {
     
     public void Load()
@@ -63,7 +63,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
         SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
 
-    private void SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
+    private void SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
     {
         if (processInstanceId != null) //if there are already stored user task subscriptions for this instance, remove them
             storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(processInstanceId.Value);
@@ -82,6 +82,7 @@ public class BpmnLogic(ITransactionalStorageProvider storageProvider)
                     CurrenAssignedUser = null,
                     ProcessInstanceId = processInstanceId,
                     DefinitionId = definitionId,
+                    MetaDefinitionId = metaDefinitionId,
                     ProcessId = processId
                 });
         }

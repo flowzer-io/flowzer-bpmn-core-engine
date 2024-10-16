@@ -6,7 +6,7 @@ namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
 public class MessageController(IStorageSystem storageSystem,
-    BpmnLogic bpmnLogic,
+    BpmnBusinessLogic bpmnBusinessLogic,
     IMapper mapper
     ) : ControllerBase
 {
@@ -22,7 +22,7 @@ public class MessageController(IStorageSystem storageSystem,
         try
         {
             var message = mapper.Map<Message>(messageDto);
-            await bpmnLogic.HandleMessage(message);
+            await bpmnBusinessLogic.HandleMessage(message);
         }
         catch (Exception e)
         {
