@@ -16,6 +16,7 @@ public class UserTaskSubscription
     
 }
 
+
 public class ExtendedUserTaskSubscription: UserTaskSubscription
 {
     public string DefinitionMetaName { get; set; }

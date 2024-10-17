@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.AspNetCore.Localization;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Shared;
 
@@ -8,7 +9,8 @@ namespace WebApiEngine.Controller;
 public class FormController(
     IStorageSystem storageSystem,
     IMapper mapper,
-    FormBusinessLogic formBusinessLogic): ControllerBase
+    FormBusinessLogic formBusinessLogic,
+    BpmnBusinessLogic bpmnBusinessLogic): ControllerBase
 {
 
     [HttpPost()]
@@ -83,6 +85,27 @@ public class FormController(
             await storageSystem.FormStorage.SaveFormMetaData(mapper.Map<FormMetadata>(formMetadataDto));
             return Ok(new ApiStatusResult(){Successful = true});
         }
+
+    #endregion
+
+
+    #region MessageHandling
+
+        
+    [HttpPost("result")]
+    public async Task<ActionResult<ApiStatusResult>> HandleUserFormData(UserTaskResultDto formMetadataDto)
+    {
+        try
+        {
+            var data = mapper.Map<UserTaskResult>(formMetadataDto);
+            await bpmnBusinessLogic.HandleUserTask(data, Guid.Empty);
+            return Ok(new ApiStatusResult() {Successful = true});
+        }
+        catch (Exception e)
+        {
+            return BadRequest(new ApiStatusResult(e.Message));
+        }
+    }
 
     #endregion
     

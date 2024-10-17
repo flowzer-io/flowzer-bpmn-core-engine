@@ -147,6 +147,11 @@ public class FlowzerApi: ApiBase
     {
         return await GetAsJsonAndThrowOnErrorAsync<List<FormMetaDataDto>>("form/meta?search=" + formName);
     }
+
+    public async Task CompleteUserTask(UserTaskResultDto userTaskResult)
+    {
+        await PostAsJsonAndOnErrorAsync<dynamic>("form/result", userTaskResult);
+    }
 }
 
 public class ApiException(string? errorMessage) : Exception(errorMessage);

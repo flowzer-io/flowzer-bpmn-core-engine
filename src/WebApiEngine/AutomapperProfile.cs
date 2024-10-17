@@ -27,6 +27,9 @@ public class AutomapperProfile : Profile
         CreateMap<Version, VersionDto>();
         CreateMap<VersionDto, Version>();    
         
+        CreateMap<UserTaskResult, UserTaskResultDto>();
+        CreateMap<UserTaskResultDto, UserTaskResult>();    
+        
         
         CreateMap<Token, TokenDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id))

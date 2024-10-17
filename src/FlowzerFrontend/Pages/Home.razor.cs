@@ -67,9 +67,9 @@ public partial class Home : FlowzerComponentBase
             Modal = true,
             PreventScroll = true,
             ShowTitle = false,
-            SecondaryActionEnabled = false,
-            SecondaryAction = "",
-            PrimaryAction = ""
+            SecondaryActionEnabled = true ,
+            SecondaryAction = "Cancel",
+            PrimaryAction = "Submit"
         };
         
         var data = new FilloutFormParameter()
@@ -81,6 +81,20 @@ public partial class Home : FlowzerComponentBase
         
         IDialogReference dialog = await DialogService.ShowDialogAsync<FilloutForm>(data, parameters);
         DialogResult? result = await dialog.Result;
+        
+        if (!result.Cancelled)
+        {
+            var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(((FilloutFormParameter)result.Data).OutData);
+            var userTaskResult = new UserTaskResultDto()
+            {
+                FlowNodeId = (string)((dynamic)userTaskSubscription.Token.CurrentFlowElement!).Id,
+                TokenId = userTaskSubscription.Token.Id,
+                ProcessInstanceId = userTaskSubscription.ProcessInstanceId,
+                Data = dataObj
+            };
+            await FlowzerApi.CompleteUserTask(userTaskResult);
+        }
+        
     }
 
 

@@ -21,4 +21,16 @@ public class UserTaskController(
         var dtos = mapper.Map<ExtendedUserTaskSubscriptionDto[]>(userTaskSubscriptions);
         return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
+    
+    
+    
+    [HttpPost]
+    public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult([FromBody] UserTaskResultDto messageDto)
+    {
+
+        var userTaskResult = mapper.Map<UserTaskResult>(messageDto);
+        await bpmnBusinessLogic.HandleUserTask(userTaskResult, new Guid()); //TODO: implement authentication
+        
+        return Ok();
+    }
 }

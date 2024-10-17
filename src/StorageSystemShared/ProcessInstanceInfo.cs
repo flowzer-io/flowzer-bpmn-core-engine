@@ -3,7 +3,7 @@ namespace StorageSystem;
 public class ProcessInstanceInfo
 {
     public required Guid InstanceId  { get; set; }
-    public required string RelatedDefinitionId  { get; set; }
+    public required string metaDefinitionId  { get; set; }
     public required Guid DefinitionId  { get; set; }
     
     public required string ProcessId  { get; set; }

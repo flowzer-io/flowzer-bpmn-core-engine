@@ -166,6 +166,40 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
 
         return instance;
     }
+    
+    public async Task<InstanceEngine> HandleUserTask(UserTaskResult userTaskResult, Guid userId)
+    {
+        using var storageSystem = storageProvider.GetTransactionalStorage();
+
+        InstanceEngine instance;
+        if (userTaskResult.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
+        {
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
+            
+            instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
+            instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+        }
+        else //the message is for a new instance, so create a new one
+        {
+            throw new NotImplementedException("Not implemented yet");
+            // var xmlData = await storageSystem.DefinitionStorage.GetBinary(userTaskResult.DefinitionId);
+            // var model =  ModelParser.ParseModel(xmlData);
+            //
+            // var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
+            // if (process == null)
+            //     throw new Exception($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
+            //
+            // instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
+            //await SaveInstance(storageSystem, instance, metaDefinitionId, definitionId, messageSubscription.ProcessId);
+        }
+
+        
+        storageSystem.CommitChanges();
+
+        return instance;
+    }
 
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
     {
@@ -203,7 +237,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
             new ProcessInstanceInfo()
             {
                 InstanceId = instance.InstanceId,
-                RelatedDefinitionId = relatedDefinitionId,
+                metaDefinitionId = relatedDefinitionId,
                 DefinitionId = definitionId,
                 ProcessId = processId,
                 Tokens = instance.Tokens,
@@ -215,4 +249,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
                 ServiceSubscriptionCount = instance.GetActiveServiceTasks().Count()
             });
     }
+    
+
+
 }

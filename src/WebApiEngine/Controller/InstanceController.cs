@@ -32,9 +32,9 @@ public class InstanceController(
         {
             InstanceId = processInstanceInfo.InstanceId,
             DefinitionId = processInstanceInfo.DefinitionId,
-            RelatedDefinitionId = processInstanceInfo.RelatedDefinitionId,
+            RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
             RelatedDefinitionName =
-                (await storageSystem.DefinitionStorage.GetMetaDefinitionById(processInstanceInfo.RelatedDefinitionId))
+                (await storageSystem.DefinitionStorage.GetMetaDefinitionById(processInstanceInfo.metaDefinitionId))
                 .Name,
             MessageSubscriptionCount = processInstanceInfo.MessageSubscriptionCount,
             SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,

@@ -90,7 +90,7 @@ public partial class InstanceEngine: ICatchHandler
         throw new NotImplementedException();
     }
 
-    public void HandleTaskResult(Guid tokenId, Variables? data, string? userId = null)
+    public void HandleTaskResult(Guid tokenId, Variables? data, Guid? userId = null)
     {
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)

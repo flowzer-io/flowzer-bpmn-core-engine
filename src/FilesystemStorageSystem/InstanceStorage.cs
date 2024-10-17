@@ -32,7 +32,7 @@ public class InstanceStorage : IInstanceStorage
 
     public async Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo)
     {
-        var fullFileName = Path.Combine(_instancesPath, $"instance_{processInstanceInfo.RelatedDefinitionId}_{processInstanceInfo.InstanceId}.json");
+        var fullFileName = Path.Combine(_instancesPath, $"instance_{processInstanceInfo.metaDefinitionId}_{processInstanceInfo.InstanceId}.json");
         var data = JsonConvert.SerializeObject(processInstanceInfo, _newtonSoftDefaultSettings);
         await File.WriteAllTextAsync(fullFileName, data);
     }
