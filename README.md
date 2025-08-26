@@ -1,118 +1,323 @@
-# flowzer-bpmn-core-engine
+<div align="center">
 
-Eine BPMN 2.0 konforme Ausführungsengine für Business Process Model and Notation (BPMN) Workflows in C# .NET 8.
+# 🚀 Flowzer BPMN Core Engine
 
-## Übersicht
+**Eine moderne, vollständig BPMN 2.0 konforme Ausführungsengine für Business Process Workflows**
 
-Das flowzer-bpmn-core-engine Projekt stellt eine vollständige Implementierung einer BPMN 2.0 Execution Engine bereit, die sowohl die BPMN-Modelldefinitionen als auch die Ausführungslogik umfasst.
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet)](https://dotnet.microsoft.com/)
+[![BPMN](https://img.shields.io/badge/BPMN-2.0-FF6B35?style=for-the-badge)](https://www.omg.org/spec/BPMN/2.0/)
+[![License](https://img.shields.io/badge/License-MPL--2.0-blue?style=for-the-badge)](LICENSE)
+[![Build](https://img.shields.io/badge/Build-Passing-brightgreen?style=for-the-badge)](https://github.com/flowzer-io/flowzer-bpmn-core-engine)
 
-### Kernkomponenten
+*Entwickelt mit C# .NET 8 für maximale Performance, Skalierbarkeit und moderne Entwicklungspatterns*
 
-- **BPMN-Bibliothek**: Vollständige BPMN 2.0 Element-Modellierung
-- **Core Engine**: Event-driven Ausführungsengine mit Token-basierter Prozesssteuerung
-- **Service Integration**: Pluggable Architecture für externe System-Integration
+</div>
 
-## Architektur
+---
 
+## 🎯 Übersicht
+
+Das **flowzer-bpmn-core-engine** ist eine leistungsstarke, event-driven BPMN 2.0 Execution Engine, die eine vollständige Implementierung der OMG BPMN-Spezifikation für .NET Anwendungen bereitstellt. Die Engine kombiniert moderne C# Features mit bewährten Architekturprinzipien für höchste Zuverlässigkeit und Erweiterbarkeit.
+
+### 🏗️ Kernkomponenten
+
+| Komponente | Beschreibung | Technologie |
+|------------|--------------|-------------|
+| **🎭 BPMN Models** | Vollständige BPMN 2.0 Element-Modellierung mit Type Safety | C# 12, Nullable Reference Types |
+| **⚡ Core Engine** | Event-driven Ausführungsengine mit Token-basierter Steuerung | Async/Await, Task-based APIs |
+| **🔌 Service Integration** | Pluggable Architecture für externe System-Integration | Dependency Injection, Interface-based Design |
+| **🌐 Web API** | RESTful API für Prozessmanagement und -überwachung | ASP.NET Core 8 |
+| **💻 Frontend** | Moderne Web-Oberfläche für Prozessvisualisierung | Blazor Server |
+
+## 🏛️ Architektur
+
+<div align="center">
+
+```mermaid
+graph LR
+    A[🎭 BPMN Models<br/>Activities, Events<br/>Gateways, Flows] 
+    B[⚡ Core Engine<br/>Token Engine<br/>Event Handler<br/>Subscriptions]
+    C[🔌 External Services<br/>User Tasks<br/>Service Tasks<br/>Timers, Messages]
+    
+    A <--> B
+    B <--> C
+    
+    style A fill:#e1f5fe
+    style B fill:#f3e5f5  
+    style C fill:#e8f5e8
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   BPMN Models   │    │   Core Engine    │    │ External        │
-│                 │    │                  │    │ Services        │
-│ • Activities    │◄──►│ • Token Engine   │◄──►│ • User Tasks    │
-│ • Events        │    │ • Event Handler  │    │ • Service Tasks │
-│ • Gateways      │    │ • Subscriptions  │    │ • Timers        │
-│ • Flows         │    │ • Interactions   │    │ • Messages      │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
 
-## Features
+</div>
 
-- ✅ **BPMN 2.0 konform**: Vollständige Implementierung der OMG BPMN 2.0 Spezifikation
-- ✅ **Event-driven**: Asynchrone, event-basierte Prozessausführung
-- ✅ **Token-basiert**: Präzise Verfolgung des Prozess-Ausführungsstands
-- ✅ **Erweiterbar**: Plugin-Architecture für Custom Activities und Services
-- ✅ **Modern C#**: .NET 8, Nullable Reference Types, Async/Await
-- ✅ **Clean Architecture**: Klare Trennung von Model und Execution Logic
+### 🔄 Execution Flow
 
-## Unterstützte BPMN-Elemente
+1. **📥 Process Loading**: BPMN XML wird geparst und in typisierte .NET Objekte konvertiert
+2. **🎯 Token Management**: Token repräsentieren den aktuellen Ausführungsstand im Prozess
+3. **📡 Event Handling**: Asynchrone Verarbeitung von externen Events und Interaktionen
+4. **🔗 Service Integration**: Nahtlose Integration mit externen Systemen über definierte Interfaces
 
-### Activities
-- Task, User Task, Service Task, Script Task
-- Send Task, Receive Task, Business Rule Task
-- Sub Process, Call Activity, Ad-hoc Sub Process
-- Transaction
+## ✨ Features
 
-### Events
-- Start Events, End Events, Intermediate Events
-- Timer Events, Message Events, Signal Events
-- Error Events, Escalation Events
-- Boundary Events, Compensation Events
+<div align="center">
 
-### Gateways
-- Exclusive Gateway, Parallel Gateway
-- Inclusive Gateway, Complex Gateway
-- Event-based Gateway
+| Feature | Status | Beschreibung |
+|---------|--------|--------------|
+| 🎯 **BPMN 2.0 Compliance** | ✅ | Vollständige Implementierung der OMG BPMN 2.0 Spezifikation |
+| ⚡ **Event-Driven Architecture** | ✅ | Asynchrone, event-basierte Prozessausführung mit hoher Performance |
+| 🎫 **Token-Based Execution** | ✅ | Präzise Verfolgung und Steuerung des Prozess-Ausführungsstands |
+| 🔌 **Plugin Architecture** | ✅ | Erweiterbare Architektur für Custom Activities und Services |
+| 🚀 **Modern C#** | ✅ | .NET 8, Nullable Reference Types, Primary Constructors, Async/Await |
+| 🏗️ **Clean Architecture** | ✅ | Klare Trennung von BPMN-Model und Execution Logic |
+| 🔒 **Type Safety** | ✅ | Vollständig typisierte BPMN-Elemente mit Compile-Time Checks |
+| 📊 **Process Monitoring** | ✅ | Umfassende APIs für Prozess-Überwachung und -Steuerung |
 
-### Data
-- Data Objects, Data Stores
-- Property, Data Input/Output
-- Item Definitions
+</div>
 
-## Schnellstart
+## 🧩 Unterstützte BPMN-Elemente
 
-### Installation
+<details>
+<summary><strong>📋 Activities (Click to expand)</strong></summary>
+
+- ✅ **Task**: Grundlegende Arbeitsschritte
+- ✅ **User Task**: Benutzerinteraktionen mit Form-Integration
+- ✅ **Service Task**: Automatisierte Service-Aufrufe
+- ✅ **Script Task**: Inline-Skriptausführung
+- ✅ **Send Task**: Nachrichten an externe Systeme
+- ✅ **Receive Task**: Warten auf externe Nachrichten
+- ✅ **Business Rule Task**: Regel-Engine Integration
+- ✅ **Sub Process**: Verschachtelte Prozesse
+- ✅ **Call Activity**: Wiederverwendbare Prozessmodule
+- ✅ **Ad-hoc Sub Process**: Flexible, benutzergesteuerte Prozesse
+- ✅ **Transaction**: ACID-konforme Transaktionsblöcke
+
+</details>
+
+<details>
+<summary><strong>⚡ Events (Click to expand)</strong></summary>
+
+- ✅ **Start Events**: Prozessinitiation
+- ✅ **End Events**: Prozessbeendigung
+- ✅ **Intermediate Events**: Prozess-Unterbrechungen
+- ✅ **Timer Events**: Zeitbasierte Trigger
+- ✅ **Message Events**: Inter-System Kommunikation
+- ✅ **Signal Events**: Broadcast-Nachrichten
+- ✅ **Error Events**: Fehlerbehandlung
+- ✅ **Escalation Events**: Eskalationsmanagement
+- ✅ **Boundary Events**: Element-gebundene Events
+- ✅ **Compensation Events**: Kompensations-Logik
+
+</details>
+
+<details>
+<summary><strong>🚦 Gateways (Click to expand)</strong></summary>
+
+- ✅ **Exclusive Gateway**: XOR-Entscheidungen
+- ✅ **Parallel Gateway**: AND-Parallelisierung
+- ✅ **Inclusive Gateway**: OR-Entscheidungen
+- ✅ **Complex Gateway**: Komplexe Routing-Logik
+- ✅ **Event-based Gateway**: Event-gesteuerte Entscheidungen
+
+</details>
+
+<details>
+<summary><strong>💾 Data Elements (Click to expand)</strong></summary>
+
+- ✅ **Data Objects**: Prozessdaten-Modellierung
+- ✅ **Data Stores**: Persistente Datenspeicher
+- ✅ **Properties**: Element-spezifische Eigenschaften
+- ✅ **Data Input/Output**: Schnittstellen-Definition
+- ✅ **Item Definitions**: Datentyp-Definitionen
+
+</details>
+
+## 🚀 Schnellstart
+
+### 📋 Voraussetzungen
+
+- [.NET 8.0 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) oder höher
+- Eine IDE Ihrer Wahl ([Visual Studio](https://visualstudio.microsoft.com/), [JetBrains Rider](https://www.jetbrains.com/rider/), [VS Code](https://code.visualstudio.com/))
+- Optional: [Git](https://git-scm.com/) für die Versionskontrolle
+
+### 📦 Installation
 
 ```bash
 # Repository klonen
 git clone https://github.com/flowzer-io/flowzer-bpmn-core-engine.git
 cd flowzer-bpmn-core-engine
 
-# Projekt bauen
+# Dependencies wiederherstellen
+dotnet restore
+
+# Projekt kompilieren
 dotnet build
+
+# Tests ausführen (optional)
+dotnet test
 ```
 
-### Grundlegende Verwendung
+### 💡 Erste Schritte
+
+Hier ist ein einfaches Beispiel, wie Sie die Engine verwenden können:
 
 ```csharp
-// BPMN-Engine initialisieren
+using core_engine;
+using System;
+using System.IO;
+
+// 1. 🎯 Engine initialisieren
 var engine = new CoreEngine();
 
-// BPMN-Definition laden
-using var xmlStream = File.OpenRead("process.bpmn");
+// 2. 📄 BPMN-Prozess laden
+using var xmlStream = File.OpenRead("my-process.bpmn");
 await engine.LoadBpmnFile(xmlStream, verify: true);
 
-// Initialisierungs-Subscriptions abrufen
-var subscriptions = await engine.GetInitialSubscriptions();
-
-// Prozess durch Event starten
-var eventData = new EventData 
+// 3. 🎬 Prozess starten
+var instanceId = Guid.NewGuid();
+var startEvent = new EventData 
 { 
     BpmnNodeId = "StartEvent_1", 
-    InstanceId = Guid.NewGuid() 
+    InstanceId = instanceId 
 };
-var result = await engine.HandleEvent(instanceData, eventData);
+
+var result = await engine.HandleEvent(new Instance(), startEvent);
+Console.WriteLine($"✅ Prozess gestartet! Aktive Interaktionen: {result.Interactions?.Count}");
 ```
 
-## Entwicklung
+### 🎭 Vollständiges Beispiel
 
-Siehe [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md) für detaillierte Entwicklungsrichtlinien.
+Ein umfassendes Beispiel finden Sie unter [`examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs), das einen kompletten Approval-Workflow demonstriert.
 
-### GitHub Copilot Integration
+## 🔧 Entwicklung
 
-Für optimale GitHub Copilot Unterstützung sind umfassende Copilot Instructions verfügbar:
-- [.github/copilot-instructions.md](.github/copilot-instructions.md)
+### 📚 Umfassende Entwicklungsrichtlinien
 
-### Grundprinzipien
+Für detaillierte Entwicklungsrichtlinien, Code-Standards und Best Practices siehe:
+- 📖 [**DEVELOPMENT-GUIDELINES.md**](DEVELOPMENT-GUIDELINES.md) - Vollständige Entwicklungsrichtlinien
+- 🤖 [**GitHub Copilot Instructions**](.github/copilot-instructions.md) - Optimierte Copilot-Unterstützung
 
-1. **BPMN 2.0 Standard Compliance** - Strikte Einhaltung der OMG Spezifikation
-2. **Clean Architecture** - Klare Trennung zwischen BPMN-Modell und Engine
-3. **Event-driven Design** - Asynchrone, event-basierte Ausführung
-4. **Modern C#** - Nutzung modernster .NET 8 Features
+### 🎯 Grundprinzipien
 
-## Lizenz
+<table>
+<tr>
+<td width="50%">
 
-Dieses Projekt steht unter der [Mozilla Public License 2.0](LICENSE).
+**🎯 BPMN 2.0 Standard Compliance**
+- Strikte Einhaltung der OMG BPMN 2.0 Spezifikation
+- Vollständige XML Schema-Kompatibilität
+- Standard-konforme Namensgebung
 
-## Beiträge
+**🏗️ Clean Architecture**
+- Klare Trennung zwischen BPMN-Modell und Engine
+- Interface-basiertes Design (`ICore`, `IBaseElement`)
+- Dependency Injection für maximale Testbarkeit
 
-Beiträge sind willkommen! Bitte lesen Sie die [Entwicklungsrichtlinien](DEVELOPMENT-GUIDELINES.md) und beachten Sie die [Copilot Instructions](.github/copilot-instructions.md) für konsistente Code-Qualität.
+</td>
+<td width="50%">
+
+**⚡ Event-Driven Design**
+- Asynchrone, event-basierte Ausführung
+- Token-basierte Prozesssteuerung
+- Subscription-basierte Service-Integration
+
+**🚀 Modern C# Features**
+- .NET 8 mit neuesten Language Features
+- Nullable Reference Types für Type Safety
+- Primary Constructors und moderne Syntax
+
+</td>
+</tr>
+</table>
+
+### 🛠️ Entwicklungstools Setup
+
+```bash
+# Entwicklungsumgebung mit Überwachung starten
+dotnet watch --project src/WebApiEngine
+
+# Frontend entwickeln (Blazor)
+dotnet watch --project src/FlowzerFrontend
+
+# Tests mit Coverage ausführen
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### 🧪 Testing-Strategie
+
+```csharp
+// Beispiel für BPMN-Prozess Test
+[Test]
+public async Task ProcessExecution_WithUserTask_ShouldCreateCorrectSubscription()
+{
+    // Arrange: BPMN-Definition laden
+    var engine = new CoreEngine();
+    await engine.LoadBpmnFile(GetTestBpmnStream(), verify: true);
+    
+    // Act: Prozess starten
+    var result = await engine.HandleEvent(testInstance, startEvent);
+    
+    // Assert: Erwartete Subscriptions und Tokens
+    Assert.That(result.Interactions, Has.Count.EqualTo(1));
+    Assert.That(result.Interactions[0], Is.TypeOf<UserTask>());
+}
+```
+
+## 🤝 Beiträge & Community
+
+### 🎉 Beiträge sind willkommen!
+
+Wir freuen uns über Beiträge aller Art! Bevor Sie loslegen, lesen Sie bitte:
+
+- 📋 [**Entwicklungsrichtlinien**](DEVELOPMENT-GUIDELINES.md) für technische Standards
+- 🤖 [**Copilot Instructions**](.github/copilot-instructions.md) für konsistente Code-Qualität
+- 🔄 **Pull Request Template** für strukturierte Beiträge
+
+### 🐛 Issues & Feature Requests
+
+- 🐞 **Bug Reports**: Nutzen Sie GitHub Issues mit dem `bug` Label
+- ✨ **Feature Requests**: Schlagen Sie neue Features mit dem `enhancement` Label vor
+- 📚 **Documentation**: Verbesserungen der Dokumentation sind immer willkommen
+- 💬 **Discussions**: Nutzen Sie GitHub Discussions für allgemeine Fragen
+
+### 👥 Community Guidelines
+
+1. **🤝 Respektvoller Umgang**: Behandeln Sie alle Community-Mitglieder respektvoll
+2. **📖 Dokumentation**: Code-Änderungen sollten entsprechend dokumentiert werden
+3. **🧪 Tests**: Neue Features benötigen entsprechende Tests
+4. **🎯 BPMN Compliance**: Alle Änderungen müssen BPMN 2.0 konform sein
+
+---
+
+## 📄 Lizenz
+
+Dieses Projekt steht unter der [**Mozilla Public License 2.0**](LICENSE).
+
+```
+Copyright (c) 2024 Flowzer.io
+Licensed under MPL-2.0
+```
+
+---
+
+## 🔗 Links & Ressourcen
+
+### 📚 Dokumentation
+- [BPMN 2.0 Specification](https://www.omg.org/spec/BPMN/2.0/) - Offizielle OMG BPMN Spezifikation
+- [.NET 8 Documentation](https://docs.microsoft.com/en-us/dotnet/core/) - Microsoft .NET Dokumentation
+
+### 🛠️ Tools & Integration
+- [bpmn.io](https://bpmn.io/) - BPMN-Modellierungs-Tools
+- [forms.io](https://www.form.io/) - Form-Engine für User Tasks
+
+### 🏢 Über Flowzer.io
+- [Website](https://flowzer.io) - Hauptwebsite
+- [GitHub](https://github.com/flowzer-io) - Weitere Open Source Projekte
+
+---
+
+<div align="center">
+
+**⭐ Wenn Ihnen dieses Projekt gefällt, geben Sie uns einen Star auf GitHub! ⭐**
+
+*Entwickelt mit ❤️ von der Flowzer.io Community*
+
+</div>
