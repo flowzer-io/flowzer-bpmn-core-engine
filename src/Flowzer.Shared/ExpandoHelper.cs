@@ -125,8 +125,9 @@ public static class ExpandoHelper
     {
         while (true)
         {
-            if (obj is not ExpandoObject) 
-                throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
+            obj ??= new ExpandoObject();
+            // if (obj is not ExpandoObject) 
+            //     throw new NotSupportedException($"cannot set property {propertyName} on none expando-objects.");
 
             var dict = (IDictionary<string, object?>)obj;
             if (propertyName.Contains('[')) 

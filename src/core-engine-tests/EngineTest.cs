@@ -293,19 +293,19 @@ public class EngineTest
     public async Task ParallelTaskWithCompletionConditionTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowWithCompletingConditionTest.bpmn");
-        var activeTokens = instanceEngine.GetActiveUserTasks().ToArray();
+        var activeUserTokens = instanceEngine.GetActiveUserTasks().ToArray();
 
-        var multiInstanceToken = activeTokens.SingleOrDefault(x => x.CurrentFlowNode is Activity
+        var multiInstanceToken = activeUserTokens.SingleOrDefault(x => x.CurrentFlowNode is Activity
         {
             LoopCharacteristics: MultiInstanceLoopCharacteristics
         });
-        var lukasTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Lukas");
-        var christianTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Christian");
-        var maxTask = activeTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Max");
+        var lukasTask = activeUserTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Lukas");
+        var christianTask = activeUserTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Christian");
+        var maxTask = activeUserTokens.SingleOrDefault(x => x.Variables?.GetValue("Person.Vorname")?.ToString() == "Max");
         
         using (new AssertionScope())
         {
-            activeTokens.Should().HaveCount(4);
+            activeUserTokens.Should().HaveCount(4);
             multiInstanceToken.Should().NotBeNull();
             lukasTask.Should().NotBeNull();
             christianTask.Should().NotBeNull();
@@ -326,7 +326,7 @@ public class EngineTest
         instanceEngine.HandleTaskResult(christianTask!.Id, new {HatZeit = true}.ToExpando());
         using (new AssertionScope())
         {
-            instanceEngine.GetActiveUserTasks().Should().HaveCount(2);
+            instanceEngine.GetActiveUserTasks().Should().HaveCount(0);
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
             var zeitInfo = multiInstanceToken!.Variables.GetValue("MitarbeiterZeitInfo");
             zeitInfo.Should().NotBeNull();

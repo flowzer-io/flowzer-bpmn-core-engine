@@ -135,6 +135,22 @@ public partial class InstanceEngine: ICatchHandler
     //     throw new NotImplementedException();
     // }
 
+    /// <summary>
+    /// Gibt den aktuellen (Sub-)Prozess-Token zurück.
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    public Token GetProcessToken(Token token)
+    {
+        var processToken = token;
+        while(processToken.CurrentBaseElement is not BPMN.Process.Process or SubProcess || processToken.ParentTokenId != null)
+        {
+            processToken = Tokens.Single(t => t.Id == processToken.ParentTokenId);
+        }
+
+        return processToken;
+    }
+    
     List<DateTime> ICatchHandler.ActiveTimers => throw new NotImplementedException();
     public List<Token> ActiveUserTasks()
     {

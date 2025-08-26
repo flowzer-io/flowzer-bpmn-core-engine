@@ -19,8 +19,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
             case MultiInstanceType.Parallel:
                 if (childTokens.Count == 0)
                 {
-                    processInstance.Tokens.AddRange(
-                        GenerateMultiInstanceTokens(token, multiInstanceType, processInstance));
+                    processInstance.Tokens.AddRange(multiInstanceTokens);
                     return;
                 }
 
@@ -42,7 +41,8 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
 
         var loopActivity = (Activity)token.CurrentFlowNode!;
         var loopCharacteristics = (MultiInstanceLoopCharacteristics)loopActivity.LoopCharacteristics!;
-
+        
+        // Überprüfen der CompletionCondition
         if (loopCharacteristics.CompletionCondition != null &&
             !string.IsNullOrWhiteSpace(loopCharacteristics.CompletionCondition.Body))
         {
@@ -61,7 +61,11 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                 break;
             }
         }
-
+        
+        
+        
+        // Wenn alle ChildTokens abgeschlossen sind, wird die OutputCollection erstellt und gefüllt (ansonsten return).
+        
         if (childTokens.Count != multiInstanceTokens.Count ||
             childTokens.Any(t => t.State != FlowNodeState.Completed && t.State != FlowNodeState.Withdrawn)) return;
         
@@ -79,10 +83,12 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                     outCollection.Add(completedToken.OutputData);
             }
         }
-
-        if (loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection != null)
-            processInstance.VariablesToken(token).Variables!.SetValue(loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection, outCollection);
         
+        if (loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection != null)
+        {
+            token.Variables ??= new Variables();
+            token.Variables!.SetValue(loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection, outCollection);
+        }        
         token.State = FlowNodeState.Completing;
     }
 
@@ -102,13 +108,13 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
         var flowzerLoopCharacteristics = multiInstanceLoopCharacteristics.FlowzerLoopCharacteristics!;
         var data = flowzerLoopCharacteristics.InputCollection;
 
-        if (data is not IEnumerable enumerableList)
+        if (data is not IEnumerable inputCollection)
             throw new FlowzerRuntimeException("InputCollection is not an IEnumerable");
 
         var ret = new List<Token>();
         var loopCounter = 1;
 
-        foreach (var item in enumerableList)
+        foreach (var item in inputCollection)
         {
             Variables dataObj;
             if (string.IsNullOrEmpty(flowzerLoopCharacteristics.InputElement))
@@ -131,21 +137,21 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                     CurrentBaseElement =
                         flowNodeWithoutLoop.ApplyResolveExpression<FlowNode>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            processInstance.VariablesToken(token).Variables!),
+                            processInstance.GetProcessToken(token).Variables!), //ist das korrekt? muss hier nicht eine gemerged menge alle "effektiven" variablen angegeben werden?
                     ActiveBoundaryEvents = processInstance.Process
                         .FlowElements
                         .OfType<BoundaryEvent>()
                         .Where(b => b.AttachedToRef.Id == flowNodeWithoutLoop.Id)
                         .Select(b => b.ApplyResolveExpression<BoundaryEvent>(
                             FlowzerConfig.Default.ExpressionHandler.ResolveString,
-                            processInstance.VariablesToken(token).Variables!)).ToList(),
+                            processInstance.GetProcessToken(token).Variables!)).ToList(),
                     Variables = dataObj,
                     ParentTokenId = token.Id,
                     ProcessInstanceId = token.ProcessInstanceId,
                 };
             ret.Add(newToken);
 
-            if (multiInstanceLoopCharacteristics.CompletionCondition?.Body != null)
+            if (multiInstanceLoopCharacteristics.CompletionCondition?.Body != null && sequenceType != MultiInstanceType.Parallel)
             {
                 var completionCondition = multiInstanceLoopCharacteristics.CompletionCondition.Body;
                 var completionConditionValue =

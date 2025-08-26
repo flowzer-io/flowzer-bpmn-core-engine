@@ -146,28 +146,34 @@ public partial class InstanceEngine
 
         token.Variables = new Variables();
 
-        var variablesToken = VariablesToken(token);
-
         mapping.InputMappings?.ForEach(ioMapping =>
         {
+            var variablesToken = GetCorrectVariablesToken(token, ioMapping.Source);
+            if (variablesToken.Variables == null)
+                throw new FlowzerRuntimeException($"Variable {ioMapping.Source} not found in any parent token");
+            
             token.Variables.TryAdd(ioMapping.Target,
                 FlowzerConfig.ExpressionHandler.GetValue(variablesToken.Variables, ioMapping.Source));
         });
     }
 
-    public Token VariablesToken(Token token, string? name = null)
+    public Token GetCorrectVariablesToken(Token token, string name)
     {
         var variablesToken = token;
         
-        if (name is null) return MasterToken;
+        var variablenName = name.Contains('.') ? name[..name.IndexOf('.')] : name;
         
         // Suche in der Kette bis zum MasterToken, ob es ein Token mit der definierten Variable gibt.
         do
         {
             if (variablesToken.Variables != null &&
-                variablesToken.Variables.HasProperty(name[..Math.Min(name.Length, name.IndexOf('.'))]))
+                variablesToken.Variables.HasProperty(variablenName))
                 return variablesToken;
             variablesToken = Tokens.Single(t => t.Id == variablesToken.ParentTokenId);
+            
+            // Die Höchste Ebene, die Zurückgegeben werden kann, ist die (Sub-)Process-Ebene
+            if (variablesToken.CurrentBaseElement is BPMN.Process.Process or SubProcess)
+                return variablesToken;
         } while (variablesToken.Variables == null);
 
         return MasterToken;
@@ -183,11 +189,12 @@ public partial class InstanceEngine
         if (token.CurrentFlowNode is not IFlowzerOutputMapping mapping)
             return;
 
-        var variablesToken = VariablesToken(token);
+        
 
         if (mapping.OutputMappings?.Count > 0)
             mapping.OutputMappings?.ForEach(ioMapping =>
             {
+                var variablesToken = GetCorrectVariablesToken(token, ioMapping.Target);
                 var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, ioMapping.Source);
                 ExpandoHelper.SetValue(variablesToken.Variables, ioMapping.Target, value);
             });
@@ -195,6 +202,7 @@ public partial class InstanceEngine
         {
             foreach (var (key, value) in token.OutputData!)
             {
+                var variablesToken = GetCorrectVariablesToken(token, key);
                 variablesToken.Variables.SetValue(key, value);
             }
         }
