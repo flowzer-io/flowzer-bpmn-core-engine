@@ -18,13 +18,31 @@
     window.Formio = Formio;
 
 
-    function loadViewer(schema){
-        Formio.createForm(document.getElementById('form'), schema)
+    function loadViewer(schema) {
+        const options = {
+            // >>> Hier erlaubst du iframe/embed/object + relevante Attribute <<<
+            sanitizeConfig: {
+                // Erlaube die Tags
+                allowedTags: ['iframe', 'embed', 'object'],
+                addTags: ['iframe', 'embed', 'object'],
+                // Erlaube benötigte Attribute (src, type, Größen, usw.)
+                allowedAttrs: [
+                    'src', 'type', 'width', 'height', 'style',
+                    'frameborder', 'allow', 'allowfullscreen',
+                    'ref', 'data-oembed-url'
+                ],
+                addAttr: ['allow', 'allowfullscreen', 'frameborder', 'data-oembed-url']
+                // Optional: Wenn deine src-URLs geblockt werden, kannst du
+                // DOMPurify-RegEx für erlaubte Protokolle setzen (nur wenn nötig):
+                // ALLOWED_URI_REGEXP: /^(?:(?:https?|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+            }
+        };
+
+        Formio.createForm(document.getElementById('form'), schema, options)
             .then((form) => {
                 window.formViewer = form;
-                form.on('change', function() {
-                    console.log("sending formChanged to parent");
-                    window.parent.postMessage({type: "event", eventTyp: "formChanged"}, '*');
+                form.on('change', function () {
+                    window.parent.postMessage({ type: "event", eventTyp: "formChanged" }, '*');
                 });
             });
     }
@@ -41,11 +59,11 @@
         return window.formViewer.submission.data;
     }
 
-    
+
     function IsReady(){
         return  window.Formio !== undefined;
     }
-    
+
     if (!window.messageHandlerSet) {
         window.addEventListener('message', async function(event) {
             console.log("Executing " + event.data.func + " " + JSON.stringify(event.data.arguments)); // Message received from child
@@ -60,7 +78,7 @@
         });
         window.messageHandlerSet = true;
     }
-    
+
     console.log("Formio Viewer loaded");
 </script>
 
