@@ -188,3 +188,14 @@ public class BpmnError : Exception
 6. **Nullable Reference Types** - Moderne C# Features konsequent nutzen
 7. **Asynchrone Patterns** - Task-basierte APIs für alle IO-Operationen
 8. **Clean Architecture** - Klare Grenzen zwischen BPMN-Model und Engine
+9. **Moderne Dokumentation** - README.md und Entwicklungsrichtlinien immer aktuell halten
+10. **Community Focus** - Code sollte für externe Entwickler verständlich und erweiterbar sein
+
+---
+
+**Siehe auch:**
+- [README.md](../README.md) - Projektübersicht und Schnellstart
+- [DEVELOPMENT-GUIDELINES.md](../DEVELOPMENT-GUIDELINES.md) - Detaillierte Entwicklungsrichtlinien
+
+**Letzte Aktualisierung**: $(date)
+**Version**: 1.1
