@@ -7,7 +7,9 @@ public class Helper
     {
         var model = await ModelParser.ParseModel(File.Open("embeddings/" + fileName,FileMode.Open));
         var process = model.GetProcesses();
-        var processEngine = new ProcessEngine(process.First());
+        
+        // Use the FlowzerConfig.Default which already has fallback logic for V8 issues
+        var processEngine = new ProcessEngine(process.First(), FlowzerConfig.Default);
         var instanceEngine = processEngine.StartProcess();
         return instanceEngine;
     }
