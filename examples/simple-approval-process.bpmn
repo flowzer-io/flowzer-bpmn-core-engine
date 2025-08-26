@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" 
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" 
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" 
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" 
+                  id="Definitions_1" 
+                  targetNamespace="http://bpmn.io/schema/bpmn" 
+                  exporter="bpmn-js (https://demo.bpmn.io)" 
+                  exporterVersion="12.0.0">
+  
+  <bpmn:process id="SimpleProcess" isExecutable="true">
+    
+    <!-- Start Event -->
+    <bpmn:startEvent id="StartEvent_1" name="Process Started">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    
+    <!-- User Task -->
+    <bpmn:userTask id="UserTask_1" name="Review Document">
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:ioSpecification>
+        <bpmn:dataInput id="DataInput_1" name="document" />
+        <bpmn:dataOutput id="DataOutput_1" name="approval" />
+        <bpmn:inputSet>
+          <bpmn:dataInputRefs>DataInput_1</bpmn:dataInputRefs>
+        </bpmn:inputSet>
+        <bpmn:outputSet>
+          <bpmn:dataOutputRefs>DataOutput_1</bpmn:dataOutputRefs>
+        </bpmn:outputSet>
+      </bpmn:ioSpecification>
+    </bpmn:userTask>
+    
+    <!-- Exclusive Gateway -->
+    <bpmn:exclusiveGateway id="Gateway_1" name="Document Approved?">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Flow_3_Approved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_3_Rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    
+    <!-- Service Task - Approved Path -->
+    <bpmn:serviceTask id="ServiceTask_1" name="Send Approval Notification">
+      <bpmn:incoming>Flow_3_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- Service Task - Rejected Path -->
+    <bpmn:serviceTask id="ServiceTask_2" name="Send Rejection Notification">
+      <bpmn:incoming>Flow_3_Rejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    
+    <!-- End Event - Approved -->
+    <bpmn:endEvent id="EndEvent_1" name="Document Approved">
+      <bpmn:incoming>Flow_4</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- End Event - Rejected -->
+    <bpmn:endEvent id="EndEvent_2" name="Document Rejected">
+      <bpmn:incoming>Flow_5</bpmn:incoming>
+    </bpmn:endEvent>
+    
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="UserTask_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="Gateway_1" />
+    <bpmn:sequenceFlow id="Flow_3_Approved" name="Approved" sourceRef="Gateway_1" targetRef="ServiceTask_1">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        ${approval == 'approved'}
+      </bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_3_Rejected" name="Rejected" sourceRef="Gateway_1" targetRef="ServiceTask_2">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        ${approval == 'rejected'}
+      </bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="ServiceTask_1" targetRef="EndEvent_1" />
+    <bpmn:sequenceFlow id="Flow_5" sourceRef="ServiceTask_2" targetRef="EndEvent_2" />
+    
+  </bpmn:process>
+  
+</bpmn:definitions>
