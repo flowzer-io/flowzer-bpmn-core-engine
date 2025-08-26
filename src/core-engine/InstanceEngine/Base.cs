@@ -37,15 +37,16 @@ public partial class InstanceEngine: ICatchHandler
         
     }
     
-    public InstanceEngine(List<Token> tokens, bool allTokensIncluded = true)
+    public InstanceEngine(List<Token> tokens, FlowzerConfig? flowzerConfig = null, bool allTokensIncluded = true)
     {
         if (tokens.SingleOrDefault(t => t.ParentTokenId == null) == null)
             throw new ArgumentException("Es muss mindestens ein (Master)Token vorhanden sein", nameof(tokens));
         Tokens = tokens;
+        FlowzerConfig = flowzerConfig ?? FlowzerConfig.Default;
     }
     
     public List<Token> Tokens { get; }
-    public FlowzerConfig FlowzerConfig { get; } = FlowzerConfig.Default;
+    public FlowzerConfig FlowzerConfig { get; private set; }
 
     public IEnumerable<Token> ActiveTokens => Tokens.Where(token => token.State == FlowNodeState.Active);
     
