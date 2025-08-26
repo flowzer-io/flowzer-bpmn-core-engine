@@ -10,7 +10,7 @@ public class ProcessFlowNodeHandler : DefaultFlowNodeHandler
         if (processInstance.Tokens.All(t => t.ParentTokenId != token.Id)) // Wenn es noch keine ChildTokens gibt
         {
             var startFlowNodes = process.FlowElements.GetStartFlowNodes();
-            token.OutputData = processInstance.VariablesToken(token).Variables!;
+            token.OutputData = processInstance.GetProcessToken(token).Variables!;
             foreach (var startFlowNode in startFlowNodes)
             {
                 processInstance.Tokens.Add(new Token

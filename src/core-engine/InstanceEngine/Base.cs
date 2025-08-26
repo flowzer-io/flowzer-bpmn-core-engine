@@ -107,4 +107,19 @@ public partial class InstanceEngine
     //     throw new NotImplementedException();
     // }
 
+    /// <summary>
+    /// Gibt den aktuellen (Sub-)Prozess-Token zurück.
+    /// </summary>
+    /// <param name="token"></param>
+    /// <returns></returns>
+    public Token GetProcessToken(Token token)
+    {
+        var processToken = token;
+        while(processToken.CurrentBaseElement is not BPMN.Process.Process or SubProcess || processToken.ParentTokenId != null)
+        {
+            processToken = Tokens.Single(t => t.Id == processToken.ParentTokenId);
+        }
+
+        return processToken;
+    }
 }

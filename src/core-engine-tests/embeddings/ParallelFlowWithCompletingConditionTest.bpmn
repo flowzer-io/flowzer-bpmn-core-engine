@@ -55,6 +55,7 @@
         <zeebe:assignmentDefinition assignee="demo" />
         <zeebe:ioMapping>
           <zeebe:output source="=HatZeit" target="Person.HatZeit" />
+          <zeebe:output source="=HatZeit" target="NeueNeuerePerson.HatZeit" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_07770cz</bpmn:incoming>
