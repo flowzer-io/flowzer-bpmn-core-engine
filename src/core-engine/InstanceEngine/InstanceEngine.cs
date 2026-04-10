@@ -158,9 +158,11 @@ public partial class InstanceEngine
         });
     }
 
-    public Token GetCorrectVariablesToken(Token token, string name)
+    public Token GetCorrectVariablesToken(Token token, string name, bool includeCurrentToken = true)
     {
-        var variablesToken = token;
+        var variablesToken = includeCurrentToken
+            ? token
+            : Tokens.Single(t => t.Id == token.ParentTokenId);
         
         var variablenName = name.Contains('.') ? name[..name.IndexOf('.')] : name;
         
@@ -170,11 +172,14 @@ public partial class InstanceEngine
             if (variablesToken.Variables != null &&
                 variablesToken.Variables.HasProperty(variablenName))
                 return variablesToken;
-            variablesToken = Tokens.Single(t => t.Id == variablesToken.ParentTokenId);
-            
-            // Die Höchste Ebene, die Zurückgegeben werden kann, ist die (Sub-)Process-Ebene
+
+            // Die höchste Ebene, die für das Schreiben/Lesen noch sinnvoll ist, ist die
+            // aktuelle (Sub-)Process-Ebene. Existiert die Variable dort noch nicht, wird
+            // sie in genau diesem Scope angelegt.
             if (variablesToken.CurrentBaseElement is BPMN.Process.Process or SubProcess)
                 return variablesToken;
+
+            variablesToken = Tokens.Single(t => t.Id == variablesToken.ParentTokenId);
         } while (variablesToken.Variables == null);
 
         return MasterToken;
@@ -190,7 +195,21 @@ public partial class InstanceEngine
         if (token.CurrentFlowNode is not IFlowzerOutputMapping mapping)
             return;
 
-        
+        var isMultiInstanceToken = token.CurrentFlowNode is Activity
+        {
+            LoopCharacteristics: MultiInstanceLoopCharacteristics
+        };
+
+        if (isMultiInstanceToken && token.OutputData != null)
+        {
+            foreach (var (key, value) in token.OutputData)
+            {
+                var variablesToken = GetCorrectVariablesToken(token, key, includeCurrentToken: false);
+                variablesToken.Variables.SetValue(key, value);
+            }
+
+            return;
+        }
 
         if (mapping.OutputMappings?.Count > 0)
             mapping.OutputMappings?.ForEach(ioMapping =>

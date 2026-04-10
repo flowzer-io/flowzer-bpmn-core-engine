@@ -86,9 +86,15 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
         
         if (loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection != null)
         {
+            // Die erzeugte Collection wird sowohl in den aktuellen Variablen als auch in den Output-Daten
+            // des Multi-Instance-Tokens abgelegt. Nur so kann der nachgelagerte Output-Mapping-Pfad beim
+            // Abschluss des Parent-Tokens die Werte wieder sauber in den Prozesskontext propagieren.
             token.Variables ??= new Variables();
+            token.OutputData ??= new Variables();
             token.Variables!.SetValue(loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection, outCollection);
-        }        
+            token.OutputData.SetValue(loopCharacteristics.FlowzerLoopCharacteristics!.OutputCollection, outCollection);
+        }
+
         token.State = FlowNodeState.Completing;
     }
 

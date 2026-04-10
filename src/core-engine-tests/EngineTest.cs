@@ -213,11 +213,16 @@ public class EngineTest
                     : ProcessInstanceState.Waiting);
         }
         
+        var multiInstanceToken = instanceEngine.Tokens.Single(t => t.CurrentFlowNode is Activity
+        {
+            LoopCharacteristics: MultiInstanceLoopCharacteristics
+        });
         var outList = (List<object>?)instanceEngine.MasterToken.Variables.GetValue("MitarbeiterOut");
         outList.Should().HaveCount(3);
         
         using(new AssertionScope())
         {
+            ((List<object>?)multiInstanceToken.OutputData?.GetValue("MitarbeiterOut")).Should().HaveCount(3);
             //check if the order is correct
             outList.Select(x => x.GetValue("Vorname")?.ToString()).Should()
                 .ContainInOrder(["Lukas", "Christian", "Max"]);
@@ -278,10 +283,15 @@ public class EngineTest
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
         }
 
+        var multiInstanceToken = instanceEngine.Tokens.Single(t => t.CurrentFlowNode is Activity
+        {
+            LoopCharacteristics: MultiInstanceLoopCharacteristics
+        });
         var outList = (List<object>)instanceEngine.MasterToken.Variables.GetValue("MitarbeiterOut")!;
         outList.Should().HaveCount(3);
         using(new AssertionScope())
         {
+            ((List<object>?)multiInstanceToken.OutputData?.GetValue("MitarbeiterOut")).Should().HaveCount(3);
             //check if the order is correct
             outList.Select(x => x.GetValue("Vorname")?.ToString()).Should()
                 .ContainInOrder(["Lukas", "Christian", "Max"]);
