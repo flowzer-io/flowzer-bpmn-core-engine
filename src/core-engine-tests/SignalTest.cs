@@ -16,7 +16,7 @@ public class SignalTest
     [Test]
     public void Flow1Test()
     {
-        var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartOne");
+        var instanceEngines = Helper.CreateProcessEngine(Process).HandleSignal("SignalStartOne");
         using (new AssertionScope())
         {
             instanceEngines.Should().ContainSingle();
@@ -34,7 +34,7 @@ public class SignalTest
     [Test]
     public void Flow2Test()
     {
-        var instanceEngines = new ProcessEngine(Process).HandleSignal("SignalStartTwo");
+        var instanceEngines = Helper.CreateProcessEngine(Process).HandleSignal("SignalStartTwo");
         var engine = instanceEngines.SingleOrDefault(engine => engine.ProcessInstanceState == ProcessInstanceState.Waiting);
         using (new AssertionScope())
         {

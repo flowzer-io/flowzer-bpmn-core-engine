@@ -1,15 +1,23 @@
+using BPMN.Process;
+
 namespace core_engine_tests;
 
 public class Helper
 {
+    internal static FlowzerConfig TestFlowzerConfig { get; } = FlowzerConfig.CreateForTests();
     
     internal static async Task<InstanceEngine> StartFirstProcessOfFile(string fileName)
     {
         var model = await ModelParser.ParseModel(File.Open("embeddings/" + fileName,FileMode.Open));
         var process = model.GetProcesses();
-        var processEngine = new ProcessEngine(process.First());
+        var processEngine = CreateProcessEngine(process.First());
         var instanceEngine = processEngine.StartProcess();
         return instanceEngine;
+    }
+
+    internal static ProcessEngine CreateProcessEngine(Process process)
+    {
+        return new ProcessEngine(process, TestFlowzerConfig);
     }
 
     public static void DoTestServiceThings(InstanceEngine instanceEngine)

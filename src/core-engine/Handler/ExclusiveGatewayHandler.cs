@@ -16,9 +16,9 @@ internal class ExclusiveGatewayHandler : DefaultFlowNodeHandler
         
         var outgoingTokens = base.GenerateOutgoingTokens(config, processInstance, token);
 
-        if (outgoingTokens is null)
+        if (outgoingTokens is null || outgoingTokens.Count == 0)
             throw new FlowzerRuntimeException("No Condition is true for Exclusive Gateway");
         
-        return outgoingTokens[..1];
+        return outgoingTokens.Take(1).ToList();
     }
 }
