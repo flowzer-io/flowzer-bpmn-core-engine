@@ -22,8 +22,8 @@ Empfohlen wird aktuell **.NET 8**.
 
 ```bash
 dotnet restore core-engine.sln
-dotnet build core-engine.sln
-dotnet test src/core-engine-tests/core-engine-tests.csproj
+dotnet build core-engine.sln --no-restore --configuration Release
+dotnet test src/core-engine-tests/core-engine-tests.csproj --no-restore --configuration Release
 ```
 
 ### bpmn.io
@@ -39,8 +39,8 @@ npm run build
 Bitte berücksichtige diese Baustellen bei deiner Arbeit:
 
 - Auf `next` gibt es jetzt eine erste GitHub-Actions-CI für Restore, Build, Test und `bpmn.io`.
-- Drei Tests sind aktuell noch temporär quarantiniert: `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest`.
-- Das Expression-/V8-Thema aus PR #16 ist weiterhin fachlich offen.
+- Zwei Tests sind aktuell noch temporär quarantiniert: `ParallelTaskTest` und `SequentialTest`.
+- Für Test-/CI-Umgebungen ohne native V8-Abhängigkeit gibt es jetzt einen abgesicherten Fallback-Pfad; die vollständige FEEL-/V8-Story bleibt trotzdem ein Architekturthema.
 - Einige Doku- und Architektur-Aussagen im Altbestand waren optimistischer als der tatsächliche Reifegrad.
 
 ## Wo welche Änderungen hingehören
@@ -105,9 +105,15 @@ Wenn du die Engine, Expressions, Parser oder Flow-Logik anfasst:
 - prüfe nach Möglichkeit zusätzlich den aktuellen CI-Pfad mit Coverage:
 
 ```bash
+dotnet restore core-engine.sln
+dotnet build core-engine.sln --no-restore --configuration Release
 dotnet test src/core-engine-tests/core-engine-tests.csproj \
-  --filter "FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest&FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest&FullyQualifiedName!=core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest" \
+  --no-restore \
+  --no-build \
+  --configuration Release \
+  --filter "FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest&FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest" \
   --collect:"XPlat Code Coverage" \
+  --logger "trx;LogFileName=core-engine-tests.trx" \
   --results-directory ./TestResults/ci
 ```
 

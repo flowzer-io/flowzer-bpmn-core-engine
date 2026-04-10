@@ -83,10 +83,10 @@ npm run build
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Testbasis noch nicht vollständig grün**
-   Auf `next` laufen Restore, Build und eine erste GitHub-Actions-CI reproduzierbar. Aktuell sind aber noch `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest` offen und werden separat bereinigt.
+   Auf `next` laufen Restore, Build und eine erste GitHub-Actions-CI reproduzierbar. Aktuell sind aber noch `ParallelTaskTest` und `SequentialTest` offen und werden separat bereinigt.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
-   PR #16 adressiert das V8-/Expression-Handling in Tests, ist aber fachlich und technisch noch nicht final bewertet oder übernommen.
+   Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
 
 3. **Offene Security-Updates**
    Es gibt offene Dependabot-PRs für `System.Text.Json`, `webpack-dev-server`/`on-headers`/`compression` und `AutoMapper`.

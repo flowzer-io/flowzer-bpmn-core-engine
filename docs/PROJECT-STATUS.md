@@ -85,8 +85,8 @@ Weiterhin offen:
 - Aktuell bekannte Ausreißer:
   - `ParallelTaskTest`
   - `SequentialTest`
-  - `JavaScriptFeelTest` (harter absoluter Pfad)
-- Diese drei Tests sind im aktuellen CI-Pfad vorübergehend quarantiniert, bis die separaten Engine-/Teststränge abgeschlossen sind.
+- `JavaScriptFeelTest` nutzt inzwischen einen repo-lokalen Pfad und kann bei fehlender nativer V8-Library sauber übersprungen werden.
+- Die beiden verbleibenden Engine-Tests sind im aktuellen CI-Pfad vorübergehend quarantiniert, bis der separate Multi-Instance-Strang abgeschlossen ist.
 
 Zusätzlich gab es Security-Warnungen u. a. für:
 

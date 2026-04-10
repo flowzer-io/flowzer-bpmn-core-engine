@@ -26,7 +26,6 @@ env:
   QUARANTINED_TEST_FILTER: >-
     FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest
     &FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest
-    &FullyQualifiedName!=core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest
 
 jobs:
   dotnet:
@@ -98,7 +97,6 @@ jobs:
           - Quarantänisierte Tests (temporär bis zur separaten Behebung):
             - `core_engine_tests.EngineTest.ParallelTaskTest`
             - `core_engine_tests.EngineTest.SequentialTest`
-            - `core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest`
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`
           EOF

@@ -53,10 +53,9 @@ Wenn Architektur, Setup oder bekannte Einschränkungen verändert werden, sollen
 ### Build, Tests und CI
 
 - Auf `next` laufen Restore, Build und eine erste CI inzwischen reproduzierbar.
-- Drei Tests sind aktuell aber noch bewusst temporär aus dem CI-Pfad herausgenommen:
+- Zwei Tests sind aktuell aber noch bewusst temporär aus dem CI-Pfad herausgenommen:
   - `core_engine_tests.EngineTest.ParallelTaskTest`
   - `core_engine_tests.EngineTest.SequentialTest`
-  - `core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest`
 - Änderungen an Build-/SDK-/Testthemen bitte nicht stillschweigend einbauen, sondern sauber begründen und mit Doku flankieren.
 
 ### Expression-Handling

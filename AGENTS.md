@@ -34,10 +34,10 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 ## Bekannte Fallstricke
 
 1. **Tests noch nicht vollständig stabil**
-   Auf `next` laufen Restore, Build und eine erste CI. Die Tests `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest` sind aktuell aber noch bekannte Ausnahmen und werden separat behoben.
+   Auf `next` laufen Restore, Build und eine erste CI. Die Tests `ParallelTaskTest` und `SequentialTest` sind aktuell aber noch bekannte Ausnahmen und werden separat behoben.
 
 2. **V8-/Expression-Thema nicht abgeschlossen**
-   Die Default-Expression-Logik hängt an `ClearScript/V8`. Die Draft-PR #16 versucht das für Testumgebungen zu entschärfen, ist aber nicht final entschieden.
+   Die Default-Expression-Logik hängt weiterhin an `ClearScript/V8`. Für Tests und CI gibt es jetzt einen robusteren Fallback-Pfad, die langfristige FEEL-/V8-Strategie bleibt aber offen.
 
 3. **CI ist vorhanden, aber noch im Stabilisierungsmodus**
    Nutze die GitHub-Checks als Basis, behandle die temporär quarantinierten Tests aber weiterhin als offenen Arbeitsvorrat.
