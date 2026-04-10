@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Dynamic;
 using System.Text.Json;
 using Flowzer.Shared;
@@ -110,13 +111,13 @@ public sealed class SimpleExpressionHandler : DefaultExpressionHandler
             return true;
         }
 
-        if (int.TryParse(expression, out var intValue))
+        if (int.TryParse(expression, NumberStyles.Integer, CultureInfo.InvariantCulture, out var intValue))
         {
             value = intValue;
             return true;
         }
 
-        if (double.TryParse(expression, out var doubleValue))
+        if (double.TryParse(expression, NumberStyles.Float, CultureInfo.InvariantCulture, out var doubleValue))
         {
             value = doubleValue;
             return true;

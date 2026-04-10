@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Dynamic;
 using core_engine.Expression;
 using FluentAssertions;
@@ -67,5 +68,28 @@ public class SimpleExpressionHandlerTest
         var matches = _handler.MatchExpression(variables, "=Person.HatZeit = true");
 
         matches.Should().BeTrue();
+    }
+
+    [Test]
+    public void GetValue_ShouldParseDecimalLiteralsCultureInvariant()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+
+        try
+        {
+            var germanCulture = CultureInfo.GetCultureInfo("de-DE");
+            CultureInfo.CurrentCulture = germanCulture;
+            CultureInfo.CurrentUICulture = germanCulture;
+
+            var result = _handler.GetValue(new ExpandoObject(), "=1.23");
+
+            result.Should().Be(1.23d);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+        }
     }
 }
