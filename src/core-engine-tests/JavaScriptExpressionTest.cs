@@ -15,8 +15,39 @@ public class JavaScriptExpressionTest
         var globals = new ExpandoObject();
         globals.TryAdd("a", "fghjk");
     }
-    
-    
+
+    [Test]
+    public void IsMissingV8Dependency_ShouldReturnTrueForTypeLoadException()
+    {
+        var exception = new TypeLoadException("Cannot load ClearScript V8 library. Load failure information for ClearScriptV8.linux-x64.so");
+
+        var shouldIgnore = IsMissingV8Dependency(exception);
+
+        shouldIgnore.Should().BeTrue();
+    }
+
+    [Test]
+    public void IsMissingV8Dependency_ShouldReturnTrueForNestedDllNotFoundException()
+    {
+        var exception = new InvalidOperationException(
+            "Wrapper exception",
+            new DllNotFoundException("ClearScriptV8.linux-x64.so konnte nicht geladen werden."));
+
+        var shouldIgnore = IsMissingV8Dependency(exception);
+
+        shouldIgnore.Should().BeTrue();
+    }
+
+    [Test]
+    public void IsMissingV8Dependency_ShouldReturnFalseForOtherExceptions()
+    {
+        var exception = new InvalidOperationException("Ein anderer Fehler");
+
+        var shouldIgnore = IsMissingV8Dependency(exception);
+
+        shouldIgnore.Should().BeFalse();
+    }
+
     [Test]
     public void JavaScriptFeelTest()
     {
@@ -49,10 +80,28 @@ public class JavaScriptExpressionTest
             result.Should().Be("Mike");
             TestContext.WriteLine($"FEEL-Auswertung erfolgreich in {stopwatch.ElapsedMilliseconds} ms");
         }
-        catch (DllNotFoundException)
+        catch (Exception exception) when (IsMissingV8Dependency(exception))
         {
-            Assert.Ignore("V8-Bibliotheken sind in dieser Umgebung nicht verfügbar.");
+            Assert.Ignore($"V8-Bibliotheken sind in dieser Umgebung nicht verfügbar ({exception.GetType().Name}).");
         }
+    }
+
+    internal static bool IsMissingV8Dependency(Exception exception)
+    {
+        for (var currentException = exception; currentException is not null; currentException = currentException.InnerException!)
+        {
+            if (currentException is DllNotFoundException)
+                return true;
+
+            if (currentException is TypeLoadException &&
+                currentException.Message.Contains("ClearScript", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (currentException.Message.Contains("ClearScriptV8", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
     }
 
     private static string GetFeelinBundlePath()
