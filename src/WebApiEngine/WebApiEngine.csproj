@@ -16,7 +16,6 @@
       <ProjectReference Include="..\..\Model\Model.csproj" />
       <ProjectReference Include="..\core-engine\core-engine.csproj" />
       <ProjectReference Include="..\FilesystemStorageSystem\FilesystemStorageSystem.csproj" />
-      <ProjectReference Include="..\MemoryStorageSystem\MemoryStorageSystem.csproj" />
       <ProjectReference Include="..\StorageSystemShared\StorageSystemShared.csproj" />
       <ProjectReference Include="..\WebApiEngine.Shared\WebApiEngine.Shared.csproj" />
     </ItemGroup>
