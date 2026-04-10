@@ -87,8 +87,9 @@ public partial class InstanceEngine
             new MultiInstanceHandler().Execute(this, token);
         }
         
-        // Execute all MultiInstance Tokens
-        foreach (var token in activeTokens.Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
+        // Process- und SubProcess-Tokens werden rückwärts durchlaufen, damit abgeschlossene Kindtokens
+        // zuerst ausgewertet werden und die Ausführungsreihenfolge unter .NET 8 reproduzierbar bleibt.
+        foreach (var token in activeTokens.AsEnumerable().Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
         {
             new ProcessFlowNodeHandler().Execute(this, token);
             new DefaultFlowNodeHandler().GenerateOutgoingTokens(FlowzerConfig, this, token);
