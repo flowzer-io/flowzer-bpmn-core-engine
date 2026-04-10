@@ -83,7 +83,7 @@ npm run build
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Build mit aktuellem SDK nicht sauber stabilisiert**  
-   Mit aktuellem .NET-10-SDK schlägt der Build derzeit in `src/core-engine/InstanceEngine/InstanceEngine.cs` fehl (Zeile mit `activeTokens.Reverse().Where(...)`).
+   Mit neueren .NET-SDKs kann der Build derzeit in `src/core-engine/InstanceEngine/InstanceEngine.cs` scheitern (Zeile mit `activeTokens.Reverse().Where(...)`).
 
 2. **Verwaiste ProjectReference**  
    `src/WebApiEngine/WebApiEngine.csproj` referenziert `src/MemoryStorageSystem/MemoryStorageSystem.csproj`, die Datei liegt aktuell aber nicht im Repository vor.
