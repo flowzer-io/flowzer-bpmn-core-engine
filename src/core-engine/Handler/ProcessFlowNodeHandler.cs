@@ -17,7 +17,7 @@ public class ProcessFlowNodeHandler : DefaultFlowNodeHandler
                 {
                     CurrentBaseElement = 
                         startFlowNode.ApplyResolveExpression<FlowNode>(
-                            FlowzerConfig.Default.ExpressionHandler.ResolveString, token.OutputData),
+                            processInstance.FlowzerConfig.ExpressionHandler.ResolveString, token.OutputData),
                     ProcessInstanceId = token.ProcessInstanceId,
                     ParentTokenId = token.Id,
                     State = FlowNodeState.Ready,

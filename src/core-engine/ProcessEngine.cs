@@ -3,10 +3,11 @@ using Newtonsoft.Json;
 
 namespace core_engine;
 
-public class ProcessEngine(Process process) : ICatchHandler
+public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null) : ICatchHandler
 {
     
     public Process Process { get; set; } = process;
+    public FlowzerConfig FlowzerConfig { get; } = flowzerConfig ?? FlowzerConfig.Default;
 
     public InstanceEngine StartProcess(Variables? data = null)
     {
@@ -19,7 +20,7 @@ public class ProcessEngine(Process process) : ICatchHandler
             ActiveBoundaryEvents = [],
             ProcessInstanceId = Guid.NewGuid(),
         };
-        var instance = new InstanceEngine([masterToken]);
+        var instance = new InstanceEngine([masterToken], FlowzerConfig);
         instance.Start(data);
         return instance;
     }
@@ -61,7 +62,7 @@ public class ProcessEngine(Process process) : ICatchHandler
             ActiveBoundaryEvents = [],
             ProcessInstanceId = Guid.NewGuid(),
         };
-        var instanceEngine = new InstanceEngine([masterToken]);
+        var instanceEngine = new InstanceEngine([masterToken], FlowzerConfig);
 
         instanceEngine.HandleMessage(message);
         
@@ -84,7 +85,7 @@ public class ProcessEngine(Process process) : ICatchHandler
                 ActiveBoundaryEvents = [],
                 ProcessInstanceId = Guid.NewGuid(),
             };
-            var instanceEngine = new InstanceEngine([masterToken]);
+            var instanceEngine = new InstanceEngine([masterToken], FlowzerConfig);
 
             instanceEngine.HandleSignal(signalName, JsonConvert.SerializeObject(signalData), startEvent);
 
