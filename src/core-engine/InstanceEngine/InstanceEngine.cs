@@ -205,16 +205,19 @@ public partial class InstanceEngine
             foreach (var (key, value) in token.OutputData)
             {
                 var variablesToken = GetCorrectVariablesToken(token, key, includeCurrentToken: false);
+                variablesToken.Variables ??= new Variables();
                 variablesToken.Variables.SetValue(key, value);
             }
 
-            return;
+            if (mapping.OutputMappings?.Count is not > 0)
+                return;
         }
 
         if (mapping.OutputMappings?.Count > 0)
             mapping.OutputMappings?.ForEach(ioMapping =>
             {
                 var variablesToken = GetCorrectVariablesToken(token, ioMapping.Target);
+                variablesToken.Variables ??= new Variables();
                 var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, ioMapping.Source);
                 ExpandoHelper.SetValue(variablesToken.Variables, ioMapping.Target, value);
             });
@@ -223,6 +226,7 @@ public partial class InstanceEngine
             foreach (var (key, value) in token.OutputData!)
             {
                 var variablesToken = GetCorrectVariablesToken(token, key);
+                variablesToken.Variables ??= new Variables();
                 variablesToken.Variables.SetValue(key, value);
             }
         }
