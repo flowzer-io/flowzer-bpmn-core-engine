@@ -2,6 +2,7 @@ using System.Reflection;
 using BPMN.Activities;
 using BPMN.Flowzer;
 using BPMN.Process;
+using core_engine.Exceptions;
 using FluentAssertions;
 using Flowzer.Shared;
 using Model;
@@ -42,6 +43,36 @@ public class InstanceEngineOutputMappingTest
         ((List<object?>?)instanceEngine.MasterToken.Variables!.GetValue("GemappteMitarbeiter"))
             .Should()
             .BeEquivalentTo(outputCollection);
+    }
+
+    [Test]
+    public void GetCorrectVariablesToken_ShouldThrowHelpfulException_WhenParentScopeIsRequestedWithoutParent()
+    {
+        var processInstanceId = Guid.NewGuid();
+        var process = new Process
+        {
+            Id = "Process_1",
+            DefinitionsId = "Definitions_1",
+            Name = "Test Process",
+            IsExecutable = true,
+            FlowElements = []
+        };
+
+        var masterToken = new Token
+        {
+            ProcessInstanceId = processInstanceId,
+            CurrentBaseElement = process,
+            ActiveBoundaryEvents = [],
+            State = FlowNodeState.Active,
+            Variables = new Variables()
+        };
+
+        var instanceEngine = new InstanceEngine([masterToken], Helper.TestFlowzerConfig);
+        var action = () => instanceEngine.GetCorrectVariablesToken(masterToken, "MitarbeiterOut", includeCurrentToken: false);
+
+        action.Should()
+            .Throw<FlowzerRuntimeException>()
+            .WithMessage("*kein ParentToken*");
     }
 
     private static InstanceEngine CreateInstanceEngineWithMultiInstanceToken(

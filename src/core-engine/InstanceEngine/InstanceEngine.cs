@@ -160,9 +160,16 @@ public partial class InstanceEngine
 
     public Token GetCorrectVariablesToken(Token token, string name, bool includeCurrentToken = true)
     {
-        var variablesToken = includeCurrentToken
-            ? token
-            : Tokens.Single(t => t.Id == token.ParentTokenId);
+        var variablesToken = token;
+        if (!includeCurrentToken)
+        {
+            if (token.ParentTokenId == null)
+                throw new FlowzerRuntimeException("Für die Variablensuche im Parent-Scope existiert kein ParentToken.");
+
+            variablesToken = Tokens.SingleOrDefault(t => t.Id == token.ParentTokenId)
+                             ?? throw new FlowzerRuntimeException(
+                                 $"Das ParentToken {token.ParentTokenId} konnte für die Variablensuche nicht gefunden werden.");
+        }
         
         var variablenName = name.Contains('.') ? name[..name.IndexOf('.')] : name;
         
