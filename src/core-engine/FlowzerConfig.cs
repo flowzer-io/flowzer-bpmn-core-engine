@@ -12,4 +12,15 @@ public class FlowzerConfig
     {
         ExpressionHandler = new FeelinExpressionHandler()
     };
+
+    /// <summary>
+    /// Liefert eine testfreundliche Konfiguration ohne native V8-Abhängigkeit.
+    /// </summary>
+    public static FlowzerConfig CreateForTests()
+    {
+        return new FlowzerConfig
+        {
+            ExpressionHandler = new SimpleExpressionHandler()
+        };
+    }
 }

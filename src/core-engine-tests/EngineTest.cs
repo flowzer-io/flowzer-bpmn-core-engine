@@ -339,7 +339,7 @@ public class EngineTest
     {
         var model = await ModelParser.ParseModel(File.Open("embeddings/SimpleTimerEvent.bpmn", FileMode.Open));
         var process = model.GetProcesses();
-        var processEngine = new ProcessEngine(process.First());
+        var processEngine = Helper.CreateProcessEngine(process.First());
         var activeTimers = processEngine.ActiveTimers.ToArray();
         activeTimers.Should().HaveCount(1);
         activeTimers.Single().Should().BeCloseTo(DateTime.Now.AddSeconds(2), new TimeSpan(0, 0, 0, 0, 100));
@@ -355,7 +355,7 @@ public class EngineTest
     {
         var model = await ModelParser.ParseModel(File.Open("embeddings/SubProcess.bpmn", FileMode.Open));
         var process = model.GetProcesses().Single();
-        var instanceEngine = new ProcessEngine(process).StartProcess();
+        var instanceEngine = Helper.CreateProcessEngine(process).StartProcess();
         
         instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
         instanceEngine.Tokens.Should().HaveCount(5);

@@ -16,7 +16,7 @@ public class MessageTest
     public void Flow1Test()
     {
         var testMessage = new Message { Name = string.Empty, TimeToLive = 60, CorrelationKey = "12345" };
-        var instanceEngine = new ProcessEngine(Process).StartProcess();
+        var instanceEngine = Helper.CreateProcessEngine(Process).StartProcess();
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
@@ -48,7 +48,7 @@ public class MessageTest
             instanceEngine.ActiveCatchMessages.Should().BeEmpty();
         }
         
-        instanceEngine = new ProcessEngine(Process).StartProcess();
+        instanceEngine = Helper.CreateProcessEngine(Process).StartProcess();
         instanceEngine.HandleServiceTaskResult("step1");
         using (new AssertionScope())
         {
@@ -80,7 +80,7 @@ public class MessageTest
     public void Flow2Test()
     {
         var instanceEngine =
-            new ProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart" });
+            Helper.CreateProcessEngine(Process).HandleMessage(new Message { Name = "NachrichtStart" });
         using (new AssertionScope())
         {
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);

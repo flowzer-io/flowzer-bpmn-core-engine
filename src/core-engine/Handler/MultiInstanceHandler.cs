@@ -74,7 +74,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
         {
             if (!string.IsNullOrEmpty(loopCharacteristics.FlowzerLoopCharacteristics!.OutputElement) && completedToken.OutputData != null)
             {
-                outCollection.Add(FlowzerConfig.Default.ExpressionHandler.GetValue(completedToken.OutputData,
+                outCollection.Add(processInstance.FlowzerConfig.ExpressionHandler.GetValue(completedToken.OutputData,
                     loopCharacteristics.FlowzerLoopCharacteristics!.OutputElement));
             }
             else
@@ -136,14 +136,14 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
                 {
                     CurrentBaseElement =
                         flowNodeWithoutLoop.ApplyResolveExpression<FlowNode>(
-                            FlowzerConfig.Default.ExpressionHandler.ResolveString,
+                            processInstance.FlowzerConfig.ExpressionHandler.ResolveString,
                             processInstance.GetProcessToken(token).Variables!), //ist das korrekt? muss hier nicht eine gemerged menge alle "effektiven" variablen angegeben werden?
                     ActiveBoundaryEvents = processInstance.Process
                         .FlowElements
                         .OfType<BoundaryEvent>()
                         .Where(b => b.AttachedToRef.Id == flowNodeWithoutLoop.Id)
                         .Select(b => b.ApplyResolveExpression<BoundaryEvent>(
-                            FlowzerConfig.Default.ExpressionHandler.ResolveString,
+                            processInstance.FlowzerConfig.ExpressionHandler.ResolveString,
                             processInstance.GetProcessToken(token).Variables!)).ToList(),
                     Variables = dataObj,
                     ParentTokenId = token.Id,
@@ -155,7 +155,7 @@ public class MultiInstanceHandler : DefaultFlowNodeHandler
             {
                 var completionCondition = multiInstanceLoopCharacteristics.CompletionCondition.Body;
                 var completionConditionValue =
-                    FlowzerConfig.Default.ExpressionHandler.MatchExpression(dataObj, completionCondition);
+                    processInstance.FlowzerConfig.ExpressionHandler.MatchExpression(dataObj, completionCondition);
                 if (completionConditionValue)
                     break;
             }
