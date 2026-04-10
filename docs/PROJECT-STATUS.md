@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 10. April 2026
+**Stand:** 11. April 2026
 
 ## Kurzfazit
 
@@ -52,9 +52,9 @@ Das zeigt: Hier steckt Produktdenken drin, nicht nur eine technische Spielerei.
 
 Auffällige Punkte:
 
-- fehlende `MemoryStorageSystem.csproj` trotz Referenz
-- kein GitHub-Action-Workflow für Build/Test
-- offener Build-Fehler in aktueller Toolchain
+- Testsuite noch nicht vollständig grün
+- offene Stabilisierung rund um Expression-/V8-Handling
+- erste CI-Basis muss sich noch im Alltag bewähren
 - mehrere offene PRs ohne klare Entscheidung
 - ältere / unfertige Verzeichnisse und Artefakte im Repository
 
@@ -75,15 +75,18 @@ Insbesondere:
 
 ### Build
 
-- `dotnet restore core-engine.sln` läuft grundsätzlich an.
-- Es gibt dabei bereits Hinweise auf die fehlende `MemoryStorageSystem.csproj`.
-- `dotnet build core-engine.sln --no-restore` schlägt aktuell fehl.
+- `dotnet restore core-engine.sln` läuft auf `next`.
+- `dotnet build core-engine.sln --no-restore` läuft auf `next`.
+- Auf `next` gibt es jetzt außerdem einen ersten GitHub-Actions-Workflow für Restore, Build, Tests und `bpmn.io`.
 
-Konkreter beobachteter Buildfehler:
+Weiterhin offen:
 
-- `src/core-engine/InstanceEngine/InstanceEngine.cs`
-- Ausdruck: `activeTokens.Reverse().Where(...)`
-- Effekt: Compilerfehler mit aktuellem SDK-Kontext
+- `dotnet test core-engine.sln --no-build` ist noch nicht vollständig grün.
+- Aktuell bekannte Ausreißer:
+  - `ParallelTaskTest`
+  - `SequentialTest`
+- `JavaScriptFeelTest` nutzt inzwischen einen repo-lokalen Pfad und kann bei fehlender nativer V8-Library sauber übersprungen werden.
+- Die beiden verbleibenden Engine-Tests sind im aktuellen CI-Pfad vorübergehend quarantiniert, bis der separate Multi-Instance-Strang abgeschlossen ist.
 
 Zusätzlich gab es Security-Warnungen u. a. für:
 
@@ -92,7 +95,7 @@ Zusätzlich gab es Security-Warnungen u. a. für:
 
 ### Tests
 
-Die lokale Testlage ist nicht belastbar positiv, solange der Build nicht wieder zuverlässig grün ist.
+Die lokale Testlage ist inzwischen besser eingrenzbar: Build und CI-Basis stehen auf `next`, aber die Testsuite ist noch nicht vollständig grün.
 
 ### Architektur
 
@@ -106,7 +109,7 @@ Negativ:
 
 - einzelne unvollständige Implementierungen (`NotImplementedException`, TODOs)
 - inkonsistente Reife zwischen Modulen
-- fehlende CI verhindert verlässliche Weiterentwicklung
+- CI ist vorhanden, muss sich aber erst noch in der täglichen Weiterentwicklung bewähren
 
 ## Offene GitHub-Issues
 
