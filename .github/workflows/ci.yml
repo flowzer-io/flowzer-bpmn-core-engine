@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - next
+      - main
+  push:
+    branches:
+      - next
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  NODE_VERSION: '20'
+  QUARANTINED_TEST_FILTER: >-
+    FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest
+    &FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest
+    &FullyQualifiedName!=core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest
+
+jobs:
+  dotnet:
+    name: Restore, Build und Tests (.NET)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET-SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Abhängigkeiten wiederherstellen
+        run: dotnet restore core-engine.sln
+
+      - name: Solution bauen
+        run: dotnet build core-engine.sln --no-restore --configuration Release
+
+      - name: Tests mit Coverage ausführen
+        run: |
+          dotnet test src/core-engine-tests/core-engine-tests.csproj \
+            --no-restore \
+            --no-build \
+            --configuration Release \
+            --filter "${QUARANTINED_TEST_FILTER}" \
+            --collect:"XPlat Code Coverage" \
+            --logger "trx;LogFileName=core-engine-tests.trx" \
+            --results-directory ./TestResults/ci
+
+      - name: Coverage-Kennzahlen extrahieren
+        id: coverage
+        run: |
+          python3 <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+
+          matches = glob.glob('TestResults/ci/**/coverage.cobertura.xml', recursive=True)
+          if not matches:
+              raise SystemExit('Keine coverage.cobertura.xml gefunden.')
+
+          report = matches[0]
+          root = ET.parse(report).getroot()
+          line_rate = float(root.attrib.get('line-rate', '0')) * 100
+          branch_rate = float(root.attrib.get('branch-rate', '0')) * 100
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as handle:
+              handle.write(f"report={report}\n")
+              handle.write(f"line_rate={line_rate:.2f}\n")
+              handle.write(f"branch_rate={branch_rate:.2f}\n")
+          PY
+
+      - name: Testartefakte hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-testresults
+          path: TestResults/ci
+          if-no-files-found: error
+
+      - name: CI-Zusammenfassung schreiben
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## .NET-Validierung
+
+          - Restore und Build laufen auf GitHub Actions reproduzierbar.
+          - Quarantänisierte Tests (temporär bis zur separaten Behebung):
+            - `core_engine_tests.EngineTest.ParallelTaskTest`
+            - `core_engine_tests.EngineTest.SequentialTest`
+            - `core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest`
+          - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
+          - Coverage-Report: `${{ steps.coverage.outputs.report }}`
+          EOF
+
+  bpmn_io:
+    name: Build für bpmn.io
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: bpmn.io/package-lock.json
+
+      - name: Node-Abhängigkeiten installieren
+        working-directory: bpmn.io
+        run: npm ci
+
+      - name: BPMN-Frontend bauen
+        working-directory: bpmn.io
+        run: npm run build

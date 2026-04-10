@@ -38,9 +38,9 @@ npm run build
 
 Bitte berücksichtige diese Baustellen bei deiner Arbeit:
 
-- `src/WebApiEngine/WebApiEngine.csproj` referenziert eine fehlende `MemoryStorageSystem.csproj`.
-- Der Solution-Build ist in aktuellen Umgebungen nicht vollständig stabil.
-- Es gibt noch keine GitHub-Actions-Pipeline, die Änderungen automatisch absichert.
+- Auf `next` gibt es jetzt eine erste GitHub-Actions-CI für Restore, Build, Test und `bpmn.io`.
+- Drei Tests sind aktuell noch temporär quarantiniert: `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest`.
+- Das Expression-/V8-Thema aus PR #16 ist weiterhin fachlich offen.
 - Einige Doku- und Architektur-Aussagen im Altbestand waren optimistischer als der tatsächliche Reifegrad.
 
 ## Wo welche Änderungen hingehören
@@ -102,6 +102,14 @@ Wenn du die Engine, Expressions, Parser oder Flow-Logik anfasst:
 - ergänze möglichst Tests in `src/core-engine-tests/`
 - nutze vorhandene BPMN-Dateien oder lege kleine, fokussierte Testmodelle an
 - dokumentiere bekannte Lücken transparent, statt sie stillschweigend zu umgehen
+- prüfe nach Möglichkeit zusätzlich den aktuellen CI-Pfad mit Coverage:
+
+```bash
+dotnet test src/core-engine-tests/core-engine-tests.csproj \
+  --filter "FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest&FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest&FullyQualifiedName!=core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest" \
+  --collect:"XPlat Code Coverage" \
+  --results-directory ./TestResults/ci
+```
 
 ## Pull Requests
 

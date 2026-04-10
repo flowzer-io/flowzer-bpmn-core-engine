@@ -2,7 +2,7 @@
 
 Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, Frontend und ersten Beispielprozessen.
 
-> **Stand: 10. April 2026**  
+> **Stand: 11. April 2026**
 > Das Repository hat eine gute fachliche Basis, ist aktuell aber eher ein **starker Prototyp** als ein produktionsreifes Framework. Wer das Projekt weiterführen will, sollte zuerst Stabilisierung, Build/CI und die offene PR-/Issue-Lage bereinigen.
 
 ## Warum das Projekt spannend ist
@@ -82,20 +82,17 @@ npm run build
 
 Diese Punkte sollte man kennen, bevor man loslegt:
 
-1. **Build mit aktuellem SDK nicht sauber stabilisiert**  
-   Mit neueren .NET-SDKs kann der Build derzeit in `src/core-engine/InstanceEngine/InstanceEngine.cs` scheitern (Zeile mit `activeTokens.Reverse().Where(...)`).
+1. **Testbasis noch nicht vollständig grün**
+   Auf `next` laufen Restore, Build und eine erste GitHub-Actions-CI reproduzierbar. Aktuell sind aber noch `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest` offen und werden separat bereinigt.
 
-2. **Verwaiste ProjectReference**  
-   `src/WebApiEngine/WebApiEngine.csproj` referenziert `src/MemoryStorageSystem/MemoryStorageSystem.csproj`, die Datei liegt aktuell aber nicht im Repository vor.
+2. **Expression-/V8-Thema nicht abgeschlossen**
+   PR #16 adressiert das V8-/Expression-Handling in Tests, ist aber fachlich und technisch noch nicht final bewertet oder übernommen.
 
-3. **Keine CI-Workflows im Repository**  
-   Es gibt derzeit keine GitHub-Actions-Pipeline, die Build/Test/Node-Checks automatisch absichert.
-
-4. **Offene Security-Updates**  
+3. **Offene Security-Updates**
    Es gibt offene Dependabot-PRs für `System.Text.Json`, `webpack-dev-server`/`on-headers`/`compression` und `AutoMapper`.
 
-5. **Offene Draft-PR mit inhaltlicher Substanz**  
-   PR #16 adressiert das V8-/Expression-Handling in Tests, ist aber nicht final bewertet oder abgeschlossen.
+4. **API- und Produktpfade sind noch nicht finalisiert**
+   `ICore`, Demo-App, API-Verträge und Frontend-Smoke-Tests werden aktuell erst schrittweise auf `next` sauber nachgezogen.
 
 ## Dokumentation
 

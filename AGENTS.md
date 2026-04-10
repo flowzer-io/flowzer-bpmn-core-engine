@@ -33,19 +33,16 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 
 ## Bekannte Fallstricke
 
-1. **Build-Falle mit modernem SDK**  
-   In aktuellen Umgebungen kann der Build an `src/core-engine/InstanceEngine/InstanceEngine.cs` scheitern (`activeTokens.Reverse().Where(...)`). Falls du den Build reparierst, dokumentiere die Ursache sauber.
+1. **Tests noch nicht vollständig stabil**
+   Auf `next` laufen Restore, Build und eine erste CI. Die Tests `ParallelTaskTest`, `SequentialTest` und `JavaScriptFeelTest` sind aktuell aber noch bekannte Ausnahmen und werden separat behoben.
 
-2. **Verwaiste ProjectReference**  
-   `src/WebApiEngine/WebApiEngine.csproj` referenziert `src/MemoryStorageSystem/MemoryStorageSystem.csproj`, die aktuell fehlt.
-
-3. **V8-/Expression-Thema nicht abgeschlossen**  
+2. **V8-/Expression-Thema nicht abgeschlossen**
    Die Default-Expression-Logik hängt an `ClearScript/V8`. Die Draft-PR #16 versucht das für Testumgebungen zu entschärfen, ist aber nicht final entschieden.
 
-4. **Keine CI**  
-   Verlasse dich nicht auf GitHub-Checks – es gibt derzeit keine reguläre Pipeline im Repository.
+3. **CI ist vorhanden, aber noch im Stabilisierungsmodus**
+   Nutze die GitHub-Checks als Basis, behandle die temporär quarantinierten Tests aber weiterhin als offenen Arbeitsvorrat.
 
-5. **Nicht alle Verzeichnisse sind gleich aktiv**  
+4. **Nicht alle Verzeichnisse sind gleich aktiv**
    Es gibt Spuren älterer bzw. unfertiger Arbeit. Prüfe vor Refactorings, welche Projekte tatsächlich von der Solution und vom Produktpfad genutzt werden.
 
 ## Nützliche Kommandos

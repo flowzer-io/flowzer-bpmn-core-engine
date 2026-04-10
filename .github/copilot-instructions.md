@@ -50,14 +50,14 @@ Wenn Architektur, Setup oder bekannte Einschränkungen verändert werden, sollen
 
 ## Bekannte Fallstricke
 
-### Build / SDK
+### Build, Tests und CI
 
-- Aktuell kann der Build in modernen Umgebungen an `activeTokens.Reverse().Where(...)` in `src/core-engine/InstanceEngine/InstanceEngine.cs` scheitern.
-- Änderungen an Build-/SDK-Themen bitte nicht stillschweigend einbauen, sondern sauber begründen.
-
-### Fehlende ProjectReference
-
-- `src/WebApiEngine/WebApiEngine.csproj` referenziert `src/MemoryStorageSystem/MemoryStorageSystem.csproj`, die aktuell nicht im Repository liegt.
+- Auf `next` laufen Restore, Build und eine erste CI inzwischen reproduzierbar.
+- Drei Tests sind aktuell aber noch bewusst temporär aus dem CI-Pfad herausgenommen:
+  - `core_engine_tests.EngineTest.ParallelTaskTest`
+  - `core_engine_tests.EngineTest.SequentialTest`
+  - `core_engine_tests.JavaScriptExpressionTest.JavaScriptFeelTest`
+- Änderungen an Build-/SDK-/Testthemen bitte nicht stillschweigend einbauen, sondern sauber begründen und mit Doku flankieren.
 
 ### Expression-Handling
 
