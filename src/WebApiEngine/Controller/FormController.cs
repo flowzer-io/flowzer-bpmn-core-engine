@@ -50,11 +50,29 @@ public class FormController(
         }
         else
         {
-            var versionFromFormIdentifier = Model.Version.FromString(formIdentifier);
-            var foundVersion =  allVersions.SingleOrDefault(x => x.Version == versionFromFormIdentifier);
+            Model.Version versionFromFormIdentifier;
+            try
+            {
+                versionFromFormIdentifier = Model.Version.FromString(formIdentifier);
+            }
+            catch (ArgumentException e)
+            {
+                return BadRequest(new ApiStatusResult<FormDto>()
+                {
+                    Successful = false,
+                    ErrorMessage = e.Message
+                });
+            }
+
+            // Der API-Pfad arbeitet mit der stabilen FormId, gespeichert werden die Versionen aber
+            // unter ihrer konkreten Formular-Instanz-ID. Deshalb wird hier zuerst die Zielversion aufgelöst.
+            var foundVersion =  allVersions.SingleOrDefault(x => x.Version.Equals(versionFromFormIdentifier));
             if (foundVersion == null)
                 return NotFound(new ApiStatusResult<FormDto>(){Successful = false, ErrorMessage = "Version not found"});
+
+            formId = foundVersion.Id;
         }
+
         var formMetaData = await storageSystem.FormStorage.GetForm(formId);
         return Ok(new ApiStatusResult<FormDto>(formMetaData.ToDto()));
     }

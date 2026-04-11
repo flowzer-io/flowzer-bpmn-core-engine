@@ -3,7 +3,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Model;
 
 
-public class Version: IComparable<Version>
+public class Version: IComparable<Version>, IEquatable<Version>
 {
     public Version()
     {
@@ -38,6 +38,35 @@ public class Version: IComparable<Version>
         if (Major == other.Major)
             return Minor.CompareTo(other.Minor);
         return Major.CompareTo(other.Major);
+    }
+
+    public bool Equals(Version? other)
+    {
+        // Versionen sind fachlich Wertobjekte und müssen deshalb über ihre Bestandteile verglichen werden.
+        if (other is null)
+            return false;
+
+        return Major == other.Major && Minor == other.Minor;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is Version other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Major, Minor);
+    }
+
+    public static bool operator ==(Version? left, Version? right)
+    {
+        return Equals(left, right);
+    }
+
+    public static bool operator !=(Version? left, Version? right)
+    {
+        return !Equals(left, right);
     }
 
     public static Version FromString(string versionString)
