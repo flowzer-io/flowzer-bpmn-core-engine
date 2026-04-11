@@ -2,7 +2,13 @@ const { defineConfig } = require('@playwright/test');
 
 const frontendUrl = process.env.FLOWZER_FRONTEND_URL || 'http://localhost:5269';
 const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5182';
+const frontendServerOrigin = new URL(frontendUrl).origin;
+const apiServerOrigin = new URL(apiUrl).origin;
 const reuseExistingServer = !process.env.CI;
+const webServerEnvironment = {
+  ...process.env,
+  ASPNETCORE_ENVIRONMENT: process.env.ASPNETCORE_ENVIRONMENT || 'Development'
+};
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -20,14 +26,16 @@ module.exports = defineConfig({
     ? undefined
     : [
         {
-          command: 'ASPNETCORE_ENVIRONMENT=Development dotnet run --project ../../src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-build --no-launch-profile --urls http://localhost:5182',
-          url: `${apiUrl}/swagger/index.html`,
+          command: `dotnet run --project ../../src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-build --no-launch-profile --urls ${apiServerOrigin}`,
+          env: webServerEnvironment,
+          url: `${apiServerOrigin}/swagger/index.html`,
           reuseExistingServer,
           timeout: 120_000
         },
         {
-          command: 'ASPNETCORE_ENVIRONMENT=Development dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-build --no-launch-profile --urls http://localhost:5269',
-          url: frontendUrl,
+          command: `dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-build --no-launch-profile --urls ${frontendServerOrigin}`,
+          env: webServerEnvironment,
+          url: frontendServerOrigin,
           reuseExistingServer,
           timeout: 120_000
         }
