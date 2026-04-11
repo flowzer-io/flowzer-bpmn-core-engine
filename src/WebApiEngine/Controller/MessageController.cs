@@ -15,7 +15,7 @@ public class MessageController(IStorageSystem storageSystem,
     }
 
     [HttpPost]
-    public async Task<IActionResult> HandleMessage([FromBody] MessageDto messageDto)
+    public async Task<ActionResult<ApiStatusResult<string>>> HandleMessage([FromBody] MessageDto messageDto)
     {
         try
         {
@@ -24,7 +24,7 @@ public class MessageController(IStorageSystem storageSystem,
         }
         catch (Exception e)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ApiStatusResult<string>(e.Message));
         }
         string correlationText = "";
         if (messageDto.CorrelationKey != null)
@@ -32,6 +32,6 @@ public class MessageController(IStorageSystem storageSystem,
         var response =
             $"Message '{messageDto.Name}'{correlationText} was sent to the process instance.";
 
-        return Ok(response);
+        return Ok(new ApiStatusResult<string>(response));
     }
 }

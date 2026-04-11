@@ -1,6 +1,7 @@
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Controller;
 
@@ -8,7 +9,8 @@ namespace WebApiEngine.Controller;
 public class FormController(
     IStorageSystem storageSystem,
     FormBusinessLogic formBusinessLogic,
-    BpmnBusinessLogic bpmnBusinessLogic): ControllerBase
+    BpmnBusinessLogic bpmnBusinessLogic,
+    ICurrentUserContextAccessor currentUserContextAccessor): ControllerBase
 {
 
     [HttpPost()]
@@ -117,7 +119,8 @@ public class FormController(
         try
         {
             var data = formMetadataDto.ToModel();
-            await bpmnBusinessLogic.HandleUserTask(data, Guid.Empty);
+            var currentUser = currentUserContextAccessor.GetCurrentUser();
+            await bpmnBusinessLogic.HandleUserTask(data, currentUser.UserId);
             return Ok(new ApiStatusResult() {Successful = true});
         }
         catch (Exception e)
