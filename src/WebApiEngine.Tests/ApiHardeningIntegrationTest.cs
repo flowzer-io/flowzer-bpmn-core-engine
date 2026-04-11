@@ -15,6 +15,7 @@ using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
 
+[NonParallelizable]
 public class ApiHardeningIntegrationTest
 {
     [Test]
