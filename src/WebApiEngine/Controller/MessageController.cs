@@ -1,14 +1,12 @@
-using AutoMapper;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
 public class MessageController(IStorageSystem storageSystem,
-    BpmnBusinessLogic bpmnBusinessLogic,
-    IMapper mapper
-    ) : ControllerBase
+    BpmnBusinessLogic bpmnBusinessLogic) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Index()
@@ -21,7 +19,7 @@ public class MessageController(IStorageSystem storageSystem,
     {
         try
         {
-            var message = mapper.Map<Message>(messageDto);
+            var message = messageDto.ToModel();
             await bpmnBusinessLogic.HandleMessage(message);
         }
         catch (Exception e)

@@ -57,6 +57,11 @@ public static class ExpandoHelper
         var expandoDictionary = expandoObject as IDictionary<string, object?>;
         foreach (var prob in obj.GetType().GetProperties())
         {
+            if (prob.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
             //TODO: warum schlägt das auf FlowzerList<Rendering> fehl?
             try
             {
