@@ -20,6 +20,9 @@
             <FluentStack Orientation="Orientation.Vertical" Width="100%">
                 <h1>Instances</h1>
                 <p id="instances-filter-label">Showing: @CurrentFilterLabel</p>
+                @{
+                    var items = Data.ToList();
+                }
 
                 @if (IsLoading)
                 {
@@ -29,14 +32,14 @@
                 {
                     <p id="instances-load-error" role="alert">@LoadErrorMessage</p>
                 }
-                else if (!Data.Any())
+                else if (!items.Any())
                 {
                     <p id="instances-empty-state">No instances match the selected filter.</p>
                 }
                 else
                 {
                     <div class="list-header">
-                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
+                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
                             <SelectColumn TGridItem="ProcessInstanceInfoDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
                             <TemplateColumn Title="Workflow">
                                 <div class="grid-row-title"><a href="@UriHelper.GetShowInstanceUrl(@context.InstanceId)">@context.RelatedDefinitionName</a></div>
@@ -52,7 +55,7 @@
                                     @if (context.SignalSubscriptionCount > 0)
                                     {
                                         <div class="batch">
-                                            <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Singals
+                                            <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Signals
                                         </div>
                                     }
 

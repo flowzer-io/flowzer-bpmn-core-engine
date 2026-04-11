@@ -37,7 +37,7 @@
                     <div class="list-header">
                         <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
                             <SelectColumn TGridItem="FormMetaDataDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
-                            <TemplateColumn Title="Titel">
+                            <TemplateColumn Title="Title">
                                 <div class="grid-row-title"><a href="@UriHelper.GetShowFormUrl(@context.FormId)">@context.Name</a></div>
                                 <div class="grid-row-subtitle">Instance @context.FormId</div>
                             </TemplateColumn>

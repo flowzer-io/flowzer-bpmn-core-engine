@@ -34,7 +34,7 @@ public partial class Instances : ComponentBase
         IsLoading = true;
         try
         {
-            AllInstances = (await FlowzerApi.GetAllRunningInstances()).ToList();
+            AllInstances = (await FlowzerApi.GetAllInstances()).ToList();
             LoadErrorMessage = null;
         }
         catch (Exception exception)

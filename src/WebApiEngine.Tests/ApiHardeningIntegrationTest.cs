@@ -362,6 +362,11 @@ public class ApiHardeningIntegrationTest
         {
             return Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
         }
+
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances()
+        {
+            return Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
+        }
     }
 
     private sealed class TestFormStorage(TestStorage storage) : IFormStorage

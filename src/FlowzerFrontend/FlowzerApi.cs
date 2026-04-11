@@ -78,7 +78,7 @@ public class FlowzerApi: ApiBase
     }
 
 
-    public async Task<List<ProcessInstanceInfoDto>> GetAllRunningInstances()
+    public async Task<List<ProcessInstanceInfoDto>> GetAllInstances()
     {
         return await GetAsJsonAndThrowOnErrorAsync<List<ProcessInstanceInfoDto>>("instance");
     }

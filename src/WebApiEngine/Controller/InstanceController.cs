@@ -11,9 +11,9 @@ public class InstanceController(
     IStorageSystem storageSystem) : FlowzerControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProcessInstanceInfoDto>>> GetAllRunningInstances()
+    public async Task<ActionResult<IEnumerable<ProcessInstanceInfoDto>>> GetAllInstances()
     {
-        var instances = await storageSystem.InstanceStorage.GetAllActiveInstances();
+        var instances = await storageSystem.InstanceStorage.GetAllInstances();
         return Ok(await MapInstances(instances));
     }
 

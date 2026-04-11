@@ -16,6 +16,9 @@
         <MainContent>
             <FluentStack Orientation="Orientation.Vertical" Width="100%">
                 <h1>Models</h1>
+                @{
+                    var items = Data.ToList();
+                }
                 <div class="list-header">
                     <FluentStack Orientation="Orientation.Vertical" Width="100%">
                         <FluentTextField @bind-Value="SearchText" Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
@@ -44,14 +47,14 @@
                 {
                     <p id="models-load-error" role="alert">@LoadErrorMessage</p>
                 }
-                else if (!Data.Any())
+                else if (!items.Any())
                 {
                     <p id="models-empty-state">No models match the current filter.</p>
                 }
                 else
                 {
                     <div class="list-header">
-                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
+                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
                             <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
                             <TemplateColumn Title="Workflow">
                                 <FluentLayout Orientation="Orientation.Horizontal">
