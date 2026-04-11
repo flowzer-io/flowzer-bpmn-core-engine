@@ -1,4 +1,5 @@
 using System.Dynamic;
+using FlowzerFrontend.BusinessLogic;
 using Microsoft.AspNetCore.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Newtonsoft.Json;
@@ -19,10 +20,11 @@ public partial class Home : FlowzerComponentBase
     
     private async void OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
     {
-        var formName = (string)((dynamic)userTaskSubscription.Token.CurrentFlowElement!).Implementation;
-        if (string.IsNullOrEmpty(formName))
+        var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
+        if (string.IsNullOrWhiteSpace(formName))
         {
             ErrorDialog("Form Name ('Implementation') is missing in BPMNN file");
+            return;
         }
 
         string? version = null;
@@ -82,12 +84,19 @@ public partial class Home : FlowzerComponentBase
         IDialogReference dialog = await DialogService.ShowDialogAsync<FilloutForm>(data, parameters);
         DialogResult? result = await dialog.Result;
         
-        if (!result.Cancelled)
+        if (!result.Cancelled && result.Data is FilloutFormParameter formResult && !string.IsNullOrWhiteSpace(formResult.OutData))
         {
-            var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(((FilloutFormParameter)result.Data).OutData);
+            var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(formResult.OutData) ?? new ExpandoObject();
+            var flowNodeId = TokenDisplayHelper.GetFlowElementId(userTaskSubscription.Token);
+            if (string.IsNullOrWhiteSpace(flowNodeId))
+            {
+                ErrorDialog("FlowNode Id is missing in token data.");
+                return;
+            }
+
             var userTaskResult = new UserTaskResultDto()
             {
-                FlowNodeId = (string)((dynamic)userTaskSubscription.Token.CurrentFlowElement!).Id,
+                FlowNodeId = flowNodeId,
                 TokenId = userTaskSubscription.Token.Id,
                 ProcessInstanceId = userTaskSubscription.ProcessInstanceId,
                 Data = dataObj

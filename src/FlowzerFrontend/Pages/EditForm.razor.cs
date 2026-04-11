@@ -20,7 +20,10 @@ public partial class EditForm : FlowzerComponentBase
     public bool IsNew { get; set; }
 
     public FormMetaDataDto CurrentFormMeta { get; set; } 
-    public FormDto FormData { get; set; }
+    public FormDto FormData { get; set; } = new()
+    {
+        FormId = Guid.Empty
+    };
 
 
     public EditForm()
@@ -103,7 +106,7 @@ public partial class EditForm : FlowzerComponentBase
         }
     }
 
-    private async Task<string?> GetFormData()
+    private async Task<string> GetFormData()
     {
         var ret = await JsRuntime.InvokeAsyncNoneCached<object>("executeInIframe", "iframe", "GetFormData");
         return ((JsonElement)ret).GetRawText();
