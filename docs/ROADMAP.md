@@ -2,118 +2,124 @@
 
 ## Zielbild
 
-Flowzer BPMN Core Engine soll von einem interessanten, aber fragilen Prototypen zu einem **stabilen, nachvollziehbaren BPMN-Core mit API und guter Contributor Experience** weiterentwickelt werden.
+Flowzer BPMN Core Engine soll von einem stabilisierten Entwicklungsstand zu einem **verlässlich nutzbaren BPMN-Kern mit API, Frontend, reproduzierbarer Testbasis und produktionsnaher Betriebsgrundlage** weiterentwickelt werden.
 
-## Priorität 1: Stabilisieren
+## Was bereits erreicht ist
 
-### 1.1 Toolchain festziehen
+Die erste große Stabilisierungsrunde ist bereits erfolgt:
 
-- .NET-SDK-Version verbindlich machen
-- lokale Build-Anleitung vereinheitlichen
-- fehlende/verwaiste Projektverweise entfernen oder wiederherstellen
+- `next` als Integrationsbranch eingeführt
+- Grunddokumentation neu aufgesetzt
+- Build- und CI-Basis stabilisiert
+- Demo-Console-App ergänzt
+- wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
+- lokale und CI-nahe Testpfade wieder grün gemacht
 
-### 1.2 Buildfehler beseitigen
+Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
 
-- aktuellen Solution-Build wieder grün bekommen
-- Restore-Warnungen bereinigen
-- offensichtliche Repo-Inkonsistenzen entfernen
+## Priorität 1: Kernpfade vollständig stabilisieren
 
-### 1.3 CI einführen
+### 1.1 Formularpfad durchhärten
 
-Mindestens:
+Referenz: [#48](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/48)
 
-- `dotnet restore`
-- `dotnet build`
-- `dotnet test`
-- optional `npm ci && npm run build` für `bpmn.io`
+- Formularspeicherung, Metadaten und Versionspfad robust machen
+- API-Verträge für Formulare sauber absichern
+- Formularpfad bis zur Frontend-Anbindung testen
 
-## Priorität 2: Engine korrekt und testbar machen
+### 1.2 Frontend-Kernseiten weiter härten
 
-### 2.1 PR #16 entscheiden
+Referenz: [#47](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47)
 
-- auf aktuellen Main heben
-- Scope prüfen
-- V8-/Expression-Fallback sauber bewerten
-- Multi-Instance-Nachwirkungen getrennt behandeln
+- Navigation und Kernseiten systematisch prüfen
+- Lade-, Nullability- und Zustandsprobleme weiter abbauen
+- manuelle und kleine automatisierte Checks zusammenführen
 
-### 2.2 Teststrategie schärfen
+### 1.3 Diagramm-/Modeler-Integration absichern
 
-- flaky/unfertige Tests identifizieren
-- BPMN-Testmodelle gezielt strukturieren
-- klare Regressionstests für Parser, Gateways, Multi-Instance und Message/Signal-Flows
+Referenz: [#49](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/49)
 
-### 2.3 Expression-Strategie klären
+- Diagrammladen und Modeler-Interaktionen prüfen
+- Fehlerzustände besser abfangen
+- zentrale Diagramm-/Modeler-Pfade dokumentieren
 
-- FEEL/V8-Abhängigkeit bewusst designen
-- optional einfache Fallback-Strategie definieren
-- Testumgebungen ohne native V8-Bibliotheken sauber unterstützen
+## Priorität 2: Test- und Produktpfade vertiefen
 
-## Priorität 3: Öffentliche Schnittstellen klarziehen
+### 2.1 Playwright-Smoke- und E2E-Suite ausbauen
 
-### 3.1 `ICore` finalisieren
+Referenz: [#50](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50)
 
-- Was ist die stabile Kern-API?
-- Was ist intern?
-- Welche Datenstrukturen sind Teil des öffentlichen Vertrags?
+- Kernpfade für Start, Formulare, Instanzen und Diagrammzugriffe automatisieren
+- Testdaten und Hilfslogik für reproduzierbare Läufe schaffen
+- die Suite klein und CI-tauglich halten
 
-### 3.2 API konsolidieren
+### 2.2 API-Fehlerverträge und Betriebs-Signale verbessern
 
-- REST-Endpunkte dokumentieren
-- Fehlerbilder vereinheitlichen
-- DTOs und Domänenmodelle schärfen
+Referenz: [#52](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52)
 
-### 3.3 Storage schärfen
+- Fehlerantworten vereinheitlichen
+- Health-/Readiness-Endpunkte ergänzen
+- Auth-Platzhalter technisch sauberer kapseln
 
-- Dateisystem-Storage sauber dokumentieren
-- Memory-Storage entweder wiederherstellen oder Referenzen entfernen
+## Priorität 3: Restlücken abbauen
 
-## Priorität 4: Entwicklererlebnis verbessern
+### 3.1 Engine- und Runtime-Restbestand bereinigen
 
-### 4.1 Demo-App / Happy Path
+Referenz: [#53](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/53)
 
-- Console-Demo zu Issue #4
-- einfacher End-to-End-Beispielprozess
-- klarer „so starte ich das Projekt“-Pfad
+- `NotImplementedException`-Stellen inventarisieren
+- produktionskritische Pfade priorisiert schließen
+- Regressionstests ergänzen
 
-### 4.2 GitHub-Hygiene
+### 3.2 Repository- und Dokumentationshygiene weiter verbessern
 
-- offene Issues nachschärfen
-- offene PRs aktiv entscheiden
-- Labels/Meilensteine nutzen
-- PR-Checklisten einsetzen
+Referenz: [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55)
 
-### 4.3 Doku weiter ausbauen
+- Altlasten und Doppelstrukturen bewerten und bereinigen
+- Status- und Roadmap-Dokumente laufend aktualisieren
+- technische Realität und Doku synchron halten
 
-Sinnvolle nächste Dokumente:
+## Priorität 4: Produktnahe Betriebsbasis schaffen
 
-- `docs/ARCHITECTURE.md`
-- `docs/API.md`
-- `docs/TESTING.md`
-- `docs/STORAGE.md`
+### 4.1 Lokale Betriebs- und Deployment-Story vorbereiten
 
-## Empfohlene konkrete Umsetzungsreihenfolge
+Referenz: [#54](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/54)
 
-### Sprint A – „Projekt wieder grün bekommen“
+- lokale Startpfade für API und Frontend vereinheitlichen
+- Logging-/Betriebsanforderungen dokumentieren
+- Compose-/Deployment-Basis für eine produktionsnahe Nutzung vorbereiten
 
-- Buildfehler beheben
-- fehlende ProjectReference bereinigen
-- CI-Grundgerüst anlegen
-- SDK festzurren
+### 4.2 Weitere Betriebsaspekte nachziehen
 
-### Sprint B – „Tests und Engine verlässlich machen“
+Sinnvolle Folgearbeiten danach:
 
-- PR #16 bewerten
-- Teststatus sauber herstellen
-- Expression-/V8-Thema entscheiden
+- Metrics/Tracing
+- Release-/Versionierungsstory
+- Packaging/Container-Story
+- Betriebsdokumentation für Fehleranalyse und Recovery
 
-### Sprint C – „Projekt wieder attraktiv machen“
+## Empfohlene Reihenfolge der nächsten Sprints
 
-- `ICore`-Thema angehen
-- Demo-App bauen
-- README/API/Demo-Flows verbessern
+### Sprint A – Formular- und Frontend-Kernpfade
 
-### Sprint D – „Produktreife erhöhen“
+- #48 Formularpfad stabilisieren
+- #47 Kernseiten und Navigation weiter härten
 
-- Frontend fokussiert abschließen
-- Security-PRs gezielt abarbeiten
-- Packaging / Release-Story / Versionierung definieren
+### Sprint B – Diagramm- und E2E-Pfade
+
+- #49 Diagramm-/Modeler-Integration härten
+- #50 Playwright-/E2E-Abdeckung ausbauen
+
+### Sprint C – API- und Runtime-Reife
+
+- #52 API-Härtung für Fehlerverträge, Health und Auth-Vorbereitung
+- #53 Engine-/Runtime-Restlücken abbauen
+
+### Sprint D – Betriebs- und Repo-Reife
+
+- #54 Betriebs- und Deployment-Basis vorbereiten
+- #55 Repo- und Status-Dokumentation weiter aufräumen
+
+## Leitprinzip für die weitere Arbeit
+
+Neue Features sollten weiterhin **nur dann** priorisiert werden, wenn die zugehörigen Kernpfade bereits belastbar getestet und dokumentiert sind. Die Stärke des Projekts liegt jetzt nicht in maximaler Breite, sondern in der Kombination aus **klaren Arbeitspaketen, reproduzierbarer Testbasis und schrittweise steigender Produktreife**.
