@@ -61,7 +61,7 @@ public sealed class VersionDto : IEquatable<VersionDto>
 
     public static VersionDto FromString(string version)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        ArgumentException.ThrowIfNullOrWhiteSpace(version, nameof(version));
         var parts = version.Split('.');
         if (parts.Length != 2)
         {
