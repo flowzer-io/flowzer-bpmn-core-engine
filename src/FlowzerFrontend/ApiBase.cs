@@ -1,16 +1,18 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text;
 using WebApiEngine.Shared;
 
 namespace FlowzerFrontend;
 
 public class ApiBase
 {
-    
-    protected readonly HttpClient HttpClient = new()
+    protected ApiBase(HttpClient httpClient)
     {
-        BaseAddress = new Uri("http://localhost:5182/")
-    };
+        HttpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    }
+
+    protected HttpClient HttpClient { get; }
 
 
     #region Get
@@ -38,7 +40,12 @@ public class ApiBase
         
     public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
     {
-        return await HttpClient.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        using var request = new HttpRequestMessage(method, url)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+
+        return await HttpClient.SendAsync(request);
     }
 
     
