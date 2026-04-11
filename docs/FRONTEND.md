@@ -44,7 +44,7 @@ Danach ist das Frontend unter [http://localhost:5269](http://localhost:5269) err
 
 ## Automatisierte UI-Smoke-Tests
 
-Die Smoke-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
+Die Smoke- und kleinen Happy-Path-E2E-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
 
 - `/`
 - `/models`
@@ -60,6 +60,7 @@ Geprüft werden insbesondere:
 - erfolgreiche Seitennavigation
 - sichtbare Kern-UI je Route
 - funktionierende Filter-Navigation innerhalb der Instanzliste
+- API-gesäte Happy Paths für Formulare, Modelle und Instanzverläufe
 - kein sichtbarer Blazor-Fatalfehler
 - keine fehlgeschlagenen Browser-Requests
 
@@ -93,4 +94,15 @@ PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 
 ## Hinweise zur lokalen Datenbasis
 
-Die dateibasierte Persistenz landet unterhalb der Build-Ausgabe von `FilesystemStorageSystem`. Für saubere lokale Testläufe kann es sinnvoll sein, diese Ablage vorab zu leeren, wenn alte Modelldaten oder Formulare stören.
+Die dateibasierte Persistenz landet standardmäßig unterhalb der Build-Ausgabe von `FilesystemStorageSystem`.
+
+Für reproduzierbare Playwright-Läufe setzt die Testkonfiguration automatisch ein eigenes `FLOWZER_STORAGE_ROOT` und räumt dieses Verzeichnis vor dem Start der verwalteten Webserver auf. Wenn Web-API und Frontend manuell gestartet werden, kann dasselbe Verhalten lokal explizit aktiviert werden:
+
+```bash
+FLOWZER_STORAGE_ROOT="$(pwd)/tests/ui-smoke/.tmp/manual-storage" \
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet run --project src/WebApiEngine/WebApiEngine.csproj \
+--configuration Release \
+--no-launch-profile \
+--urls http://localhost:5182
+```

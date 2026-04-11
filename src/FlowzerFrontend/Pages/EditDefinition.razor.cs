@@ -28,6 +28,8 @@ public partial class EditDefinition
  
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
+    private bool IsEditorInitialized { get; set; }
+    private string? PendingXml { get; set; }
     
     
 
@@ -40,18 +42,29 @@ public partial class EditDefinition
     
     protected override async Task OnInitializedAsync()
     {
-        await JsRuntime.EvalCodeBehindJsScripts(this);
-        await InitEditor();
-    }
-
-
-    private async Task InitEditor()
-    {
-        await JsRuntime.InvokeVoidAsync("InitEdit");
         await LoadModel();
-        
     }
-    
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (firstRender)
+        {
+            await JsRuntime.EvalCodeBehindJsScripts(this);
+            await JsRuntime.InvokeVoidAsync("InitEdit");
+            IsEditorInitialized = true;
+        }
+
+        if (!IsEditorInitialized || string.IsNullOrWhiteSpace(PendingXml))
+        {
+            return;
+        }
+
+        var xml = PendingXml;
+        PendingXml = null;
+        await LoadDiagramXml(xml);
+    }
 
     private async Task LoadModel()
     {
@@ -81,7 +94,8 @@ public partial class EditDefinition
         }
         else
         {
-                await LoadDiagramXml(xml);
+            PendingXml = xml;
+            ErrorString = null;
         }
         
         IsDocumentLoading = false;

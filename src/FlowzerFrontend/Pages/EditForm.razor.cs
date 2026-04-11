@@ -21,6 +21,8 @@ public partial class EditForm : FlowzerComponentBase
     public bool IsLoading { get; set; } = true;
 
     public bool IsNew { get; set; }
+    private string? PendingFormData { get; set; }
+    private bool IsFormDataLoadedIntoIframe { get; set; }
 
     public FormMetaDataDto CurrentFormMeta { get; set; } 
     public FormDto FormData { get; set; } = new()
@@ -70,8 +72,7 @@ public partial class EditForm : FlowzerComponentBase
                 var existingFormId = routeState.FormId!.Value;
                 CurrentFormMeta = await FlowzerApi.GetFormMetaData(existingFormId);    
                 FormData = await FlowzerApi.GetLatestForm(existingFormId);
-                if (!string.IsNullOrEmpty(FormData.FormData))
-                    await LoadFormData(FormData.FormData);
+                PendingFormData = FormData.FormData;
             }
 
             ErrorString = null;
@@ -83,6 +84,27 @@ public partial class EditForm : FlowzerComponentBase
         finally
         {
             IsLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (IsLoading || IsFormDataLoadedIntoIframe || string.IsNullOrWhiteSpace(PendingFormData) || !string.IsNullOrWhiteSpace(ErrorString))
+        {
+            return;
+        }
+
+        try
+        {
+            await LoadFormData(PendingFormData);
+            IsFormDataLoadedIntoIframe = true;
+        }
+        catch (Exception exception)
+        {
+            ErrorString = $"Could not initialize the form editor. {exception.Message}";
+            await InvokeAsync(StateHasChanged);
         }
     }
 

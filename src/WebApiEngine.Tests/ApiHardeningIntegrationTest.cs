@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using BPMN.Common;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -146,6 +147,64 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("No process instance is waiting for a message");
     }
 
+    [Test]
+    public async Task MessageEndpoint_ShouldReturnSuccessfulResultPayload_WhenMessageWasHandled()
+    {
+        var storage = new TestStorage();
+        var definitionId = Guid.NewGuid();
+        storage.StoredDefinitions.Add(new BpmnDefinition
+        {
+            Id = definitionId,
+            DefinitionId = "invoice-process",
+            Hash = "hash",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = true
+        });
+        storage.StoredBinaries[definitionId] = """
+                                              <?xml version="1.0" encoding="UTF-8"?>
+                                              <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                id="Definitions_1"
+                                                                targetNamespace="http://bpmn.io/schema/bpmn">
+                                                <bpmn:message id="Message_InvoiceReceived" name="InvoiceReceived" />
+                                                <bpmn:process id="Process_Invoice" isExecutable="true">
+                                                  <bpmn:startEvent id="StartEvent_1">
+                                                    <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                    <bpmn:messageEventDefinition id="MessageEventDefinition_1" messageRef="Message_InvoiceReceived" />
+                                                  </bpmn:startEvent>
+                                                  <bpmn:endEvent id="EndEvent_1">
+                                                    <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                  </bpmn:endEvent>
+                                                  <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />
+                                                </bpmn:process>
+                                              </bpmn:definitions>
+                                              """;
+        storage.MessageSubscriptions.Add(new MessageSubscription(
+            new MessageDefinition
+            {
+                Name = "InvoiceReceived"
+            },
+            "Process_Invoice",
+            "invoice-process",
+            definitionId));
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/message", new MessageDto
+        {
+            Name = "InvoiceReceived"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<string>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().Contain("InvoiceReceived");
+        payload.ErrorMessage.Should().BeNull();
+    }
+
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
@@ -177,6 +236,7 @@ public class ApiHardeningIntegrationTest
         public Guid? LastRequestedExtendedUserTaskUserId { get; set; }
         public List<BpmnDefinition> StoredDefinitions { get; } = [];
         public Dictionary<Guid, string> StoredBinaries { get; } = [];
+        public List<MessageSubscription> MessageSubscriptions { get; } = [];
 
         public IDefinitionStorage DefinitionStorage => new TestDefinitionStorage(this);
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
@@ -299,19 +359,36 @@ public class ApiHardeningIntegrationTest
     private sealed class TestSubscriptionStorage(TestStorage storage) : IMessageSubscriptionStorage
     {
         public Task<IEnumerable<MessageSubscription>> GetAllMessageSubscriptions() =>
-            Task.FromResult(Enumerable.Empty<MessageSubscription>());
+            Task.FromResult(storage.MessageSubscriptions.AsEnumerable());
 
         public Task<IEnumerable<MessageSubscription>> GetMessageSubscription(string messageName, string? correlationKey, Guid? messageInstanceId) =>
-            Task.FromResult(Enumerable.Empty<MessageSubscription>());
+            Task.FromResult(storage.MessageSubscriptions
+                .Where(subscription =>
+                    subscription.Message.Name == messageName &&
+                    subscription.Message.FlowzerCorrelationKey == correlationKey &&
+                    subscription.ProcessInstanceId == messageInstanceId));
 
         public Task<IEnumerable<MessageSubscription>> GetMessageSubscription(Guid instanceId) =>
-            Task.FromResult(Enumerable.Empty<MessageSubscription>());
+            Task.FromResult(storage.MessageSubscriptions.Where(subscription => subscription.ProcessInstanceId == instanceId));
 
-        public Task AddMessageSubscription(MessageSubscription messageSubscription) => Task.CompletedTask;
+        public Task AddMessageSubscription(MessageSubscription messageSubscription)
+        {
+            storage.MessageSubscriptions.Add(messageSubscription);
+            return Task.CompletedTask;
+        }
 
-        public Task RemoveProcessMessageSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+        public Task RemoveProcessMessageSubscriptionsByProcessInstanceId(Guid instanceId)
+        {
+            storage.MessageSubscriptions.RemoveAll(subscription => subscription.ProcessInstanceId == instanceId);
+            return Task.CompletedTask;
+        }
 
-        public Task RemoveAllProcessMessageSubscriptionsWithNoInstancedId(string metaDefinitionId) => Task.CompletedTask;
+        public Task RemoveAllProcessMessageSubscriptionsWithNoInstancedId(string metaDefinitionId)
+        {
+            storage.MessageSubscriptions.RemoveAll(subscription =>
+                subscription.RelatedDefinitionId == metaDefinitionId && subscription.ProcessInstanceId == null);
+            return Task.CompletedTask;
+        }
 
         public Task RemoveAllProcessSignalSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
 

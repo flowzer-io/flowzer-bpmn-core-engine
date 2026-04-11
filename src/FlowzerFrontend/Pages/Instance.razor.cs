@@ -15,6 +15,8 @@ public partial class Instance
     private const string UserTaskTreeItemKey = "user";
 
     private ProcessInstanceInfoDto? _instance;
+    private bool IsViewerInitialized { get; set; }
+    private string? PendingXml { get; set; }
 
     [Parameter] public Guid InstanceGuid { get; set; }
 
@@ -65,18 +67,39 @@ public partial class Instance
 
     protected override async Task OnInitializedAsync()
     {
-        await JsRuntime.EvalCodeBehindJsScripts(this);
         await Reload();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        try
+        {
+            if (firstRender)
+            {
+                await JsRuntime.EvalCodeBehindJsScripts(this);
+                await InitViewer();
+                IsViewerInitialized = true;
+            }
+
+            await TryRenderInstanceVisualizationAsync();
+        }
+        catch (Exception exception)
+        {
+            ErrorString = $"Could not render instance diagram. {exception.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadData()
     {
         _instance = await FlowzerApi.GetProcessInstance(InstanceGuid);
         var data = await FlowzerApi.GetXmlDefinition(_instance.DefinitionId);
-        await LoadDiagramXml(data);
-        await ShowTokens(_instance.Tokens);
+        PendingXml = data;
         await ShowVariables(_instance.Tokens);
         LoadMeesageSubscriptionOverview();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task ShowVariables(List<TokenDto> instanceTokens)
@@ -333,16 +356,41 @@ public partial class Instance
     {
         try
         {
-            await InitViewer();
             await LoadData();
         }
         catch (Exception exception)
         {
             _instance = null;
+            PendingXml = null;
             Items = [];
             VariableItems = [];
             VariableContent = null;
             ErrorString = $"Could not load instance details. {exception.Message}";
         }
+
+        try
+        {
+            await TryRenderInstanceVisualizationAsync();
+        }
+        catch (Exception exception)
+        {
+            ErrorString = $"Could not render instance diagram. {exception.Message}";
+        }
+    }
+
+    private async Task TryRenderInstanceVisualizationAsync()
+    {
+        if (!IsViewerInitialized || _instance == null || string.IsNullOrWhiteSpace(PendingXml))
+        {
+            return;
+        }
+
+        var xml = PendingXml;
+        PendingXml = null;
+
+        await LoadDiagramXml(xml);
+        await ShowTokens(_instance.Tokens);
+        ErrorString = string.Empty;
+        await InvokeAsync(StateHasChanged);
     }
 }

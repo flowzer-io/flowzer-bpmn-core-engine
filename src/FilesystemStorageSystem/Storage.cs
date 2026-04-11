@@ -6,9 +6,12 @@ namespace FilesystemStorageSystem;
 
 public class Storage : IStorageSystem
 {
+    public const string StorageRootEnvironmentVariableName = "FLOWZER_STORAGE_ROOT";
+    private readonly string _storageRoot;
     
     public Storage()
     {
+        _storageRoot = ResolveStorageRoot();
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         InstanceStorage = new InstanceStorage(this);
@@ -30,12 +33,22 @@ public class Storage : IStorageSystem
 
     public string GetBasePath(string name)
     {
-        var path = Path.Combine(Path.GetDirectoryName(this.GetType().Assembly.Location)!, name);
+        var path = Path.Combine(_storageRoot, name);
         if (!Directory.Exists(path))
             Directory.CreateDirectory(path);
         return path;
     }
-    
-    
+
+    private static string ResolveStorageRoot()
+    {
+        var configuredRoot = Environment.GetEnvironmentVariable(StorageRootEnvironmentVariableName);
+        if (!string.IsNullOrWhiteSpace(configuredRoot))
+        {
+            return Path.GetFullPath(configuredRoot);
+        }
+
+        return Path.GetDirectoryName(typeof(Storage).Assembly.Location)!
+               ?? throw new InvalidOperationException("Could not determine the default filesystem storage root.");
+    }
 
 }
