@@ -198,4 +198,45 @@ public class ManualMappingExtensionsTest
 
         roundtrip.Should().BeEquivalentTo(dto);
     }
+
+    [Test]
+    public void FormDto_ToModel_ShouldThrow_WhenFormDataIsMissing()
+    {
+        var dto = new FormDto
+        {
+            Id = Guid.NewGuid(),
+            FormId = Guid.NewGuid(),
+            Version = new VersionDto { Major = 1, Minor = 4 },
+            FormData = null
+        };
+
+        var action = () => dto.ToModel();
+
+        action.Should()
+            .Throw<ArgumentException>()
+            .WithMessage("*FormData is required*");
+    }
+
+    [Test]
+    public void Token_ToDto_ShouldUseEmptyString_ForNonFlowNodeTokens()
+    {
+        var processToken = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(),
+            CurrentBaseElement = new Process
+            {
+                Id = "Process_1",
+                DefinitionsId = "Definitions_1",
+                IsExecutable = true,
+                FlowElements = []
+            },
+            ActiveBoundaryEvents = [],
+            State = FlowNodeState.Active
+        };
+
+        var result = processToken.ToDto();
+
+        result.CurrentFlowNodeId.Should().BeEmpty();
+        result.CurrentFlowElement.Should().BeNull();
+    }
 }

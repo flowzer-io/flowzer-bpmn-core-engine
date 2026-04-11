@@ -14,8 +14,15 @@ public class FormController(
     [HttpPost()]
     public async Task<ActionResult<ApiStatusResult>> SaveForm(FormDto formDto)
     {
-        
-        var form = formDto.ToModel();
+        Form form;
+        try
+        {
+            form = formDto.ToModel();
+        }
+        catch (ArgumentException e)
+        {
+            return BadRequest(new ApiStatusResult<FormDto>(e.Message));
+        }
         
         if (form.FormId == Guid.Empty)
             throw new Exception("FormId is required");

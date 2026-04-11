@@ -16,7 +16,7 @@ public static class RuntimeMappingExtensions
         {
             Id = token.Id,
             State = (FlowNodeStateDto)token.State,
-            CurrentFlowNodeId = token.CurrentFlowNode?.Id,
+            CurrentFlowNodeId = token.CurrentFlowNode?.Id ?? string.Empty,
             CurrentFlowElement = token.CurrentFlowNode?.ToExpando(),
             Variables = token.Variables,
             OutputData = token.OutputData,

@@ -96,12 +96,17 @@ public static class InteractionMappingExtensions
     {
         ArgumentNullException.ThrowIfNull(formDto);
 
+        if (string.IsNullOrWhiteSpace(formDto.FormData))
+        {
+            throw new ArgumentException("FormData is required.", nameof(formDto));
+        }
+
         return new Form
         {
             Id = formDto.Id ?? Guid.Empty,
             FormId = formDto.FormId,
             Version = formDto.Version.ToModel(),
-            FormData = formDto.FormData!
+            FormData = formDto.FormData
         };
     }
 
