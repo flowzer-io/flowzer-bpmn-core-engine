@@ -153,6 +153,7 @@ public class ApiHardeningIntegrationTest
     {
         var storage = new TestStorage();
         var definitionId = Guid.NewGuid();
+        const string correlationKey = "INV-1000";
         storage.StoredDefinitions.Add(new BpmnDefinition
         {
             Id = definitionId,
@@ -184,7 +185,8 @@ public class ApiHardeningIntegrationTest
         storage.MessageSubscriptions.Add(new MessageSubscription(
             new MessageDefinition
             {
-                Name = "InvoiceReceived"
+                Name = "InvoiceReceived",
+                FlowzerCorrelationKey = correlationKey
             },
             "Process_Invoice",
             "invoice-process",
@@ -195,7 +197,8 @@ public class ApiHardeningIntegrationTest
 
         var response = await client.PostAsJsonAsync("/message", new MessageDto
         {
-            Name = "InvoiceReceived"
+            Name = "InvoiceReceived",
+            CorrelationKey = correlationKey
         });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -203,6 +206,7 @@ public class ApiHardeningIntegrationTest
         payload.Should().NotBeNull();
         payload!.Successful.Should().BeTrue();
         payload.Result.Should().Contain("InvoiceReceived");
+        payload.Result.Should().Contain(correlationKey);
         payload.ErrorMessage.Should().BeNull();
     }
 
