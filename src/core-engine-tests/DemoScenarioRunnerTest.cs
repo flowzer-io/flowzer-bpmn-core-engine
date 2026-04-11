@@ -9,7 +9,7 @@ public class DemoScenarioRunnerTest
     [Test]
     public async System.Threading.Tasks.Task RunAsync_ShouldExecuteTheDocumentedHappyPath()
     {
-        var output = new StringWriter();
+        using var output = new StringWriter();
         var runner = new DemoScenarioRunner();
 
         var finalInstance = await runner.RunAsync(output);

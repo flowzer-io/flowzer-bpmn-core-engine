@@ -28,6 +28,15 @@ Verwendet werden dabei:
 - `CoreInteraction`
 - `CoreInstance`
 
+Zusätzlich wichtig: Die Demo läuft bewusst mit einer testfreundlichen
+`FlowzerConfig` (z. B. `CreateForTests` beziehungsweise einem
+`SimpleExpressionHandler`), damit sie lokal und in CI ohne native
+V8-/ClearScript-Abhängigkeit ausführbar bleibt.
+
+Diese Konfiguration dient der einfachen Demo- und Testbarkeit. Sie ist kein
+automatischer Produktiv-Default, sondern ein bewusst vereinfachtes Setup für
+den dokumentierten Happy Path.
+
 ## Verwendeter Beispielprozess
 
 Die Demo nutzt den BPMN-Prozess aus:

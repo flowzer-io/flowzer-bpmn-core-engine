@@ -29,7 +29,9 @@ public sealed class DemoScenarioRunner
         ArgumentNullException.ThrowIfNull(output);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var engine = new CoreEngine(FlowzerConfig.CreateForTests());
+        // Die Demo verwendet bewusst nur den öffentlichen ICore-Vertrag, damit API-Drift
+        // bei Änderungen am öffentlichen Integrationspfad frühzeitig auffällt.
+        ICore engine = new CoreEngine(FlowzerConfig.CreateForTests());
         engine.InteractionFinished += (_, instance) =>
         {
             output.WriteLine(
