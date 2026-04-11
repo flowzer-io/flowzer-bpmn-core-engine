@@ -11,7 +11,7 @@ public partial class FormComponent : ComponentBase
     [Inject] public required IJSRuntime JsRuntime { get; set; }
     [Inject] public required ILogger<FormComponent> Logger { get; set; }
 
-    public string Debug { get; set; }
+    public string Debug { get; set; } = string.Empty;
     
     [Parameter] public string Schema { get; set; } = string.Empty;
     [Parameter] public string OutData { get; set; } = string.Empty;

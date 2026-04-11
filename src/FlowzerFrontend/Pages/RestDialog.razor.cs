@@ -6,7 +6,14 @@ public partial class RestDialog
 {
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
     
-    [Parameter] public RestDialogParams Content { get; set; }
+    [Parameter] public RestDialogParams Content { get; set; } = new()
+    {
+        RestExampleRequest = new FlowzerFrontend.Models.RestExampleRequest
+        {
+            Url = string.Empty,
+            Body = string.Empty
+        }
+    };
 
     public string? Result { get; set; }
     

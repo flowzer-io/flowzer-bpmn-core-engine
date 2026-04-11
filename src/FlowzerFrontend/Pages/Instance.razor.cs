@@ -23,13 +23,13 @@ public partial class Instance
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
 
     
-    public IEnumerable<ITreeViewItem>? VariableItems = new List<ITreeViewItem>();
+    public IEnumerable<ITreeViewItem> VariableItems = [];
     
     public string? VariableContent;
 
-    private IEnumerable<ITreeViewItem>? Items = new List<ITreeViewItem>();
+    private IEnumerable<ITreeViewItem> Items = [];
     
-    public string ErrorString { get; set; }
+    public string ErrorString { get; set; } = string.Empty;
 
     
     private ITreeViewItem? _currentSelectedToken;
@@ -59,8 +59,7 @@ public partial class Instance
 
     private bool _trapFocus = true;
     private bool _modal = true;
-    private ITreeViewItem? _selectedItem;
-    private  Dictionary<string, object> _treeItemMappings = new Dictionary<string, object>();
+    private readonly Dictionary<string, object> _treeItemMappings = new();
     
 
 
@@ -86,21 +85,18 @@ public partial class Instance
         if (rootTokens.Count != 1)
         {
             throw new Exception("There should be exactly one root token");
-            return;
         }
         VariableItems =  GetTokenTreeViewItem(instanceTokens, rootTokens);
         
         await InvokeAsync(StateHasChanged);
     }
 
-    private IEnumerable<ITreeViewItem>? GetTokenTreeViewItem(List<TokenDto> allTokens, List<TokenDto> list)
+    private IEnumerable<ITreeViewItem> GetTokenTreeViewItem(List<TokenDto> allTokens, List<TokenDto> list)
     {
         var result = new List<ITreeViewItem>();
         foreach (var x in list)
         {
-            var text = x.CurrentFlowElement.GetValue<string>("Name", null);
-            if (string.IsNullOrEmpty(text))
-                text = x.CurrentFlowElement.GetValue<string>("Id", "(root token)")!;
+            var text = TokenDisplayHelper.GetDisplayName(x, "(root token)");
 
             var subTokens = allTokens.Where(y => y.ParentTokenId == x.Id).ToList();
             var subItems = GetTokenTreeViewItem(allTokens, subTokens);
@@ -184,10 +180,10 @@ public partial class Instance
 
     }
 
-    private async Task<IEnumerable<ITreeViewItem>?> LoadMessageSubscriptions()
+    private async Task<IEnumerable<ITreeViewItem>> LoadMessageSubscriptions()
     {
         if (_instance == null)
-            return null;
+            return [];
         return (await FlowzerApi.GetMessageSubscriptions(_instance.InstanceId)).Select(
             x =>
             {
@@ -198,24 +194,24 @@ public partial class Instance
             });
     }
 
-    private async Task<IEnumerable<ITreeViewItem>?> LoadServiceSubscriptions()
+    private async Task<IEnumerable<ITreeViewItem>> LoadServiceSubscriptions()
     {
         if (_instance == null)
-            return new List<ITreeViewItem>();
+            return [];
         return (await FlowzerApi.GetServiceSubscriptions(_instance.InstanceId)).Select(
             x =>
             {
-                var implementationName = (string)(((IDictionary<string, object>)x.CurrentFlowElement!)!)["Implementation"];
+                var implementationName = TokenDisplayHelper.GetImplementation(x) ?? x.CurrentFlowNodeId ?? "(service task)";
                 var treeViewItem = new TreeViewItem(x.Id.ToString(), implementationName);
                 return treeViewItem;
             });
     }
 
 
-    private async Task<IEnumerable<ITreeViewItem>?> LoadSignalSubscriptions()
+    private async Task<IEnumerable<ITreeViewItem>> LoadSignalSubscriptions()
     {
         if (_instance == null)
-            return new List<ITreeViewItem>();
+            return [];
         return (await FlowzerApi.GetSignalSubscriptions(_instance.InstanceId)).Select(
             x =>
             {
@@ -224,16 +220,16 @@ public partial class Instance
             });
     }
 
-    private async Task<IEnumerable<ITreeViewItem>?> LoadUserTaskSubscriptions()
+    private async Task<IEnumerable<ITreeViewItem>> LoadUserTaskSubscriptions()
     {
         if (_instance == null)
-            return new List<ITreeViewItem>();
+            return [];
         
         
         return (await FlowzerApi.GetUserTasks(_instance.InstanceId)).Select(
             x =>
             {
-                var implementationName = (string)(((IDictionary<string, object>)x.CurrentFlowElement!)!)["Implementation"];
+                var implementationName = TokenDisplayHelper.GetImplementation(x) ?? x.CurrentFlowNodeId ?? "(user task)";
                 var treeViewItem = new TreeViewItem(x.Id.ToString(), implementationName);
                 return treeViewItem;
             });
@@ -289,7 +285,7 @@ public partial class Instance
     private async Task LoadDiagramXml(string xml)
     {
         await JsRuntime.InvokeVoidAsync("window.bpmnViewer.importXML", xml);
-        ErrorString = null;
+        ErrorString = string.Empty;
     }
 
 
@@ -338,4 +334,3 @@ public partial class Instance
         await LoadData();
     }
 }
-

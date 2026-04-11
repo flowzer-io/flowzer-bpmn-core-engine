@@ -7,7 +7,7 @@ public partial class LabelWithEdit : ComponentBase
 {
     
     [Parameter]
-    public string Label { get; set; }
+    public string Label { get; set; } = string.Empty;
     
     [Parameter]
     public EventCallback<string>? LabelChanged { get; set; }
