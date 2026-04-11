@@ -108,7 +108,7 @@ jobs:
 
       - name: CI-Zusammenfassung schreiben
         run: |
-          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## .NET-Validierung
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
@@ -196,7 +196,7 @@ jobs:
       - name: CI-Zusammenfassung schreiben
         if: always()
         run: |
-          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## UI-Smoke-Tests
 
           - Playwright prüft die Kernrouten `/`, `/models`, `/forms` und `/instances`.
