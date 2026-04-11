@@ -98,6 +98,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 - [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md) – ehrliche Bestandsaufnahme
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
+- [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot
 - [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md) – Entwicklungsprinzipien
@@ -115,6 +116,18 @@ Die sinnvolle Reihenfolge ist aktuell:
 6. **Demo und Contributor Experience verbessern**
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Minimaler `ICore`-Nutzungsweg
+
+Für Integrationen ohne WebAPI oder Storage liegt jetzt ein bewusst kleiner Kernvertrag vor:
+
+1. BPMN-Datei laden
+2. initiale Start-Subscriptions lesen
+3. Event über `BpmnNodeId` verarbeiten
+4. aktive Interaktionen aus dem Ergebnis ableiten
+
+Ein vollständiger Ablauf ist dokumentiert in [docs/ICORE.md](docs/ICORE.md).  
+Eine konkrete Beispiel-Datei liegt unter [`examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).
 
 ## Beispiel
 
