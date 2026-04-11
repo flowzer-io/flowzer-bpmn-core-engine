@@ -61,6 +61,30 @@ public class InstanceControllerIntegrationTest
         payload.Result.Should().OnlyContain(token => token.State == FlowNodeStateDto.Active);
     }
 
+    [Test]
+    public async Task GetAllInstances_ShouldIncludeFinishedInstances_ForDoneAndErrorFilters()
+    {
+        var activeInstanceId = Guid.NewGuid();
+        var completedInstanceId = Guid.NewGuid();
+        var failedInstanceId = Guid.NewGuid();
+        var storage = TestStorage.CreateWithInstances(activeInstanceId, completedInstanceId, failedInstanceId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/instance");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<List<ProcessInstanceInfoDto>>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().NotBeNull();
+        payload.Result!.Select(instance => instance.InstanceId).Should().BeEquivalentTo(
+            [activeInstanceId, completedInstanceId, failedInstanceId]);
+        payload.Result.Should().Contain(instance => instance.State == ProcessInstanceStateDto.Completed);
+        payload.Result.Should().Contain(instance => instance.State == ProcessInstanceStateDto.Failed);
+    }
+
     /// <summary>
     /// Kleine Test-Factory, die die produktiven Storage-Services durch einen in-memory Test-Store ersetzt.
     /// Damit werden die echten Controller, das Routing und die Serialisierung gegen einen realen Testserver geprüft.
@@ -169,6 +193,47 @@ public class InstanceControllerIntegrationTest
             return storage;
         }
 
+        public static TestStorage CreateWithInstances(Guid activeInstanceId, Guid completedInstanceId, Guid failedInstanceId)
+        {
+            var definitionId = Guid.NewGuid();
+            var definitionStorage = new TestDefinitionStorage(
+                new BpmnMetaDefinition
+                {
+                    DefinitionId = "invoice-process",
+                    Name = "Invoice Process"
+                });
+
+            var instanceStorage = new TestInstanceStorage(
+                CreateProcessInstance(activeInstanceId, definitionId, ProcessInstanceState.Running, false),
+                CreateProcessInstance(completedInstanceId, definitionId, ProcessInstanceState.Completed, true),
+                CreateProcessInstance(failedInstanceId, definitionId, ProcessInstanceState.Failed, true));
+
+            var subscriptionStorage = new TestMessageSubscriptionStorage();
+            return new TestStorage(definitionId, definitionStorage, subscriptionStorage, instanceStorage);
+        }
+
+        private static ProcessInstanceInfo CreateProcessInstance(
+            Guid instanceId,
+            Guid definitionId,
+            ProcessInstanceState state,
+            bool isFinished)
+        {
+            return new ProcessInstanceInfo
+            {
+                InstanceId = instanceId,
+                metaDefinitionId = "invoice-process",
+                DefinitionId = definitionId,
+                ProcessId = "Process_Invoice",
+                Tokens = [],
+                IsFinished = isFinished,
+                State = state,
+                MessageSubscriptionCount = 0,
+                SignalSubscriptionCount = 0,
+                UserTaskSubscriptionCount = 0,
+                ServiceSubscriptionCount = 0
+            };
+        }
+
         public IDefinitionStorage DefinitionStorage => DefinitionStorageSeed;
         public IMessageSubscriptionStorage SubscriptionStorage => SubscriptionStorageSeed;
         public IInstanceStorage InstanceStorage => InstanceStorageSeed;
@@ -253,11 +318,13 @@ public class InstanceControllerIntegrationTest
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
     }
 
-    private sealed class TestInstanceStorage(ProcessInstanceInfo instance) : IInstanceStorage
+    private sealed class TestInstanceStorage(params ProcessInstanceInfo[] instances) : IInstanceStorage
     {
+        private readonly Dictionary<Guid, ProcessInstanceInfo> _instances = instances.ToDictionary(instance => instance.InstanceId);
+
         public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId)
         {
-            return processInstanceId == instance.InstanceId
+            return _instances.TryGetValue(processInstanceId, out var instance)
                 ? Task.FromResult(instance)
                 : throw new KeyNotFoundException($"Unknown process instance: {processInstanceId}");
         }
@@ -265,7 +332,10 @@ public class InstanceControllerIntegrationTest
         public Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo) => Task.CompletedTask;
 
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() =>
-            Task.FromResult<IEnumerable<ProcessInstanceInfo>>([instance]);
+            Task.FromResult(_instances.Values.Where(instance => !instance.IsFinished).AsEnumerable());
+
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() =>
+            Task.FromResult(_instances.Values.AsEnumerable());
     }
 
     private sealed class TestFormStorage : IFormStorage

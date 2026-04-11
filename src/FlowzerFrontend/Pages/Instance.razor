@@ -8,7 +8,7 @@
 @inject ExampleRestRequestBuilder ExampleRestRequestBuilder
 
 <div class="main-content">
-    <HeaderElement Title="Hello world" BackLink="/models">
+    <HeaderElement BackLink="/instances">
         <LeftSide>
             <span id="instance-name">@_instance?.RelatedDefinitionName - @_instance?.InstanceId</span>
             
@@ -16,56 +16,63 @@
         </LeftSide>
     </HeaderElement>
 
-    <div class="diagram-content with-diagram" id="designer-container">
-        <div class="canvas" id="js-canvas"></div>
-    </div>
+    @if (!string.IsNullOrWhiteSpace(ErrorString))
+    {
+        <p id="instance-load-error" role="alert">@ErrorString</p>
+    }
+    else if (_instance == null)
+    {
+        <p id="instance-loading-state">Loading instance...</p>
+    }
+    else
+    {
+        <div class="diagram-content with-diagram" id="designer-container">
+            <div class="canvas" id="js-canvas"></div>
+        </div>
 
 
-    <div id="information_container">
-        <FluentStack Orientation="Orientation.Horizontal">
+        <div id="information_container">
+            <FluentStack Orientation="Orientation.Horizontal">
 
-            <FluentCard Width="800px;">
-                <h3>Tokens</h3>
-                <FluentStack Orientation="Orientation.Horizontal">
-                    <FluentTreeView Items="@VariableItems" @bind-SelectedItem="@CurrentSelectedToken">
+                <FluentCard Width="800px;">
+                    <h3>Tokens</h3>
+                    <FluentStack Orientation="Orientation.Horizontal">
+                        <FluentTreeView Items="@VariableItems" @bind-SelectedItem="@CurrentSelectedToken">
+                        </FluentTreeView>
+                        <FluentTabs >
+                            <FluentTab Id="tab-1" Label="Output" IsActive="true">
+                                <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
+                                </FluentTextArea>
+                            </FluentTab>
+                            <FluentTab Id="tab-2" Label="Variables">
+                                <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
+                                </FluentTextArea>
+                            </FluentTab>
+                        </FluentTabs>
+                    </FluentStack>
+                </FluentCard>
+
+                
+                <FluentCard Width="400px" Height="400px">
+                    <h3>Subscriptions</h3>
+                    <FluentTreeView Items="@Items">
+                        <ItemTemplate>
+                            @if (GetTreeRelatedItem<MessageSubscriptionDto>(context.Id, out var item))
+                            {
+                                <span>Waiting for "@item.Message.Name"</span>
+                                <FluentButton @onclick="async args => await OpenSendRestRequestAsync(ExampleRestRequestBuilder.BuildMessageRequest(item.Message, _instance?.InstanceId))" Class="tree-button">Send request</FluentButton>
+                            }
+                            else
+                            {
+                                @context.Text
+                            }
+                        </ItemTemplate>
                     </FluentTreeView>
-                    <FluentTabs >
-                        <FluentTab Id="tab-1" Label="Output" IsActive="true">
-                            <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
-                            </FluentTextArea>
-                        </FluentTab>
-                        <FluentTab Id="tab-2" Label="Variables">
-                            <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
-                            </FluentTextArea>
-                        </FluentTab>
-                    </FluentTabs>
-                    
-                    
-                </FluentStack>
-            </FluentCard>
 
-            
-            <FluentCard Width="400px" Height="400px">
-                <h3>Subscriptions</h3>
-                <FluentTreeView Items="@Items">
-                    <ItemTemplate>
-                        @if (GetTreeRelatedItem<MessageSubscriptionDto>(context.Id, out var item))
-                        {
-                            <span>Waiting for "@item.Message.Name"</span>
-                            <FluentButton @onclick="async args => await OpenSendRestRequestAsync(ExampleRestRequestBuilder.BuildMessageRequest(item.Message, _instance?.InstanceId))" Class="tree-button">Send request</FluentButton>
-                        }
-                        else
-                        {
-                            @context.Text
-                        }
-                    </ItemTemplate>
-                </FluentTreeView>
+                </FluentCard>
+            </FluentStack>
 
-            </FluentCard>
-        </FluentStack>
-
-    </div>
+        </div>
+    }
 
 </div>
-
-

@@ -10,43 +10,40 @@ public partial class LabelWithEdit : ComponentBase
     public string Label { get; set; } = string.Empty;
     
     [Parameter]
-    public EventCallback<string>? LabelChanged { get; set; }
+    public EventCallback<string> LabelChanged { get; set; }
     
     [Parameter]
-    public Action<string>? AfterChanged { get; set; }
+    public EventCallback<string> AfterChanged { get; set; }
 
     
     private bool TitleEditMode { get; set; }
     
-    private async void ToggleTitleEditMode()
+    private async Task ToggleTitleEditMode()
     {
-        
         try
         {
             if (TitleEditMode)
             {
-                if (LabelChanged != null)
-                    await LabelChanged.Value.InvokeAsync(Label);
-                if (AfterChanged != null)
-                    AfterChanged.Invoke(Label);
-
-                
+                if (LabelChanged.HasDelegate)
+                    await LabelChanged.InvokeAsync(Label);
+                if (AfterChanged.HasDelegate)
+                    await AfterChanged.InvokeAsync(Label);
             }
-
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
         }
+
         TitleEditMode = !TitleEditMode;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void OnTitleEditKeyUp(KeyboardEventArgs keyboardEventArgs)
+    private async Task OnTitleEditKeyUp(KeyboardEventArgs keyboardEventArgs)
     {
         if (keyboardEventArgs.Key == "Enter")
         {
-            ToggleTitleEditMode();
+            await ToggleTitleEditMode();
         }
     }
     

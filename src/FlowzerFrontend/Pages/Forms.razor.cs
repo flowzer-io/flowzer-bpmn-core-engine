@@ -13,11 +13,26 @@ public partial class Forms : ComponentBase
     
     public IQueryable<FormMetaDataDto> Data { get; set; } = new List<FormMetaDataDto>().AsQueryable();
     public IEnumerable<FormMetaDataDto> SelectedItems { get; set; } = new List<FormMetaDataDto>();
+    private bool IsLoading { get; set; } = true;
+    private string? LoadErrorMessage { get; set; }
 
 
     protected override async Task OnInitializedAsync()
     {
-        Data = (await FlowzerApi.GetFormMetaDatas()).AsQueryable();
+        try
+        {
+            Data = (await FlowzerApi.GetFormMetaDatas()).AsQueryable();
+            LoadErrorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            Data = Array.Empty<FormMetaDataDto>().AsQueryable();
+            LoadErrorMessage = $"Could not load forms. {exception.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     private void OnNewClick(MouseEventArgs obj)

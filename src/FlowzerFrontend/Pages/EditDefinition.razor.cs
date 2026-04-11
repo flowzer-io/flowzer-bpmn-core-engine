@@ -41,11 +41,11 @@ public partial class EditDefinition
     protected override async Task OnInitializedAsync()
     {
         await JsRuntime.EvalCodeBehindJsScripts(this);
-        InitEditor();
+        await InitEditor();
     }
 
 
-    private async void InitEditor()
+    private async Task InitEditor()
     {
         await JsRuntime.InvokeVoidAsync("InitEdit");
         await LoadModel();
@@ -111,15 +111,15 @@ public partial class EditDefinition
         ErrorString = null;
     }
 
-    private async void OnSaveClick()
+    private async Task OnSaveClick()
     {
         var xmlData = await GetXmlData();
         var definition = await FlowzerApi.UploadDefinition(xmlData);
         CurrentDefinition = definition;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
-    private async void OnDeployClick()
+    private async Task OnDeployClick()
     {
         var xmlData = await GetXmlData();
         try
@@ -133,7 +133,7 @@ public partial class EditDefinition
             await dialog.Result;
         }
  
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task<string> GetXmlData()
@@ -143,7 +143,7 @@ public partial class EditDefinition
         return xmlData;
     }
 
-    private async void AfterChanged(string obj)
+    private async Task AfterChanged(string obj)
     {
         await FlowzerApi.UpdateMetaDefinition(CurrentMetaDefinition);
     }

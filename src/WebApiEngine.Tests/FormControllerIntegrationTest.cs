@@ -272,5 +272,6 @@ public class FormControllerIntegrationTest
         public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId) => throw new NotSupportedException();
         public Task AddOrUpdateInstance(ProcessInstanceInfo processInstance) => Task.CompletedTask;
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() => Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
     }
 }

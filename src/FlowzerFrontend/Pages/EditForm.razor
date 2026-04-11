@@ -1,6 +1,7 @@
 @page "/forms/{FormId}"
 @inherits FlowzerComponentBase
 @using Microsoft.FluentUI.AspNetCore.Components
+@using FlowzerFrontend.BusinessLogic
 @using FlowzerFrontend.Components
 
 
@@ -25,11 +26,21 @@
         </RigthSide>
     </HeaderElement>
 
-    <div class="iframe-container">
-        <iframe src="/formio" width="100%" height="100%"></iframe>
-    </div>
+    @if (IsLoading)
+    {
+        <p id="edit-form-loading-state">Loading form...</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(ErrorString))
+    {
+        <p id="edit-form-error" role="alert">@ErrorString</p>
+    }
+    else
+    {
+        <div class="iframe-container">
+            <iframe src="/formio" width="100%" height="100%"></iframe>
+        </div>
+    }
     
 
 </div>
-
 

@@ -20,15 +20,30 @@
             <FluentStack Orientation="Orientation.Vertical" Width="100%">
                 <h1>Forms</h1>
 
-                <div class="list-header">
-                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
-                        <SelectColumn TGridItem="FormMetaDataDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
-                        <TemplateColumn Title="Titel">
-                            <div class="grid-row-title"><a href="@UriHelper.GetShowFormUrl(@context.FormId)">@context.Name</a></div>
-                            <div class="grid-row-subtitle">Instance @context.FormId</div>
-                        </TemplateColumn>
-                    </FluentDataGrid>
-                </div>
+                @if (IsLoading)
+                {
+                    <p id="forms-loading-state">Loading forms...</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+                {
+                    <p id="forms-load-error" role="alert">@LoadErrorMessage</p>
+                }
+                else if (!Data.Any())
+                {
+                    <p id="forms-empty-state">No forms are available yet.</p>
+                }
+                else
+                {
+                    <div class="list-header">
+                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
+                            <SelectColumn TGridItem="FormMetaDataDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
+                            <TemplateColumn Title="Title">
+                                <div class="grid-row-title"><a href="@UriHelper.GetShowFormUrl(@context.FormId)">@context.Name</a></div>
+                                <div class="grid-row-subtitle">Instance @context.FormId</div>
+                            </TemplateColumn>
+                        </FluentDataGrid>
+                    </div>
+                }
 
             </FluentStack>
         </MainContent>

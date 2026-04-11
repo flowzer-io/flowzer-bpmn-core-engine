@@ -50,13 +50,26 @@ Die Smoke-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten
 - `/models`
 - `/forms`
 - `/instances`
+- `/instances/all`
+- `/instances/active`
+- `/instances/done`
+- `/instances/error`
 
 Geprüft werden insbesondere:
 
 - erfolgreiche Seitennavigation
 - sichtbare Kern-UI je Route
+- funktionierende Filter-Navigation innerhalb der Instanzliste
 - kein sichtbarer Blazor-Fatalfehler
 - keine fehlgeschlagenen Browser-Requests
+
+## Aktuelle Frontend-Konventionen für Kernseiten
+
+- Listen- und Startseiten zeigen bei Ladefehlern eine sichtbare Inline-Fehlermeldung statt still abzustürzen.
+- Leere Listen rendern einen expliziten Empty State.
+- Instanzfilter werden ausschließlich über gültige Frontend-Routen (`all`, `active`, `done`, `error`) adressiert.
+- Die Instanzliste lädt bewusst auch abgeschlossene bzw. fehlgeschlagene Instanzen, damit `done`- und `error`-Filter echte Daten anzeigen können.
+- Formularrouten werden defensiv geparst, damit ungültige URLs nicht in eine ungefangene `Guid.Parse`-Ausnahme laufen.
 
 ### Einmalig installieren
 

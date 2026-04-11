@@ -10,15 +10,31 @@ namespace FlowzerFrontend.Pages;
 public partial class Home : FlowzerComponentBase
 {
     private ExtendedUserTaskSubscriptionDto[] _tasks = [];
+    private bool IsLoading { get; set; } = true;
+    private string? LoadErrorMessage { get; set; }
+
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
  
     
     protected override async Task OnInitializedAsync()
     {
-        _tasks = await FlowzerApi.GetAllUserTasks();
+        try
+        {
+            _tasks = await FlowzerApi.GetAllUserTasks();
+            LoadErrorMessage = null;
+        }
+        catch (Exception exception)
+        {
+            _tasks = [];
+            LoadErrorMessage = $"Could not load user tasks. {exception.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
     
-    private async void OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
+    private async Task OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
     {
         var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
         if (string.IsNullOrWhiteSpace(formName))
