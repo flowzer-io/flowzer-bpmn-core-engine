@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using FluentAssertions;
 using FlowzerFrontend;
+using WebApiEngine.Shared;
 
 namespace FlowzerFrontend.Tests;
 
@@ -64,8 +65,75 @@ public class FlowzerApiOptionsTest
         handler.LastContent.Should().Be(payload);
     }
 
+    [Test]
+    public async Task GetSignalSubscriptions_ShouldUseSignalsRoute()
+    {
+        var instanceId = Guid.NewGuid();
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(new[]
+        {
+            new SignalSubscriptionDto
+            {
+                Signal = "InvoiceReceived",
+                ProcessId = "Process_Invoice",
+                RelatedDefinitionId = "invoice-process",
+                DefinitionId = Guid.NewGuid(),
+                ProcessInstanceId = instanceId
+            }
+        }));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.GetSignalSubscriptions(instanceId);
+
+        result.Should().HaveCount(1);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/instance/{instanceId}/subscription/signals"));
+    }
+
+    [Test]
+    public async Task GetServiceSubscriptions_ShouldUseServicesRoute()
+    {
+        var instanceId = Guid.NewGuid();
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(new[]
+        {
+            new TokenDto
+            {
+                CurrentFlowNodeId = "Activity_ServiceTask",
+                State = FlowNodeStateDto.Active
+            }
+        }));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.GetServiceSubscriptions(instanceId);
+
+        result.Should().HaveCount(1);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/instance/{instanceId}/subscription/services"));
+    }
+
+    private static string CreateApiStatusResultJson<T>(T result)
+    {
+        return System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<T>(result));
+    }
+
     private sealed class RecordingHttpMessageHandler : HttpMessageHandler
     {
+        private readonly string _responseContent;
+
+        public RecordingHttpMessageHandler(string responseContent = "{}")
+        {
+            _responseContent = responseContent;
+        }
+
         public HttpMethod? LastMethod { get; private set; }
         public Uri? LastRequestUri { get; private set; }
         public string? LastContentType { get; private set; }
@@ -82,7 +150,7 @@ public class FlowzerApiOptionsTest
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent("{}", Encoding.UTF8, "application/json")
+                Content = new StringContent(_responseContent, Encoding.UTF8, "application/json")
             };
         }
     }

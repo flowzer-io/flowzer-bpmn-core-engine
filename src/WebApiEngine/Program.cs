@@ -49,3 +49,7 @@ app.MapControllers();
 app.Services.GetRequiredService<BpmnBusinessLogic>().Load();
 
 app.Run();
+
+public partial class Program
+{
+}

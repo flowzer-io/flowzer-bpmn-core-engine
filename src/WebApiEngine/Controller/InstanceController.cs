@@ -1,3 +1,4 @@
+using BpmnServiceTask = BPMN.Activities.ServiceTask;
 using Flowzer.Shared;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
@@ -59,7 +60,27 @@ public class InstanceController(
         var result = messageSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
     }
-    
+
+    [HttpGet("{instanceId}/subscription/signals")]
+    public async Task<ActionResult<SignalSubscriptionDto[]>> GetSignalSubscriptions(Guid instanceId)
+    {
+        var signalSubscriptions = await storageSystem.SubscriptionStorage.GetSignalSubscriptions(instanceId);
+        var result = signalSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
+        return Ok(new ApiStatusResult<SignalSubscriptionDto[]>(result));
+    }
+
+    [HttpGet("{instanceId}/subscription/services")]
+    public async Task<ActionResult<TokenDto[]>> GetServiceSubscriptions(Guid instanceId)
+    {
+        var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+        var result = instance.Tokens
+            .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
+            .Select(token => token.ToDto())
+            .ToArray();
+
+        return Ok(new ApiStatusResult<TokenDto[]>(result));
+    }
+
     [HttpGet("{instanceId}/subscription/userTasks")]
     public async Task<ActionResult<TokenDto[]>> GetUserTasksSubscriptions(Guid instanceId)
     {

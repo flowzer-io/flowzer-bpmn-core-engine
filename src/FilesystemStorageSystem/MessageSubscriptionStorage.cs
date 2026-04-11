@@ -98,17 +98,35 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 
     public void AddSignalSubscription(SignalSubscription signalSubscription)
     {
-        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"signal_{signalSubscription.RelatedDefinitionId}_{Guid.NewGuid()}.json");
+        var fileIdentifier = signalSubscription.ProcessInstanceId ?? Guid.NewGuid();
+        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"signal_{signalSubscription.RelatedDefinitionId}_{fileIdentifier}.json");
         var data = JsonConvert.SerializeObject(signalSubscription, _newtonSoftDefaultSettings);
         File.WriteAllText(fullFileName, data);
     }
 
+    public Task<IEnumerable<SignalSubscription>> GetSignalSubscriptions(Guid instanceId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, "signal_*.json");
+        var subscriptions = files.Select(file =>
+        {
+            var content = File.ReadAllText(file);
+            return JsonConvert.DeserializeObject<SignalSubscription>(content, _newtonSoftDefaultSettings)!;
+        }).Where(subscription => subscription.ProcessInstanceId == instanceId);
+
+        return Task.FromResult(subscriptions);
+    }
+
     public void RemoveProcessSingalSubscriptionsByProcessInstanceId(Guid instanceId)
     {
-        var files = Directory.GetFiles(_messageSubscriptionsPath, $"signal_*_{instanceId}.json");
+        var files = Directory.GetFiles(_messageSubscriptionsPath, "signal_*.json");
         foreach (var file in files)
         {
-            File.Delete(file);
+            var content = File.ReadAllText(file);
+            var subscription = JsonConvert.DeserializeObject<SignalSubscription>(content, _newtonSoftDefaultSettings);
+            if (subscription?.ProcessInstanceId == instanceId)
+            {
+                File.Delete(file);
+            }
         }
     }
 
