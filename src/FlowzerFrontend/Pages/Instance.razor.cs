@@ -82,9 +82,10 @@ public partial class Instance
     private async Task ShowVariables(List<TokenDto> instanceTokens)
     {
         var rootTokens = instanceTokens.Where(x => x.ParentTokenId == null || x.ParentTokenId == Guid.Empty).ToList();
-        if (rootTokens.Count != 1)
+        if (rootTokens.Count == 0)
         {
-            throw new Exception("There should be exactly one root token");
+            VariableItems = [];
+            return;
         }
         VariableItems =  GetTokenTreeViewItem(instanceTokens, rootTokens);
         
@@ -330,7 +331,18 @@ public partial class Instance
 
     private async Task Reload()
     {
-        await InitViewer();
-        await LoadData();
+        try
+        {
+            await InitViewer();
+            await LoadData();
+        }
+        catch (Exception exception)
+        {
+            _instance = null;
+            Items = [];
+            VariableItems = [];
+            VariableContent = null;
+            ErrorString = $"Could not load instance details. {exception.Message}";
+        }
     }
 }

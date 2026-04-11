@@ -1,4 +1,6 @@
 @page "/instances"
+@page "/instances/{Filter}"
+@using FlowzerFrontend.BusinessLogic
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
 
@@ -8,56 +10,73 @@
     <LayoutWithLeftMenu>
         <MenuContent>
             <FluentNavMenu>
-                <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="/instances/all">All Instances</FluentNavLink>
-                <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="/instances/done">Done</FluentNavLink>
-                <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="/instances/active">Error</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.All))">All Instances</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Regular.Size20.Play())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Active))">Active Instances</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Done))">Done Instances</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Error))">Failed Instances</FluentNavLink>
             </FluentNavMenu>
         </MenuContent>
         <MainContent>
             <FluentStack Orientation="Orientation.Vertical" Width="100%">
                 <h1>Instances</h1>
+                <p id="instances-filter-label">Showing: @CurrentFilterLabel</p>
 
-                <div class="list-header">
-                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
-                        <SelectColumn TGridItem="ProcessInstanceInfoDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
-                        <TemplateColumn Title="Workflow">
-                            <div class="grid-row-title"><a href="@UriHelper.GetShowInstanceUrl(@context.InstanceId)">@context.RelatedDefinitionName</a></div>
-                            <div class="grid-row-subtitle">Instance @context.InstanceId</div>
-                            <div class="grid-row-description">
-                                @if (context.MessageSubscriptionCount > 0)
-                                {
-                                    <div class="batch">
-                                        <i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages
-                                    </div>
-                                }
+                @if (IsLoading)
+                {
+                    <p id="instances-loading-state">Loading instances...</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+                {
+                    <p id="instances-load-error" role="alert">@LoadErrorMessage</p>
+                }
+                else if (!Data.Any())
+                {
+                    <p id="instances-empty-state">No instances match the selected filter.</p>
+                }
+                else
+                {
+                    <div class="list-header">
+                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
+                            <SelectColumn TGridItem="ProcessInstanceInfoDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
+                            <TemplateColumn Title="Workflow">
+                                <div class="grid-row-title"><a href="@UriHelper.GetShowInstanceUrl(@context.InstanceId)">@context.RelatedDefinitionName</a></div>
+                                <div class="grid-row-subtitle">Instance @context.InstanceId</div>
+                                <div class="grid-row-description">
+                                    @if (context.MessageSubscriptionCount > 0)
+                                    {
+                                        <div class="batch">
+                                            <i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages
+                                        </div>
+                                    }
 
-                                @if (context.SignalSubscriptionCount > 0)
-                                {
-                                    <div class="batch">
-                                        <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Singals
-                                    </div>
-                                }
+                                    @if (context.SignalSubscriptionCount > 0)
+                                    {
+                                        <div class="batch">
+                                            <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Singals
+                                        </div>
+                                    }
 
-                                @if (context.UserTaskSubscriptionCount > 0)
-                                {
-                                    <div class="batch">
-                                        <i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount UserTasks
-                                    </div>
-                                }
-                                @if (context.ServiceSubscriptionCount > 0)
-                                {
-                                    <div class="batch">
-                                        <i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services
-                                    </div>
-                                }
+                                    @if (context.UserTaskSubscriptionCount > 0)
+                                    {
+                                        <div class="batch">
+                                            <i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount UserTasks
+                                        </div>
+                                    }
+                                    @if (context.ServiceSubscriptionCount > 0)
+                                    {
+                                        <div class="batch">
+                                            <i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services
+                                        </div>
+                                    }
 
-                            </div>
-                        </TemplateColumn>
-                        <TemplateColumn Title="Status">
-                            <div class="state">@context.State</div>
-                        </TemplateColumn>
-                    </FluentDataGrid>
-                </div>
+                                </div>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Status">
+                                <div class="state">@context.State</div>
+                            </TemplateColumn>
+                        </FluentDataGrid>
+                    </div>
+                }
 
             </FluentStack>
         </MainContent>

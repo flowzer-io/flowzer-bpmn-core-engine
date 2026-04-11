@@ -1,6 +1,6 @@
 @page "/models"
 
-
+@using FlowzerFrontend.BusinessLogic
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
 <div class="main-content">
@@ -10,7 +10,7 @@
                 New Model
             </FluentButton>
             <FluentNavMenu Collapsible="false">
-                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/NavMenu">All Models</FluentNavLink>
+                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/models">All Models</FluentNavLink>
             </FluentNavMenu>
         </MenuContent>
         <MainContent>
@@ -18,11 +18,10 @@
                 <h1>Models</h1>
                 <div class="list-header">
                     <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                        <FluentTextField Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
+                        <FluentTextField @bind-Value="SearchText" Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
                             <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral"/>
                         </FluentTextField>
                         <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"  Width="100%">
-                            <FluentCheckbox @bind-Value="CheckAll" Label="Check all" Style="min-width: 200px;" />
                             <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.End" Width="100%">
                                 <FluentCombobox Placeholder="Sort direction" Autofocus="true"
                                                 TOption="Option<SortDirection>"
@@ -37,45 +36,57 @@
                 </div>
 
                 <FluentDivider Style="width: 100%;" Role="DividerRole.Separator"></FluentDivider>
-                <div class="list-header">
-                    <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
-                        <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
-                        <TemplateColumn Title="Workflow">
-                            <FluentLayout Orientation="Orientation.Horizontal">
-                                <div>
-                                    <i class="fa-solid fa-code-compare icon"></i>    
-                                </div>
-                                <FluentLayout Orientation="Orientation.Vertical">
-                                    <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
-                                    <div class="grid-row-subtitle">Workflow</div>
-                                    <div class="grid-row-description">@context.Description</div>
+                @if (IsLoading)
+                {
+                    <p id="models-loading-state">Loading models...</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+                {
+                    <p id="models-load-error" role="alert">@LoadErrorMessage</p>
+                }
+                else if (!Data.Any())
+                {
+                    <p id="models-empty-state">No models match the current filter.</p>
+                }
+                else
+                {
+                    <div class="list-header">
+                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
+                            <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
+                            <TemplateColumn Title="Workflow">
+                                <FluentLayout Orientation="Orientation.Horizontal">
+                                    <div>
+                                        <i class="fa-solid fa-code-compare icon"></i>    
+                                    </div>
+                                    <FluentLayout Orientation="Orientation.Vertical">
+                                        <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
+                                        <div class="grid-row-subtitle">Workflow</div>
+                                        <div class="grid-row-description">@context.Description</div>
+                                    </FluentLayout>
                                 </FluentLayout>
-                            </FluentLayout>
-                            
-
-                        </TemplateColumn>
-                        <TemplateColumn Title="Latest Version">
-                            <div class="lastchange">@(context.LatestVersion?.ToString() ?? "-")</div>
-                            @if (context.DeployedVersion == context.LatestVersion)
-                            {
-                                <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
-                                    <FluentBadge Appearance="Appearance.Neutral" BackgroundColor="green" Color="white">Deployed</FluentBadge>
-                                </a>
-                            }
-                            else if (context.DeployedVersion == null)
-                            {
-                                <FluentBadge  Appearance="Appearance.Lightweight">Not Deployed</FluentBadge>
-                            }
-                            else
-                            {
-                                <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
-                                    <FluentBadge Appearance="Appearance.Accent">@context.DeployedVersion Deployed</FluentBadge>
-                                </a>
-                            }
-                        </TemplateColumn>
-    
-                    </FluentDataGrid>
-                </div>
+                            </TemplateColumn>
+                            <TemplateColumn Title="Latest Version">
+                                <div class="lastchange">@(context.LatestVersion?.ToString() ?? "-")</div>
+                                @if (context.DeployedVersion == context.LatestVersion)
+                                {
+                                    <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
+                                        <FluentBadge Appearance="Appearance.Neutral" BackgroundColor="green" Color="white">Deployed</FluentBadge>
+                                    </a>
+                                }
+                                else if (context.DeployedVersion == null)
+                                {
+                                    <FluentBadge  Appearance="Appearance.Lightweight">Not Deployed</FluentBadge>
+                                }
+                                else
+                                {
+                                    <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
+                                        <FluentBadge Appearance="Appearance.Accent">@context.DeployedVersion Deployed</FluentBadge>
+                                    </a>
+                                }
+                            </TemplateColumn>
+                        </FluentDataGrid>
+                    </div>
+                }
             </FluentStack>
         </MainContent>
     </LayoutWithLeftMenu>

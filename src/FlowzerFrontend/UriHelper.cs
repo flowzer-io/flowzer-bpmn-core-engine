@@ -12,6 +12,11 @@ public class UriHelper
         return $"/instance/{instanceId}";
     }
 
+    public static string GetInstancesUrl(string? filter = null)
+    {
+        return string.IsNullOrWhiteSpace(filter) ? "/instances" : $"/instances/{filter}";
+    }
+
     public static string GetShowFormUrl(Guid formId)
     {
         return $"/forms/{formId}";

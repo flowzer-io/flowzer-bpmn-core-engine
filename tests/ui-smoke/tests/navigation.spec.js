@@ -19,7 +19,27 @@ const smokePages = [
   {
     path: '/instances',
     heading: 'Instances',
-    readyText: 'All Instances'
+    readyText: 'Showing: All instances'
+  },
+  {
+    path: '/instances/all',
+    heading: 'Instances',
+    readyText: 'Showing: All instances'
+  },
+  {
+    path: '/instances/active',
+    heading: 'Instances',
+    readyText: 'Showing: Active instances'
+  },
+  {
+    path: '/instances/done',
+    heading: 'Instances',
+    readyText: 'Showing: Completed instances'
+  },
+  {
+    path: '/instances/error',
+    heading: 'Instances',
+    readyText: 'Showing: Failed instances'
   }
 ];
 
@@ -55,4 +75,24 @@ test('Hauptnavigation springt zwischen den Kernseiten', async ({ page }) => {
   await page.getByRole('link', { name: 'Instances' }).click();
   await expect(page).toHaveURL(/\/instances$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Instances' })).toBeVisible();
+});
+
+test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', async ({ page }) => {
+  await page.goto('/instances', { waitUntil: 'networkidle' });
+
+  await page.getByRole('link', { name: 'All Instances' }).click();
+  await expect(page).toHaveURL(/\/instances\/all$/);
+  await expect(page.getByText('Showing: All instances')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Active Instances' }).click();
+  await expect(page).toHaveURL(/\/instances\/active$/);
+  await expect(page.getByText('Showing: Active instances')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Done Instances' }).click();
+  await expect(page).toHaveURL(/\/instances\/done$/);
+  await expect(page.getByText('Showing: Completed instances')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Failed Instances' }).click();
+  await expect(page).toHaveURL(/\/instances\/error$/);
+  await expect(page.getByText('Showing: Failed instances')).toBeVisible();
 });

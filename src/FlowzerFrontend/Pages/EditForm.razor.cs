@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FlowzerFrontend.BusinessLogic;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.FluentUI.AspNetCore.Components;
@@ -16,6 +17,8 @@ public partial class EditForm : FlowzerComponentBase
 
     
     [Parameter] public string FormId { get; set; } = string.Empty;
+    public string? ErrorString { get; set; }
+    public bool IsLoading { get; set; } = true;
 
     public bool IsNew { get; set; }
 
@@ -37,27 +40,49 @@ public partial class EditForm : FlowzerComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        if (string.Compare(FormId, "create", StringComparison.OrdinalIgnoreCase) == 0)
+        var routeState = FormRouteHelper.Parse(FormId);
+        if (!string.IsNullOrWhiteSpace(routeState.ErrorMessage))
         {
-            IsNew = true;
-            CurrentFormMeta = new FormMetaDataDto()
-            {
-                FormId = Guid.NewGuid(),
-                Name = "Unnamed Form",
-            };
-            FormData = new FormDto()
-            {
-                Id = Guid.NewGuid(),
-                FormId = CurrentFormMeta.FormId,
-            };
+            ErrorString = routeState.ErrorMessage;
+            IsLoading = false;
+            return;
         }
-        else
+
+        try
         {
-            IsNew = false;
-            CurrentFormMeta = await FlowzerApi.GetFormMetaData(Guid.Parse(FormId));    
-            FormData = await FlowzerApi.GetLatestForm(Guid.Parse(FormId));
-            if (!string.IsNullOrEmpty(FormData.FormData))
-                await LoadFormData(FormData.FormData);
+            if (routeState.IsCreate)
+            {
+                IsNew = true;
+                CurrentFormMeta = new FormMetaDataDto()
+                {
+                    FormId = Guid.NewGuid(),
+                    Name = "Unnamed Form",
+                };
+                FormData = new FormDto()
+                {
+                    Id = Guid.NewGuid(),
+                    FormId = CurrentFormMeta.FormId,
+                };
+            }
+            else
+            {
+                IsNew = false;
+                var existingFormId = routeState.FormId!.Value;
+                CurrentFormMeta = await FlowzerApi.GetFormMetaData(existingFormId);    
+                FormData = await FlowzerApi.GetLatestForm(existingFormId);
+                if (!string.IsNullOrEmpty(FormData.FormData))
+                    await LoadFormData(FormData.FormData);
+            }
+
+            ErrorString = null;
+        }
+        catch (Exception exception)
+        {
+            ErrorString = $"Could not load form. {exception.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
         }
     }
 
@@ -85,7 +110,7 @@ public partial class EditForm : FlowzerComponentBase
     }
 
 
-    private async void SaveFormClicked(MouseEventArgs obj)
+    private async Task SaveFormClicked(MouseEventArgs obj)
     {
         try
         {
@@ -112,13 +137,13 @@ public partial class EditForm : FlowzerComponentBase
         return ((JsonElement)ret).GetRawText();
     }
     
-    private async void AfterTitleChanged(string obj)
+    private async Task AfterTitleChanged(string obj)
     {
         if (!IsNew) //if the object is new (it was never saved yet) we don't have to inform the server about the change
             await FlowzerApi.SaveFormMetaData(CurrentFormMeta);
     }
 
-    private async void TestFormClicked(MouseEventArgs obj)
+    private async Task TestFormClicked(MouseEventArgs obj)
     {
         DialogParameters parameters = new()
         {
@@ -145,7 +170,6 @@ public partial class EditForm : FlowzerComponentBase
                    """
         };
         IDialogReference dialog = await DialogService.ShowDialogAsync<Testform>(testFormParameters, parameters);
-        DialogResult? result = await dialog.Result;
-
+        await dialog.Result;
     }
 }
