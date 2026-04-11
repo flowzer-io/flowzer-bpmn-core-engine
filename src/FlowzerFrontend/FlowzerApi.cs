@@ -102,7 +102,7 @@ public class FlowzerApi: ApiBase
 
     public async Task<SignalSubscriptionDto[]> GetSignalSubscriptions(Guid instanceGuid)
     {
-        return await GetAsJsonAndThrowOnErrorAsync<SignalSubscriptionDto[]>("instance/" + instanceGuid + "/subscription/singals");
+        return await GetAsJsonAndThrowOnErrorAsync<SignalSubscriptionDto[]>("instance/" + instanceGuid + "/subscription/signals");
     }
 
     public async Task<TokenDto[]> GetUserTasks(Guid instanceGuid)

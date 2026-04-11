@@ -103,6 +103,18 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         File.WriteAllText(fullFileName, data);
     }
 
+    public Task<IEnumerable<SignalSubscription>> GetSignalSubscriptions(Guid instanceId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, $"signal_*_{instanceId}.json");
+        var subscriptions = files.Select(file =>
+        {
+            var content = File.ReadAllText(file);
+            return JsonConvert.DeserializeObject<SignalSubscription>(content, _newtonSoftDefaultSettings)!;
+        });
+
+        return Task.FromResult(subscriptions);
+    }
+
     public void RemoveProcessSingalSubscriptionsByProcessInstanceId(Guid instanceId)
     {
         var files = Directory.GetFiles(_messageSubscriptionsPath, $"signal_*_{instanceId}.json");

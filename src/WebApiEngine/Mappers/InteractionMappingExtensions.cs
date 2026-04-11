@@ -79,6 +79,20 @@ public static class InteractionMappingExtensions
         };
     }
 
+    public static SignalSubscriptionDto ToDto(this SignalSubscription signalSubscription)
+    {
+        ArgumentNullException.ThrowIfNull(signalSubscription);
+
+        return new SignalSubscriptionDto
+        {
+            Signal = signalSubscription.Signal,
+            ProcessId = signalSubscription.ProcessId,
+            RelatedDefinitionId = signalSubscription.RelatedDefinitionId,
+            DefinitionId = signalSubscription.DefinitionId,
+            ProcessInstanceId = signalSubscription.ProcessInstanceId
+        };
+    }
+
     public static FormDto ToDto(this Form form)
     {
         ArgumentNullException.ThrowIfNull(form);

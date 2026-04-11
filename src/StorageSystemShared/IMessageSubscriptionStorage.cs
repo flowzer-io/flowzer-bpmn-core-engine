@@ -18,6 +18,7 @@ public interface IMessageSubscriptionStorage
 
     Task RemoveAllProcessSignalSubscriptionsWithNoInstanceId(string relatedDefinitionId);
     void AddSignalSubscription(SignalSubscription signalSubscription);
+    Task<IEnumerable<SignalSubscription>> GetSignalSubscriptions(Guid instanceId);
     void RemoveProcessSingalSubscriptionsByProcessInstanceId(Guid instanceId);
     
 
