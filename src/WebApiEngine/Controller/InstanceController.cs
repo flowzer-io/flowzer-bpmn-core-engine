@@ -74,7 +74,7 @@ public class InstanceController(
     {
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var result = instance.Tokens
-            .Where(token => token.CurrentBaseElement is BpmnServiceTask)
+            .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
             .Select(token => token.ToDto())
             .ToArray();
 

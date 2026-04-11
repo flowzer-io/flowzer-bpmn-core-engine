@@ -58,6 +58,7 @@ public class InstanceControllerIntegrationTest
         payload.Result.Should().ContainSingle();
         payload.Result![0].CurrentFlowNodeId.Should().Be("Activity_ServiceTask");
         payload.Result[0].State.Should().Be(FlowNodeStateDto.Active);
+        payload.Result.Should().OnlyContain(token => token.State == FlowNodeStateDto.Active);
     }
 
     /// <summary>
@@ -133,6 +134,19 @@ public class InstanceControllerIntegrationTest
                 State = FlowNodeState.Active
             };
 
+            var completedServiceTaskToken = new Token
+            {
+                ProcessInstanceId = instanceId,
+                CurrentBaseElement = new BpmnServiceTask
+                {
+                    Id = "Activity_ServiceTask_Completed",
+                    Name = "Completed notification",
+                    Implementation = "notify-accounting-completed"
+                },
+                ActiveBoundaryEvents = [],
+                State = FlowNodeState.Completed
+            };
+
             var instanceStorage = new TestInstanceStorage(
                 new ProcessInstanceInfo
                 {
@@ -140,7 +154,7 @@ public class InstanceControllerIntegrationTest
                     metaDefinitionId = "invoice-process",
                     DefinitionId = definitionId,
                     ProcessId = "Process_Invoice",
-                    Tokens = [serviceTaskToken],
+                    Tokens = [serviceTaskToken, completedServiceTaskToken],
                     IsFinished = false,
                     State = ProcessInstanceState.Running,
                     MessageSubscriptionCount = 0,
