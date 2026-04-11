@@ -26,6 +26,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\core-engine\core-engine.csproj" />
+      <ProjectReference Include="..\FlowzerDemoConsole\FlowzerDemoConsole.csproj" />
     </ItemGroup>
 
     <ItemGroup>

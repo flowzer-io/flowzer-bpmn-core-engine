@@ -82,23 +82,24 @@ npm run build
 
 Diese Punkte sollte man kennen, bevor man loslegt:
 
-1. **Testbasis noch nicht vollständig grün**
-   Auf `next` laufen Restore, Build und eine erste GitHub-Actions-CI reproduzierbar. Aktuell sind aber noch `ParallelTaskTest` und `SequentialTest` offen und werden separat bereinigt.
+1. **Kernpfade sind stabil, aber noch nicht vollständig aufgeräumt**
+   Build, CI sowie die Kern- und WebAPI-Tests laufen auf `next` reproduzierbar grün. Offen sind jedoch weiterhin mehrere Compiler-, Nullability- und Frontend-Warnungen.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
 
-3. **Offene Security-Updates**
-   Es gibt offene Dependabot-PRs für `System.Text.Json`, `webpack-dev-server`/`on-headers`/`compression` und `AutoMapper`.
+3. **Sicherheits- und Dependency-Lage weiter beobachten**
+   Die risikoarmen Updates wurden auf `next` bereits übernommen. Der Security-Status des Default-Branches und weitere Abhängigkeitsentscheidungen sollten dennoch aktiv beobachtet werden.
 
-4. **API- und Produktpfade sind noch nicht finalisiert**
-   `ICore`, Demo-App, API-Verträge und Frontend-Smoke-Tests werden aktuell erst schrittweise auf `next` sauber nachgezogen.
+4. **Produktpfade bleiben im Ausbau**
+   `ICore` und die Console-Demo sind jetzt vorhanden. API-Verträge, UI-Smoke-Tests und weitere Contributor-Pfade werden in den nächsten Paketen weiter geschärft.
 
 ## Dokumentation
 
 - [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md) – ehrliche Bestandsaufnahme
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
+- [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot
 - [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md) – Entwicklungsprinzipien
@@ -108,12 +109,10 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Build-/Toolchain stabilisieren**
-2. **CI einführen**
-3. **Issue #10 und PR #16 sauber entscheiden**
-4. **Security-PRs selektiv bewerten und mergen**
-5. **ICore/API-Grenzen klarziehen**
-6. **Demo und Contributor Experience verbessern**
+1. **API- und DTO-Grenzen weiter schärfen**
+2. **Console-Demo und Contributor Experience weiter ausbauen**
+3. **Frontend-Smoke- und E2E-Pfade absichern**
+4. **Warnungen und Nullability-Themen schrittweise abbauen**
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -128,6 +127,16 @@ Für Integrationen ohne WebAPI oder Storage liegt jetzt ein bewusst kleiner Kern
 
 Ein vollständiger Ablauf ist dokumentiert in [docs/ICORE.md](docs/ICORE.md).  
 Eine konkrete Beispiel-Datei liegt unter [`examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).
+
+## Console-Demo starten
+
+Die Demo-Anwendung lässt sich lokal mit einem Befehl starten:
+
+```bash
+dotnet run --project src/FlowzerDemoConsole/FlowzerDemoConsole.csproj
+```
+
+Eine Schritt-für-Schritt-Erklärung und die erwartete Ausgabe stehen in [docs/DEMO.md](docs/DEMO.md).
 
 ## Beispiel
 
