@@ -15,6 +15,6 @@ public class UserTaskSubscriptionDto
 
 public class ExtendedUserTaskSubscriptionDto:UserTaskSubscriptionDto
 {
-    public string DefinitionMetaName { get; set; }
-    public VersionDto DefinitionVersion { get; set; }
+    public string DefinitionMetaName { get; set; } = string.Empty;
+    public VersionDto DefinitionVersion { get; set; } = new();
 }

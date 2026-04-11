@@ -19,6 +19,6 @@ public class UserTaskSubscription
 
 public class ExtendedUserTaskSubscription: UserTaskSubscription
 {
-    public string DefinitionMetaName { get; set; }
-    public Model.Version DefinitionVersion { get; set; }
+    public string DefinitionMetaName { get; set; } = string.Empty;
+    public Model.Version DefinitionVersion { get; set; } = new(0, 0);
 }
