@@ -57,11 +57,7 @@ public class FormController(
             }
             catch (ArgumentException e)
             {
-                return BadRequest(new ApiStatusResult<FormDto>()
-                {
-                    Successful = false,
-                    ErrorMessage = e.Message
-                });
+                return BadRequest(new ApiStatusResult<FormDto>(e.Message));
             }
 
             // Der API-Pfad arbeitet mit der stabilen FormId, gespeichert werden die Versionen aber

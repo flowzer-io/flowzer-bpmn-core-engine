@@ -67,9 +67,10 @@ public class FormStorage : IFormStorage
             {
                 var data = File.ReadAllText(filePath);
                 return JsonConvert.DeserializeObject<FormMetadata>(data, _storage.NewtonSoftDefaultSettings)!;
-            });
+            })
+            .ToList();
 
-        return Task.FromResult(metadatas);
+        return Task.FromResult<IEnumerable<FormMetadata>>(metadatas);
     }
 
     public async Task UpdateFormMetaData(FormMetadata formMetaData)
@@ -128,9 +129,10 @@ public class FormStorage : IFormStorage
             {
                 var data = File.ReadAllText(filePath);
                 return JsonConvert.DeserializeObject<Form>(data, _storage.NewtonSoftDefaultSettings)!;
-            });
+            })
+            .ToList();
 
-        return Task.FromResult(forms);
+        return Task.FromResult<IEnumerable<Form>>(forms);
     }
 
     public Task DeleteForm(Guid id)
@@ -148,11 +150,10 @@ public class FormStorage : IFormStorage
     {
         // Für den ersten Speichervorgang wird bewusst auf 0.0 zurückgefallen;
         // die Business-Logik erhöht anschließend auf die erste fachliche Version.
-        var maxVersion = (await GetForms(formId))
-            .OrderByDescending(x => x.Version)
-            .Select(x => x.Version)
-            .FirstOrDefault();
+        var forms = (await GetForms(formId)).ToList();
+        if (forms.Count == 0)
+            return new Version();
 
-        return maxVersion ?? new Version();
+        return forms.Max(x => x.Version) ?? new Version();
     }
 }

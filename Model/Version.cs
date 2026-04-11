@@ -22,8 +22,7 @@ public class Version: IComparable<Version>, IEquatable<Version>
     //+ operator which increases the minor version
     public static Version operator +(Version version, int increase)
     {
-        version.Minor += increase;
-        return version;
+        return new Version(version.Major, version.Minor + increase);
     }
 
     public override string ToString()
