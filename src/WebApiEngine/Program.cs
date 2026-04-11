@@ -20,7 +20,6 @@ builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>()
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
-builder.Services.AddAutoMapper(typeof(Program).Assembly);
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins",
@@ -50,4 +49,3 @@ app.MapControllers();
 app.Services.GetRequiredService<BpmnBusinessLogic>().Load();
 
 app.Run();
-

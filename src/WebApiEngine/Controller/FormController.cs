@@ -1,6 +1,5 @@
-using AutoMapper;
-using Microsoft.AspNetCore.Localization;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
@@ -8,7 +7,6 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class FormController(
     IStorageSystem storageSystem,
-    IMapper mapper,
     FormBusinessLogic formBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic): ControllerBase
 {
@@ -17,14 +15,14 @@ public class FormController(
     public async Task<ActionResult<ApiStatusResult>> SaveForm(FormDto formDto)
     {
         
-        var form = mapper.Map<Form>(formDto);
+        var form = formDto.ToModel();
         
         if (form.FormId == Guid.Empty)
             throw new Exception("FormId is required");
         
         form = await formBusinessLogic.SaveForm(form);
         
-        var retForm = mapper.Map<FormDto>(form);
+        var retForm = form.ToDto();
         
         return Ok(new ApiStatusResult<FormDto>()
         {
@@ -51,7 +49,7 @@ public class FormController(
                 return NotFound(new ApiStatusResult<FormDto>(){Successful = false, ErrorMessage = "Version not found"});
         }
         var formMetaData = await storageSystem.FormStorage.GetForm(formId);
-        return Ok(new ApiStatusResult<FormDto>(mapper.Map<FormDto>(formMetaData)));
+        return Ok(new ApiStatusResult<FormDto>(formMetaData.ToDto()));
     }
     
     
@@ -61,7 +59,7 @@ public class FormController(
         public async Task<ActionResult<ApiStatusResult<FormMetaDataDto>>> GetFormMetadata(Guid formId)
         {
             var formMetaData = await storageSystem.FormStorage.GetFormMetaData(formId);
-            return Ok(new ApiStatusResult<FormMetaDataDto>(mapper.Map<FormMetaDataDto>(formMetaData)));
+            return Ok(new ApiStatusResult<FormMetaDataDto>(formMetaData.ToDto()));
         }
         
         [HttpGet("meta")]
@@ -71,7 +69,7 @@ public class FormController(
             var formMetaData = await storageSystem.FormStorage.GetFormMetadatas();
             if (!string.IsNullOrEmpty(search))
                 formMetaData = formMetaData.Where(x => string.Compare(x.Name,search, StringComparison.InvariantCultureIgnoreCase) == 0).ToList();
-            return Ok(new ApiStatusResult<FormMetaDataDto[]>(mapper.Map<FormMetaDataDto[]>(formMetaData)));
+            return Ok(new ApiStatusResult<FormMetaDataDto[]>(formMetaData.Select(metadata => metadata.ToDto()).ToArray()));
         }
         
         [HttpPost("meta/{formId}")]
@@ -82,7 +80,7 @@ public class FormController(
             
             formMetadataDto.FormId = formId;
             
-            await storageSystem.FormStorage.SaveFormMetaData(mapper.Map<FormMetadata>(formMetadataDto));
+            await storageSystem.FormStorage.SaveFormMetaData(formMetadataDto.ToModel());
             return Ok(new ApiStatusResult(){Successful = true});
         }
 
@@ -97,7 +95,7 @@ public class FormController(
     {
         try
         {
-            var data = mapper.Map<UserTaskResult>(formMetadataDto);
+            var data = formMetadataDto.ToModel();
             await bpmnBusinessLogic.HandleUserTask(data, Guid.Empty);
             return Ok(new ApiStatusResult() {Successful = true});
         }

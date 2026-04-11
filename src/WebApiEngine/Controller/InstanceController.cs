@@ -1,16 +1,13 @@
-using AutoMapper;
 using Flowzer.Shared;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
 public class InstanceController(
-    IStorageSystem storageSystem,
-    IMapper mapper,
-    DefinitionBusinessLogic definitionBusinessLogic,
-    BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
+    IStorageSystem storageSystem) : FlowzerControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ProcessInstanceInfoDto>>> GetAllRunningInstances()
@@ -41,7 +38,7 @@ public class InstanceController(
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
             ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(mapper.Map<TokenDto>).ToList(),
+            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList(),
         };
     }
 
@@ -59,7 +56,7 @@ public class InstanceController(
     public async Task<ActionResult<MessageSubscriptionDto[]>> GetMessageSubscriptions(Guid instanceId)
     {
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetMessageSubscription(instanceId);
-        var result = mapper.Map<MessageSubscriptionDto[]>(messageSubscriptions);
+        var result = messageSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
     }
     
@@ -67,7 +64,7 @@ public class InstanceController(
     public async Task<ActionResult<TokenDto[]>> GetUserTasksSubscriptions(Guid instanceId)
     {
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasks(instanceId);
-        var result = mapper.Map<TokenDto[]>(messageSubscriptions.Select(x=>x.Token));
+        var result = messageSubscriptions.Select(x => x.Token.ToDto()).ToArray();
         return Ok(new ApiStatusResult<TokenDto[]>(result));
     }
     

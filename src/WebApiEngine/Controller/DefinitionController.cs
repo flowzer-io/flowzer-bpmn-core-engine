@@ -1,5 +1,5 @@
-using AutoMapper;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
@@ -7,7 +7,6 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class DefinitionController(
     IStorageSystem storageSystem,
-    IMapper mapper,
     DefinitionBusinessLogic definitionBusinessLogic, BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
 {
     
@@ -16,7 +15,7 @@ public class DefinitionController(
     {
         var rawContent = await GetRawContent();
         var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid);
-        return Ok(mapper.Map<BpmnDefinitionDto>(definition));
+        return Ok(definition.ToDto());
     }
     
     [HttpPost("deploy")]
@@ -27,7 +26,7 @@ public class DefinitionController(
             var rawContent = await GetRawContent();
             var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
             await bpmnBusinessLogic.DeployDefinition(definition);
-            return Ok(new ApiStatusResult<BpmnDefinitionDto>(mapper.Map<BpmnDefinitionDto>(definition)));
+            return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
         }
         catch (Exception e)
         {
@@ -60,7 +59,7 @@ public class DefinitionController(
         };
         await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
         
-        return Ok(mapper.Map<BpmnMetaDefinitionDto>(metaDefinition));
+        return Ok(metaDefinition.ToDto());
     }
 
     
@@ -69,7 +68,7 @@ public class DefinitionController(
     public async Task<ActionResult<BpmnDefinitionDto[]>> GetAllDefinitions()
     {
         var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetAllDefinitions();
-        var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto[]>(allBinaryDefinitions);
+        var bpmnDefinitionDto = allBinaryDefinitions.Select(definition => definition.ToDto()).ToArray();
         return Ok(bpmnDefinitionDto);
     }
     
@@ -77,7 +76,7 @@ public class DefinitionController(
     public async Task<ActionResult<BpmnDefinitionDto>> GetDefinitionById([FromRoute] Guid id)
     {
         var definitionById = await storageSystem.DefinitionStorage.GetDefinitionById(id);
-        var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(definitionById);
+        var bpmnDefinitionDto = definitionById.ToDto();
         return Ok(bpmnDefinitionDto);
     }
     
@@ -97,7 +96,7 @@ public class DefinitionController(
     public async Task<ActionResult<ExtendedBpmnMetaDefinitionDto[]>> MetaIndex()
     {
         var allMetaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
-        var bpmnDefinitionDto = mapper.Map<ExtendedBpmnMetaDefinitionDto[]>(allMetaDefinitions);
+        var bpmnDefinitionDto = allMetaDefinitions.Select(definition => definition.ToDto()).ToArray();
         return Ok(bpmnDefinitionDto);
     }
     
@@ -105,7 +104,7 @@ public class DefinitionController(
     public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaGetById([FromRoute] string id)
     {
         var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetMetaDefinitionById(id);
-        var bpmnDefinitionDto = mapper.Map<BpmnMetaDefinitionDto>(allBinaryDefinitions);
+        var bpmnDefinitionDto = allBinaryDefinitions.ToDto();
         return Ok(bpmnDefinitionDto);
     }
     
@@ -114,7 +113,7 @@ public class DefinitionController(
     public async Task<ActionResult<BpmnDefinitionDto>> LatestDefinition([FromRoute] string id)
     {
         var latestDefinition = await storageSystem.DefinitionStorage.GetLatestDefinition(id);
-        var bpmnDefinitionDto = mapper.Map<BpmnDefinitionDto>(latestDefinition);
+        var bpmnDefinitionDto = latestDefinition.ToDto();
         return Ok(bpmnDefinitionDto);
     }
     
@@ -122,18 +121,18 @@ public class DefinitionController(
     [HttpPost("meta")]
     public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
-        var definition = mapper.Map<BpmnMetaDefinition>(dto);
+        var definition = dto.ToModel();
         await storageSystem.DefinitionStorage.StoreMetaDefinition(definition);
-        return Ok(mapper.Map<BpmnMetaDefinitionDto>(definition));
+        return Ok(definition.ToDto());
     }
     
     
     [HttpPut("meta")]
     public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
     {
-        var definition = mapper.Map<BpmnMetaDefinition>(dto);
+        var definition = dto.ToModel();
         await storageSystem.DefinitionStorage.UpdateMetaDefinition(definition);
-        return Ok(mapper.Map<BpmnMetaDefinitionDto>(definition));
+        return Ok(definition.ToDto());
     }
 
  

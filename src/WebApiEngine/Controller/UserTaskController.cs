@@ -1,5 +1,5 @@
-using AutoMapper;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
@@ -8,8 +8,6 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class UserTaskController(
     IStorageSystem storageSystem,
-    IMapper mapper,
-    DefinitionBusinessLogic definitionBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
 {
 
@@ -19,7 +17,7 @@ public class UserTaskController(
         //Todo nur für den user
 
         var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(Guid.Empty);
-        var dtos = mapper.Map<ExtendedUserTaskSubscriptionDto[]>(userTaskSubscriptions);
+        var dtos = userTaskSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
 
@@ -29,7 +27,7 @@ public class UserTaskController(
     public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult([FromBody] UserTaskResultDto messageDto)
     {
 
-        var userTaskResult = mapper.Map<UserTaskResult>(messageDto);
+        var userTaskResult = messageDto.ToModel();
         await bpmnBusinessLogic.HandleUserTask(userTaskResult, new Guid()); //TODO: implement authentication
 
         return Ok();
