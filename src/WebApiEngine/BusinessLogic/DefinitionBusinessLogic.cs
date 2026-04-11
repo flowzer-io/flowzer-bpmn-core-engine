@@ -1,11 +1,16 @@
 using BPMN.Infrastructure;
 using core_engine;
 using Model;
+using System.Security.Cryptography;
+using System.Text;
+using WebApiEngine.Auth;
 using Version = Model.Version;
 
 namespace WebApiEngine.BusinessLogic;
 
-public class DefinitionBusinessLogic(IStorageSystem storageSystem)
+public class DefinitionBusinessLogic(
+    IStorageSystem storageSystem,
+    ICurrentUserContextAccessor currentUserContextAccessor)
 {
     
     public async Task<BpmnDefinition> StoreDefinition(string rawContent, Guid? previousGuid, bool deploy = false)
@@ -33,13 +38,15 @@ public class DefinitionBusinessLogic(IStorageSystem storageSystem)
     
         
                 
+        var currentUser = currentUserContextAccessor.GetCurrentUser();
+
         var definition = new BpmnDefinition()
         {
             Id = Guid.NewGuid(),
             DefinitionId = model.Id,
             PreviousGuid = previousGuid,
-            Hash = rawContent.GetHashCode().ToString(),
-            SavedByUser = Guid.Parse("D266F2B6-E96E-4D4A-9C20-C8E541394DF0"), // User.Claims["guid"] or something like that
+            Hash = ComputeStableHash(rawContent),
+            SavedByUser = currentUser.UserId,
             SavedOn = DateTime.UtcNow,
             Version = highestVersion,
             IsActive = false
@@ -49,5 +56,12 @@ public class DefinitionBusinessLogic(IStorageSystem storageSystem)
         await storageSystem.DefinitionStorage.StoreBinary(definition.Id, rawContent);
 
         return definition;
+    }
+
+    private static string ComputeStableHash(string rawContent)
+    {
+        var contentBytes = Encoding.UTF8.GetBytes(rawContent);
+        var hashBytes = SHA256.HashData(contentBytes);
+        return Convert.ToHexString(hashBytes);
     }
 }
