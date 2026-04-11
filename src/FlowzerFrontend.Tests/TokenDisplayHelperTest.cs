@@ -31,6 +31,22 @@ public class TokenDisplayHelperTest
     }
 
     [Test]
+    public void GetImplementation_ShouldReturnNull_WhenExpandoContainsNullValue()
+    {
+        dynamic flowElement = new ExpandoObject();
+        flowElement.Implementation = null;
+
+        var token = new TokenDto
+        {
+            CurrentFlowElement = flowElement
+        };
+
+        var result = TokenDisplayHelper.GetImplementation(token);
+
+        result.Should().BeNull();
+    }
+
+    [Test]
     public void GetDisplayName_ShouldPreferName_AndFallbackToId()
     {
         dynamic flowElement = new ExpandoObject();

@@ -8,24 +8,39 @@ namespace FlowzerFrontend.BusinessLogic;
 /// </summary>
 public static class TokenDisplayHelper
 {
-    public static string? GetImplementation(TokenDto token)
+    private static string? GetOptionalString(TokenDto token, string key, string? fallback)
     {
         ArgumentNullException.ThrowIfNull(token);
-        return token.CurrentFlowElement.GetValue<string>("Implementation", null);
+
+        if (token.CurrentFlowElement is not IDictionary<string, object?> values)
+        {
+            return fallback;
+        }
+
+        if (!values.TryGetValue(key, out var value) || value is null)
+        {
+            return fallback;
+        }
+
+        return value as string ?? fallback;
+    }
+
+    public static string? GetImplementation(TokenDto token)
+    {
+        return GetOptionalString(token, "Implementation", null);
     }
 
     public static string? GetFlowElementId(TokenDto token)
     {
-        ArgumentNullException.ThrowIfNull(token);
-        return token.CurrentFlowElement.GetValue<string>("Id", token.CurrentFlowNodeId);
+        return GetOptionalString(token, "Id", token.CurrentFlowNodeId);
     }
 
     public static string GetDisplayName(TokenDto token, string fallback)
     {
         ArgumentNullException.ThrowIfNull(token);
 
-        return token.CurrentFlowElement.GetValue<string>("Name", null)
-               ?? token.CurrentFlowElement.GetValue<string>("Id", fallback)
+        return GetOptionalString(token, "Name", null)
+               ?? GetOptionalString(token, "Id", fallback)
                ?? fallback;
     }
 }
