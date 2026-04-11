@@ -48,36 +48,65 @@ function buildMessageStartUserTaskXml({
   formKey,
   userTaskName = 'Review order'
 }) {
-  const processId = `Process_${toSafeId(definitionId)}`;
+  const safeDefinitionId = toSafeId(definitionId);
+  const processId = `Process_${safeDefinitionId}`;
   const messageId = `Message_${toSafeId(definitionId)}`;
-  const messageStartEventId = `StartEvent_${toSafeId(definitionId)}`;
-  const userTaskId = `Activity_${toSafeId(definitionId)}_Review`;
-  const endEventId = `EndEvent_${toSafeId(definitionId)}`;
+  const messageStartEventId = `StartEvent_${safeDefinitionId}`;
+  const userTaskId = `Activity_${safeDefinitionId}_Review`;
+  const endEventId = `EndEvent_${safeDefinitionId}`;
+  const firstFlowId = `Flow_${safeDefinitionId}_1`;
+  const secondFlowId = `Flow_${safeDefinitionId}_2`;
+  const diagramId = `BPMNDiagram_${safeDefinitionId}`;
+  const planeId = `BPMNPlane_${safeDefinitionId}`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
                   id="${definitionId}"
                   targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:message id="${messageId}" name="${messageName}" />
-  <bpmn:process id="${definitionId}" isExecutable="true">
+  <bpmn:process id="${processId}" isExecutable="true">
     <bpmn:startEvent id="${messageStartEventId}" name="Message Start">
-      <bpmn:outgoing>Flow_${processId}_1</bpmn:outgoing>
+      <bpmn:outgoing>${firstFlowId}</bpmn:outgoing>
       <bpmn:messageEventDefinition id="MessageEventDefinition_${processId}" messageRef="${messageId}" />
     </bpmn:startEvent>
     <bpmn:userTask id="${userTaskId}" name="${userTaskName}">
       <bpmn:extensionElements>
         <zeebe:formDefinition formKey="${formKey}" />
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_${processId}_1</bpmn:incoming>
-      <bpmn:outgoing>Flow_${processId}_2</bpmn:outgoing>
+      <bpmn:incoming>${firstFlowId}</bpmn:incoming>
+      <bpmn:outgoing>${secondFlowId}</bpmn:outgoing>
     </bpmn:userTask>
     <bpmn:endEvent id="${endEventId}" name="Done">
-      <bpmn:incoming>Flow_${processId}_2</bpmn:incoming>
+      <bpmn:incoming>${secondFlowId}</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:sequenceFlow id="Flow_${toSafeId(definitionId)}_1" sourceRef="${messageStartEventId}" targetRef="${userTaskId}" />
-    <bpmn:sequenceFlow id="Flow_${toSafeId(definitionId)}_2" sourceRef="${userTaskId}" targetRef="${endEventId}" />
+    <bpmn:sequenceFlow id="${firstFlowId}" sourceRef="${messageStartEventId}" targetRef="${userTaskId}" />
+    <bpmn:sequenceFlow id="${secondFlowId}" sourceRef="${userTaskId}" targetRef="${endEventId}" />
   </bpmn:process>
+  <bpmndi:BPMNDiagram id="${diagramId}">
+    <bpmndi:BPMNPlane id="${planeId}" bpmnElement="${processId}">
+      <bpmndi:BPMNShape id="${messageStartEventId}_di" bpmnElement="${messageStartEventId}">
+        <dc:Bounds x="173" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="${userTaskId}_di" bpmnElement="${userTaskId}">
+        <dc:Bounds x="280" y="80" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="${endEventId}_di" bpmnElement="${endEventId}">
+        <dc:Bounds x="460" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="${firstFlowId}_di" bpmnElement="${firstFlowId}">
+        <di:waypoint x="209" y="120" />
+        <di:waypoint x="280" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="${secondFlowId}_di" bpmnElement="${secondFlowId}">
+        <di:waypoint x="380" y="120" />
+        <di:waypoint x="460" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 }
 

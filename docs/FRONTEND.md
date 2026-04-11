@@ -96,7 +96,7 @@ PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 
 Die dateibasierte Persistenz landet standardmäßig unterhalb der Build-Ausgabe von `FilesystemStorageSystem`.
 
-Für reproduzierbare Playwright-Läufe setzt die Testkonfiguration automatisch ein eigenes `FLOWZER_STORAGE_ROOT` und räumt dieses Verzeichnis vor dem Start der verwalteten Webserver auf. Wenn Web-API und Frontend manuell gestartet werden, kann dasselbe Verhalten lokal explizit aktiviert werden:
+Für reproduzierbare Playwright-Läufe setzt die Testkonfiguration automatisch ein eigenes `FLOWZER_STORAGE_ROOT` für die verwalteten Webserver. Der Pfad wird über `PLAYWRIGHT_MANAGED_STORAGE_ROOT` gesteuert und aus Sicherheitsgründen nur unterhalb von `tests/ui-smoke/.tmp` gelöscht bzw. neu aufgebaut. Wenn Web-API und Frontend manuell gestartet werden, kann dasselbe Verhalten lokal explizit aktiviert werden:
 
 ```bash
 FLOWZER_STORAGE_ROOT="$(pwd)/tests/ui-smoke/.tmp/manual-storage" \

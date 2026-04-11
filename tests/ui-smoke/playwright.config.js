@@ -6,11 +6,27 @@ const frontendUrl = process.env.FLOWZER_FRONTEND_URL || 'http://localhost:5269';
 const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5182';
 const frontendServerOrigin = new URL(frontendUrl).origin;
 const apiServerOrigin = new URL(apiUrl).origin;
-const managedStorageRoot = process.env.FLOWZER_STORAGE_ROOT || path.join(__dirname, '.tmp', 'storage');
+const playwrightTempRoot = path.resolve(__dirname, '.tmp');
+const managedStorageRoot = path.resolve(
+  process.env.PLAYWRIGHT_MANAGED_STORAGE_ROOT || path.join(playwrightTempRoot, 'storage')
+);
 const reuseExistingServer = !process.env.CI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1';
+
+function isPathWithin(parentPath, childPath)
+{
+  const relativePath = path.relative(parentPath, childPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
 
 if (!process.env.PLAYWRIGHT_SKIP_WEBSERVERS)
 {
+  if (!isPathWithin(playwrightTempRoot, managedStorageRoot))
+  {
+    throw new Error(
+      `PLAYWRIGHT_MANAGED_STORAGE_ROOT must be located under ${playwrightTempRoot}. Received: ${managedStorageRoot}`
+    );
+  }
+
   fs.rmSync(managedStorageRoot, { recursive: true, force: true });
   fs.mkdirSync(managedStorageRoot, { recursive: true });
 }

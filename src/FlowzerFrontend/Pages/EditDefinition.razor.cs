@@ -30,6 +30,7 @@ public partial class EditDefinition
     public bool IsDocumentLoading { get; set; } = true;
     private bool IsEditorInitialized { get; set; }
     private string? PendingXml { get; set; }
+    private string? LastFailedXmlImport { get; set; }
     
     
 
@@ -51,9 +52,19 @@ public partial class EditDefinition
 
         if (firstRender)
         {
-            await JsRuntime.EvalCodeBehindJsScripts(this);
-            await JsRuntime.InvokeVoidAsync("InitEdit");
-            IsEditorInitialized = true;
+            try
+            {
+                await JsRuntime.EvalCodeBehindJsScripts(this);
+                await JsRuntime.InvokeVoidAsync("InitEdit");
+                IsEditorInitialized = true;
+                ErrorString = null;
+            }
+            catch (Exception exception)
+            {
+                ErrorString = $"Failed to initialize the BPMN editor: {exception.Message}";
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
         }
 
         if (!IsEditorInitialized || string.IsNullOrWhiteSpace(PendingXml))
@@ -62,8 +73,26 @@ public partial class EditDefinition
         }
 
         var xml = PendingXml;
-        PendingXml = null;
-        await LoadDiagramXml(xml);
+
+        if (string.Equals(LastFailedXmlImport, xml, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            await LoadDiagramXml(xml);
+            PendingXml = null;
+            LastFailedXmlImport = null;
+            ErrorString = null;
+        }
+        catch (Exception exception)
+        {
+            LastFailedXmlImport = xml;
+            PendingXml = xml;
+            ErrorString = $"Failed to load BPMN XML into the editor: {exception.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadModel()
@@ -95,6 +124,7 @@ public partial class EditDefinition
         else
         {
             PendingXml = xml;
+            LastFailedXmlImport = null;
             ErrorString = null;
         }
         
