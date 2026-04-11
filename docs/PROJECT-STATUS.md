@@ -4,216 +4,115 @@
 
 ## Kurzfazit
 
-Das Projekt hat **Substanz und Potenzial**, ist aber aktuell organisatorisch und technisch an einem Punkt, an dem es leicht „einschlafen“ kann, wenn nicht zuerst die Basis stabilisiert wird.
+Das Projekt ist **nicht mehr im kritischen Stillstand**, sondern wieder in einer aktiven Stabilisierungs- und Ausbauphase.
 
-Meine ehrliche Bewertung:
+Meine ehrliche Einschätzung auf dem heutigen Stand:
 
 | Bereich | Einschätzung |
 |---|---|
 | Fachliche Idee | stark |
 | Architektur-Grundlage | gut |
-| Code-Reife | mittel bis niedrig |
-| Build-/Tooling-Zustand | niedrig |
-| Contributor Experience | niedrig |
-| Wiederbelebungschance | gut, wenn jetzt priorisiert gearbeitet wird |
+| Build-/CI-Zustand | solide |
+| Testbarkeit | solide mit Ausbaupotenzial |
+| Produktreife | mittel |
+| Wiederbelebungschance | sehr gut |
 
-## Was bereits gut ist
+Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbeitsfähig**, `next` ist als Integrationsbranch etabliert und die größten Basisprobleme wurden bereits systematisch angegangen.
 
-### 1. Klare fachliche Richtung
+## Was inzwischen erreicht wurde
 
-Die Trennung zwischen BPMN-Modell, Engine, API und Frontend ist grundsätzlich nachvollziehbar. Das ist eine gute Basis für spätere Modularisierung.
+### 1. Arbeitsmodell und Projektorganisation
 
-### 2. Bereits vorhandene Testbasis
+- `next` dient als langlebiger Integrationsbranch
+- größere Themen werden über eigene Topic-Branches und PRs nach `next` umgesetzt
+- die Dokumentation im Repository wurde auf einen realistischeren Stand gebracht
+- offene Frontend-Arbeit wurde in kleinere GitHub-Issues zerlegt, damit keine unklaren Sammelthemen mehr dominieren
 
-Unter `src/core-engine-tests/` liegt eine nützliche Sammlung aus:
+### 2. Build, CI und Testbasis
 
-- Unit-Tests
-- BPMN-Testdateien
-- reproduzierbaren Engine-Szenarien
+- die Solution baut auf dem aktuellen Arbeitsstand reproduzierbar
+- GitHub Actions für .NET und `bpmn.io` sind vorhanden
+- die wichtigsten lokalen Testpfade laufen wieder:
+  - `dotnet build core-engine.sln`
+  - `dotnet test src/core-engine-tests/core-engine-tests.csproj`
+  - `dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`
+  - `dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj`
+  - `tests/ui-smoke` per Playwright
 
-Das ist deutlich mehr wert als „nur Code“, weil es spätere Stabilisierung ermöglicht.
+### 3. Bereits umgesetzte Stabilisierung
 
-### 3. Mehr als nur ein Library-Prototyp
+Unter anderem bereits umgesetzt:
 
-Das Projekt denkt bereits in mehreren Ebenen:
+- V8-/Expression-Fallback für CI-/lokale Umgebungen
+- Multi-Instance- und Engine-Stabilisierung aus dem früheren Testproblemfeld
+- Demo-Console-App für einen nachvollziehbaren Happy Path
+- DTO-/Warnungsbereinigung und API-Härtung in mehreren Teilbereichen
+- Signal- und Service-Task-Subscriptions im Web-API-Pfad
+- Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 
-- Domänenmodell
-- Engine
-- Web-API
-- Frontend
-- Modeler-Integration
-- Storage-Abstraktionen
+## Was weiterhin bremst
 
-Das zeigt: Hier steckt Produktdenken drin, nicht nur eine technische Spielerei.
+### 1. Produktpfade sind noch nicht komplett durchgehärtet
 
-## Was aktuell bremst
+Besonders relevant sind noch:
 
-### 1. Der Repository-Zustand ist nicht sauber stabilisiert
+- Formularpfad von Storage über API bis Frontend
+- Diagramm-/Modeler-Integration
+- weiter ausgebautes Playwright-/E2E-Smoke-Set
+- einheitlichere Fehlerverträge in der Web-API
 
-Auffällige Punkte:
+### 2. Es gibt noch Restlücken im Codebestand
 
-- Testsuite noch nicht vollständig grün
-- offene Stabilisierung rund um Expression-/V8-Handling
-- erste CI-Basis muss sich noch im Alltag bewähren
-- mehrere offene PRs ohne klare Entscheidung
-- ältere / unfertige Verzeichnisse und Artefakte im Repository
+Noch offen sind unter anderem:
 
-### 2. Dokumentation war bisher zu optimistisch
+- einzelne `NotImplementedException`-Stellen in Runtime-/Storage-Pfaden
+- provisorische Auth-/Identity-Platzhalter
+- Betriebs- und Deployment-Themen wie Health, Logging-Orientierung und lokale Start-Story
+- Altlasten und Doppelstrukturen im Repository
 
-Die vorhandene README formulierte an mehreren Stellen einen Reifegrad, den die Codebasis aktuell nicht belegt. Das erschwert neue Beiträge, weil Erwartung und Realität auseinanderlaufen.
+### 3. Dokumentation muss nun mit der Technik mitwachsen
 
-### 3. Kritische Stabilisierungsthemen sind nicht abgeschlossen
+Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Reifestufe fehlen bzw. benötigen Updates:
 
-Insbesondere:
+- Architekturübersicht
+- API-/Fehlervertragsdokumentation
+- Storage-/Persistenzdokumentation
+- Test- und E2E-Dokumentation
+- aktualisierte Status-/Roadmap-Texte bei größeren Fortschritten
 
-- Expression-/V8-Abhängigkeit
-- Multi-Instance-Verhalten
-- Toolchain-Reproduzierbarkeit
-- CI/Automatisierung
+## Offene GitHub-Issues auf dem aktuellen Stand
 
-## Technische Beobachtungen aus der Analyse
+### Frontend-Epic
 
-### Build
-
-- `dotnet restore core-engine.sln` läuft auf `next`.
-- `dotnet build core-engine.sln --no-restore` läuft auf `next`.
-- Auf `next` gibt es jetzt außerdem einen ersten GitHub-Actions-Workflow für Restore, Build, Tests und `bpmn.io`.
-
-Weiterhin offen:
-
-- `dotnet test core-engine.sln --no-build` ist noch nicht vollständig grün.
-- Aktuell bekannte Ausreißer:
-  - `ParallelTaskTest`
-  - `SequentialTest`
-- `JavaScriptFeelTest` nutzt inzwischen einen repo-lokalen Pfad und kann bei fehlender nativer V8-Library sauber übersprungen werden.
-- Die beiden verbleibenden Engine-Tests sind im aktuellen CI-Pfad vorübergehend quarantiniert, bis der separate Multi-Instance-Strang abgeschlossen ist.
-
-Zusätzlich gab es Security-Warnungen u. a. für:
-
-- `System.Text.Json` 8.0.3
-- `AutoMapper` 13.0.1
-
-### Tests
-
-Die lokale Testlage ist inzwischen besser eingrenzbar: Build und CI-Basis stehen auf `next`, aber die Testsuite ist noch nicht vollständig grün.
-
-### Architektur
-
-Positiv:
-
-- Modell- und Engine-Trennung ist sichtbar
-- Storage ist abstrahiert
-- Web/API und Frontend existieren separat
-
-Negativ:
-
-- einzelne unvollständige Implementierungen (`NotImplementedException`, TODOs)
-- inkonsistente Reife zwischen Modulen
-- CI ist vorhanden, muss sich aber erst noch in der täglichen Weiterentwicklung bewähren
-
-## Offene GitHub-Issues
-
-Zum Zeitpunkt der Analyse offen:
-
-- [#10 Test-Fehler beheben](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/10)
 - [#7 Frontend bauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/7)
-- [#5 Schnittstelle von ICore final definieren](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/5)
-- [#4 Demo Console Application](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/4)
 
-### Meine Einschätzung dazu
+### Daraus abgeleitete Teilpakete
 
-#### #10 – Test-Fehler beheben
+- [#47 Frontend-Navigation und Kernseiten weiter härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47)
+- [#48 Formularpfad von Storage bis Frontend stabilisieren](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/48)
+- [#49 Diagramm- und Modeler-Integration im Frontend härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/49)
+- [#50 Playwright-Smoke- und E2E-Abdeckung für Kernpfade ausbauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50)
 
-Weiterhin hoch relevant, aber inzwischen eigentlich zu klein beschrieben. Das Problem ist nicht mehr nur „ein Testfehler“, sondern eher **Stabilisierung von Build + Test + Expression-Handling**.
+### Weitere nächste Produktivitäts- und Reife-Pakete
 
-#### #7 – Frontend bauen
+- [#52 Web-API für Fehlerverträge, Health und Auth-Vorbereitung härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52)
+- [#53 Verbliebene Engine- und Runtime-Lücken systematisch abbauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/53)
+- [#54 Betriebs- und Deployment-Basis für produktionsnahe Nutzung vorbereiten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/54)
+- [#55 Repository-Struktur und Status-Dokumentation weiter aufräumen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55)
 
-Sinnvoll, aber **nicht als nächstes**. Erst wenn Build, API und Grundpfade stabil sind. Sonst investiert man in Oberfläche auf instabiler Basis.
+## Aktuelle Gesamtempfehlung
 
-#### #5 – ICore final definieren
+Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur produktionsnahen Nutzbarkeit weiterentwickelt** werden.
 
-Strategisch sehr wichtig. Sobald die technische Basis wieder steht, sollte das eine der nächsten Architekturaufgaben sein.
+Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-#### #4 – Demo Console Application
+1. Formularpfad sauber schließen
+2. Frontend-Kernseiten und Diagramm-/Modeler-Pfade weiter härten
+3. Playwright-/E2E-Abdeckung ausbauen
+4. API-Fehlerverträge, Health und Auth-Vorbereitung schärfen
+5. Restliche Runtime-Lücken und Repository-Altlasten abbauen
+6. Betriebs- und Deployment-Basis vorbereiten
 
-Sehr sinnvoll für Adoption und Contributor Experience – aber ebenfalls **nach** Stabilisierung.
+## Gesamturteil
 
-## Offene Pull Requests
-
-Zum Zeitpunkt der Analyse offen:
-
-- [#16 Fix V8 dependency issue in tests - implement comprehensive fallback system](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/16)
-- [#17 Bump the nuget group with 1 update](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/17)
-- [#18 Bump the npm_and_yarn group across 1 directory with 5 updates](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/18)
-- [#19 Bump the nuget group with 1 update](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/19)
-
-### Einschätzung pro PR
-
-#### #16 – Draft PR zum V8-/Testproblem
-
-Das ist die inhaltlich wichtigste offene PR.
-
-Positiv:
-
-- adressiert ein reales Problem
-- versucht Konfiguration und Expression-Handling sauberer zu machen
-- bringt sichtbaren fachlichen Mehrwert
-
-Risiken / offene Punkte:
-
-- weiterhin offene Multi-Instance-Testprobleme
-- Draft-Status seit August 2025
-- noch keine saubere Abschlussbewertung
-- enthält weiterhin absolute Testpfade im Testkontext, was ein Signal für unfertige Testhygiene ist
-
-**Empfehlung:** Nicht verwerfen, aber **neu bewerten, auf aktuellen Main heben und gezielt abschließen** – idealerweise in kleinerem, klarerem Scope.
-
-#### #17 – `System.Text.Json` Update
-
-Wahrscheinlich sinnvoll und eher risikoarm. Sollte aber nicht blind gemerged werden, bevor Build/Frontend geprüft sind.
-
-**Empfehlung:** Nach Stabilisierung zeitnah prüfen und mergen.
-
-#### #18 – npm-/Frontend-Sicherheitsupdates
-
-Ebenfalls sinnvoll. Da `bpmn.io` kein zentral abgesicherter CI-Pfad ist, sollte vorher einmal lokal gebaut/getestet werden.
-
-**Empfehlung:** Nach oder zusammen mit einer kleinen JS-/CI-Stabilisierung prüfen.
-
-#### #19 – AutoMapper Major Update
-
-Das ist **nicht** einfach nur ein kleines Security-Update. Laut PR-Beschreibung bringt der Sprung auf AutoMapper 15/16 auch **Lizenz-/Breaking-Change-Themen** mit.
-
-**Empfehlung:** Nicht blind mergen. Eher separat fachlich/technisch bewerten. Falls möglich, lieber eine kompatiblere Sicherheitsstrategie wählen als unkontrolliert ein Major-Upgrade einzuführen.
-
-## Was zuerst passieren sollte
-
-### Phase 1 – Projekt retten / wieder handlungsfähig machen
-
-1. Build reproduzierbar machen
-2. fehlende ProjectReferences bereinigen
-3. .NET-SDK sauber festzurren
-4. minimale CI einführen
-
-### Phase 2 – offene Kernfrage lösen
-
-5. PR #16 sauber bewerten und entscheiden
-6. Testlage wieder verlässlich grün bekommen
-7. Issue #10 neu zuschneiden oder erweitern
-
-### Phase 3 – Produktlinie wieder klar machen
-
-8. `ICore`/API sauber definieren
-9. Demo-App erstellen
-10. Frontend gezielt fertigziehen
-
-## Gesamtempfehlung
-
-Das Projekt sollte **nicht** mit neuen Features reanimiert werden, sondern mit einer **Stabilisierungsrunde in 2–4 kleinen, sauberen PRs**:
-
-1. Toolchain + Build
-2. CI + Repository-Aufräumen
-3. PR #16 / Tests / Expression-Handling
-4. danach API-/ICore-/Demo-Fokus
-
-Wenn diese vier Schritte erledigt sind, ist die Wahrscheinlichkeit hoch, dass das Projekt wieder attraktiv für Beiträge wird – und eben **nicht stirbt**.
+Flowzer BPMN Core Engine ist aktuell **kein gescheitertes Projekt**, sondern ein wieder belebtes Projekt mit belastbarer Basis. Der kritische Unterschied ist, dass jetzt nicht mehr an einer diffusen Vision gearbeitet wird, sondern in klaren, testbaren und reviewbaren Arbeitspaketen auf `next`.
