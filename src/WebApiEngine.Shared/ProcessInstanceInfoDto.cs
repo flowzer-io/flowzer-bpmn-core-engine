@@ -14,5 +14,5 @@ public class ProcessInstanceInfoDto
     public int ServiceSubscriptionCount { get; set; }
     
     public ProcessInstanceStateDto State { get; set; }
-    public List<TokenDto> Tokens { get; set; }
+    public List<TokenDto> Tokens { get; set; } = [];
 }

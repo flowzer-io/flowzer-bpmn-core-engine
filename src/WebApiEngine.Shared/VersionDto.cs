@@ -1,12 +1,18 @@
 namespace WebApiEngine.Shared;
 
-public class VersionDto
+public sealed class VersionDto : IEquatable<VersionDto>
 {
     public int Major { get; set; }
     public int Minor { get; set; }
 
     public VersionDto()
     {
+    }
+
+    public VersionDto(int major, int minor)
+    {
+        Major = major;
+        Minor = minor;
     }
     
     // vergleichsoperator == und !=
@@ -27,8 +33,26 @@ public class VersionDto
     {
         return !(left == right);
     }
-    
-    
+
+    public bool Equals(VersionDto? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        return Major == other.Major && Minor == other.Minor;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is VersionDto other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Major, Minor);
+    }
 
     public override string ToString()
     {
@@ -37,11 +61,23 @@ public class VersionDto
 
     public static VersionDto FromString(string version)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(version, nameof(version));
         var parts = version.Split('.');
-        return new VersionDto
+        if (parts.Length != 2)
         {
-            Major = int.Parse(parts[0]),
-            Minor = int.Parse(parts[1])
-        };
+            throw new ArgumentException("Version string must have two parts separated by a dot.", nameof(version));
+        }
+
+        if (!int.TryParse(parts[0], out var major))
+        {
+            throw new ArgumentException("Major version must be an integer.", nameof(version));
+        }
+
+        if (!int.TryParse(parts[1], out var minor))
+        {
+            throw new ArgumentException("Minor version must be an integer.", nameof(version));
+        }
+
+        return new VersionDto(major, minor);
     }
 }
