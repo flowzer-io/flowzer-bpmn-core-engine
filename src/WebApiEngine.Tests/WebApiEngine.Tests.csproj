@@ -23,6 +23,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\FilesystemStorageSystem\FilesystemStorageSystem.csproj" />
         <ProjectReference Include="..\WebApiEngine\WebApiEngine.csproj" />
     </ItemGroup>
 

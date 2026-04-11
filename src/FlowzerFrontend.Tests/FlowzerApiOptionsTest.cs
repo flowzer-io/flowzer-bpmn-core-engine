@@ -120,6 +120,57 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/instance/{instanceId}/subscription/services"));
     }
 
+    [Test]
+    public async Task GetLatestForm_ShouldUseLatestFormRoute()
+    {
+        var formId = Guid.NewGuid();
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(new FormDto
+        {
+            Id = Guid.NewGuid(),
+            FormId = formId,
+            Version = new VersionDto(1, 2),
+            FormData = "{\"type\":\"form\"}"
+        }));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.GetLatestForm(formId);
+
+        result.FormId.Should().Be(formId);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/form/{formId}/latest"));
+    }
+
+    [Test]
+    public async Task GetForm_ShouldUseVersionedFormRoute()
+    {
+        var formId = Guid.NewGuid();
+        var version = new VersionDto(2, 1);
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(new FormDto
+        {
+            Id = Guid.NewGuid(),
+            FormId = formId,
+            Version = version,
+            FormData = "{\"type\":\"form\"}"
+        }));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.GetForm(formId, version);
+
+        result.Version.Should().BeEquivalentTo(version);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/form/{formId}/{version}"));
+    }
+
     private static string CreateApiStatusResultJson<T>(T result)
     {
         return System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<T>(result));
