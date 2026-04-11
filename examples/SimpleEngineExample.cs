@@ -18,7 +18,7 @@ public class SimpleEngineExample
         SetupEventHandlers(engine);
 
         await using var xmlStream = File.OpenRead("examples/simple-approval-process.bpmn");
-        await engine.LoadBpmnFile(xmlStream, verify: true);
+        await engine.LoadBpmnFile(xmlStream);
 
         var subscriptions = await engine.GetInitialSubscriptions();
         var startSubscription = subscriptions.Single();
@@ -68,6 +68,7 @@ public class SimpleEngineExample
             {
                 InstanceId = instanceId,
                 BpmnNodeId = interaction.NodeId,
+                InteractionId = interaction.InteractionId,
                 AdditionalData = additionalData
             });
 

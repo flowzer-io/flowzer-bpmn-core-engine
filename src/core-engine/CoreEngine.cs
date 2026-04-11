@@ -16,7 +16,7 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
 
     public event EventHandler<CoreInstance>? InteractionFinished;
 
-    public async System.Threading.Tasks.Task LoadBpmnFile(Stream xmlDataStream, bool verify, CancellationToken cancellationToken = default)
+    public async System.Threading.Tasks.Task LoadBpmnFile(Stream xmlDataStream, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(xmlDataStream);
         cancellationToken.ThrowIfCancellationRequested();
@@ -24,8 +24,8 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
         using var reader = new StreamReader(xmlDataStream, Encoding.UTF8, leaveOpen: true);
         var xml = await reader.ReadToEndAsync(cancellationToken);
 
-        // Der Parser validiert aktuell bereits beim Einlesen.
-        _ = verify;
+        _process = null;
+        _instances.Clear();
 
         var definitions = ModelParser.ParseModel(xml);
         var processes = definitions.GetProcesses().ToArray();
@@ -43,8 +43,21 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var subscriptions = GetLoadedProcess()
+        var startFlowNodes = GetLoadedProcess()
             .GetStartFlowNodes()
+            .ToArray();
+        var plainStartNodes = startFlowNodes
+            .Where(node => node is StartEvent && node is not FlowzerMessageStartEvent && node is not FlowzerSignalStartEvent)
+            .ToArray();
+
+        var subscriptions = startFlowNodes
+            .Where(node =>
+                node is FlowzerMessageStartEvent ||
+                node is FlowzerSignalStartEvent ||
+                plainStartNodes.Length == 1 &&
+                node is StartEvent &&
+                node is not FlowzerMessageStartEvent &&
+                node is not FlowzerSignalStartEvent)
             .Select(MapInitialSubscription)
             .ToArray();
 
@@ -70,6 +83,10 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
 
         var snapshot = CreateInstanceSnapshot(eventData.InstanceId, instanceEngine);
         InteractionFinished?.Invoke(this, snapshot);
+        if (instanceEngine.IsFinished)
+        {
+            _instances.Remove(eventData.InstanceId);
+        }
 
         return System.Threading.Tasks.Task.FromResult(new CoreEventResult
         {
@@ -155,10 +172,7 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
 
     private static void CompleteInteraction(InstanceEngine instanceEngine, CoreEventData eventData)
     {
-        var token = instanceEngine
-            .GetActiveTasks()
-            .SingleOrDefault(activeToken =>
-                string.Equals(activeToken.CurrentFlowNode?.Id, eventData.BpmnNodeId, StringComparison.Ordinal));
+        var token = ResolveActiveInteraction(instanceEngine, eventData);
 
         if (token == null)
         {
@@ -167,6 +181,44 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
         }
 
         instanceEngine.HandleTaskResult(token.Id, ToVariables(eventData.AdditionalData));
+    }
+
+    private static Token? ResolveActiveInteraction(InstanceEngine instanceEngine, CoreEventData eventData)
+    {
+        if (eventData.InteractionId is Guid interactionId)
+        {
+            var tokenById = instanceEngine
+                .GetActiveTasks()
+                .SingleOrDefault(activeToken => activeToken.Id == interactionId);
+
+            if (tokenById == null)
+            {
+                throw new InvalidOperationException(
+                    $"Für die Instanz {eventData.InstanceId} wurde keine aktive Interaktion mit der ID \"{interactionId}\" gefunden.");
+            }
+
+            if (!string.Equals(tokenById.CurrentFlowNode?.Id, eventData.BpmnNodeId, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Die Interaktion \"{interactionId}\" gehört nicht zum BPMN-Knoten \"{eventData.BpmnNodeId}\".");
+            }
+
+            return tokenById;
+        }
+
+        var tokensByNode = instanceEngine
+            .GetActiveTasks()
+            .Where(activeToken =>
+                string.Equals(activeToken.CurrentFlowNode?.Id, eventData.BpmnNodeId, StringComparison.Ordinal))
+            .ToArray();
+
+        return tokensByNode.Length switch
+        {
+            0 => null,
+            1 => tokensByNode[0],
+            _ => throw new NotSupportedException(
+                $"Für den BPMN-Knoten \"{eventData.BpmnNodeId}\" existieren mehrere aktive Interaktionen. Bitte die eindeutige InteractionId verwenden.")
+        };
     }
 
     private static Variables? ToVariables(IReadOnlyDictionary<string, object?> additionalData)
@@ -223,6 +275,7 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
 
         interactions.AddRange(instanceEngine.GetActiveUserTasks().Select(token => new CoreInteraction
         {
+            InteractionId = token.Id,
             Type = CoreInteractionType.UserTask,
             NodeId = token.CurrentFlowNode!.Id,
             Name = token.CurrentFlowNode.Name ?? token.CurrentFlowNode.Id,
@@ -231,6 +284,7 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
 
         interactions.AddRange(instanceEngine.GetActiveServiceTasks().Select(token => new CoreInteraction
         {
+            InteractionId = token.Id,
             Type = CoreInteractionType.ServiceTask,
             NodeId = token.CurrentFlowNode!.Id,
             Name = token.CurrentFlowNode.Name ?? token.CurrentFlowNode.Id,

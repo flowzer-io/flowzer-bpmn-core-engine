@@ -8,7 +8,7 @@ public interface ICore
 {
     event EventHandler<CoreInstance>? InteractionFinished;
 
-    System.Threading.Tasks.Task LoadBpmnFile(Stream xmlDataStream, bool verify, CancellationToken cancellationToken = default);
+    System.Threading.Tasks.Task LoadBpmnFile(Stream xmlDataStream, CancellationToken cancellationToken = default);
 
     System.Threading.Tasks.Task<CoreSubscription[]> GetInitialSubscriptions(CancellationToken cancellationToken = default);
 

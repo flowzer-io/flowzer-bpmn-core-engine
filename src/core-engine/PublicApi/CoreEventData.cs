@@ -9,5 +9,7 @@ public class CoreEventData
 
     public required string BpmnNodeId { get; init; }
 
+    public Guid? InteractionId { get; init; }
+
     public IReadOnlyDictionary<string, object?> AdditionalData { get; init; } = new Dictionary<string, object?>();
 }

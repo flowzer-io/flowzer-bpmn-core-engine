@@ -5,6 +5,8 @@ namespace core_engine;
 /// </summary>
 public class CoreInteraction
 {
+    public required Guid InteractionId { get; init; }
+
     public required CoreInteractionType Type { get; init; }
 
     public required string NodeId { get; init; }

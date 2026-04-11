@@ -75,7 +75,7 @@ using core_engine;
 var core = new CoreEngine(FlowzerConfig.CreateForTests());
 
 await using var xmlStream = File.OpenRead("examples/simple-approval-process.bpmn");
-await core.LoadBpmnFile(xmlStream, verify: true);
+await core.LoadBpmnFile(xmlStream);
 
 var subscriptions = await core.GetInitialSubscriptions();
 var startSubscription = subscriptions.Single();
@@ -94,6 +94,7 @@ var nextResult = await core.HandleEvent(new CoreEventData
 {
     InstanceId = instanceId,
     BpmnNodeId = userTask.NodeId,
+    InteractionId = userTask.InteractionId,
     AdditionalData = new Dictionary<string, object?>
     {
         ["approval"] = "approved"
@@ -107,6 +108,7 @@ var nextResult = await core.HandleEvent(new CoreEventData
 
 - **neue `InstanceId`** + Start-`BpmnNodeId` → neue Instanz starten
 - **bestehende `InstanceId`** + aktive Interaktions-`BpmnNodeId` → wartende Interaktion fortführen
+- wenn mehrere aktive Interaktionen auf denselben BPMN-Knoten zeigen, kann optional die eindeutige `InteractionId` mitgegeben werden
 
 ## Event `InteractionFinished`
 

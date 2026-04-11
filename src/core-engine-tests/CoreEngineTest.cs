@@ -12,7 +12,7 @@ public class CoreEngineTest
         var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
 
         await using var bpmnStream = CreateSimpleProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var subscriptions = await coreEngine.GetInitialSubscriptions();
 
@@ -27,7 +27,7 @@ public class CoreEngineTest
         var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
 
         await using var bpmnStream = CreateMessageAndSignalProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var subscriptions = await coreEngine.GetInitialSubscriptions();
 
@@ -43,12 +43,25 @@ public class CoreEngineTest
     }
 
     [Test]
+    public async System.Threading.Tasks.Task LoadBpmnFile_ShouldHideUnsupportedPlainStartSubscriptions_WhenMultiplePlainStartsExist()
+    {
+        var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
+
+        await using var bpmnStream = CreateMultiPlainStartProcessStream();
+        await coreEngine.LoadBpmnFile(bpmnStream);
+
+        var subscriptions = await coreEngine.GetInitialSubscriptions();
+
+        subscriptions.Should().BeEmpty();
+    }
+
+    [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldStartProcessAndExposeUserTask()
     {
         var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
 
         await using var bpmnStream = CreateSimpleProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var result = await coreEngine.HandleEvent(new CoreEventData
         {
@@ -58,6 +71,7 @@ public class CoreEngineTest
 
         result.Instance.State.Should().Be(ProcessInstanceState.Waiting);
         result.Instance.Interactions.Should().ContainSingle();
+        result.Instance.Interactions[0].InteractionId.Should().NotBeEmpty();
         result.Instance.Interactions[0].Type.Should().Be(CoreInteractionType.UserTask);
         result.Instance.Interactions[0].NodeId.Should().Be("UserTask_1");
     }
@@ -68,7 +82,7 @@ public class CoreEngineTest
         var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
 
         await using var bpmnStream = CreateMessageAndSignalProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var result = await coreEngine.HandleEvent(new CoreEventData
         {
@@ -79,6 +93,7 @@ public class CoreEngineTest
 
         result.Instance.State.Should().Be(ProcessInstanceState.Waiting);
         result.Instance.Interactions.Should().ContainSingle();
+        result.Instance.Interactions[0].InteractionId.Should().NotBeEmpty();
         result.Instance.Interactions[0].Type.Should().Be(CoreInteractionType.UserTask);
         result.Instance.Interactions[0].NodeId.Should().Be("MessageUserTask_1");
     }
@@ -89,7 +104,7 @@ public class CoreEngineTest
         var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
 
         await using var bpmnStream = CreateMessageAndSignalProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var result = await coreEngine.HandleEvent(new CoreEventData
         {
@@ -100,6 +115,7 @@ public class CoreEngineTest
 
         result.Instance.State.Should().Be(ProcessInstanceState.Waiting);
         result.Instance.Interactions.Should().ContainSingle();
+        result.Instance.Interactions[0].InteractionId.Should().NotBeEmpty();
         result.Instance.Interactions[0].Type.Should().Be(CoreInteractionType.UserTask);
         result.Instance.Interactions[0].NodeId.Should().Be("SignalUserTask_1");
     }
@@ -112,7 +128,7 @@ public class CoreEngineTest
         coreEngine.InteractionFinished += (_, snapshot) => finishedSnapshots.Add(snapshot);
 
         await using var bpmnStream = CreateSimpleProcessStream();
-        await coreEngine.LoadBpmnFile(bpmnStream, verify: true);
+        await coreEngine.LoadBpmnFile(bpmnStream);
 
         var instanceId = Guid.NewGuid();
 
@@ -126,13 +142,15 @@ public class CoreEngineTest
         {
             InstanceId = instanceId,
             BpmnNodeId = "UserTask_1",
+            InteractionId = startResult.Instance.Interactions[0].InteractionId,
             AdditionalData = new Dictionary<string, object?> { ["approval"] = "approved" }
         });
 
         var serviceTaskResult = await coreEngine.HandleEvent(new CoreEventData
         {
             InstanceId = instanceId,
-            BpmnNodeId = "ServiceTask_1"
+            BpmnNodeId = "ServiceTask_1",
+            InteractionId = userTaskResult.Instance.Interactions[0].InteractionId
         });
 
         startResult.Instance.Interactions.Should().ContainSingle();
@@ -144,6 +162,109 @@ public class CoreEngineTest
         serviceTaskResult.Instance.Interactions.Should().BeEmpty();
         finishedSnapshots.Should().HaveCount(3);
         finishedSnapshots[^1].State.Should().Be(ProcessInstanceState.Completed);
+    }
+
+    [Test]
+    public async System.Threading.Tasks.Task HandleEvent_ShouldAllowRestartAfterCompletedInstanceWasCleanedUp()
+    {
+        var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
+
+        await using var bpmnStream = CreateSimpleProcessStream();
+        await coreEngine.LoadBpmnFile(bpmnStream);
+
+        var instanceId = Guid.NewGuid();
+
+        var startResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "StartEvent_1"
+        });
+
+        var userTaskResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "UserTask_1",
+            InteractionId = startResult.Instance.Interactions[0].InteractionId,
+            AdditionalData = new Dictionary<string, object?> { ["approval"] = "approved" }
+        });
+
+        var completedResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "ServiceTask_1",
+            InteractionId = userTaskResult.Instance.Interactions[0].InteractionId
+        });
+
+        completedResult.Instance.State.Should().Be(ProcessInstanceState.Completed);
+
+        var restartedResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "StartEvent_1"
+        });
+
+        restartedResult.Instance.State.Should().Be(ProcessInstanceState.Waiting);
+        restartedResult.Instance.Interactions.Should().ContainSingle();
+        restartedResult.Instance.Interactions[0].NodeId.Should().Be("UserTask_1");
+    }
+
+    [Test]
+    public async System.Threading.Tasks.Task HandleEvent_ShouldRequireInteractionId_WhenMultipleActiveInteractionsShareTheSameNode()
+    {
+        var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
+
+        await using var bpmnStream = File.OpenRead("embeddings/ParallelFlowWithCompletingConditionTest.bpmn");
+        await coreEngine.LoadBpmnFile(bpmnStream);
+
+        var instanceId = Guid.NewGuid();
+        var startResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "StartEvent_1"
+        });
+
+        startResult.Instance.Interactions.Should().HaveCountGreaterThan(1);
+        startResult.Instance.Interactions.Select(interaction => interaction.NodeId).Should().OnlyContain(nodeId => nodeId == "TestTask");
+
+        var ambiguousAction = async () => await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = "TestTask",
+            AdditionalData = new Dictionary<string, object?> { ["HatZeit"] = true }
+        });
+
+        await ambiguousAction.Should()
+            .ThrowAsync<NotSupportedException>()
+            .WithMessage("*InteractionId*");
+
+        var continueResult = await coreEngine.HandleEvent(new CoreEventData
+        {
+            InstanceId = instanceId,
+            BpmnNodeId = startResult.Instance.Interactions[0].NodeId,
+            InteractionId = startResult.Instance.Interactions[0].InteractionId,
+            AdditionalData = new Dictionary<string, object?> { ["HatZeit"] = true }
+        });
+
+        continueResult.Instance.State.Should().Be(ProcessInstanceState.Completed);
+    }
+
+    [Test]
+    public async System.Threading.Tasks.Task LoadBpmnFile_ShouldClearState_WhenReloadFails()
+    {
+        var coreEngine = new CoreEngine(FlowzerConfig.CreateForTests());
+
+        await using var validStream = CreateSimpleProcessStream();
+        await coreEngine.LoadBpmnFile(validStream);
+
+        (await coreEngine.GetInitialSubscriptions()).Should().ContainSingle();
+
+        await using var invalidStream = CreateInvalidProcessStream();
+        var loadAction = async () => await coreEngine.LoadBpmnFile(invalidStream);
+
+        await loadAction.Should().ThrowAsync<Exception>();
+
+        var subscriptionsAction = async () => await coreEngine.GetInitialSubscriptions();
+        await subscriptionsAction.Should().ThrowAsync<InvalidOperationException>();
     }
 
     private static MemoryStream CreateSimpleProcessStream()
@@ -181,6 +302,45 @@ public class CoreEngineTest
                                    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="UserTask_1" />
                                    <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="ServiceTask_1" />
                                    <bpmn:sequenceFlow id="Flow_3" sourceRef="ServiceTask_1" targetRef="EndEvent_1" />
+                                 </bpmn:process>
+                               </bpmn:definitions>
+                               """;
+
+        return new MemoryStream(Encoding.UTF8.GetBytes(bpmnXml));
+    }
+
+    private static MemoryStream CreateMultiPlainStartProcessStream()
+    {
+        const string bpmnXml = """
+                               <?xml version="1.0" encoding="UTF-8"?>
+                               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                                                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                                                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                                                 xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                                 id="Definitions_MultiPlainStart"
+                                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                                 <bpmn:process id="MultiPlainStartProcess" isExecutable="true">
+                                   <bpmn:startEvent id="StartEvent_A" name="Start A">
+                                     <bpmn:outgoing>Flow_A</bpmn:outgoing>
+                                   </bpmn:startEvent>
+                                   <bpmn:startEvent id="StartEvent_B" name="Start B">
+                                     <bpmn:outgoing>Flow_B</bpmn:outgoing>
+                                   </bpmn:startEvent>
+                                   <bpmn:userTask id="UserTask_A" name="Task A">
+                                     <bpmn:extensionElements>
+                                       <zeebe:formDefinition formKey="form-a" />
+                                     </bpmn:extensionElements>
+                                     <bpmn:incoming>Flow_A</bpmn:incoming>
+                                   </bpmn:userTask>
+                                   <bpmn:userTask id="UserTask_B" name="Task B">
+                                     <bpmn:extensionElements>
+                                       <zeebe:formDefinition formKey="form-b" />
+                                     </bpmn:extensionElements>
+                                     <bpmn:incoming>Flow_B</bpmn:incoming>
+                                   </bpmn:userTask>
+                                   <bpmn:sequenceFlow id="Flow_A" sourceRef="StartEvent_A" targetRef="UserTask_A" />
+                                   <bpmn:sequenceFlow id="Flow_B" sourceRef="StartEvent_B" targetRef="UserTask_B" />
                                  </bpmn:process>
                                </bpmn:definitions>
                                """;
@@ -234,6 +394,31 @@ public class CoreEngineTest
                                    <bpmn:sequenceFlow id="Flow_Message_2" sourceRef="MessageUserTask_1" targetRef="EndEvent_Message" />
                                    <bpmn:sequenceFlow id="Flow_Signal_1" sourceRef="StartEvent_Signal" targetRef="SignalUserTask_1" />
                                    <bpmn:sequenceFlow id="Flow_Signal_2" sourceRef="SignalUserTask_1" targetRef="EndEvent_Signal" />
+                                 </bpmn:process>
+                               </bpmn:definitions>
+                               """;
+
+        return new MemoryStream(Encoding.UTF8.GetBytes(bpmnXml));
+    }
+
+    private static MemoryStream CreateInvalidProcessStream()
+    {
+        const string bpmnXml = """
+                               <?xml version="1.0" encoding="UTF-8"?>
+                               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                 xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                                                 xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                                                 xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                                                 id="Definitions_Invalid"
+                                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                                 <bpmn:process id="InvalidProcess" isExecutable="true">
+                                   <bpmn:startEvent id="StartEvent_Invalid">
+                                     <bpmn:outgoing>Flow_Invalid_1</bpmn:outgoing>
+                                   </bpmn:startEvent>
+                                   <bpmn:userTask id="UserTask_Invalid" name="Broken User Task">
+                                     <bpmn:incoming>Flow_Invalid_1</bpmn:incoming>
+                                   </bpmn:userTask>
+                                   <bpmn:sequenceFlow id="Flow_Invalid_1" sourceRef="StartEvent_Invalid" targetRef="UserTask_Invalid" />
                                  </bpmn:process>
                                </bpmn:definitions>
                                """;
