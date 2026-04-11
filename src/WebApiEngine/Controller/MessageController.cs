@@ -24,7 +24,7 @@ public class MessageController(IStorageSystem storageSystem,
         }
         catch (Exception e)
         {
-            return BadRequest(new ApiStatusResult<string>(e.Message));
+            return BadRequest(new ApiStatusResult<string>(errorMessage: e.Message));
         }
         string correlationText = "";
         if (messageDto.CorrelationKey != null)

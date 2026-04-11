@@ -1,6 +1,8 @@
 using BPMN.Infrastructure;
 using core_engine;
 using Model;
+using System.Security.Cryptography;
+using System.Text;
 using WebApiEngine.Auth;
 using Version = Model.Version;
 
@@ -43,7 +45,7 @@ public class DefinitionBusinessLogic(
             Id = Guid.NewGuid(),
             DefinitionId = model.Id,
             PreviousGuid = previousGuid,
-            Hash = rawContent.GetHashCode().ToString(),
+            Hash = ComputeStableHash(rawContent),
             SavedByUser = currentUser.UserId,
             SavedOn = DateTime.UtcNow,
             Version = highestVersion,
@@ -54,5 +56,12 @@ public class DefinitionBusinessLogic(
         await storageSystem.DefinitionStorage.StoreBinary(definition.Id, rawContent);
 
         return definition;
+    }
+
+    private static string ComputeStableHash(string rawContent)
+    {
+        var contentBytes = Encoding.UTF8.GetBytes(rawContent);
+        var hashBytes = SHA256.HashData(contentBytes);
+        return Convert.ToHexString(hashBytes);
     }
 }

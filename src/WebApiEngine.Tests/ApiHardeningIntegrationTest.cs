@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -52,7 +55,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Should().NotBeNull();
         payload.Result!.Status.Should().Be("Unhealthy");
         payload.Result.Storage.Should().Be("Unavailable");
-        payload.ErrorMessage.Should().Contain("Storage is unavailable");
+        payload.ErrorMessage.Should().Be("Storage is unavailable.");
     }
 
     [Test]
@@ -78,6 +81,7 @@ public class ApiHardeningIntegrationTest
         var payload = await response.Content.ReadFromJsonAsync<BpmnDefinitionDto>();
         payload.Should().NotBeNull();
         payload!.SavedByUser.Should().Be(expectedUserId);
+        payload.Hash.Should().Be(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml))));
         storage.StoredDefinitions.Should().ContainSingle();
         storage.StoredDefinitions[0].SavedByUser.Should().Be(expectedUserId);
     }
@@ -146,6 +150,7 @@ public class ApiHardeningIntegrationTest
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
+            builder.UseSetting(WebHostDefaults.EnvironmentKey, "Development");
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStorageSystem>();

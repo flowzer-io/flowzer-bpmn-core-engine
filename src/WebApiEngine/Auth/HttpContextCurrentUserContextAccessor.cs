@@ -1,14 +1,18 @@
 using System.Security.Claims;
+using Microsoft.Extensions.Hosting;
 
 namespace WebApiEngine.Auth;
 
 /// <summary>
 /// Liest den aktuellen Benutzerkontext bevorzugt aus Auth-Claims und erlaubt
-/// als Übergangslösung zusätzlich einen technischen Header. Fehlt beides,
+/// im Development-Modus zusätzlich einen technischen Header. Fehlt beides,
 /// wird ein stabiler Systembenutzer zurückgegeben, sodass die restliche API
-/// keine Guid.Empty-/Magic-Value-Platzhalter mehr benötigt.
+/// keine Guid.Empty-/Magic-Value-Platzhalter mehr benötigt und in Produktion
+/// kein frei setzbarer Impersonation-Header akzeptiert wird.
 /// </summary>
-public sealed class HttpContextCurrentUserContextAccessor(IHttpContextAccessor httpContextAccessor)
+public sealed class HttpContextCurrentUserContextAccessor(
+    IHttpContextAccessor httpContextAccessor,
+    IHostEnvironment hostEnvironment)
     : ICurrentUserContextAccessor
 {
     public const string UserIdHeaderName = "X-Flowzer-UserId";
@@ -28,7 +32,7 @@ public sealed class HttpContextCurrentUserContextAccessor(IHttpContextAccessor h
         }
 
         var headerValue = httpContext?.Request.Headers[UserIdHeaderName].FirstOrDefault();
-        if (Guid.TryParse(headerValue, out var headerUserId))
+        if (hostEnvironment.IsDevelopment() && Guid.TryParse(headerValue, out var headerUserId))
         {
             return new CurrentUserContext(headerUserId, "header:x-flowzer-userid", false);
         }

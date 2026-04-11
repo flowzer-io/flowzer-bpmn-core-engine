@@ -39,7 +39,7 @@ public static class ApiExceptionHandlingExtensions
                     ErrorMessage = errorMessage
                 };
 
-                await context.Response.WriteAsJsonAsync(payload, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                await context.Response.WriteAsJsonAsync(payload);
             });
         });
     }

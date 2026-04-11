@@ -5,7 +5,8 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class HealthController(
     ITransactionalStorageProvider storageProvider,
-    IHostEnvironment environment) : ControllerBase
+    IHostEnvironment environment,
+    ILogger<HealthController> logger) : ControllerBase
 {
     [HttpGet]
     public ActionResult<ApiStatusResult<HealthStatusDto>> GetLiveness()
@@ -41,6 +42,7 @@ public class HealthController(
         }
         catch (Exception exception)
         {
+            logger.LogWarning(exception, "Readiness probe failed because the storage backend is currently unavailable.");
             var payload = new HealthStatusDto
             {
                 Status = "Unhealthy",
@@ -52,7 +54,7 @@ public class HealthController(
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiStatusResult<HealthStatusDto>
             {
                 Successful = false,
-                ErrorMessage = $"Storage is unavailable: {exception.Message}",
+                ErrorMessage = "Storage is unavailable.",
                 Result = payload
             });
         }
