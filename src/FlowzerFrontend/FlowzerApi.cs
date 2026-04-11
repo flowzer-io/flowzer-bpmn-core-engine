@@ -5,6 +5,10 @@ namespace FlowzerFrontend;
 
 public class FlowzerApi: ApiBase
 {
+    public FlowzerApi(HttpClient httpClient) : base(httpClient)
+    {
+    }
+
     internal async Task<ProcessInfoDto[]> GetModels()
     {
         return await GetAsJsonAsyncSave<ProcessInfoDto[]>($"model");

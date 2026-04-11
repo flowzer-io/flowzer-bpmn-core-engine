@@ -68,6 +68,8 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 dotnet restore core-engine.sln
 dotnet build core-engine.sln
 dotnet test src/core-engine-tests/core-engine-tests.csproj
+dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj
+dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj
 ```
 
 ### BPMN-Editor / bpmn.io
@@ -100,6 +102,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
+- [docs/FRONTEND.md](docs/FRONTEND.md) – Frontend-Konfiguration, lokale Starts und UI-Smoke-Tests
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot
 - [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md) – Entwicklungsprinzipien
@@ -137,6 +140,21 @@ dotnet run --project src/FlowzerDemoConsole/FlowzerDemoConsole.csproj
 ```
 
 Eine Schritt-für-Schritt-Erklärung und die erwartete Ausgabe stehen in [docs/DEMO.md](docs/DEMO.md).
+
+## Frontend lokal und per UI-Smoke testen
+
+Für das Frontend gibt es jetzt einen dokumentierten API-Konfigurationspfad und erste Playwright-Smoke-Tests.
+
+Schnellstart:
+
+```bash
+dotnet build core-engine.sln --configuration Release
+npm --prefix tests/ui-smoke ci
+npm --prefix tests/ui-smoke run install:browsers
+npm --prefix tests/ui-smoke run test
+```
+
+Details zu API-Basisadresse, lokalen Startbefehlen und den getesteten Routen stehen in [docs/FRONTEND.md](docs/FRONTEND.md).
 
 ## Beispiel
 

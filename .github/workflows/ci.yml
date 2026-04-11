@@ -58,6 +58,24 @@ jobs:
             --logger "trx;LogFileName=core-engine-tests.trx" \
             --results-directory ./TestResults/ci
 
+      - name: Web-API-Tests ausführen
+        run: |
+          dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj \
+            --no-restore \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=webapi-tests.trx" \
+            --results-directory ./TestResults/ci
+
+      - name: Frontend-Unit-Tests ausführen
+        run: |
+          dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj \
+            --no-restore \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=frontend-tests.trx" \
+            --results-directory ./TestResults/ci
+
       - name: Coverage-Kennzahlen extrahieren
         id: coverage
         run: |
@@ -94,6 +112,7 @@ jobs:
           ## .NET-Validierung
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
+          - Zusätzlich laufen Web-API- und Frontend-Unit-Tests im selben Job mit.
           - Quarantänisierte Tests (temporär bis zur separaten Behebung):
             - `core_engine_tests.EngineTest.ParallelTaskTest`
             - `core_engine_tests.EngineTest.SequentialTest`
@@ -123,3 +142,64 @@ jobs:
       - name: BPMN-Frontend bauen
         working-directory: bpmn.io
         run: npm run build
+
+  frontend_smoke:
+    name: UI-Smoke-Tests
+    runs-on: ubuntu-latest
+    needs:
+      - dotnet
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET-SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tests/ui-smoke/package-lock.json
+
+      - name: Abhängigkeiten wiederherstellen
+        run: dotnet restore core-engine.sln
+
+      - name: Solution bauen
+        run: dotnet build core-engine.sln --no-restore --configuration Release
+
+      - name: Playwright-Abhängigkeiten installieren
+        working-directory: tests/ui-smoke
+        run: npm ci
+
+      - name: Chromium für Playwright installieren
+        working-directory: tests/ui-smoke
+        run: npm run install:browsers
+
+      - name: UI-Smoke-Tests ausführen
+        working-directory: tests/ui-smoke
+        run: npm test
+
+      - name: Playwright-Artefakte hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-smoke-report
+          path: |
+            tests/ui-smoke/playwright-report
+            tests/ui-smoke/test-results
+          if-no-files-found: ignore
+
+      - name: CI-Zusammenfassung schreiben
+        if: always()
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## UI-Smoke-Tests
+
+          - Playwright prüft die Kernrouten `/`, `/models`, `/forms` und `/instances`.
+          - Web-API und Blazor-Frontend werden im Testjob reproduzierbar lokal gestartet.
+          - Artefakte mit HTML-Report und Testresultaten werden bei Bedarf hochgeladen.
+          EOF
