@@ -62,9 +62,9 @@ public partial class InstanceEngine: ICatchHandler
         _ => throw new FlowzerRuntimeException("ProcessInstanceState nicht ermittelbar")
     };
     
-    public Task<IEnumerable<Escalation>> GetActiveEscalations()
+    public System.Threading.Tasks.Task<IEnumerable<Escalation>> GetActiveEscalations()
     {
-        throw new NotImplementedException();
+        return System.Threading.Tasks.Task.FromResult<IEnumerable<Escalation>>([]);
     }
 
     public IEnumerable<Token> GetActiveUserTasks() => Tokens
@@ -123,12 +123,24 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
-    /// Abbruch der Instanz. Dabei werden alle Tokens terminiert und die bereits durchlaufenen Activities kompensiert.
-    /// Subprozesse werden ebenfalls abgebrochen.
+    /// Bricht die Instanz best-effort ab, indem aktive bzw. wartende Tokens terminiert werden.
+    /// Eine BPMN-Kompensation bereits ausgeführter Activities ist damit bewusst noch nicht verbunden.
     /// </summary>
     public void Cancel()
     {
-        throw new NotImplementedException();
+        var tokensToTerminate = Tokens
+            .Where(CanBeTerminatedByCancellation)
+            .ToArray();
+
+        foreach (var token in tokensToTerminate)
+        {
+            token.State = FlowNodeState.Terminating;
+        }
+
+        foreach (var token in Tokens.Where(token => token.State == FlowNodeState.Terminating))
+        {
+            token.State = FlowNodeState.Terminated;
+        }
     }
 
     // public Task<ProcessInstance> HandleTime(DateTime time)
@@ -152,7 +164,34 @@ public partial class InstanceEngine: ICatchHandler
         return processToken;
     }
     
-    List<DateTime> ICatchHandler.ActiveTimers => throw new NotImplementedException();
+    List<DateTime> ICatchHandler.ActiveTimers => Tokens
+        .Where(token => token.State == FlowNodeState.Active)
+        .SelectMany(GetActiveTimerDates)
+        .Distinct()
+        .ToList();
+
+    private static IEnumerable<DateTime> GetActiveTimerDates(Token token)
+    {
+        if (token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent timerCatchEvent)
+        {
+            yield return TimerDueDateCalculator.GetDueDate(
+                token.LastStateChangeTime,
+                timerCatchEvent.TimerDefinition,
+                timerCatchEvent);
+        }
+    }
+
+    private static bool CanBeTerminatedByCancellation(Token token)
+    {
+        return token.State is
+            FlowNodeState.Ready or
+            FlowNodeState.Active or
+            FlowNodeState.Completing or
+            FlowNodeState.WaitingForLoopEnd or
+            FlowNodeState.Failing or
+            FlowNodeState.Terminating;
+    }
+
     public List<Token> ActiveUserTasks()
     {
         return GetActiveUserTasks().ToList();
