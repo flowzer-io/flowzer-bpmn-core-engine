@@ -92,6 +92,13 @@ Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst
 PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 ```
 
+Der `npm test`-Pfad verwendet zusätzlich einen kleinen Prozesswächter. Dieser erkennt alte verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse aus früheren Läufen und räumt nach dem Test auch neu entstandene Browser-Reste wieder weg. Damit bleiben keine CPU-intensiven Headless-Prozesse mehr unbemerkt liegen.
+
+Bei Bedarf kann das Verhalten angepasst werden:
+
+- `PLAYWRIGHT_SKIP_PROCESS_GUARD=1` deaktiviert den Wächter
+- `PLAYWRIGHT_PROCESS_STALE_THRESHOLD_SECONDS=<sekunden>` steuert, ab wann alte Browser-Prozesse als verwaist gelten
+
 ## Hinweise zur lokalen Datenbasis
 
 Die dateibasierte Persistenz landet standardmäßig unterhalb der Build-Ausgabe von `FilesystemStorageSystem`.

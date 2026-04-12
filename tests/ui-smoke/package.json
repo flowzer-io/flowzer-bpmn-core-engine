@@ -3,8 +3,8 @@
   "private": true,
   "scripts": {
     "install:browsers": "playwright install --with-deps chromium",
-    "test": "playwright test",
-    "test:headed": "playwright test --headed"
+    "test": "node ./scripts/run-playwright.js",
+    "test:headed": "node ./scripts/run-playwright.js --headed"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1"

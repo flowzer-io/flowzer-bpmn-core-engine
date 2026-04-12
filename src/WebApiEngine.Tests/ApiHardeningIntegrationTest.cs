@@ -154,9 +154,43 @@ public class ApiHardeningIntegrationTest
     [Test]
     public async Task MessageEndpoint_ShouldReturnSuccessfulResultPayload_WhenMessageWasHandled()
     {
+        const string correlationKey = "INV-1000";
+        var storage = CreateMessageStartStorage(correlationKey);
+
+        var controller = new MessageController(storage, new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage)));
+
+        var response = await controller.HandleMessage(new MessageDto
+        {
+            Name = "InvoiceReceived",
+            CorrelationKey = correlationKey
+        });
+
+        if (response.Result is BadRequestObjectResult badRequestResult)
+        {
+            var businessLogicError = await TryHandleMessageDirectly(correlationKey);
+            var controllerError = ExtractErrorMessage(badRequestResult.Value);
+
+            Assert.Fail(
+                $"Expected a successful message response, but the controller returned BadRequest. " +
+                $"Controller error: {controllerError ?? "<empty>"}. " +
+                $"Direct business logic result: {businessLogicError ?? "<success>"}.");
+        }
+
+        var okResult = response.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be((int)HttpStatusCode.OK);
+        var payload = okResult.Value.Should().BeOfType<ApiStatusResult<string>>().Subject;
+        payload.Should().NotBeNull();
+        payload.Successful.Should().BeTrue();
+        payload.Result.Should().Contain("InvoiceReceived");
+        payload.Result.Should().Contain(correlationKey);
+        payload.ErrorMessage.Should().BeNull();
+    }
+
+    private static TestStorage CreateMessageStartStorage(string correlationKey)
+    {
         var storage = new TestStorage();
         var definitionId = Guid.NewGuid();
-        const string correlationKey = "INV-1000";
+
         storage.StoredDefinitions.Add(new BpmnDefinition
         {
             Id = definitionId,
@@ -195,22 +229,37 @@ public class ApiHardeningIntegrationTest
             "invoice-process",
             definitionId));
 
-        var controller = new MessageController(storage, new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage)));
+        return storage;
+    }
 
-        var response = await controller.HandleMessage(new MessageDto
+    private static async Task<string?> TryHandleMessageDirectly(string correlationKey)
+    {
+        var storage = CreateMessageStartStorage(correlationKey);
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+
+        try
         {
-            Name = "InvoiceReceived",
-            CorrelationKey = correlationKey
-        });
+            await businessLogic.HandleMessage(new Message
+            {
+                Name = "InvoiceReceived",
+                CorrelationKey = correlationKey
+            });
 
-        var okResult = response.Result.Should().BeOfType<OkObjectResult>().Subject;
-        okResult.StatusCode.Should().Be((int)HttpStatusCode.OK);
-        var payload = okResult.Value.Should().BeOfType<ApiStatusResult<string>>().Subject;
-        payload.Should().NotBeNull();
-        payload.Successful.Should().BeTrue();
-        payload.Result.Should().Contain("InvoiceReceived");
-        payload.Result.Should().Contain(correlationKey);
-        payload.ErrorMessage.Should().BeNull();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception.ToString();
+        }
+    }
+
+    private static string? ExtractErrorMessage(object? responseValue)
+    {
+        return responseValue switch
+        {
+            ApiStatusResult<string> apiStatusResult => apiStatusResult.ErrorMessage,
+            _ => responseValue?.ToString()
+        };
     }
 
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
