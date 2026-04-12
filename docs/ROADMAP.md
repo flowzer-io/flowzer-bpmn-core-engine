@@ -14,6 +14,7 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 - Demo-Console-App ergänzt
 - wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
 - Timer-Ausführung im Engine-Kern für fällige Start- und Intermediate-Timer ergänzt
+- Boundary-Timer im Parser, in der Runtime und im persistierten Subscription-Pfad ergänzt
 - persistierte Timer-Subscriptions in Storage/Web-API ergänzt
 - Scheduler-/Polling-Pfad für fällige Timer im Web-API-Host ergänzt
 - Form-/Message-Fehlerverträge in der Web-API weiter geschärft
@@ -26,17 +27,17 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ## Priorität 1: Timer- und Runtime-Restlücken schließen
 
-### 1.2 Boundary-Timer und BPMN-Fehlerpfade vertiefen
+### 1.2 BPMN-Fehlerpfade und weitergehende Timer-Semantik vertiefen
 
-- Boundary-Timer-Parsing und -Abarbeitung ergänzen
 - Error-/Escalation-Semantik jenseits des Best-Effort-Fallbacks modellieren
 - Kompensations- und Abbruchpfade weiter präzisieren
+- Boundary-Timer bei Bedarf um speziellere Randfälle wie konkurrierende Timer oder komplexere Recovery-Szenarien vertiefen
 
 ### 1.3 Timer-Recovery und wiederkehrende Strategien vertiefen
 
 - Recovery-Verhalten für bereits persistierte Timer nach Neustarts weiter härten
 - wiederkehrende Start-Timer über den ersten Due-Zeitpunkt hinaus sauber modellieren
-- Boundary-Timer später in denselben Persistenz-/Scheduler-Pfad integrieren
+- wiederkehrende Boundary- oder Spezialtimer nur dann ergänzen, wenn sie fachlich wirklich benötigt werden
 
 ## Priorität 2: Betriebs- und Auth-Reife erhöhen
 
@@ -71,9 +72,9 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### Sprint A – Timer-Runtime vertiefen
 
-- Boundary-Timer-Sicht
 - Timer-Recovery
 - wiederkehrende Timer-Strategien
+- verbleibende Boundary-Timer-Randfälle
 
 ### Sprint B – Betrieb und Auth
 

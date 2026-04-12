@@ -117,6 +117,70 @@ public class TimerRuntimeIntegrationTest
         storage.Instances[instance.InstanceId].IsFinished.Should().BeTrue();
     }
 
+    [Test]
+    public async Task HandleTime_ShouldAdvanceDueBoundaryTimer_AndClearPersistedBoundaryTimer()
+    {
+        var definitionId = Guid.NewGuid();
+        var process = ParseSingleProcess(CreateBoundaryTimerXml());
+        var instance = new ProcessEngine(process).StartProcess();
+        instance.InstanceId = Guid.NewGuid();
+
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definitionId] = new BpmnDefinition
+        {
+            Id = definitionId,
+            DefinitionId = "definition-boundary-timer",
+            Hash = "hash",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = true
+        };
+
+        storage.Instances[instance.InstanceId] = new ProcessInstanceInfo
+        {
+            InstanceId = instance.InstanceId,
+            metaDefinitionId = "definition-boundary-timer",
+            DefinitionId = definitionId,
+            ProcessId = process.Id,
+            Tokens = instance.Tokens,
+            IsFinished = instance.IsFinished,
+            State = instance.State,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 1
+        };
+
+        var timerDescriptor = ((ICatchHandler)instance).ActiveTimerSubscriptions
+            .Should()
+            .ContainSingle(subscription => subscription.Kind == TimerSubscriptionKind.BoundaryEvent)
+            .Subject;
+        storage.TimerSubscriptions.Add(new TimerSubscription
+        {
+            DueAt = timerDescriptor.DueAt,
+            FlowNodeId = timerDescriptor.FlowNodeId,
+            Kind = timerDescriptor.Kind,
+            ProcessId = process.Id,
+            RelatedDefinitionId = "definition-boundary-timer",
+            DefinitionId = definitionId,
+            ProcessInstanceId = instance.InstanceId,
+            TokenId = timerDescriptor.TokenId
+        });
+
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        var processedTimers = await businessLogic.HandleTime(timerDescriptor.DueAt.AddMilliseconds(50));
+
+        processedTimers.Should().Be(1);
+        storage.TimerSubscriptions.Should().BeEmpty();
+        storage.Instances[instance.InstanceId].State.Should().Be(ProcessInstanceState.Completed);
+        storage.Instances[instance.InstanceId].IsFinished.Should().BeTrue();
+        storage.Instances[instance.InstanceId].Tokens.Should().Contain(token =>
+            token.CurrentFlowNode != null &&
+            token.CurrentFlowNode.Id == "ServiceTask_1" &&
+            token.State == FlowNodeState.Withdrawn);
+    }
+
     private static BpmnDefinition CreateDefinition()
     {
         return new BpmnDefinition
@@ -182,6 +246,46 @@ public class TimerRuntimeIntegrationTest
                    </bpmn:endEvent>
                    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="TimerCatch_1" />
                    <bpmn:sequenceFlow id="Flow_2" sourceRef="TimerCatch_1" targetRef="EndEvent_1" />
+                 </bpmn:process>
+               </bpmn:definitions>
+               """;
+    }
+
+    private static string CreateBoundaryTimerXml()
+    {
+        return """
+               <?xml version="1.0" encoding="UTF-8"?>
+               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                 xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                 id="Definitions_BoundaryTimer"
+                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                 <bpmn:process id="Process_BoundaryTimer" isExecutable="true">
+                   <bpmn:startEvent id="StartEvent_1">
+                     <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                   </bpmn:startEvent>
+                   <bpmn:serviceTask id="ServiceTask_1" name="Wait for timeout">
+                     <bpmn:extensionElements>
+                       <zeebe:taskDefinition type="main-step" />
+                     </bpmn:extensionElements>
+                     <bpmn:incoming>Flow_1</bpmn:incoming>
+                     <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                   </bpmn:serviceTask>
+                   <bpmn:boundaryEvent id="BoundaryTimer_1" attachedToRef="ServiceTask_1">
+                     <bpmn:outgoing>Flow_3</bpmn:outgoing>
+                     <bpmn:timerEventDefinition id="TimerDefinition_1">
+                       <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT2S</bpmn:timeDuration>
+                     </bpmn:timerEventDefinition>
+                   </bpmn:boundaryEvent>
+                   <bpmn:endEvent id="EndEvent_Main">
+                     <bpmn:incoming>Flow_2</bpmn:incoming>
+                   </bpmn:endEvent>
+                   <bpmn:endEvent id="EndEvent_Boundary">
+                     <bpmn:incoming>Flow_3</bpmn:incoming>
+                   </bpmn:endEvent>
+                   <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
+                   <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="EndEvent_Main" />
+                   <bpmn:sequenceFlow id="Flow_3" sourceRef="BoundaryTimer_1" targetRef="EndEvent_Boundary" />
                  </bpmn:process>
                </bpmn:definitions>
                """;

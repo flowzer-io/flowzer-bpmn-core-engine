@@ -27,7 +27,7 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
 - Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert und über einen kleinen Scheduler-Polling-Pfad verarbeitet.
-- Es gibt aber weiterhin **offene Restlücken** bei Boundary-Timern, weitergehender Timer-Semantik, Auth/Identity und Betriebsreife.
+- Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Recovery-Semantik, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
 Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
@@ -92,7 +92,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
 
 3. **Timer-, Fehler- und Abbruchpfade sind verbessert, aber noch nicht vollständig**
-   Der Engine-Kern kann fällige Timer jetzt weiterführen, und rohe `NotImplementedException`-Abbrüche wurden in mehreren Pfaden entschärft. Persistierte Timer, Boundary-Timer, vollständige Fehler-/Eskalationssemantik und echte Kompensation bleiben aber offen.
+   Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin wiederkehrende Start-Timer, weitergehende Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
 4. **Betrieb und Auth sind noch nicht am Ziel**
    Lokale Compose- und Runtime-Container sind vorhanden, aber Themen wie Telemetrie, Secrets, TLS, Recovery und eine belastbare Identity-/Auth-Story sind weiterhin Folgepakete.
@@ -113,7 +113,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Boundary-Timer und weitergehende Timer-/Fehlersemantik sauber nachziehen**
+1. **Timer-Recovery, wiederkehrende Start-Timer und weitergehende Fehlersemantik sauber nachziehen**
 2. **Auth-/Identity- und Fehlerpfade weiter produktionsnah härten**
 3. **Betriebsbasis mit Telemetrie, Secrets und Recovery vertiefen**
 4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**

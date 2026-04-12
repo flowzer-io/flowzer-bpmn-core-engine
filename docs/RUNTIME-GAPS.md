@@ -30,13 +30,20 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 - Beim Start werden persistierte Instanz-Timer erneut aus den gespeicherten Tokenzuständen synchronisiert.
 - Das Poll-Intervall ist über `TimerScheduler:PollIntervalSeconds` konfigurierbar.
 
-### 5. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
+### 5. Boundary-Timer laufen jetzt über denselben Timer-Subscription-Pfad
+
+- `ModelParser` erkennt Boundary-Timer jetzt als eigenes Flowzer-Ereignis.
+- aktive Boundary-Timer werden über `ICatchHandler.ActiveTimerSubscriptions` sichtbar.
+- fällige Boundary-Timer werden im `HandleTime(...)`-Pfad genau einmal ausgelöst.
+- interrupting Boundary-Timer ziehen die Aktivität zurück, non-interrupting Boundary-Timer starten einen parallelen Pfad.
+
+### 6. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
 
 - User-Task-Ergebnisse ohne `ProcessInstanceId` laufen nicht mehr in eine rohe `NotImplementedException`.
 - Stattdessen kommt ein valider `400 Bad Request` mit einem klaren API-Fehlervertrag zurück.
 - Zusätzlich wird jetzt geprüft, ob das übergebene `TokenId` wirklich noch aktiv ist und zum erwarteten `FlowNodeId` gehört.
 
-### 6. Instanzabbruch ist als Best-Effort-Pfad verfügbar
+### 7. Instanzabbruch ist als Best-Effort-Pfad verfügbar
 
 - `InstanceEngine.Cancel()` terminiert jetzt aktive/wartende Tokens der Instanz konsistent.
 - Das ersetzt noch **keine vollständige BPMN-Kompensation**, verhindert aber, dass der API-/Runtime-Pfad an einer nackten `NotImplementedException` scheitert.
@@ -56,8 +63,8 @@ Aktuell vorhanden:
 Weiterhin offen:
 
 - Recovery-Strategie für bereits persistierte Start-Timer über harte Neustarts hinweg weiter schärfen
-- Boundary-Timer-Parsing und -Abarbeitung
 - vollständige Wiederholungsstrategie für zyklische Start-Timer über den ersten Due-Zeitpunkt hinaus
+- Sonderfälle wie konkurrierende Timer oder weitergehende Boundary-Timer-Recovery nur bei echtem Bedarf vertiefen
 
 ### 2. Fehler- und Eskalationspfade
 
@@ -88,7 +95,7 @@ Nicht enthalten:
 
 ## Empfohlene nächste Runtime-Schritte
 
-1. Boundary-Timer parsen und in den Persistenzpfad integrieren
-2. Recovery- und Wiederholungsstrategie für Start-Timer weiter härten
-3. Error-/Escalation-Semantik gezielt modellieren und testen
-4. `Cancel()` später um echte Kompensationsstrategien erweitern
+1. Recovery- und Wiederholungsstrategie für Start-Timer weiter härten
+2. Error-/Escalation-Semantik gezielt modellieren und testen
+3. `Cancel()` später um echte Kompensationsstrategien erweitern
+4. Boundary-Timer nur noch bei echten Randfällen weiter vertiefen

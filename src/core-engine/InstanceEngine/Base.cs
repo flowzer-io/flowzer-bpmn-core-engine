@@ -144,15 +144,15 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
-    /// Führt fällige Intermediate-Timer-Catch-Events weiter.
+    /// Führt fällige Intermediate-Timer-Catch-Events und Boundary-Timer weiter.
     /// </summary>
     public void HandleTime(DateTime time)
     {
-        HandleDueIntermediateTimerCatchEvents(time);
+        HandleDueTimers(time);
     }
 
     /// <summary>
-    /// Führt fällige Timer-Start- oder Intermediate-Timer-Catch-Events weiter.
+    /// Führt fällige Timer-Start-, Intermediate-Timer-Catch- oder Boundary-Timer-Events weiter.
     /// Diese Überladung ist absichtlich nicht öffentlich, damit Start-Timer nur
     /// über Engine-internen Code ausgelöst werden können.
     /// </summary>
@@ -163,11 +163,13 @@ public partial class InstanceEngine: ICatchHandler
             return;
         }
 
-        HandleDueIntermediateTimerCatchEvents(time);
+        HandleDueTimers(time);
     }
 
-    private void HandleDueIntermediateTimerCatchEvents(DateTime time)
+    private void HandleDueTimers(DateTime time)
     {
+        var requiresRun = false;
+
         var dueTimerTokens = ActiveTokens
             .Where(token => token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent)
             .Where(token => GetTimerDueDate(token) <= time)
@@ -179,6 +181,52 @@ public partial class InstanceEngine: ICatchHandler
         }
 
         if (dueTimerTokens.Length > 0)
+        {
+            requiresRun = true;
+        }
+
+        var dueBoundaryTimers = ActiveTokens
+            .Select(token => new
+            {
+                Token = token,
+                DueBoundaryEvents = token.ActiveBoundaryEvents
+                    .OfType<FlowzerBoundaryTimerEvent>()
+                    .Where(boundaryTimer => GetBoundaryTimerDueDate(token, boundaryTimer) <= time)
+                    .ToArray()
+            })
+            .Where(entry => entry.DueBoundaryEvents.Length > 0)
+            .ToArray();
+
+        foreach (var dueBoundaryTimer in dueBoundaryTimers)
+        {
+            foreach (var boundaryTimerEvent in dueBoundaryTimer.DueBoundaryEvents)
+            {
+                dueBoundaryTimer.Token.ActiveBoundaryEvents.Remove(boundaryTimerEvent);
+
+                if (boundaryTimerEvent.CancelActivity)
+                {
+                    dueBoundaryTimer.Token.State = FlowNodeState.Withdrawn;
+                }
+
+                Tokens.Add(new Token
+                {
+                    CurrentBaseElement = boundaryTimerEvent,
+                    ActiveBoundaryEvents = [],
+                    OutputData = new Variables(),
+                    State = FlowNodeState.Completing,
+                    ParentTokenId = dueBoundaryTimer.Token.ParentTokenId,
+                    ProcessInstanceId = dueBoundaryTimer.Token.ProcessInstanceId,
+                });
+                requiresRun = true;
+
+                if (boundaryTimerEvent.CancelActivity)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (requiresRun)
         {
             Run();
         }
@@ -217,6 +265,11 @@ public partial class InstanceEngine: ICatchHandler
         {
             yield return GetTimerDueDate(token, timerCatchEvent);
         }
+
+        foreach (var boundaryTimerEvent in token.ActiveBoundaryEvents.OfType<FlowzerBoundaryTimerEvent>())
+        {
+            yield return GetBoundaryTimerDueDate(token, boundaryTimerEvent);
+        }
     }
 
     private static IEnumerable<TimerSubscriptionDescriptor> GetActiveTimerSubscriptionDescriptors(Token token)
@@ -227,6 +280,15 @@ public partial class InstanceEngine: ICatchHandler
                 GetTimerDueDate(token, timerCatchEvent),
                 timerCatchEvent.Id,
                 TimerSubscriptionKind.IntermediateCatchEvent,
+                token.Id);
+        }
+
+        foreach (var boundaryTimerEvent in token.ActiveBoundaryEvents.OfType<FlowzerBoundaryTimerEvent>())
+        {
+            yield return new TimerSubscriptionDescriptor(
+                GetBoundaryTimerDueDate(token, boundaryTimerEvent),
+                boundaryTimerEvent.Id,
+                TimerSubscriptionKind.BoundaryEvent,
                 token.Id);
         }
     }
@@ -291,6 +353,14 @@ public partial class InstanceEngine: ICatchHandler
             token.LastStateChangeTime,
             timerCatchEvent.TimerDefinition,
             timerCatchEvent);
+    }
+
+    private static DateTime GetBoundaryTimerDueDate(Token token, FlowzerBoundaryTimerEvent boundaryTimerEvent)
+    {
+        return TimerDueDateCalculator.GetDueDate(
+            token.LastStateChangeTime,
+            boundaryTimerEvent.TimerDefinition,
+            boundaryTimerEvent);
     }
 
     public List<Token> ActiveUserTasks()

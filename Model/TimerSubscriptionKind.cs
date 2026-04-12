@@ -3,5 +3,6 @@ namespace Model;
 public enum TimerSubscriptionKind
 {
     ProcessStartEvent,
-    IntermediateCatchEvent
+    IntermediateCatchEvent,
+    BoundaryEvent
 }
