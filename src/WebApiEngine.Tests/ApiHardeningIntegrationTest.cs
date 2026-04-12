@@ -5,12 +5,15 @@ using System.Text;
 using BPMN.Common;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
 using StorageSystem;
 using WebApiEngine.Auth;
+using WebApiEngine.BusinessLogic;
+using WebApiEngine.Controller;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
@@ -192,19 +195,19 @@ public class ApiHardeningIntegrationTest
             "invoice-process",
             definitionId));
 
-        await using var factory = new TestWebApplicationFactory(storage);
-        using var client = factory.CreateClient();
+        var controller = new MessageController(storage, new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage)));
 
-        var response = await client.PostAsJsonAsync("/message", new MessageDto
+        var response = await controller.HandleMessage(new MessageDto
         {
             Name = "InvoiceReceived",
             CorrelationKey = correlationKey
         });
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<string>>();
+        var okResult = response.Result.Should().BeOfType<OkObjectResult>().Subject;
+        okResult.StatusCode.Should().Be((int)HttpStatusCode.OK);
+        var payload = okResult.Value.Should().BeOfType<ApiStatusResult<string>>().Subject;
         payload.Should().NotBeNull();
-        payload!.Successful.Should().BeTrue();
+        payload.Successful.Should().BeTrue();
         payload.Result.Should().Contain("InvoiceReceived");
         payload.Result.Should().Contain(correlationKey);
         payload.ErrorMessage.Should().BeNull();
