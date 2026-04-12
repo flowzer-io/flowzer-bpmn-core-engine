@@ -12,13 +12,19 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 - Laufende Instanzen können ihre aktiven Timertermine jetzt über `ICatchHandler.ActiveTimers` offenlegen.
 - `timeDuration` wird bei der Fälligkeitsberechnung jetzt genauso berücksichtigt wie `timeCycle` und `timeDate`.
 
-### 2. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
+### 2. Timer können im Engine-Kern jetzt fälligkeitsbasiert weiterlaufen
+
+- `ProcessEngine.HandleTime(...)` kann fällige Timer-Start-Events jetzt einmalig in neue Instanzen überführen.
+- `InstanceEngine.HandleTime(...)` kann fällige `FlowzerIntermediateTimerCatchEvent`-Tokens jetzt weiterführen.
+- Die zugehörigen Engine-Regressionstests decken Start- und Intermediate-Timer jetzt explizit ab.
+
+### 3. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
 
 - User-Task-Ergebnisse ohne `ProcessInstanceId` laufen nicht mehr in eine rohe `NotImplementedException`.
 - Stattdessen kommt ein valider `400 Bad Request` mit einem klaren API-Fehlervertrag zurück.
 - Zusätzlich wird jetzt geprüft, ob das übergebene `TokenId` wirklich noch aktiv ist und zum erwarteten `FlowNodeId` gehört.
 
-### 3. Instanzabbruch ist als Best-Effort-Pfad verfügbar
+### 4. Instanzabbruch ist als Best-Effort-Pfad verfügbar
 
 - `InstanceEngine.Cancel()` terminiert jetzt aktive/wartende Tokens der Instanz konsistent.
 - Das ersetzt noch **keine vollständige BPMN-Kompensation**, verhindert aber, dass der API-/Runtime-Pfad an einer nackten `NotImplementedException` scheitert.
@@ -27,17 +33,19 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 
 ### 1. Timer-Ausführung und Persistenz
 
-Aktuell sichtbar bzw. teilweise vorbereitet:
+Aktuell vorhanden:
 
 - Timer-Fälligkeiten für Start- und laufende Instanzen
 - Timer-Catch-Events als wartende Zustände
+- einmaliger Engine-Kernpfad für fällige Timer-Starts und Intermediate-Timer
 
 Weiterhin offen:
 
 - persistierte Timer-Subscriptions in Storage/API
 - Wiederaufnahme nach Neustart nur auf Basis gespeicherter Timerzustände
-- tatsächliches `HandleTime(...)` bzw. Scheduler-Anbindung
+- Scheduler-/API-Anbindung rund um `HandleTime(...)`
 - Boundary-Timer-Parsing und -Abarbeitung
+- vollständige Wiederholungsstrategie für zyklische Start-Timer über den ersten Due-Zeitpunkt hinaus
 
 ### 2. Fehler- und Eskalationspfade
 

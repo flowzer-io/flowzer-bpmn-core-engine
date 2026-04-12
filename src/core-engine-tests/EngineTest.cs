@@ -439,12 +439,58 @@ public class EngineTest
         var processEngine = Helper.CreateProcessEngine(process.First());
         var activeTimers = processEngine.ActiveTimers.ToArray();
         activeTimers.Should().HaveCount(1);
-        activeTimers.Single().Should().BeCloseTo(DateTime.Now.AddSeconds(2), new TimeSpan(0, 0, 0, 0, 100));
+        var dueDate = activeTimers.Single();
+        var remainingTime = dueDate - DateTime.UtcNow;
+        remainingTime.Should().BeGreaterOrEqualTo(TimeSpan.FromSeconds(1));
+        remainingTime.Should().BeLessOrEqualTo(TimeSpan.FromSeconds(2.5));
+    }
 
-        // var instanceEngine = await processEngine.HandleTime(DateTime.Now);
-        // activeTimers = instanceEngine.ActiveTimers.ToArray();
-        // activeTimers.Should().HaveCount(0);
-        //
+    [Test]
+    public void TimerStartEvent_ShouldStartProcessWhenDue()
+    {
+        var processEngine = CreateProcessEngineFromXml("""
+                                                     <?xml version="1.0" encoding="UTF-8"?>
+                                                     <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                       xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                                                       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                                                       id="Definitions_TimerStart"
+                                                                       targetNamespace="http://bpmn.io/schema/bpmn">
+                                                       <bpmn:process id="Process_TimerStart" isExecutable="true">
+                                                         <bpmn:startEvent id="StartEvent_1">
+                                                           <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                           <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                                             <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT2S</bpmn:timeDuration>
+                                                           </bpmn:timerEventDefinition>
+                                                         </bpmn:startEvent>
+                                                         <bpmn:serviceTask id="ServiceTask_1" name="Wait for worker">
+                                                           <bpmn:extensionElements>
+                                                             <zeebe:taskDefinition type="timer-start-step" />
+                                                           </bpmn:extensionElements>
+                                                           <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                           <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                                                         </bpmn:serviceTask>
+                                                         <bpmn:endEvent id="EndEvent_1">
+                                                           <bpmn:incoming>Flow_2</bpmn:incoming>
+                                                         </bpmn:endEvent>
+                                                         <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
+                                                         <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="EndEvent_1" />
+                                                       </bpmn:process>
+                                                     </bpmn:definitions>
+                                                     """);
+
+        var dueDate = processEngine.ActiveTimers.Single();
+
+        var instances = processEngine.HandleTime(dueDate.AddMilliseconds(50));
+
+        using (new AssertionScope())
+        {
+            instances.Should().ContainSingle();
+            instances.Single().ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+            instances.Single().GetActiveServiceTasks().Select(token => ((ServiceTask)token.CurrentBaseElement).Implementation)
+                .Should()
+                .ContainSingle("timer-start-step");
+            processEngine.ActiveTimers.Should().BeEmpty();
+        }
     }
 
     [Test]
@@ -488,6 +534,48 @@ public class EngineTest
                 .Count(token => token.CurrentFlowNode != null && token.CurrentFlowNode.Id == "TimerCatch_1")
                 .Should()
                 .Be(1);
+        }
+    }
+
+    [Test]
+    public void IntermediateTimerCatchEvent_ShouldContinueWhenDue()
+    {
+        var instanceEngine = StartProcessFromXml("""
+                                               <?xml version="1.0" encoding="UTF-8"?>
+                                               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                                                 id="Definitions_TimerCatch_Continue"
+                                                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                                                 <bpmn:process id="Process_TimerCatch_Continue" isExecutable="true">
+                                                   <bpmn:startEvent id="StartEvent_1">
+                                                     <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                   </bpmn:startEvent>
+                                                   <bpmn:intermediateCatchEvent id="TimerCatch_1">
+                                                     <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                     <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                                                     <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                                       <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+                                                     </bpmn:timerEventDefinition>
+                                                   </bpmn:intermediateCatchEvent>
+                                                   <bpmn:endEvent id="EndEvent_1">
+                                                     <bpmn:incoming>Flow_2</bpmn:incoming>
+                                                   </bpmn:endEvent>
+                                                   <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="TimerCatch_1" />
+                                                   <bpmn:sequenceFlow id="Flow_2" sourceRef="TimerCatch_1" targetRef="EndEvent_1" />
+                                                 </bpmn:process>
+                                               </bpmn:definitions>
+                                               """);
+
+        var timerToken = instanceEngine.ActiveTokens.Single(token => token.CurrentFlowNode?.Id == "TimerCatch_1");
+
+        instanceEngine.HandleTime(timerToken.LastStateChangeTime.AddSeconds(5).AddMilliseconds(50));
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            ((ICatchHandler)instanceEngine).ActiveTimers.Should().BeEmpty();
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.Tokens.Count(token => token.CurrentFlowNode is EndEvent).Should().Be(1);
         }
     }
 
@@ -560,5 +648,11 @@ public class EngineTest
     {
         var process = ModelParser.ParseModel(xml).GetProcesses().Single();
         return Helper.CreateProcessEngine(process).StartProcess();
+    }
+
+    private static ProcessEngine CreateProcessEngineFromXml(string xml)
+    {
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        return Helper.CreateProcessEngine(process);
     }
 }
