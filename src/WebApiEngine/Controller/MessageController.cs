@@ -22,9 +22,13 @@ public class MessageController(IStorageSystem storageSystem,
             var message = messageDto.ToModel();
             await bpmnBusinessLogic.HandleMessage(message);
         }
-        catch (Exception e)
+        catch (ArgumentException e)
         {
             return BadRequest(new ApiStatusResult<string>(errorMessage: e.Message));
+        }
+        catch (FileNotFoundException e)
+        {
+            return NotFound(new ApiStatusResult<string>(errorMessage: e.Message));
         }
         string correlationText = "";
         if (messageDto.CorrelationKey != null)

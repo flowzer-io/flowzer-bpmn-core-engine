@@ -176,6 +176,28 @@ public class ApiHardeningIntegrationTest
     }
 
     [Test]
+    public async Task MessageEndpoint_ShouldReturnNotFound_WhenSubscriptionReferencesMissingProcess()
+    {
+        const string correlationKey = "INV-404";
+        var storage = CreateMessageStartStorage(correlationKey, processId: "Missing_Process");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/message", new MessageDto
+        {
+            Name = "InvoiceReceived",
+            CorrelationKey = correlationKey
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<string>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("No process with the id");
+    }
+
+    [Test]
     public async Task MessageEndpoint_ShouldReturnSuccessfulResultPayload_WhenMessageWasHandled()
     {
         const string correlationKey = "INV-1000";
@@ -210,7 +232,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().BeNull();
     }
 
-    private static TestStorage CreateMessageStartStorage(string correlationKey)
+    private static TestStorage CreateMessageStartStorage(string correlationKey, string processId = "Process_Invoice")
     {
         var storage = new TestStorage();
         var definitionId = Guid.NewGuid();
@@ -249,7 +271,7 @@ public class ApiHardeningIntegrationTest
                 Name = "InvoiceReceived",
                 FlowzerCorrelationKey = correlationKey
             },
-            "Process_Invoice",
+            processId,
             "invoice-process",
             definitionId));
 

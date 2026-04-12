@@ -14,7 +14,7 @@ public class FormController(
 {
 
     [HttpPost()]
-    public async Task<ActionResult<ApiStatusResult>> SaveForm(FormDto formDto)
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> SaveForm(FormDto formDto)
     {
         Form form;
         try
@@ -27,7 +27,7 @@ public class FormController(
         }
         
         if (form.FormId == Guid.Empty)
-            throw new Exception("FormId is required");
+            return BadRequest(new ApiStatusResult<FormDto>("FormId is required"));
         
         form = await formBusinessLogic.SaveForm(form);
         
@@ -98,9 +98,6 @@ public class FormController(
         [HttpPost("meta/{formId}")]
         public async Task<ActionResult<ApiStatusResult>> SaveFormMetadata(Guid formId, FormMetaDataDto formMetadataDto)
         {
-            if (formMetadataDto.FormId == Guid.Empty)
-                throw new Exception("FormId is required");
-            
             formMetadataDto.FormId = formId;
             
             await storageSystem.FormStorage.SaveFormMetaData(formMetadataDto.ToModel());
@@ -123,7 +120,7 @@ public class FormController(
             await bpmnBusinessLogic.HandleUserTask(data, currentUser.UserId);
             return Ok(new ApiStatusResult() {Successful = true});
         }
-        catch (Exception e)
+        catch (ArgumentException e)
         {
             return BadRequest(new ApiStatusResult(e.Message));
         }
