@@ -2,6 +2,7 @@ using WebApiEngine;
 using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Diagnostics;
 using WebApiEngine.Middleware;
 using Microsoft.Extensions.Options;
 
@@ -23,6 +24,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ITransactionalStorageProvider, FilesystemStorageSystem.FileSystemTransactionalStorageProvider>();
 builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>();
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
+builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
@@ -41,6 +43,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseFlowzerRequestDiagnostics();
 app.UseFlowzerApiExceptionHandling();
 
 // Configure the HTTP request pipeline.

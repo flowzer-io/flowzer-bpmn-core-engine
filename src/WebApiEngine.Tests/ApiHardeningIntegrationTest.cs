@@ -65,6 +65,146 @@ public class ApiHardeningIntegrationTest
     }
 
     [Test]
+    public async Task OperationsDiagnostics_ShouldReturnSchedulerAndStorageSnapshot()
+    {
+        var storage = new TestStorage();
+        storage.StoredDefinitions.AddRange(
+        [
+            new BpmnDefinition
+            {
+                Id = Guid.NewGuid(),
+                DefinitionId = "definition-active",
+                Hash = "hash-active",
+                SavedByUser = Guid.NewGuid(),
+                SavedOn = DateTime.UtcNow,
+                Version = new Model.Version(1, 0),
+                IsActive = true
+            },
+            new BpmnDefinition
+            {
+                Id = Guid.NewGuid(),
+                DefinitionId = "definition-inactive",
+                Hash = "hash-inactive",
+                SavedByUser = Guid.NewGuid(),
+                SavedOn = DateTime.UtcNow,
+                Version = new Model.Version(1, 0),
+                IsActive = false
+            }
+        ]);
+        storage.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = "definition-active",
+            Name = "Active Definition",
+            LatestVersion = new Model.Version(1, 0),
+            LatestVersionDateTime = DateTime.UtcNow
+        });
+        storage.FormMetadatas.Add(new FormMetadata
+        {
+            FormId = Guid.NewGuid(),
+            Name = "Approval Form"
+        });
+        storage.MessageSubscriptions.Add(new MessageSubscription(
+            new MessageDefinition
+            {
+                Name = "InvoiceReceived",
+                FlowzerCorrelationKey = "invoiceId"
+            },
+            "Process_Invoice",
+            "definition-active",
+            storage.StoredDefinitions[0].Id,
+            null));
+        storage.TimerSubscriptions.Add(new TimerSubscription
+        {
+            DueAt = DateTime.UtcNow.AddMinutes(5),
+            FlowNodeId = "StartEvent_Timer",
+            Kind = TimerSubscriptionKind.ProcessStartEvent,
+            ProcessId = "Process_Invoice",
+            RelatedDefinitionId = "definition-active",
+            DefinitionId = storage.StoredDefinitions[0].Id
+        });
+        storage.Instances.AddRange(
+        [
+            new ProcessInstanceInfo
+            {
+                InstanceId = Guid.NewGuid(),
+                metaDefinitionId = "definition-active",
+                DefinitionId = storage.StoredDefinitions[0].Id,
+                ProcessId = "Process_Invoice",
+                Tokens = [],
+                IsFinished = false,
+                State = ProcessInstanceState.Waiting,
+                MessageSubscriptionCount = 1,
+                SignalSubscriptionCount = 2,
+                UserTaskSubscriptionCount = 3,
+                ServiceSubscriptionCount = 1
+            },
+            new ProcessInstanceInfo
+            {
+                InstanceId = Guid.NewGuid(),
+                metaDefinitionId = "definition-active",
+                DefinitionId = storage.StoredDefinitions[0].Id,
+                ProcessId = "Process_Invoice",
+                Tokens = [],
+                IsFinished = true,
+                State = ProcessInstanceState.Completed,
+                MessageSubscriptionCount = 0,
+                SignalSubscriptionCount = 0,
+                UserTaskSubscriptionCount = 0,
+                ServiceSubscriptionCount = 0
+            }
+        ]);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().NotBeNull();
+        payload.Result!.Environment.Should().Be("Development");
+        payload.Result.Storage.TotalDefinitions.Should().Be(2);
+        payload.Result.Storage.ActiveDefinitions.Should().Be(1);
+        payload.Result.Storage.DefinitionMetadataEntries.Should().Be(1);
+        payload.Result.Storage.FormMetadataEntries.Should().Be(1);
+        payload.Result.Storage.TotalInstances.Should().Be(2);
+        payload.Result.Storage.ActiveInstances.Should().Be(1);
+        payload.Result.Storage.CompletedInstances.Should().Be(1);
+        payload.Result.Storage.FailedInstances.Should().Be(0);
+        payload.Result.Storage.PendingMessages.Should().Be(1);
+        payload.Result.Storage.PendingTimers.Should().Be(1);
+        payload.Result.Storage.OpenUserTasks.Should().Be(3);
+        payload.Result.Storage.PendingSignals.Should().Be(2);
+        payload.Result.Storage.PendingServices.Should().Be(1);
+        payload.Result.TimerScheduler.Enabled.Should().BeFalse();
+        payload.Result.TimerScheduler.Status.Should().Be("Disabled");
+        payload.Result.Instrumentation.MeterName.Should().Be("Flowzer.WebApi");
+        payload.Result.Instrumentation.ActivitySourceName.Should().Be("Flowzer.WebApi");
+    }
+
+    [Test]
+    public async Task OperationsDiagnostics_ShouldReturnServiceUnavailable_WhenStorageSnapshotFails()
+    {
+        var storage = new TestStorage
+        {
+            ThrowOnGetAllDefinitions = true
+        };
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Be("Operations diagnostics are currently unavailable.");
+    }
+
+    [Test]
     public async Task UploadDefinition_ShouldUseTechnicalUserHeader_WhenNoAuthenticationExistsYet()
     {
         var storage = new TestStorage();
@@ -508,12 +648,16 @@ public class ApiHardeningIntegrationTest
         public bool ThrowOnGetFormMetadata { get; set; }
         public Guid? LastRequestedExtendedUserTaskUserId { get; set; }
         public List<BpmnDefinition> StoredDefinitions { get; } = [];
+        public List<ExtendedBpmnMetaDefinition> MetaDefinitions { get; } = [];
         public Dictionary<Guid, string> StoredBinaries { get; } = [];
+        public List<FormMetadata> FormMetadatas { get; } = [];
         public List<MessageSubscription> MessageSubscriptions { get; } = [];
+        public List<TimerSubscription> TimerSubscriptions { get; } = [];
+        public List<ProcessInstanceInfo> Instances { get; } = [];
 
         public IDefinitionStorage DefinitionStorage => new TestDefinitionStorage(this);
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
-        public IInstanceStorage InstanceStorage { get; } = new TestInstanceStorage();
+        public IInstanceStorage InstanceStorage => new TestInstanceStorage(this);
         public IFormStorage FormStorage => new TestFormStorage(this);
 
         public void CommitChanges()
@@ -610,16 +754,30 @@ public class ApiHardeningIntegrationTest
 
         public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions()
         {
-            return Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());
+            return Task.FromResult(storage.MetaDefinitions.ToArray());
         }
 
         public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition)
         {
+            storage.MetaDefinitions.RemoveAll(existing => existing.DefinitionId == metaDefinition.DefinitionId);
+            storage.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+            {
+                DefinitionId = metaDefinition.DefinitionId,
+                Name = metaDefinition.Name,
+                Description = metaDefinition.Description
+            });
             return Task.CompletedTask;
         }
 
         public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition)
         {
+            storage.MetaDefinitions.RemoveAll(existing => existing.DefinitionId == metaDefinition.DefinitionId);
+            storage.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+            {
+                DefinitionId = metaDefinition.DefinitionId,
+                Name = metaDefinition.Name,
+                Description = metaDefinition.Description
+            });
             return Task.CompletedTask;
         }
 
@@ -696,40 +854,62 @@ public class ApiHardeningIntegrationTest
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
 
         public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions() =>
-            Task.FromResult(Enumerable.Empty<TimerSubscription>());
+            Task.FromResult(storage.TimerSubscriptions.AsEnumerable());
 
         public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) =>
-            Task.FromResult(Enumerable.Empty<TimerSubscription>());
+            Task.FromResult(storage.TimerSubscriptions.Where(subscription => subscription.ProcessInstanceId == instanceId));
 
-        public Task AddTimerSubscription(TimerSubscription timerSubscription) => Task.CompletedTask;
+        public Task AddTimerSubscription(TimerSubscription timerSubscription)
+        {
+            storage.TimerSubscriptions.RemoveAll(existing => existing.Id == timerSubscription.Id);
+            storage.TimerSubscriptions.Add(timerSubscription);
+            return Task.CompletedTask;
+        }
 
-        public Task RemoveTimerSubscription(Guid timerSubscriptionId) => Task.CompletedTask;
+        public Task RemoveTimerSubscription(Guid timerSubscriptionId)
+        {
+            storage.TimerSubscriptions.RemoveAll(existing => existing.Id == timerSubscriptionId);
+            return Task.CompletedTask;
+        }
 
-        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId)
+        {
+            storage.TimerSubscriptions.RemoveAll(existing => existing.ProcessInstanceId == instanceId);
+            return Task.CompletedTask;
+        }
 
-        public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
+        public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId)
+        {
+            storage.TimerSubscriptions.RemoveAll(existing =>
+                existing.RelatedDefinitionId == relatedDefinitionId && existing.ProcessInstanceId == null);
+            return Task.CompletedTask;
+        }
     }
 
-    private sealed class TestInstanceStorage : IInstanceStorage
+    private sealed class TestInstanceStorage(TestStorage storage) : IInstanceStorage
     {
         public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId)
         {
-            throw new FileNotFoundException($"Process instance {processInstanceId} was not found.");
+            var instance = storage.Instances.SingleOrDefault(existing => existing.InstanceId == processInstanceId)
+                           ?? throw new FileNotFoundException($"Process instance {processInstanceId} was not found.");
+            return Task.FromResult(instance);
         }
 
         public Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo)
         {
+            storage.Instances.RemoveAll(existing => existing.InstanceId == processInstanceInfo.InstanceId);
+            storage.Instances.Add(processInstanceInfo);
             return Task.CompletedTask;
         }
 
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances()
         {
-            return Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
+            return Task.FromResult(storage.Instances.Where(instance => !instance.IsFinished));
         }
 
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances()
         {
-            return Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
+            return Task.FromResult(storage.Instances.AsEnumerable());
         }
     }
 
@@ -749,7 +929,7 @@ public class ApiHardeningIntegrationTest
 
         public Task<IEnumerable<FormMetadata>> GetFormMetadatas()
         {
-            return Task.FromResult(Enumerable.Empty<FormMetadata>());
+            return Task.FromResult(storage.FormMetadatas.AsEnumerable());
         }
 
         public Task UpdateFormMetaData(FormMetadata formMetaData) => Task.CompletedTask;
