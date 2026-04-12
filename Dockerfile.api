@@ -1,6 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+COPY global.json ./
+
 # Nur die für die Web-API relevanten Projekte vorziehen, damit Restore-Layer stabil bleiben.
 COPY Model/Model.csproj Model/
 COPY src/FlowzerBPMN/FlowzerBPMN.csproj src/FlowzerBPMN/

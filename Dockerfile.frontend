@@ -1,6 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+COPY global.json ./
+
 # Restore auf das Frontend + seine Referenzen begrenzen.
 COPY Model/Model.csproj Model/
 COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/

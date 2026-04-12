@@ -19,8 +19,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
     depends_on:
       api:
         condition: service_healthy
