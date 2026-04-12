@@ -34,12 +34,12 @@ public static class FlowzerDiagnostics
     private static readonly Histogram<int> TimerSchedulerProcessedTimers =
         Meter.CreateHistogram<int>("flowzer.timer.scheduler.processed_timers");
 
-    public static void RecordHttpRequest(string method, string path, int statusCode, TimeSpan duration)
+    public static void RecordHttpRequest(string method, string routeName, int statusCode, TimeSpan duration)
     {
         var tags = new TagList
         {
             { "http.method", method },
-            { "url.path", path },
+            { "http.route", routeName },
             { "http.status_code", statusCode }
         };
 

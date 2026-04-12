@@ -23,7 +23,9 @@ public class OperationsController(
             var metaDefinitions = (await storageSystem.DefinitionStorage.GetAllMetaDefinitions()).ToArray();
             var forms = (await storageSystem.FormStorage.GetFormMetadatas()).ToArray();
             var instances = (await storageSystem.InstanceStorage.GetAllInstances()).ToArray();
-            var activeInstances = (await storageSystem.InstanceStorage.GetAllActiveInstances()).ToArray();
+            var activeInstances = instances
+                .Where(instance => instance.State is not (ProcessInstanceState.Completed or ProcessInstanceState.Compensated or ProcessInstanceState.Failed or ProcessInstanceState.Terminated))
+                .ToArray();
             var messages = (await storageSystem.SubscriptionStorage.GetAllMessageSubscriptions()).ToArray();
             var timers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions()).ToArray();
 
@@ -33,7 +35,7 @@ public class OperationsController(
                 Environment = environment.EnvironmentName,
                 Storage = new OperationsStorageSnapshotDto
                 {
-                    StorageRootHint = ResolveStorageRootHint(),
+                    StorageRootHint = ResolveStorageRootHint(environment),
                     TotalDefinitions = definitions.Length,
                     ActiveDefinitions = definitions.Count(definition => definition.IsActive),
                     DefinitionMetadataEntries = metaDefinitions.Length,
@@ -77,11 +79,23 @@ public class OperationsController(
         }
     }
 
-    private static string ResolveStorageRootHint()
+    private static string ResolveStorageRootHint(IHostEnvironment environment)
     {
         var configuredStorageRoot = Environment.GetEnvironmentVariable(FilesystemStorageSystem.Storage.StorageRootEnvironmentVariableName);
-        return string.IsNullOrWhiteSpace(configuredStorageRoot)
-            ? "(default under FilesystemStorageSystem build output)"
-            : Path.GetFullPath(configuredStorageRoot);
+        if (string.IsNullOrWhiteSpace(configuredStorageRoot))
+        {
+            return "(default under FilesystemStorageSystem build output)";
+        }
+
+        var normalizedStorageRoot = Path.GetFullPath(configuredStorageRoot);
+        if (environment.IsDevelopment())
+        {
+            return normalizedStorageRoot;
+        }
+
+        var leafName = Path.GetFileName(normalizedStorageRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        return string.IsNullOrWhiteSpace(leafName)
+            ? "(custom FLOWZER_STORAGE_ROOT configured)"
+            : $"(custom FLOWZER_STORAGE_ROOT configured: {leafName})";
     }
 }

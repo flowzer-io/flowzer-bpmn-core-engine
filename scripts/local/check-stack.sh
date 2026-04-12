@@ -33,7 +33,7 @@ echo
 
 echo "Checking API operations diagnostics: ${api_url}/operations/diagnostics"
 curl "${curl_opts[@]}" "${api_url}/operations/diagnostics" >"$diagnostics_file"
-grep -q '"Successful"[[:space:]]*:[[:space:]]*true' "$diagnostics_file"
+grep -Eqi '"(successful|Successful)"[[:space:]]*:[[:space:]]*true' "$diagnostics_file"
 cat "$diagnostics_file"
 echo
 

@@ -29,7 +29,7 @@ public sealed class FlowzerRequestDiagnosticsMiddleware(
         stopwatch.Stop();
 
         var statusCode = context.Response.StatusCode;
-        FlowzerDiagnostics.RecordHttpRequest(method, path, statusCode, stopwatch.Elapsed);
+        FlowzerDiagnostics.RecordHttpRequest(method, routeName, statusCode, stopwatch.Elapsed);
 
         activity?.SetTag("http.status_code", statusCode);
         activity?.SetTag("flowzer.duration_ms", stopwatch.Elapsed.TotalMilliseconds);
@@ -45,14 +45,19 @@ public sealed class FlowzerRequestDiagnosticsMiddleware(
                 ? LogLevel.Warning
                 : LogLevel.Information;
 
+        var activityTraceId = activity?.TraceId.ToString();
+        var activitySpanId = activity?.SpanId.ToString();
+
         logger.Log(
             logLevel,
-            "Handled {Method} {Path} with status {StatusCode} in {DurationMs:0.0} ms (TraceId: {TraceId}).",
+            "Handled {Method} {Path} with status {StatusCode} in {DurationMs:0.0} ms (RequestId: {RequestId}, ActivityTraceId: {ActivityTraceId}, ActivitySpanId: {ActivitySpanId}).",
             method,
             path,
             statusCode,
             stopwatch.Elapsed.TotalMilliseconds,
-            context.TraceIdentifier);
+            context.TraceIdentifier,
+            activityTraceId,
+            activitySpanId);
     }
 
     private static bool ShouldLog(string path, string method, int statusCode, TimeSpan duration)

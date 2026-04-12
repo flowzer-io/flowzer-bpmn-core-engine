@@ -72,7 +72,7 @@ Besonders relevant sind noch:
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
 - Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
 - weitere Auth-/Identity- und Fehlerpfade jenseits des aktuellen Benutzerkontext-Guards
-- Release-/Telemetry-/Secret-/Recovery-Story über die lokale Basis hinaus
+- Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
 
@@ -80,7 +80,7 @@ Noch offen sind unter anderem:
 
 - Restlücken in Timer-, Boundary- und Kompensationssemantik
 - provisorische Auth-/Identity-Platzhalter oberhalb des aktuellen Benutzerkontext-Guards
-- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, externe Logging-/Telemetry-Backends und Recovery-Automatisierung
+- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, externe Logging-/Telemetrie-Backends und Recovery-Automatisierung
 - Altlasten und Doppelstrukturen im Repository
 
 Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).

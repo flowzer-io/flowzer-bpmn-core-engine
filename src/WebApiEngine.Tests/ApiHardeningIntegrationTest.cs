@@ -182,6 +182,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.TimerScheduler.Status.Should().Be("Disabled");
         payload.Result.Instrumentation.MeterName.Should().Be("Flowzer.WebApi");
         payload.Result.Instrumentation.ActivitySourceName.Should().Be("Flowzer.WebApi");
+        storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
 
     [Test]
@@ -202,6 +203,38 @@ public class ApiHardeningIntegrationTest
         payload.Should().NotBeNull();
         payload!.Successful.Should().BeFalse();
         payload.ErrorMessage.Should().Be("Operations diagnostics are currently unavailable.");
+    }
+
+    [Test]
+    public async Task OperationsDiagnostics_ShouldRedactCustomStorageRootOutsideDevelopment()
+    {
+        var storage = new TestStorage();
+        var previousStorageRoot = Environment.GetEnvironmentVariable(FilesystemStorageSystem.Storage.StorageRootEnvironmentVariableName);
+        var configuredStorageRoot = Path.Combine(Path.GetTempPath(), "flowzer-observability-root", Guid.NewGuid().ToString("N"), "custom-store");
+
+        Environment.SetEnvironmentVariable(FilesystemStorageSystem.Storage.StorageRootEnvironmentVariableName, configuredStorageRoot);
+
+        try
+        {
+            await using var factory = new TestWebApplicationFactory(
+                storage,
+                new TestFactoryOptions { EnvironmentName = "Production" });
+            using var client = factory.CreateClient();
+
+            var response = await client.GetAsync("/operations/diagnostics");
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+            payload.Should().NotBeNull();
+            payload!.Successful.Should().BeTrue();
+            payload.Result.Should().NotBeNull();
+            payload.Result!.Storage.StorageRootHint.Should().Be("(custom FLOWZER_STORAGE_ROOT configured: custom-store)");
+            payload.Result.Storage.StorageRootHint.Should().NotContain(configuredStorageRoot);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FilesystemStorageSystem.Storage.StorageRootEnvironmentVariableName, previousStorageRoot);
+        }
     }
 
     [Test]
@@ -646,6 +679,7 @@ public class ApiHardeningIntegrationTest
     {
         public bool ThrowOnGetAllDefinitions { get; set; }
         public bool ThrowOnGetFormMetadata { get; set; }
+        public int GetAllActiveInstancesCallCount { get; set; }
         public Guid? LastRequestedExtendedUserTaskUserId { get; set; }
         public List<BpmnDefinition> StoredDefinitions { get; } = [];
         public List<ExtendedBpmnMetaDefinition> MetaDefinitions { get; } = [];
@@ -904,6 +938,7 @@ public class ApiHardeningIntegrationTest
 
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances()
         {
+            storage.GetAllActiveInstancesCallCount++;
             return Task.FromResult(storage.Instances.Where(instance => !instance.IsFinished));
         }
 
