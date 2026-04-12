@@ -39,6 +39,7 @@ public class DefinitionBusinessLogic(
         
                 
         var currentUser = currentUserContextAccessor.GetCurrentUser();
+        var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
 
         var definition = new BpmnDefinition()
         {
@@ -46,7 +47,7 @@ public class DefinitionBusinessLogic(
             DefinitionId = model.Id,
             PreviousGuid = previousGuid,
             Hash = ComputeStableHash(rawContent),
-            SavedByUser = currentUser.UserId,
+            SavedByUser = resolvedUserId,
             SavedOn = DateTime.UtcNow,
             Version = highestVersion,
             IsActive = false

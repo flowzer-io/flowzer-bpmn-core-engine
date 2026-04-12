@@ -93,17 +93,70 @@ public class ApiHardeningIntegrationTest
     }
 
     [Test]
-    public async Task GetAllUserTasks_ShouldUseFallbackUserId_WhenNoAuthenticationDataIsPresent()
+    public async Task UploadDefinition_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
         var storage = new TestStorage();
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions { EnvironmentName = "Production" });
+        using var client = factory.CreateClient();
+
+        var xml = """
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+                    <bpmn:process id="Process_Invoice" isExecutable="true" />
+                  </bpmn:definitions>
+                  """;
+
+        var response = await client.PostAsync("/definition", new StringContent(xml));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("resolved user context");
+        storage.StoredDefinitions.Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task GetAllUserTasks_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions { EnvironmentName = "Production" });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/usertask");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        storage.LastRequestedExtendedUserTaskUserId.Should().BeNull();
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("resolved user context");
+    }
+
+    [Test]
+    public async Task GetAllUserTasks_ShouldUseResolvedUserContext_WhenAccessorProvidesAuthenticatedUser()
+    {
+        var storage = new TestStorage();
+        var expectedUserId = Guid.NewGuid();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                CurrentUserContext = new CurrentUserContext(expectedUserId, "test:claims", false)
+            });
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/usertask");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        storage.LastRequestedExtendedUserTaskUserId.Should().Be(HttpContextCurrentUserContextAccessor.FallbackUserId);
+        storage.LastRequestedExtendedUserTaskUserId.Should().Be(expectedUserId);
         var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>>();
         payload.Should().NotBeNull();
         payload!.Successful.Should().BeTrue();
@@ -115,8 +168,15 @@ public class ApiHardeningIntegrationTest
     public async Task UserTaskEndpoint_ShouldReturnBadRequest_WhenProcessInstanceIdIsMissing()
     {
         var storage = new TestStorage();
+        var expectedUserId = Guid.NewGuid();
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                EnvironmentName = "Production",
+                CurrentUserContext = new CurrentUserContext(expectedUserId, "test:claims", false)
+            });
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync("/usertask", new UserTaskResultDto
@@ -133,6 +193,56 @@ public class ApiHardeningIntegrationTest
         payload!.Successful.Should().BeFalse();
         payload.ErrorMessage.Should().Contain("User task results require a ProcessInstanceId.");
         payload.ErrorMessage.Should().Contain("ProcessInstanceId");
+    }
+
+    [Test]
+    public async Task UserTaskEndpoint_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions { EnvironmentName = "Production" });
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/usertask", new UserTaskResultDto
+        {
+            FlowNodeId = "UserTask_1",
+            TokenId = Guid.NewGuid(),
+            ProcessInstanceId = Guid.NewGuid(),
+            Data = null
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("resolved user context");
+    }
+
+    [Test]
+    public async Task FormResult_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions { EnvironmentName = "Production" });
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/form/result", new UserTaskResultDto
+        {
+            FlowNodeId = "UserTask_1",
+            TokenId = Guid.NewGuid(),
+            ProcessInstanceId = Guid.NewGuid(),
+            Data = null
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("resolved user context");
     }
 
     [Test]
@@ -309,11 +419,15 @@ public class ApiHardeningIntegrationTest
         };
     }
 
-    private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
+    private sealed class TestWebApplicationFactory(
+        TestStorage storage,
+        TestFactoryOptions? options = null) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
-            builder.UseSetting(WebHostDefaults.EnvironmentKey, "Development");
+            options ??= new TestFactoryOptions();
+
+            builder.UseSetting(WebHostDefaults.EnvironmentKey, options.EnvironmentName);
             builder.ConfigureAppConfiguration((_, configBuilder) =>
             {
                 configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
@@ -328,8 +442,29 @@ public class ApiHardeningIntegrationTest
 
                 services.AddSingleton<IStorageSystem>(storage);
                 services.AddSingleton<ITransactionalStorageProvider>(new TestTransactionalStorageProvider(storage));
+
+                if (options.CurrentUserContext is not null)
+                {
+                    services.RemoveAll<ICurrentUserContextAccessor>();
+                    services.AddSingleton<ICurrentUserContextAccessor>(
+                        new FixedCurrentUserContextAccessor(options.CurrentUserContext));
+                }
             });
         }
+    }
+
+    private sealed class FixedCurrentUserContextAccessor(CurrentUserContext currentUserContext) : ICurrentUserContextAccessor
+    {
+        public CurrentUserContext GetCurrentUser()
+        {
+            return currentUserContext;
+        }
+    }
+
+    private sealed record TestFactoryOptions
+    {
+        public string EnvironmentName { get; init; } = "Development";
+        public CurrentUserContext? CurrentUserContext { get; init; }
     }
 
     private sealed class TestTransactionalStorageProvider(TestStorage storage) : ITransactionalStorageProvider
