@@ -5,8 +5,11 @@ using Microsoft.JSInterop;
 
 namespace FlowzerFrontend.Components;
 
-public partial class FormComponent : ComponentBase
+public partial class FormComponent : ComponentBase, IDisposable
 {
+    private DotNetObjectReference<FormComponent>? _dotNetReference;
+    private string? _loadedSchema;
+    private string? _lastAppliedData;
     
     [Inject] public required IJSRuntime JsRuntime { get; set; }
     [Inject] public required ILogger<FormComponent> Logger { get; set; }
@@ -19,36 +22,35 @@ public partial class FormComponent : ComponentBase
 
     
     
-    private string _data = string.Empty;
-    [Parameter] public string Data
-    {
-        get => _data;
-        set
-        {
-            if (IgnoreDataChange)
-                return;
-            _data = value;
-            _ = SetSubmissionData();
-        }
-    }
+    [Parameter] public string Data { get; set; } = string.Empty;
 
     public bool IgnoreDataChange { get; set; }
 
     [Parameter] public EventCallback<string> DataChanged { get; set; }
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            var dotNetReference = DotNetObjectReference.Create(this);
-            JsRuntime.InvokeVoidAsync("SetDotNetRef", dotNetReference);
+            _dotNetReference = DotNetObjectReference.Create(this);
+            await JsRuntime.InvokeVoidAsync("SetDotNetRef", _dotNetReference);
         }
-    }
 
-    protected override async Task OnInitializedAsync()
-    {
-        if (! string.IsNullOrEmpty(Schema))
+        if (!string.IsNullOrEmpty(Schema) && !string.Equals(_loadedSchema, Schema, StringComparison.Ordinal))
+        {
             await LoadWithSchema(Schema);
+            _loadedSchema = Schema;
+            _lastAppliedData = Data;
+            return;
+        }
+
+        if (!IgnoreDataChange &&
+            _loadedSchema != null &&
+            !string.Equals(_lastAppliedData, Data, StringComparison.Ordinal))
+        {
+            await SetSubmissionData();
+            _lastAppliedData = Data;
+        }
     }
     
     [JSInvokable]
@@ -97,6 +99,9 @@ public partial class FormComponent : ComponentBase
         var data = await JsRuntime.InvokeAsyncNoneCached<JsonElement>("executeInIframe", "#iframe_viewer", "getSubmission");
         return JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
     }
-    
-    
+
+    public void Dispose()
+    {
+        _dotNetReference?.Dispose();
+    }
 }
