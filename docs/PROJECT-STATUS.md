@@ -70,6 +70,8 @@ Noch offen sind unter anderem:
 - Betriebs- und Deployment-Themen wie Health, Logging-Orientierung und lokale Start-Story
 - Altlasten und Doppelstrukturen im Repository
 
+Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).
+
 ### 3. Dokumentation muss nun mit der Technik mitwachsen
 
 Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Reifestufe fehlen bzw. benötigen Updates:

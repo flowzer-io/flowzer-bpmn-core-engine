@@ -86,6 +86,7 @@ Referenz: [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55
 Referenz: [#54](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/54)
 
 - lokale Startpfade für API und Frontend vereinheitlichen
+- kleine Compose- und Skriptbasis für reproduzierbare lokale Starts schaffen
 - Logging-/Betriebsanforderungen dokumentieren
 - Compose-/Deployment-Basis für eine produktionsnahe Nutzung vorbereiten
 
