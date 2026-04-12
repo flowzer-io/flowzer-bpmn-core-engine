@@ -48,6 +48,16 @@ Wenn Architektur, Setup oder bekannte Einschränkungen verändert werden, sollen
 - **Code auf Englisch**
 - **Erklärende Kommentare und Doku bevorzugt auf Deutsch**
 
+### 5. Git-Write-Regel im Repository
+
+- Auf Arbeits- und Integrationszweigen dieses Repositories darf GitHub Copilot bzw. ein agentischer Workflow **ohne weitere Rückfrage committen und pushen**.
+- Diese Freigabe gilt für Branches wie `codex/*`, `next` und vergleichbare Nicht-Release-Zweige.
+- **Nicht** erlaubt ohne explizite Freigabe bleiben direkte Git-Write-Aktionen auf:
+  - `main`
+  - `release`
+  - `release/*`
+- Solange nichts anderes verlangt wird, sollen PRs weiterhin **nach `next`** erstellt werden.
+
 ## Bekannte Fallstricke
 
 ### Build, Tests und CI

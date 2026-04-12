@@ -13,6 +13,7 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 3. [docs/ROADMAP.md](docs/ROADMAP.md)
 4. [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md)
 5. [.github/copilot-instructions.md](.github/copilot-instructions.md)
+6. [.codex-instructions.md](.codex-instructions.md)
 
 ## Wichtige Bereiche
 
@@ -30,6 +31,17 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 - **Engine-Änderungen möglichst mit Tests absichern.**
 - **Doku aktualisieren, wenn sich Architektur oder Setup ändern.**
 - **Code auf Englisch, erklärende Kommentare/Dokumentation bevorzugt auf Deutsch.**
+
+## Git-Write-Regel für dieses Repository
+
+- Auf Arbeits- und Integrationszweigen dürfen agentische Werkzeuge in diesem Repository **ohne weitere Rückfrage committen und pushen**.
+- Diese Freigabe gilt insbesondere für Branches wie `codex/*`, `next` und vergleichbare Nicht-Release-Zweige.
+- **Nicht** darunter fallen direkte Git-Write-Aktionen auf:
+  - `main`
+  - `release`
+  - `release/*`
+- Solche Writes auf `main`, `release` oder `release/*` bleiben weiterhin nur mit expliziter Freigabe erlaubt.
+- Solange nichts anderes gefordert ist, sollen PRs und Merges weiterhin **nach `next`** gehen.
 
 ## Bekannte Fallstricke
 
