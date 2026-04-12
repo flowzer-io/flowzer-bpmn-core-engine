@@ -26,9 +26,6 @@ env:
   # damit die CI nicht erst kurz vor der Abschaltung von Node 20 überrascht wird.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   NODE_VERSION: '20'
-  QUARANTINED_TEST_FILTER: >-
-    FullyQualifiedName!=core_engine_tests.EngineTest.ParallelTaskTest
-    &FullyQualifiedName!=core_engine_tests.EngineTest.SequentialTest
 
 jobs:
   dotnet:
@@ -56,7 +53,6 @@ jobs:
             --no-restore \
             --no-build \
             --configuration Release \
-            --filter "${QUARANTINED_TEST_FILTER}" \
             --collect:"XPlat Code Coverage" \
             --logger "trx;LogFileName=core-engine-tests.trx" \
             --results-directory ./TestResults/ci
@@ -116,9 +112,7 @@ jobs:
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
           - Zusätzlich laufen Web-API- und Frontend-Unit-Tests im selben Job mit.
-          - Quarantänisierte Tests (temporär bis zur separaten Behebung):
-            - `core_engine_tests.EngineTest.ParallelTaskTest`
-            - `core_engine_tests.EngineTest.SequentialTest`
+          - Die Core-Engine-Tests laufen jetzt wieder vollständig ohne Quarantänefilter im CI-Pfad.
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`
           EOF
