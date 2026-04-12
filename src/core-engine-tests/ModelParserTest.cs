@@ -72,6 +72,37 @@ public class ModelParserTest
         process.FlowElements.OfType<SubProcess>().Count(p => p.LoopCharacteristics != null).Should().Be(1);
     }
 
+    [Test]
+    public async Task ParseModel_ShouldOnlyReturnExecutableProcesses()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             id="Definitions_ExecutableFilter">
+                             <bpmn:process id="ExecutableProcess" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                             </bpmn:process>
+                             <bpmn:process id="CallableButInactiveProcess" isExecutable="false">
+                               <bpmn:startEvent id="StartEvent_2" />
+                             </bpmn:process>
+                             <bpmn:process id="MissingExecutableFlag">
+                               <bpmn:startEvent id="StartEvent_3" />
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml));
+
+        var model = await ModelParser.ParseModel(stream);
+
+        model.GetProcesses()
+            .Select(process => process.Id)
+            .Should()
+            .ContainSingle()
+            .Which.Should()
+            .Be("ExecutableProcess");
+    }
+
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)
         where T : FlowElement
     {

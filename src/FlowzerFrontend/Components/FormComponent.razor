@@ -9,8 +9,12 @@
         window.dotNetRef = ref;
     }
 
+    function ClearDotNetRef(){
+        window.dotNetRef = null;
+    }
+
     function messageHandler(event){
-        if (event.data.type === "event" && event.data.eventTyp === "formChanged"){
+        if (event.data.type === "event" && event.data.eventTyp === "formChanged" && window.dotNetRef){
             console.log("sending formchange to dotnet");
             window.dotNetRef.invokeMethodAsync('OnFormChange',  event.data);
         }

@@ -45,5 +45,5 @@ public class Order
 
 public class Address
 {
-    public string Firstname { get; set; }
+    public string Firstname { get; set; } = string.Empty;
 }

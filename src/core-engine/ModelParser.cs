@@ -81,7 +81,7 @@ public static class ModelParser
 
         var xmlProcessNodes = root.Elements().Where(n =>
             n.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase) &&
-            (bool)n.Attribute("isExecutable")?.Value.Equals("true", StringComparison.InvariantCultureIgnoreCase));
+            string.Equals((string?)n.Attribute("isExecutable"), "true", StringComparison.InvariantCultureIgnoreCase));
 
         processes.AddRange(
             xmlProcessNodes.Select(xmlProcessNode => new Process

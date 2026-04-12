@@ -222,7 +222,8 @@ public class EngineTest
         {
             ((List<object>?)multiInstanceToken.OutputData?.GetValue("MitarbeiterOut")).Should().HaveCount(3);
             //check if the order is correct
-            outList.Select(x => x.GetValue("Vorname")?.ToString()).Should()
+            outList.Should().NotBeNull();
+            outList!.Select(x => x.GetValue("Vorname")?.ToString()).Should()
                 .ContainInOrder(["Lukas", "Christian", "Max"]);
             instanceEngine.Tokens.Should().OnlyContain(x => x.State == FlowNodeState.Completed);
         }

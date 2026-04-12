@@ -2,7 +2,4 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @implements Microsoft.FluentUI.AspNetCore.Components.IDialogContentComponent<FilloutFormParameter>
 
-@if (Content is not null)
-{
-    <FormComponent Schema="@Content.Schema" @bind-Data="@Content.Data" @bind-OutData="@Content.OutData"></FormComponent>
-}
+<FormComponent Schema="@Content.Schema" @bind-Data="@Content.Data" @bind-OutData="@Content.OutData"></FormComponent>
