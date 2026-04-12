@@ -123,8 +123,8 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
-    /// Abbruch der Instanz. Dabei werden alle Tokens terminiert und die bereits durchlaufenen Activities kompensiert.
-    /// Subprozesse werden ebenfalls abgebrochen.
+    /// Bricht die Instanz best-effort ab, indem aktive bzw. wartende Tokens terminiert werden.
+    /// Eine BPMN-Kompensation bereits ausgeführter Activities ist damit bewusst noch nicht verbunden.
     /// </summary>
     public void Cancel()
     {

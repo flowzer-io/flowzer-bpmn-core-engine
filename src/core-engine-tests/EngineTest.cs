@@ -388,11 +388,12 @@ public class EngineTest
                                                """);
 
         var activeTimers = ((ICatchHandler)instanceEngine).ActiveTimers;
+        var timerToken = instanceEngine.ActiveTokens.Single(token => token.CurrentFlowNode?.Id == "TimerCatch_1");
 
         using (new AssertionScope())
         {
             activeTimers.Should().ContainSingle();
-            activeTimers.Single().Should().BeCloseTo(DateTime.UtcNow.AddSeconds(5), TimeSpan.FromSeconds(1));
+            activeTimers.Single().Should().BeCloseTo(timerToken.LastStateChangeTime.AddSeconds(5), TimeSpan.FromMilliseconds(250));
             instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
             instanceEngine.ActiveTokens
                 .Count(token => token.CurrentFlowNode != null && token.CurrentFlowNode.Id == "TimerCatch_1")

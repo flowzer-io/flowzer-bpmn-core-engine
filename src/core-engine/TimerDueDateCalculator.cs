@@ -30,6 +30,10 @@ internal static class TimerDueDateCalculator
             return DateTime.Parse(timerDefinition.TimeDate.Body);
         }
 
-        throw new ModelValidationException("Timer definition is invalid. for node " + flowNode.Name);
+        var nodeIdentifier = string.IsNullOrWhiteSpace(flowNode.Name)
+            ? flowNode.Id
+            : $"{flowNode.Id} ({flowNode.Name})";
+
+        throw new ModelValidationException($"Timer definition is invalid for node {nodeIdentifier}.");
     }
 }

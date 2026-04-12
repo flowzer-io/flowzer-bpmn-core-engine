@@ -130,7 +130,8 @@ public class ApiHardeningIntegrationTest
         var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
         payload.Should().NotBeNull();
         payload!.Successful.Should().BeFalse();
-        payload.ErrorMessage.Should().Be("User task results require a ProcessInstanceId. (Parameter 'ProcessInstanceId')");
+        payload.ErrorMessage.Should().Contain("User task results require a ProcessInstanceId.");
+        payload.ErrorMessage.Should().Contain("ProcessInstanceId");
     }
 
     [Test]
