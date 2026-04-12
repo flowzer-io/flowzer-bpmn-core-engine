@@ -14,15 +14,20 @@ var flowzerApiOptions =
 
 builder.Services.AddSingleton<ExampleRestRequestBuilder>();
 builder.Services.AddSingleton(flowzerApiOptions);
-builder.Services.AddScoped(sp => new HttpClient
+builder.Services.AddScoped(_ =>
 {
-    BaseAddress = flowzerApiOptions.ResolveBaseAddress(builder.HostEnvironment.BaseAddress)
+    var httpClient = new HttpClient
+    {
+        BaseAddress = flowzerApiOptions.ResolveBaseAddress(builder.HostEnvironment.BaseAddress)
+    };
+
+    flowzerApiOptions.ApplyDefaultHeaders(httpClient, builder.HostEnvironment.IsDevelopment());
+    return httpClient;
 });
 builder.Services.AddScoped<FlowzerApi>();
 builder.Services.AddFluentUIComponents();
 
 await builder.Build().RunAsync();
-
 
 
 

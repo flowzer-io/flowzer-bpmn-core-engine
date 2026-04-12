@@ -120,6 +120,33 @@ public class ApiHardeningIntegrationTest
     }
 
     [Test]
+    public async Task DeployDefinition_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions { EnvironmentName = "Production" });
+        using var client = factory.CreateClient();
+
+        var xml = """
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1" targetNamespace="http://bpmn.io/schema/bpmn">
+                    <bpmn:process id="Process_Invoice" isExecutable="true" />
+                  </bpmn:definitions>
+                  """;
+
+        var response = await client.PostAsync("/definition/deploy", new StringContent(xml));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("resolved user context");
+        storage.StoredDefinitions.Should().BeEmpty();
+    }
+
+    [Test]
     public async Task GetAllUserTasks_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
         var storage = new TestStorage();

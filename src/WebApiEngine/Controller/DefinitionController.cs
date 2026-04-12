@@ -28,6 +28,10 @@ public class DefinitionController(
             await bpmnBusinessLogic.DeployDefinition(definition);
             return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
         }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
         catch (Exception e)
         {
             return BadRequest(new ApiStatusResult<BpmnDefinitionDto>(e.Message));

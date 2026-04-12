@@ -56,6 +56,7 @@ Unter anderem bereits umgesetzt:
 - Startup-Recovery für überfällige Start-Timer auf Basis persistierter Timer-Subscriptions
 - konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
 - geschützte Definition-, User-Task- und Form-Ergebnispfade verlangen jetzt einen aufgelösten Benutzerkontext statt stillen System-Fallback
+- lokaler Development- und UI-Smoke-Pfad sendet für diese geschützten Routen nun automatisch einen technischen Benutzerheader, ohne die strengeren Produktionspfade wieder aufzuweichen
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
 

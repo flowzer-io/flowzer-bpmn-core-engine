@@ -28,6 +28,7 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
 - Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert, über einen kleinen Scheduler-Polling-Pfad verarbeitet und können wiederkehrende Start-Timer inklusive Restwiederholungen abbilden.
 - Geschützte API-Pfade verlangen inzwischen einen **aufgelösten Benutzerkontext**, statt stillschweigend über einen System-Fallback weiterzulaufen.
+- Für lokale Entwicklung und UI-Smokes setzt das Frontend im **Development-Modus** jetzt automatisch einen technischen Benutzerheader, damit die gehärteten API-Pfade lokal weiter reproduzierbar testbar bleiben.
 - Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Boundary-Recovery, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
