@@ -59,6 +59,9 @@ Unter anderem bereits umgesetzt:
 - lokaler Development- und UI-Smoke-Pfad sendet für diese geschützten Routen nun automatisch einen technischen Benutzerheader, ohne die strengeren Produktionspfade wieder aufzuweichen
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
+- Operations-/Diagnose-Endpunkt mit Scheduler-Status, Storage-Snapshot und lokalen Metrics-/Tracing-Namen
+- Request- und Timer-Scheduler-Diagnosepfad mit Dauer-, Status- und Tick-Signalen
+- dokumentierte Recovery-/Backup-Hinweise für die dateibasierte Persistenz
 
 ## Was weiterhin bremst
 
@@ -77,7 +80,7 @@ Noch offen sind unter anderem:
 
 - Restlücken in Timer-, Boundary- und Kompensationssemantik
 - provisorische Auth-/Identity-Platzhalter oberhalb des aktuellen Benutzerkontext-Guards
-- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, Logging-/Telemetry und Recovery
+- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, externe Logging-/Telemetrie-Backends und Recovery-Automatisierung
 - Altlasten und Doppelstrukturen im Repository
 
 Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).
@@ -99,7 +102,7 @@ Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitg
 
 - weitergehende Boundary-/Spezialtimer-Recovery sowie BPMN-Fehler-/Eskalationssemantik
 - Auth-/Identity-Härtung über Claim-, Rollen- und Betriebsmodell
-- Telemetrie, Secrets, Recovery und operationsnahe Doku
+- externe Telemetrie-Backends, Secrets, Recovery-Automatisierung und operationsnahe Doku
 - weitere Architektur- und Repo-Hygiene
 
 ## Aktuelle Gesamtempfehlung
@@ -109,7 +112,7 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
 1. Auth-/Identity- und API-Verträge über Claim-/Rollenmodell weiter schärfen
-2. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
+2. Betriebsbasis um externe Telemetrie-Backends, Secrets, TLS und Recovery-Automatisierung erweitern
 3. Timer-Recovery nur noch in verbleibenden Spezialfällen weiter vertiefen
 4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen
 

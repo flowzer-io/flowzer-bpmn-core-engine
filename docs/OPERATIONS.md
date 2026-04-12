@@ -2,18 +2,20 @@
 
 **Stand:** 12. April 2026
 
-Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `next`: lokale Starts, Health-Signale, Compose-Setup und sinnvolle Prüfpfade.
+Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `next`: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade.
 
 > Wichtig: Das ist **noch keine produktionsfertige Deployment-Story**. Ziel dieses Pakets ist ein reproduzierbarer, dokumentierter Start- und Prüfpfad für API und Frontend.
 
 ## Enthaltene Bausteine
 
 - dokumentierte Health-Endpunkte der Web-API
+- dokumentierter Operations-/Diagnose-Endpunkt der Web-API
 - lokaler Startpfad per `dotnet run`
 - lokaler Startpfad per Docker Compose
 - runtime-nahe Release-Container für API + Frontend + Gateway
 - kleine Shell-Skripte zum Starten, Stoppen und Prüfen des lokalen Stacks
 - definierter Storage-Pfad für dateibasierte Persistenz
+- kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 
 ## Health-Signale
 
@@ -21,11 +23,20 @@ Die Web-API stellt aktuell folgende Endpunkte bereit:
 
 - `GET /health` – Liveness
 - `GET /health/ready` – Readiness inkl. Storage-Prüfung
+- `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot und lokale Instrumentierungsnamen
 
 Typische URLs lokal:
 
 - [http://localhost:5182/health](http://localhost:5182/health)
 - [http://localhost:5182/health/ready](http://localhost:5182/health/ready)
+- [http://localhost:5182/operations/diagnostics](http://localhost:5182/operations/diagnostics)
+
+Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert aktuell:
+
+- aktuellen Environment- und Zeitstempel
+- Storage-Snapshot mit Definitionen, Formularen, Instanzen und offenen Subscriptions
+- Timer-Scheduler-Status inkl. letztem Tick, Fehlerstatus und verarbeiteter Timerzahl
+- Namen des lokalen `Meter`- und `ActivitySource`-Setups für spätere Exporter-Anbindung
 
 ## Lokaler Start ohne Docker
 
@@ -103,6 +114,7 @@ Typische URLs:
 - [http://localhost:5288](http://localhost:5288)
 - [http://localhost:5288/health](http://localhost:5288/health)
 - [http://localhost:5288/health/ready](http://localhost:5288/health/ready)
+- [http://localhost:5288/operations/diagnostics](http://localhost:5288/operations/diagnostics)
 
 Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschrieben werden.
 
@@ -131,6 +143,23 @@ Der runtime-nahe Stack nutzt bewusst einen separaten Pfad:
 Damit bleiben lokale Dev-Daten und runtime-nahe Containerdaten getrennt.
 
 ## Logs und Diagnose
+
+### Request- und Scheduler-Diagnose
+
+Die Web-API protokolliert zentrale Request- und Scheduler-Signale jetzt strukturierter:
+
+- mutierende Requests sowie langsame oder fehlerhafte API-Aufrufe werden mit Statuscode, Dauer und `TraceId` geloggt
+- der Timer-Scheduler meldet Start, Tick-Erfolg, Tick-Fehler und zuletzt verarbeitete Timer
+- Health-Aufrufe bleiben bewusst aus dieser zusätzlichen Request-Protokollierung ausgenommen, damit die Logs nicht mit Probe-Traffic überlaufen
+
+### Meter- und Activity-Namen
+
+Für spätere Exporter- oder OpenTelemetry-Anbindung sind jetzt stabile lokale Namen vorhanden:
+
+- `Meter`: `Flowzer.WebApi`
+- `ActivitySource`: `Flowzer.WebApi`
+
+Dieses Paket führt **noch keinen externen Exporter** ein, damit der lokale Betriebsweg klein und reproduzierbar bleibt.
 
 ### Container-Logs
 
@@ -165,18 +194,67 @@ FLOWZER_FRONTEND_URL=http://localhost:5288 \
 npm --prefix tests/ui-smoke run test
 ```
 
+## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
+
+Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
+
+### Relevante Verzeichnisse
+
+- lokale Dev-/Compose-Daten: `.data/flowzer-storage`
+- runtime-nahe Containerdaten: `.data/runtime-storage`
+
+### Sicheres Backup
+
+Am zuverlässigsten ist ein Backup bei gestopptem Stack oder zumindest ohne parallele Schreiblast:
+
+```bash
+./scripts/local/stop-stack.sh
+tar -czf flowzer-storage-backup.tgz .data/flowzer-storage
+```
+
+Für den runtime-nahen Stack entsprechend:
+
+```bash
+./scripts/runtime/stop-runtime-stack.sh
+tar -czf flowzer-runtime-storage-backup.tgz .data/runtime-storage
+```
+
+### Restore
+
+1. Stack stoppen
+2. Zielverzeichnis leeren oder ersetzen
+3. Backup entpacken
+4. Stack neu starten
+5. `/health/ready` und `/operations/diagnostics` prüfen
+
+Beispiel lokal:
+
+```bash
+rm -rf .data/flowzer-storage
+mkdir -p .data
+tar -xzf flowzer-storage-backup.tgz -C .data
+./scripts/local/start-stack.sh
+```
+
+### Sinnvolle Recovery-Checks nach einem Restore
+
+- `/health/ready` liefert `Healthy`
+- `/operations/diagnostics` zeigt plausible Definitionen-, Instanz- und Timer-Zahlen
+- UI-Smokes gegen den laufenden Stack laufen ohne fatale Requests
+- Timer-Scheduler steht nicht dauerhaft auf `Faulted`
+
 ## Bewusst noch offen
 
 Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus
-- Metrics/Tracing
+- externe Metrics-/Tracing-Exporter oder Dashboards
 - produktionsnahe Reverse-Proxy- oder TLS-Story
 - Secret-/Configuration-Story jenseits lokaler Entwicklungswerte
 
 ## Sinnvolle nächste Ausbauschritte
 
 1. Reverse-Proxy-/Gateway-Konfiguration für echte Zielumgebungen weiter härten
-2. Metrics/Tracing einführen
-3. Recovery-/Backup-Hinweise für dateibasierte Persistenz dokumentieren
-4. Secret-/Konfigurationsstory für Nicht-Entwicklungsumgebungen schärfen
+2. externe Metrics-/Tracing-Exporter und Dashboards anbinden
+3. Secret-/Konfigurationsstory für Nicht-Entwicklungsumgebungen schärfen
+4. Reverse-Proxy-/TLS-Härtung und Backup-Automatisierung vertiefen

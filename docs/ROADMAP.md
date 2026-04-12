@@ -45,7 +45,7 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### 2.1 Operations-Basis über die lokale Compose-Story hinaus vertiefen
 
-- Metrics/Tracing
+- externe Metrics-/Tracing-Exporter und Dashboards
 - Secret-/Konfigurationsstory
 - Recovery-/Backup-Hinweise
 - Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen
@@ -80,7 +80,7 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### Sprint B – Betrieb und Auth
 
-- Telemetrie/Secrets/Recovery
+- externe Telemetrie/Secrets/Recovery
 - Claim-/Rollenmodell und Auth-/Identity-Härtung
 
 ### Sprint C – E2E und Dokumentation

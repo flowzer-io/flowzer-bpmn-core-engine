@@ -29,6 +29,7 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert, über einen kleinen Scheduler-Polling-Pfad verarbeitet und können wiederkehrende Start-Timer inklusive Restwiederholungen abbilden.
 - Geschützte API-Pfade verlangen inzwischen einen **aufgelösten Benutzerkontext**, statt stillschweigend über einen System-Fallback weiterzulaufen.
 - Für lokale Entwicklung und UI-Smokes setzt das Frontend im **Development-Modus** jetzt automatisch einen technischen Benutzerheader, damit die gehärteten API-Pfade lokal weiter reproduzierbar testbar bleiben.
+- Zusätzlich gibt es jetzt einen kleinen **Operations-/Diagnose-Endpunkt** sowie lokale Metrics-/Tracing-Namen, damit Scheduler- und Storage-Zustand nicht nur über reine Healthchecks sichtbar werden.
 - Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Boundary-Recovery, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
@@ -97,7 +98,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
    Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten, wiederkehrende Start-Timer überfälligkeitstolerant nachziehen und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin speziellere Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
 4. **Betrieb und Auth sind noch nicht am Ziel**
-   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext, aber Themen wie echte Authentifizierung, Rollenmodell, Telemetrie, Secrets, TLS und Recovery sind weiterhin Folgepakete.
+   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext und die Web-API liefert erste Operations-Diagnose-Informationen, aber Themen wie echte Authentifizierung, Rollenmodell, externe Telemetrie-Backends, Secrets, TLS und Recovery-Automatisierung sind weiterhin Folgepakete.
 
 ## Dokumentation
 
