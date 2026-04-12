@@ -30,7 +30,8 @@ public class TimerControllerIntegrationTest
                 Kind = TimerSubscriptionKind.ProcessStartEvent,
                 ProcessId = "Process_Start",
                 RelatedDefinitionId = "definition-start",
-                DefinitionId = definitionId
+                DefinitionId = definitionId,
+                RemainingOccurrences = 3
             },
             new TimerSubscription
             {
@@ -56,6 +57,7 @@ public class TimerControllerIntegrationTest
         payload!.Successful.Should().BeTrue();
         payload.Result.Should().HaveCount(2);
         payload.Result!.Should().Contain(subscription => subscription.Kind == nameof(TimerSubscriptionKind.ProcessStartEvent));
+        payload.Result.Should().Contain(subscription => subscription.RemainingOccurrences == 3);
         payload.Result.Should().Contain(subscription => subscription.ProcessInstanceId == instanceId);
     }
 

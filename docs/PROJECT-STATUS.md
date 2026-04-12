@@ -52,6 +52,8 @@ Unter anderem bereits umgesetzt:
 - Boundary-Timer im Parser, in der Runtime und im persistierten Timer-Subscription-Pfad
 - persistierte Timer-Subscriptions in Storage und Web-API
 - kleiner Scheduler-/Polling-Pfad im Web-API-Host für fällige Timer
+- wiederkehrende Start-Timer mit Restwiederholungen und Catch-up-Verhalten im Runtime-Pfad
+- Startup-Recovery für überfällige Start-Timer auf Basis persistierter Timer-Subscriptions
 - konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
@@ -63,7 +65,7 @@ Unter anderem bereits umgesetzt:
 Besonders relevant sind noch:
 
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
-- Restlücken bei wiederkehrenden Timer-Strategien und weitergehender Scheduler-/Recovery-Semantik
+- Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
 - weitere Auth-/Identity- und Fehlerpfade
 - Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
 
@@ -93,7 +95,7 @@ Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Rei
 
 Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitgehend abgearbeitet. Der nächste sinnvolle Backlog ergibt sich aktuell weniger aus alten Sammel-Issues, sondern aus den noch verbleibenden Produktlücken:
 
-- weitergehende Timer-Recovery sowie BPMN-Fehler-/Eskalationssemantik
+- weitergehende Boundary-/Spezialtimer-Recovery sowie BPMN-Fehler-/Eskalationssemantik
 - Auth-/Identity-Härtung
 - Telemetrie, Secrets, Recovery und operationsnahe Doku
 - weitere Architektur- und Repo-Hygiene
@@ -104,9 +106,9 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-1. Timer-Recovery und wiederkehrende Start-Timer weiter abbauen
-2. Auth-/Identity- und API-Verträge weiter schärfen
-3. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
+1. Auth-/Identity- und API-Verträge weiter schärfen
+2. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
+3. Timer-Recovery nur noch in verbleibenden Spezialfällen weiter vertiefen
 4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen
 
 ## Gesamturteil

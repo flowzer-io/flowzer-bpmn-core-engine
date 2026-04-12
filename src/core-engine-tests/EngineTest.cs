@@ -5,6 +5,7 @@ using Flowzer.Shared;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Model;
+using core_engine.Exceptions;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -438,11 +439,16 @@ public class EngineTest
         var process = model.GetProcesses();
         var processEngine = Helper.CreateProcessEngine(process.First());
         var activeTimers = processEngine.ActiveTimers.ToArray();
+        var timerSubscription = processEngine.ActiveTimerSubscriptions.Should().ContainSingle().Subject;
         activeTimers.Should().HaveCount(1);
         var dueDate = activeTimers.Single();
         var remainingTime = dueDate - DateTime.UtcNow;
-        remainingTime.Should().BeGreaterOrEqualTo(TimeSpan.FromSeconds(1));
-        remainingTime.Should().BeLessOrEqualTo(TimeSpan.FromSeconds(2.5));
+        using (new AssertionScope())
+        {
+            remainingTime.Should().BeGreaterOrEqualTo(TimeSpan.FromSeconds(1));
+            remainingTime.Should().BeLessOrEqualTo(TimeSpan.FromSeconds(2.5));
+            timerSubscription.RemainingOccurrences.Should().Be(10);
+        }
     }
 
     [Test]
@@ -491,6 +497,73 @@ public class EngineTest
                 .ContainSingle("timer-start-step");
             processEngine.ActiveTimers.Should().BeEmpty();
         }
+    }
+
+    [Test]
+    public void RecurringTimerStartEvent_ShouldRescheduleAfterFirstTrigger()
+    {
+        var processEngine = CreateProcessEngineFromXml(CreateRecurringTimerStartXml(repetitionToken: "R3"));
+
+        var initialSubscription = processEngine.ActiveTimerSubscriptions.Should().ContainSingle().Subject;
+
+        var instances = processEngine.HandleTime(initialSubscription.DueAt.AddMilliseconds(50));
+
+        var nextSubscription = processEngine.ActiveTimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            instances.Should().ContainSingle();
+            initialSubscription.RemainingOccurrences.Should().Be(3);
+            nextSubscription.RemainingOccurrences.Should().Be(2);
+            nextSubscription.DueAt.Should().BeCloseTo(initialSubscription.DueAt.AddSeconds(2), TimeSpan.FromMilliseconds(250));
+        }
+    }
+
+    [Test]
+    public void RecurringTimerStartEvent_ShouldCatchUpMissedOccurrencesAndKeepNextDueDate()
+    {
+        var processEngine = CreateProcessEngineFromXml(CreateRecurringTimerStartXml(repetitionToken: "R3"));
+
+        var initialSubscription = processEngine.ActiveTimerSubscriptions.Should().ContainSingle().Subject;
+        var catchUpTime = initialSubscription.DueAt.AddSeconds(2).AddMilliseconds(50);
+
+        var instances = processEngine.HandleTime(catchUpTime);
+
+        var nextSubscription = processEngine.ActiveTimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            instances.Should().HaveCount(2);
+            nextSubscription.RemainingOccurrences.Should().Be(1);
+            nextSubscription.DueAt.Should().BeCloseTo(initialSubscription.DueAt.AddSeconds(4), TimeSpan.FromMilliseconds(250));
+        }
+    }
+
+    [Test]
+    public void RecurringTimerStartEvent_ShouldRejectNonPositiveRepeatIntervals()
+    {
+        Action act = () => CreateProcessEngineFromXml("""
+                                                      <?xml version="1.0" encoding="UTF-8"?>
+                                                      <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                                                        id="Definitions_InvalidRecurringTimerStart"
+                                                                        targetNamespace="http://bpmn.io/schema/bpmn">
+                                                        <bpmn:process id="Process_InvalidRecurringTimerStart" isExecutable="true">
+                                                          <bpmn:startEvent id="StartEvent_Timer">
+                                                            <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                            <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                                              <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R3/PT0S</bpmn:timeCycle>
+                                                            </bpmn:timerEventDefinition>
+                                                          </bpmn:startEvent>
+                                                          <bpmn:endEvent id="EndEvent_1">
+                                                            <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                          </bpmn:endEvent>
+                                                          <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_Timer" targetRef="EndEvent_1" />
+                                                        </bpmn:process>
+                                                      </bpmn:definitions>
+                                                      """);
+
+        act.Should()
+            .Throw<ModelValidationException>()
+            .WithMessage("*positive ISO-8601 duration interval*");
     }
 
     [Test]
@@ -798,6 +871,39 @@ public class EngineTest
                      <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
                      <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="EndEvent_Main" />
                      <bpmn:sequenceFlow id="Flow_3" sourceRef="BoundaryTimer_1" targetRef="{{boundaryTarget}}" />
+                   </bpmn:process>
+                 </bpmn:definitions>
+                 """;
+    }
+
+    private static string CreateRecurringTimerStartXml(string repetitionToken)
+    {
+        return $$"""
+                 <?xml version="1.0" encoding="UTF-8"?>
+                 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                   id="Definitions_RecurringTimerStart"
+                                   targetNamespace="http://bpmn.io/schema/bpmn">
+                   <bpmn:process id="Process_RecurringTimerStart" isExecutable="true">
+                     <bpmn:startEvent id="StartEvent_Recurring">
+                       <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                       <bpmn:timerEventDefinition id="TimerDefinition_1">
+                         <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">{{repetitionToken}}/PT2S</bpmn:timeCycle>
+                       </bpmn:timerEventDefinition>
+                     </bpmn:startEvent>
+                     <bpmn:serviceTask id="ServiceTask_1" name="Wait for worker">
+                       <bpmn:extensionElements>
+                         <zeebe:taskDefinition type="recurring-timer-step" />
+                       </bpmn:extensionElements>
+                       <bpmn:incoming>Flow_1</bpmn:incoming>
+                       <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                     </bpmn:serviceTask>
+                     <bpmn:endEvent id="EndEvent_1">
+                       <bpmn:incoming>Flow_2</bpmn:incoming>
+                     </bpmn:endEvent>
+                     <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_Recurring" targetRef="ServiceTask_1" />
+                     <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="EndEvent_1" />
                    </bpmn:process>
                  </bpmn:definitions>
                  """;
