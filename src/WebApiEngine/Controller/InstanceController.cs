@@ -69,6 +69,17 @@ public class InstanceController(
         return Ok(new ApiStatusResult<SignalSubscriptionDto[]>(result));
     }
 
+    [HttpGet("{instanceId}/subscription/timers")]
+    public async Task<ActionResult<TimerSubscriptionDto[]>> GetTimerSubscriptions(Guid instanceId)
+    {
+        var timerSubscriptions = await storageSystem.SubscriptionStorage.GetTimerSubscriptions(instanceId);
+        var result = timerSubscriptions
+            .OrderBy(subscription => subscription.DueAt)
+            .Select(subscription => subscription.ToDto())
+            .ToArray();
+        return Ok(new ApiStatusResult<TimerSubscriptionDto[]>(result));
+    }
+
     [HttpGet("{instanceId}/subscription/services")]
     public async Task<ActionResult<TokenDto[]>> GetServiceSubscriptions(Guid instanceId)
     {

@@ -1,14 +1,16 @@
 using BPMN.HumanInteraction;
 using BPMN.Process;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace WebApiEngine.BusinessLogic;
 
-public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
+public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
 {
     
     public void Load()
     {
-        //TODO: load timers   
+        RestoreInstanceTimerSubscriptions().GetAwaiter().GetResult();
+        HandleTime(DateTime.UtcNow).GetAwaiter().GetResult();
     }
     
     public async Task DeployDefinition(BpmnDefinition definition)
@@ -25,7 +27,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
         foreach (var process in model.GetProcesses())
         {
             var pe = new ProcessEngine(process);
-            SaveSubscriptions(storageSystem, pe, definition.DefinitionId, definition.Id, process.Id);
+            await SaveSubscriptions(storageSystem, pe, definition.DefinitionId, definition.Id, process.Id);
         }
 
 
@@ -37,6 +39,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
         }
 
         definition.IsActive = true;
+        definition.DeployedOn = DateTime.UtcNow;
         await storageSystem.DefinitionStorage.StoreDefinition(definition);
         
         storageSystem.CommitChanges();
@@ -53,17 +56,19 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
         await storageSystem.SubscriptionStorage.RemoveAllProcessMessageSubscriptionsWithNoInstancedId(relatedDefinitionId);
         await storageSystem.SubscriptionStorage.RemoveAllProcessSignalSubscriptionsWithNoInstanceId(relatedDefinitionId);
         await storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsWithNoInstanceId(relatedDefinitionId);
+        await storageSystem.SubscriptionStorage.RemoveAllProcessTimerSubscriptionsWithNoInstanceId(relatedDefinitionId);
     }
 
 
-    private void SaveSubscriptions(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId = null)
+    private async Task SaveSubscriptions(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId = null)
     {
-        SaveCatchMessages(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        await SaveCatchMessages(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         SaveActiveSignals(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
-        SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        await SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        await SaveActiveTimers(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
 
-    private void SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
+    private async Task SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
     {
         if (processInstanceId != null) //if there are already stored user task subscriptions for this instance, remove them
             storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(processInstanceId.Value);
@@ -71,7 +76,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
         foreach (var activeUserTask in catchHandler.ActiveUserTasks())
         {
             var userTask = (UserTask)activeUserTask.CurrentFlowNode!; 
-            storageSystem.SubscriptionStorage.AddUserTaskSubscription(
+            await storageSystem.SubscriptionStorage.AddUserTaskSubscription(
                 new UserTaskSubscription()
                 {
                     Id = Guid.NewGuid(),
@@ -88,15 +93,15 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
         }
     }
 
-    private void SaveCatchMessages(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, 
+    private async Task SaveCatchMessages(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId,
         Guid definitionId, string processId, Guid? processInstanceId)
     {
         if (processInstanceId != null) //if there are already stored catch messages subscriptions for this instance, remove them
-            storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(processInstanceId.Value);
+            await storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(processInstanceId.Value);
         
         foreach (var activeCatchMessage in catchHandler.ActiveCatchMessages)
         {
-            storageSystem.SubscriptionStorage.AddMessageSubscription(
+            await storageSystem.SubscriptionStorage.AddMessageSubscription(
                 new MessageSubscription(
                     activeCatchMessage,
                     processId,
@@ -125,6 +130,68 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
                     processInstanceId
                 ));    
         }
+    }
+
+    private async Task SaveActiveTimers(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId,
+        string processId, Guid? processInstanceId)
+    {
+        if (processInstanceId != null)
+        {
+            await storageSystem.SubscriptionStorage.RemoveProcessTimerSubscriptionsByProcessInstanceId(processInstanceId.Value);
+        }
+        else
+        {
+            await storageSystem.SubscriptionStorage.RemoveAllProcessTimerSubscriptionsWithNoInstanceId(relatedDefinitionId);
+        }
+
+        foreach (var activeTimer in catchHandler.ActiveTimerSubscriptions)
+        {
+            await storageSystem.SubscriptionStorage.AddTimerSubscription(new TimerSubscription
+            {
+                DueAt = activeTimer.DueAt,
+                FlowNodeId = activeTimer.FlowNodeId,
+                Kind = activeTimer.Kind,
+                ProcessId = processId,
+                RelatedDefinitionId = relatedDefinitionId,
+                DefinitionId = definitionId,
+                ProcessInstanceId = processInstanceId,
+                TokenId = activeTimer.TokenId
+            });
+        }
+    }
+
+    public async Task<int> HandleTime(DateTime time)
+    {
+        using var storageSystem = storageProvider.GetTransactionalStorage();
+
+        var dueTimers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions())
+            .Where(subscription => subscription.DueAt <= time)
+            .OrderBy(subscription => subscription.DueAt)
+            .ToArray();
+
+        var processedTimers = 0;
+
+        foreach (var dueStartTimer in dueTimers.Where(subscription => subscription.ProcessInstanceId == null))
+        {
+            await HandleStartTimer(storageSystem, dueStartTimer);
+            processedTimers++;
+        }
+
+        foreach (var instanceId in dueTimers
+                     .Where(subscription => subscription.ProcessInstanceId != null)
+                     .Select(subscription => subscription.ProcessInstanceId!.Value)
+                     .Distinct())
+        {
+            await HandleInstanceTimers(storageSystem, instanceId, time);
+            processedTimers++;
+        }
+
+        if (processedTimers > 0)
+        {
+            storageSystem.CommitChanges();
+        }
+
+        return processedTimers;
     }
 
 
@@ -206,7 +273,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
 
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
     {
-        SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
+        await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
     }
     
@@ -251,6 +318,71 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
                 UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),
                 ServiceSubscriptionCount = instance.GetActiveServiceTasks().Count()
             });
+    }
+
+    private async Task RestoreInstanceTimerSubscriptions()
+    {
+        using var storageSystem = storageProvider.GetTransactionalStorage();
+
+        var activeInstances = await storageSystem.InstanceStorage.GetAllActiveInstances();
+        foreach (var processInstance in activeInstances)
+        {
+            if (!HasSingleMasterToken(processInstance))
+            {
+                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(
+                    "Skipping timer subscription restore for instance {InstanceId} because the stored token set has no single master token.",
+                    processInstance.InstanceId);
+                continue;
+            }
+
+            var instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = processInstance.InstanceId;
+            await SaveActiveTimers(
+                storageSystem,
+                instance,
+                processInstance.metaDefinitionId,
+                processInstance.DefinitionId,
+                processInstance.ProcessId,
+                processInstance.InstanceId);
+        }
+
+        storageSystem.CommitChanges();
+    }
+
+    private async Task HandleStartTimer(ITransactionalStorage storageSystem, TimerSubscription timerSubscription)
+    {
+        var xmlData = await storageSystem.DefinitionStorage.GetBinary(timerSubscription.DefinitionId);
+        var model = ModelParser.ParseModel(xmlData);
+        var process = model.GetProcesses().FirstOrDefault(candidate => candidate.Id == timerSubscription.ProcessId);
+        if (process == null)
+        {
+            throw new FileNotFoundException(
+                $"No process with the id \"{timerSubscription.ProcessId}\" was found in the definition with the id \"{timerSubscription.DefinitionId}\".");
+        }
+
+        var processEngine = new ProcessEngine(process);
+        var instance = processEngine.StartProcessByTimerStartEvent(timerSubscription.FlowNodeId);
+        await SaveInstance(
+            storageSystem,
+            instance,
+            timerSubscription.RelatedDefinitionId,
+            timerSubscription.DefinitionId,
+            timerSubscription.ProcessId);
+        await storageSystem.SubscriptionStorage.RemoveTimerSubscription(timerSubscription.Id);
+    }
+
+    private async Task HandleInstanceTimers(ITransactionalStorage storageSystem, Guid instanceId, DateTime time)
+    {
+        var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+        var instance = new InstanceEngine(processInstance.Tokens);
+        instance.InstanceId = processInstance.InstanceId;
+        instance.HandleTime(time);
+        await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+    }
+
+    private static bool HasSingleMasterToken(ProcessInstanceInfo processInstance)
+    {
+        return processInstance.Tokens.Count(token => token.ParentTokenId == null) == 1;
     }
     
 

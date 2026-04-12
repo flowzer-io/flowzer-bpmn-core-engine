@@ -93,6 +93,24 @@ public static class InteractionMappingExtensions
         };
     }
 
+    public static TimerSubscriptionDto ToDto(this TimerSubscription timerSubscription)
+    {
+        ArgumentNullException.ThrowIfNull(timerSubscription);
+
+        return new TimerSubscriptionDto
+        {
+            Id = timerSubscription.Id,
+            DueAt = timerSubscription.DueAt,
+            FlowNodeId = timerSubscription.FlowNodeId,
+            ProcessId = timerSubscription.ProcessId,
+            RelatedDefinitionId = timerSubscription.RelatedDefinitionId,
+            DefinitionId = timerSubscription.DefinitionId,
+            ProcessInstanceId = timerSubscription.ProcessInstanceId,
+            TokenId = timerSubscription.TokenId,
+            Kind = timerSubscription.Kind.ToString()
+        };
+    }
+
     public static FormDto ToDto(this Form form)
     {
         ArgumentNullException.ThrowIfNull(form);

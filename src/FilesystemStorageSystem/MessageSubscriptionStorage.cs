@@ -208,4 +208,57 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 
         return Task.CompletedTask;
     }
+
+    public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions()
+    {
+        return Task.FromResult(Directory.GetFiles(_messageSubscriptionsPath, "timer_*.json").Select(file =>
+        {
+            var content = File.ReadAllText(file);
+            return JsonConvert.DeserializeObject<TimerSubscription>(content, _newtonSoftDefaultSettings)!;
+        }));
+    }
+
+    public async Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId)
+    {
+        var subscriptions = await GetAllTimerSubscriptions();
+        return subscriptions.Where(subscription => subscription.ProcessInstanceId == instanceId);
+    }
+
+    public Task AddTimerSubscription(TimerSubscription timerSubscription)
+    {
+        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"timer_{timerSubscription.Id}.json");
+        var data = JsonConvert.SerializeObject(timerSubscription, _newtonSoftDefaultSettings);
+        return File.WriteAllTextAsync(fullFileName, data);
+    }
+
+    public Task RemoveTimerSubscription(Guid timerSubscriptionId)
+    {
+        var files = Directory.GetFiles(_messageSubscriptionsPath, $"timer_{timerSubscriptionId}.json");
+        foreach (var file in files)
+        {
+            File.Delete(file);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public async Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId)
+    {
+        var subscriptions = await GetAllTimerSubscriptions();
+        foreach (var subscription in subscriptions.Where(subscription => subscription.ProcessInstanceId == instanceId))
+        {
+            await RemoveTimerSubscription(subscription.Id);
+        }
+    }
+
+    public async Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId)
+    {
+        var subscriptions = await GetAllTimerSubscriptions();
+        foreach (var subscription in subscriptions.Where(subscription =>
+                     string.Equals(subscription.RelatedDefinitionId, relatedDefinitionId, StringComparison.Ordinal) &&
+                     subscription.ProcessInstanceId == null))
+        {
+            await RemoveTimerSubscription(subscription.Id);
+        }
+    }
 }

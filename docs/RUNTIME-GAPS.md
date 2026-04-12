@@ -18,13 +18,25 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 - `InstanceEngine.HandleTime(...)` kann fällige `FlowzerIntermediateTimerCatchEvent`-Tokens jetzt weiterführen.
 - Die zugehörigen Engine-Regressionstests decken Start- und Intermediate-Timer jetzt explizit ab.
 
-### 3. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
+### 3. Timer-Subscriptions sind jetzt als Runtime-Vertrag persistiert
+
+- Timer-Subscriptions werden jetzt analog zu anderen Runtime-Subscriptions in Storage und Web-API abgelegt.
+- `BpmnBusinessLogic` speichert aktive Start- und Intermediate-Timer jetzt als `TimerSubscription`.
+- `GET /timer` und `GET /instance/{instanceId}/subscription/timers` machen die aktiven Timer im API-Pfad sichtbar.
+
+### 4. Ein kleiner Scheduler-/Polling-Pfad ist jetzt vorhanden
+
+- Die Web-API startet jetzt einen Hintergrunddienst, der fällige Timer regelmäßig über `HandleTime(...)` verarbeitet.
+- Beim Start werden persistierte Instanz-Timer erneut aus den gespeicherten Tokenzuständen synchronisiert.
+- Das Poll-Intervall ist über `TimerScheduler:PollIntervalSeconds` konfigurierbar.
+
+### 5. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
 
 - User-Task-Ergebnisse ohne `ProcessInstanceId` laufen nicht mehr in eine rohe `NotImplementedException`.
 - Stattdessen kommt ein valider `400 Bad Request` mit einem klaren API-Fehlervertrag zurück.
 - Zusätzlich wird jetzt geprüft, ob das übergebene `TokenId` wirklich noch aktiv ist und zum erwarteten `FlowNodeId` gehört.
 
-### 4. Instanzabbruch ist als Best-Effort-Pfad verfügbar
+### 6. Instanzabbruch ist als Best-Effort-Pfad verfügbar
 
 - `InstanceEngine.Cancel()` terminiert jetzt aktive/wartende Tokens der Instanz konsistent.
 - Das ersetzt noch **keine vollständige BPMN-Kompensation**, verhindert aber, dass der API-/Runtime-Pfad an einer nackten `NotImplementedException` scheitert.
@@ -38,12 +50,12 @@ Aktuell vorhanden:
 - Timer-Fälligkeiten für Start- und laufende Instanzen
 - Timer-Catch-Events als wartende Zustände
 - einmaliger Engine-Kernpfad für fällige Timer-Starts und Intermediate-Timer
+- persistierte Timer-Subscriptions in Storage und Web-API
+- kleiner Scheduler-/Polling-Pfad rund um `HandleTime(...)`
 
 Weiterhin offen:
 
-- persistierte Timer-Subscriptions in Storage/API
-- Wiederaufnahme nach Neustart nur auf Basis gespeicherter Timerzustände
-- Scheduler-/API-Anbindung rund um `HandleTime(...)`
+- Recovery-Strategie für bereits persistierte Start-Timer über harte Neustarts hinweg weiter schärfen
 - Boundary-Timer-Parsing und -Abarbeitung
 - vollständige Wiederholungsstrategie für zyklische Start-Timer über den ersten Due-Zeitpunkt hinaus
 
@@ -76,7 +88,7 @@ Nicht enthalten:
 
 ## Empfohlene nächste Runtime-Schritte
 
-1. Timer-Storage + Scheduler-Pfad ergänzen
-2. Boundary-Timer parsen und persistierbar machen
+1. Boundary-Timer parsen und in den Persistenzpfad integrieren
+2. Recovery- und Wiederholungsstrategie für Start-Timer weiter härten
 3. Error-/Escalation-Semantik gezielt modellieren und testen
 4. `Cancel()` später um echte Kompensationsstrategien erweitern

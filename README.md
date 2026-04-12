@@ -26,7 +26,8 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Es gibt bereits eine **brauchbare Kernarchitektur**.
 - Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
-- Es gibt aber weiterhin **offene Restlücken** bei Timer-Persistenz, Boundary-Timern, Auth/Identity und Betriebsreife.
+- Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert und über einen kleinen Scheduler-Polling-Pfad verarbeitet.
+- Es gibt aber weiterhin **offene Restlücken** bei Boundary-Timern, weitergehender Timer-Semantik, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
 Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
@@ -112,7 +113,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Timer-Persistenz, Scheduler-Anbindung und Boundary-Timer sauber nachziehen**
+1. **Boundary-Timer und weitergehende Timer-/Fehlersemantik sauber nachziehen**
 2. **Auth-/Identity- und Fehlerpfade weiter produktionsnah härten**
 3. **Betriebsbasis mit Telemetrie, Secrets und Recovery vertiefen**
 4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**
@@ -167,6 +168,24 @@ Für einen reproduzierbaren API-/Frontend-Start gibt es jetzt zusätzlich einen 
 ```
 
 Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+## Timer-Scheduler im Web-API-Host
+
+Die Web-API enthält jetzt zusätzlich einen kleinen Hintergrund-Poller für fällige Timer-Subscriptions.
+
+Relevante Konfiguration:
+
+```json
+"TimerScheduler": {
+  "Enabled": true,
+  "PollIntervalSeconds": 5
+}
+```
+
+Zusätzlich sichtbar sind Timer-Subscriptions jetzt über:
+
+- `GET /timer`
+- `GET /instance/{instanceId}/subscription/timers`
 
 ## Runtime-Container für lokale Release-Checks
 

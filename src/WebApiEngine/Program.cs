@@ -1,5 +1,6 @@
 using WebApiEngine;
 using WebApiEngine.Auth;
+using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Middleware;
 
@@ -24,6 +25,8 @@ builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUse
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins",

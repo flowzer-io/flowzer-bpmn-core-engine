@@ -49,6 +49,8 @@ Unter anderem bereits umgesetzt:
 - DTO-/Warnungsbereinigung und API-Härtung in mehreren Teilbereichen
 - Signal- und Service-Task-Subscriptions im Web-API-Pfad
 - Timer-Ausführung im Engine-Kern für fällige Timer-Starts und Intermediate-Timer-Catches
+- persistierte Timer-Subscriptions in Storage und Web-API
+- kleiner Scheduler-/Polling-Pfad im Web-API-Host für fällige Timer
 - konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
@@ -60,7 +62,7 @@ Unter anderem bereits umgesetzt:
 Besonders relevant sind noch:
 
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
-- Restlücken bei Timer-Persistenz, Boundary-Timern und echter Scheduler-Anbindung
+- Restlücken bei Boundary-Timern, wiederkehrenden Timer-Strategien und weitergehender Scheduler-/Recovery-Semantik
 - weitere Auth-/Identity- und Fehlerpfade
 - Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
 
@@ -90,7 +92,6 @@ Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Rei
 
 Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitgehend abgearbeitet. Der nächste sinnvolle Backlog ergibt sich aktuell weniger aus alten Sammel-Issues, sondern aus den noch verbleibenden Produktlücken:
 
-- Timer-Persistenz und Scheduler-Anbindung
 - Boundary-Timer und weitergehende BPMN-Fehler-/Eskalationssemantik
 - Auth-/Identity-Härtung
 - Telemetrie, Secrets, Recovery und operationsnahe Doku
@@ -102,7 +103,7 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-1. Timer- und Runtime-Restlücken mit Persistenz-/Scheduler-Sicht weiter abbauen
+1. Boundary-Timer sowie weitergehende Timer-/Recovery-Semantik weiter abbauen
 2. Auth-/Identity- und API-Verträge weiter schärfen
 3. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
 4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen
