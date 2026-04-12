@@ -1,5 +1,6 @@
 using BPMN.HumanInteraction;
 using BPMN.Process;
+using BPMN.Flowzer.Events;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace WebApiEngine.BusinessLogic;
@@ -155,7 +156,8 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 RelatedDefinitionId = relatedDefinitionId,
                 DefinitionId = definitionId,
                 ProcessInstanceId = processInstanceId,
-                TokenId = activeTimer.TokenId
+                TokenId = activeTimer.TokenId,
+                RemainingOccurrences = activeTimer.RemainingOccurrences
             });
         }
     }
@@ -175,8 +177,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         {
             try
             {
-                await HandleStartTimer(storageSystem, dueStartTimer);
-                processedTimers++;
+                processedTimers += await HandleStartTimer(storageSystem, dueStartTimer, time);
             }
             catch (Exception exception)
             {
@@ -369,7 +370,10 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         storageSystem.CommitChanges();
     }
 
-    private async Task HandleStartTimer(ITransactionalStorage storageSystem, TimerSubscription timerSubscription)
+    private async Task<int> HandleStartTimer(
+        ITransactionalStorage storageSystem,
+        TimerSubscription timerSubscription,
+        DateTime time)
     {
         var xmlData = await storageSystem.DefinitionStorage.GetBinary(timerSubscription.DefinitionId);
         var model = ModelParser.ParseModel(xmlData);
@@ -380,15 +384,42 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 $"No process with the id \"{timerSubscription.ProcessId}\" was found in the definition with the id \"{timerSubscription.DefinitionId}\".");
         }
 
-        var processEngine = new ProcessEngine(process);
-        var instance = processEngine.StartProcessByTimerStartEvent(timerSubscription.FlowNodeId);
-        await SaveInstance(
-            storageSystem,
-            instance,
-            timerSubscription.RelatedDefinitionId,
-            timerSubscription.DefinitionId,
-            timerSubscription.ProcessId);
+        var startEvent = process.FlowElements
+            .OfType<FlowzerTimerStartEvent>()
+            .SingleOrDefault(candidate => string.Equals(candidate.Id, timerSubscription.FlowNodeId, StringComparison.Ordinal))
+            ?? throw new FileNotFoundException(
+                $"No timer start event with the id \"{timerSubscription.FlowNodeId}\" was found in the process \"{timerSubscription.ProcessId}\".");
+
+        var processedTimers = 0;
+        TimerSubscription? currentTimerSubscription = timerSubscription;
+
+        while (currentTimerSubscription != null && currentTimerSubscription.DueAt <= time)
+        {
+            var processEngine = new ProcessEngine(process);
+            var instance = processEngine.StartProcessByTimerStartEvent(currentTimerSubscription.FlowNodeId);
+            await SaveInstance(
+                storageSystem,
+                instance,
+                currentTimerSubscription.RelatedDefinitionId,
+                currentTimerSubscription.DefinitionId,
+                currentTimerSubscription.ProcessId);
+            processedTimers++;
+
+            if (!TryAdvanceStartTimerSubscription(startEvent, currentTimerSubscription, out currentTimerSubscription))
+            {
+                currentTimerSubscription = null;
+                break;
+            }
+        }
+
         await storageSystem.SubscriptionStorage.RemoveTimerSubscription(timerSubscription.Id);
+
+        if (currentTimerSubscription != null)
+        {
+            await storageSystem.SubscriptionStorage.AddTimerSubscription(currentTimerSubscription);
+        }
+
+        return processedTimers;
     }
 
     private async Task HandleInstanceTimers(ITransactionalStorage storageSystem, Guid instanceId, DateTime time)
@@ -404,7 +435,41 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     {
         return processInstance.Tokens.Count(token => token.ParentTokenId == null) == 1;
     }
-    
+
+    private static bool TryAdvanceStartTimerSubscription(
+        FlowzerTimerStartEvent startEvent,
+        TimerSubscription timerSubscription,
+        out TimerSubscription? nextTimerSubscription)
+    {
+        var currentSchedule = new TimerSchedule(
+            timerSubscription.DueAt,
+            TimerScheduleCalculator.CreateInitialSchedule(
+                timerSubscription.DueAt,
+                startEvent.TimerDefinition,
+                startEvent).RepeatInterval,
+            timerSubscription.RemainingOccurrences);
+
+        if (!TimerScheduleCalculator.TryAdvanceSchedule(currentSchedule, out var nextSchedule))
+        {
+            nextTimerSubscription = null;
+            return false;
+        }
+
+        nextTimerSubscription = new TimerSubscription
+        {
+            Id = timerSubscription.Id,
+            DueAt = nextSchedule.DueAt,
+            FlowNodeId = timerSubscription.FlowNodeId,
+            Kind = timerSubscription.Kind,
+            ProcessId = timerSubscription.ProcessId,
+            RelatedDefinitionId = timerSubscription.RelatedDefinitionId,
+            DefinitionId = timerSubscription.DefinitionId,
+            ProcessInstanceId = timerSubscription.ProcessInstanceId,
+            TokenId = timerSubscription.TokenId,
+            RemainingOccurrences = nextSchedule.RemainingOccurrences
+        };
+        return true;
+    }
 
 
 }

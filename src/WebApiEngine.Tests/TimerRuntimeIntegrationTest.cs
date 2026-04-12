@@ -2,6 +2,7 @@ using BPMN.Process;
 using core_engine;
 using core_engine.Extensions;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Model;
 using StorageSystem;
 using WebApiEngine.BusinessLogic;
@@ -41,6 +42,23 @@ public class TimerRuntimeIntegrationTest
     }
 
     [Test]
+    public async Task DeployDefinition_ShouldPersistRecurringProcessStartTimerSubscriptionWithRemainingOccurrences()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateRecurringTimerStartXml("R3");
+
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+
+        await businessLogic.DeployDefinition(definition);
+
+        var timerSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        timerSubscription.Kind.Should().Be(TimerSubscriptionKind.ProcessStartEvent);
+        timerSubscription.RemainingOccurrences.Should().Be(3);
+    }
+
+    [Test]
     public async Task HandleTime_ShouldStartDueDefinitionTimer_AndRemoveStartSubscription()
     {
         var definition = CreateDefinition();
@@ -58,6 +76,96 @@ public class TimerRuntimeIntegrationTest
         storage.Instances.Should().ContainSingle();
         storage.Instances.Values.Single().State.Should().Be(ProcessInstanceState.Completed);
         storage.Instances.Values.Single().IsFinished.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task HandleTime_ShouldRescheduleRecurringDefinitionTimer_AfterFirstTrigger()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateRecurringTimerStartXml("R3");
+
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await businessLogic.DeployDefinition(definition);
+
+        var initialSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+
+        var processedTimers = await businessLogic.HandleTime(initialSubscription.DueAt.AddMilliseconds(50));
+
+        var nextSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            processedTimers.Should().Be(1);
+            storage.Instances.Should().ContainSingle();
+            nextSubscription.RemainingOccurrences.Should().Be(2);
+            nextSubscription.DueAt.Should().BeCloseTo(initialSubscription.DueAt.AddSeconds(2), TimeSpan.FromMilliseconds(250));
+        }
+    }
+
+    [Test]
+    public async Task HandleTime_ShouldCatchUpRecurringDefinitionTimer_AndKeepNextDueSubscription()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateRecurringTimerStartXml("R3");
+
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await businessLogic.DeployDefinition(definition);
+
+        var initialSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        var catchUpTime = initialSubscription.DueAt.AddSeconds(2).AddMilliseconds(50);
+
+        var processedTimers = await businessLogic.HandleTime(catchUpTime);
+
+        var nextSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            processedTimers.Should().Be(2);
+            storage.Instances.Should().HaveCount(2);
+            nextSubscription.RemainingOccurrences.Should().Be(1);
+            nextSubscription.DueAt.Should().BeCloseTo(initialSubscription.DueAt.AddSeconds(4), TimeSpan.FromMilliseconds(250));
+        }
+    }
+
+    [Test]
+    public async Task Load_ShouldRecoverOverdueRecurringDefinitionTimer_AndKeepNextDueSubscription()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateRecurringTimerStartXml("R5");
+
+        var deployBusinessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await deployBusinessLogic.DeployDefinition(definition);
+
+        var persistedSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        var recoveredDueAt = DateTime.UtcNow.AddSeconds(-5);
+        storage.TimerSubscriptions[0] = new TimerSubscription
+        {
+            Id = persistedSubscription.Id,
+            DueAt = recoveredDueAt,
+            FlowNodeId = persistedSubscription.FlowNodeId,
+            Kind = persistedSubscription.Kind,
+            ProcessId = persistedSubscription.ProcessId,
+            RelatedDefinitionId = persistedSubscription.RelatedDefinitionId,
+            DefinitionId = persistedSubscription.DefinitionId,
+            ProcessInstanceId = persistedSubscription.ProcessInstanceId,
+            TokenId = persistedSubscription.TokenId,
+            RemainingOccurrences = persistedSubscription.RemainingOccurrences
+        };
+
+        var recoveredBusinessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        recoveredBusinessLogic.Load();
+
+        var nextSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            storage.Instances.Should().HaveCount(3);
+            nextSubscription.RemainingOccurrences.Should().Be(2);
+            nextSubscription.DueAt.Should().BeCloseTo(recoveredDueAt.AddSeconds(6), TimeSpan.FromMilliseconds(500));
+        }
     }
 
     [Test]
@@ -212,6 +320,31 @@ public class TimerRuntimeIntegrationTest
                      <bpmn:outgoing>Flow_1</bpmn:outgoing>
                      <bpmn:timerEventDefinition id="TimerDefinition_1">
                        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">PT2S</bpmn:timeDuration>
+                     </bpmn:timerEventDefinition>
+                   </bpmn:startEvent>
+                   <bpmn:endEvent id="EndEvent_1">
+                     <bpmn:incoming>Flow_1</bpmn:incoming>
+                   </bpmn:endEvent>
+                   <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_Timer" targetRef="EndEvent_1" />
+                 </bpmn:process>
+               </bpmn:definitions>
+               """;
+    }
+
+    private static string CreateRecurringTimerStartXml(string repetitionToken)
+    {
+        return $$"""
+               <?xml version="1.0" encoding="UTF-8"?>
+               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                 xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                 id="Definitions_RecurringTimerStart"
+                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                 <bpmn:process id="Process_RecurringTimerStart" isExecutable="true">
+                   <bpmn:startEvent id="StartEvent_Timer">
+                     <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                     <bpmn:timerEventDefinition id="TimerDefinition_1">
+                       <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">{{repetitionToken}}/PT2S</bpmn:timeCycle>
                      </bpmn:timerEventDefinition>
                    </bpmn:startEvent>
                    <bpmn:endEvent id="EndEvent_1">

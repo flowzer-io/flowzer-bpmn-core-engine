@@ -10,5 +10,6 @@ public class TimerSubscriptionDto
     public Guid DefinitionId { get; set; }
     public Guid? ProcessInstanceId { get; set; }
     public Guid? TokenId { get; set; }
+    public int? RemainingOccurrences { get; set; }
     public string Kind { get; set; } = string.Empty;
 }

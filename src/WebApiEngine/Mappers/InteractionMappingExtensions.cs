@@ -107,6 +107,7 @@ public static class InteractionMappingExtensions
             DefinitionId = timerSubscription.DefinitionId,
             ProcessInstanceId = timerSubscription.ProcessInstanceId,
             TokenId = timerSubscription.TokenId,
+            RemainingOccurrences = timerSubscription.RemainingOccurrences,
             Kind = timerSubscription.Kind.ToString()
         };
     }

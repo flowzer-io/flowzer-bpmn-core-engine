@@ -14,4 +14,5 @@ public class TimerSubscription
     public required Guid DefinitionId { get; init; }
     public Guid? ProcessInstanceId { get; init; }
     public Guid? TokenId { get; init; }
+    public int? RemainingOccurrences { get; init; }
 }

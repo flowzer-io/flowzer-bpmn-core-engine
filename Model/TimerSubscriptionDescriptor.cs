@@ -7,4 +7,5 @@ public record TimerSubscriptionDescriptor(
     DateTime DueAt,
     string FlowNodeId,
     TimerSubscriptionKind Kind,
-    Guid? TokenId = null);
+    Guid? TokenId = null,
+    int? RemainingOccurrences = null);

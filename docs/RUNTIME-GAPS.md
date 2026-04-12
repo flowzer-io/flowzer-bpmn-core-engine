@@ -37,13 +37,20 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 - fällige Boundary-Timer werden im `HandleTime(...)`-Pfad genau einmal ausgelöst.
 - interrupting Boundary-Timer ziehen die Aktivität zurück, non-interrupting Boundary-Timer starten einen parallelen Pfad.
 
-### 6. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
+### 6. Wiederkehrende Start-Timer und Start-Timer-Recovery sind jetzt als Runtime-Pfad vorhanden
+
+- begrenzte `timeCycle`-Definitionen wie `R3/PT2S` werden jetzt mit `RemainingOccurrences` als Teil der Timer-Subscription persistiert.
+- `ProcessEngine.HandleTime(...)` zieht überfällige Start-Timer jetzt mehrfach nach, bis wieder ein zukünftiger Fälligkeitszeitpunkt erreicht ist.
+- `BpmnBusinessLogic.HandleTime(...)` reschedult wiederkehrende Start-Timer im Storage-Pfad konsistent weiter.
+- `BpmnBusinessLogic.Load()` kann überfällige Start-Timer nach einem Neustart direkt wieder anstoßen und auf den nächsten Due-Zeitpunkt vorschieben.
+
+### 7. User-Task-Ergebnisse haben einen stabileren Laufzeitvertrag
 
 - User-Task-Ergebnisse ohne `ProcessInstanceId` laufen nicht mehr in eine rohe `NotImplementedException`.
 - Stattdessen kommt ein valider `400 Bad Request` mit einem klaren API-Fehlervertrag zurück.
 - Zusätzlich wird jetzt geprüft, ob das übergebene `TokenId` wirklich noch aktiv ist und zum erwarteten `FlowNodeId` gehört.
 
-### 7. Instanzabbruch ist als Best-Effort-Pfad verfügbar
+### 8. Instanzabbruch ist als Best-Effort-Pfad verfügbar
 
 - `InstanceEngine.Cancel()` terminiert jetzt aktive/wartende Tokens der Instanz konsistent.
 - Das ersetzt noch **keine vollständige BPMN-Kompensation**, verhindert aber, dass der API-/Runtime-Pfad an einer nackten `NotImplementedException` scheitert.
@@ -59,11 +66,13 @@ Aktuell vorhanden:
 - einmaliger Engine-Kernpfad für fällige Timer-Starts und Intermediate-Timer
 - persistierte Timer-Subscriptions in Storage und Web-API
 - kleiner Scheduler-/Polling-Pfad rund um `HandleTime(...)`
+- wiederkehrende Start-Timer mit Catch-up und verbleibenden Wiederholungen
+- Startup-Recovery für überfällige Start-Timer
 
 Weiterhin offen:
 
-- Recovery-Strategie für bereits persistierte Start-Timer über harte Neustarts hinweg weiter schärfen
-- vollständige Wiederholungsstrategie für zyklische Start-Timer über den ersten Due-Zeitpunkt hinaus
+- Recovery-Strategie für bereits persistierte Boundary- oder Spezialtimer über harte Neustarts hinweg weiter schärfen
+- weitergehende Wiederholungsstrategie für Spezialfälle jenseits des aktuellen Start-Timer-Pfads
 - Sonderfälle wie konkurrierende Timer oder weitergehende Boundary-Timer-Recovery nur bei echtem Bedarf vertiefen
 
 ### 2. Fehler- und Eskalationspfade
@@ -95,7 +104,7 @@ Nicht enthalten:
 
 ## Empfohlene nächste Runtime-Schritte
 
-1. Recovery- und Wiederholungsstrategie für Start-Timer weiter härten
+1. Recovery- und Wiederholungsstrategie nur noch für Boundary- und Spezialtimer weiter härten
 2. Error-/Escalation-Semantik gezielt modellieren und testen
 3. `Cancel()` später um echte Kompensationsstrategien erweitern
 4. Boundary-Timer nur noch bei echten Randfällen weiter vertiefen
