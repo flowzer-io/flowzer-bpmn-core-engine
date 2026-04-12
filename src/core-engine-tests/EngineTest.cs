@@ -580,6 +580,93 @@ public class EngineTest
     }
 
     [Test]
+    public void BoundaryTimerEvent_ShouldInterruptActivityAndCompleteBoundaryPathWhenDue()
+    {
+        var instanceEngine = StartProcessFromXml(CreateBoundaryTimerProcessXml(cancelActivity: true));
+
+        var serviceTaskToken = instanceEngine.GetActiveServiceTasks().Should().ContainSingle().Subject;
+        var timerSubscription = ((ICatchHandler)instanceEngine).ActiveTimerSubscriptions
+            .Should()
+            .ContainSingle(subscription => subscription.Kind == TimerSubscriptionKind.BoundaryEvent)
+            .Subject;
+
+        using (new AssertionScope())
+        {
+            timerSubscription.FlowNodeId.Should().Be("BoundaryTimer_1");
+            timerSubscription.TokenId.Should().Be(serviceTaskToken.Id);
+            timerSubscription.DueAt.Should().BeCloseTo(serviceTaskToken.LastStateChangeTime.AddSeconds(5), TimeSpan.FromMilliseconds(250));
+        }
+
+        instanceEngine.HandleTime(timerSubscription.DueAt.AddMilliseconds(50));
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            ((ICatchHandler)instanceEngine).ActiveTimerSubscriptions.Should().BeEmpty();
+            instanceEngine.Tokens.Should().Contain(token =>
+                token.CurrentFlowNode != null &&
+                token.CurrentFlowNode.Id == "ServiceTask_1" &&
+                token.State == FlowNodeState.Withdrawn);
+            instanceEngine.Tokens.Should().Contain(token =>
+                token.CurrentFlowNode != null &&
+                token.CurrentFlowNode.Id == "BoundaryTimer_1" &&
+                token.State == FlowNodeState.Completed);
+        }
+    }
+
+    [Test]
+    public void BoundaryTimerEvent_ShouldTriggerOnlyOnceForNonInterruptingBoundaryTimer()
+    {
+        var instanceEngine = StartProcessFromXml(CreateBoundaryTimerProcessXml(cancelActivity: false));
+
+        var timerSubscription = ((ICatchHandler)instanceEngine).ActiveTimerSubscriptions
+            .Should()
+            .ContainSingle(subscription => subscription.Kind == TimerSubscriptionKind.BoundaryEvent)
+            .Subject;
+
+        instanceEngine.HandleTime(timerSubscription.DueAt.AddMilliseconds(50));
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.GetActiveServiceTasks()
+                .Select(token => ((ServiceTask)token.CurrentBaseElement).Implementation)
+                .Should()
+                .BeEquivalentTo(["main-step", "boundary-step"]);
+            ((ICatchHandler)instanceEngine).ActiveTimerSubscriptions.Should().BeEmpty();
+        }
+
+        var tokenCountAfterFirstFire = instanceEngine.Tokens.Count;
+        instanceEngine.HandleTime(timerSubscription.DueAt.AddSeconds(10));
+
+        using (new AssertionScope())
+        {
+            instanceEngine.Tokens.Should().HaveCount(tokenCountAfterFirstFire);
+            instanceEngine.GetActiveServiceTasks()
+                .Select(token => ((ServiceTask)token.CurrentBaseElement).Implementation)
+                .Should()
+                .BeEquivalentTo(["main-step", "boundary-step"]);
+        }
+
+        var boundaryServiceTaskToken = instanceEngine.GetActiveServiceTasks()
+            .Single(token => ((ServiceTask)token.CurrentBaseElement).Implementation == "boundary-step");
+        var mainServiceTaskToken = instanceEngine.GetActiveServiceTasks()
+            .Single(token => ((ServiceTask)token.CurrentBaseElement).Implementation == "main-step");
+
+        instanceEngine.HandleTaskResult(boundaryServiceTaskToken.Id, null);
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+
+        instanceEngine.HandleTaskResult(mainServiceTaskToken.Id, null);
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+        }
+    }
+
+    [Test]
     public void Cancel_ShouldTerminateWaitingInstanceAndClearActiveTasks()
     {
         var instanceEngine = StartProcessFromXml("""
@@ -654,5 +741,65 @@ public class EngineTest
     {
         var process = ModelParser.ParseModel(xml).GetProcesses().Single();
         return Helper.CreateProcessEngine(process);
+    }
+
+    private static string CreateBoundaryTimerProcessXml(bool cancelActivity)
+    {
+        var cancelActivityAttribute = cancelActivity ? string.Empty : " cancelActivity=\"false\"";
+        var boundaryTarget = cancelActivity ? "EndEvent_Boundary" : "ServiceTask_Boundary";
+        var boundaryTargetDefinition = cancelActivity
+            ? """
+              <bpmn:endEvent id="EndEvent_Boundary">
+                <bpmn:incoming>Flow_3</bpmn:incoming>
+              </bpmn:endEvent>
+              """
+            : """
+              <bpmn:serviceTask id="ServiceTask_Boundary" name="Boundary worker">
+                <bpmn:extensionElements>
+                  <zeebe:taskDefinition type="boundary-step" />
+                </bpmn:extensionElements>
+                <bpmn:incoming>Flow_3</bpmn:incoming>
+                <bpmn:outgoing>Flow_4</bpmn:outgoing>
+              </bpmn:serviceTask>
+              <bpmn:endEvent id="EndEvent_Boundary">
+                <bpmn:incoming>Flow_4</bpmn:incoming>
+              </bpmn:endEvent>
+              <bpmn:sequenceFlow id="Flow_4" sourceRef="ServiceTask_Boundary" targetRef="EndEvent_Boundary" />
+              """;
+
+        return $$"""
+                 <?xml version="1.0" encoding="UTF-8"?>
+                 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                   xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                   id="Definitions_BoundaryTimer"
+                                   targetNamespace="http://bpmn.io/schema/bpmn">
+                   <bpmn:process id="Process_BoundaryTimer" isExecutable="true">
+                     <bpmn:startEvent id="StartEvent_1">
+                       <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                     </bpmn:startEvent>
+                     <bpmn:serviceTask id="ServiceTask_1" name="Main worker">
+                       <bpmn:extensionElements>
+                         <zeebe:taskDefinition type="main-step" />
+                       </bpmn:extensionElements>
+                       <bpmn:incoming>Flow_1</bpmn:incoming>
+                       <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                     </bpmn:serviceTask>
+                     <bpmn:boundaryEvent id="BoundaryTimer_1"{{cancelActivityAttribute}} attachedToRef="ServiceTask_1">
+                       <bpmn:outgoing>Flow_3</bpmn:outgoing>
+                       <bpmn:timerEventDefinition id="TimerDefinition_1">
+                         <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+                       </bpmn:timerEventDefinition>
+                     </bpmn:boundaryEvent>
+                     {{boundaryTargetDefinition}}
+                     <bpmn:endEvent id="EndEvent_Main">
+                       <bpmn:incoming>Flow_2</bpmn:incoming>
+                     </bpmn:endEvent>
+                     <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_1" />
+                     <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_1" targetRef="EndEvent_Main" />
+                     <bpmn:sequenceFlow id="Flow_3" sourceRef="BoundaryTimer_1" targetRef="{{boundaryTarget}}" />
+                   </bpmn:process>
+                 </bpmn:definitions>
+                 """;
     }
 }

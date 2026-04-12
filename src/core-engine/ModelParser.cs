@@ -296,6 +296,19 @@ public static class ModelParser
                 continue;
             }
 
+            if (xmlFlowNode.HasDescendant("timerEventDefinition", out definition))
+            {
+                flowElements.Add(new FlowzerBoundaryTimerEvent
+                {
+                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    TimerDefinition = ParseTimerEventDefinition(definition),
+                    AttachedToRef = attachedTo,
+                    CancelActivity = cancelActivity
+                });
+                continue;
+            }
+
             throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
         }
 

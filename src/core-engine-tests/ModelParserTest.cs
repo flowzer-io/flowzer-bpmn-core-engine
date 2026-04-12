@@ -1,10 +1,12 @@
 using BPMN.Common;
 using BPMN.Events;
+using BPMN.Flowzer;
 using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -101,6 +103,60 @@ public class ModelParserTest
             .ContainSingle()
             .Which.Should()
             .Be("ExecutableProcess");
+    }
+
+    [Test]
+    public void ParseModel_ShouldParseBoundaryTimerEvent()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                             id="Definitions_BoundaryTimer"
+                                             targetNamespace="http://bpmn.io/schema/bpmn">
+                             <bpmn:process id="Process_BoundaryTimer" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                               </bpmn:startEvent>
+                               <bpmn:serviceTask id="Activity_1" name="Wait for boundary timer">
+                                 <bpmn:extensionElements>
+                                   <zeebe:taskDefinition type="wait-for-boundary" />
+                                 </bpmn:extensionElements>
+                                 <bpmn:incoming>Flow_1</bpmn:incoming>
+                                 <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                               </bpmn:serviceTask>
+                               <bpmn:boundaryEvent id="BoundaryTimer_1" cancelActivity="false" attachedToRef="Activity_1">
+                                 <bpmn:outgoing>Flow_3</bpmn:outgoing>
+                                 <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                   <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+                                 </bpmn:timerEventDefinition>
+                               </bpmn:boundaryEvent>
+                               <bpmn:endEvent id="EndEvent_Main">
+                                 <bpmn:incoming>Flow_2</bpmn:incoming>
+                               </bpmn:endEvent>
+                               <bpmn:endEvent id="EndEvent_Boundary">
+                                 <bpmn:incoming>Flow_3</bpmn:incoming>
+                               </bpmn:endEvent>
+                               <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Activity_1" />
+                               <bpmn:sequenceFlow id="Flow_2" sourceRef="Activity_1" targetRef="EndEvent_Main" />
+                               <bpmn:sequenceFlow id="Flow_3" sourceRef="BoundaryTimer_1" targetRef="EndEvent_Boundary" />
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var model = ModelParser.ParseModel(xml);
+        var process = model.GetProcesses().Single();
+        var boundaryTimer = process.FlowElements.OfType<FlowzerBoundaryTimerEvent>().Should().ContainSingle().Subject;
+
+        using (new AssertionScope())
+        {
+            boundaryTimer.Id.Should().Be("BoundaryTimer_1");
+            boundaryTimer.CancelActivity.Should().BeFalse();
+            boundaryTimer.AttachedToRef.Id.Should().Be("Activity_1");
+            boundaryTimer.TimerType.Should().Be(FlowzerTimerType.TimeDuration);
+            boundaryTimer.TimerDefinition.TimeDuration!.Body.Should().Be("PT5S");
+        }
     }
 
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)
