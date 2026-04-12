@@ -186,7 +186,7 @@ public class EngineTest
 
         var action = () => instanceEngine.HandleError("ServiceFailure", "SERVICE_ERROR", "Boom");
 
-        action.Should().NotThrow<NotImplementedException>();
+        action.Should().NotThrow();
 
         using (new AssertionScope())
         {
@@ -204,7 +204,7 @@ public class EngineTest
 
         var action = () => instanceEngine.HandleEscalation("EscalationCode", "ESCALATION_CODE");
 
-        action.Should().NotThrow<NotImplementedException>();
+        action.Should().NotThrow();
 
         using (new AssertionScope())
         {
@@ -212,6 +212,58 @@ public class EngineTest
             instanceEngine.IsFinished.Should().BeTrue();
             instanceEngine.Tokens.Where(token => token.State == FlowNodeState.Failed).Should().NotBeEmpty();
             instanceEngine.ActiveTokens.Should().BeEmpty();
+        }
+    }
+
+    [Test]
+    public async Task HandleError_OnCompletedInstance_ShouldKeepCompletedState()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("StartStopWithVariables.bpmn");
+        var serviceTaskToken = instanceEngine.GetActiveServiceTasks().Single();
+
+        var variables = (ExpandoObject?)new
+        {
+            ServiceResult = "World123"
+        }.ToDynamic();
+        instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
+
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+
+        var action = () => instanceEngine.HandleError("ServiceFailure", "SERVICE_ERROR", "Boom");
+
+        action.Should().NotThrow();
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.IsFinished.Should().BeTrue();
+            instanceEngine.Tokens.Should().OnlyContain(token => token.State == FlowNodeState.Completed);
+        }
+    }
+
+    [Test]
+    public async Task HandleEscalation_OnCompletedInstance_ShouldKeepCompletedState()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("StartStopWithVariables.bpmn");
+        var serviceTaskToken = instanceEngine.GetActiveServiceTasks().Single();
+
+        var variables = (ExpandoObject?)new
+        {
+            ServiceResult = "World123"
+        }.ToDynamic();
+        instanceEngine.HandleTaskResult(serviceTaskToken.Id, variables);
+
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+
+        var action = () => instanceEngine.HandleEscalation("EscalationCode", "ESCALATION_CODE");
+
+        action.Should().NotThrow();
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+            instanceEngine.IsFinished.Should().BeTrue();
+            instanceEngine.Tokens.Should().OnlyContain(token => token.State == FlowNodeState.Completed);
         }
     }
 

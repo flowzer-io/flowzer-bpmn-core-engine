@@ -194,27 +194,18 @@ public partial class InstanceEngine: ICatchHandler
 
     private void FailInstanceBestEffort()
     {
+        if (IsFinished)
+        {
+            return;
+        }
+
         foreach (var token in Tokens.Where(CanBeFailedBestEffort))
         {
             token.State = FlowNodeState.Failed;
         }
-
-        if (MasterToken.State != FlowNodeState.Failed)
-        {
-            MasterToken.State = FlowNodeState.Failed;
-        }
     }
 
-    private static bool CanBeFailedBestEffort(Token token)
-    {
-        return token.State is
-            FlowNodeState.Ready or
-            FlowNodeState.Active or
-            FlowNodeState.Completing or
-            FlowNodeState.WaitingForLoopEnd or
-            FlowNodeState.Failing or
-            FlowNodeState.Terminating;
-    }
+    private static bool CanBeFailedBestEffort(Token token) => CanBeTerminatedByCancellation(token);
 
     public List<Token> ActiveUserTasks()
     {
