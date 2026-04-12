@@ -3,44 +3,50 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @using FlowzerFrontend.Components
 
-
-
-
-
 <div class="main-content">
 
     <HeaderElement BackLink="/models">
         <LeftSide>
-            
-            <LabelWithEdit @bind-Label=@CurrentMetaDefinition.Name AfterChanged="AfterChanged"/>
-            <span id="current-file-version">Version: @CurrentDefinition.Version.ToString() </span>
-        
+            @if (CanEditMetadata)
+            {
+                <LabelWithEdit @bind-Label="CurrentMetaDefinition.Name" AfterChanged="AfterChanged" />
+            }
+            else
+            {
+                <span id="current-file-name">@CurrentMetaDefinition.Name</span>
+            }
+            <span id="current-file-version">Version: @(CurrentDefinition.Id == Guid.Empty ? "-" : CurrentDefinition.Version.ToString()) </span>
         </LeftSide>
         <RigthSide>
             <FluentStack Class="action-button-group">
                 @* <FluentCombobox AriaLabel="Pre-selected option" Items="@AvailableVersions" @bind-Value="@CurrentDefinition" Height="200px" /> *@
 
-                <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" @onclick="OnDeployClick">
+                <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowUpload())"
+                              Appearance="Appearance.Accent"
+                              Disabled="@(!CanPersistDefinition)"
+                              @onclick="OnDeployClick">
                     Deploy
                 </FluentButton>
-                <FluentButton IconEnd="@(new Icons.Regular.Size16.Save())" @onclick="OnSaveClick">
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Save())"
+                              Disabled="@(!CanPersistDefinition)"
+                              @onclick="OnSaveClick">
                     Save
                 </FluentButton>
-                <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())">
+                <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())" Disabled="true">
                     Debug
                 </FluentButton>
 
-                <FluentMenuButton Text="Options" IconStart="new Icons.Regular.Size20.Options()" OnMenuChanged="OnSaveMenuChoosen" ButtonAppearance="Appearance.Neutral" >
+                <FluentMenuButton Text="Options"
+                                  IconStart="new Icons.Regular.Size20.Options()"
+                                  OnMenuChanged="OnSaveMenuChoosen"
+                                  ButtonAppearance="Appearance.Neutral"
+                                  Disabled="@(!CanPersistDefinition)">
                     <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
                 </FluentMenuButton>
             </FluentStack>
         </RigthSide>
-  
     </HeaderElement>
-  
- 
-    
-    
+
     <div class="content with-diagram" id="designer-container">
         <div class="canvas" id="js-canvas"></div>
         <div class="properties-panel-parent" id="js-properties-panel"></div>
@@ -48,15 +54,19 @@
 
     @if (IsDocumentLoading)
     {
-        <div>Loading...</div>
+        <p id="definition-loading-state">Loading model...</p>
     }
-    else if (ErrorString != null)
+    else if (!string.IsNullOrWhiteSpace(ErrorString))
     {
-        <div>
-            <span>Error :-(</span><br/>
+        <div id="definition-load-error" class="diagram-inline-message" role="alert">
+            <span>Error :-(</span><br />
             @ErrorString
+            <div class="diagram-inline-actions">
+                <FluentButton Id="definition-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">
+                    Retry
+                </FluentButton>
+            </div>
         </div>
     }
 
 </div>
-

@@ -25,23 +25,6 @@ public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null)
         return instance;
     }
 
-   
-    private DateTime GetDateFromTimerDefinition(DateTime referenceTime, TimerEventDefinition timerDefinition, FlowNode flowNode)
-    {
-        if (timerDefinition.TimeCycle != null)
-        {
-            var timeSpan = ISO8601Date.DateExtensions.ParseIso8601Duration(timerDefinition.TimeCycle.Body);
-            return referenceTime.Add(timeSpan);
-        }
-        else if (timerDefinition.TimeDate != null)
-        {
-            return DateTime.Parse(timerDefinition.TimeDate.Body);
-        }
-
-        throw new ModelValidationException("Timer definition is invalid. for node " + flowNode.Name);
-    }
-
-
     // public async Task<InstanceEngine> HandleTime(DateTime time)
     // {
     //     var processInstance = new ProcessInstance
@@ -99,7 +82,7 @@ public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null)
         {
             return Process.FlowElements
                 .OfType<FlowzerTimerStartEvent>()
-                .Select(e => GetDateFromTimerDefinition(DateTime.Now, e.TimerDefinition, e))
+                .Select(e => TimerDueDateCalculator.GetDueDate(DateTime.Now, e.TimerDefinition, e))
                 .ToList();
         }
     }

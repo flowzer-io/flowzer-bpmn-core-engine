@@ -71,6 +71,7 @@ Noch offen sind unter anderem:
 - Altlasten und Doppelstrukturen im Repository
 
 Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).
+Eine aktuellere Einordnung der verbliebenen Engine-/Runtime-Lücken steht zusätzlich in [`docs/RUNTIME-GAPS.md`](./RUNTIME-GAPS.md).
 
 ### 3. Dokumentation muss nun mit der Technik mitwachsen
 

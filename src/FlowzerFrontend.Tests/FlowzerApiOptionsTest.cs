@@ -171,9 +171,80 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/form/{formId}/{version}"));
     }
 
+    [Test]
+    public async Task UploadDefinition_ShouldIncludePreviousGuidQuery_WhenProvided()
+    {
+        var previousGuid = Guid.NewGuid();
+        var definitionDto = CreateDefinitionDto();
+        var handler = new RecordingHttpMessageHandler(System.Text.Json.JsonSerializer.Serialize(definitionDto));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.UploadDefinition("<xml />", previousGuid);
+
+        result.Id.Should().Be(definitionDto.Id);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/definition?previousGuid={previousGuid}"));
+    }
+
+    [Test]
+    public async Task UploadDefinition_ShouldNotIncludePreviousGuidQuery_WhenGuidIsEmpty()
+    {
+        var definitionDto = CreateDefinitionDto();
+        var handler = new RecordingHttpMessageHandler(System.Text.Json.JsonSerializer.Serialize(definitionDto));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        _ = await api.UploadDefinition("<xml />", Guid.Empty);
+
+        handler.LastRequestUri.Should().Be(new Uri("http://localhost:5182/definition"));
+    }
+
+    [Test]
+    public async Task DeployDefinition_ShouldIncludePreviousGuidQuery_WhenProvided()
+    {
+        var previousGuid = Guid.NewGuid();
+        var definitionDto = CreateDefinitionDto();
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(definitionDto));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.DeployDefinition("<xml />", previousGuid);
+
+        result.Id.Should().Be(definitionDto.Id);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/definition/deploy?previousGuid={previousGuid}"));
+    }
+
     private static string CreateApiStatusResultJson<T>(T result)
     {
         return System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<T>(result));
+    }
+
+    private static BpmnDefinitionDto CreateDefinitionDto()
+    {
+        return new BpmnDefinitionDto
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = "definition-demo",
+            Hash = "hash-demo",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new VersionDto(2, 1)
+        };
     }
 
     private sealed class RecordingHttpMessageHandler : HttpMessageHandler

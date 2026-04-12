@@ -99,6 +99,24 @@ Bei Bedarf kann das Verhalten angepasst werden:
 - `PLAYWRIGHT_SKIP_PROCESS_GUARD=1` deaktiviert den Wächter
 - `PLAYWRIGHT_PROCESS_STALE_THRESHOLD_SECONDS=<sekunden>` steuert, ab wann alte Browser-Prozesse als verwaist gelten
 
+## Diagramm- und Modeler-Prüfpfade
+
+Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
+
+- `/definition/{metaDefinitionId}` lädt Canvas **und** Properties Panel reproduzierbar
+- ein Speichern aus dem Modeler sendet den bisherigen Definitionsstand als `previousGuid`, damit Versionsketten im Backend nachvollziehbar bleiben
+- die Frontend-Route wechselt nach Save/Deploy auf die neu erzeugte Definition (`/definition/{metaDefinitionId}/{definitionGuid}`), damit URL und angezeigter Stand nicht auseinanderlaufen
+- ungültige Modellrouten zeigen eine sichtbare Inline-Fehlermeldung mit Retry-Button statt eines fatalen Blazor-Fehlers
+- Viewer- und Modeler-Instanzen werden beim Verlassen der Seite best-effort zerstört, damit keine veralteten Diagrammobjekte im Browser hängen bleiben
+
+### Empfohlene manuelle Checks
+
+1. `/models` öffnen und ein Modell laden
+2. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
+3. einmal `Save` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
+4. `/instance/{guid}` für eine laufende Instanz öffnen und Diagramm plus Token-Overlay prüfen
+5. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
+
 ## Hinweise zur lokalen Datenbasis
 
 Die dateibasierte Persistenz landet standardmäßig unterhalb der Build-Ausgabe von `FilesystemStorageSystem`.
