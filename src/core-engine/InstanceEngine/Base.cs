@@ -83,12 +83,12 @@ public partial class InstanceEngine: ICatchHandler
     
     public void HandleEscalation(string escalationCode, string? code, object? escalationBody = null)
     {
-        throw new NotImplementedException();
+        FailInstanceBestEffort();
     }
 
     public void HandleError(string name, string errorCode, string? errorMessage = null, object? errorBody = null)
     {
-        throw new NotImplementedException();
+        FailInstanceBestEffort();
     }
 
     public void HandleTaskResult(Guid tokenId, Variables? data, Guid? userId = null)
@@ -191,6 +191,21 @@ public partial class InstanceEngine: ICatchHandler
             FlowNodeState.Failing or
             FlowNodeState.Terminating;
     }
+
+    private void FailInstanceBestEffort()
+    {
+        if (IsFinished)
+        {
+            return;
+        }
+
+        foreach (var token in Tokens.Where(CanBeFailedBestEffort))
+        {
+            token.State = FlowNodeState.Failed;
+        }
+    }
+
+    private static bool CanBeFailedBestEffort(Token token) => CanBeTerminatedByCancellation(token);
 
     public List<Token> ActiveUserTasks()
     {
