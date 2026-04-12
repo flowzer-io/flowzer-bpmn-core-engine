@@ -6,9 +6,13 @@ namespace WebApiEngine.BusinessLogic;
 
 public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
 {
-    
-    public void Load()
+    public void Load(bool enableTimerAutomation = true)
     {
+        if (!enableTimerAutomation)
+        {
+            return;
+        }
+
         RestoreInstanceTimerSubscriptions().GetAwaiter().GetResult();
         HandleTime(DateTime.UtcNow).GetAwaiter().GetResult();
     }
@@ -139,10 +143,6 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         {
             await storageSystem.SubscriptionStorage.RemoveProcessTimerSubscriptionsByProcessInstanceId(processInstanceId.Value);
         }
-        else
-        {
-            await storageSystem.SubscriptionStorage.RemoveAllProcessTimerSubscriptionsWithNoInstanceId(relatedDefinitionId);
-        }
 
         foreach (var activeTimer in catchHandler.ActiveTimerSubscriptions)
         {
@@ -173,17 +173,37 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
         foreach (var dueStartTimer in dueTimers.Where(subscription => subscription.ProcessInstanceId == null))
         {
-            await HandleStartTimer(storageSystem, dueStartTimer);
-            processedTimers++;
+            try
+            {
+                await HandleStartTimer(storageSystem, dueStartTimer);
+                processedTimers++;
+            }
+            catch (Exception exception)
+            {
+                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
+                    exception,
+                    "Processing start timer subscription {TimerSubscriptionId} for definition {DefinitionId} failed.",
+                    dueStartTimer.Id,
+                    dueStartTimer.DefinitionId);
+            }
         }
 
-        foreach (var instanceId in dueTimers
+        foreach (var dueInstanceTimerGroup in dueTimers
                      .Where(subscription => subscription.ProcessInstanceId != null)
-                     .Select(subscription => subscription.ProcessInstanceId!.Value)
-                     .Distinct())
+                     .GroupBy(subscription => subscription.ProcessInstanceId!.Value))
         {
-            await HandleInstanceTimers(storageSystem, instanceId, time);
-            processedTimers++;
+            try
+            {
+                await HandleInstanceTimers(storageSystem, dueInstanceTimerGroup.Key, time);
+                processedTimers += dueInstanceTimerGroup.Count();
+            }
+            catch (Exception exception)
+            {
+                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
+                    exception,
+                    "Processing due timer subscriptions for instance {InstanceId} failed.",
+                    dueInstanceTimerGroup.Key);
+            }
         }
 
         if (processedTimers > 0)
