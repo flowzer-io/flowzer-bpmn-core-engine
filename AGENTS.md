@@ -40,7 +40,7 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
   - `main`
   - `release`
   - `release/*`
-- Solche Writes auf `main` oder `release` bleiben weiterhin nur mit expliziter Freigabe erlaubt.
+- Solche Writes auf `main`, `release` oder `release/*` bleiben weiterhin nur mit expliziter Freigabe erlaubt.
 - Solange nichts anderes gefordert ist, sollen PRs und Merges weiterhin **nach `next`** gehen.
 
 ## Bekannte Fallstricke
