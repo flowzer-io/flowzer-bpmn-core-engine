@@ -169,6 +169,44 @@ public class TimerRuntimeIntegrationTest
     }
 
     [Test]
+    public async Task HandleTime_ShouldRecoverLegacyRecurringDefinitionTimer_WhenRemainingOccurrencesWereNotPersistedYet()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateRecurringTimerStartXml("R3");
+
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await businessLogic.DeployDefinition(definition);
+
+        var persistedSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        storage.TimerSubscriptions[0] = new TimerSubscription
+        {
+            Id = persistedSubscription.Id,
+            DueAt = persistedSubscription.DueAt,
+            FlowNodeId = persistedSubscription.FlowNodeId,
+            Kind = persistedSubscription.Kind,
+            ProcessId = persistedSubscription.ProcessId,
+            RelatedDefinitionId = persistedSubscription.RelatedDefinitionId,
+            DefinitionId = persistedSubscription.DefinitionId,
+            ProcessInstanceId = persistedSubscription.ProcessInstanceId,
+            TokenId = persistedSubscription.TokenId,
+            RemainingOccurrences = null
+        };
+
+        var processedTimers = await businessLogic.HandleTime(persistedSubscription.DueAt.AddMilliseconds(50));
+
+        var nextSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
+        using (new AssertionScope())
+        {
+            processedTimers.Should().Be(1);
+            storage.Instances.Should().ContainSingle();
+            nextSubscription.RemainingOccurrences.Should().Be(2);
+            nextSubscription.DueAt.Should().BeCloseTo(persistedSubscription.DueAt.AddSeconds(2), TimeSpan.FromMilliseconds(250));
+        }
+    }
+
+    [Test]
     public async Task HandleTime_ShouldAdvanceDueInstanceTimer_AndClearPersistedInstanceTimer()
     {
         var definitionId = Guid.NewGuid();

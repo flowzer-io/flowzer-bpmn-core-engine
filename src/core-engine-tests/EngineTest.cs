@@ -5,6 +5,7 @@ using Flowzer.Shared;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Model;
+using core_engine.Exceptions;
 using Task = System.Threading.Tasks.Task;
 
 namespace core_engine_tests;
@@ -534,6 +535,35 @@ public class EngineTest
             nextSubscription.RemainingOccurrences.Should().Be(1);
             nextSubscription.DueAt.Should().BeCloseTo(initialSubscription.DueAt.AddSeconds(4), TimeSpan.FromMilliseconds(250));
         }
+    }
+
+    [Test]
+    public void RecurringTimerStartEvent_ShouldRejectNonPositiveRepeatIntervals()
+    {
+        Action act = () => CreateProcessEngineFromXml("""
+                                                      <?xml version="1.0" encoding="UTF-8"?>
+                                                      <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                                                        id="Definitions_InvalidRecurringTimerStart"
+                                                                        targetNamespace="http://bpmn.io/schema/bpmn">
+                                                        <bpmn:process id="Process_InvalidRecurringTimerStart" isExecutable="true">
+                                                          <bpmn:startEvent id="StartEvent_Timer">
+                                                            <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                            <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                                              <bpmn:timeCycle xsi:type="bpmn:tFormalExpression">R3/PT0S</bpmn:timeCycle>
+                                                            </bpmn:timerEventDefinition>
+                                                          </bpmn:startEvent>
+                                                          <bpmn:endEvent id="EndEvent_1">
+                                                            <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                          </bpmn:endEvent>
+                                                          <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_Timer" targetRef="EndEvent_1" />
+                                                        </bpmn:process>
+                                                      </bpmn:definitions>
+                                                      """);
+
+        act.Should()
+            .Throw<ModelValidationException>()
+            .WithMessage("*positive ISO-8601 duration interval*");
     }
 
     [Test]

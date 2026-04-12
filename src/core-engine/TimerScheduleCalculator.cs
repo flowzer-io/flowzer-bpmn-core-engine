@@ -1,4 +1,5 @@
 using System.Globalization;
+using core_engine.Exceptions;
 using core_engine.ISO8601Date;
 
 namespace core_engine;
@@ -27,10 +28,17 @@ public static class TimerScheduleCalculator
                 repeatingCycle.RemainingOccurrences);
         }
 
+        if (timerDefinition.TimeCycle != null &&
+            timerDefinition.TimeCycle.Body.StartsWith("R", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ModelValidationException(
+                "Repeating timer cycles require a positive ISO-8601 duration interval.");
+        }
+
         return new TimerSchedule(
             TimerDueDateCalculator.GetDueDate(referenceTime, timerDefinition, flowNode),
             null,
-            1);
+            null);
     }
 
     public static bool TryAdvanceSchedule(TimerSchedule currentSchedule, out TimerSchedule nextSchedule)
@@ -95,8 +103,14 @@ public static class TimerScheduleCalculator
             remainingOccurrences = parsedCount;
         }
 
+        var interval = DateExtensions.ParseIso8601Duration(parts[1]);
+        if (interval <= TimeSpan.Zero)
+        {
+            return false;
+        }
+
         repeatingCycleDefinition = new RepeatingCycleDefinition(
-            DateExtensions.ParseIso8601Duration(parts[1]),
+            interval,
             remainingOccurrences);
         return true;
     }

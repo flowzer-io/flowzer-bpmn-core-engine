@@ -387,7 +387,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         var startEvent = process.FlowElements
             .OfType<FlowzerTimerStartEvent>()
             .SingleOrDefault(candidate => string.Equals(candidate.Id, timerSubscription.FlowNodeId, StringComparison.Ordinal))
-            ?? throw new FileNotFoundException(
+            ?? throw new InvalidOperationException(
                 $"No timer start event with the id \"{timerSubscription.FlowNodeId}\" was found in the process \"{timerSubscription.ProcessId}\".");
 
         var processedTimers = 0;
@@ -441,13 +441,15 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         TimerSubscription timerSubscription,
         out TimerSubscription? nextTimerSubscription)
     {
+        var initialSchedule = TimerScheduleCalculator.CreateInitialSchedule(
+            timerSubscription.DueAt,
+            startEvent.TimerDefinition,
+            startEvent);
+
         var currentSchedule = new TimerSchedule(
             timerSubscription.DueAt,
-            TimerScheduleCalculator.CreateInitialSchedule(
-                timerSubscription.DueAt,
-                startEvent.TimerDefinition,
-                startEvent).RepeatInterval,
-            timerSubscription.RemainingOccurrences);
+            initialSchedule.RepeatInterval,
+            timerSubscription.RemainingOccurrences ?? initialSchedule.RemainingOccurrences);
 
         if (!TimerScheduleCalculator.TryAdvanceSchedule(currentSchedule, out var nextSchedule))
         {
