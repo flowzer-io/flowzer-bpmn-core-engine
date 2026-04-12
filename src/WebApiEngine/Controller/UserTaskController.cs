@@ -17,7 +17,8 @@ public class UserTaskController(
     public async Task<ActionResult<ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>>> GetAllUserTasks()
     {
         var currentUser = currentUserContextAccessor.GetCurrentUser();
-        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(currentUser.UserId);
+        var userId = currentUser.RequireResolvedUserId("reading user tasks");
+        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId);
         var dtos = userTaskSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
@@ -29,7 +30,8 @@ public class UserTaskController(
     {
         var userTaskResult = messageDto.ToModel();
         var currentUser = currentUserContextAccessor.GetCurrentUser();
-        await bpmnBusinessLogic.HandleUserTask(userTaskResult, currentUser.UserId);
+        var userId = currentUser.RequireResolvedUserId("completing user tasks");
+        await bpmnBusinessLogic.HandleUserTask(userTaskResult, userId);
 
         return Ok(new ApiStatusResult { Successful = true });
     }

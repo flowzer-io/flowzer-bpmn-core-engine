@@ -117,7 +117,8 @@ public class FormController(
         {
             var data = formMetadataDto.ToModel();
             var currentUser = currentUserContextAccessor.GetCurrentUser();
-            await bpmnBusinessLogic.HandleUserTask(data, currentUser.UserId);
+            var userId = currentUser.RequireResolvedUserId("submitting form results");
+            await bpmnBusinessLogic.HandleUserTask(data, userId);
             return Ok(new ApiStatusResult() {Successful = true});
         }
         catch (ArgumentException e)

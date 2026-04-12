@@ -1,9 +1,27 @@
 const { randomUUID } = require('crypto');
 
 const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5182';
+const developmentUserIdHeaderName = 'X-Flowzer-UserId';
+const developmentUserId =
+  process.env.FLOWZER_DEVELOPMENT_USER_ID ||
+  'F70DD76D-D4A3-44D2-8A28-7547E84B7A91';
 
 function buildApiUrl(pathname) {
   return new URL(pathname, apiUrl).toString();
+}
+
+function buildRequestOptions(overrides = {}) {
+  const mergedHeaders = {
+    ...(developmentUserId
+      ? { [developmentUserIdHeaderName]: developmentUserId }
+      : {}),
+    ...(overrides.headers || {})
+  };
+
+  return {
+    ...overrides,
+    headers: mergedHeaders
+  };
 }
 
 async function readJson(response, description) {
@@ -111,21 +129,21 @@ function buildMessageStartUserTaskXml({
 }
 
 async function saveForm(request, { formId = randomUUID(), name, schema }) {
-  const metadataResponse = await request.post(buildApiUrl(`/form/meta/${formId}`), {
+  const metadataResponse = await request.post(buildApiUrl(`/form/meta/${formId}`), buildRequestOptions({
     data: {
       formId,
       name
     }
-  });
+  }));
   ensureApiSuccess(await readJson(metadataResponse, 'Saving form metadata'), 'Saving form metadata');
 
-  const formResponse = await request.post(buildApiUrl('/form'), {
+  const formResponse = await request.post(buildApiUrl('/form'), buildRequestOptions({
     data: {
       formId,
       version: { major: 0, minor: 0 },
       formData: schema
     }
-  });
+  }));
 
   const formResult = ensureApiSuccess(await readJson(formResponse, 'Saving form content'), 'Saving form content');
   return {
@@ -136,17 +154,17 @@ async function saveForm(request, { formId = randomUUID(), name, schema }) {
 }
 
 async function createDefinitionMeta(request, { name, description = '' }) {
-  const createResponse = await request.get(buildApiUrl('/definition/new'));
+  const createResponse = await request.get(buildApiUrl('/definition/new'), buildRequestOptions());
   const createdDefinition = await readJson(createResponse, 'Creating definition metadata');
   const definitionId = createdDefinition?.definitionId || createdDefinition?.DefinitionId;
 
-  const updateResponse = await request.put(buildApiUrl('/definition/meta'), {
+  const updateResponse = await request.put(buildApiUrl('/definition/meta'), buildRequestOptions({
     data: {
       definitionId,
       name,
       description
     }
-  });
+  }));
   await readJson(updateResponse, 'Updating definition metadata');
 
   return definitionId;
@@ -154,12 +172,12 @@ async function createDefinitionMeta(request, { name, description = '' }) {
 
 async function deployDefinition(request, { xml }) {
 
-  const definitionResponse = await request.post(buildApiUrl('/definition/deploy'), {
+  const definitionResponse = await request.post(buildApiUrl('/definition/deploy'), buildRequestOptions({
     headers: {
       'content-type': 'text/plain'
     },
     data: xml
-  });
+  }));
 
   const deployedDefinition = ensureApiSuccess(
     await readJson(definitionResponse, 'Deploying definition'),
@@ -172,32 +190,32 @@ async function deployDefinition(request, { xml }) {
 }
 
 async function sendMessage(request, { name, correlationKey = null, variables = {}, instanceId = null }) {
-  const response = await request.post(buildApiUrl('/message'), {
+  const response = await request.post(buildApiUrl('/message'), buildRequestOptions({
     data: {
       name,
       correlationKey,
       variables,
       instanceId
     }
-  });
+  }));
 
   ensureApiSuccess(await readJson(response, 'Sending message'), 'Sending message');
 }
 
 async function getUserTasks(request) {
-  const response = await request.get(buildApiUrl('/usertask'));
+  const response = await request.get(buildApiUrl('/usertask'), buildRequestOptions());
   return ensureApiSuccess(await readJson(response, 'Loading user tasks'), 'Loading user tasks');
 }
 
 async function completeUserTask(request, userTask, data = {}) {
-  const response = await request.post(buildApiUrl('/form/result'), {
+  const response = await request.post(buildApiUrl('/form/result'), buildRequestOptions({
     data: {
       flowNodeId: userTask.token.currentFlowNodeId,
       tokenId: userTask.token.id,
       processInstanceId: userTask.processInstanceId,
       data
     }
-  });
+  }));
 
   ensureApiSuccess(await readJson(response, 'Completing user task'), 'Completing user task');
 }

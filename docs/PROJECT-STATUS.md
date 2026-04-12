@@ -55,6 +55,8 @@ Unter anderem bereits umgesetzt:
 - wiederkehrende Start-Timer mit Restwiederholungen und Catch-up-Verhalten im Runtime-Pfad
 - Startup-Recovery für überfällige Start-Timer auf Basis persistierter Timer-Subscriptions
 - konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
+- geschützte Definition-, User-Task- und Form-Ergebnispfade verlangen jetzt einen aufgelösten Benutzerkontext statt stillen System-Fallback
+- lokaler Development- und UI-Smoke-Pfad sendet für diese geschützten Routen nun automatisch einen technischen Benutzerheader, ohne die strengeren Produktionspfade wieder aufzuweichen
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
 
@@ -66,7 +68,7 @@ Besonders relevant sind noch:
 
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
 - Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
-- weitere Auth-/Identity- und Fehlerpfade
+- weitere Auth-/Identity- und Fehlerpfade jenseits des aktuellen Benutzerkontext-Guards
 - Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
@@ -74,7 +76,7 @@ Besonders relevant sind noch:
 Noch offen sind unter anderem:
 
 - Restlücken in Timer-, Boundary- und Kompensationssemantik
-- provisorische Auth-/Identity-Platzhalter
+- provisorische Auth-/Identity-Platzhalter oberhalb des aktuellen Benutzerkontext-Guards
 - Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, Logging-/Telemetry und Recovery
 - Altlasten und Doppelstrukturen im Repository
 
@@ -96,7 +98,7 @@ Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Rei
 Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitgehend abgearbeitet. Der nächste sinnvolle Backlog ergibt sich aktuell weniger aus alten Sammel-Issues, sondern aus den noch verbleibenden Produktlücken:
 
 - weitergehende Boundary-/Spezialtimer-Recovery sowie BPMN-Fehler-/Eskalationssemantik
-- Auth-/Identity-Härtung
+- Auth-/Identity-Härtung über Claim-, Rollen- und Betriebsmodell
 - Telemetrie, Secrets, Recovery und operationsnahe Doku
 - weitere Architektur- und Repo-Hygiene
 
@@ -106,7 +108,7 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-1. Auth-/Identity- und API-Verträge weiter schärfen
+1. Auth-/Identity- und API-Verträge über Claim-/Rollenmodell weiter schärfen
 2. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
 3. Timer-Recovery nur noch in verbleibenden Spezialfällen weiter vertiefen
 4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen

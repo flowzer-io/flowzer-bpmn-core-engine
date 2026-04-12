@@ -18,6 +18,8 @@ Aktuell gilt damit bewusst:
 
 Damit lässt sich das Frontend lokal direkt gegen die Web-API starten, ohne dass im Code harte URLs verdrahtet bleiben.
 
+Zusätzlich kann `FlowzerApi:DevelopmentUserId` gesetzt werden. Wenn das Frontend selbst im `Development`-Modus läuft, sendet es diesen Wert automatisch als `X-Flowzer-UserId` an die Web-API. Damit bleiben lokal gehärtete Definition-, User-Task- und Formularpfade testbar, ohne Produktionsumgebungen wieder für freie Header-Impersonation zu öffnen.
+
 ## Lokaler Start
 
 ### Web-API
@@ -98,6 +100,7 @@ Bei Bedarf kann das Verhalten angepasst werden:
 
 - `PLAYWRIGHT_SKIP_PROCESS_GUARD=1` deaktiviert den Wächter
 - `PLAYWRIGHT_PROCESS_STALE_THRESHOLD_SECONDS=<sekunden>` steuert, ab wann alte Browser-Prozesse als verwaist gelten
+- `FLOWZER_DEVELOPMENT_USER_ID=<guid>` überschreibt den technischen Development-Benutzer für API-Seed- und Runtime-Hilfsaufrufe der UI-Smokes
 
 ## Diagramm- und Modeler-Prüfpfade
 

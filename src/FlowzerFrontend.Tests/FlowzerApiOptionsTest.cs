@@ -45,6 +45,69 @@ public class FlowzerApiOptionsTest
     }
 
     [Test]
+    public void ResolveDevelopmentUserId_ShouldReturnConfiguredUser_WhenFrontendRunsInDevelopment()
+    {
+        var developmentUserId = Guid.NewGuid();
+        var options = new FlowzerApiOptions
+        {
+            DevelopmentUserId = developmentUserId.ToString()
+        };
+
+        var result = options.ResolveDevelopmentUserId(isDevelopment: true);
+
+        result.Should().Be(developmentUserId);
+    }
+
+    [Test]
+    public void ResolveDevelopmentUserId_ShouldReturnNull_WhenFrontendDoesNotRunInDevelopment()
+    {
+        var options = new FlowzerApiOptions
+        {
+            DevelopmentUserId = Guid.NewGuid().ToString()
+        };
+
+        var result = options.ResolveDevelopmentUserId(isDevelopment: false);
+
+        result.Should().BeNull();
+    }
+
+    [Test]
+    public void ApplyDefaultHeaders_ShouldAddTechnicalUserHeader_WhenDevelopmentUserIsConfigured()
+    {
+        var developmentUserId = Guid.NewGuid();
+        var options = new FlowzerApiOptions
+        {
+            DevelopmentUserId = developmentUserId.ToString()
+        };
+        using var httpClient = new HttpClient();
+
+        options.ApplyDefaultHeaders(httpClient, isDevelopment: true);
+
+        httpClient.DefaultRequestHeaders.Contains(FlowzerApiOptions.DevelopmentUserIdHeaderName).Should().BeTrue();
+        httpClient.DefaultRequestHeaders
+            .GetValues(FlowzerApiOptions.DevelopmentUserIdHeaderName)
+            .Should()
+            .ContainSingle()
+            .Which
+            .Should()
+            .Be(developmentUserId.ToString());
+    }
+
+    [Test]
+    public void ApplyDefaultHeaders_ShouldNotAddTechnicalUserHeader_OutsideDevelopment()
+    {
+        var options = new FlowzerApiOptions
+        {
+            DevelopmentUserId = Guid.NewGuid().ToString()
+        };
+        using var httpClient = new HttpClient();
+
+        options.ApplyDefaultHeaders(httpClient, isDevelopment: false);
+
+        httpClient.DefaultRequestHeaders.Contains(FlowzerApiOptions.DevelopmentUserIdHeaderName).Should().BeFalse();
+    }
+
+    [Test]
     public async Task GetJsonRequest_ShouldUseConfiguredHttpMethod_AndJsonPayload()
     {
         var handler = new RecordingHttpMessageHandler();
