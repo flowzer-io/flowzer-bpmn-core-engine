@@ -13,54 +13,53 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 - Build- und CI-Basis stabilisiert
 - Demo-Console-App ergänzt
 - wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
+- Timer-Ausführung im Engine-Kern für fällige Start- und Intermediate-Timer ergänzt
+- Form-/Message-Fehlerverträge in der Web-API weiter geschärft
 - lokale und CI-nahe Testpfade wieder grün gemacht
 - lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
 - das ursprüngliche Frontend-Epic (#7) und seine Teilpakete #47–#50 sind abgeschlossen
+- der erste große Revitalisierungs-Backlog ist damit weitgehend abgearbeitet
 
 Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
 
-## Priorität 1: Release-nahe Betriebsbasis abschließen
+## Priorität 1: Timer- und Runtime-Restlücken schließen
 
-### 1.1 Runtime-Container und Release-Compose ergänzen
+### 1.1 Timer-Persistenz und Scheduler-Anbindung
 
-Referenz: [#63](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/63)
+- persistierte Timer-Subscriptions ergänzen
+- Wiederaufnahme nach Neustart für fällige Timer vorbereiten
+- klaren Scheduler-/Polling-Pfad um `HandleTime(...)` modellieren und testen
 
-- dedizierte Runtime-Container für API und Frontend bereitstellen
-- Gateway-/Reverse-Proxy-Basis für Same-Origin-Betrieb ergänzen
-- lokalen Build-/Start-/Check-Pfad für echte Runtime-Images dokumentieren
+### 1.2 Boundary-Timer und BPMN-Fehlerpfade vertiefen
 
-### 1.2 Weitere Betriebsaspekte nachziehen
+- Boundary-Timer-Parsing und -Abarbeitung ergänzen
+- Error-/Escalation-Semantik jenseits des Best-Effort-Fallbacks modellieren
+- Kompensations- und Abbruchpfade weiter präzisieren
+
+## Priorität 2: Betriebs- und Auth-Reife erhöhen
+
+### 2.1 Operations-Basis über die lokale Compose-Story hinaus vertiefen
 
 - Metrics/Tracing
 - Secret-/Konfigurationsstory
 - Recovery-/Backup-Hinweise
 - Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen
 
-## Priorität 2: Restliche Produktpfade vertiefen
+### 2.2 Auth-/Identity-Pfade weiter absichern
 
-### 2.1 Weitere E2E-/Smoke-Pfade ausbauen
+- Fallback-/Development-Pfade weiter reduzieren
+- Nutzer- und Rollenmodell klarer kapseln
+- API-Verträge und Betriebssignale entlang der Auth-Story ergänzen
+
+## Priorität 3: Test- und Dokumentationsreife nachziehen
+
+### 3.1 Weitere E2E-/Smoke-Pfade gezielt ausbauen
 
 - Kernpfade für Direktaufrufe, Refreshes und Betriebsfehler weiter ausbauen
 - Testdaten und Hilfslogik für reproduzierbare Läufe schaffen
 - die Suite klein und CI-tauglich halten
 
-### 2.2 API-Fehlerverträge und Auth-/Betriebssignale weiter verbessern
-
-- Fehlerantworten weiter vereinheitlichen
-- Betriebsmetriken ergänzen
-- Auth-Platzhalter technisch sauberer kapseln
-
-## Priorität 3: Restlücken abbauen
-
-### 3.1 Engine- und Runtime-Restbestand bereinigen
-
-- `NotImplementedException`-Stellen inventarisieren
-- produktionskritische Pfade priorisiert schließen
-- Regressionstests ergänzen
-
-### 3.2 Repository- und Dokumentationshygiene weiter verbessern
-
-Referenz: [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55)
+### 3.2 Architektur-, Status- und Repo-Hygiene weiter verbessern
 
 - Altlasten und Doppelstrukturen bewerten und bereinigen
 - Status- und Roadmap-Dokumente laufend aktualisieren
@@ -68,19 +67,21 @@ Referenz: [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55
 
 ## Empfohlene Reihenfolge der nächsten Sprints
 
-### Sprint A – Runtime-Container abschließen
+### Sprint A – Timer und Runtime
 
-- #63 Release-Dockerfiles und runtime-nahe Compose-Variante ergänzen
+- Timer-Persistenz
+- Scheduler-/Polling-Pfad
+- Boundary-Timer-Sicht
 
-### Sprint B – Betriebs- und E2E-Reife
+### Sprint B – Betrieb und Auth
 
-- Gateway-/Reverse-Proxy-Pfade weiter härten
-- zusätzliche direkte Refresh-/Fehlerpfade in Playwright abdecken
+- Telemetrie/Secrets/Recovery
+- Auth-/Identity-Härtung
 
-### Sprint C – Runtime- und Auth-Restlücken
+### Sprint C – E2E und Dokumentation
 
-- verbleibende Runtime-/Storage-/Auth-Lücken abbauen
-- Recovery- und Operations-Dokumentation vertiefen
+- zusätzliche E2E-/Smoke-Pfade
+- Architektur- und Operations-Dokumentation vertiefen
 
 ## Leitprinzip für die weitere Arbeit
 

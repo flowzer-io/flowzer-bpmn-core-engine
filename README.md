@@ -2,8 +2,8 @@
 
 Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, Frontend und ersten Beispielprozessen.
 
-> **Stand: 11. April 2026**
-> Das Repository hat eine gute fachliche Basis, ist aktuell aber eher ein **starker Prototyp** als ein produktionsreifes Framework. Wer das Projekt weiterführen will, sollte zuerst Stabilisierung, Build/CI und die offene PR-/Issue-Lage bereinigen.
+> **Stand: 12. April 2026**
+> Das Repository ist auf `next` wieder klar arbeitsfähig und deutlich weiter als noch in der reinen Rettungsphase. Es bleibt aber eher ein **produktnaher Prototyp mit belastbarer Basis** als ein fertig gehärtetes Framework.
 
 ## Warum das Projekt spannend ist
 
@@ -24,10 +24,10 @@ Kurz gesagt: **Die Richtung stimmt.** Die Engine ist nicht „tot“, aber sie b
 Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Stand der Codebasis. Realistischer formuliert:
 
 - Es gibt bereits eine **brauchbare Kernarchitektur**.
-- Es gibt **fachlich wertvolle Tests und BPMN-Beispiele**.
-- Es gibt **offene technische Schulden** in Build, Tooling und Repository-Hygiene.
-- Mehrere Bereiche sind **begonnen, aber nicht sauber abgeschlossen**.
-- Das Projekt ist **revivierbar**, wenn man die nächsten Schritte konsequent priorisiert.
+- Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
+- Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
+- Es gibt aber weiterhin **offene Restlücken** bei Timer-Persistenz, Boundary-Timern, Auth/Identity und Betriebsreife.
+- Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
 Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 
@@ -85,16 +85,16 @@ npm run build
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Kernpfade sind stabil, aber noch nicht vollständig aufgeräumt**
-   Build, CI sowie die Kern- und WebAPI-Tests laufen auf `next` reproduzierbar grün. Offen sind jedoch weiterhin mehrere Compiler-, Nullability- und Frontend-Warnungen.
+   Build, CI sowie Kern-, Web-API-, Frontend- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
 
-3. **Sicherheits- und Dependency-Lage weiter beobachten**
-   Die risikoarmen Updates wurden auf `next` bereits übernommen. Der Security-Status des Default-Branches und weitere Abhängigkeitsentscheidungen sollten dennoch aktiv beobachtet werden.
+3. **Timer-, Fehler- und Abbruchpfade sind verbessert, aber noch nicht vollständig**
+   Der Engine-Kern kann fällige Timer jetzt weiterführen, und rohe `NotImplementedException`-Abbrüche wurden in mehreren Pfaden entschärft. Persistierte Timer, Boundary-Timer, vollständige Fehler-/Eskalationssemantik und echte Kompensation bleiben aber offen.
 
-4. **Produktpfade bleiben im Ausbau**
-   `ICore` und die Console-Demo sind jetzt vorhanden. API-Verträge, UI-Smoke-Tests und weitere Contributor-Pfade werden in den nächsten Paketen weiter geschärft.
+4. **Betrieb und Auth sind noch nicht am Ziel**
+   Lokale Compose- und Runtime-Container sind vorhanden, aber Themen wie Telemetrie, Secrets, TLS, Recovery und eine belastbare Identity-/Auth-Story sind weiterhin Folgepakete.
 
 ## Dokumentation
 
@@ -112,10 +112,10 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **API- und DTO-Grenzen weiter schärfen**
-2. **Console-Demo und Contributor Experience weiter ausbauen**
-3. **Frontend-Smoke- und E2E-Pfade absichern**
-4. **Warnungen und Nullability-Themen schrittweise abbauen**
+1. **Timer-Persistenz, Scheduler-Anbindung und Boundary-Timer sauber nachziehen**
+2. **Auth-/Identity- und Fehlerpfade weiter produktionsnah härten**
+3. **Betriebsbasis mit Telemetrie, Secrets und Recovery vertiefen**
+4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md).
 
