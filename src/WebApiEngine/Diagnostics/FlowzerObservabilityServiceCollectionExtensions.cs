@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -25,6 +24,11 @@ public static class FlowzerObservabilityServiceCollectionExtensions
             return services;
         }
 
+        var otlpEndpoint = ResolveOtlpEndpoint(options);
+        var otlpProtocol = options.HasOtlpExporter
+            ? options.ResolveOtlpProtocol()
+            : (OpenTelemetry.Exporter.OtlpExportProtocol?)null;
+
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(
                 serviceName: options.ServiceName,
@@ -33,31 +37,35 @@ public static class FlowzerObservabilityServiceCollectionExtensions
             {
                 metrics.AddMeter(FlowzerDiagnostics.MeterName);
                 metrics.AddAspNetCoreInstrumentation();
-                ConfigureExporters(metrics, options);
+                ConfigureExporters(metrics, options, otlpEndpoint, otlpProtocol);
             })
             .WithTracing(tracing =>
             {
                 tracing.AddSource(FlowzerDiagnostics.ActivitySourceName);
                 tracing.AddAspNetCoreInstrumentation();
-                ConfigureExporters(tracing, options);
+                ConfigureExporters(tracing, options, otlpEndpoint, otlpProtocol);
             });
 
         return services;
     }
 
-    private static void ConfigureExporters(MeterProviderBuilder metrics, FlowzerObservabilityOptions options)
+    private static void ConfigureExporters(
+        MeterProviderBuilder metrics,
+        FlowzerObservabilityOptions options,
+        Uri? otlpEndpoint,
+        OpenTelemetry.Exporter.OtlpExportProtocol? otlpProtocol)
     {
         if (options.UseConsoleExporter)
         {
             metrics.AddConsoleExporter();
         }
 
-        if (options.HasOtlpExporter)
+        if (otlpEndpoint is not null && otlpProtocol is not null)
         {
             metrics.AddOtlpExporter(exporter =>
             {
-                exporter.Endpoint = new Uri(options.OtlpEndpoint!, UriKind.Absolute);
-                exporter.Protocol = options.ResolveOtlpProtocol();
+                exporter.Endpoint = otlpEndpoint;
+                exporter.Protocol = otlpProtocol.Value;
                 if (!string.IsNullOrWhiteSpace(options.OtlpHeaders))
                 {
                     exporter.Headers = options.OtlpHeaders;
@@ -66,24 +74,47 @@ public static class FlowzerObservabilityServiceCollectionExtensions
         }
     }
 
-    private static void ConfigureExporters(TracerProviderBuilder tracing, FlowzerObservabilityOptions options)
+    private static void ConfigureExporters(
+        TracerProviderBuilder tracing,
+        FlowzerObservabilityOptions options,
+        Uri? otlpEndpoint,
+        OpenTelemetry.Exporter.OtlpExportProtocol? otlpProtocol)
     {
         if (options.UseConsoleExporter)
         {
             tracing.AddConsoleExporter();
         }
 
-        if (options.HasOtlpExporter)
+        if (otlpEndpoint is not null && otlpProtocol is not null)
         {
             tracing.AddOtlpExporter(exporter =>
             {
-                exporter.Endpoint = new Uri(options.OtlpEndpoint!, UriKind.Absolute);
-                exporter.Protocol = options.ResolveOtlpProtocol();
+                exporter.Endpoint = otlpEndpoint;
+                exporter.Protocol = otlpProtocol.Value;
                 if (!string.IsNullOrWhiteSpace(options.OtlpHeaders))
                 {
                     exporter.Headers = options.OtlpHeaders;
                 }
             });
         }
+    }
+
+    private static Uri? ResolveOtlpEndpoint(FlowzerObservabilityOptions options)
+    {
+        if (!options.HasOtlpExporter)
+        {
+            return null;
+        }
+
+        if (Uri.TryCreate(options.OtlpEndpoint, UriKind.Absolute, out var endpoint)
+            && (endpoint.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+                || endpoint.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+        {
+            return endpoint;
+        }
+
+        throw new ArgumentException(
+            "Observability:OtlpEndpoint must be an absolute http(s) URI like 'http://localhost:4318' when Observability is enabled.",
+            nameof(options));
     }
 }

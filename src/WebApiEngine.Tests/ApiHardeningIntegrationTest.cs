@@ -186,6 +186,9 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.Enabled.Should().BeFalse();
         payload.Result.Observability.ConsoleExporterEnabled.Should().BeFalse();
         payload.Result.Observability.OtlpExporterEnabled.Should().BeFalse();
+        payload.Result.Observability.OtlpEndpointHint.Should().BeNull();
+        payload.Result.Observability.OtlpProtocol.Should().BeNull();
+        payload.Result.Observability.OtlpHeadersHint.Should().BeNull();
         payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi");
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
@@ -277,6 +280,57 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.OtlpProtocol.Should().Be("HttpProtobuf");
         payload.Result.Observability.OtlpHeadersHint.Should().Be("(configured)");
         payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi.Test");
+    }
+
+    [Test]
+    public async Task OperationsDiagnostics_ShouldHideConfiguredOtlpHints_WhenObservabilityIsDisabled()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                AdditionalConfiguration = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Enabled"] = "false",
+                    [$"{FlowzerObservabilityOptions.SectionName}:OtlpEndpoint"] = "http://127.0.0.1:4318/v1/traces",
+                    [$"{FlowzerObservabilityOptions.SectionName}:OtlpHeaders"] = "authorization=Bearer secret"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().NotBeNull();
+        payload.Result!.Observability.Enabled.Should().BeFalse();
+        payload.Result.Observability.OtlpExporterEnabled.Should().BeFalse();
+        payload.Result.Observability.OtlpEndpointHint.Should().BeNull();
+        payload.Result.Observability.OtlpProtocol.Should().BeNull();
+        payload.Result.Observability.OtlpHeadersHint.Should().BeNull();
+    }
+
+    [Test]
+    public void AddFlowzerObservability_ShouldThrowClearArgumentException_WhenOtlpEndpointIsInvalid()
+    {
+        var services = new ServiceCollection();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"{FlowzerObservabilityOptions.SectionName}:Enabled"] = "true",
+                [$"{FlowzerObservabilityOptions.SectionName}:OtlpEndpoint"] = "collector:4318"
+            })
+            .Build();
+
+        var act = () => services.AddFlowzerObservability(configuration);
+
+        act.Should()
+            .Throw<ArgumentException>()
+            .WithMessage("*Observability:OtlpEndpoint*absolute http(s) URI*");
     }
 
     [Test]

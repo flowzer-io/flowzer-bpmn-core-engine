@@ -109,13 +109,15 @@ public class OperationsController(
             Enabled = options.Enabled,
             ConsoleExporterEnabled = options.Enabled && options.UseConsoleExporter,
             OtlpExporterEnabled = options.Enabled && options.HasOtlpExporter,
-            OtlpEndpointHint = RedactOtlpEndpoint(options.OtlpEndpoint),
+            OtlpEndpointHint = options.Enabled && options.HasOtlpExporter
+                ? RedactOtlpEndpoint(options.OtlpEndpoint)
+                : null,
             OtlpProtocol = options.Enabled && options.HasOtlpExporter
                 ? options.ResolveOtlpProtocol().ToString()
                 : null,
-            OtlpHeadersHint = string.IsNullOrWhiteSpace(options.OtlpHeaders)
-                ? null
-                : "(configured)",
+            OtlpHeadersHint = options.Enabled && options.HasOtlpExporter && !string.IsNullOrWhiteSpace(options.OtlpHeaders)
+                ? "(configured)"
+                : null,
             ServiceName = options.ServiceName,
             ServiceVersion = options.ResolveServiceVersion()
         };

@@ -175,7 +175,7 @@ Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERA
 
 ### Optionale OpenTelemetry-Exporter
 
-Für produktionsnahe Umgebungen kann die Web-API die vorhandenen Signals jetzt optional an Console- oder OTLP-Exporter weiterreichen.
+Für produktionsnahe Umgebungen kann die Web-API die vorhandenen Signale jetzt optional an Console- oder OTLP-Exporter weiterreichen.
 
 Beispiel:
 
