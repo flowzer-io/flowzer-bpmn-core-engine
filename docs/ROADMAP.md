@@ -45,7 +45,7 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### 2.1 Operations-Basis über die lokale Compose-Story hinaus vertiefen
 
-- externe Metrics-/Tracing-Exporter und Dashboards
+- Collector-/Dashboard-/Alerting-Pfade auf Basis der jetzt vorhandenen OpenTelemetry-Exporter
 - Secret-/Konfigurationsstory
 - Recovery-/Backup-Hinweise
 - Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen

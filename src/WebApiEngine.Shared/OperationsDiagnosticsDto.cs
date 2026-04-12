@@ -7,6 +7,7 @@ public class OperationsDiagnosticsDto
     public required OperationsStorageSnapshotDto Storage { get; set; }
     public required TimerSchedulerDiagnosticsDto TimerScheduler { get; set; }
     public required OperationsInstrumentationDto Instrumentation { get; set; }
+    public required OperationsObservabilityDto Observability { get; set; }
 }
 
 public class OperationsStorageSnapshotDto
@@ -50,4 +51,16 @@ public class OperationsInstrumentationDto
     public required string MeterName { get; set; }
     public required string ActivitySourceName { get; set; }
     public required string Notes { get; set; }
+}
+
+public class OperationsObservabilityDto
+{
+    public required bool Enabled { get; set; }
+    public required bool ConsoleExporterEnabled { get; set; }
+    public required bool OtlpExporterEnabled { get; set; }
+    public string? OtlpEndpointHint { get; set; }
+    public string? OtlpProtocol { get; set; }
+    public string? OtlpHeadersHint { get; set; }
+    public required string ServiceName { get; set; }
+    public required string ServiceVersion { get; set; }
 }

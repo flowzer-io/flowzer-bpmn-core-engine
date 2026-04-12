@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Options;
 using Model;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
@@ -10,6 +11,7 @@ public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
+    IOptions<FlowzerObservabilityOptions> observabilityOptions,
     ILogger<OperationsController> logger) : ControllerBase
 {
     [HttpGet("diagnostics")]
@@ -58,8 +60,9 @@ public class OperationsController(
                     MeterName = FlowzerDiagnostics.MeterName,
                     ActivitySourceName = FlowzerDiagnostics.ActivitySourceName,
                     Notes =
-                        "Dieses Paket liefert bewusst nur die lokale Metrics-/Tracing-Grundlage. Exporter und externe Observability-Backends bleiben Folgearbeit."
-                }
+                        "Die lokale Diagnosebasis bleibt klein, kann jetzt aber optional über OpenTelemetry-Exporter nach außen angebunden werden."
+                },
+                Observability = CreateObservabilitySnapshot(observabilityOptions.Value)
             };
 
             activity?.SetTag("flowzer.instances.total", payload.Storage.TotalInstances);
@@ -97,5 +100,42 @@ public class OperationsController(
         return string.IsNullOrWhiteSpace(leafName)
             ? "(custom FLOWZER_STORAGE_ROOT configured)"
             : $"(custom FLOWZER_STORAGE_ROOT configured: {leafName})";
+    }
+
+    private static OperationsObservabilityDto CreateObservabilitySnapshot(FlowzerObservabilityOptions options)
+    {
+        return new OperationsObservabilityDto
+        {
+            Enabled = options.Enabled,
+            ConsoleExporterEnabled = options.Enabled && options.UseConsoleExporter,
+            OtlpExporterEnabled = options.Enabled && options.HasOtlpExporter,
+            OtlpEndpointHint = RedactOtlpEndpoint(options.OtlpEndpoint),
+            OtlpProtocol = options.Enabled && options.HasOtlpExporter
+                ? options.ResolveOtlpProtocol().ToString()
+                : null,
+            OtlpHeadersHint = string.IsNullOrWhiteSpace(options.OtlpHeaders)
+                ? null
+                : "(configured)",
+            ServiceName = options.ServiceName,
+            ServiceVersion = options.ResolveServiceVersion()
+        };
+    }
+
+    private static string? RedactOtlpEndpoint(string? endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint) || !Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            UserName = string.Empty,
+            Password = string.Empty,
+            Query = string.Empty,
+            Fragment = string.Empty
+        };
+
+        return builder.Uri.GetLeftPart(UriPartial.Path);
     }
 }

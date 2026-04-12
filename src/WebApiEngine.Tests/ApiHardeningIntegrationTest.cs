@@ -15,6 +15,7 @@ using StorageSystem;
 using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Controller;
+using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
@@ -182,6 +183,10 @@ public class ApiHardeningIntegrationTest
         payload.Result.TimerScheduler.Status.Should().Be("Disabled");
         payload.Result.Instrumentation.MeterName.Should().Be("Flowzer.WebApi");
         payload.Result.Instrumentation.ActivitySourceName.Should().Be("Flowzer.WebApi");
+        payload.Result.Observability.Enabled.Should().BeFalse();
+        payload.Result.Observability.ConsoleExporterEnabled.Should().BeFalse();
+        payload.Result.Observability.OtlpExporterEnabled.Should().BeFalse();
+        payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi");
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
 
@@ -235,6 +240,43 @@ public class ApiHardeningIntegrationTest
         {
             Environment.SetEnvironmentVariable(FilesystemStorageSystem.Storage.StorageRootEnvironmentVariableName, previousStorageRoot);
         }
+    }
+
+    [Test]
+    public async Task OperationsDiagnostics_ShouldDescribeEnabledOpenTelemetryExporters()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                AdditionalConfiguration = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Enabled"] = "true",
+                    [$"{FlowzerObservabilityOptions.SectionName}:UseConsoleExporter"] = "true",
+                    [$"{FlowzerObservabilityOptions.SectionName}:OtlpEndpoint"] = "http://user:secret@127.0.0.1:4318/v1/traces?token=secret",
+                    [$"{FlowzerObservabilityOptions.SectionName}:OtlpHeaders"] = "authorization=Bearer secret",
+                    [$"{FlowzerObservabilityOptions.SectionName}:OtlpProtocol"] = "http/protobuf",
+                    [$"{FlowzerObservabilityOptions.SectionName}:ServiceName"] = "Flowzer.WebApi.Test"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().NotBeNull();
+        payload.Result!.Observability.Enabled.Should().BeTrue();
+        payload.Result.Observability.ConsoleExporterEnabled.Should().BeTrue();
+        payload.Result.Observability.OtlpExporterEnabled.Should().BeTrue();
+        payload.Result.Observability.OtlpEndpointHint.Should().Be("http://127.0.0.1:4318/v1/traces");
+        payload.Result.Observability.OtlpProtocol.Should().Be("HttpProtobuf");
+        payload.Result.Observability.OtlpHeadersHint.Should().Be("(configured)");
+        payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi.Test");
     }
 
     [Test]
@@ -630,10 +672,17 @@ public class ApiHardeningIntegrationTest
             builder.UseSetting(WebHostDefaults.EnvironmentKey, options.EnvironmentName);
             builder.ConfigureAppConfiguration((_, configBuilder) =>
             {
-                configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                var configurationValues = new Dictionary<string, string?>
                 {
                     ["TimerScheduler:Enabled"] = "false"
-                });
+                };
+
+                foreach (var entry in options.AdditionalConfiguration)
+                {
+                    configurationValues[entry.Key] = entry.Value;
+                }
+
+                configBuilder.AddInMemoryCollection(configurationValues);
             });
             builder.ConfigureServices(services =>
             {
@@ -665,6 +714,8 @@ public class ApiHardeningIntegrationTest
     {
         public string EnvironmentName { get; init; } = "Development";
         public CurrentUserContext? CurrentUserContext { get; init; }
+        public IReadOnlyDictionary<string, string?> AdditionalConfiguration { get; init; } =
+            new Dictionary<string, string?>();
     }
 
     private sealed class TestTransactionalStorageProvider(TestStorage storage) : ITransactionalStorageProvider

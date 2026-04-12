@@ -61,6 +61,7 @@ Unter anderem bereits umgesetzt:
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
 - Operations-/Diagnose-Endpunkt mit Scheduler-Status, Storage-Snapshot und lokalen Metrics-/Tracing-Namen
 - Request- und Timer-Scheduler-Diagnosepfad mit Dauer-, Status- und Tick-Signalen
+- optionale OpenTelemetry-Exporter für Console und OTLP inklusive Konfigurations- und Diagnosepfad
 - dokumentierte Recovery-/Backup-Hinweise für die dateibasierte Persistenz
 
 ## Was weiterhin bremst
@@ -72,7 +73,7 @@ Besonders relevant sind noch:
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
 - Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
 - weitere Auth-/Identity- und Fehlerpfade jenseits des aktuellen Benutzerkontext-Guards
-- Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
+- Release-/Telemetrie-/Secret-/Recovery-Story über die jetzt vorhandene OTLP-/Console-Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
 

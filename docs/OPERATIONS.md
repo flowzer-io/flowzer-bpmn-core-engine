@@ -16,6 +16,7 @@ Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `next`:
 - kleine Shell-Skripte zum Starten, Stoppen und Prüfen des lokalen Stacks
 - definierter Storage-Pfad für dateibasierte Persistenz
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
+- optionale OpenTelemetry-Exporter für Console und OTLP
 
 ## Health-Signale
 
@@ -23,7 +24,7 @@ Die Web-API stellt aktuell folgende Endpunkte bereit:
 
 - `GET /health` – Liveness
 - `GET /health/ready` – Readiness inkl. Storage-Prüfung
-- `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot und lokale Instrumentierungsnamen
+- `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot, Instrumentierungsnamen und aktive Observability-Konfiguration
 
 Typische URLs lokal:
 
@@ -36,7 +37,9 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - aktuellen Environment- und Zeitstempel
 - Storage-Snapshot mit Definitionen, Formularen, Instanzen und offenen Subscriptions
 - Timer-Scheduler-Status inkl. letztem Tick, Fehlerstatus und verarbeiteter Timerzahl
-- Namen des lokalen `Meter`- und `ActivitySource`-Setups für spätere Exporter-Anbindung
+- Namen des lokalen `Meter`- und `ActivitySource`-Setups
+- Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
+- redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
 
 ## Lokaler Start ohne Docker
 
@@ -152,14 +155,54 @@ Die Web-API protokolliert zentrale Request- und Scheduler-Signale jetzt struktur
 - der Timer-Scheduler meldet Start, Tick-Erfolg, Tick-Fehler und zuletzt verarbeitete Timer
 - Health-Aufrufe bleiben bewusst aus dieser zusätzlichen Request-Protokollierung ausgenommen, damit die Logs nicht mit Probe-Traffic überlaufen
 
-### Meter- und Activity-Namen
+### Meter-, Activity- und Exporter-Namen
 
-Für spätere Exporter- oder OpenTelemetry-Anbindung sind jetzt stabile lokale Namen vorhanden:
+Für die optionale OpenTelemetry-Anbindung sind jetzt stabile lokale Namen vorhanden:
 
 - `Meter`: `Flowzer.WebApi`
 - `ActivitySource`: `Flowzer.WebApi`
 
-Dieses Paket führt **noch keinen externen Exporter** ein, damit der lokale Betriebsweg klein und reproduzierbar bleibt.
+### OpenTelemetry per Konfiguration aktivieren
+
+Die Exporter bleiben standardmäßig bewusst **deaktiviert**, damit lokale Dev- und CI-Pfade unverändert klein bleiben.
+
+Relevante Konfiguration in `src/WebApiEngine/appsettings.json`:
+
+```json
+"Observability": {
+  "Enabled": false,
+  "UseConsoleExporter": false,
+  "OtlpEndpoint": "",
+  "OtlpHeaders": "",
+  "OtlpProtocol": "grpc",
+  "ServiceName": "Flowzer.WebApi"
+}
+```
+
+Typische Overrides per Environment-Variablen:
+
+```bash
+Observability__Enabled=true
+Observability__UseConsoleExporter=true
+Observability__OtlpEndpoint=http://localhost:4318
+Observability__OtlpProtocol=http/protobuf
+```
+
+Optional können zusätzlich Header für OTLP-Backends gesetzt werden:
+
+```bash
+Observability__OtlpHeaders='authorization=Bearer <token>'
+```
+
+`/operations/diagnostics` zeigt dann:
+
+- ob Observability insgesamt aktiv ist
+- ob Console-Exporter aktiv sind
+- ob ein OTLP-Exporter aktiv ist
+- welchen redigierten OTLP-Endpunkt die API nutzt
+- welches Service-Name/-Version-Paar exportiert wird
+
+Die OTLP-Konfiguration redigiert dabei Benutzerinformationen, Query-Parameter und Headerinhalte bewusst, damit der Diagnose-Endpunkt keine Secrets zurückspiegelt.
 
 ### Container-Logs
 
@@ -248,13 +291,13 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus
-- externe Metrics-/Tracing-Exporter oder Dashboards
+- vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
 - produktionsnahe Reverse-Proxy- oder TLS-Story
 - Secret-/Configuration-Story jenseits lokaler Entwicklungswerte
 
 ## Sinnvolle nächste Ausbauschritte
 
 1. Reverse-Proxy-/Gateway-Konfiguration für echte Zielumgebungen weiter härten
-2. externe Metrics-/Tracing-Exporter und Dashboards anbinden
+2. Collector-, Dashboard- und Alerting-Pfade auf Basis der jetzt vorhandenen Exporter ergänzen
 3. Secret-/Konfigurationsstory für Nicht-Entwicklungsumgebungen schärfen
 4. Reverse-Proxy-/TLS-Härtung und Backup-Automatisierung vertiefen
