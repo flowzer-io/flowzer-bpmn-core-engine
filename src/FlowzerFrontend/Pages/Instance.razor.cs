@@ -7,8 +7,9 @@ using Microsoft.JSInterop;
 using WebApiEngine.Shared;
 namespace FlowzerFrontend.Pages;
 
-public partial class Instance
+public partial class Instance : IAsyncDisposable
 {
+    private const string ViewerInteropPath = "window.FlowzerInstanceViewer";
     private const string MessagesTreeItemKey = "messages";
     private const string ServiceTreeItemKey = "service";
     private const string SignalTreeItemKey = "singal";
@@ -16,6 +17,7 @@ public partial class Instance
 
     private ProcessInstanceInfoDto? _instance;
     private bool IsViewerInitialized { get; set; }
+    private bool NeedsViewerInitialization { get; set; } = true;
     private string? PendingXml { get; set; }
 
     [Parameter] public Guid InstanceGuid { get; set; }
@@ -24,7 +26,6 @@ public partial class Instance
 
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
 
-    
     public IEnumerable<ITreeViewItem> VariableItems = [];
     
     public string? VariableContent;
@@ -33,7 +34,6 @@ public partial class Instance
     
     public string ErrorString { get; set; } = string.Empty;
 
-    
     private ITreeViewItem? _currentSelectedToken;
     public ITreeViewItem? CurrentSelectedToken
     {
@@ -58,15 +58,19 @@ public partial class Instance
 
     }
 
-
     private bool _trapFocus = true;
     private bool _modal = true;
     private readonly Dictionary<string, object> _treeItemMappings = new();
-    
 
-
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
+        if (IsViewerInitialized)
+        {
+            await DisposeViewerAsync();
+            IsViewerInitialized = false;
+        }
+
+        NeedsViewerInitialization = true;
         await Reload();
     }
 
@@ -76,11 +80,10 @@ public partial class Instance
 
         try
         {
-            if (firstRender)
+            if (NeedsViewerInitialization)
             {
-                await JsRuntime.EvalCodeBehindJsScripts(this);
-                await InitViewer();
-                IsViewerInitialized = true;
+                NeedsViewerInitialization = false;
+                await TryInitializeViewerAsync();
             }
 
             await TryRenderInstanceVisualizationAsync();
@@ -90,6 +93,13 @@ public partial class Instance
             ErrorString = $"Could not render instance diagram. {exception.Message}";
             await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task TryInitializeViewerAsync()
+    {
+        await JsRuntime.EvalCodeBehindJsScripts(this);
+        await InitViewer();
+        IsViewerInitialized = true;
     }
 
     private async Task LoadData()
@@ -283,36 +293,37 @@ public partial class Instance
 
     private async Task AddToken(string? instanceTokenKey, int instanceTokensCount)
     {
-        if (string.IsNullOrEmpty(instanceTokenKey))
+        if (string.IsNullOrEmpty(instanceTokenKey) || !IsViewerInitialized)
             return;
         
         try
         {
-            await JsRuntime.InvokeVoidAsync("addToken", instanceTokenKey, instanceTokensCount);
+            _ = await JsRuntime.InvokeAsyncNoneCached<bool>($"{ViewerInteropPath}.addToken", instanceTokenKey, instanceTokensCount);
         }
         catch (Exception e)
         {
             throw new Exception($"Error adding token '{instanceTokenKey}', Message:" + e.Message, e);
         }
     }
+
     private async Task ClearTokens()
     {
-        await JsRuntime.InvokeVoidAsync("clearTokens");
+        if (!IsViewerInitialized)
+            return;
+
+        await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.clearTokens");
     }
 
     private async Task InitViewer()
     {
-        await JsRuntime.InvokeVoidAsync("InitViewer");
-
+        await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.initialize");
     }
 
     private async Task LoadDiagramXml(string xml)
     {
-        await JsRuntime.InvokeVoidAsync("window.bpmnViewer.importXML", xml);
+        await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.importXml", xml);
         ErrorString = string.Empty;
     }
-
-
 
     private async Task OpenSendRestRequestAsync(RestExampleRequest restData)
     {
@@ -336,7 +347,6 @@ public partial class Instance
 
     }
 
-
     private bool GetTreeRelatedItem<T>(string id, out T o)
     {
         if (_treeItemMappings.TryGetValue(id, out var obj))
@@ -350,7 +360,6 @@ public partial class Instance
         o = default!;
         return false;
     }
-
 
     private async Task Reload()
     {
@@ -392,5 +401,36 @@ public partial class Instance
         await ShowTokens(_instance.Tokens);
         ErrorString = string.Empty;
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnRetryClick()
+    {
+        ErrorString = string.Empty;
+
+        if (!IsViewerInitialized)
+        {
+            NeedsViewerInitialization = true;
+            await Reload();
+            return;
+        }
+
+        await Reload();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DisposeViewerAsync();
+    }
+
+    private async Task DisposeViewerAsync()
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.dispose");
+        }
+        catch
+        {
+            // Best effort only: during page teardown the runtime may already be unavailable.
+        }
     }
 }

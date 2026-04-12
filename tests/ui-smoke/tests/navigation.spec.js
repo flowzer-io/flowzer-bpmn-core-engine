@@ -96,3 +96,17 @@ test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', asyn
   await expect(page).toHaveURL(/\/instances\/error$/);
   await expect(page.getByText('Showing: Failed instances')).toBeVisible();
 });
+
+
+test('Ungültige Modellrouten zeigen einen Inline-Fehler statt eines fatalen Blazor-Absturzes', async ({ page }) => {
+  const pageErrors = [];
+
+  page.on('pageerror', error => pageErrors.push(error.message));
+
+  await page.goto('/definition/definition-does-not-exist', { waitUntil: 'networkidle' });
+
+  await expect(page.locator('#definition-load-error')).toContainText('Could not load model.', { timeout: 20_000 });
+  await expect(page.locator('#definition-retry-button')).toBeVisible();
+  await expect(page.locator('#blazor-error-ui')).toBeHidden();
+  expect(pageErrors, 'Unerwartete PageErrors auf einer ungültigen Modellroute').toEqual([]);
+});
