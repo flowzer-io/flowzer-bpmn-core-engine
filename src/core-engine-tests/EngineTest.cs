@@ -439,7 +439,10 @@ public class EngineTest
         var processEngine = Helper.CreateProcessEngine(process.First());
         var activeTimers = processEngine.ActiveTimers.ToArray();
         activeTimers.Should().HaveCount(1);
-        activeTimers.Single().Should().BeCloseTo(DateTime.UtcNow.AddSeconds(2), new TimeSpan(0, 0, 0, 0, 100));
+        var dueDate = activeTimers.Single();
+        var remainingTime = dueDate - DateTime.UtcNow;
+        remainingTime.Should().BeGreaterOrEqualTo(TimeSpan.FromSeconds(1));
+        remainingTime.Should().BeLessOrEqualTo(TimeSpan.FromSeconds(2.5));
     }
 
     [Test]

@@ -61,17 +61,17 @@ public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null)
             .Where(startEvent => GetStartTimerDueDate(startEvent) <= time)
             .ToArray();
 
-        foreach (var startEvent in dueStartEvents)
-        {
-            _triggeredTimerStartEventIds.Add(startEvent.Id);
-        }
+        var instances = new List<InstanceEngine>();
 
-        return dueStartEvents.Select(startEvent =>
+        foreach (var startEvent in dueStartEvents)
         {
             var instanceEngine = CreateInstanceEngine();
             instanceEngine.HandleTime(time, startEvent);
-            return instanceEngine;
-        }).ToArray();
+            _triggeredTimerStartEventIds.Add(startEvent.Id);
+            instances.Add(instanceEngine);
+        }
+
+        return instances.ToArray();
     }
 
     public List<DateTime> ActiveTimers

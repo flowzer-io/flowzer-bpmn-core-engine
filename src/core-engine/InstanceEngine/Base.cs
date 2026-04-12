@@ -144,16 +144,30 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
-    /// Führt fällige Timer-Start- oder Intermediate-Timer-Catch-Events weiter.
-    /// Für Start-Timer wird optional ein bereits ausgewählter Startknoten übergeben.
+    /// Führt fällige Intermediate-Timer-Catch-Events weiter.
     /// </summary>
-    public void HandleTime(DateTime time, FlowzerTimerStartEvent? startEvent = null)
+    public void HandleTime(DateTime time)
+    {
+        HandleDueIntermediateTimerCatchEvents(time);
+    }
+
+    /// <summary>
+    /// Führt fällige Timer-Start- oder Intermediate-Timer-Catch-Events weiter.
+    /// Diese Überladung ist absichtlich nicht öffentlich, damit Start-Timer nur
+    /// über Engine-internen Code ausgelöst werden können.
+    /// </summary>
+    internal void HandleTime(DateTime time, FlowzerTimerStartEvent? startEvent)
     {
         if (TryStartByTimerStartEvent(startEvent))
         {
             return;
         }
 
+        HandleDueIntermediateTimerCatchEvents(time);
+    }
+
+    private void HandleDueIntermediateTimerCatchEvents(DateTime time)
+    {
         var dueTimerTokens = ActiveTokens
             .Where(token => token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent)
             .Where(token => GetTimerDueDate(token) <= time)
