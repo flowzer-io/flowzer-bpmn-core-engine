@@ -156,6 +156,18 @@ npm --prefix tests/ui-smoke run test
 
 Details zu API-Basisadresse, lokalen Startbefehlen und den getesteten Routen stehen in [docs/FRONTEND.md](docs/FRONTEND.md).
 
+## Lokaler Stack per Docker Compose
+
+Für einen reproduzierbaren API-/Frontend-Start gibt es jetzt zusätzlich einen kleinen lokalen Compose-Stack:
+
+```bash
+./scripts/local/start-stack.sh
+./scripts/local/check-stack.sh
+./scripts/local/stop-stack.sh
+```
+
+Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
 ## Beispiel
 
 Ein kleines Nutzungsbeispiel liegt in [`/examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).

@@ -1,0 +1,46 @@
+services:
+  api:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    working_dir: /workspace
+    command: >
+      bash -lc "
+      dotnet restore core-engine.sln &&
+      dotnet build src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-restore &&
+      dotnet run --project src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-build --no-launch-profile --urls http://0.0.0.0:5182"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      FLOWZER_STORAGE_ROOT: /workspace/.data/flowzer-storage
+    ports:
+      - "5182:5182"
+    volumes:
+      - .:/workspace
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5182/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 90s
+
+  frontend:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    working_dir: /workspace
+    command: >
+      bash -lc "
+      dotnet restore core-engine.sln &&
+      dotnet build src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-restore &&
+      dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-build --no-launch-profile --urls http://0.0.0.0:5269"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+    ports:
+      - "5269:5269"
+    volumes:
+      - .:/workspace
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5269 | grep -q FlowzerFrontend || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
