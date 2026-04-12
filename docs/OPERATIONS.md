@@ -59,10 +59,12 @@ Für einen reproduzierbaren Entwicklungsstack liegt jetzt `compose.local.yml` im
 ./scripts/local/start-stack.sh
 ```
 
+Das Start-Skript wartet, bis API und Frontend ihren Health-Status erreicht haben.
+
 Alternativ direkt:
 
 ```bash
-docker compose -f compose.local.yml up -d api frontend
+docker compose -f compose.local.yml up -d --wait api frontend
 ```
 
 ### Prüfen

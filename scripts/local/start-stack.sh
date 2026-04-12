@@ -8,9 +8,9 @@ mkdir -p "${repo_root}/.data/flowzer-storage"
 
 docker compose \
   -f "${repo_root}/compose.local.yml" \
-  up -d api frontend
+  up -d --wait api frontend
 
-echo "Flowzer local stack started."
+echo "Flowzer local stack started and is healthy."
 echo "- API:      http://localhost:5182/swagger/index.html"
 echo "- Health:   http://localhost:5182/health"
 echo "- Readiness:http://localhost:5182/health/ready"

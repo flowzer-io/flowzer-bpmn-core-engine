@@ -19,7 +19,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 12
-      start_period: 20s
+      start_period: 90s
 
   frontend:
     image: mcr.microsoft.com/dotnet/sdk:8.0
@@ -38,3 +38,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5269 | grep -q FlowzerFrontend || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
