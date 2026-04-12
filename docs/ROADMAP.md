@@ -14,58 +14,45 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 - Demo-Console-App ergänzt
 - wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
 - lokale und CI-nahe Testpfade wieder grün gemacht
+- lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
+- das ursprüngliche Frontend-Epic (#7) und seine Teilpakete #47–#50 sind abgeschlossen
 
 Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
 
-## Priorität 1: Kernpfade vollständig stabilisieren
+## Priorität 1: Release-nahe Betriebsbasis abschließen
 
-### 1.1 Formularpfad durchhärten
+### 1.1 Runtime-Container und Release-Compose ergänzen
 
-Referenz: [#48](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/48)
+Referenz: [#63](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/63)
 
-- Formularspeicherung, Metadaten und Versionspfad robust machen
-- API-Verträge für Formulare sauber absichern
-- Formularpfad bis zur Frontend-Anbindung testen
+- dedizierte Runtime-Container für API und Frontend bereitstellen
+- Gateway-/Reverse-Proxy-Basis für Same-Origin-Betrieb ergänzen
+- lokalen Build-/Start-/Check-Pfad für echte Runtime-Images dokumentieren
 
-### 1.2 Frontend-Kernseiten weiter härten
+### 1.2 Weitere Betriebsaspekte nachziehen
 
-Referenz: [#47](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47)
+- Metrics/Tracing
+- Secret-/Konfigurationsstory
+- Recovery-/Backup-Hinweise
+- Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen
 
-- Navigation und Kernseiten systematisch prüfen
-- Lade-, Nullability- und Zustandsprobleme weiter abbauen
-- manuelle und kleine automatisierte Checks zusammenführen
+## Priorität 2: Restliche Produktpfade vertiefen
 
-### 1.3 Diagramm-/Modeler-Integration absichern
+### 2.1 Weitere E2E-/Smoke-Pfade ausbauen
 
-Referenz: [#49](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/49)
-
-- Diagrammladen und Modeler-Interaktionen prüfen
-- Fehlerzustände besser abfangen
-- zentrale Diagramm-/Modeler-Pfade dokumentieren
-
-## Priorität 2: Test- und Produktpfade vertiefen
-
-### 2.1 Playwright-Smoke- und E2E-Suite ausbauen
-
-Referenz: [#50](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50)
-
-- Kernpfade für Start, Formulare, Instanzen und Diagrammzugriffe automatisieren
+- Kernpfade für Direktaufrufe, Refreshes und Betriebsfehler weiter ausbauen
 - Testdaten und Hilfslogik für reproduzierbare Läufe schaffen
 - die Suite klein und CI-tauglich halten
 
-### 2.2 API-Fehlerverträge und Betriebs-Signale verbessern
+### 2.2 API-Fehlerverträge und Auth-/Betriebssignale weiter verbessern
 
-Referenz: [#52](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52)
-
-- Fehlerantworten vereinheitlichen
-- Health-/Readiness-Endpunkte ergänzen
+- Fehlerantworten weiter vereinheitlichen
+- Betriebsmetriken ergänzen
 - Auth-Platzhalter technisch sauberer kapseln
 
 ## Priorität 3: Restlücken abbauen
 
 ### 3.1 Engine- und Runtime-Restbestand bereinigen
-
-Referenz: [#53](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/53)
 
 - `NotImplementedException`-Stellen inventarisieren
 - produktionskritische Pfade priorisiert schließen
@@ -79,47 +66,21 @@ Referenz: [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55
 - Status- und Roadmap-Dokumente laufend aktualisieren
 - technische Realität und Doku synchron halten
 
-## Priorität 4: Produktnahe Betriebsbasis schaffen
-
-### 4.1 Lokale Betriebs- und Deployment-Story vorbereiten
-
-Referenz: [#54](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/54)
-
-- lokale Startpfade für API und Frontend vereinheitlichen
-- kleine Compose- und Skriptbasis für reproduzierbare lokale Starts schaffen
-- Logging-/Betriebsanforderungen dokumentieren
-- Compose-/Deployment-Basis für eine produktionsnahe Nutzung vorbereiten
-
-### 4.2 Weitere Betriebsaspekte nachziehen
-
-Sinnvolle Folgearbeiten danach:
-
-- Metrics/Tracing
-- Release-/Versionierungsstory
-- Packaging/Container-Story
-- Betriebsdokumentation für Fehleranalyse und Recovery
-
 ## Empfohlene Reihenfolge der nächsten Sprints
 
-### Sprint A – Formular- und Frontend-Kernpfade
+### Sprint A – Runtime-Container abschließen
 
-- #48 Formularpfad stabilisieren
-- #47 Kernseiten und Navigation weiter härten
+- #63 Release-Dockerfiles und runtime-nahe Compose-Variante ergänzen
 
-### Sprint B – Diagramm- und E2E-Pfade
+### Sprint B – Betriebs- und E2E-Reife
 
-- #49 Diagramm-/Modeler-Integration härten
-- #50 Playwright-/E2E-Abdeckung ausbauen
+- Gateway-/Reverse-Proxy-Pfade weiter härten
+- zusätzliche direkte Refresh-/Fehlerpfade in Playwright abdecken
 
-### Sprint C – API- und Runtime-Reife
+### Sprint C – Runtime- und Auth-Restlücken
 
-- #52 API-Härtung für Fehlerverträge, Health und Auth-Vorbereitung
-- #53 Engine-/Runtime-Restlücken abbauen
-
-### Sprint D – Betriebs- und Repo-Reife
-
-- #54 Betriebs- und Deployment-Basis vorbereiten
-- #55 Repo- und Status-Dokumentation weiter aufräumen
+- verbleibende Runtime-/Storage-/Auth-Lücken abbauen
+- Recovery- und Operations-Dokumentation vertiefen
 
 ## Leitprinzip für die weitere Arbeit
 

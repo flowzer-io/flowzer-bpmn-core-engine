@@ -1,0 +1,26 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY global.json ./
+
+# Restore auf das Frontend + seine Referenzen begrenzen.
+COPY Model/Model.csproj Model/
+COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
+COPY src/WebApiEngine.Shared/WebApiEngine.Shared.csproj src/WebApiEngine.Shared/
+COPY src/FlowzerFrontend/FlowzerFrontend.csproj src/FlowzerFrontend/
+
+RUN dotnet restore src/FlowzerFrontend/FlowzerFrontend.csproj
+
+COPY . .
+RUN dotnet publish src/FlowzerFrontend/FlowzerFrontend.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish \
+    /p:UseAppHost=false
+
+FROM nginx:1.27-alpine AS runtime
+
+COPY deploy/nginx/frontend.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/publish/wwwroot /usr/share/nginx/html
+
+EXPOSE 8080

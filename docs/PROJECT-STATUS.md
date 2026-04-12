@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 11. April 2026
+**Stand:** 12. April 2026
 
 ## Kurzfazit
 
@@ -49,6 +49,7 @@ Unter anderem bereits umgesetzt:
 - DTO-/Warnungsbereinigung und API-Härtung in mehreren Teilbereichen
 - Signal- und Service-Task-Subscriptions im Web-API-Pfad
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
+- lokale Runtime-Containerbasis für API, Frontend und Gateway
 
 ## Was weiterhin bremst
 
@@ -56,10 +57,9 @@ Unter anderem bereits umgesetzt:
 
 Besonders relevant sind noch:
 
-- Formularpfad von Storage über API bis Frontend
-- Diagramm-/Modeler-Integration
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
-- einheitlichere Fehlerverträge in der Web-API
+- Restlücken bei Auth-/Identity- und Fehlerpfaden
+- Release-/Telemetry-/Secret-Story über die lokale Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
 
@@ -67,7 +67,7 @@ Noch offen sind unter anderem:
 
 - einzelne `NotImplementedException`-Stellen in Runtime-/Storage-Pfaden
 - provisorische Auth-/Identity-Platzhalter
-- Betriebs- und Deployment-Themen wie Health, Logging-Orientierung und lokale Start-Story
+- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, Logging-/Telemetry und Recovery
 - Altlasten und Doppelstrukturen im Repository
 
 Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).
@@ -85,23 +85,11 @@ Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Rei
 
 ## Offene GitHub-Issues auf dem aktuellen Stand
 
-### Frontend-Epic
+Die erste große Stabilisierungsrunde ist inzwischen weitgehend geschlossen. Der aktuelle nächste Ausbaupunkt ist:
 
-- [#7 Frontend bauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/7)
+- [#63 Release-Dockerfiles und runtime-nahe Compose-Variante ergänzen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/63)
 
-### Daraus abgeleitete Teilpakete
-
-- [#47 Frontend-Navigation und Kernseiten weiter härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47)
-- [#48 Formularpfad von Storage bis Frontend stabilisieren](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/48)
-- [#49 Diagramm- und Modeler-Integration im Frontend härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/49)
-- [#50 Playwright-Smoke- und E2E-Abdeckung für Kernpfade ausbauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50)
-
-### Weitere nächste Produktivitäts- und Reife-Pakete
-
-- [#52 Web-API für Fehlerverträge, Health und Auth-Vorbereitung härten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52)
-- [#53 Verbliebene Engine- und Runtime-Lücken systematisch abbauen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/53)
-- [#54 Betriebs- und Deployment-Basis für produktionsnahe Nutzung vorbereiten](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/54)
-- [#55 Repository-Struktur und Status-Dokumentation weiter aufräumen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55)
+Die frühere Frontend-Aufteilung über [#47](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47) bis [#50](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50) sowie die Härtungen [#52](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52) bis [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55) sind bereits abgeschlossen.
 
 ## Aktuelle Gesamtempfehlung
 
@@ -109,12 +97,10 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-1. Formularpfad sauber schließen
-2. Frontend-Kernseiten und Diagramm-/Modeler-Pfade weiter härten
-3. Playwright-/E2E-Abdeckung ausbauen
-4. API-Fehlerverträge, Health und Auth-Vorbereitung schärfen
-5. Restliche Runtime-Lücken und Repository-Altlasten abbauen
-6. Betriebs- und Deployment-Basis vorbereiten
+1. runtime-nahe Release-Containerbasis sauber abschließen
+2. Reverse-Proxy-/Secret-/Telemetry-Story weiter schärfen
+3. verbleibende Runtime- und Auth-Lücken abbauen
+4. E2E- und Recovery-/Operations-Dokumentation weiter vertiefen
 
 ## Gesamturteil
 
