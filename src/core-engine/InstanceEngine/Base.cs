@@ -143,10 +143,32 @@ public partial class InstanceEngine: ICatchHandler
         }
     }
 
-    // public Task<ProcessInstance> HandleTime(DateTime time)
-    // {
-    //     throw new NotImplementedException();
-    // }
+    /// <summary>
+    /// Führt fällige Timer-Start- oder Intermediate-Timer-Catch-Events weiter.
+    /// Für Start-Timer wird optional ein bereits ausgewählter Startknoten übergeben.
+    /// </summary>
+    public void HandleTime(DateTime time, FlowzerTimerStartEvent? startEvent = null)
+    {
+        if (TryStartByTimerStartEvent(startEvent))
+        {
+            return;
+        }
+
+        var dueTimerTokens = ActiveTokens
+            .Where(token => token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent)
+            .Where(token => GetTimerDueDate(token) <= time)
+            .ToArray();
+
+        foreach (var token in dueTimerTokens)
+        {
+            token.State = FlowNodeState.Completing;
+        }
+
+        if (dueTimerTokens.Length > 0)
+        {
+            Run();
+        }
+    }
 
     /// <summary>
     /// Gibt den aktuellen (Sub-)Prozess-Token zurück.
@@ -174,10 +196,7 @@ public partial class InstanceEngine: ICatchHandler
     {
         if (token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent timerCatchEvent)
         {
-            yield return TimerDueDateCalculator.GetDueDate(
-                token.LastStateChangeTime,
-                timerCatchEvent.TimerDefinition,
-                timerCatchEvent);
+            yield return GetTimerDueDate(token, timerCatchEvent);
         }
     }
 
@@ -206,6 +225,42 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     private static bool CanBeFailedBestEffort(Token token) => CanBeTerminatedByCancellation(token);
+
+    private bool TryStartByTimerStartEvent(FlowzerTimerStartEvent? startEvent)
+    {
+        if (startEvent == null || Tokens.Count != 1)
+        {
+            return false;
+        }
+
+        Tokens.Add(new Token
+        {
+            CurrentBaseElement = startEvent,
+            ActiveBoundaryEvents = [],
+            OutputData = new Variables(),
+            State = FlowNodeState.Completing,
+            ParentTokenId = MasterToken.Id,
+            ProcessInstanceId = MasterToken.ProcessInstanceId,
+        });
+        Run();
+
+        return true;
+    }
+
+    private static DateTime GetTimerDueDate(Token token)
+    {
+        return token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent timerCatchEvent
+            ? GetTimerDueDate(token, timerCatchEvent)
+            : throw new FlowzerRuntimeException($"Token {token.Id} wartet nicht auf ein Timer-Catch-Event.");
+    }
+
+    private static DateTime GetTimerDueDate(Token token, FlowzerIntermediateTimerCatchEvent timerCatchEvent)
+    {
+        return TimerDueDateCalculator.GetDueDate(
+            token.LastStateChangeTime,
+            timerCatchEvent.TimerDefinition,
+            timerCatchEvent);
+    }
 
     public List<Token> ActiveUserTasks()
     {
