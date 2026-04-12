@@ -48,6 +48,8 @@ Unter anderem bereits umgesetzt:
 - Demo-Console-App für einen nachvollziehbaren Happy Path
 - DTO-/Warnungsbereinigung und API-Härtung in mehreren Teilbereichen
 - Signal- und Service-Task-Subscriptions im Web-API-Pfad
+- Timer-Ausführung im Engine-Kern für fällige Timer-Starts und Intermediate-Timer-Catches
+- konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
 - Nullability- und Guard-Härtung in zentralen Frontend-Seiten
 - lokale Runtime-Containerbasis für API, Frontend und Gateway
 
@@ -58,14 +60,15 @@ Unter anderem bereits umgesetzt:
 Besonders relevant sind noch:
 
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
-- Restlücken bei Auth-/Identity- und Fehlerpfaden
-- Release-/Telemetry-/Secret-Story über die lokale Basis hinaus
+- Restlücken bei Timer-Persistenz, Boundary-Timern und echter Scheduler-Anbindung
+- weitere Auth-/Identity- und Fehlerpfade
+- Release-/Telemetry-/Secret-/Recovery-Story über die lokale Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
 
 Noch offen sind unter anderem:
 
-- einzelne `NotImplementedException`-Stellen in Runtime-/Storage-Pfaden
+- Restlücken in Timer-, Boundary- und Kompensationssemantik
 - provisorische Auth-/Identity-Platzhalter
 - Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, Logging-/Telemetry und Recovery
 - Altlasten und Doppelstrukturen im Repository
@@ -83,13 +86,15 @@ Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Rei
 - Test- und E2E-Dokumentation
 - aktualisierte Status-/Roadmap-Texte bei größeren Fortschritten
 
-## Offene GitHub-Issues auf dem aktuellen Stand
+## Offener Backlog auf dem aktuellen Stand
 
-Die erste große Stabilisierungsrunde ist inzwischen weitgehend geschlossen. Der aktuelle nächste Ausbaupunkt ist:
+Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitgehend abgearbeitet. Der nächste sinnvolle Backlog ergibt sich aktuell weniger aus alten Sammel-Issues, sondern aus den noch verbleibenden Produktlücken:
 
-- [#63 Release-Dockerfiles und runtime-nahe Compose-Variante ergänzen](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/63)
-
-Die frühere Frontend-Aufteilung über [#47](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/47) bis [#50](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/50) sowie die Härtungen [#52](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/52) bis [#55](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/55) sind bereits abgeschlossen.
+- Timer-Persistenz und Scheduler-Anbindung
+- Boundary-Timer und weitergehende BPMN-Fehler-/Eskalationssemantik
+- Auth-/Identity-Härtung
+- Telemetrie, Secrets, Recovery und operationsnahe Doku
+- weitere Architektur- und Repo-Hygiene
 
 ## Aktuelle Gesamtempfehlung
 
@@ -97,10 +102,10 @@ Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur 
 
 Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
-1. runtime-nahe Release-Containerbasis sauber abschließen
-2. Reverse-Proxy-/Secret-/Telemetry-Story weiter schärfen
-3. verbleibende Runtime- und Auth-Lücken abbauen
-4. E2E- und Recovery-/Operations-Dokumentation weiter vertiefen
+1. Timer- und Runtime-Restlücken mit Persistenz-/Scheduler-Sicht weiter abbauen
+2. Auth-/Identity- und API-Verträge weiter schärfen
+3. Betriebsbasis um Telemetrie, Secrets, TLS und Recovery erweitern
+4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen
 
 ## Gesamturteil
 
