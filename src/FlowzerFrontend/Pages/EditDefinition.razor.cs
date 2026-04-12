@@ -263,9 +263,9 @@ public partial class EditDefinition : IAsyncDisposable
         await FlowzerApi.UpdateMetaDefinition(CurrentMetaDefinition);
     }
 
-    private void OnSaveMenuChoosen(MenuChangeEventArgs obj)
+    private static void OnSaveMenuChoosen(MenuChangeEventArgs _)
     {
-        JsRuntime.InvokeVoidAsync("console.writeline", obj?.Id ?? "null");
+        // Platzhalter für spätere Optionsmenü-Aktionen.
     }
 
     public async ValueTask DisposeAsync()
