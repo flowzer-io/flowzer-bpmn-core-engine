@@ -17,7 +17,10 @@ public sealed class FlowzerRequestDiagnosticsMiddleware(
         var method = context.Request.Method;
         var routeName = context.GetEndpoint()?.DisplayName ?? path;
 
-        using var activity = FlowzerDiagnostics.ActivitySource.StartActivity("flowzer.request", ActivityKind.Server);
+        using var diagnosticsActivity = Activity.Current is null
+            ? FlowzerDiagnostics.ActivitySource.StartActivity("flowzer.request", ActivityKind.Internal)
+            : null;
+        var activity = Activity.Current ?? diagnosticsActivity;
         activity?.SetTag("http.method", method);
         activity?.SetTag("url.path", path);
         activity?.SetTag("flowzer.route_name", routeName);

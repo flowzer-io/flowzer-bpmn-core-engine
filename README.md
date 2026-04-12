@@ -30,6 +30,7 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Geschützte API-Pfade verlangen inzwischen einen **aufgelösten Benutzerkontext**, statt stillschweigend über einen System-Fallback weiterzulaufen.
 - Für lokale Entwicklung und UI-Smokes setzt das Frontend im **Development-Modus** jetzt automatisch einen technischen Benutzerheader, damit die gehärteten API-Pfade lokal weiter reproduzierbar testbar bleiben.
 - Zusätzlich gibt es jetzt einen kleinen **Operations-/Diagnose-Endpunkt** sowie lokale Metrics-/Tracing-Namen, damit Scheduler- und Storage-Zustand nicht nur über reine Healthchecks sichtbar werden.
+- Die Web-API kann diese Signale jetzt optional auch über **OpenTelemetry** an Console- oder OTLP-Exporter weitergeben, ohne den Default-Pfad in Dev/CI zu verschärfen.
 - Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Boundary-Recovery, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
@@ -98,7 +99,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
    Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten, wiederkehrende Start-Timer überfälligkeitstolerant nachziehen und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin speziellere Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
 4. **Betrieb und Auth sind noch nicht am Ziel**
-   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext und die Web-API liefert erste Operations-Diagnose-Informationen, aber Themen wie echte Authentifizierung, Rollenmodell, externe Telemetrie-Backends, Secrets, TLS und Recovery-Automatisierung sind weiterhin Folgepakete.
+   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext und die Web-API liefert erste Operations-Diagnose-Informationen inklusive optionaler OpenTelemetry-Exporter-Konfiguration, aber Themen wie echte Authentifizierung, Rollenmodell, Secrets, TLS und Recovery-Automatisierung bleiben weiterhin Folgepakete.
 
 ## Dokumentation
 
@@ -171,6 +172,24 @@ Für einen reproduzierbaren API-/Frontend-Start gibt es jetzt zusätzlich einen 
 ```
 
 Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+### Optionale OpenTelemetry-Exporter
+
+Für produktionsnahe Umgebungen kann die Web-API die vorhandenen Signale jetzt optional an Console- oder OTLP-Exporter weiterreichen.
+
+Beispiel:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Development \
+FLOWZER_STORAGE_ROOT="$(pwd)/.data/flowzer-storage" \
+Observability__Enabled=true \
+Observability__UseConsoleExporter=true \
+Observability__OtlpEndpoint=http://localhost:4318 \
+Observability__OtlpProtocol=http/protobuf \
+dotnet run --project src/WebApiEngine/WebApiEngine.csproj --configuration Release
+```
+
+Welche Exporter aktiv sind, zeigt zusätzlich `GET /operations/diagnostics`.
 
 ## Timer-Scheduler im Web-API-Host
 

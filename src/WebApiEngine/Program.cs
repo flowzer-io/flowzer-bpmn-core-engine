@@ -25,6 +25,7 @@ builder.Services.AddSingleton<ITransactionalStorageProvider, FilesystemStorageSy
 builder.Services.AddSingleton<IStorageSystem, FilesystemStorageSystem.Storage>();
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
 builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
+builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
