@@ -17,6 +17,10 @@ public static class RecordExtensions
 
         foreach (var propertyInfo in properties)
         {
+            if (!propertyInfo.CanWrite || propertyInfo.SetMethod == null)
+            {
+                continue;
+            }
             
             var propertyValue = propertyInfo.GetValue(record);
             if (propertyInfo.GetCustomAttribute<DoNotTranslateAttribute>() != null)

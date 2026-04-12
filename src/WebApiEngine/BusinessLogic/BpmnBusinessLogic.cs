@@ -171,31 +171,34 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
     {
         using var storageSystem = storageProvider.GetTransactionalStorage();
 
-        InstanceEngine instance;
-        if (userTaskResult.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
+        if (userTaskResult.ProcessInstanceId == null)
         {
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
-            
-            instance = new InstanceEngine(processInstance.Tokens);
-            instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
-            instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
-            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-        }
-        else //the message is for a new instance, so create a new one
-        {
-            throw new NotImplementedException("Not implemented yet");
-            // var xmlData = await storageSystem.DefinitionStorage.GetBinary(userTaskResult.DefinitionId);
-            // var model =  ModelParser.ParseModel(xmlData);
-            //
-            // var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
-            // if (process == null)
-            //     throw new Exception($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
-            //
-            // instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
-            //await SaveInstance(storageSystem, instance, metaDefinitionId, definitionId, messageSubscription.ProcessId);
+            throw new ArgumentException("User task results require a ProcessInstanceId.", nameof(userTaskResult.ProcessInstanceId));
         }
 
-        
+        var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
+        var instance = new InstanceEngine(processInstance.Tokens);
+        instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
+
+        var activeUserTaskToken = instance.GetActiveUserTasks()
+            .SingleOrDefault(token => token.Id == userTaskResult.TokenId);
+
+        if (activeUserTaskToken == null)
+        {
+            throw new ArgumentException(
+                $"The user task token \"{userTaskResult.TokenId}\" is not active for process instance \"{userTaskResult.ProcessInstanceId}\".",
+                nameof(userTaskResult.TokenId));
+        }
+
+        if (!string.Equals(activeUserTaskToken.CurrentFlowNode?.Id, userTaskResult.FlowNodeId, StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                $"The user task token \"{userTaskResult.TokenId}\" does not belong to flow node \"{userTaskResult.FlowNodeId}\".",
+                nameof(userTaskResult.FlowNodeId));
+        }
+
+        instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
+        await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
         storageSystem.CommitChanges();
 
         return instance;

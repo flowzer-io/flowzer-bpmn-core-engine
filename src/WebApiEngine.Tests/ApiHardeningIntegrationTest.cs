@@ -111,6 +111,29 @@ public class ApiHardeningIntegrationTest
     }
 
     [Test]
+    public async Task UserTaskEndpoint_ShouldReturnBadRequest_WhenProcessInstanceIdIsMissing()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/usertask", new UserTaskResultDto
+        {
+            FlowNodeId = "UserTask_1",
+            TokenId = Guid.NewGuid(),
+            ProcessInstanceId = null,
+            Data = null
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Be("User task results require a ProcessInstanceId. (Parameter 'ProcessInstanceId')");
+    }
+
+    [Test]
     public async Task MissingFormMetadata_ShouldReturnJsonApiContract_WhenControllerThrowsFileNotFound()
     {
         var storage = new TestStorage

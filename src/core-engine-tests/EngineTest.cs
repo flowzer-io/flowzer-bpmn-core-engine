@@ -6,8 +6,6 @@ using FluentAssertions;
 using FluentAssertions.Execution;
 using Model;
 using Task = System.Threading.Tasks.Task;
-using FluentAssertions;
-using FluentAssertions.Execution;
 
 namespace core_engine_tests;
 
@@ -359,6 +357,95 @@ public class EngineTest
         // activeTimers.Should().HaveCount(0);
         //
     }
+
+    [Test]
+    public void IntermediateTimerCatchEvent_ShouldStayActiveAndExposeDueDate()
+    {
+        var instanceEngine = StartProcessFromXml("""
+                                               <?xml version="1.0" encoding="UTF-8"?>
+                                               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                                                                 id="Definitions_TimerCatch"
+                                                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                                                 <bpmn:process id="Process_TimerCatch" isExecutable="true">
+                                                   <bpmn:startEvent id="StartEvent_1">
+                                                     <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                   </bpmn:startEvent>
+                                                   <bpmn:intermediateCatchEvent id="TimerCatch_1">
+                                                     <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                     <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                                                     <bpmn:timerEventDefinition id="TimerDefinition_1">
+                                                       <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT5S</bpmn:timeDuration>
+                                                     </bpmn:timerEventDefinition>
+                                                   </bpmn:intermediateCatchEvent>
+                                                   <bpmn:endEvent id="EndEvent_1">
+                                                     <bpmn:incoming>Flow_2</bpmn:incoming>
+                                                   </bpmn:endEvent>
+                                                   <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="TimerCatch_1" />
+                                                   <bpmn:sequenceFlow id="Flow_2" sourceRef="TimerCatch_1" targetRef="EndEvent_1" />
+                                                 </bpmn:process>
+                                               </bpmn:definitions>
+                                               """);
+
+        var activeTimers = ((ICatchHandler)instanceEngine).ActiveTimers;
+
+        using (new AssertionScope())
+        {
+            activeTimers.Should().ContainSingle();
+            activeTimers.Single().Should().BeCloseTo(DateTime.UtcNow.AddSeconds(5), TimeSpan.FromSeconds(1));
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.ActiveTokens
+                .Count(token => token.CurrentFlowNode != null && token.CurrentFlowNode.Id == "TimerCatch_1")
+                .Should()
+                .Be(1);
+        }
+    }
+
+    [Test]
+    public void Cancel_ShouldTerminateWaitingInstanceAndClearActiveTasks()
+    {
+        var instanceEngine = StartProcessFromXml("""
+                                               <?xml version="1.0" encoding="UTF-8"?>
+                                               <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                                 xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                                                 id="Definitions_UserTask"
+                                                                 targetNamespace="http://bpmn.io/schema/bpmn">
+                                                 <bpmn:process id="Process_UserTask" isExecutable="true">
+                                                   <bpmn:startEvent id="StartEvent_1">
+                                                     <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                                                   </bpmn:startEvent>
+                                                   <bpmn:userTask id="UserTask_1" name="Review">
+                                                     <bpmn:extensionElements>
+                                                       <zeebe:formDefinition formId="cancel-form" />
+                                                     </bpmn:extensionElements>
+                                                     <bpmn:incoming>Flow_1</bpmn:incoming>
+                                                     <bpmn:outgoing>Flow_2</bpmn:outgoing>
+                                                   </bpmn:userTask>
+                                                   <bpmn:endEvent id="EndEvent_1">
+                                                     <bpmn:incoming>Flow_2</bpmn:incoming>
+                                                   </bpmn:endEvent>
+                                                   <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="UserTask_1" />
+                                                   <bpmn:sequenceFlow id="Flow_2" sourceRef="UserTask_1" targetRef="EndEvent_1" />
+                                                 </bpmn:process>
+                                               </bpmn:definitions>
+                                               """);
+
+        instanceEngine.Cancel();
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Terminated);
+            instanceEngine.GetActiveUserTasks().Should().BeEmpty();
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.Tokens.Any(token =>
+                    token.CurrentFlowNode != null &&
+                    token.CurrentFlowNode.Id == "UserTask_1" &&
+                    token.State == FlowNodeState.Terminated)
+                .Should()
+                .BeTrue();
+            instanceEngine.MasterToken.State.Should().Be(FlowNodeState.Terminated);
+        }
+    }
     
     [Test]
     public async Task SubProcessTest()
@@ -377,5 +464,11 @@ public class EngineTest
         instanceEngine.HandleServiceTaskResult("sub2_step1");
         instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
         instanceEngine.Tokens.Should().HaveCount(12);
+    }
+
+    private static InstanceEngine StartProcessFromXml(string xml)
+    {
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        return Helper.CreateProcessEngine(process).StartProcess();
     }
 }

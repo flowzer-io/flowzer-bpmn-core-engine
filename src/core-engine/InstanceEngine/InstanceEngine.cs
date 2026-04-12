@@ -254,6 +254,7 @@ public partial class InstanceEngine
         { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateMessageCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
+        { typeof(FlowzerIntermediateTimerCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(Process), new DoNothingFlowNodeHandler() },
         { typeof(SubProcess), new ProcessFlowNodeHandler() },
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
