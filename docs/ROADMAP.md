@@ -52,7 +52,7 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### 2.2 Auth-/Identity-Pfade weiter absichern
 
-- Fallback-/Development-Pfade weiter reduzieren
+- Claim-basierte Authentifizierung entlang echter Betriebsumgebungen verdrahten
 - Nutzer- und Rollenmodell klarer kapseln
 - API-Verträge und Betriebssignale entlang der Auth-Story ergänzen
 
@@ -81,7 +81,7 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 ### Sprint B – Betrieb und Auth
 
 - Telemetrie/Secrets/Recovery
-- Auth-/Identity-Härtung
+- Claim-/Rollenmodell und Auth-/Identity-Härtung
 
 ### Sprint C – E2E und Dokumentation
 

@@ -27,6 +27,7 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
 - Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert, über einen kleinen Scheduler-Polling-Pfad verarbeitet und können wiederkehrende Start-Timer inklusive Restwiederholungen abbilden.
+- Geschützte API-Pfade verlangen inzwischen einen **aufgelösten Benutzerkontext**, statt stillschweigend über einen System-Fallback weiterzulaufen.
 - Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Boundary-Recovery, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
@@ -95,7 +96,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
    Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten, wiederkehrende Start-Timer überfälligkeitstolerant nachziehen und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin speziellere Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
 4. **Betrieb und Auth sind noch nicht am Ziel**
-   Lokale Compose- und Runtime-Container sind vorhanden, aber Themen wie Telemetrie, Secrets, TLS, Recovery und eine belastbare Identity-/Auth-Story sind weiterhin Folgepakete.
+   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext, aber Themen wie echte Authentifizierung, Rollenmodell, Telemetrie, Secrets, TLS und Recovery sind weiterhin Folgepakete.
 
 ## Dokumentation
 
@@ -113,7 +114,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Auth-/Identity- und weitergehende Fehlersemantik produktionsnah härten**
+1. **Auth-/Identity-Story über Claim-/Rollenmodell und Betriebssignale weiter ausbauen**
 2. **Betriebsbasis mit Telemetrie, Secrets, TLS und Recovery vertiefen**
 3. **Timer-Recovery nur noch in speziellen Boundary-/Spezialfällen nachziehen**
 4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**
