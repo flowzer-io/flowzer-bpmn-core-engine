@@ -64,19 +64,21 @@ public class FlowzerApi: ApiBase
         return await GetAsJsonAsyncSave<BpmnMetaDefinitionDto>("definition/new");
     }
 
-    public async Task<BpmnDefinitionDto> UploadDefinition(string xml)
+    public async Task<BpmnDefinitionDto> UploadDefinition(string xml, Guid? previousGuid = null)
     {
-        return await PostAsJsonAsyncSave<BpmnDefinitionDto>("definition",xml);
+        var url = AppendPreviousGuidQuery("definition", previousGuid);
+        return await PostAsJsonAsyncSave<BpmnDefinitionDto>(url, xml);
     }
-    public async Task<BpmnDefinitionDto> DeployDefinition(string xml)
+
+    public async Task<BpmnDefinitionDto> DeployDefinition(string xml, Guid? previousGuid = null)
     {
-        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<BpmnDefinitionDto>>("definition/deploy",xml, true, false);
+        var url = AppendPreviousGuidQuery("definition/deploy", previousGuid);
+        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<BpmnDefinitionDto>>(url, xml, true, false);
         if (apiStatusResult.Successful)
             return apiStatusResult.Result!;
         
         throw new ApiException(apiStatusResult.ErrorMessage);
     }
-
 
     public async Task<List<ProcessInstanceInfoDto>> GetAllInstances()
     {
@@ -87,8 +89,6 @@ public class FlowzerApi: ApiBase
     {
         return await GetAsJsonAndThrowOnErrorAsync<ProcessInstanceInfoDto>("instance/" + instanceGuid);
     }
-
-
 
     public async Task<MessageSubscriptionDto[]> GetMessageSubscriptions(Guid instanceGuid)
     {
@@ -155,6 +155,17 @@ public class FlowzerApi: ApiBase
     public async Task CompleteUserTask(UserTaskResultDto userTaskResult)
     {
         await PostAsJsonAndOnErrorAsync<dynamic>("form/result", userTaskResult);
+    }
+
+    private static string AppendPreviousGuidQuery(string url, Guid? previousGuid)
+    {
+        if (!previousGuid.HasValue || previousGuid.Value == Guid.Empty)
+        {
+            return url;
+        }
+
+        var separator = url.Contains('?') ? '&' : '?';
+        return $"{url}{separator}previousGuid={Uri.EscapeDataString(previousGuid.Value.ToString())}";
     }
 }
 

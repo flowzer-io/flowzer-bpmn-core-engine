@@ -18,7 +18,12 @@
 
     @if (!string.IsNullOrWhiteSpace(ErrorString))
     {
-        <p id="instance-load-error" role="alert">@ErrorString</p>
+        <div id="instance-load-error" role="alert">
+            <p>@ErrorString</p>
+            <FluentButton Id="instance-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">
+                Retry
+            </FluentButton>
+        </div>
     }
     else if (_instance == null)
     {

@@ -15,6 +15,7 @@ function createSuffix(prefix) {
 }
 
 let runtimeScenarioPromise;
+let modelerScenarioPromise;
 
 async function ensureRuntimeScenario(request) {
   if (runtimeScenarioPromise) {
@@ -35,7 +36,7 @@ async function ensureRuntimeScenario(request) {
       schema: createFormSchema('Approval')
     });
 
-    await deployDefinition(request, {
+    const deployedDefinition = await deployDefinition(request, {
       xml: buildMessageStartUserTaskXml({
         definitionId,
         messageName,
@@ -46,6 +47,7 @@ async function ensureRuntimeScenario(request) {
 
     return {
       definitionId,
+      definitionGuid: deployedDefinition.definitionGuid,
       formKey,
       modelName,
       messageName
@@ -53,6 +55,39 @@ async function ensureRuntimeScenario(request) {
   })();
 
   return runtimeScenarioPromise;
+}
+
+async function ensureModelerScenario(request) {
+  if (modelerScenarioPromise) {
+    return modelerScenarioPromise;
+  }
+
+  modelerScenarioPromise = (async () => {
+    const formKey = createSuffix('ui-smoke-modeler-form');
+    const modelName = createSuffix('UI Smoke Modeler');
+    const messageName = createSuffix('UiSmokeModelerStart');
+    const definitionId = await createDefinitionMeta(request, {
+      name: modelName,
+      description: 'Playwright modeler hardening path.'
+    });
+
+    const deployedDefinition = await deployDefinition(request, {
+      xml: buildMessageStartUserTaskXml({
+        definitionId,
+        messageName,
+        formKey,
+        userTaskName: 'Review model'
+      })
+    });
+
+    return {
+      definitionId,
+      definitionGuid: deployedDefinition.definitionGuid,
+      modelName
+    };
+  })();
+
+  return modelerScenarioPromise;
 }
 
 test('Formulare aus der API erscheinen in Liste und Detailansicht', async ({ page, request }) => {
@@ -76,8 +111,8 @@ test('Formulare aus der API erscheinen in Liste und Detailansicht', async ({ pag
 });
 
 test('Bereitgestellte Modelle erscheinen im Frontend und öffnen den Diagrammzugriff', async ({ page, request }) => {
-  const runtimeScenario = await ensureRuntimeScenario(request);
-  const { definitionId, modelName } = runtimeScenario;
+  const modelerScenario = await ensureModelerScenario(request);
+  const { definitionId, modelName } = modelerScenario;
 
   await page.goto('/models', { waitUntil: 'networkidle' });
 
@@ -87,9 +122,46 @@ test('Bereitgestellte Modelle erscheinen im Frontend und öffnen den Diagrammzug
 
   await expect(page).toHaveURL(new RegExp(`/definition/${definitionId}$`));
   await expect(page.locator('#current-file-name')).toHaveText(modelName);
-  await expect(page.locator('#current-file-version')).toContainText('2.0');
+  await expect(page.locator('#current-file-version')).toContainText(/\d+\.\d+/);
   await expect(page.locator('#designer-container')).toBeVisible();
+  await expect(page.locator('#js-canvas .djs-container')).toBeVisible();
+  await expect(page.locator('#js-properties-panel .bio-properties-panel, #js-properties-panel .djs-properties-panel')).toBeVisible();
   await expect(page.getByText('Error :-(')).toHaveCount(0);
+  await expect(page.locator('#definition-load-error')).toHaveCount(0);
+});
+
+test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsroute', async ({ page, request }) => {
+  const modelerScenario = await ensureModelerScenario(request);
+  const { definitionId, definitionGuid } = modelerScenario;
+
+  await page.goto(`/definition/${definitionId}/${definitionGuid}`, { waitUntil: 'networkidle' });
+  await expect(page.locator('#definition-loading-state')).toHaveCount(0, { timeout: 20_000 });
+  await expect(page.locator('#js-canvas .djs-container')).toBeVisible();
+
+  const requestPromise = page.waitForRequest(currentRequest => {
+    return currentRequest.method() === 'POST' && currentRequest.url().includes('/definition?previousGuid=');
+  });
+
+  const responsePromise = page.waitForResponse(currentResponse => {
+    return currentResponse.request().method() === 'POST' && currentResponse.url().includes('/definition?previousGuid=');
+  });
+
+  await page.getByRole('button', { name: 'Save' }).click();
+
+  const saveRequest = await requestPromise;
+  expect(saveRequest.url()).toContain(`previousGuid=${definitionGuid}`);
+
+  const saveResponse = await responsePromise;
+  expect(saveResponse.ok()).toBeTruthy();
+
+  const savedDefinition = await saveResponse.json();
+  const savedDefinitionGuid = savedDefinition.id || savedDefinition.Id;
+  expect(savedDefinitionGuid).toBeTruthy();
+  expect(savedDefinitionGuid).not.toBe(definitionGuid);
+
+  await expect(page).toHaveURL(new RegExp(`/definition/${definitionId}/${savedDefinitionGuid}$`));
+  await expect(page.locator('#blazor-error-ui')).toBeHidden();
+  await expect(page.locator('#definition-load-error')).toHaveCount(0);
 });
 
 test('Message-Start-Prozess wandert von offenem Task zu Done Instances', async ({ page, request }) => {
@@ -117,6 +189,8 @@ test('Message-Start-Prozess wandert von offenem Task zu Done Instances', async (
 
   await expect(page).toHaveURL(/\/instance\/[0-9a-f-]+$/);
   await expect(page.locator('#instance-name')).toContainText(modelName);
+  await expect(page.locator('#js-canvas .djs-container')).toBeVisible();
+  await expect(page.locator('.diagram-note')).toBeVisible();
   await expect(page.locator('#blazor-error-ui')).toBeHidden();
 
   await completeUserTask(request, userTask, {
