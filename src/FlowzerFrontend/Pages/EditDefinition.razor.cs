@@ -28,6 +28,9 @@ public partial class EditDefinition
  
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
+    private bool IsEditorInitialized { get; set; }
+    private string? PendingXml { get; set; }
+    private string? LastFailedXmlImport { get; set; }
     
     
 
@@ -40,18 +43,57 @@ public partial class EditDefinition
     
     protected override async Task OnInitializedAsync()
     {
-        await JsRuntime.EvalCodeBehindJsScripts(this);
-        await InitEditor();
-    }
-
-
-    private async Task InitEditor()
-    {
-        await JsRuntime.InvokeVoidAsync("InitEdit");
         await LoadModel();
-        
     }
-    
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+
+        if (firstRender)
+        {
+            try
+            {
+                await JsRuntime.EvalCodeBehindJsScripts(this);
+                await JsRuntime.InvokeVoidAsync("InitEdit");
+                IsEditorInitialized = true;
+                ErrorString = null;
+            }
+            catch (Exception exception)
+            {
+                ErrorString = $"Failed to initialize the BPMN editor: {exception.Message}";
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        if (!IsEditorInitialized || string.IsNullOrWhiteSpace(PendingXml))
+        {
+            return;
+        }
+
+        var xml = PendingXml;
+
+        if (string.Equals(LastFailedXmlImport, xml, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        try
+        {
+            await LoadDiagramXml(xml);
+            PendingXml = null;
+            LastFailedXmlImport = null;
+            ErrorString = null;
+        }
+        catch (Exception exception)
+        {
+            LastFailedXmlImport = xml;
+            PendingXml = xml;
+            ErrorString = $"Failed to load BPMN XML into the editor: {exception.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private async Task LoadModel()
     {
@@ -81,7 +123,9 @@ public partial class EditDefinition
         }
         else
         {
-                await LoadDiagramXml(xml);
+            PendingXml = xml;
+            LastFailedXmlImport = null;
+            ErrorString = null;
         }
         
         IsDocumentLoading = false;

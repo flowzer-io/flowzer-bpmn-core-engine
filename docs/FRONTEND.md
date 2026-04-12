@@ -44,7 +44,7 @@ Danach ist das Frontend unter [http://localhost:5269](http://localhost:5269) err
 
 ## Automatisierte UI-Smoke-Tests
 
-Die Smoke-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
+Die Smoke- und kleinen Happy-Path-E2E-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
 
 - `/`
 - `/models`
@@ -60,6 +60,7 @@ Geprüft werden insbesondere:
 - erfolgreiche Seitennavigation
 - sichtbare Kern-UI je Route
 - funktionierende Filter-Navigation innerhalb der Instanzliste
+- API-gesäte Happy Paths für Formulare, Modelle und Instanzverläufe
 - kein sichtbarer Blazor-Fatalfehler
 - keine fehlgeschlagenen Browser-Requests
 
@@ -91,6 +92,24 @@ Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst
 PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 ```
 
+Der `npm test`-Pfad verwendet zusätzlich einen kleinen Prozesswächter. Dieser erkennt alte verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse aus früheren Läufen und räumt nach dem Test auch neu entstandene Browser-Reste wieder weg. Damit bleiben keine CPU-intensiven Headless-Prozesse mehr unbemerkt liegen.
+
+Bei Bedarf kann das Verhalten angepasst werden:
+
+- `PLAYWRIGHT_SKIP_PROCESS_GUARD=1` deaktiviert den Wächter
+- `PLAYWRIGHT_PROCESS_STALE_THRESHOLD_SECONDS=<sekunden>` steuert, ab wann alte Browser-Prozesse als verwaist gelten
+
 ## Hinweise zur lokalen Datenbasis
 
-Die dateibasierte Persistenz landet unterhalb der Build-Ausgabe von `FilesystemStorageSystem`. Für saubere lokale Testläufe kann es sinnvoll sein, diese Ablage vorab zu leeren, wenn alte Modelldaten oder Formulare stören.
+Die dateibasierte Persistenz landet standardmäßig unterhalb der Build-Ausgabe von `FilesystemStorageSystem`.
+
+Für reproduzierbare Playwright-Läufe setzt die Testkonfiguration automatisch ein eigenes `FLOWZER_STORAGE_ROOT` für die verwalteten Webserver. Der Pfad wird über `PLAYWRIGHT_MANAGED_STORAGE_ROOT` gesteuert und aus Sicherheitsgründen nur unterhalb von `tests/ui-smoke/.tmp` gelöscht bzw. neu aufgebaut. Wenn Web-API und Frontend manuell gestartet werden, kann dasselbe Verhalten lokal explizit aktiviert werden:
+
+```bash
+FLOWZER_STORAGE_ROOT="$(pwd)/tests/ui-smoke/.tmp/manual-storage" \
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet run --project src/WebApiEngine/WebApiEngine.csproj \
+--configuration Release \
+--no-launch-profile \
+--urls http://localhost:5182
+```

@@ -32,6 +32,10 @@ public class MessageController(IStorageSystem storageSystem,
         var response =
             $"Message '{messageDto.Name}'{correlationText} was sent to the process instance.";
 
-        return Ok(new ApiStatusResult<string>(response));
+        return Ok(new ApiStatusResult<string>
+        {
+            Successful = true,
+            Result = response
+        });
     }
 }

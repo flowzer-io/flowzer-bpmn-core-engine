@@ -92,4 +92,22 @@ public class SimpleExpressionHandlerTest
             CultureInfo.CurrentUICulture = originalUiCulture;
         }
     }
+
+    [Test]
+    public void CreateDefault_ShouldFallbackToSimpleExpressionHandler_WhenClearScriptIsUnavailable()
+    {
+        var config = FlowzerConfig.CreateDefault(() => throw new DllNotFoundException("ClearScriptV8.linux-x64.so"));
+
+        config.ExpressionHandler.Should().BeOfType<SimpleExpressionHandler>();
+    }
+
+    [Test]
+    public void CreateDefault_ShouldKeepCustomExpressionHandler_WhenFactorySucceeds()
+    {
+        var expressionHandler = new SimpleExpressionHandler();
+
+        var config = FlowzerConfig.CreateDefault(() => expressionHandler);
+
+        config.ExpressionHandler.Should().BeSameAs(expressionHandler);
+    }
 }
