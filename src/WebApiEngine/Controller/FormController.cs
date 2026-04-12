@@ -14,7 +14,7 @@ public class FormController(
 {
 
     [HttpPost()]
-    public async Task<ActionResult<ApiStatusResult>> SaveForm(FormDto formDto)
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> SaveForm(FormDto formDto)
     {
         Form form;
         try
