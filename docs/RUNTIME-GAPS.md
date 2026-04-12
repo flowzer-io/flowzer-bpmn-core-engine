@@ -49,8 +49,9 @@ Noch nicht produktionsreif umgesetzt:
 
 Aktueller Status:
 
-- `GetActiveEscalations()` liefert jetzt wenigstens stabil eine leere Liste statt sofort zu scheitern
-- echte Eskalations- und Fehlersemantik bleibt ein separates Folgepaket
+- `GetActiveEscalations()` liefert stabil eine leere Liste statt sofort zu scheitern
+- `HandleEscalation(...)` und `HandleError(...)` führen jetzt mindestens in einen kontrollierten Best-Effort-Fehlerzustand statt in eine rohe `NotImplementedException`
+- echte Eskalations- und Fehlersemantik bleibt weiterhin ein separates Folgepaket
 
 ### 3. Vollständige Kompensation bei Abbruch
 

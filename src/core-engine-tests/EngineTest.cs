@@ -180,6 +180,42 @@ public class EngineTest
     }
 
     [Test]
+    public async Task HandleError_ShouldFailInstanceWithoutThrowingNotImplementedException()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("SimpleService.bpmn");
+
+        var action = () => instanceEngine.HandleError("ServiceFailure", "SERVICE_ERROR", "Boom");
+
+        action.Should().NotThrow<NotImplementedException>();
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Failed);
+            instanceEngine.IsFinished.Should().BeTrue();
+            instanceEngine.Tokens.Where(token => token.State == FlowNodeState.Failed).Should().NotBeEmpty();
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+        }
+    }
+
+    [Test]
+    public async Task HandleEscalation_ShouldFailInstanceWithoutThrowingNotImplementedException()
+    {
+        var instanceEngine = await Helper.StartFirstProcessOfFile("SimpleService.bpmn");
+
+        var action = () => instanceEngine.HandleEscalation("EscalationCode", "ESCALATION_CODE");
+
+        action.Should().NotThrow<NotImplementedException>();
+
+        using (new AssertionScope())
+        {
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Failed);
+            instanceEngine.IsFinished.Should().BeTrue();
+            instanceEngine.Tokens.Where(token => token.State == FlowNodeState.Failed).Should().NotBeEmpty();
+            instanceEngine.ActiveTokens.Should().BeEmpty();
+        }
+    }
+
+    [Test]
     public async Task ParallelTaskTest()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("ParallelFlowTest.bpmn");
