@@ -1,7 +1,9 @@
 using WebApiEngine;
 using WebApiEngine.Auth;
+using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Middleware;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +26,8 @@ builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUse
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins",
@@ -52,7 +56,8 @@ app.UseCors("AllowAllOrigins"); // Diese Zeile stellt sicher, dass die CORS-Rich
 
 app.MapControllers();
 
-app.Services.GetRequiredService<BpmnBusinessLogic>().Load();
+var timerSchedulerOptions = app.Services.GetRequiredService<IOptions<TimerSchedulerOptions>>().Value;
+app.Services.GetRequiredService<BpmnBusinessLogic>().Load(timerSchedulerOptions.Enabled);
 
 app.Run();
 

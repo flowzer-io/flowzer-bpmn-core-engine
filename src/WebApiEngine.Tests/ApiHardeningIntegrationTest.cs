@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
@@ -313,6 +314,13 @@ public class ApiHardeningIntegrationTest
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
             builder.UseSetting(WebHostDefaults.EnvironmentKey, "Development");
+            builder.ConfigureAppConfiguration((_, configBuilder) =>
+            {
+                configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["TimerScheduler:Enabled"] = "false"
+                });
+            });
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStorageSystem>();
@@ -524,6 +532,20 @@ public class ApiHardeningIntegrationTest
         }
 
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
+
+        public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions() =>
+            Task.FromResult(Enumerable.Empty<TimerSubscription>());
+
+        public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) =>
+            Task.FromResult(Enumerable.Empty<TimerSubscription>());
+
+        public Task AddTimerSubscription(TimerSubscription timerSubscription) => Task.CompletedTask;
+
+        public Task RemoveTimerSubscription(Guid timerSubscriptionId) => Task.CompletedTask;
+
+        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+
+        public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
     }
 
     private sealed class TestInstanceStorage : IInstanceStorage

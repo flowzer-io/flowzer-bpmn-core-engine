@@ -38,6 +38,17 @@ public interface IMessageSubscriptionStorage
     Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId);
     #endregion
 
+    #region Timers
+
+    Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions();
+    Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId);
+    Task AddTimerSubscription(TimerSubscription timerSubscription);
+    Task RemoveTimerSubscription(Guid timerSubscriptionId);
+    Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId);
+    Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId);
+
+    #endregion
+
 
 
 }

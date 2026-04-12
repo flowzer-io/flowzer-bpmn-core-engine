@@ -14,6 +14,8 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 - Demo-Console-App ergänzt
 - wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
 - Timer-Ausführung im Engine-Kern für fällige Start- und Intermediate-Timer ergänzt
+- persistierte Timer-Subscriptions in Storage/Web-API ergänzt
+- Scheduler-/Polling-Pfad für fällige Timer im Web-API-Host ergänzt
 - Form-/Message-Fehlerverträge in der Web-API weiter geschärft
 - lokale und CI-nahe Testpfade wieder grün gemacht
 - lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
@@ -24,17 +26,17 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ## Priorität 1: Timer- und Runtime-Restlücken schließen
 
-### 1.1 Timer-Persistenz und Scheduler-Anbindung
-
-- persistierte Timer-Subscriptions ergänzen
-- Wiederaufnahme nach Neustart für fällige Timer vorbereiten
-- klaren Scheduler-/Polling-Pfad um `HandleTime(...)` modellieren und testen
-
 ### 1.2 Boundary-Timer und BPMN-Fehlerpfade vertiefen
 
 - Boundary-Timer-Parsing und -Abarbeitung ergänzen
 - Error-/Escalation-Semantik jenseits des Best-Effort-Fallbacks modellieren
 - Kompensations- und Abbruchpfade weiter präzisieren
+
+### 1.3 Timer-Recovery und wiederkehrende Strategien vertiefen
+
+- Recovery-Verhalten für bereits persistierte Timer nach Neustarts weiter härten
+- wiederkehrende Start-Timer über den ersten Due-Zeitpunkt hinaus sauber modellieren
+- Boundary-Timer später in denselben Persistenz-/Scheduler-Pfad integrieren
 
 ## Priorität 2: Betriebs- und Auth-Reife erhöhen
 
@@ -67,11 +69,11 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ## Empfohlene Reihenfolge der nächsten Sprints
 
-### Sprint A – Timer und Runtime
+### Sprint A – Timer-Runtime vertiefen
 
-- Timer-Persistenz
-- Scheduler-/Polling-Pfad
 - Boundary-Timer-Sicht
+- Timer-Recovery
+- wiederkehrende Timer-Strategien
 
 ### Sprint B – Betrieb und Auth
 

@@ -18,6 +18,23 @@ public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null)
         return instance;
     }
 
+    public InstanceEngine StartProcessByTimerStartEvent(string flowNodeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(flowNodeId);
+
+        var startEvent = Process.FlowElements
+            .OfType<FlowzerTimerStartEvent>()
+            .SingleOrDefault(element => string.Equals(element.Id, flowNodeId, StringComparison.Ordinal))
+            ?? throw new ArgumentException(
+                $"No timer start event with the id \"{flowNodeId}\" exists in process \"{Process.Id}\".",
+                nameof(flowNodeId));
+
+        var instance = CreateInstanceEngine();
+        instance.HandleTime(DateTime.UtcNow, startEvent);
+        _triggeredTimerStartEventIds.Add(startEvent.Id);
+        return instance;
+    }
+
     // public async Task<InstanceEngine> HandleTime(DateTime time)
     // {
     //     var processInstance = new ProcessInstance
@@ -83,6 +100,13 @@ public class ProcessEngine(Process process, FlowzerConfig? flowzerConfig = null)
                 .ToList();
         }
     }
+
+    public List<TimerSubscriptionDescriptor> ActiveTimerSubscriptions => GetPendingTimerStartEvents()
+        .Select(startEvent => new TimerSubscriptionDescriptor(
+            GetStartTimerDueDate(startEvent),
+            startEvent.Id,
+            TimerSubscriptionKind.ProcessStartEvent))
+        .ToList();
 
     public List<MessageDefinition> ActiveCatchMessages
     {

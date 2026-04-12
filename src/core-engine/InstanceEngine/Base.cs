@@ -206,11 +206,28 @@ public partial class InstanceEngine: ICatchHandler
         .Distinct()
         .ToList();
 
+    List<TimerSubscriptionDescriptor> ICatchHandler.ActiveTimerSubscriptions => Tokens
+        .Where(token => token.State == FlowNodeState.Active)
+        .SelectMany(GetActiveTimerSubscriptionDescriptors)
+        .ToList();
+
     private static IEnumerable<DateTime> GetActiveTimerDates(Token token)
     {
         if (token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent timerCatchEvent)
         {
             yield return GetTimerDueDate(token, timerCatchEvent);
+        }
+    }
+
+    private static IEnumerable<TimerSubscriptionDescriptor> GetActiveTimerSubscriptionDescriptors(Token token)
+    {
+        if (token.CurrentFlowNode is FlowzerIntermediateTimerCatchEvent timerCatchEvent)
+        {
+            yield return new TimerSubscriptionDescriptor(
+                GetTimerDueDate(token, timerCatchEvent),
+                timerCatchEvent.Id,
+                TimerSubscriptionKind.IntermediateCatchEvent,
+                token.Id);
         }
     }
 

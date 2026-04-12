@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
@@ -62,6 +64,38 @@ public class InstanceControllerIntegrationTest
     }
 
     [Test]
+    public async Task GetTimerSubscriptions_ShouldReturnTimersForInstance()
+    {
+        var instanceId = Guid.NewGuid();
+        var storage = TestStorage.CreateWithInstance(instanceId);
+        storage.SubscriptionStorageSeed.TimerSubscriptions.Add(new TimerSubscription
+        {
+            DueAt = DateTime.UtcNow.AddMinutes(3),
+            FlowNodeId = "TimerCatch_1",
+            Kind = TimerSubscriptionKind.IntermediateCatchEvent,
+            ProcessId = "Process_Invoice",
+            RelatedDefinitionId = "invoice-process",
+            DefinitionId = storage.DefinitionId,
+            ProcessInstanceId = instanceId,
+            TokenId = Guid.NewGuid()
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/instance/{instanceId}/subscription/timers");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<TimerSubscriptionDto[]>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().ContainSingle();
+        payload.Result![0].FlowNodeId.Should().Be("TimerCatch_1");
+        payload.Result[0].ProcessInstanceId.Should().Be(instanceId);
+        payload.Result[0].Kind.Should().Be(nameof(TimerSubscriptionKind.IntermediateCatchEvent));
+    }
+
+    [Test]
     public async Task GetAllInstances_ShouldIncludeFinishedInstances_ForDoneAndErrorFilters()
     {
         var activeInstanceId = Guid.NewGuid();
@@ -93,6 +127,14 @@ public class InstanceControllerIntegrationTest
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
+            builder.ConfigureAppConfiguration((_, configBuilder) =>
+            {
+                configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["TimerScheduler:Enabled"] = "false"
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStorageSystem>();
@@ -277,6 +319,7 @@ public class InstanceControllerIntegrationTest
     private sealed class TestMessageSubscriptionStorage : IMessageSubscriptionStorage
     {
         public List<SignalSubscription> SignalSubscriptions { get; } = [];
+        public List<TimerSubscription> TimerSubscriptions { get; } = [];
 
         public Task<IEnumerable<MessageSubscription>> GetAllMessageSubscriptions() =>
             Task.FromResult(Enumerable.Empty<MessageSubscription>());
@@ -316,6 +359,38 @@ public class InstanceControllerIntegrationTest
         public Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId) => Task.CompletedTask;
         public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId) { }
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
+
+        public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions() =>
+            Task.FromResult(TimerSubscriptions.AsEnumerable());
+
+        public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) =>
+            Task.FromResult(TimerSubscriptions.Where(subscription => subscription.ProcessInstanceId == instanceId).AsEnumerable());
+
+        public Task AddTimerSubscription(TimerSubscription timerSubscription)
+        {
+            TimerSubscriptions.Add(timerSubscription);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveTimerSubscription(Guid timerSubscriptionId)
+        {
+            TimerSubscriptions.RemoveAll(subscription => subscription.Id == timerSubscriptionId);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId)
+        {
+            TimerSubscriptions.RemoveAll(subscription => subscription.ProcessInstanceId == instanceId);
+            return Task.CompletedTask;
+        }
+
+        public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId)
+        {
+            TimerSubscriptions.RemoveAll(subscription =>
+                subscription.ProcessInstanceId == null &&
+                string.Equals(subscription.RelatedDefinitionId, relatedDefinitionId, StringComparison.Ordinal));
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestInstanceStorage(params ProcessInstanceInfo[] instances) : IInstanceStorage

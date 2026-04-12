@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
@@ -151,6 +153,14 @@ public class FormControllerIntegrationTest
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
+            builder.ConfigureAppConfiguration((_, configBuilder) =>
+            {
+                configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["TimerScheduler:Enabled"] = "false"
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IStorageSystem>();
@@ -308,6 +318,12 @@ public class FormControllerIntegrationTest
         public Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId) => Task.CompletedTask;
         public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId) { }
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
+        public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions() => Task.FromResult(Enumerable.Empty<TimerSubscription>());
+        public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) => Task.FromResult(Enumerable.Empty<TimerSubscription>());
+        public Task AddTimerSubscription(TimerSubscription timerSubscription) => Task.CompletedTask;
+        public Task RemoveTimerSubscription(Guid timerSubscriptionId) => Task.CompletedTask;
+        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+        public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
     }
 
     private sealed class NoOpInstanceStorage : IInstanceStorage
