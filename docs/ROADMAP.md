@@ -17,6 +17,8 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 - Boundary-Timer im Parser, in der Runtime und im persistierten Subscription-Pfad ergänzt
 - persistierte Timer-Subscriptions in Storage/Web-API ergänzt
 - Scheduler-/Polling-Pfad für fällige Timer im Web-API-Host ergänzt
+- wiederkehrende Start-Timer inklusive Restwiederholungen und Catch-up-Verhalten ergänzt
+- Startup-Recovery für überfällige Start-Timer über persistierte Timer-Subscriptions ergänzt
 - Form-/Message-Fehlerverträge in der Web-API weiter geschärft
 - lokale und CI-nahe Testpfade wieder grün gemacht
 - lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
@@ -35,8 +37,8 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### 1.3 Timer-Recovery und wiederkehrende Strategien vertiefen
 
-- Recovery-Verhalten für bereits persistierte Timer nach Neustarts weiter härten
-- wiederkehrende Start-Timer über den ersten Due-Zeitpunkt hinaus sauber modellieren
+- Recovery-Verhalten für bereits persistierte Boundary- und Spezialtimer nach Neustarts weiter härten
+- wiederkehrende Start-Timer nur noch bei komplexeren Spezialfällen vertiefen
 - wiederkehrende Boundary- oder Spezialtimer nur dann ergänzen, wenn sie fachlich wirklich benötigt werden
 
 ## Priorität 2: Betriebs- und Auth-Reife erhöhen
@@ -72,8 +74,8 @@ Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktio
 
 ### Sprint A – Timer-Runtime vertiefen
 
-- Timer-Recovery
-- wiederkehrende Timer-Strategien
+- Boundary-/Spezialtimer-Recovery
+- verbleibende wiederkehrende Spezialtimer
 - verbleibende Boundary-Timer-Randfälle
 
 ### Sprint B – Betrieb und Auth

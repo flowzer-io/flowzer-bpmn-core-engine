@@ -26,8 +26,8 @@ Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Sta
 - Es gibt bereits eine **brauchbare Kernarchitektur**.
 - Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
-- Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert und über einen kleinen Scheduler-Polling-Pfad verarbeitet.
-- Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Recovery-Semantik, Auth/Identity und Betriebsreife.
+- Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert, über einen kleinen Scheduler-Polling-Pfad verarbeitet und können wiederkehrende Start-Timer inklusive Restwiederholungen abbilden.
+- Es gibt aber weiterhin **offene Restlücken** bei weitergehender Timer-/Boundary-Recovery, Auth/Identity und Betriebsreife.
 - Das Projekt ist **klar revivierbar und aktiv weiterentwickelbar**, wenn die nächsten Schritte weiter fokussiert bleiben.
 
 Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
@@ -92,7 +92,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
 
 3. **Timer-, Fehler- und Abbruchpfade sind verbessert, aber noch nicht vollständig**
-   Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin wiederkehrende Start-Timer, weitergehende Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
+   Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten, wiederkehrende Start-Timer überfälligkeitstolerant nachziehen und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin speziellere Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
 4. **Betrieb und Auth sind noch nicht am Ziel**
    Lokale Compose- und Runtime-Container sind vorhanden, aber Themen wie Telemetrie, Secrets, TLS, Recovery und eine belastbare Identity-/Auth-Story sind weiterhin Folgepakete.
@@ -113,9 +113,9 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Timer-Recovery, wiederkehrende Start-Timer und weitergehende Fehlersemantik sauber nachziehen**
-2. **Auth-/Identity- und Fehlerpfade weiter produktionsnah härten**
-3. **Betriebsbasis mit Telemetrie, Secrets und Recovery vertiefen**
+1. **Auth-/Identity- und weitergehende Fehlersemantik produktionsnah härten**
+2. **Betriebsbasis mit Telemetrie, Secrets, TLS und Recovery vertiefen**
+3. **Timer-Recovery nur noch in speziellen Boundary-/Spezialfällen nachziehen**
 4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md).
@@ -173,6 +173,8 @@ Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERA
 
 Die Web-API enthält jetzt zusätzlich einen kleinen Hintergrund-Poller für fällige Timer-Subscriptions.
 
+Persistierte wiederkehrende Start-Timer werden dabei inklusive verbleibender Wiederholungen nachgezogen und nach einem Neustart wieder sauber auf den nächsten Fälligkeitszeitpunkt vorgeschoben.
+
 Relevante Konfiguration:
 
 ```json
@@ -186,6 +188,8 @@ Zusätzlich sichtbar sind Timer-Subscriptions jetzt über:
 
 - `GET /timer`
 - `GET /instance/{instanceId}/subscription/timers`
+
+Die API-DTOs für Timer enthalten dabei jetzt auch `RemainingOccurrences`, wenn ein Start-Timer über ein BPMN-`timeCycle` mit begrenzter Wiederholung definiert wurde.
 
 ## Runtime-Container für lokale Release-Checks
 

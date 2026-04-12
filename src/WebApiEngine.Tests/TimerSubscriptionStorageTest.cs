@@ -17,7 +17,8 @@ public class TimerSubscriptionStorageTest
             TimerSubscriptionKind.ProcessStartEvent,
             processInstanceId: null,
             tokenId: null,
-            flowNodeId: "StartEvent_Timer");
+            flowNodeId: "StartEvent_Timer",
+            remainingOccurrences: 3);
         var instanceTimer = context.CreateTimerSubscription(
             TimerSubscriptionKind.IntermediateCatchEvent,
             processInstanceId: instanceId,
@@ -33,6 +34,7 @@ public class TimerSubscriptionStorageTest
         allTimers.Should().HaveCount(2);
         allTimers.Should().Contain(subscription => subscription.Id == definitionTimer.Id);
         allTimers.Should().Contain(subscription => subscription.Id == instanceTimer.Id);
+        allTimers.Should().Contain(subscription => subscription.RemainingOccurrences == 3);
         instanceTimers.Should().ContainSingle(subscription => subscription.Id == instanceTimer.Id);
     }
 
@@ -100,7 +102,8 @@ public class TimerSubscriptionStorageTest
             TimerSubscriptionKind kind,
             Guid? processInstanceId,
             Guid? tokenId,
-            string flowNodeId)
+            string flowNodeId,
+            int? remainingOccurrences = null)
         {
             return new TimerSubscription
             {
@@ -111,7 +114,8 @@ public class TimerSubscriptionStorageTest
                 RelatedDefinitionId = RelatedDefinitionId,
                 DefinitionId = DefinitionId,
                 ProcessInstanceId = processInstanceId,
-                TokenId = tokenId
+                TokenId = tokenId,
+                RemainingOccurrences = remainingOccurrences
             };
         }
 
