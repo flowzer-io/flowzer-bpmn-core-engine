@@ -62,7 +62,7 @@ Besonders relevant sind noch:
 - weiter ausgebautes Playwright-/E2E-Smoke-Set
 - Restlücken bei Timer-Persistenz, Boundary-Timern und echter Scheduler-Anbindung
 - weitere Auth-/Identity- und Fehlerpfade
-- Release-/Telemetry-/Secret-/Recovery-Story über die lokale Basis hinaus
+- Release-/Telemetrie-/Secret-/Recovery-Story über die lokale Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand
 

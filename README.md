@@ -85,7 +85,7 @@ npm run build
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Kernpfade sind stabil, aber noch nicht vollständig aufgeräumt**
-   Build, CI sowie Kern-, WebAPI-, Frontend- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
+   Build, CI sowie Kern-, Web-API-, Frontend- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
