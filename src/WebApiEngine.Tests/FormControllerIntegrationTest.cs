@@ -42,6 +42,28 @@ public class FormControllerIntegrationTest
     }
 
     [Test]
+    public async Task SaveForm_ShouldReturnBadRequest_WhenFormIdIsEmpty()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/form", new FormDto
+        {
+            FormId = Guid.Empty,
+            FormData = "{\"type\":\"form\"}",
+            Version = new VersionDto()
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Be("FormId is required");
+    }
+
+    [Test]
     public async Task GetForm_ShouldReturnSpecificVersion_WhenVersionIdentifierIsProvided()
     {
         var storage = TestStorage.Create();
@@ -102,6 +124,27 @@ public class FormControllerIntegrationTest
         payload.Should().NotBeNull();
         payload!.Successful.Should().BeFalse();
         payload.ErrorMessage.Should().Contain("Version string must have two parts separated by a dot.");
+    }
+
+    [Test]
+    public async Task SaveFormMetadata_ShouldUseRouteFormId_WhenBodyFormIdIsEmpty()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync($"/form/meta/{formId}", new FormMetaDataDto
+        {
+            FormId = Guid.Empty,
+            Name = "Invoice"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle(metadata =>
+            metadata.FormId == formId &&
+            metadata.Name == "Invoice");
     }
 
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>

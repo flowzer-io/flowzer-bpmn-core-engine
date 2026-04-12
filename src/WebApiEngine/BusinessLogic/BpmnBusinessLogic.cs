@@ -138,7 +138,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
             .FirstOrDefault();
 
         if (messageSubscription is null)
-            throw new Exception($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\" and instanceId {message.InstanceId}.");
+            throw new ArgumentException($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\" and instanceId {message.InstanceId}.");
 
         InstanceEngine instance;
         if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
@@ -155,7 +155,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider)
 
             var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
             if (process == null)
-                throw new Exception($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
+                throw new FileNotFoundException($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
             
             instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
             
