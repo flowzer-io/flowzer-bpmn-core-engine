@@ -1,0 +1,37 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Nur die für die Web-API relevanten Projekte vorziehen, damit Restore-Layer stabil bleiben.
+COPY Model/Model.csproj Model/
+COPY src/FlowzerBPMN/FlowzerBPMN.csproj src/FlowzerBPMN/
+COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
+COPY src/StorageSystemShared/StorageSystemShared.csproj src/StorageSystemShared/
+COPY src/FilesystemStorageSystem/FilesystemStorageSystem.csproj src/FilesystemStorageSystem/
+COPY src/core-engine/core-engine.csproj src/core-engine/
+COPY src/WebApiEngine.Shared/WebApiEngine.Shared.csproj src/WebApiEngine.Shared/
+COPY src/WebApiEngine/WebApiEngine.csproj src/WebApiEngine/
+
+RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
+
+COPY . .
+RUN dotnet publish src/WebApiEngine/WebApiEngine.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish \
+    /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV ASPNETCORE_URLS=http://0.0.0.0:8080
+ENV FLOWZER_STORAGE_ROOT=/data/flowzer-storage
+
+COPY --from=build /app/publish ./
+
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "WebApiEngine.dll"]

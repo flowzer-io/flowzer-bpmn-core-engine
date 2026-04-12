@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.vs
+.vscode
+.worktrees
+.data
+**/bin
+**/obj
+**/TestResults
+tests/ui-smoke/node_modules
+tests/ui-smoke/playwright-report
+tests/ui-smoke/test-results
+bpmn.io/node_modules

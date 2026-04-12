@@ -168,6 +168,18 @@ Für einen reproduzierbaren API-/Frontend-Start gibt es jetzt zusätzlich einen 
 
 Weitere Betriebs- und Diagnosehinweise stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
+## Runtime-Container für lokale Release-Checks
+
+Zusätzlich zur Dev-Compose-Variante gibt es jetzt auch eine runtime-nahe Containerbasis:
+
+```bash
+./scripts/runtime/start-runtime-stack.sh
+./scripts/runtime/check-runtime-stack.sh
+./scripts/runtime/stop-runtime-stack.sh
+```
+
+Der Runtime-Gateway-Stack ist anschließend standardmäßig unter [http://localhost:5288](http://localhost:5288) erreichbar.
+
 ## Beispiel
 
 Ein kleines Nutzungsbeispiel liegt in [`/examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).
