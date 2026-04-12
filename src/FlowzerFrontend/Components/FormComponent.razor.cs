@@ -5,8 +5,12 @@ using Microsoft.JSInterop;
 
 namespace FlowzerFrontend.Components;
 
-public partial class FormComponent : ComponentBase, IDisposable
+public partial class FormComponent : ComponentBase, IAsyncDisposable
 {
+    private static readonly TimeSpan ViewerReadyTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan ViewerReadyPollInterval = TimeSpan.FromMilliseconds(100);
+
+    private readonly CancellationTokenSource _disposeCancellationTokenSource = new();
     private DotNetObjectReference<FormComponent>? _dotNetReference;
     private string? _loadedSchema;
     private string? _lastAppliedData;
@@ -36,20 +40,31 @@ public partial class FormComponent : ComponentBase, IDisposable
             await JsRuntime.InvokeVoidAsync("SetDotNetRef", _dotNetReference);
         }
 
-        if (!string.IsNullOrEmpty(Schema) && !string.Equals(_loadedSchema, Schema, StringComparison.Ordinal))
+        try
         {
-            await LoadWithSchema(Schema);
-            _loadedSchema = Schema;
-            _lastAppliedData = Data;
-            return;
-        }
+            if (!string.IsNullOrEmpty(Schema) && !string.Equals(_loadedSchema, Schema, StringComparison.Ordinal))
+            {
+                await LoadWithSchema(Schema, _disposeCancellationTokenSource.Token);
+                _loadedSchema = Schema;
+                _lastAppliedData = Data;
+                return;
+            }
 
-        if (!IgnoreDataChange &&
-            _loadedSchema != null &&
-            !string.Equals(_lastAppliedData, Data, StringComparison.Ordinal))
+            if (!IgnoreDataChange &&
+                _loadedSchema != null &&
+                !string.Equals(_lastAppliedData, Data, StringComparison.Ordinal))
+            {
+                await SetSubmissionData();
+                _lastAppliedData = Data;
+            }
+        }
+        catch (OperationCanceledException) when (_disposeCancellationTokenSource.IsCancellationRequested)
         {
-            await SetSubmissionData();
-            _lastAppliedData = Data;
+            Logger.LogDebug("Form component rendering was cancelled during disposal.");
+        }
+        catch (TimeoutException exception)
+        {
+            Logger.LogWarning(exception, "Form viewer iframe did not become ready within the configured timeout.");
         }
     }
     
@@ -64,10 +79,15 @@ public partial class FormComponent : ComponentBase, IDisposable
 
     
 
-    private async Task LoadWithSchema(string schema)
+    private async Task LoadWithSchema(string schema, CancellationToken cancellationToken)
     {
+        using var timeoutCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCancellationTokenSource.CancelAfter(ViewerReadyTimeout);
+
         while (true)
         {
+            timeoutCancellationTokenSource.Token.ThrowIfCancellationRequested();
+
             try
             {
                 var ret = await JsRuntime.InvokeAsyncNoneCached<bool>("executeInIframe", "#iframe_viewer", "IsReady");
@@ -80,7 +100,14 @@ public partial class FormComponent : ComponentBase, IDisposable
                 Logger.LogWarning(e, "Waiting for iframe to be ready");
             }
 
-            await Task.Delay(100);
+            try
+            {
+                await Task.Delay(ViewerReadyPollInterval, timeoutCancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("The form viewer iframe did not become ready in time.");
+            }
         }
         
         using var doc = JsonDocument.Parse(schema);
@@ -100,8 +127,20 @@ public partial class FormComponent : ComponentBase, IDisposable
         return JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        _disposeCancellationTokenSource.Cancel();
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("ClearDotNetRef");
+        }
+        catch (Exception exception) when (exception is JSDisconnectedException or InvalidOperationException)
+        {
+            Logger.LogDebug(exception, "The JS runtime was no longer available while disposing the form component.");
+        }
+
         _dotNetReference?.Dispose();
+        _disposeCancellationTokenSource.Dispose();
     }
 }
