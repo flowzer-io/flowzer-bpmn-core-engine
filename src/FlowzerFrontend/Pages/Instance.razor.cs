@@ -10,10 +10,6 @@ namespace FlowzerFrontend.Pages;
 public partial class Instance : IAsyncDisposable
 {
     private const string ViewerInteropPath = "window.FlowzerInstanceViewer";
-    private const string MessagesTreeItemKey = "messages";
-    private const string ServiceTreeItemKey = "service";
-    private const string SignalTreeItemKey = "singal";
-    private const string UserTaskTreeItemKey = "user";
 
     private ProcessInstanceInfoDto? _instance;
     private bool IsViewerInitialized { get; set; }
@@ -108,165 +104,64 @@ public partial class Instance : IAsyncDisposable
         var data = await FlowzerApi.GetXmlDefinition(_instance.DefinitionId);
         PendingXml = data;
         await ShowVariables(_instance.Tokens);
-        LoadMeesageSubscriptionOverview();
+        LoadSubscriptionOverview();
         await InvokeAsync(StateHasChanged);
     }
 
     private async Task ShowVariables(List<TokenDto> instanceTokens)
     {
-        var rootTokens = instanceTokens.Where(x => x.ParentTokenId == null || x.ParentTokenId == Guid.Empty).ToList();
-        if (rootTokens.Count == 0)
-        {
-            VariableItems = [];
-            return;
-        }
-        VariableItems =  GetTokenTreeViewItem(instanceTokens, rootTokens);
+        VariableItems = InstanceTreeViewBuilder.BuildTokenItems(instanceTokens);
         
         await InvokeAsync(StateHasChanged);
     }
 
-    private IEnumerable<ITreeViewItem> GetTokenTreeViewItem(List<TokenDto> allTokens, List<TokenDto> list)
+    private void LoadSubscriptionOverview()
     {
-        var result = new List<ITreeViewItem>();
-        foreach (var x in list)
-        {
-            var text = TokenDisplayHelper.GetDisplayName(x, "(root token)");
+        if (_instance == null)
+            return;
 
-            var subTokens = allTokens.Where(y => y.ParentTokenId == x.Id).ToList();
-            var subItems = GetTokenTreeViewItem(allTokens, subTokens);
-            result.Add(new TreeViewItem()
-            {
-                Id = x.Id.ToString(),
-                Text = text,
-                Items = subItems,
-                Expanded = true
-            });
+        var subscriptionOverview = InstanceTreeViewBuilder.BuildSubscriptionOverview(_instance);
+        foreach (var item in subscriptionOverview)
+        {
+            item.OnExpandedAsync = OnSubscriptionItemExpanded;
         }
-        return result;
+
+        Items = subscriptionOverview;
     }
 
-    private void LoadMeesageSubscriptionOverview()
-    {
-        if (_instance == null)
-            return;
-        
-        var messageSubscriptionsTreeItem = new TreeViewItem()
-        {
-            Id = MessagesTreeItemKey,
-            Text = "Message subscriptions (" + _instance.MessageSubscriptionCount + ")",
-            OnExpandedAsync = OnMessageSubscriptionItemExpanded,
-        };
-        if (_instance.MessageSubscriptionCount > 0)
-            messageSubscriptionsTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
-
-        var serviceSubscriptiontTreeItem = new TreeViewItem()
-        {
-            Id = ServiceTreeItemKey,
-            Text = "Service subscriptions (" + _instance.ServiceSubscriptionCount + ")",
-            OnExpandedAsync = OnMessageSubscriptionItemExpanded,
-        };
-        if (_instance.ServiceSubscriptionCount > 0)
-            serviceSubscriptiontTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
-
-
-        var signalSubscriptionTreeItem = new TreeViewItem()
-        {
-            Id = SignalTreeItemKey,
-            Text = "Signal subscriptions (" + _instance.SignalSubscriptionCount + ")",
-            OnExpandedAsync = OnMessageSubscriptionItemExpanded,
-        };
-        if (_instance.SignalSubscriptionCount > 0)
-            signalSubscriptionTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
-
-
-        var userTaskSubscriptionTreeItem = new TreeViewItem()
-        {
-            Id = UserTaskTreeItemKey,
-            Text = "Usertask subscriptions (" + _instance.UserTaskSubscriptionCount + ")",
-            OnExpandedAsync = OnMessageSubscriptionItemExpanded,
-        };
-        if (_instance.UserTaskSubscriptionCount > 0)
-            userTaskSubscriptionTreeItem.Items = TreeViewItem.LoadingTreeViewItems;
-
-        Items = new[]
-        {
-            messageSubscriptionsTreeItem,
-            serviceSubscriptiontTreeItem,
-            signalSubscriptionTreeItem,
-            userTaskSubscriptionTreeItem
-        };
-    }
-
-    private async Task OnMessageSubscriptionItemExpanded(TreeViewItemExpandedEventArgs e)
+    private async Task OnSubscriptionItemExpanded(TreeViewItemExpandedEventArgs e)
     {
         if (_instance == null)
             return;
 
-
-        e.CurrentItem.Items = e.CurrentItem.Id switch
+        if (!InstanceTreeViewBuilder.TryParseSubscriptionCategory(e.CurrentItem.Id, out var category))
         {
-            MessagesTreeItemKey => (await LoadMessageSubscriptions()).ToList(),
-            ServiceTreeItemKey => await LoadServiceSubscriptions(),
-            SignalTreeItemKey => await LoadSignalSubscriptions(),
-            UserTaskTreeItemKey => await LoadUserTaskSubscriptions(),
-            _ => throw new Exception("Unknown item type")
+            e.CurrentItem.Items = [];
+            ErrorDialog($"Unsupported tree item category '{e.CurrentItem.Id}'.");
+            return;
+        }
+
+        e.CurrentItem.Items = await LoadSubscriptionItems(category);
+    }
+
+    private async Task<IReadOnlyList<ITreeViewItem>> LoadSubscriptionItems(InstanceSubscriptionTreeCategory category)
+    {
+        if (_instance == null)
+            return [];
+
+        return category switch
+        {
+            InstanceSubscriptionTreeCategory.Messages => InstanceTreeViewBuilder.BuildMessageSubscriptionItems(
+                await FlowzerApi.GetMessageSubscriptions(_instance.InstanceId),
+                _treeItemMappings),
+            InstanceSubscriptionTreeCategory.Services => InstanceTreeViewBuilder.BuildServiceSubscriptionItems(
+                await FlowzerApi.GetServiceSubscriptions(_instance.InstanceId)),
+            InstanceSubscriptionTreeCategory.Signals => InstanceTreeViewBuilder.BuildSignalSubscriptionItems(
+                await FlowzerApi.GetSignalSubscriptions(_instance.InstanceId)),
+            InstanceSubscriptionTreeCategory.UserTasks => InstanceTreeViewBuilder.BuildUserTaskSubscriptionItems(
+                await FlowzerApi.GetUserTasks(_instance.InstanceId)),
+            _ => throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported subscription category.")
         };
-
-    }
-
-    private async Task<IEnumerable<ITreeViewItem>> LoadMessageSubscriptions()
-    {
-        if (_instance == null)
-            return [];
-        return (await FlowzerApi.GetMessageSubscriptions(_instance.InstanceId)).Select(
-            x =>
-            {
-                var id = "message_" + x.Message.Name;
-                _treeItemMappings[id] = x;
-                var treeViewItem = new TreeViewItem(id, x.Message.Name);
-                return treeViewItem;
-            });
-    }
-
-    private async Task<IEnumerable<ITreeViewItem>> LoadServiceSubscriptions()
-    {
-        if (_instance == null)
-            return [];
-        return (await FlowzerApi.GetServiceSubscriptions(_instance.InstanceId)).Select(
-            x =>
-            {
-                var implementationName = TokenDisplayHelper.GetImplementation(x) ?? x.CurrentFlowNodeId ?? "(service task)";
-                var treeViewItem = new TreeViewItem(x.Id.ToString(), implementationName);
-                return treeViewItem;
-            });
-    }
-
-
-    private async Task<IEnumerable<ITreeViewItem>> LoadSignalSubscriptions()
-    {
-        if (_instance == null)
-            return [];
-        return (await FlowzerApi.GetSignalSubscriptions(_instance.InstanceId)).Select(
-            x =>
-            {
-                var treeViewItem = new TreeViewItem(x.Signal, x.Signal);
-                return treeViewItem;
-            });
-    }
-
-    private async Task<IEnumerable<ITreeViewItem>> LoadUserTaskSubscriptions()
-    {
-        if (_instance == null)
-            return [];
-        
-        
-        return (await FlowzerApi.GetUserTasks(_instance.InstanceId)).Select(
-            x =>
-            {
-                var implementationName = TokenDisplayHelper.GetImplementation(x) ?? x.CurrentFlowNodeId ?? "(user task)";
-                var treeViewItem = new TreeViewItem(x.Id.ToString(), implementationName);
-                return treeViewItem;
-            });
     }
 
 
@@ -302,7 +197,7 @@ public partial class Instance : IAsyncDisposable
         }
         catch (Exception e)
         {
-            throw new Exception($"Error adding token '{instanceTokenKey}', Message:" + e.Message, e);
+            throw new InvalidOperationException($"Error adding token '{instanceTokenKey}'.", e);
         }
     }
 
