@@ -136,7 +136,9 @@ public partial class Instance : IAsyncDisposable
 
         if (!InstanceTreeViewBuilder.TryParseSubscriptionCategory(e.CurrentItem.Id, out var category))
         {
-            throw new ArgumentOutOfRangeException(nameof(e.CurrentItem.Id), e.CurrentItem.Id, "Unsupported tree item category.");
+            e.CurrentItem.Items = [];
+            ErrorDialog($"Unsupported tree item category '{e.CurrentItem.Id}'.");
+            return;
         }
 
         e.CurrentItem.Items = await LoadSubscriptionItems(category);

@@ -9,6 +9,22 @@ namespace FlowzerFrontend.BusinessLogic;
 /// </summary>
 public static class InstanceTreeViewBuilder
 {
+    private static readonly IReadOnlyDictionary<InstanceSubscriptionTreeCategory, InstanceSubscriptionDefinition>
+        SubscriptionDefinitions =
+            new Dictionary<InstanceSubscriptionTreeCategory, InstanceSubscriptionDefinition>
+            {
+                [InstanceSubscriptionTreeCategory.Messages] = new("messages", "Message subscriptions"),
+                [InstanceSubscriptionTreeCategory.Services] = new("service", "Service subscriptions"),
+                [InstanceSubscriptionTreeCategory.Signals] = new("signal", "Signal subscriptions"),
+                [InstanceSubscriptionTreeCategory.UserTasks] = new("user", "Usertask subscriptions")
+            };
+
+    private static readonly IReadOnlyDictionary<string, InstanceSubscriptionTreeCategory> SubscriptionCategoriesByItemId =
+        SubscriptionDefinitions.ToDictionary(
+            definition => definition.Value.ItemId,
+            definition => definition.Key,
+            StringComparer.Ordinal);
+
     /// <summary>
     /// Baut aus den Tokens einer Instanz eine verschachtelte Tree-View-Struktur.
     /// </summary>
@@ -52,24 +68,13 @@ public static class InstanceTreeViewBuilder
         string? itemId,
         out InstanceSubscriptionTreeCategory category)
     {
-        switch (itemId)
+        if (string.IsNullOrWhiteSpace(itemId))
         {
-            case "messages":
-                category = InstanceSubscriptionTreeCategory.Messages;
-                return true;
-            case "service":
-                category = InstanceSubscriptionTreeCategory.Services;
-                return true;
-            case "signal":
-                category = InstanceSubscriptionTreeCategory.Signals;
-                return true;
-            case "user":
-                category = InstanceSubscriptionTreeCategory.UserTasks;
-                return true;
-            default:
-                category = default;
-                return false;
+            category = default;
+            return false;
         }
+
+        return SubscriptionCategoriesByItemId.TryGetValue(itemId, out category);
     }
 
     /// <summary>
@@ -180,25 +185,23 @@ public static class InstanceTreeViewBuilder
 
     private static string GetSubscriptionItemId(InstanceSubscriptionTreeCategory category)
     {
-        return category switch
-        {
-            InstanceSubscriptionTreeCategory.Messages => "messages",
-            InstanceSubscriptionTreeCategory.Services => "service",
-            InstanceSubscriptionTreeCategory.Signals => "signal",
-            InstanceSubscriptionTreeCategory.UserTasks => "user",
-            _ => throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported subscription category.")
-        };
+        return GetSubscriptionDefinition(category).ItemId;
     }
 
     private static string GetSubscriptionTitle(InstanceSubscriptionTreeCategory category, int count)
     {
-        return category switch
-        {
-            InstanceSubscriptionTreeCategory.Messages => $"Message subscriptions ({count})",
-            InstanceSubscriptionTreeCategory.Services => $"Service subscriptions ({count})",
-            InstanceSubscriptionTreeCategory.Signals => $"Signal subscriptions ({count})",
-            InstanceSubscriptionTreeCategory.UserTasks => $"Usertask subscriptions ({count})",
-            _ => throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported subscription category.")
-        };
+        return $"{GetSubscriptionDefinition(category).Title} ({count})";
     }
+
+    private static InstanceSubscriptionDefinition GetSubscriptionDefinition(InstanceSubscriptionTreeCategory category)
+    {
+        if (!SubscriptionDefinitions.TryGetValue(category, out var definition))
+        {
+            throw new ArgumentOutOfRangeException(nameof(category), category, "Unsupported subscription category.");
+        }
+
+        return definition;
+    }
+
+    private sealed record InstanceSubscriptionDefinition(string ItemId, string Title);
 }
