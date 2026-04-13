@@ -107,7 +107,7 @@ Empfohlene Reihenfolge:
 ## Was dieses Audit direkt ausgelöst hat
 
 - Der Folge-Backlog wurde in konkrete Issues zerlegt.
-- Alle bestehenden `[Test]`-Methoden erhalten in Folgearbeit bzw. im zugehörigen Paket einen kurzen Kommentar zum Testzweck.
+- Alle bestehenden NUnit- und Playwright-Tests wurden im zugehörigen Paket um einen kurzen Kommentar zum Testzweck ergänzt.
 - Die weitere Arbeit orientiert sich nicht mehr an diffusen Sammelaufgaben, sondern an klar reviewbaren Paketen.
 
 ## Leitprinzip für die nächsten Pakete
