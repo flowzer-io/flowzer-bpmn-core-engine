@@ -102,23 +102,8 @@ public static class ModelParser
 
         foreach (var xmlFlowNode in xmlProcessNode.Elements())
         {
-            var inputMappings =
-                xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "input")
-                    .Select(x =>
-                        new FlowzerIoMapping(
-                            x.Attribute("source")!.Value,
-                            x.Attribute("target")!.Value))
-                    .ToFlowzerList();
-            if (!inputMappings.Any()) inputMappings = null;
-
-            var outputMappings =
-                xmlFlowNode.Descendants().Where(x => x.Name.LocalName == "output")
-                    .Select(x =>
-                        new FlowzerIoMapping(
-                            x.Attribute("source")!.Value,
-                            x.Attribute("target")!.Value))
-                    .ToFlowzerList();
-            if (!outputMappings.Any()) outputMappings = null;
+            var inputMappings = ParseIoMappings(xmlFlowNode, "input");
+            var outputMappings = ParseIoMappings(xmlFlowNode, "output");
 
             switch (xmlFlowNode.Name.LocalName)
             {
@@ -564,10 +549,7 @@ public static class ModelParser
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
-            Implementation =
-                formDefinition?.Attribute("formKey")?.Value
-                ?? formDefinition?.Attribute("formId")?.Value
-                ?? throw new Exception("No implementation found"),
+            Implementation = GetUserTaskImplementation(xmlFlowNode, formDefinition),
             FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
             FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
@@ -577,6 +559,34 @@ public static class ModelParser
             OutputMappings = outputMappings,
             LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
         };
+    }
+
+    private static FlowzerList<FlowzerIoMapping>? ParseIoMappings(XElement xmlFlowNode, string mappingName)
+    {
+        var mappings = xmlFlowNode.Descendants()
+            .Where(element => element.Name.LocalName == mappingName)
+            .Select(element => new FlowzerIoMapping(
+                element.Attribute("source")!.Value,
+                element.Attribute("target")!.Value))
+            .ToFlowzerList();
+
+        return mappings.Any()
+            ? mappings
+            : null;
+    }
+
+    private static string GetUserTaskImplementation(XElement xmlFlowNode, XElement? formDefinition)
+    {
+        var implementation = formDefinition?.Attribute("formKey")?.Value
+                             ?? formDefinition?.Attribute("formId")?.Value;
+
+        if (!string.IsNullOrWhiteSpace(implementation))
+        {
+            return implementation;
+        }
+
+        throw new FlowzerModelParseException(
+            $"User task '{xmlFlowNode.Attribute("id")?.Value ?? "(unknown)"}' requires either formKey or formId in formDefinition.");
     }
 
     private static bool HasDescendant(this XElement element, string name,

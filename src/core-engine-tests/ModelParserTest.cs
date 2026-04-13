@@ -5,6 +5,7 @@ using BPMN.Flowzer.Events;
 using BPMN.Gateways;
 using BPMN.HumanInteraction;
 using BPMN.Process;
+using core_engine.Exceptions;
 using FluentAssertions;
 using FluentAssertions.Execution;
 using Task = System.Threading.Tasks.Task;
@@ -161,6 +162,59 @@ public class ModelParserTest
             boundaryTimer.TimerType.Should().Be(FlowzerTimerType.TimeDuration);
             boundaryTimer.TimerDefinition.TimeDuration!.Body.Should().Be("PT5S");
         }
+    }
+
+    // Testzweck: Prüft, dass User-Tasks ihre Implementierung auch aus formId lesen, wenn kein formKey vorhanden ist.
+    [Test]
+    public void ParseModel_ShouldUseFormId_WhenUserTaskHasNoFormKey()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_UserTaskFormId">
+                             <bpmn:process id="Process_UserTaskFormId" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formId="Form_InvoiceReview" />
+                                 </bpmn:extensionElements>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var model = ModelParser.ParseModel(xml);
+        var userTask = model.GetProcesses().Single().FlowElements.OfType<UserTask>().Should().ContainSingle().Subject;
+
+        userTask.Implementation.Should().Be("Form_InvoiceReview");
+    }
+
+    // Testzweck: Prüft, dass der Parser für User-Tasks ohne formKey/formId eine fachlich präzise Parser-Exception auslöst.
+    [Test]
+    public void ParseModel_ShouldThrowFlowzerModelParseException_WhenUserTaskHasNoImplementation()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_UserTaskMissingImplementation">
+                             <bpmn:process id="Process_UserTaskMissingImplementation" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition />
+                                 </bpmn:extensionElements>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var action = () => ModelParser.ParseModel(xml);
+
+        action.Should()
+            .Throw<FlowzerModelParseException>()
+            .WithMessage("User task 'Activity_UserTask'*");
     }
 
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)
