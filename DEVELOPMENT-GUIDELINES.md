@@ -194,6 +194,7 @@ public class ServiceTask : Task
 [TestFixture]
 public class CoreEngineTests
 {
+    // Testzweck: Prüft, dass eine gültige BPMN-Datei erfolgreich geladen wird.
     [Test]
     public async Task LoadBpmnFile_ValidXml_ShouldLoadSuccessfully()
     {
@@ -209,6 +210,7 @@ public class CoreEngineTests
         Assert.That(subscriptions, Is.Not.Empty);
     }
     
+    // Testzweck: Prüft, dass der Abschluss einer UserTask den Token korrekt weiterführt.
     [Test]
     public async Task HandleEvent_UserTaskCompletion_ShouldAdvanceToken()
     {
