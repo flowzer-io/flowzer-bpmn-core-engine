@@ -188,6 +188,8 @@ public class ServiceTask : Task
 
 ### Test-Struktur (empfohlen)
 
+- **Jeder Test bekommt direkt oberhalb von `[Test]` einen kurzen Kommentar im Format `// Testzweck: ...`, der den Zweck des Tests erklärt.**
+
 ```csharp
 [TestFixture]
 public class CoreEngineTests

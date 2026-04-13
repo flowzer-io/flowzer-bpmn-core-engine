@@ -13,6 +13,7 @@ namespace core_engine_tests;
 
 public class ModelParserTest
 {
+    // Testzweck: Prüft, dass der Parser die zentrale Beispiel-BPMN mit allen erwarteten Flow-Node-Typen einliest.
     [Test]
     public async Task ReadProcessesTest()
     {
@@ -55,6 +56,7 @@ public class ModelParserTest
             "Der Hashcode des Processes muss bei mehrmaligem Aufruf gleich bleiben");
     }
 
+    // Testzweck: Prüft, dass Subprozesse, verschachtelte Subprozesse und Call Activities korrekt geparst werden.
     [Test]
     public async Task SubprocessParseTest()
     {
@@ -74,6 +76,7 @@ public class ModelParserTest
         process.FlowElements.OfType<SubProcess>().Count(p => p.LoopCharacteristics != null).Should().Be(1);
     }
 
+    // Testzweck: Deckt den Fall „Parse Model Should Only Return Executable Processes“ ab.
     [Test]
     public async Task ParseModel_ShouldOnlyReturnExecutableProcesses()
     {
@@ -105,6 +108,7 @@ public class ModelParserTest
             .Be("ExecutableProcess");
     }
 
+    // Testzweck: Deckt den Fall „Parse Model Should Parse Boundary Timer Event“ ab.
     [Test]
     public void ParseModel_ShouldParseBoundaryTimerEvent()
     {

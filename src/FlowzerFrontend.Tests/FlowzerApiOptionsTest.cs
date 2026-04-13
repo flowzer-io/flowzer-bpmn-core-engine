@@ -8,6 +8,7 @@ namespace FlowzerFrontend.Tests;
 
 public class FlowzerApiOptionsTest
 {
+    // Testzweck: Deckt den Fall „Resolve Base Address Should Fallback To Host Base Address When Base URL Is Missing“ ab.
     [Test]
     public void ResolveBaseAddress_ShouldFallbackToHostBaseAddress_WhenBaseUrlIsMissing()
     {
@@ -18,6 +19,7 @@ public class FlowzerApiOptionsTest
         result.Should().Be(new Uri("http://localhost:5269/"));
     }
 
+    // Testzweck: Deckt den Fall „Resolve Base Address Should Use Configured Absolute Base Address When Present“ ab.
     [Test]
     public void ResolveBaseAddress_ShouldUseConfiguredAbsoluteBaseAddress_WhenPresent()
     {
@@ -31,6 +33,7 @@ public class FlowzerApiOptionsTest
         result.Should().Be(new Uri("https://api.flowzer.local/v1/"));
     }
 
+    // Testzweck: Deckt den Fall „Resolve Base Address Should Combine Relative Base Address With Frontend Host“ ab.
     [Test]
     public void ResolveBaseAddress_ShouldCombineRelativeBaseAddress_WithFrontendHost()
     {
@@ -44,6 +47,7 @@ public class FlowzerApiOptionsTest
         result.Should().Be(new Uri("http://localhost:5269/backend/"));
     }
 
+    // Testzweck: Deckt den Fall „Resolve Development User ID Should Return Configured User When Frontend Runs In Development“ ab.
     [Test]
     public void ResolveDevelopmentUserId_ShouldReturnConfiguredUser_WhenFrontendRunsInDevelopment()
     {
@@ -58,6 +62,7 @@ public class FlowzerApiOptionsTest
         result.Should().Be(developmentUserId);
     }
 
+    // Testzweck: Deckt den Fall „Resolve Development User ID Should Return Null When Frontend Does Not Run In Development“ ab.
     [Test]
     public void ResolveDevelopmentUserId_ShouldReturnNull_WhenFrontendDoesNotRunInDevelopment()
     {
@@ -71,6 +76,7 @@ public class FlowzerApiOptionsTest
         result.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Apply Default Headers Should Add Technical User Header When Development User Is Configured“ ab.
     [Test]
     public void ApplyDefaultHeaders_ShouldAddTechnicalUserHeader_WhenDevelopmentUserIsConfigured()
     {
@@ -93,6 +99,7 @@ public class FlowzerApiOptionsTest
             .Be(developmentUserId.ToString());
     }
 
+    // Testzweck: Deckt den Fall „Apply Default Headers Should Not Add Technical User Header Outside Development“ ab.
     [Test]
     public void ApplyDefaultHeaders_ShouldNotAddTechnicalUserHeader_OutsideDevelopment()
     {
@@ -107,6 +114,7 @@ public class FlowzerApiOptionsTest
         httpClient.DefaultRequestHeaders.Contains(FlowzerApiOptions.DevelopmentUserIdHeaderName).Should().BeFalse();
     }
 
+    // Testzweck: Deckt den Fall „Get JSON Request Should Use Configured HTTP Method And JSON Payload“ ab.
     [Test]
     public async Task GetJsonRequest_ShouldUseConfiguredHttpMethod_AndJsonPayload()
     {
@@ -128,6 +136,7 @@ public class FlowzerApiOptionsTest
         handler.LastContent.Should().Be(payload);
     }
 
+    // Testzweck: Deckt den Fall „Get Signal Subscriptions Should Use Signals Route“ ab.
     [Test]
     public async Task GetSignalSubscriptions_ShouldUseSignalsRoute()
     {
@@ -157,6 +166,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/instance/{instanceId}/subscription/signals"));
     }
 
+    // Testzweck: Deckt den Fall „Get Service Subscriptions Should Use Services Route“ ab.
     [Test]
     public async Task GetServiceSubscriptions_ShouldUseServicesRoute()
     {
@@ -183,6 +193,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/instance/{instanceId}/subscription/services"));
     }
 
+    // Testzweck: Deckt den Fall „Get Latest Form Should Use Latest Form Route“ ab.
     [Test]
     public async Task GetLatestForm_ShouldUseLatestFormRoute()
     {
@@ -208,6 +219,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/form/{formId}/latest"));
     }
 
+    // Testzweck: Deckt den Fall „Get Form Should Use Versioned Form Route“ ab.
     [Test]
     public async Task GetForm_ShouldUseVersionedFormRoute()
     {
@@ -234,6 +246,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/form/{formId}/{version}"));
     }
 
+    // Testzweck: Deckt den Fall „Upload Definition Should Include Previous GUID Query When Provided“ ab.
     [Test]
     public async Task UploadDefinition_ShouldIncludePreviousGuidQuery_WhenProvided()
     {
@@ -254,6 +267,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/definition?previousGuid={previousGuid}"));
     }
 
+    // Testzweck: Deckt den Fall „Upload Definition Should Not Include Previous GUID Query When GUID Is Empty“ ab.
     [Test]
     public async Task UploadDefinition_ShouldNotIncludePreviousGuidQuery_WhenGuidIsEmpty()
     {
@@ -272,6 +286,7 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri("http://localhost:5182/definition"));
     }
 
+    // Testzweck: Deckt den Fall „Deploy Definition Should Include Previous GUID Query When Provided“ ab.
     [Test]
     public async Task DeployDefinition_ShouldIncludePreviousGuidQuery_WhenProvided()
     {

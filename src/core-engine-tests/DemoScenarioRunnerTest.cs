@@ -6,6 +6,7 @@ namespace core_engine_tests;
 
 public class DemoScenarioRunnerTest
 {
+    // Testzweck: Deckt den Fall „Run Async Should Execute The Documented Happy Path“ ab.
     [Test]
     public async System.Threading.Tasks.Task RunAsync_ShouldExecuteTheDocumentedHappyPath()
     {

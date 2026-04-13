@@ -12,6 +12,7 @@ namespace core_engine_tests;
 
 public class EngineTest
 {
+    // Testzweck: Prüft den einfachen Start-/ServiceTask-/Ende-Happy-Path inklusive Variablenrückgabe.
     [Test]
     public async Task StartStopWithVariables()
     {
@@ -41,6 +42,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Prüft Input-/Output-Mappings zwischen Token-Variablen und Prozessvariablen.
     [Test]
     public async Task VariableMappingTest()
     {
@@ -66,6 +68,7 @@ public class EngineTest
     }
 
 
+    // Testzweck: Prüft, dass bedingte Sequenzflüsse nur den erwarteten Zielpfad aktivieren.
     [Test]
     public async Task ConditionalSequenceFlowTest()
     {
@@ -79,6 +82,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Prüft das Zusammenführen eines einfachen parallelen Gateway-Pfads.
     [Test]
     public async Task ParallelGatewayTest()
     {
@@ -93,6 +97,7 @@ public class EngineTest
     }
 
 
+    // Testzweck: Prüft ein komplexeres Parallel-Gateway-Szenario mit mehreren Join-Zuständen.
     [Test]
     public async Task ParallelGatewayComplexTest()
     {
@@ -143,6 +148,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Prüft, dass ein exklusives Gateway genau den erwarteten Pfad auswählt.
     [Test]
     public async Task ExklusiveGatewayTest()
     {
@@ -157,6 +163,7 @@ public class EngineTest
         });
     }
 
+    // Testzweck: Prüft den Unterschied zwischen normalem Endereignis und Terminate-End-Event.
     [Test]
     public async Task TerminateEndEventTest()
     {
@@ -180,6 +187,7 @@ public class EngineTest
         });
     }
 
+    // Testzweck: Deckt den Fall „Handle Error Should Fail Instance Without Throwing Not Implemented Exception“ ab.
     [Test]
     public async Task HandleError_ShouldFailInstanceWithoutThrowingNotImplementedException()
     {
@@ -198,6 +206,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Escalation Should Fail Instance Without Throwing Not Implemented Exception“ ab.
     [Test]
     public async Task HandleEscalation_ShouldFailInstanceWithoutThrowingNotImplementedException()
     {
@@ -216,6 +225,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Error On Completed Instance Should Keep Completed State“ ab.
     [Test]
     public async Task HandleError_OnCompletedInstance_ShouldKeepCompletedState()
     {
@@ -242,6 +252,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Escalation On Completed Instance Should Keep Completed State“ ab.
     [Test]
     public async Task HandleEscalation_OnCompletedInstance_ShouldKeepCompletedState()
     {
@@ -268,6 +279,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Prüft parallele Multi-Instance-Ausführung inklusive Ergebnisaggregation und Reihenfolge.
     [Test]
     public async Task ParallelTaskTest()
     {
@@ -334,6 +346,7 @@ public class EngineTest
         // });
     }
 
+    // Testzweck: Prüft sequentielle Multi-Instance-Ausführung inklusive Ergebnisaggregation.
     [Test]
     public async Task SequentialTest()
     {
@@ -387,6 +400,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Prüft Multi-Instance-Ausführung mit Completion Condition und vorzeitigem Abschluss.
     [Test]
     public async Task ParallelTaskWithCompletionConditionTest()
     {
@@ -432,6 +446,7 @@ public class EngineTest
         
     }
     
+    // Testzweck: Prüft, dass ein einfacher Timer-Start eine plausible Fälligkeit und Wiederholungszahl liefert.
     [Test]
     public async Task SimpleTimerTest()
     {
@@ -451,6 +466,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Timer Start Event Should Start Process When Due“ ab.
     [Test]
     public void TimerStartEvent_ShouldStartProcessWhenDue()
     {
@@ -499,6 +515,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Recurring Timer Start Event Should Reschedule After First Trigger“ ab.
     [Test]
     public void RecurringTimerStartEvent_ShouldRescheduleAfterFirstTrigger()
     {
@@ -518,6 +535,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Recurring Timer Start Event Should Catch Up Missed Occurrences And Keep Next Due Date“ ab.
     [Test]
     public void RecurringTimerStartEvent_ShouldCatchUpMissedOccurrencesAndKeepNextDueDate()
     {
@@ -537,6 +555,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Recurring Timer Start Event Should Reject Non Positive Repeat Intervals“ ab.
     [Test]
     public void RecurringTimerStartEvent_ShouldRejectNonPositiveRepeatIntervals()
     {
@@ -566,6 +585,7 @@ public class EngineTest
             .WithMessage("*positive ISO-8601 duration interval*");
     }
 
+    // Testzweck: Deckt den Fall „Intermediate Timer Catch Event Should Stay Active And Expose Due Date“ ab.
     [Test]
     public void IntermediateTimerCatchEvent_ShouldStayActiveAndExposeDueDate()
     {
@@ -610,6 +630,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Intermediate Timer Catch Event Should Continue When Due“ ab.
     [Test]
     public void IntermediateTimerCatchEvent_ShouldContinueWhenDue()
     {
@@ -652,6 +673,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Boundary Timer Event Should Interrupt Activity And Complete Boundary Path When Due“ ab.
     [Test]
     public void BoundaryTimerEvent_ShouldInterruptActivityAndCompleteBoundaryPathWhenDue()
     {
@@ -688,6 +710,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Boundary Timer Event Should Trigger Only Once For Non Interrupting Boundary Timer“ ab.
     [Test]
     public void BoundaryTimerEvent_ShouldTriggerOnlyOnceForNonInterruptingBoundaryTimer()
     {
@@ -739,6 +762,7 @@ public class EngineTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Cancel Should Terminate Waiting Instance And Clear Active Tasks“ ab.
     [Test]
     public void Cancel_ShouldTerminateWaitingInstanceAndClearActiveTasks()
     {
@@ -785,6 +809,7 @@ public class EngineTest
         }
     }
     
+    // Testzweck: Prüft die Ausführung mehrerer Subprozess-Ebenen innerhalb derselben Instanz.
     [Test]
     public async Task SubProcessTest()
     {

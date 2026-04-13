@@ -6,6 +6,7 @@ namespace core_engine_tests;
 
 public class CoreEngineTest
 {
+    // Testzweck: Deckt den Fall „Load BPMN File Should Expose Initial Start Subscription“ ab.
     [Test]
     public async System.Threading.Tasks.Task LoadBpmnFile_ShouldExposeInitialStartSubscription()
     {
@@ -21,6 +22,7 @@ public class CoreEngineTest
         subscriptions[0].BpmnNodeId.Should().Be("StartEvent_1");
     }
 
+    // Testzweck: Deckt den Fall „Load BPMN File Should Expose Message And Signal Subscriptions“ ab.
     [Test]
     public async System.Threading.Tasks.Task LoadBpmnFile_ShouldExposeMessageAndSignalSubscriptions()
     {
@@ -42,6 +44,7 @@ public class CoreEngineTest
             subscription.Name == "InventoryRefresh");
     }
 
+    // Testzweck: Deckt den Fall „Load BPMN File Should Hide Unsupported Plain Start Subscriptions When Multiple Plain Starts Exist“ ab.
     [Test]
     public async System.Threading.Tasks.Task LoadBpmnFile_ShouldHideUnsupportedPlainStartSubscriptions_WhenMultiplePlainStartsExist()
     {
@@ -55,6 +58,7 @@ public class CoreEngineTest
         subscriptions.Should().BeEmpty();
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Start Process And Expose User Task“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldStartProcessAndExposeUserTask()
     {
@@ -76,6 +80,7 @@ public class CoreEngineTest
         result.Instance.Interactions[0].NodeId.Should().Be("UserTask_1");
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Start Process From Message Subscription“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldStartProcessFromMessageSubscription()
     {
@@ -98,6 +103,7 @@ public class CoreEngineTest
         result.Instance.Interactions[0].NodeId.Should().Be("MessageUserTask_1");
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Start Process From Signal Subscription“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldStartProcessFromSignalSubscription()
     {
@@ -120,6 +126,7 @@ public class CoreEngineTest
         result.Instance.Interactions[0].NodeId.Should().Be("SignalUserTask_1");
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Advance User Task To Service Task And Then Finish Process“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldAdvanceUserTaskToServiceTask_AndThenFinishProcess()
     {
@@ -164,6 +171,7 @@ public class CoreEngineTest
         finishedSnapshots[^1].State.Should().Be(ProcessInstanceState.Completed);
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Allow Restart After Completed Instance Was Cleaned Up“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldAllowRestartAfterCompletedInstanceWasCleanedUp()
     {
@@ -208,6 +216,7 @@ public class CoreEngineTest
         restartedResult.Instance.Interactions[0].NodeId.Should().Be("UserTask_1");
     }
 
+    // Testzweck: Deckt den Fall „Handle Event Should Require Interaction ID When Multiple Active Interactions Share The Same Node“ ab.
     [Test]
     public async System.Threading.Tasks.Task HandleEvent_ShouldRequireInteractionId_WhenMultipleActiveInteractionsShareTheSameNode()
     {
@@ -248,6 +257,7 @@ public class CoreEngineTest
         continueResult.Instance.State.Should().Be(ProcessInstanceState.Completed);
     }
 
+    // Testzweck: Deckt den Fall „Load BPMN File Should Clear State When Reload Fails“ ab.
     [Test]
     public async System.Threading.Tasks.Task LoadBpmnFile_ShouldClearState_WhenReloadFails()
     {

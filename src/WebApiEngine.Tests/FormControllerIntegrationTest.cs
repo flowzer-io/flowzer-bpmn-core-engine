@@ -14,6 +14,7 @@ namespace WebApiEngine.Tests;
 
 public class FormControllerIntegrationTest
 {
+    // Testzweck: Deckt den Fall „Save Form Should Create Initial Version When No Version Exists“ ab.
     [Test]
     public async Task SaveForm_ShouldCreateInitialVersion_WhenNoVersionExists()
     {
@@ -43,6 +44,7 @@ public class FormControllerIntegrationTest
             form.Version.Minor == 1);
     }
 
+    // Testzweck: Deckt den Fall „Save Form Should Return Bad Request When Form ID Is Empty“ ab.
     [Test]
     public async Task SaveForm_ShouldReturnBadRequest_WhenFormIdIsEmpty()
     {
@@ -65,6 +67,7 @@ public class FormControllerIntegrationTest
         payload.ErrorMessage.Should().Be("FormId is required");
     }
 
+    // Testzweck: Deckt den Fall „Get Form Should Return Specific Version When Version Identifier Is Provided“ ab.
     [Test]
     public async Task GetForm_ShouldReturnSpecificVersion_WhenVersionIdentifierIsProvided()
     {
@@ -103,6 +106,7 @@ public class FormControllerIntegrationTest
         payload.Result.Version.ToString().Should().Be("1.0");
     }
 
+    // Testzweck: Deckt den Fall „Get Form Should Return Bad Request When Version Identifier Is Invalid“ ab.
     [Test]
     public async Task GetForm_ShouldReturnBadRequest_WhenVersionIdentifierIsInvalid()
     {
@@ -128,6 +132,7 @@ public class FormControllerIntegrationTest
         payload.ErrorMessage.Should().Contain("Version string must have two parts separated by a dot.");
     }
 
+    // Testzweck: Deckt den Fall „Save Form Metadata Should Use Route Form ID When Body Form ID Is Empty“ ab.
     [Test]
     public async Task SaveFormMetadata_ShouldUseRouteFormId_WhenBodyFormIdIsEmpty()
     {

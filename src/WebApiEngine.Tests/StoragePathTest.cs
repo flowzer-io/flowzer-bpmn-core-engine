@@ -6,6 +6,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class StoragePathTest
 {
+    // Testzweck: Deckt den Fall „Get Base Path Should Use Configured Storage Root When Environment Variable Is Set“ ab.
     [Test]
     public void GetBasePath_ShouldUseConfiguredStorageRoot_WhenEnvironmentVariableIsSet()
     {

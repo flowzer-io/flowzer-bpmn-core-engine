@@ -15,6 +15,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class TimerControllerIntegrationTest
 {
+    // Testzweck: Deckt den Fall „Get All Timers Should Return Definition And Instance Scoped Timer Subscriptions“ ab.
     [Test]
     public async Task GetAllTimers_ShouldReturnDefinitionAndInstanceScopedTimerSubscriptions()
     {

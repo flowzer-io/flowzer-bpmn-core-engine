@@ -6,6 +6,7 @@ namespace FlowzerFrontend.Tests;
 
 public class InstanceListFilterHelperTest
 {
+    // Testzweck: Deckt den Fall „Parse Or Default Should Fallback To All For Unknown Values“ ab.
     [Test]
     public void ParseOrDefault_ShouldFallbackToAll_ForUnknownValues()
     {
@@ -14,6 +15,7 @@ public class InstanceListFilterHelperTest
         result.Should().Be(InstanceListFilter.All);
     }
 
+    // Testzweck: Deckt den Fall „Apply Should Return Only Active States For Active Filter“ ab.
     [Test]
     public void Apply_ShouldReturnOnlyActiveStates_ForActiveFilter()
     {
@@ -33,6 +35,7 @@ public class InstanceListFilterHelperTest
             instance.State == ProcessInstanceStateDto.Waiting);
     }
 
+    // Testzweck: Deckt den Fall „Apply Should Return Only Done States For Done Filter“ ab.
     [Test]
     public void Apply_ShouldReturnOnlyDoneStates_ForDoneFilter()
     {
@@ -51,6 +54,7 @@ public class InstanceListFilterHelperTest
             instance.State == ProcessInstanceStateDto.Terminated);
     }
 
+    // Testzweck: Deckt den Fall „Apply Should Return Only Error States For Error Filter“ ab.
     [Test]
     public void Apply_ShouldReturnOnlyErrorStates_ForErrorFilter()
     {
@@ -69,6 +73,7 @@ public class InstanceListFilterHelperTest
             instance.State == ProcessInstanceStateDto.Failed);
     }
 
+    // Testzweck: Deckt den Fall „To Route Segment Should Return Stable Segments“ ab.
     [Test]
     public void ToRouteSegment_ShouldReturnStableSegments()
     {

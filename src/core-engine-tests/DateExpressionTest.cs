@@ -4,6 +4,7 @@ namespace core_engine_tests;
 
 public class DateExpressionTest
 {
+    // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit Jahren, Monaten und Tagen.
     [Test]
         public void Test_ParseIso8601Duration_YearsMonthsDays()
         {
@@ -13,6 +14,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit Wochenangabe.
         [Test]
         public void Test_ParseIso8601Duration_Weeks()
         {
@@ -22,6 +24,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit Tages- und Zeitanteilen.
         [Test]
         public void Test_ParseIso8601Duration_DaysHoursMinutesSeconds()
         {
@@ -31,6 +34,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit Stunden und Minuten.
         [Test]
         public void Test_ParseIso8601Duration_HoursMinutes()
         {
@@ -40,6 +44,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft, dass eine leere ISO-8601-Dauer korrekt als Null-Dauer behandelt wird.
         [Test]
         public void Test_ParseIso8601Duration_Empty()
         {
@@ -49,6 +54,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit reinem Zeitanteil.
         [Test]
         public void Test_ParseIso8601Duration_OnlyTime()
         {
@@ -58,6 +64,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft das Parsen einer ISO-8601-Dauer mit reinem Datumsanteil.
         [Test]
         public void Test_ParseIso8601Duration_OnlyDate()
         {
@@ -67,6 +74,7 @@ public class DateExpressionTest
             Assert.That(actual, Is.EqualTo(expected));
         }
 
+        // Testzweck: Prüft, dass ein ungültiges ISO-8601-Format sauber abgelehnt wird.
         [Test]
         public void Test_ParseIso8601Duration_InvalidFormat()
         {

@@ -7,6 +7,7 @@ namespace FlowzerFrontend.Tests;
 
 public class TokenDisplayHelperTest
 {
+    // Testzweck: Deckt den Fall „Get Implementation Should Return Null When Current Flow Element Is Missing“ ab.
     [Test]
     public void GetImplementation_ShouldReturnNull_WhenCurrentFlowElementIsMissing()
     {
@@ -17,6 +18,7 @@ public class TokenDisplayHelperTest
         result.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Get Flow Element ID Should Fallback To Current Flow Node ID When Expando Value Is Missing“ ab.
     [Test]
     public void GetFlowElementId_ShouldFallbackToCurrentFlowNodeId_WhenExpandoValueIsMissing()
     {
@@ -30,6 +32,7 @@ public class TokenDisplayHelperTest
         result.Should().Be("Activity_UserTask");
     }
 
+    // Testzweck: Deckt den Fall „Get Implementation Should Return Null When Expando Contains Null Value“ ab.
     [Test]
     public void GetImplementation_ShouldReturnNull_WhenExpandoContainsNullValue()
     {
@@ -46,6 +49,7 @@ public class TokenDisplayHelperTest
         result.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Get Display Name Should Prefer Name And Fallback To ID“ ab.
     [Test]
     public void GetDisplayName_ShouldPreferName_AndFallbackToId()
     {

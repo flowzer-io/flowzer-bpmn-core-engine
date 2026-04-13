@@ -4,6 +4,7 @@ namespace WebApiEngine.Tests;
 
 public class ModelVersionTest
 {
+    // Testzweck: Deckt den Fall „Equality Operators Should Compare Major And Minor Values“ ab.
     [Test]
     public void EqualityOperators_ShouldCompareMajorAndMinorValues()
     {
@@ -18,6 +19,7 @@ public class ModelVersionTest
         left.GetHashCode().Should().Be(equalRight.GetHashCode());
     }
 
+    // Testzweck: Deckt den Fall „Plus Operator Should Return New Instance Without Mutating Original Version“ ab.
     [Test]
     public void PlusOperator_ShouldReturnNewInstance_WithoutMutatingOriginalVersion()
     {

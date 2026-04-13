@@ -7,6 +7,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class TimerSubscriptionStorageTest
 {
+    // Testzweck: Deckt den Fall „Add And Get Timer Subscriptions Should Persist Definition And Instance Timers“ ab.
     [Test]
     public async Task AddAndGetTimerSubscriptions_ShouldPersistDefinitionAndInstanceTimers()
     {
@@ -38,6 +39,7 @@ public class TimerSubscriptionStorageTest
         instanceTimers.Should().ContainSingle(subscription => subscription.Id == instanceTimer.Id);
     }
 
+    // Testzweck: Deckt den Fall „Remove Operations Should Delete Matching Timer Subscriptions Only“ ab.
     [Test]
     public async Task RemoveOperations_ShouldDeleteMatchingTimerSubscriptionsOnly()
     {

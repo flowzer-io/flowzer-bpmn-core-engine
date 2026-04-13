@@ -7,6 +7,7 @@ namespace FlowzerFrontend.Tests;
 
 public class ModelListViewHelperTest
 {
+    // Testzweck: Deckt den Fall „Apply Query Should Filter Across Name Definition ID And Description“ ab.
     [Test]
     public void ApplyQuery_ShouldFilterAcrossNameDefinitionIdAndDescription()
     {
@@ -32,6 +33,7 @@ public class ModelListViewHelperTest
         result[0].DefinitionId.Should().Be("invoice-process");
     }
 
+    // Testzweck: Deckt den Fall „Apply Query Should Sort Ascending By Name“ ab.
     [Test]
     public void ApplyQuery_ShouldSortAscendingByName()
     {
@@ -46,6 +48,7 @@ public class ModelListViewHelperTest
         result.Select(model => model.Name).Should().Equal("Alpha", "Zeta");
     }
 
+    // Testzweck: Deckt den Fall „Apply Query Should Sort Descending By Name“ ab.
     [Test]
     public void ApplyQuery_ShouldSortDescendingByName()
     {

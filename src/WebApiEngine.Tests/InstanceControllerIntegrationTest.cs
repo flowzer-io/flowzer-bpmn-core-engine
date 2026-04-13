@@ -15,6 +15,7 @@ namespace WebApiEngine.Tests;
 
 public class InstanceControllerIntegrationTest
 {
+    // Testzweck: Deckt den Fall „Get Signal Subscriptions Should Return Subscriptions For Instance“ ab.
     [Test]
     public async Task GetSignalSubscriptions_ShouldReturnSubscriptionsForInstance()
     {
@@ -42,6 +43,7 @@ public class InstanceControllerIntegrationTest
         payload.Result[0].ProcessInstanceId.Should().Be(instanceId);
     }
 
+    // Testzweck: Deckt den Fall „Get Service Subscriptions Should Return Active Service Task Tokens“ ab.
     [Test]
     public async Task GetServiceSubscriptions_ShouldReturnActiveServiceTaskTokens()
     {
@@ -63,6 +65,7 @@ public class InstanceControllerIntegrationTest
         payload.Result.Should().OnlyContain(token => token.State == FlowNodeStateDto.Active);
     }
 
+    // Testzweck: Deckt den Fall „Get Timer Subscriptions Should Return Timers For Instance“ ab.
     [Test]
     public async Task GetTimerSubscriptions_ShouldReturnTimersForInstance()
     {
@@ -95,6 +98,7 @@ public class InstanceControllerIntegrationTest
         payload.Result[0].Kind.Should().Be(nameof(TimerSubscriptionKind.IntermediateCatchEvent));
     }
 
+    // Testzweck: Deckt den Fall „Get All Instances Should Include Finished Instances For Done And Error Filters“ ab.
     [Test]
     public async Task GetAllInstances_ShouldIncludeFinishedInstances_ForDoneAndErrorFilters()
     {

@@ -12,6 +12,7 @@ public class MessageTest
     private static Definitions Definitions { get; } = ModelParser.ParseModel(File.OpenRead("embeddings/Messages.bpmn")).GetAwaiter().GetResult();
     private Process Process { get; } = Definitions.GetProcesses().First();
     
+    // Testzweck: Prüft den vollständigen Nachrichtenfluss mit Boundary-, Receive- und Intermediate-Message-Ereignissen.
     [Test]
     public void Flow1Test()
     {
@@ -76,6 +77,7 @@ public class MessageTest
         }
     }
 
+    // Testzweck: Prüft, dass ein Message-Start-Event direkt eine neue Instanz bis zum Abschluss auslösen kann.
     [Test]
     public void Flow2Test()
     {

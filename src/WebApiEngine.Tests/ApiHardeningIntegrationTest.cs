@@ -23,6 +23,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class ApiHardeningIntegrationTest
 {
+    // Testzweck: Deckt den Fall „Health Should Return Successful Liveness Payload“ ab.
     [Test]
     public async Task Health_ShouldReturnSuccessfulLivenessPayload()
     {
@@ -42,6 +43,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Storage.Should().Be("NotChecked");
     }
 
+    // Testzweck: Deckt den Fall „Ready Health Should Return Service Unavailable When Storage Probe Fails“ ab.
     [Test]
     public async Task ReadyHealth_ShouldReturnServiceUnavailable_WhenStorageProbeFails()
     {
@@ -65,6 +67,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Be("Storage is unavailable.");
     }
 
+    // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Scheduler And Storage Snapshot“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldReturnSchedulerAndStorageSnapshot()
     {
@@ -193,6 +196,7 @@ public class ApiHardeningIntegrationTest
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
 
+    // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Service Unavailable When Storage Snapshot Fails“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldReturnServiceUnavailable_WhenStorageSnapshotFails()
     {
@@ -213,6 +217,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Be("Operations diagnostics are currently unavailable.");
     }
 
+    // Testzweck: Deckt den Fall „Operations Diagnostics Should Redact Custom Storage Root Outside Development“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldRedactCustomStorageRootOutsideDevelopment()
     {
@@ -245,6 +250,7 @@ public class ApiHardeningIntegrationTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Operations Diagnostics Should Describe Enabled Open Telemetry Exporters“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldDescribeEnabledOpenTelemetryExporters()
     {
@@ -282,6 +288,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi.Test");
     }
 
+    // Testzweck: Deckt den Fall „Operations Diagnostics Should Hide Configured OTLP Hints When Observability Is Disabled“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldHideConfiguredOtlpHints_WhenObservabilityIsDisabled()
     {
@@ -314,6 +321,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.OtlpHeadersHint.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Add Flowzer Observability Should Throw Clear Argument Exception When OTLP Endpoint Is Invalid“ ab.
     [Test]
     public void AddFlowzerObservability_ShouldThrowClearArgumentException_WhenOtlpEndpointIsInvalid()
     {
@@ -333,6 +341,7 @@ public class ApiHardeningIntegrationTest
             .WithMessage("*Observability:OtlpEndpoint*absolute http(s) URI*");
     }
 
+    // Testzweck: Deckt den Fall „Upload Definition Should Use Technical User Header When No Authentication Exists Yet“ ab.
     [Test]
     public async Task UploadDefinition_ShouldUseTechnicalUserHeader_WhenNoAuthenticationExistsYet()
     {
@@ -361,6 +370,7 @@ public class ApiHardeningIntegrationTest
         storage.StoredDefinitions[0].SavedByUser.Should().Be(expectedUserId);
     }
 
+    // Testzweck: Deckt den Fall „Upload Definition Should Return Unauthorized When No Authentication Data Is Present Outside Development“ ab.
     [Test]
     public async Task UploadDefinition_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
@@ -388,6 +398,7 @@ public class ApiHardeningIntegrationTest
         storage.StoredDefinitions.Should().BeEmpty();
     }
 
+    // Testzweck: Deckt den Fall „Deploy Definition Should Return Unauthorized When No Authentication Data Is Present Outside Development“ ab.
     [Test]
     public async Task DeployDefinition_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
@@ -415,6 +426,7 @@ public class ApiHardeningIntegrationTest
         storage.StoredDefinitions.Should().BeEmpty();
     }
 
+    // Testzweck: Deckt den Fall „Get All User Tasks Should Return Unauthorized When No Authentication Data Is Present Outside Development“ ab.
     [Test]
     public async Task GetAllUserTasks_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
@@ -435,6 +447,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("resolved user context");
     }
 
+    // Testzweck: Deckt den Fall „Get All User Tasks Should Use Resolved User Context When Accessor Provides Authenticated User“ ab.
     [Test]
     public async Task GetAllUserTasks_ShouldUseResolvedUserContext_WhenAccessorProvidesAuthenticatedUser()
     {
@@ -460,6 +473,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Should().BeEmpty();
     }
 
+    // Testzweck: Deckt den Fall „User Task Endpoint Should Return Bad Request When Process Instance ID Is Missing“ ab.
     [Test]
     public async Task UserTaskEndpoint_ShouldReturnBadRequest_WhenProcessInstanceIdIsMissing()
     {
@@ -491,6 +505,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("ProcessInstanceId");
     }
 
+    // Testzweck: Deckt den Fall „User Task Endpoint Should Return Unauthorized When No Authentication Data Is Present Outside Development“ ab.
     [Test]
     public async Task UserTaskEndpoint_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
@@ -516,6 +531,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("resolved user context");
     }
 
+    // Testzweck: Deckt den Fall „Form Result Should Return Unauthorized When No Authentication Data Is Present Outside Development“ ab.
     [Test]
     public async Task FormResult_ShouldReturnUnauthorized_WhenNoAuthenticationDataIsPresentOutsideDevelopment()
     {
@@ -541,6 +557,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("resolved user context");
     }
 
+    // Testzweck: Deckt den Fall „Missing Form Metadata Should Return JSON API Contract When Controller Throws File Not Found“ ab.
     [Test]
     public async Task MissingFormMetadata_ShouldReturnJsonApiContract_WhenControllerThrowsFileNotFound()
     {
@@ -561,6 +578,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("Form metadata was not found");
     }
 
+    // Testzweck: Deckt den Fall „Message Endpoint Should Return API Status Result When No Subscription Matches“ ab.
     [Test]
     public async Task MessageEndpoint_ShouldReturnApiStatusResult_WhenNoSubscriptionMatches()
     {
@@ -582,6 +600,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("No process instance is waiting for a message");
     }
 
+    // Testzweck: Deckt den Fall „Message Endpoint Should Return Not Found When Subscription References Missing Process“ ab.
     [Test]
     public async Task MessageEndpoint_ShouldReturnNotFound_WhenSubscriptionReferencesMissingProcess()
     {
@@ -604,6 +623,7 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("No process with the id");
     }
 
+    // Testzweck: Deckt den Fall „Message Endpoint Should Return Successful Result Payload When Message Was Handled“ ab.
     [Test]
     public async Task MessageEndpoint_ShouldReturnSuccessfulResultPayload_WhenMessageWasHandled()
     {

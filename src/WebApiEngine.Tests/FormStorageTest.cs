@@ -7,6 +7,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class FormStorageTest
 {
+    // Testzweck: Deckt den Fall „Get Max Version Should Return Zero Version When No Forms Exist“ ab.
     [Test]
     public async Task GetMaxVersion_ShouldReturnZeroVersion_WhenNoFormsExist()
     {
@@ -18,6 +19,7 @@ public class FormStorageTest
         version.Minor.Should().Be(0);
     }
 
+    // Testzweck: Deckt den Fall „Update Form Meta Data Should Overwrite Existing Metadata“ ab.
     [Test]
     public async Task UpdateFormMetaData_ShouldOverwriteExistingMetadata()
     {
@@ -30,6 +32,7 @@ public class FormStorageTest
         metadata.Name.Should().Be("Neue Bezeichnung");
     }
 
+    // Testzweck: Deckt den Fall „Delete Form Meta Data Should Delete Metadata And Associated Forms“ ab.
     [Test]
     public async Task DeleteFormMetaData_ShouldDeleteMetadataAndAssociatedForms()
     {
@@ -51,6 +54,7 @@ public class FormStorageTest
         await FluentActions.Awaiting(() => context.FormStorage.GetForm(firstForm.Id)).Should().ThrowAsync<FileNotFoundException>();
     }
 
+    // Testzweck: Deckt den Fall „Delete Form Should Delete Only Requested Version“ ab.
     [Test]
     public async Task DeleteForm_ShouldDeleteOnlyRequestedVersion()
     {

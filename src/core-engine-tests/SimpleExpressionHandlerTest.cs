@@ -10,6 +10,7 @@ public class SimpleExpressionHandlerTest
 {
     private readonly SimpleExpressionHandler _handler = new();
 
+    // Testzweck: Deckt den Fall „Get Value Should Resolve Numeric Literal“ ab.
     [Test]
     public void GetValue_ShouldResolveNumericLiteral()
     {
@@ -18,6 +19,7 @@ public class SimpleExpressionHandlerTest
         result.Should().Be(12345);
     }
 
+    // Testzweck: Deckt den Fall „Get Value Should Parse JSON Object And Array Payloads“ ab.
     [Test]
     public void GetValue_ShouldParseJsonObjectAndArrayPayloads()
     {
@@ -35,6 +37,7 @@ public class SimpleExpressionHandlerTest
         tags[1].GetValue("Index").Should().Be(2L);
     }
 
+    // Testzweck: Deckt den Fall „Match Expression Should Compare Nested Properties“ ab.
     [Test]
     public void MatchExpression_ShouldCompareNestedProperties()
     {
@@ -54,6 +57,7 @@ public class SimpleExpressionHandlerTest
         matches.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Match Expression Should Evaluate Boolean Comparisons“ ab.
     [Test]
     public void MatchExpression_ShouldEvaluateBooleanComparisons()
     {
@@ -70,6 +74,7 @@ public class SimpleExpressionHandlerTest
         matches.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Get Value Should Parse Decimal Literals Culture Invariant“ ab.
     [Test]
     public void GetValue_ShouldParseDecimalLiteralsCultureInvariant()
     {
@@ -93,6 +98,7 @@ public class SimpleExpressionHandlerTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Create Default Should Fallback To Simple Expression Handler When Clear Script Is Unavailable“ ab.
     [Test]
     public void CreateDefault_ShouldFallbackToSimpleExpressionHandler_WhenClearScriptIsUnavailable()
     {
@@ -101,6 +107,7 @@ public class SimpleExpressionHandlerTest
         config.ExpressionHandler.Should().BeOfType<SimpleExpressionHandler>();
     }
 
+    // Testzweck: Deckt den Fall „Create Default Should Keep Custom Expression Handler When Factory Succeeds“ ab.
     [Test]
     public void CreateDefault_ShouldKeepCustomExpressionHandler_WhenFactorySucceeds()
     {

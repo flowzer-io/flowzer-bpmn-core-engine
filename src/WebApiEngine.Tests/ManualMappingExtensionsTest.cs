@@ -12,6 +12,7 @@ namespace WebApiEngine.Tests;
 
 public class ManualMappingExtensionsTest
 {
+    // Testzweck: Deckt den Fall „Message DTO To Model Should Serialize Variables As JSON“ ab.
     [Test]
     public void MessageDto_ToModel_ShouldSerializeVariablesAsJson()
     {
@@ -37,6 +38,7 @@ public class ManualMappingExtensionsTest
         result.Variables.Should().Contain("\"Amount\":12");
     }
 
+    // Testzweck: Deckt den Fall „Message To DTO Should Deserialize Variables From JSON“ ab.
     [Test]
     public void Message_ToDto_ShouldDeserializeVariablesFromJson()
     {
@@ -57,6 +59,7 @@ public class ManualMappingExtensionsTest
         result.Variables.GetValue("approved").Should().Be(true);
     }
 
+    // Testzweck: Deckt den Fall „Token To DTO Should Map Runtime Fields Without Auto Mapper“ ab.
     [Test]
     public void Token_ToDto_ShouldMapRuntimeFieldsWithoutAutoMapper()
     {
@@ -125,6 +128,7 @@ public class ManualMappingExtensionsTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Extended User Task Subscription To DTO Should Include Definition And Token Data“ ab.
     [Test]
     public void ExtendedUserTaskSubscription_ToDto_ShouldIncludeDefinitionAndTokenData()
     {
@@ -166,6 +170,7 @@ public class ManualMappingExtensionsTest
         result.UserGroups.Should().BeEquivalentTo(subscription.UserGroups);
     }
 
+    // Testzweck: Deckt den Fall „BPMN Meta Definition DTO To Model And Back Should Preserve Values“ ab.
     [Test]
     public void BpmnMetaDefinitionDto_ToModel_AndBack_ShouldPreserveValues()
     {
@@ -182,6 +187,7 @@ public class ManualMappingExtensionsTest
         roundtrip.Should().BeEquivalentTo(dto);
     }
 
+    // Testzweck: Deckt den Fall „Form DTO To Model And Back Should Preserve Relevant Values“ ab.
     [Test]
     public void FormDto_ToModel_AndBack_ShouldPreserveRelevantValues()
     {
@@ -199,6 +205,7 @@ public class ManualMappingExtensionsTest
         roundtrip.Should().BeEquivalentTo(dto);
     }
 
+    // Testzweck: Deckt den Fall „Form DTO To Model Should Throw When Form Data Is Missing“ ab.
     [Test]
     public void FormDto_ToModel_ShouldThrow_WhenFormDataIsMissing()
     {
@@ -217,6 +224,7 @@ public class ManualMappingExtensionsTest
             .WithMessage("*FormData is required*");
     }
 
+    // Testzweck: Deckt den Fall „Token To DTO Should Use Empty String For Non Flow Node Tokens“ ab.
     [Test]
     public void Token_ToDto_ShouldUseEmptyString_ForNonFlowNodeTokens()
     {
