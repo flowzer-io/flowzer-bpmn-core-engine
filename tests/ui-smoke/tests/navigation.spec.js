@@ -44,6 +44,7 @@ const smokePages = [
 ];
 
 for (const smokePage of smokePages) {
+  // Testzweck: Prüft für jede Kernroute, dass die Seite ohne fatale Frontend-Fehler lädt und ihre Grundelemente sichtbar sind.
   test(`${smokePage.path} lädt ohne fatale UI-Fehler`, async ({ page }) => {
     const pageErrors = [];
     const failedRequests = [];
@@ -61,6 +62,7 @@ for (const smokePage of smokePages) {
   });
 }
 
+// Testzweck: Prüft, dass die Hauptnavigation zwischen den wichtigsten Kernseiten korrekt routet.
 test('Hauptnavigation springt zwischen den Kernseiten', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
 
@@ -77,6 +79,7 @@ test('Hauptnavigation springt zwischen den Kernseiten', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Instances' })).toBeVisible();
 });
 
+// Testzweck: Prüft, dass die Instanzfilter-Navigation ausschließlich auf gültige Frontend-Routen verzweigt.
 test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', async ({ page }) => {
   await page.goto('/instances', { waitUntil: 'networkidle' });
 
@@ -98,6 +101,7 @@ test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', asyn
 });
 
 
+// Testzweck: Prüft, dass ungültige Modellrouten kontrolliert einen Inline-Fehler statt eines fatalen Blazor-Absturzes zeigen.
 test('Ungültige Modellrouten zeigen einen Inline-Fehler statt eines fatalen Blazor-Absturzes', async ({ page }) => {
   const pageErrors = [];
 
