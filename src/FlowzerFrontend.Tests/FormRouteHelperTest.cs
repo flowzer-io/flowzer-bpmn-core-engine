@@ -5,6 +5,7 @@ namespace FlowzerFrontend.Tests;
 
 public class FormRouteHelperTest
 {
+    // Testzweck: Deckt den Fall „Parse Should Recognize Create Route“ ab.
     [Test]
     public void Parse_ShouldRecognizeCreateRoute()
     {
@@ -15,6 +16,7 @@ public class FormRouteHelperTest
         result.ErrorMessage.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Parse Should Return GUID When Route Contains Existing Form ID“ ab.
     [Test]
     public void Parse_ShouldReturnGuid_WhenRouteContainsExistingFormId()
     {
@@ -27,6 +29,7 @@ public class FormRouteHelperTest
         result.ErrorMessage.Should().BeNull();
     }
 
+    // Testzweck: Deckt den Fall „Parse Should Return Error For Invalid Route Value“ ab.
     [Test]
     public void Parse_ShouldReturnError_ForInvalidRouteValue()
     {

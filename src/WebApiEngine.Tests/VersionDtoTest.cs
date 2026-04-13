@@ -5,6 +5,7 @@ namespace WebApiEngine.Tests;
 
 public class VersionDtoTest
 {
+    // Testzweck: Deckt den Fall „Equals And Hash Code Should Treat Same Version Values As Equal“ ab.
     [Test]
     public void EqualsAndHashCode_ShouldTreatSameVersionValuesAsEqual()
     {
@@ -16,6 +17,7 @@ public class VersionDtoTest
         left.GetHashCode().Should().Be(right.GetHashCode());
     }
 
+    // Testzweck: Deckt den Fall „From String Should Parse Valid Version Numbers“ ab.
     [Test]
     public void FromString_ShouldParseValidVersionNumbers()
     {
@@ -24,6 +26,7 @@ public class VersionDtoTest
         result.Should().BeEquivalentTo(new VersionDto(2, 7));
     }
 
+    // Testzweck: Deckt den Fall „From String Should Throw For Invalid Version Strings“ ab.
     [Test]
     public void FromString_ShouldThrowForInvalidVersionStrings()
     {
@@ -32,6 +35,7 @@ public class VersionDtoTest
         action.Should().Throw<ArgumentException>();
     }
 
+    // Testzweck: Deckt den Fall „Shared DTOs Should Expose Safe Defaults For Optional Collections And Metadata“ ab.
     [Test]
     public void SharedDtos_ShouldExposeSafeDefaults_ForOptionalCollectionsAndMetadata()
     {

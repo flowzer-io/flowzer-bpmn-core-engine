@@ -9,6 +9,7 @@ namespace core_engine_tests;
 
 public class JavaScriptExpressionTest
 {
+    // Testzweck: Prüft den minimalen JavaScript-/Dynamic-Grundfall für die Testumgebung.
     [Test]
     public void JavaScriptTest1()
     {
@@ -16,6 +17,7 @@ public class JavaScriptExpressionTest
         globals.TryAdd("a", "fghjk");
     }
 
+    // Testzweck: Deckt den Fall „Is Missing V8 Dependency Should Return True For Type Load Exception“ ab.
     [Test]
     public void IsMissingV8Dependency_ShouldReturnTrueForTypeLoadException()
     {
@@ -26,6 +28,7 @@ public class JavaScriptExpressionTest
         shouldIgnore.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Is Missing V8 Dependency Should Return True For Nested Dll Not Found Exception“ ab.
     [Test]
     public void IsMissingV8Dependency_ShouldReturnTrueForNestedDllNotFoundException()
     {
@@ -38,6 +41,7 @@ public class JavaScriptExpressionTest
         shouldIgnore.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Is Missing V8 Dependency Should Return False For Other Exceptions“ ab.
     [Test]
     public void IsMissingV8Dependency_ShouldReturnFalseForOtherExceptions()
     {
@@ -48,6 +52,7 @@ public class JavaScriptExpressionTest
         shouldIgnore.Should().BeFalse();
     }
 
+    // Testzweck: Prüft die FEEL-Auswertung über ClearScript/V8, sofern die nativen Abhängigkeiten vorhanden sind.
     [Test]
     public void JavaScriptFeelTest()
     {

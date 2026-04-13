@@ -105,6 +105,7 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 - [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md) – ehrliche Bestandsaufnahme
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
+- [docs/CODEBASE-AUDIT-2026-04.md](docs/CODEBASE-AUDIT-2026-04.md) – Audit-Feststellungen und Folgepakete nach der Revitalisierung
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/FRONTEND.md](docs/FRONTEND.md) – Frontend-Konfiguration, lokale Starts und UI-Smoke-Tests

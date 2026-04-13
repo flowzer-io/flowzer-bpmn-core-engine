@@ -29,6 +29,7 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 - **Nicht von vollständiger BPMN-2.0-Abdeckung ausgehen.** Erst im Code und in den Tests verifizieren.
 - **Kleine, fokussierte Änderungen bevorzugen.**
 - **Engine-Änderungen möglichst mit Tests absichern.**
+- **Jeder Test soll einen kurzen Kommentar zum Testzweck tragen (`// Testzweck: ...`).**
 - **Doku aktualisieren, wenn sich Architektur oder Setup ändern.**
 - **Code auf Englisch, erklärende Kommentare/Dokumentation bevorzugt auf Deutsch.**
 

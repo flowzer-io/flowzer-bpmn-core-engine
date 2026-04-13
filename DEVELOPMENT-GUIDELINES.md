@@ -188,10 +188,13 @@ public class ServiceTask : Task
 
 ### Test-Struktur (empfohlen)
 
+- **Jeder Test bekommt direkt oberhalb von `[Test]` einen kurzen Kommentar im Format `// Testzweck: ...`, der den Zweck des Tests erklärt.**
+
 ```csharp
 [TestFixture]
 public class CoreEngineTests
 {
+    // Testzweck: Prüft, dass eine gültige BPMN-Datei erfolgreich geladen wird.
     [Test]
     public async Task LoadBpmnFile_ValidXml_ShouldLoadSuccessfully()
     {
@@ -207,6 +210,7 @@ public class CoreEngineTests
         Assert.That(subscriptions, Is.Not.Empty);
     }
     
+    // Testzweck: Prüft, dass der Abschluss einer UserTask den Token korrekt weiterführt.
     [Test]
     public async Task HandleEvent_UserTaskCompletion_ShouldAdvanceToken()
     {

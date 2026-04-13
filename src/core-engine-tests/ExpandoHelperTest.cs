@@ -4,6 +4,7 @@ namespace core_engine_tests;
 
 public class ExpandoHelperTest
 {
+    // Testzweck: Prüft die Umwandlung eines verschachtelten Objekts in eine dynamische Struktur.
     [Test]
     public void ToDynamicTest()
     {
@@ -18,6 +19,7 @@ public class ExpandoHelperTest
         Assert.That(dynamicOrder.GetValue("Address.Firstname"), Is.EqualTo("Lukas"));
     }
     
+    // Testzweck: Prüft das Lesen und Schreiben verschachtelter Werte in dynamischen Variablenstrukturen.
     [Test]
     public void GetSetTest()
     {
@@ -27,6 +29,7 @@ public class ExpandoHelperTest
         Assert.That(dynamicOrder.GetValue("Address.Firstname"), Is.EqualTo("Berlin"));
     }
     
+    // Testzweck: Prüft, dass neue Eigenschaften in einer dynamischen Struktur angelegt werden können.
     [Test]
     public void AddPropertyTest()
     {

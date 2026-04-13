@@ -10,6 +10,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class HttpContextCurrentUserContextAccessorTest
 {
+    // Testzweck: Deckt den Fall „Get Current User Should Resolve Name Identifier Claim“ ab.
     [Test]
     public void GetCurrentUser_ShouldResolveNameIdentifierClaim()
     {
@@ -28,6 +29,7 @@ public class HttpContextCurrentUserContextAccessorTest
         currentUser.IsFallback.Should().BeFalse();
     }
 
+    // Testzweck: Deckt den Fall „Get Current User Should Resolve Sub Claim When Name Identifier Is Missing“ ab.
     [Test]
     public void GetCurrentUser_ShouldResolveSubClaim_WhenNameIdentifierIsMissing()
     {
@@ -46,6 +48,7 @@ public class HttpContextCurrentUserContextAccessorTest
         currentUser.IsFallback.Should().BeFalse();
     }
 
+    // Testzweck: Deckt den Fall „Get Current User Should Use Header In Development“ ab.
     [Test]
     public void GetCurrentUser_ShouldUseHeaderInDevelopment()
     {
@@ -61,6 +64,7 @@ public class HttpContextCurrentUserContextAccessorTest
         currentUser.IsFallback.Should().BeFalse();
     }
 
+    // Testzweck: Deckt den Fall „Get Current User Should Ignore Header Outside Development“ ab.
     [Test]
     public void GetCurrentUser_ShouldIgnoreHeaderOutsideDevelopment()
     {

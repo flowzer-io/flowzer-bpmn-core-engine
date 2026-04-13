@@ -12,6 +12,7 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class TimerRuntimeIntegrationTest
 {
+    // Testzweck: Deckt den Fall „Deploy Definition Should Persist Process Start Timer Subscription“ ab.
     [Test]
     public async Task DeployDefinition_ShouldPersistProcessStartTimerSubscription()
     {
@@ -41,6 +42,7 @@ public class TimerRuntimeIntegrationTest
         definition.DeployedOn.Should().NotBeNull();
     }
 
+    // Testzweck: Deckt den Fall „Deploy Definition Should Persist Recurring Process Start Timer Subscription With Remaining Occurrences“ ab.
     [Test]
     public async Task DeployDefinition_ShouldPersistRecurringProcessStartTimerSubscriptionWithRemainingOccurrences()
     {
@@ -58,6 +60,7 @@ public class TimerRuntimeIntegrationTest
         timerSubscription.RemainingOccurrences.Should().Be(3);
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Start Due Definition Timer And Remove Start Subscription“ ab.
     [Test]
     public async Task HandleTime_ShouldStartDueDefinitionTimer_AndRemoveStartSubscription()
     {
@@ -78,6 +81,7 @@ public class TimerRuntimeIntegrationTest
         storage.Instances.Values.Single().IsFinished.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Reschedule Recurring Definition Timer After First Trigger“ ab.
     [Test]
     public async Task HandleTime_ShouldRescheduleRecurringDefinitionTimer_AfterFirstTrigger()
     {
@@ -103,6 +107,7 @@ public class TimerRuntimeIntegrationTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Catch Up Recurring Definition Timer And Keep Next Due Subscription“ ab.
     [Test]
     public async Task HandleTime_ShouldCatchUpRecurringDefinitionTimer_AndKeepNextDueSubscription()
     {
@@ -129,6 +134,7 @@ public class TimerRuntimeIntegrationTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Load Should Recover Overdue Recurring Definition Timer And Keep Next Due Subscription“ ab.
     [Test]
     public async Task Load_ShouldRecoverOverdueRecurringDefinitionTimer_AndKeepNextDueSubscription()
     {
@@ -168,6 +174,7 @@ public class TimerRuntimeIntegrationTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Recover Legacy Recurring Definition Timer When Remaining Occurrences Were Not Persisted Yet“ ab.
     [Test]
     public async Task HandleTime_ShouldRecoverLegacyRecurringDefinitionTimer_WhenRemainingOccurrencesWereNotPersistedYet()
     {
@@ -206,6 +213,7 @@ public class TimerRuntimeIntegrationTest
         }
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Advance Due Instance Timer And Clear Persisted Instance Timer“ ab.
     [Test]
     public async Task HandleTime_ShouldAdvanceDueInstanceTimer_AndClearPersistedInstanceTimer()
     {
@@ -263,6 +271,7 @@ public class TimerRuntimeIntegrationTest
         storage.Instances[instance.InstanceId].IsFinished.Should().BeTrue();
     }
 
+    // Testzweck: Deckt den Fall „Handle Time Should Advance Due Boundary Timer And Clear Persisted Boundary Timer“ ab.
     [Test]
     public async Task HandleTime_ShouldAdvanceDueBoundaryTimer_AndClearPersistedBoundaryTimer()
     {

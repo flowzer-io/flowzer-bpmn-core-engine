@@ -12,6 +12,7 @@ namespace core_engine_tests;
 
 public class InstanceEngineOutputMappingTest
 {
+    // Testzweck: Deckt den Fall „Prepare Output Data Should Initialize Sub Process Variables For Multi Instance Propagation“ ab.
     [Test]
     public void PrepareOutputData_ShouldInitializeSubProcessVariablesForMultiInstancePropagation()
     {
@@ -26,6 +27,7 @@ public class InstanceEngineOutputMappingTest
         ((List<object?>?)subProcessToken.Variables!.GetValue("MitarbeiterOut")).Should().BeEquivalentTo(outputCollection);
     }
 
+    // Testzweck: Deckt den Fall „Prepare Output Data Should Apply Output Mappings For Multi Instance Tokens“ ab.
     [Test]
     public void PrepareOutputData_ShouldApplyOutputMappingsForMultiInstanceTokens()
     {
@@ -45,6 +47,7 @@ public class InstanceEngineOutputMappingTest
             .BeEquivalentTo(outputCollection);
     }
 
+    // Testzweck: Deckt den Fall „Get Correct Variables Token Should Throw Helpful Exception When Parent Scope Is Requested Without Parent“ ab.
     [Test]
     public void GetCorrectVariablesToken_ShouldThrowHelpfulException_WhenParentScopeIsRequestedWithoutParent()
     {

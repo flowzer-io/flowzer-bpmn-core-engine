@@ -90,6 +90,7 @@ async function ensureModelerScenario(request) {
   return modelerScenarioPromise;
 }
 
+// Testzweck: Prüft, dass ein per API angelegtes Formular in Liste und Detailansicht des Frontends stabil geladen wird.
 test('Formulare aus der API erscheinen in Liste und Detailansicht', async ({ page, request }) => {
   const formName = createSuffix('ui-smoke-form');
   const { formId } = await saveForm(request, {
@@ -110,6 +111,7 @@ test('Formulare aus der API erscheinen in Liste und Detailansicht', async ({ pag
   await expect(page.locator('#blazor-error-ui')).toBeHidden();
 });
 
+// Testzweck: Prüft, dass bereitgestellte Modelle im Frontend sichtbar sind und der Diagramm-/Property-Panel-Pfad ohne UI-Fehler lädt.
 test('Bereitgestellte Modelle erscheinen im Frontend und öffnen den Diagrammzugriff', async ({ page, request }) => {
   const modelerScenario = await ensureModelerScenario(request);
   const { definitionId, modelName } = modelerScenario;
@@ -130,6 +132,7 @@ test('Bereitgestellte Modelle erscheinen im Frontend und öffnen den Diagrammzug
   await expect(page.locator('#definition-load-error')).toHaveCount(0);
 });
 
+// Testzweck: Prüft, dass der Modeler beim Speichern eine neue Version erzeugt und die Route auf die neue Definitions-GUID umstellt.
 test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsroute', async ({ page, request }) => {
   const modelerScenario = await ensureModelerScenario(request);
   const { definitionId, definitionGuid } = modelerScenario;
@@ -164,6 +167,7 @@ test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsro
   await expect(page.locator('#definition-load-error')).toHaveCount(0);
 });
 
+// Testzweck: Prüft den UI-Happy-Path von Message-Start über offenen User-Task bis zur abgeschlossenen Instanzansicht.
 test('Message-Start-Prozess wandert von offenem Task zu Done Instances', async ({ page, request }) => {
   const runtimeScenario = await ensureRuntimeScenario(request);
   const { modelName, messageName } = runtimeScenario;

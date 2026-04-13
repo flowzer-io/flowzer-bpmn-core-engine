@@ -37,7 +37,7 @@ Bevorzuge kleine Änderungen mit klarer Wirkung statt großer, riskanter Umbaute
 
 ### 2. Tests ernst nehmen
 
-Wenn Engine-, Parser-, Gateway-, Multi-Instance-, Message- oder Signal-Logik verändert wird, sollten die Änderungen möglichst durch Tests abgesichert werden.
+Wenn Engine-, Parser-, Gateway-, Multi-Instance-, Message- oder Signal-Logik verändert wird, sollten die Änderungen möglichst durch Tests abgesichert werden. Jeder neue oder angepasste Test soll zusätzlich einen kurzen Kommentar zum Testzweck tragen (`// Testzweck: ...`).
 
 ### 3. Dokumentation mitdenken
 

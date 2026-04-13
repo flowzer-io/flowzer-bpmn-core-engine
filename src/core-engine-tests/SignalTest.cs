@@ -13,6 +13,7 @@ public class SignalTest
 
     private Process Process { get; } = Definitions.GetProcesses().First();
 
+    // Testzweck: Prüft den Signalfluss mit Start- und Intermediate-Signal-Ereignis innerhalb derselben Instanz.
     [Test]
     public void Flow1Test()
     {
@@ -31,6 +32,7 @@ public class SignalTest
         }
     }
 
+    // Testzweck: Prüft, dass ein Signalstart mehrere Instanzen mit unterschiedlichen Pfaden auslösen kann.
     [Test]
     public void Flow2Test()
     {
