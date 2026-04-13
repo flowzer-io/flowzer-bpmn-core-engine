@@ -71,6 +71,7 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 
 ```bash
 dotnet restore core-engine.sln
+python3 scripts/ci/check_test_purpose_comments.py
 dotnet build core-engine.sln
 dotnet test src/core-engine-tests/core-engine-tests.csproj
 dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj

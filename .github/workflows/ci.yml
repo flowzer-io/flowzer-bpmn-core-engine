@@ -44,6 +44,9 @@ jobs:
       - name: Abhängigkeiten wiederherstellen
         run: dotnet restore core-engine.sln
 
+      - name: Testzweck-Kommentare prüfen
+        run: python3 scripts/ci/check_test_purpose_comments.py
+
       - name: Solution bauen
         run: dotnet build core-engine.sln --no-restore --configuration Release
 

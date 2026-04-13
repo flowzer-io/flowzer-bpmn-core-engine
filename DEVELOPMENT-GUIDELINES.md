@@ -189,6 +189,7 @@ public class ServiceTask : Task
 ### Test-Struktur (empfohlen)
 
 - **Jeder Test bekommt direkt oberhalb von `[Test]` einen kurzen Kommentar im Format `// Testzweck: ...`, der den Zweck des Tests erklärt.**
+- Vor PRs nach `next` sollte lokal zusätzlich `python3 scripts/ci/check_test_purpose_comments.py` laufen; derselbe Guard läuft auch im GitHub-CI-Pfad.
 
 ```csharp
 [TestFixture]
