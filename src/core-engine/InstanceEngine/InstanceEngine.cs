@@ -8,7 +8,7 @@ public partial class InstanceEngine
     public void Start(Variables? data)
     {
         CreateInitialTokens(data);
-        if (Tokens.Count == 0) throw new Exception("No tokens created");
+        if (Tokens.Count == 0) throw new FlowzerRuntimeException("No tokens created");
         Run();
     }
 

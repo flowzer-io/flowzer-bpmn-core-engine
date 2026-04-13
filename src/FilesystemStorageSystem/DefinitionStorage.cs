@@ -1,10 +1,14 @@
 using Model;
 using Newtonsoft.Json;
 using StorageSystem;
+using FilesystemStorageSystem.Exceptions;
 using Version = Model.Version;
 
 namespace FilesystemStorageSystem;
 
+/// <summary>
+/// Persistiert BPMN-Definitionen, Binärinhalte und Metadaten dateibasiert unterhalb des konfigurierten Storage-Roots.
+/// </summary>
 public class DefinitionStorage : IDefinitionStorage
 {
     private readonly string _binaryBasePath;
@@ -24,13 +28,13 @@ public class DefinitionStorage : IDefinitionStorage
 
     public async Task StoreBinary(Guid guid, string data)
     {
-        var fullFileName = Path.Combine(_binaryBasePath, $"{guid}.json");
+        var fullFileName = GetBinaryPath(guid);
         await File.WriteAllTextAsync(fullFileName, data);
     }
 
     public Task<string> GetBinary(Guid guid)
     {
-        var fullFileName = Path.Combine(_binaryBasePath, $"{guid}.json");
+        var fullFileName = GetBinaryPath(guid);
         return File.ReadAllTextAsync(fullFileName);
     }
 
@@ -46,6 +50,7 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task<BpmnDefinition[]> GetAllDefinitions()
     {
+        EnsureDirectoryExists(_basePath);
         var definitions = new List<BpmnDefinition>();
         foreach (var file in Directory.GetFiles(_basePath, "*.json"))
         {
@@ -57,7 +62,7 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task StoreDefinition(BpmnDefinition definition)
     {
-        var fullFileName = Path.Combine(_basePath, $"{definition.Id}.json");
+        var fullFileName = GetDefinitionPath(definition.Id);
         var data = JsonConvert.SerializeObject(definition,  _storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
     }
@@ -102,10 +107,10 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition)
     {
-        var fullFileName = Path.Combine(_metabasePath, $"{metaDefinition.DefinitionId}.json");
+        var fullFileName = GetMetaDefinitionPath(metaDefinition.DefinitionId);
         if (File.Exists(fullFileName))
         {
-            throw new Exception($"Meta definition already exists for definitionId {metaDefinition.DefinitionId}");
+            throw new DefinitionStorageConflictException($"Meta definition already exists for definitionId {metaDefinition.DefinitionId}");
         }
         var data = JsonConvert.SerializeObject(metaDefinition, _storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
@@ -113,10 +118,10 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition)
     {
-        var fullFileName = Path.Combine(_metabasePath, $"{metaDefinition.DefinitionId}.json");
+        var fullFileName = GetMetaDefinitionPath(metaDefinition.DefinitionId);
         if (!File.Exists(fullFileName))
         {
-            throw new Exception($"No meta definition found for definitionId {metaDefinition.DefinitionId}");
+            throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {metaDefinition.DefinitionId}");
         }
         var data = JsonConvert.SerializeObject(metaDefinition,_storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
@@ -124,14 +129,22 @@ public class DefinitionStorage : IDefinitionStorage
 
     public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id)
     {
-        var fullFileName = Path.Combine(_metabasePath, $"{id}.json");
+        var fullFileName = GetMetaDefinitionPath(id);
+        if (!File.Exists(fullFileName))
+        {
+            throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {id}");
+        }
         var content = File.ReadAllText(fullFileName);
         return Task.FromResult(JsonConvert.DeserializeObject<BpmnMetaDefinition>(content)!);
     }
 
     public async Task<BpmnDefinition> GetDefinitionById(Guid id)
     {
-        var fullFileName = Path.Combine(_basePath, $"{id}.json");
+        var fullFileName = GetDefinitionPath(id);
+        if (!File.Exists(fullFileName))
+        {
+            throw new DefinitionStorageNotFoundException($"No definition found for definitionId {id}");
+        }
         var content = await File.ReadAllTextAsync(fullFileName);
         return JsonConvert.DeserializeObject<BpmnDefinition>(content)!;
     }
@@ -142,7 +155,7 @@ public class DefinitionStorage : IDefinitionStorage
         var latestDefinition = definitions.Where(x => x.DefinitionId == definitionId).MaxBy(x => x.Version);
         if (latestDefinition == null)
         {
-            throw new Exception($"No definition found for definitionId {definitionId}");
+            throw new DefinitionStorageNotFoundException($"No definition found for definitionId {definitionId}");
         }
         return latestDefinition;
     }
@@ -150,5 +163,19 @@ public class DefinitionStorage : IDefinitionStorage
     public async Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId)
     {
         return  (await GetAllDefinitions()).SingleOrDefault(x => x.DefinitionId == definitionDefinitionId && x.IsActive);
+    }
+
+    private string GetBinaryPath(Guid guid) => Path.Combine(_binaryBasePath, $"{guid}.json");
+
+    private string GetDefinitionPath(Guid id) => Path.Combine(_basePath, $"{id}.json");
+
+    private string GetMetaDefinitionPath(string definitionId) => Path.Combine(_metabasePath, $"{definitionId}.json");
+
+    private static void EnsureDirectoryExists(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            Directory.CreateDirectory(path);
+        }
     }
 }

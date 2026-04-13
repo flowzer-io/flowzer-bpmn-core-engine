@@ -91,7 +91,7 @@ public static class ExpandoHelper
     public static bool HasProperty(this object? vars, string propertyName)
     {
         if (propertyName.Contains('.'))
-            throw new Exception("nested properties are not supported.");
+            throw new NotSupportedException("Nested properties are not supported.");
         return vars != null && ((IDictionary<string,object?>) vars).TryGetValue(propertyName, out _);
     }
     

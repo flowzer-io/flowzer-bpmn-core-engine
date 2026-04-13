@@ -96,7 +96,7 @@ public partial class InstanceEngine: ICatchHandler
         var token = GetToken(tokenId);
         if (token.State != FlowNodeState.Active)
         {
-            throw new Exception("Token ist nicht aktiv");
+            throw new FlowzerRuntimeException("Token ist nicht aktiv");
         }
 
         data ??= new Variables();
