@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using FlowzerFrontend.Exceptions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -228,7 +229,7 @@ public partial class EditDefinition : IAsyncDisposable
         var saveXmlResult = await JsRuntime.InvokeAsyncNoneCached<JsonObject>($"{EditorInteropPath}.saveXml");
         if (saveXmlResult["xml"] is not JsonNode xmlNode)
         {
-            throw new Exception("The BPMN editor returned no XML payload.");
+            throw new InvalidOperationException("The BPMN editor returned no XML payload.");
         }
 
         return xmlNode.GetValue<string>();

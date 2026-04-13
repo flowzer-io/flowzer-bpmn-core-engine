@@ -38,6 +38,18 @@ public class ExpandoHelperTest
         dynamicOrder.SetValue("Address.FirstnameNew", "Berlin");
         Assert.That(dynamicOrder.GetValue("Address.FirstnameNew"), Is.EqualTo("Berlin"));
     }
+
+    // Testzweck: Prüft, dass HasProperty verschachtelte Property-Pfade weiterhin bewusst ablehnt.
+    [Test]
+    public void HasProperty_ShouldThrowNotSupportedException_WhenNestedPropertyIsRequested()
+    {
+        var order = new Order();
+        var dynamicOrder = order.ToDynamic();
+
+        var action = () => dynamicOrder.HasProperty("Address.Firstname");
+
+        Assert.That(action, Throws.TypeOf<NotSupportedException>());
+    }
 }
 
 public class Order

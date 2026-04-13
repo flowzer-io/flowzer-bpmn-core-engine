@@ -20,7 +20,7 @@ public static class ExpandoHelper
             }
             else
             {
-                throw new Exception("Value is not of type " + typeof(T).Name + " valuetype is " + value?.GetType().Name ?? "null");
+                throw new InvalidCastException("Value is not of type " + typeof(T).Name + " value type is " + (value?.GetType().Name ?? "null"));
             }
         }
 

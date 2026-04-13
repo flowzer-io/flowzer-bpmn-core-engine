@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text;
+using System.Text.Json;
+using FlowzerFrontend.Exceptions;
 using WebApiEngine.Shared;
 
 namespace FlowzerFrontend;
@@ -32,12 +33,20 @@ public class ApiBase
         var result = await HttpClient.GetFromJsonAsync<T>(url);
         if (result == null)
         {
-            throw new Exception($"Failed to get data from server. Returned object was null on request: {url}");
+            throw new ApiContractException($"Failed to get data from server. Returned object was null on request: {url}");
         }
         return result;
     }
+
+    protected async Task<T> GetRequiredJsonAsync<T>(string url, string errorMessage)
+    {
+        var result = await HttpClient.GetFromJsonAsync<T>(url);
+        return result ?? throw new ApiContractException(errorMessage);
+    }
     
-        
+    /// <summary>
+    /// Sendet eine HTTP-Anfrage mit JSON-Body an die API und gibt die rohe Antwort zurück.
+    /// </summary>
     public async Task<HttpResponseMessage> GetJsonRequest(string url, HttpMethod method, string body)
     {
         using var request = new HttpRequestMessage(method, url)
@@ -116,23 +125,21 @@ public class ApiBase
         else if (method == HttpMethod.Put)
             result = await HttpClient.PutAsync(url, content);
         else
-            throw new Exception("Method not supported");
-        
-        if (result == null)
-        {
-            throw new Exception($"Failed to get data from server. Returned result was null on request: {url}");
-        }
+            throw new NotSupportedException($"The HTTP method '{method}' is not supported by this helper.");
 
         if (throwOnUnsuccessfulStatusCodes &&  !result.IsSuccessStatusCode)
         {
-            throw new Exception($"Failed to get data from server. Returned status code was {result.StatusCode} on request: {url}");
+            throw new HttpRequestException(
+                $"Failed to get data from server. Returned status code was {result.StatusCode} on request: {url}",
+                null,
+                result.StatusCode);
         }
         
         var readFromJsonAsync = await result.Content.ReadFromJsonAsync<T>();
         
         if (readFromJsonAsync == null)
         {
-            throw new Exception($"Failed to get data from server. Returned object was null on request: {url}");
+            throw new ApiContractException($"Failed to get data from server. Returned object was null on request: {url}");
         }
         
         

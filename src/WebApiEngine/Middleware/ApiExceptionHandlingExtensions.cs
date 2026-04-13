@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FilesystemStorageSystem.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using WebApiEngine.Shared;
 
@@ -48,6 +49,7 @@ public static class ApiExceptionHandlingExtensions
     {
         return exception switch
         {
+            DefinitionStorageConflictException => StatusCodes.Status409Conflict,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
