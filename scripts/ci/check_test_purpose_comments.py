@@ -21,9 +21,16 @@ JS_TEST_DIRECTORIES = [
 
 CS_TEST_ATTRIBUTE = re.compile(r'^\s*\[(Test|TestCase|TestCaseSource|Theory|Fact)\b')
 CS_ATTRIBUTE = re.compile(r'^\s*\[[^\]]+\]\s*$')
-CS_METHOD_SIGNATURE = re.compile(r'^\s*(public|private|internal|protected)\s+')
 JS_TEST_CALL = re.compile(r'^\s*test(?:\.(?:only|skip|fixme))?\s*\(')
-PURPOSE_COMMENT = 'Testzweck:'
+PURPOSE_COMMENT = re.compile(r'^\s*//\s*Testzweck:')
+IGNORED_DIRECTORIES = {
+    '.git',
+    'bin',
+    'obj',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+}
 
 
 class Finding:
@@ -41,7 +48,11 @@ def iter_files(directories: Iterable[Path], suffixes: tuple[str, ...]) -> Iterab
     for directory in directories:
         if not directory.exists():
             continue
+
         for path in sorted(directory.rglob('*')):
+            if any(part in IGNORED_DIRECTORIES for part in path.parts):
+                continue
+
             if path.is_file() and path.suffix in suffixes:
                 yield path
 
@@ -52,7 +63,7 @@ def has_purpose_comment_before_csharp_test(lines: list[str], index: int) -> bool
         line = lines[cursor]
         stripped = line.strip()
 
-        if PURPOSE_COMMENT in stripped:
+        if PURPOSE_COMMENT.match(stripped):
             return True
 
         if not stripped or CS_ATTRIBUTE.match(line):
@@ -69,7 +80,7 @@ def has_purpose_comment_before_js_test(lines: list[str], index: int) -> bool:
     while cursor >= 0:
         stripped = lines[cursor].strip()
 
-        if PURPOSE_COMMENT in stripped:
+        if PURPOSE_COMMENT.match(stripped):
             return True
 
         if not stripped:
