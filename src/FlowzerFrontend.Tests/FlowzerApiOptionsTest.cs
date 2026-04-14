@@ -307,6 +307,35 @@ public class FlowzerApiOptionsTest
         handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/definition/deploy?previousGuid={previousGuid}"));
     }
 
+    // Testzweck: Deckt den Fall „Start Process Instance Should Use Definition Meta Instance Route“ ab.
+    [Test]
+    public async Task StartProcessInstance_ShouldUseDefinitionMetaInstanceRoute()
+    {
+        const string definitionId = "invoice-process";
+        var instanceId = Guid.NewGuid();
+        var handler = new RecordingHttpMessageHandler(CreateApiStatusResultJson(new ProcessInstanceInfoDto
+        {
+            InstanceId = instanceId,
+            DefinitionId = Guid.NewGuid(),
+            RelatedDefinitionId = definitionId,
+            RelatedDefinitionName = "Invoice workflow",
+            State = ProcessInstanceStateDto.Running
+        }));
+
+        using var httpClient = new HttpClient(handler)
+        {
+            BaseAddress = new Uri("http://localhost:5182/")
+        };
+
+        var api = new FlowzerApi(httpClient);
+
+        var result = await api.StartProcessInstance(definitionId);
+
+        result.InstanceId.Should().Be(instanceId);
+        handler.LastMethod.Should().Be(HttpMethod.Post);
+        handler.LastRequestUri.Should().Be(new Uri($"http://localhost:5182/definition/meta/{definitionId}/instance"));
+    }
+
     private static string CreateApiStatusResultJson<T>(T result)
     {
         return System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<T>(result));

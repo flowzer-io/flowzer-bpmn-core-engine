@@ -16,11 +16,21 @@
                 <span id="current-file-name">@CurrentMetaDefinition.Name</span>
             }
             <span id="current-file-version">Version: @(CurrentDefinition.Id == Guid.Empty ? "-" : CurrentDefinition.Version.ToString()) </span>
+            <FluentBadge Id="definition-state-badge"
+                         Appearance="@(IsCurrentDefinitionDeployed ? Appearance.Accent : Appearance.Lightweight)">
+                @CurrentDefinitionStateLabel
+            </FluentBadge>
         </LeftSide>
         <RigthSide>
             <FluentStack Class="action-button-group">
                 @* <FluentCombobox AriaLabel="Pre-selected option" Items="@AvailableVersions" @bind-Value="@CurrentDefinition" Height="200px" /> *@
 
+                <FluentButton IconStart="@(new Icons.Regular.Size16.Play())"
+                              Appearance="Appearance.Neutral"
+                              Disabled="@(!CanStartInstance)"
+                              @onclick="OnStartInstanceClick">
+                    Start instance
+                </FluentButton>
                 <FluentButton IconStart="@(new Icons.Regular.Size16.ArrowUpload())"
                               Appearance="Appearance.Accent"
                               Disabled="@(!CanPersistDefinition)"
@@ -31,9 +41,6 @@
                               Disabled="@(!CanPersistDefinition)"
                               @onclick="OnSaveClick">
                     Save
-                </FluentButton>
-                <FluentButton IconEnd="@(new Icons.Regular.Size16.Bug())" Disabled="true">
-                    Debug
                 </FluentButton>
 
                 <FluentMenuButton Text="Options"
@@ -46,6 +53,15 @@
             </FluentStack>
         </RigthSide>
     </HeaderElement>
+
+    @if (!string.IsNullOrWhiteSpace(ActionFeedbackMessage))
+    {
+        <div id="definition-action-feedback"
+             class="diagram-inline-message @(ActionFeedbackIsError ? "definition-action-feedback-error" : "definition-action-feedback-info")"
+             role="@(ActionFeedbackIsError ? "alert" : "status")">
+            @ActionFeedbackMessage
+        </div>
+    }
 
     <div class="content with-diagram" id="designer-container">
         <div class="canvas" id="js-canvas"></div>

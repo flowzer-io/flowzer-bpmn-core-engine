@@ -14,33 +14,8 @@ public class InstanceController(
     public async Task<ActionResult<IEnumerable<ProcessInstanceInfoDto>>> GetAllInstances()
     {
         var instances = await storageSystem.InstanceStorage.GetAllInstances();
-        return Ok(await MapInstances(instances));
-    }
-
-    private async Task<ApiStatusResult<List<ProcessInstanceInfoDto>>> MapInstances(IEnumerable<ProcessInstanceInfo> instances)
-    {
-        var data = await Task.WhenAll(instances.Select(MapInstance));
-        var apiStatusResult = new ApiStatusResult<List<ProcessInstanceInfoDto>>(data.ToList());
-        return apiStatusResult;
-    }
-
-    private async Task<ProcessInstanceInfoDto> MapInstance(ProcessInstanceInfo processInstanceInfo)
-    {
-        return new ProcessInstanceInfoDto()
-        {
-            InstanceId = processInstanceInfo.InstanceId,
-            DefinitionId = processInstanceInfo.DefinitionId,
-            RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
-            RelatedDefinitionName =
-                (await storageSystem.DefinitionStorage.GetMetaDefinitionById(processInstanceInfo.metaDefinitionId))
-                .Name,
-            MessageSubscriptionCount = processInstanceInfo.MessageSubscriptionCount,
-            SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,
-            UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
-            ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
-            State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList(),
-        };
+        var mappedInstances = await instances.ToDtosAsync(storageSystem.DefinitionStorage);
+        return Ok(new ApiStatusResult<List<ProcessInstanceInfoDto>>(mappedInstances));
     }
 
 
@@ -49,8 +24,8 @@ public class InstanceController(
     public async Task<ActionResult<ProcessInstanceInfoDto>> GetInstanceById(Guid instanceId)
     {
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
-        var mapInstance = await MapInstance(instance);
-        return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mapInstance));
+        var mappedInstance = await instance.ToDtoAsync(storageSystem.DefinitionStorage);
+        return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mappedInstance));
     }
     
     [HttpGet("{instanceId}/subscription/messages")]

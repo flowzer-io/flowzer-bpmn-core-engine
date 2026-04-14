@@ -21,20 +21,43 @@ public class DefinitionController(
     [HttpPost("deploy")]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
+        BpmnDefinition? definition = null;
+
         try
         {
             var rawContent = await GetRawContent();
-            var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
+            definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
             await bpmnBusinessLogic.DeployDefinition(definition);
             return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
         }
         catch (UnauthorizedAccessException)
         {
+            await CleanupFailedDeployVersionAsync(definition);
             throw;
         }
         catch (Exception e)
         {
+            await CleanupFailedDeployVersionAsync(definition);
             return BadRequest(new ApiStatusResult<BpmnDefinitionDto>(e.Message));
+        }
+    }
+
+    [HttpPost("meta/{id}/instance")]
+    public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance([FromRoute] string id)
+    {
+        try
+        {
+            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id);
+            var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage);
+            return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            return BadRequest(new ApiStatusResult<ProcessInstanceInfoDto>(exception.Message));
         }
     }
 
@@ -141,5 +164,23 @@ public class DefinitionController(
 
  
     #endregion
-    
+
+    private async Task CleanupFailedDeployVersionAsync(BpmnDefinition? definition)
+    {
+        if (definition == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await storageSystem.DefinitionStorage.DeleteBinary(definition.Id);
+            await storageSystem.DefinitionStorage.DeleteDefinition(definition.Id);
+        }
+        catch
+        {
+            // Best effort only: the original deploy error is more relevant for the caller
+            // than cleanup follow-up problems in the date-based storage fallback.
+        }
+    }
 }

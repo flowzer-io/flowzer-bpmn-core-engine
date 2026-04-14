@@ -17,6 +17,9 @@ public partial class Models
     private List<ExtendedBpmnMetaDefinitionDto> AllModels { get; set; } = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
+    private string? ActionErrorMessage { get; set; }
+    private string? ActionInfoMessage { get; set; }
+    private string? StartingDefinitionId { get; set; }
     public string? SearchText { get; set; }
     
     public List<Option<SortDirection>> SortDirections = new()
@@ -49,10 +52,62 @@ public partial class Models
         NavigationManager.NavigateTo(UriHelper.GetEditDefinitionUrl(newDefinitionMetaData.DefinitionId));
         
     }
+
+    private void OnOpenLatestClick(ExtendedBpmnMetaDefinitionDto model)
+    {
+        ClearActionMessages();
+        NavigationManager.NavigateTo(UriHelper.GetEditDefinitionUrl(model.DefinitionId));
+    }
+
+    private void OnOpenDeployedClick(ExtendedBpmnMetaDefinitionDto model)
+    {
+        ClearActionMessages();
+
+        if (!model.DeployedId.HasValue)
+        {
+            ActionErrorMessage = $"Workflow \"{model.Name}\" is not deployed yet.";
+            return;
+        }
+
+        NavigationManager.NavigateTo(UriHelper.GetEditDefinitionUrl(model.DefinitionId, model.DeployedId));
+    }
+
+    private async Task OnStartInstanceClickAsync(ExtendedBpmnMetaDefinitionDto model)
+    {
+        ClearActionMessages();
+
+        if (!model.DeployedId.HasValue)
+        {
+            ActionErrorMessage = $"Workflow \"{model.Name}\" must be deployed before it can be started.";
+            return;
+        }
+
+        StartingDefinitionId = model.DefinitionId;
+        try
+        {
+            var instance = await FlowzerApi.StartProcessInstance(model.DefinitionId);
+            ActionInfoMessage = $"Started instance {instance.InstanceId} for workflow \"{model.Name}\".";
+            NavigationManager.NavigateTo(UriHelper.GetShowInstanceUrl(instance.InstanceId));
+        }
+        catch (Exception exception)
+        {
+            ActionErrorMessage = $"Could not start workflow \"{model.Name}\". {exception.Message}";
+        }
+        finally
+        {
+            StartingDefinitionId = null;
+        }
+    }
+
+    private bool IsStartActionBusy(ExtendedBpmnMetaDefinitionDto model)
+    {
+        return string.Equals(StartingDefinitionId, model.DefinitionId, StringComparison.Ordinal);
+    }
     
     private async Task LoadData()
     {
         IsLoading = true;
+        ClearActionMessages();
         try
         {
             AllModels = (await FlowzerApi.GetAllBpmnMetaDefinitions()).ToList();
@@ -67,5 +122,11 @@ public partial class Models
         {
             IsLoading = false;
         }
+    }
+
+    private void ClearActionMessages()
+    {
+        ActionErrorMessage = null;
+        ActionInfoMessage = null;
     }
 }

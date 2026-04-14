@@ -27,6 +27,18 @@
     background: #f8fafc;
 }
 
+.definition-action-feedback-info {
+    border-color: #81c784;
+    background: #e8f5e9;
+    color: #1b5e20;
+}
+
+.definition-action-feedback-error {
+    border-color: #ef9a9a;
+    background: #ffebee;
+    color: #b71c1c;
+}
+
 .diagram-inline-actions {
     margin-top: 12px;
 }

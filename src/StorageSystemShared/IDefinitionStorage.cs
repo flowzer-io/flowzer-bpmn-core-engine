@@ -8,9 +8,11 @@ public interface IDefinitionStorage
     Task StoreBinary(Guid guid, string data);
 
     Task<string> GetBinary(Guid guid);
+    Task DeleteBinary(Guid guid) => Task.CompletedTask;
     Task<Guid[]> GetAllBinaryDefinitions();
     Task<BpmnDefinition[]> GetAllDefinitions();
     Task StoreDefinition(BpmnDefinition definition);
+    Task DeleteDefinition(Guid id) => Task.CompletedTask;
     Task<Version?> GetMaxVersionId(string modelId);
 
     Task<BpmnDefinition> GetDefinitionById(Guid id);

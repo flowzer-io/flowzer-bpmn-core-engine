@@ -39,6 +39,14 @@
                 </div>
 
                 <FluentDivider Style="width: 100%;" Role="DividerRole.Separator"></FluentDivider>
+                @if (!string.IsNullOrWhiteSpace(ActionInfoMessage))
+                {
+                    <p id="models-action-info" class="action-message action-message-info" role="status">@ActionInfoMessage</p>
+                }
+                else if (!string.IsNullOrWhiteSpace(ActionErrorMessage))
+                {
+                    <p id="models-action-error" class="action-message action-message-error" role="alert">@ActionErrorMessage</p>
+                }
                 @if (IsLoading)
                 {
                     <p id="models-loading-state">Loading models...</p>
@@ -54,7 +62,7 @@
                 else
                 {
                     <div class="list-header">
-                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true"  >
+                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto auto" ShowHover="true">
                             <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
                             <TemplateColumn Title="Workflow">
                                 <FluentLayout Orientation="Orientation.Horizontal">
@@ -86,6 +94,33 @@
                                         <FluentBadge Appearance="Appearance.Accent">@context.DeployedVersion Deployed</FluentBadge>
                                     </a>
                                 }
+                            </TemplateColumn>
+                            <TemplateColumn Title="Actions">
+                                <FluentStack Orientation="Orientation.Horizontal" Class="model-action-group">
+                                    <FluentButton Id="@($"model-open-latest-{context.DefinitionId}")"
+                                                  Appearance="Appearance.Stealth"
+                                                  @onclick="@(() => OnOpenLatestClick(context))">
+                                        Open
+                                    </FluentButton>
+                                    @if (context.DeployedId.HasValue)
+                                    {
+                                        <FluentButton Id="@($"model-open-deployed-{context.DefinitionId}")"
+                                                      Appearance="Appearance.Neutral"
+                                                      @onclick="@(() => OnOpenDeployedClick(context))">
+                                            Open deployed
+                                        </FluentButton>
+                                        <FluentButton Id="@($"model-start-instance-{context.DefinitionId}")"
+                                                      Appearance="Appearance.Accent"
+                                                      Disabled="@IsStartActionBusy(context)"
+                                                      @onclick="@(() => OnStartInstanceClickAsync(context))">
+                                            Start instance
+                                        </FluentButton>
+                                    }
+                                    else
+                                    {
+                                        <FluentBadge Appearance="Appearance.Lightweight">Deploy required</FluentBadge>
+                                    }
+                                </FluentStack>
                             </TemplateColumn>
                         </FluentDataGrid>
                     </div>

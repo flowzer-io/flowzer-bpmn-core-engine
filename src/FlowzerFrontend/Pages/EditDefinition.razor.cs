@@ -38,6 +38,8 @@ public partial class EditDefinition : IAsyncDisposable
     private string? LastFailedXmlImport { get; set; }
     private bool IsPersistingDefinition { get; set; }
     private bool NeedsEditorInitialization { get; set; } = true;
+    private string? ActionFeedbackMessage { get; set; }
+    private bool ActionFeedbackIsError { get; set; }
 
     private BpmnMetaDefinitionDto CurrentMetaDefinition { get; set; } = CreateLoadingMetaDefinition();
 
@@ -51,6 +53,14 @@ public partial class EditDefinition : IAsyncDisposable
         !IsPersistingDefinition &&
         IsEditorInitialized &&
         string.IsNullOrWhiteSpace(ErrorString);
+    private bool CanStartInstance =>
+        !IsDocumentLoading &&
+        !IsPersistingDefinition &&
+        !string.IsNullOrWhiteSpace(CurrentMetaDefinition.DefinitionId) &&
+        CurrentDefinition.DeployedOn.HasValue &&
+        string.IsNullOrWhiteSpace(ErrorString);
+    private bool IsCurrentDefinitionDeployed => CurrentDefinition.DeployedOn.HasValue;
+    private string CurrentDefinitionStateLabel => IsCurrentDefinitionDeployed ? "Deployed" : "Draft";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -124,6 +134,7 @@ public partial class EditDefinition : IAsyncDisposable
     {
         IsDocumentLoading = true;
         ErrorString = null;
+        ClearActionFeedback();
         PendingXml = null;
         LastFailedXmlImport = null;
         CurrentMetaDefinition = CreateLoadingMetaDefinition(MetaDefinitionId);
@@ -181,6 +192,29 @@ public partial class EditDefinition : IAsyncDisposable
         await PersistDefinitionAsync((xml, previousGuid) => FlowzerApi.DeployDefinition(xml, previousGuid));
     }
 
+    private async Task OnStartInstanceClick()
+    {
+        if (!CanStartInstance)
+        {
+            var dialog = await DialogService.ShowErrorAsync("The currently opened version is not deployed yet.", "Error");
+            await dialog.Result;
+            return;
+        }
+
+        try
+        {
+            ClearActionFeedback();
+            var instance = await FlowzerApi.StartProcessInstance(CurrentMetaDefinition.DefinitionId);
+            NavigationManager.NavigateTo(UriHelper.GetShowInstanceUrl(instance.InstanceId));
+        }
+        catch (Exception exception)
+        {
+            ActionFeedbackIsError = true;
+            ActionFeedbackMessage = $"Could not start a process instance. {exception.Message}";
+            await SafeStateHasChangedAsync();
+        }
+    }
+
     private async Task PersistDefinitionAsync(Func<string, Guid?, Task<BpmnDefinitionDto>> persistDefinition)
     {
         if (!CanPersistDefinition)
@@ -195,6 +229,7 @@ public partial class EditDefinition : IAsyncDisposable
 
         try
         {
+            ClearActionFeedback();
             var xmlData = await GetXmlData();
             var persistedDefinition = await persistDefinition(xmlData, GetPreviousDefinitionGuid());
 
@@ -209,11 +244,15 @@ public partial class EditDefinition : IAsyncDisposable
         }
         catch (ApiException exception)
         {
+            ActionFeedbackIsError = true;
+            ActionFeedbackMessage = exception.Message;
             var dialog = await DialogService.ShowErrorAsync(exception.Message, "Error");
             await dialog.Result;
         }
         catch (Exception exception)
         {
+            ActionFeedbackIsError = true;
+            ActionFeedbackMessage = exception.Message;
             var dialog = await DialogService.ShowErrorAsync(exception.Message, "Error");
             await dialog.Result;
         }
@@ -289,6 +328,12 @@ public partial class EditDefinition : IAsyncDisposable
     private async Task SafeStateHasChangedAsync()
     {
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearActionFeedback()
+    {
+        ActionFeedbackMessage = null;
+        ActionFeedbackIsError = false;
     }
 
     private static BpmnMetaDefinitionDto CreateLoadingMetaDefinition(string? definitionId = null)

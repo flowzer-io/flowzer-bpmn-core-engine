@@ -32,3 +32,23 @@
     width: 100%;
 }
 
+.model-action-group{
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.action-message{
+    margin: 12px 10px 0;
+    padding: 10px 12px;
+    border-radius: 8px;
+}
+
+.action-message-info{
+    background: #e8f5e9;
+    color: #1b5e20;
+}
+
+.action-message-error{
+    background: #ffebee;
+    color: #b71c1c;
+}

@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const {
+  buildPlainStartXml,
   buildMessageStartUserTaskXml,
   createDefinitionMeta,
   createFormSchema,
@@ -7,6 +8,7 @@ const {
   getUserTasks,
   saveForm,
   sendMessage,
+  startProcessInstance,
   completeUserTask
 } = require('../support/flowzer-api');
 
@@ -16,6 +18,7 @@ function createSuffix(prefix) {
 
 let runtimeScenarioPromise;
 let modelerScenarioPromise;
+let directStartScenarioPromise;
 
 async function ensureRuntimeScenario(request) {
   if (runtimeScenarioPromise) {
@@ -88,6 +91,32 @@ async function ensureModelerScenario(request) {
   })();
 
   return modelerScenarioPromise;
+}
+
+async function ensureDirectStartScenario(request) {
+  if (directStartScenarioPromise) {
+    return directStartScenarioPromise;
+  }
+
+  directStartScenarioPromise = (async () => {
+    const modelName = createSuffix('UI Smoke Direct Start');
+    const definitionId = await createDefinitionMeta(request, {
+      name: modelName,
+      description: 'Playwright direct-start workflow path.'
+    });
+
+    const deployedDefinition = await deployDefinition(request, {
+      xml: buildPlainStartXml({ definitionId })
+    });
+
+    return {
+      definitionId,
+      definitionGuid: deployedDefinition.definitionGuid,
+      modelName
+    };
+  })();
+
+  return directStartScenarioPromise;
 }
 
 // Testzweck: Prüft, dass ein per API angelegtes Formular in Liste und Detailansicht des Frontends stabil geladen wird.
@@ -167,6 +196,31 @@ test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsro
   await expect(page.locator('#definition-load-error')).toHaveCount(0);
 });
 
+// Testzweck: Prüft, dass die Modellliste explizite Öffnen-/Starten-Aktionen anbietet und ein Direktstart in die Instanzansicht navigiert.
+test('Die Modellliste bietet Öffnen und Direktstart für deployte Workflows', async ({ page, request }) => {
+  const directStartScenario = await ensureDirectStartScenario(request);
+  const { definitionId, definitionGuid, modelName } = directStartScenario;
+
+  await page.goto('/models', { waitUntil: 'networkidle' });
+
+  await expect(page.locator(`#model-open-latest-${definitionId}`)).toBeVisible();
+  await expect(page.locator(`#model-open-deployed-${definitionId}`)).toBeVisible();
+  await expect(page.locator(`#model-start-instance-${definitionId}`)).toBeVisible();
+
+  await page.locator(`#model-open-deployed-${definitionId}`).click();
+  await expect(page).toHaveURL(new RegExp(`/definition/${definitionId}/${definitionGuid}$`));
+  await expect(page.locator('#definition-state-badge')).toContainText('Deployed');
+  await expect(page.getByRole('button', { name: 'Start instance' })).toBeVisible();
+  await expect(page.locator('#blazor-error-ui')).toBeHidden();
+
+  await page.goto('/models', { waitUntil: 'networkidle' });
+  await page.locator(`#model-start-instance-${definitionId}`).click();
+
+  await expect(page).toHaveURL(/\/instance\/[0-9a-f-]+$/);
+  await expect(page.locator('#instance-name')).toContainText(modelName);
+  await expect(page.locator('#js-canvas .djs-container')).toBeVisible();
+});
+
 // Testzweck: Prüft den UI-Happy-Path von Message-Start über offenen User-Task bis zur abgeschlossenen Instanzansicht.
 test('Message-Start-Prozess wandert von offenem Task zu Done Instances', async ({ page, request }) => {
   const runtimeScenario = await ensureRuntimeScenario(request);
@@ -203,4 +257,16 @@ test('Message-Start-Prozess wandert von offenem Task zu Done Instances', async (
 
   await page.goto('/instances/done', { waitUntil: 'networkidle' });
   await expect(page.getByRole('link', { name: modelName })).toBeVisible();
+});
+
+// Testzweck: Prüft, dass der neue Direktstart-Endpunkt auch außerhalb der UI einen manuellen Startpfad für deployte Workflows bietet.
+test('Deployte Plain-Start-Workflows lassen sich per API direkt starten', async ({ request }) => {
+  const directStartScenario = await ensureDirectStartScenario(request);
+
+  const startedInstance = await startProcessInstance(request, {
+    definitionId: directStartScenario.definitionId
+  });
+
+  expect(startedInstance.instanceId).toBeTruthy();
+  expect(startedInstance.relatedDefinitionId).toBe(directStartScenario.definitionId);
 });
