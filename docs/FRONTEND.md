@@ -41,6 +41,7 @@ ASPNETCORE_ENVIRONMENT=Development \
   dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj \
   --configuration Release \
   --no-launch-profile \
+  -p:WasmApplicationEnvironmentName=Development \
   --urls http://localhost:5269
 ```
 
@@ -113,6 +114,8 @@ Für verwaltete Playwright-Läufe werden absichtlich eigene Ports genutzt, damit
 
 - Web-API: `http://localhost:5288`
 - Frontend: `http://localhost:5290`
+
+Seit dem Upgrade auf **.NET 10** wird die Client-Umgebung einer Standalone-Blazor-WASM-App nicht mehr zuverlässig über `launchSettings.json` bzw. nur über den Host-Prozess gesteuert. Für die UI-Smokes startet die Playwright-Konfiguration das Frontend deshalb explizit mit `-p:WasmApplicationEnvironmentName=Playwright`, damit weiterhin `appsettings.Playwright.json` statt `appsettings.Development.json` geladen wird.
 
 Der `npm test`-Pfad verwendet zusätzlich einen kleinen Prozesswächter. Dieser erkennt alte verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse aus früheren Läufen und räumt nach dem Test auch neu entstandene Browser-Reste wieder weg. Damit bleiben keine CPU-intensiven Headless-Prozesse mehr unbemerkt liegen.
 
