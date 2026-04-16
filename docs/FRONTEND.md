@@ -10,15 +10,17 @@ Die Frontend-App liest ihre API-Basisadresse aus `FlowzerApi:BaseUrl`:
 
 - Standard: `src/FlowzerFrontend/wwwroot/appsettings.json`
 - lokale Entwicklung: `src/FlowzerFrontend/wwwroot/appsettings.Development.json`
+- UI-Smoke-/Playwright-Läufe: `src/FlowzerFrontend/wwwroot/appsettings.Playwright.json`
 
 Aktuell gilt damit bewusst:
 
 - **Produktion / Same-Origin:** Standardwert `/`
 - **Lokale Entwicklung:** `http://localhost:5182/`
+- **Verwaltete Playwright-Läufe:** `http://localhost:5288/`
 
 Damit lässt sich das Frontend lokal direkt gegen die Web-API starten, ohne dass im Code harte URLs verdrahtet bleiben.
 
-Zusätzlich kann `FlowzerApi:DevelopmentUserId` gesetzt werden. Wenn das Frontend selbst im `Development`-Modus läuft, sendet es diesen Wert automatisch als `X-Flowzer-UserId` an die Web-API. Damit bleiben lokal gehärtete Definition-, User-Task- und Formularpfade testbar, ohne Produktionsumgebungen wieder für freie Header-Impersonation zu öffnen.
+Zusätzlich kann `FlowzerApi:DevelopmentUserId` gesetzt werden. Wenn das Frontend selbst im `Development`- oder `Playwright`-Modus läuft, sendet es diesen Wert automatisch als `X-Flowzer-UserId` an die Web-API. Damit bleiben lokal gehärtete Definition-, User-Task- und Formularpfade testbar, ohne Produktionsumgebungen wieder für freie Header-Impersonation zu öffnen.
 
 ## Lokaler Start
 
@@ -44,6 +46,18 @@ ASPNETCORE_ENVIRONMENT=Development \
 
 Danach ist das Frontend unter [http://localhost:5269](http://localhost:5269) erreichbar.
 
+### Hinweis zu unerwarteten JavaScript-Haltepunkten
+
+Die Standard-Launch-Profile des Frontends tragen bewusst **kein** `inspectUri` mehr. Dadurch soll der normale lokale Start nicht automatisch einen JS-Debug-Proxy für die WebAssembly-App aufziehen.
+
+Wenn gezieltes JavaScript-Debugging gewünscht ist, stehen dafür jetzt separate Profile zur Verfügung:
+
+- `http-js-debug`
+- `https-js-debug`
+- `IIS Express JS Debug`
+
+Damit bleibt der normale Blazor-Start ruhiger, ohne den expliziten Debug-Pfad ganz zu verlieren.
+
 ## Automatisierte UI-Smoke-Tests
 
 Die Smoke- und kleinen Happy-Path-E2E-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
@@ -63,6 +77,7 @@ Geprüft werden insbesondere:
 - sichtbare Kern-UI je Route
 - funktionierende Filter-Navigation innerhalb der Instanzliste
 - API-gesäte Happy Paths für Formulare, Modelle und Instanzverläufe
+- explizite **Open**-/`Open deployed`-/`Start instance`-Aktionen in der Modellliste für deployte Workflows
 - kein sichtbarer Blazor-Fatalfehler
 - keine fehlgeschlagenen Browser-Requests
 
@@ -94,6 +109,11 @@ Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst
 PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 ```
 
+Für verwaltete Playwright-Läufe werden absichtlich eigene Ports genutzt, damit lokale Debug-Sessions auf `5182`/`5269` nicht mit den Smoke-Tests kollidieren:
+
+- Web-API: `http://localhost:5288`
+- Frontend: `http://localhost:5290`
+
 Der `npm test`-Pfad verwendet zusätzlich einen kleinen Prozesswächter. Dieser erkennt alte verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse aus früheren Läufen und räumt nach dem Test auch neu entstandene Browser-Reste wieder weg. Damit bleiben keine CPU-intensiven Headless-Prozesse mehr unbemerkt liegen.
 
 Bei Bedarf kann das Verhalten angepasst werden:
@@ -108,6 +128,7 @@ Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
 
 - `/definition/{metaDefinitionId}` lädt Canvas **und** Properties Panel reproduzierbar
 - ein Speichern aus dem Modeler sendet den bisherigen Definitionsstand als `previousGuid`, damit Versionsketten im Backend nachvollziehbar bleiben
+- deployte Workflows lassen sich aus der Modellliste und aus der deployten Definitionsansicht direkt als neue Instanz starten
 - die Frontend-Route wechselt nach Save/Deploy auf die neu erzeugte Definition (`/definition/{metaDefinitionId}/{definitionGuid}`), damit URL und angezeigter Stand nicht auseinanderlaufen
 - ungültige Modellrouten zeigen eine sichtbare Inline-Fehlermeldung mit Retry-Button statt eines fatalen Blazor-Fehlers
 - Viewer- und Modeler-Instanzen werden beim Verlassen der Seite best-effort zerstört, damit keine veralteten Diagrammobjekte im Browser hängen bleiben
@@ -115,10 +136,11 @@ Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
 ### Empfohlene manuelle Checks
 
 1. `/models` öffnen und ein Modell laden
-2. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
-3. einmal `Save` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
-4. `/instance/{guid}` für eine laufende Instanz öffnen und Diagramm plus Token-Overlay prüfen
-5. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
+2. prüfen, dass die Liste pro deploytem Workflow explizite `Open`-, `Open deployed`- und `Start instance`-Aktionen zeigt
+3. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
+4. einmal `Save` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
+5. testweise einen deployten Workflow direkt starten und die Instanzansicht prüfen
+6. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
 
 ## Hinweise zur lokalen Datenbasis
 

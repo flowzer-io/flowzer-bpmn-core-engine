@@ -38,6 +38,17 @@ public class DefinitionStorage : IDefinitionStorage
         return File.ReadAllTextAsync(fullFileName);
     }
 
+    public Task DeleteBinary(Guid guid)
+    {
+        var fullFileName = GetBinaryPath(guid);
+        if (File.Exists(fullFileName))
+        {
+            File.Delete(fullFileName);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<Guid[]> GetAllBinaryDefinitions()
     {
         if (Directory.Exists(_binaryBasePath) == false)
@@ -65,6 +76,17 @@ public class DefinitionStorage : IDefinitionStorage
         var fullFileName = GetDefinitionPath(definition.Id);
         var data = JsonConvert.SerializeObject(definition,  _storage.NewtonSoftDefaultSettings);
         return File.WriteAllTextAsync(fullFileName, data);
+    }
+
+    public Task DeleteDefinition(Guid id)
+    {
+        var fullFileName = GetDefinitionPath(id);
+        if (File.Exists(fullFileName))
+        {
+            File.Delete(fullFileName);
+        }
+
+        return Task.CompletedTask;
     }
 
     public async Task<Version?> GetMaxVersionId(string modelId)

@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { defineConfig } = require('@playwright/test');
 
-const frontendUrl = process.env.FLOWZER_FRONTEND_URL || 'http://localhost:5269';
-const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5182';
+const frontendUrl = process.env.FLOWZER_FRONTEND_URL || 'http://localhost:5290';
+const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5288';
 const frontendServerOrigin = new URL(frontendUrl).origin;
 const apiServerOrigin = new URL(apiUrl).origin;
 const playwrightTempRoot = path.resolve(__dirname, '.tmp');
@@ -11,6 +11,8 @@ const managedStorageRoot = path.resolve(
   process.env.PLAYWRIGHT_MANAGED_STORAGE_ROOT || path.join(playwrightTempRoot, 'storage')
 );
 const reuseExistingServer = !process.env.CI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1';
+const apiEnvironmentName = process.env.FLOWZER_API_ENVIRONMENT || 'Development';
+const frontendEnvironmentName = process.env.FLOWZER_FRONTEND_ENVIRONMENT || 'Playwright';
 
 function isPathWithin(parentPath, childPath)
 {
@@ -31,10 +33,19 @@ if (!process.env.PLAYWRIGHT_SKIP_WEBSERVERS)
   fs.mkdirSync(managedStorageRoot, { recursive: true });
 }
 
-const webServerEnvironment = {
+const sharedWebServerEnvironment = {
   ...process.env,
-  ASPNETCORE_ENVIRONMENT: process.env.ASPNETCORE_ENVIRONMENT || 'Development',
   FLOWZER_STORAGE_ROOT: managedStorageRoot
+};
+
+const apiWebServerEnvironment = {
+  ...sharedWebServerEnvironment,
+  ASPNETCORE_ENVIRONMENT: apiEnvironmentName
+};
+
+const frontendWebServerEnvironment = {
+  ...sharedWebServerEnvironment,
+  ASPNETCORE_ENVIRONMENT: frontendEnvironmentName
 };
 
 module.exports = defineConfig({
@@ -55,14 +66,14 @@ module.exports = defineConfig({
     : [
         {
           command: `dotnet run --project ../../src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-build --no-launch-profile --urls ${apiServerOrigin}`,
-          env: webServerEnvironment,
+          env: apiWebServerEnvironment,
           url: `${apiServerOrigin}/swagger/index.html`,
           reuseExistingServer,
           timeout: 120_000
         },
         {
           command: `dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-build --no-launch-profile --urls ${frontendServerOrigin}`,
-          env: webServerEnvironment,
+          env: frontendWebServerEnvironment,
           url: frontendServerOrigin,
           reuseExistingServer,
           timeout: 120_000

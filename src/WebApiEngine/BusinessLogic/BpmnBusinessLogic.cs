@@ -1,6 +1,8 @@
 using BPMN.HumanInteraction;
 using BPMN.Process;
 using BPMN.Flowzer.Events;
+using BPMN.Events;
+using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace WebApiEngine.BusinessLogic;
@@ -292,6 +294,42 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         return instance;
     }
 
+    public async Task<ProcessInstanceInfo> StartProcessInstance(string relatedDefinitionId, string? processId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
+
+        using var storageSystem = storageProvider.GetTransactionalStorage();
+
+        var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
+            ?? throw new InvalidOperationException(
+                $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
+
+        var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
+        var model = ModelParser.ParseModel(xmlData);
+        var process = ResolveDirectStartProcess(model, deployedDefinition, processId);
+
+        var processEngine = new ProcessEngine(process);
+        var instance = processEngine.StartProcess();
+        var processInstanceInfo = CreateProcessInstanceInfo(
+            deployedDefinition.Id,
+            relatedDefinitionId,
+            process.Id,
+            instance);
+
+        await SaveSubscriptions(
+            storageSystem,
+            instance,
+            relatedDefinitionId,
+            deployedDefinition.Id,
+            process.Id,
+            instance.InstanceId);
+        await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+
+        storageSystem.CommitChanges();
+
+        return processInstanceInfo;
+    }
+
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
@@ -325,20 +363,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         ITransactionalStorage storageSystem, InstanceEngine instance)
     {
         await storageSystem.InstanceStorage.AddOrUpdateInstance(
-            new ProcessInstanceInfo()
-            {
-                InstanceId = instance.InstanceId,
-                metaDefinitionId = relatedDefinitionId,
-                DefinitionId = definitionId,
-                ProcessId = processId,
-                Tokens = instance.Tokens,
-                IsFinished = instance.IsFinished,
-                State = instance.State,
-                MessageSubscriptionCount = instance.ActiveCatchMessages.Count,
-                SignalSubscriptionCount = instance.ActiveCatchSignals.Count,
-                UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),
-                ServiceSubscriptionCount = instance.GetActiveServiceTasks().Count()
-            });
+            CreateProcessInstanceInfo(definitionId, relatedDefinitionId, processId, instance));
     }
 
     private async Task RestoreInstanceTimerSubscriptions()
@@ -471,6 +496,72 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             RemainingOccurrences = nextSchedule.RemainingOccurrences
         };
         return true;
+    }
+
+    private static Process ResolveDirectStartProcess(
+        Definitions model,
+        BpmnDefinition deployedDefinition,
+        string? processId)
+    {
+        var executableProcesses = model
+            .GetProcesses()
+            .Where(process => process.IsExecutable)
+            .ToArray();
+
+        if (executableProcesses.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"The deployed definition \"{deployedDefinition.DefinitionId}\" does not contain an executable process.");
+        }
+
+        var process = string.IsNullOrWhiteSpace(processId)
+            ? executableProcesses.Length switch
+            {
+                1 => executableProcesses[0],
+                _ => throw new InvalidOperationException(
+                    $"The deployed definition \"{deployedDefinition.DefinitionId}\" contains multiple executable processes. Manual UI starts currently require exactly one executable process.")
+            }
+            : executableProcesses.SingleOrDefault(candidate =>
+                  string.Equals(candidate.Id, processId, StringComparison.Ordinal))
+              ?? throw new InvalidOperationException(
+                  $"The executable process \"{processId}\" was not found in deployed definition \"{deployedDefinition.DefinitionId}\".");
+
+        var directStartFlowNodes = process.GetStartFlowNodes()
+            .Where(flowNode =>
+                flowNode.GetType() == typeof(StartEvent) ||
+                flowNode.GetType() == typeof(BPMN.Activities.Activity))
+            .ToArray();
+
+        return directStartFlowNodes.Length switch
+        {
+            0 => throw new InvalidOperationException(
+                $"The process \"{process.Id}\" cannot be started directly from the UI because it has no plain start event."),
+            1 => process,
+            _ => throw new InvalidOperationException(
+                $"The process \"{process.Id}\" contains multiple plain start entries. Manual UI starts currently require exactly one plain start path.")
+        };
+    }
+
+    private static ProcessInstanceInfo CreateProcessInstanceInfo(
+        Guid definitionId,
+        string relatedDefinitionId,
+        string processId,
+        InstanceEngine instance)
+    {
+        return new ProcessInstanceInfo
+        {
+            InstanceId = instance.InstanceId,
+            metaDefinitionId = relatedDefinitionId,
+            DefinitionId = definitionId,
+            ProcessId = processId,
+            Tokens = instance.Tokens,
+            IsFinished = instance.IsFinished,
+            State = instance.State,
+            MessageSubscriptionCount = instance.ActiveCatchMessages.Count,
+            SignalSubscriptionCount = instance.ActiveCatchSignals.Count,
+            UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),
+            ServiceSubscriptionCount = instance.GetActiveServiceTasks().Count()
+        };
     }
 
 

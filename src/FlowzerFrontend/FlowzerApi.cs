@@ -97,6 +97,26 @@ public class FlowzerApi: ApiBase
     }
 
     /// <summary>
+    /// Startet eine neue Prozessinstanz für die aktuell deployte Workflow-Version.
+    /// </summary>
+    public async Task<ProcessInstanceInfoDto> StartProcessInstance(string relatedDefinitionId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
+
+        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<ProcessInstanceInfoDto>>(
+            $"definition/meta/{relatedDefinitionId}/instance",
+            new { },
+            throwOnUnsuccessfulStatusCodes: false);
+
+        if (apiStatusResult.Successful)
+        {
+            return apiStatusResult.Result!;
+        }
+
+        throw new ApiException(apiStatusResult.ErrorMessage);
+    }
+
+    /// <summary>
     /// Lädt alle bekannten Prozessinstanzen.
     /// </summary>
     public async Task<List<ProcessInstanceInfoDto>> GetAllInstances()

@@ -1,6 +1,6 @@
 const { randomUUID } = require('crypto');
 
-const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5182';
+const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5288';
 const developmentUserIdHeaderName = 'X-Flowzer-UserId';
 const developmentUserId =
   process.env.FLOWZER_DEVELOPMENT_USER_ID ||
@@ -125,6 +125,48 @@ function buildMessageStartUserTaskXml({
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
+  </bpmn:definitions>`;
+}
+
+function buildPlainStartXml({ definitionId }) {
+  const safeDefinitionId = toSafeId(definitionId);
+  const processId = `Process_${safeDefinitionId}`;
+  const startEventId = `StartEvent_${safeDefinitionId}`;
+  const endEventId = `EndEvent_${safeDefinitionId}`;
+  const flowId = `Flow_${safeDefinitionId}_1`;
+  const diagramId = `BPMNDiagram_${safeDefinitionId}`;
+  const planeId = `BPMNPlane_${safeDefinitionId}`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  id="${definitionId}"
+                  targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="${processId}" isExecutable="true">
+    <bpmn:startEvent id="${startEventId}" name="Start">
+      <bpmn:outgoing>${flowId}</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="${endEventId}" name="Done">
+      <bpmn:incoming>${flowId}</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="${flowId}" sourceRef="${startEventId}" targetRef="${endEventId}" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="${diagramId}">
+    <bpmndi:BPMNPlane id="${planeId}" bpmnElement="${processId}">
+      <bpmndi:BPMNShape id="${startEventId}_di" bpmnElement="${startEventId}">
+        <dc:Bounds x="173" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="${endEventId}_di" bpmnElement="${endEventId}">
+        <dc:Bounds x="332" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="${flowId}_di" bpmnElement="${flowId}">
+        <di:waypoint x="209" y="120" />
+        <di:waypoint x="332" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 }
 
@@ -189,6 +231,24 @@ async function deployDefinition(request, { xml }) {
   };
 }
 
+async function startProcessInstance(request, { definitionId }) {
+  const response = await request.post(
+    buildApiUrl(`/definition/meta/${definitionId}/instance`),
+    buildRequestOptions({
+      data: {}
+    })
+  );
+
+  const instance = ensureApiSuccess(
+    await readJson(response, 'Starting process instance'),
+    'Starting process instance');
+
+  return {
+    instanceId: instance?.instanceId || instance?.InstanceId,
+    relatedDefinitionId: instance?.relatedDefinitionId || instance?.RelatedDefinitionId
+  };
+}
+
 async function sendMessage(request, { name, correlationKey = null, variables = {}, instanceId = null }) {
   const response = await request.post(buildApiUrl('/message'), buildRequestOptions({
     data: {
@@ -221,6 +281,7 @@ async function completeUserTask(request, userTask, data = {}) {
 }
 
 module.exports = {
+  buildPlainStartXml,
   buildMessageStartUserTaskXml,
   createDefinitionMeta,
   createFormSchema,
@@ -228,6 +289,7 @@ module.exports = {
   getUserTasks,
   saveForm,
   sendMessage,
+  startProcessInstance,
   completeUserTask,
   randomUUID
 };
