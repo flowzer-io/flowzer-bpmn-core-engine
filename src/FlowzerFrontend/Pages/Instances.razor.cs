@@ -6,6 +6,8 @@ namespace FlowzerFrontend.Pages;
 
 public partial class Instances : ComponentBase
 {
+    private string? _searchText;
+
     [Parameter] public string? Filter { get; set; }
 
     [Inject]
@@ -15,13 +17,24 @@ public partial class Instances : ComponentBase
     public required NavigationManager NavigationManager { get; set; }
 
     private List<ProcessInstanceInfoDto> AllInstances { get; set; } = [];
+    private List<ProcessInstanceInfoDto> VisibleInstances { get; set; } = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
     private InstanceListFilter CurrentFilter { get; set; } = InstanceListFilter.All;
-    public string? SearchText { get; set; }
+    public string? SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (string.Equals(_searchText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
 
-    private IReadOnlyList<ProcessInstanceInfoDto> VisibleInstances =>
-        InstanceListViewHelper.ApplyQuery(AllInstances, CurrentFilter, SearchText).ToList();
+            _searchText = value;
+            RefreshVisibleInstances();
+        }
+    }
 
     public string CurrentFilterLabel => InstanceListFilterHelper.ToDisplayLabel(CurrentFilter);
     private int AllCount => AllInstances.Count;
@@ -37,6 +50,7 @@ public partial class Instances : ComponentBase
     protected override async Task OnParametersSetAsync()
     {
         CurrentFilter = InstanceListFilterHelper.ParseOrDefault(Filter);
+        RefreshVisibleInstances();
         await LoadData();
     }
 
@@ -55,8 +69,14 @@ public partial class Instances : ComponentBase
         }
         finally
         {
+            RefreshVisibleInstances();
             IsLoading = false;
         }
+    }
+
+    private void RefreshVisibleInstances()
+    {
+        VisibleInstances = InstanceListViewHelper.ApplyQuery(AllInstances, CurrentFilter, SearchText).ToList();
     }
 
     private int CountInstances(InstanceListFilter filter)

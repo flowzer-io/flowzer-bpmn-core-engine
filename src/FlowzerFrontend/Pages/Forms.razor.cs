@@ -6,15 +6,30 @@ namespace FlowzerFrontend.Pages;
 
 public partial class Forms : ComponentBase
 {
+    private string? _searchText;
+
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
 
     private List<FormMetaDataDto> AllForms { get; set; } = [];
+    private List<FormMetaDataDto> VisibleForms { get; set; } = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
-    public string? SearchText { get; set; }
+    public string? SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (string.Equals(_searchText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
 
-    private IReadOnlyList<FormMetaDataDto> VisibleForms => FormListViewHelper.ApplyQuery(AllForms, SearchText).ToList();
+            _searchText = value;
+            RefreshVisibleForms();
+        }
+    }
+
     private int TotalFormCount => AllForms.Count;
     private int VisibleFormCount => VisibleForms.Count;
     private string ResultLabel => SearchText?.Trim() switch
@@ -37,6 +52,7 @@ public partial class Forms : ComponentBase
         }
         finally
         {
+            RefreshVisibleForms();
             IsLoading = false;
         }
     }
@@ -49,5 +65,10 @@ public partial class Forms : ComponentBase
     private void OnEditClick(Guid formId)
     {
         NavigationManager.NavigateTo(UriHelper.GetShowFormUrl(formId));
+    }
+
+    private void RefreshVisibleForms()
+    {
+        VisibleForms = FormListViewHelper.ApplyQuery(AllForms, SearchText).ToList();
     }
 }

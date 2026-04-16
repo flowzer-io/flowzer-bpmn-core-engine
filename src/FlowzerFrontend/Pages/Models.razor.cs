@@ -7,6 +7,9 @@ namespace FlowzerFrontend.Pages;
 
 public partial class Models
 {
+    private Option<SortDirection>? _selectedSortDirection;
+    private string? _searchText;
+
     [Inject]
     public required FlowzerApi FlowzerApi { get; set; }
 
@@ -14,12 +17,26 @@ public partial class Models
     public required NavigationManager NavigationManager { get; set; }
 
     private List<ExtendedBpmnMetaDefinitionDto> AllModels { get; set; } = [];
+    private List<ExtendedBpmnMetaDefinitionDto> VisibleModels { get; set; } = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
     private string? ActionErrorMessage { get; set; }
     private string? ActionInfoMessage { get; set; }
     private string? StartingDefinitionId { get; set; }
-    public string? SearchText { get; set; }
+    public string? SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (string.Equals(_searchText, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _searchText = value;
+            RefreshVisibleModels();
+        }
+    }
 
     public List<Option<SortDirection>> SortDirections =
     [
@@ -27,13 +44,18 @@ public partial class Models
         new Option<SortDirection> { Value = SortDirection.Descending, Text = "Z → A" }
     ];
 
-    public Option<SortDirection>? SelectedSortDirection { get; set; }
-    public string? SelectedSortDirectionString { get; set; }
+    public Option<SortDirection>? SelectedSortDirection
+    {
+        get => _selectedSortDirection;
+        set
+        {
+            _selectedSortDirection = value;
+            SelectedSortDirectionString = value?.Text;
+            RefreshVisibleModels();
+        }
+    }
 
-    private IReadOnlyList<ExtendedBpmnMetaDefinitionDto> VisibleModels =>
-        ModelListViewHelper
-            .ApplyQuery(AllModels, SearchText, SelectedSortDirection?.Value ?? SortDirection.Ascending)
-            .ToList();
+    public string? SelectedSortDirectionString { get; set; }
 
     private int TotalModelCount => AllModels.Count;
     private int DeployedModelCount => AllModels.Count(model => model.DeployedId.HasValue);
@@ -47,7 +69,6 @@ public partial class Models
     protected override void OnInitialized()
     {
         SelectedSortDirection = SortDirections.First();
-        SelectedSortDirectionString = SelectedSortDirection.Text;
     }
 
     protected override async Task OnParametersSetAsync()
@@ -128,8 +149,16 @@ public partial class Models
         }
         finally
         {
+            RefreshVisibleModels();
             IsLoading = false;
         }
+    }
+
+    private void RefreshVisibleModels()
+    {
+        VisibleModels = ModelListViewHelper
+            .ApplyQuery(AllModels, SearchText, SelectedSortDirection?.Value ?? SortDirection.Ascending)
+            .ToList();
     }
 
     private void ClearActionMessages()
