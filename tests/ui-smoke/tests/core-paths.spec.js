@@ -178,7 +178,7 @@ test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsro
     return currentResponse.request().method() === 'POST' && currentResponse.url().includes('/definition?previousGuid=');
   });
 
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save draft' }).click();
 
   const saveRequest = await requestPromise;
   expect(saveRequest.url()).toContain(`previousGuid=${definitionGuid}`);

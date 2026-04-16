@@ -1,39 +1,74 @@
-.main-content{
+.instance-header-actions {
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.instance-diagram-surface {
+    overflow: hidden;
+}
+
+.diagram-content {
+    min-height: 420px;
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    background: #f8fafc;
+    overflow: hidden;
+}
+
+.token-browser {
+    display: grid;
+    grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.token-browser-sidebar {
+    padding: 16px;
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    background: #f8fafc;
+}
+
+.token-browser-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.token-selection-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+
+.instance-runtime-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+    gap: 20px;
+}
+
+.subscription-action-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+::deep .diagram-content .canvas {
+    width: 100%;
     height: 100%;
+    min-height: 420px;
 }
 
-#instance-name{
-    font-size: var(--header-tile-size);
+::deep .tree-button {
+    margin-left: 0;
 }
 
-.diagram-content
-{
-    height: 50%;
-    border-bottom: solid 1px #e0e0e0;
-}
-.canvas{
-    height: 100%;
-}
-
-#information_container{
-    padding: 10px;
-}
-
-::deep .tree-button{
-    margin-left: 10px;
-}
-
-.token{
-    display: inline;
-    border-radius: 5px;
-    padding: 4px;
-    padding-left: 6px;
-    padding-right: 6px;
-    background: green;
-    color: white;
-}
-
-li{
-    margin: 0;
-    padding: 0;
+@media (max-width: 1200px) {
+    .instance-runtime-grid,
+    .token-browser {
+        grid-template-columns: 1fr;
+    }
 }

@@ -13,7 +13,7 @@ public partial class EditDefinition : IAsyncDisposable
 
     [Parameter]
     public string? MetaDefinitionId { get; set; }
-        
+
     [Parameter]
     public Guid? DefinitionId { get; set; }
 
@@ -28,9 +28,7 @@ public partial class EditDefinition : IAsyncDisposable
 
     [Inject]
     public required NavigationManager NavigationManager { get; set; }
-    
-    private FluentMenuButton _menubutton = new();
- 
+
     public string? ErrorString { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
     private bool IsEditorInitialized { get; set; }
@@ -42,7 +40,6 @@ public partial class EditDefinition : IAsyncDisposable
     private bool ActionFeedbackIsError { get; set; }
 
     private BpmnMetaDefinitionDto CurrentMetaDefinition { get; set; } = CreateLoadingMetaDefinition();
-
     private BpmnDefinitionDto CurrentDefinition { get; set; } = CreateEmptyDefinition();
 
     public List<BpmnMetaDefinitionDto> AvailableVersions { get; set; } = new();
@@ -61,6 +58,13 @@ public partial class EditDefinition : IAsyncDisposable
         string.IsNullOrWhiteSpace(ErrorString);
     private bool IsCurrentDefinitionDeployed => CurrentDefinition.DeployedOn.HasValue;
     private string CurrentDefinitionStateLabel => IsCurrentDefinitionDeployed ? "Deployed" : "Draft";
+    private string CurrentDefinitionVersionLabel => CurrentDefinition.Id == Guid.Empty ? "Version pending" : $"Version {CurrentDefinition.Version}";
+    private string CurrentDefinitionContextLabel => IsCurrentDefinitionDeployed
+        ? "This is the currently deployed version and can start new instances."
+        : "This is a draft version that still needs deployment before runtime can use it.";
+    private string LastSavedLabel => CurrentDefinition.Id == Guid.Empty
+        ? "Not saved yet"
+        : CurrentDefinition.SavedOn.ToLocalTime().ToString("g");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -78,7 +82,7 @@ public partial class EditDefinition : IAsyncDisposable
     {
         await base.OnAfterRenderAsync(firstRender);
 
-        if (NeedsEditorInitialization)
+        if (NeedsEditorInitialization && !IsDocumentLoading && string.IsNullOrWhiteSpace(ErrorString))
         {
             NeedsEditorInitialization = false;
             await TryInitializeEditorAsync();
@@ -235,7 +239,7 @@ public partial class EditDefinition : IAsyncDisposable
 
             CurrentDefinition = persistedDefinition;
             DefinitionId = persistedDefinition.Id;
-            PendingXml = xmlData;
+            PendingXml = null;
             LastFailedXmlImport = null;
             ErrorString = null;
 

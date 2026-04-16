@@ -83,6 +83,18 @@ Geprüft werden insbesondere:
 
 ## Aktuelle Frontend-Konventionen für Kernseiten
 
+### UI-/UX-Refresh April 2026
+
+Der aktuelle Stand auf `next` enthält einen größeren UX-Rundumschlag für die wichtigsten Frontend-Flächen. Ziel war nicht nur optische Politur, sondern vor allem eine klarere Bedienlogik:
+
+- **einheitliche App-Shell** mit klarer Hauptnavigation und stärkerem Produktcharakter
+- **explizite Primäraktionen** statt versteckter Titel-Links
+- **bessere Empty-/Error-/Loading-States** auf Listen- und Detailseiten
+- **konsistentere List-/Detailmuster** für Workflows, Formulare und Runtime-Instanzen
+- **stärkere Runtime-Transparenz** in der Instanzdetailansicht (Diagramm, Token, Subscriptions, Payloads)
+
+Die fachlichen Leitgedanken und Folgeideen sind in [docs/UI-UX-AUDIT-2026-04.md](UI-UX-AUDIT-2026-04.md) dokumentiert.
+
 - Listen- und Startseiten zeigen bei Ladefehlern eine sichtbare Inline-Fehlermeldung statt still abzustürzen.
 - Leere Listen rendern einen expliziten Empty State.
 - Instanzfilter werden ausschließlich über gültige Frontend-Routen (`all`, `active`, `done`, `error`) adressiert.

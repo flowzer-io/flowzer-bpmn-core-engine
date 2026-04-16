@@ -1,71 +1,179 @@
 @page "/instance/{InstanceGuid:guid}"
+@using FlowzerFrontend.BusinessLogic
+@using FlowzerFrontend.Components
 @using FlowzerFrontend.Models
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
-@using FlowzerFrontend.Components
 @inherits FlowzerComponentBase
 
 @inject ExampleRestRequestBuilder ExampleRestRequestBuilder
 
-<div class="main-content">
+<div class="page-stack instance-page">
     <HeaderElement BackLink="/instances">
         <LeftSide>
-            <span id="instance-name">@_instance?.RelatedDefinitionName - @_instance?.InstanceId</span>
-            
-            <div class="token" style="background: @ColorHelper.GetStateTokenStateColor(_instance?.State)">@(_instance?.State.ToString() ?? "Loading...")</div>
+            <div class="entity-header">
+                <div class="entity-title-row">
+                    <span id="instance-name">@InstanceTitle</span>
+                    <span class="status-pill @InstanceStateToneClass">@InstanceStateLabel</span>
+                </div>
+                <div class="entity-meta-row">
+                    <span>Workflow @(_instance?.RelatedDefinitionName ?? "Loading...")</span>
+                    @if (_instance != null)
+                    {
+                        <span>Instance @_instance.InstanceId</span>
+                        <span>Definition @_instance.RelatedDefinitionId</span>
+                    }
+                </div>
+            </div>
         </LeftSide>
+        <RigthSide>
+            <FluentStack Orientation="Orientation.Horizontal" Class="instance-header-actions">
+                <FluentButton Appearance="Appearance.Neutral" Disabled="@(_instance == null)" @onclick="OnOpenWorkflowClick">
+                    Open workflow
+                </FluentButton>
+                <FluentButton Appearance="Appearance.Accent" Disabled="@IsRefreshing" @onclick="OnRefreshClickAsync">
+                    Refresh runtime
+                </FluentButton>
+            </FluentStack>
+        </RigthSide>
     </HeaderElement>
+
+    @if (_instance != null && string.IsNullOrWhiteSpace(ErrorString))
+    {
+        <div class="summary-grid">
+            <article class="summary-card">
+                <span class="summary-label">Tokens</span>
+                <strong class="summary-value">@TokenCount</strong>
+                <span class="summary-hint">@ActiveTokenCount active and visualized in the live diagram.</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Waiting subscriptions</span>
+                <strong class="summary-value">@WaitingSubscriptionCount</strong>
+                <span class="summary-hint">Messages, signals, user tasks and service callbacks currently blocking progress.</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Open user tasks</span>
+                <strong class="summary-value">@(_instance.UserTaskSubscriptionCount)</strong>
+                <span class="summary-hint">Human interactions that can be handled from the task inbox or this runtime view.</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Message subscriptions</span>
+                <strong class="summary-value">@(_instance.MessageSubscriptionCount)</strong>
+                <span class="summary-hint">Use the subscription panel to inspect or trigger waiting messages.</span>
+            </article>
+        </div>
+    }
 
     @if (!string.IsNullOrWhiteSpace(ErrorString))
     {
-        <div id="instance-load-error" role="alert">
-            <p>@ErrorString</p>
-            <FluentButton Id="instance-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">
-                Retry
-            </FluentButton>
+        <div id="instance-load-error" class="inline-state-message inline-state-message-error" role="alert">
+            <div class="section-title-group">
+                <strong>Could not load instance details</strong>
+                <span>@ErrorString</span>
+            </div>
+            <div class="diagram-inline-actions">
+                <FluentButton Id="instance-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">
+                    Retry
+                </FluentButton>
+            </div>
         </div>
     }
     else if (_instance == null)
     {
-        <p id="instance-loading-state">Loading instance...</p>
+        <div id="instance-loading-state" class="inline-state-message inline-state-message-info">Loading instance...</div>
     }
     else
     {
-        <div class="diagram-content with-diagram" id="designer-container">
-            <div class="canvas" id="js-canvas"></div>
-        </div>
+        <section class="surface-panel instance-diagram-surface">
+            <div class="section-header">
+                <div class="section-title-group">
+                    <h2 class="section-title">Live diagram</h2>
+                    <p class="section-subtitle">The BPMN viewer highlights active tokens so runtime state stays readable without leaving the instance page.</p>
+                </div>
+            </div>
+            <div class="diagram-content with-diagram" id="designer-container">
+                <div class="canvas" id="js-canvas"></div>
+            </div>
+        </section>
 
+        <div class="instance-runtime-grid">
+            <section class="surface-panel">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">Tokens and data</h2>
+                        <p class="section-subtitle">Select a token to inspect its flow-node context, variables and output payload separately.</p>
+                    </div>
+                </div>
 
-        <div id="information_container">
-            <FluentStack Orientation="Orientation.Horizontal">
+                <div class="token-browser">
+                    <div class="token-browser-sidebar">
+                        <FluentTreeView Items="@VariableItems" @bind-SelectedItem="@CurrentSelectedToken" />
+                    </div>
 
-                <FluentCard Width="800px;">
-                    <h3>Tokens</h3>
-                    <FluentStack Orientation="Orientation.Horizontal">
-                        <FluentTreeView Items="@VariableItems" @bind-SelectedItem="@CurrentSelectedToken">
-                        </FluentTreeView>
-                        <FluentTabs >
-                            <FluentTab Id="tab-1" Label="Output" IsActive="true">
-                                <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
-                                </FluentTextArea>
+                    <div class="token-browser-content">
+                        <div class="token-selection-header">
+                            <strong class="section-title">@SelectedTokenTitle</strong>
+                            @if (!string.IsNullOrWhiteSpace(SelectedTokenFlowNodeId))
+                            {
+                                <span class="pill-chip">Flow node @SelectedTokenFlowNodeId</span>
+                            }
+                        </div>
+
+                        <FluentTabs>
+                            <FluentTab Id="token-output" Label="Output">
+                                @if (SelectedTokenHasOutputData)
+                                {
+                                    <FluentTextArea Value="@SelectedTokenOutputJson" ReadOnly="true" Cols="80" Rows="15" />
+                                }
+                                else
+                                {
+                                    <p class="empty-state-description">The selected token has not produced output data yet.</p>
+                                }
                             </FluentTab>
-                            <FluentTab Id="tab-2" Label="Variables">
-                                <FluentTextArea @bind-Value="@VariableContent" Cols="80" Rows="15" >
-                                </FluentTextArea>
+                            <FluentTab Id="token-variables" Label="Variables">
+                                @if (SelectedTokenHasVariables)
+                                {
+                                    <FluentTextArea Value="@SelectedTokenVariablesJson" ReadOnly="true" Cols="80" Rows="15" />
+                                }
+                                else
+                                {
+                                    <p class="empty-state-description">No token variables are currently available for the selected token.</p>
+                                }
                             </FluentTab>
                         </FluentTabs>
-                    </FluentStack>
-                </FluentCard>
+                    </div>
+                </div>
+            </section>
 
-                
-                <FluentCard Width="400px" Height="400px">
-                    <h3>Subscriptions</h3>
+            <section class="surface-panel">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">Subscriptions</h2>
+                        <p class="section-subtitle">Expand runtime subscriptions to inspect waiting messages, signals, service tasks and user tasks.</p>
+                    </div>
+                </div>
+
+                @if (!Items.Any())
+                {
+                    <div class="empty-state">
+                        <div class="empty-state-title">No runtime subscriptions</div>
+                        <p class="empty-state-description">This instance currently has no waiting messages, signals, service callbacks or user tasks.</p>
+                    </div>
+                }
+                else
+                {
                     <FluentTreeView Items="@Items">
                         <ItemTemplate>
-                            @if (GetTreeRelatedItem<MessageSubscriptionDto>(context.Id, out var item))
+                            @if (GetTreeRelatedItem<MessageSubscriptionDto>(context.Id, out var messageItem))
                             {
-                                <span>Waiting for "@item.Message.Name"</span>
-                                <FluentButton @onclick="async args => await OpenSendRestRequestAsync(ExampleRestRequestBuilder.BuildMessageRequest(item.Message, _instance?.InstanceId))" Class="tree-button">Send request</FluentButton>
+                                <div class="subscription-action-row">
+                                    <span>Waiting for "@messageItem.Message.Name"</span>
+                                    <FluentButton Appearance="Appearance.Neutral"
+                                                  @onclick="async _ => await OpenSendRestRequestAsync(ExampleRestRequestBuilder.BuildMessageRequest(messageItem.Message, _instance?.InstanceId))"
+                                                  Class="tree-button">
+                                        Send message
+                                    </FluentButton>
+                                </div>
                             }
                             else
                             {
@@ -73,11 +181,8 @@
                             }
                         </ItemTemplate>
                     </FluentTreeView>
-
-                </FluentCard>
-            </FluentStack>
-
+                }
+            </section>
         </div>
     }
-
 </div>

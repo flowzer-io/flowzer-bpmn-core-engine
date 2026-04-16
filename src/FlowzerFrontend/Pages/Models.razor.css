@@ -1,54 +1,8 @@
-.main-content{
-    height: 100%;
-}
-
-::deep #new-button
-{
+::deep #new-button {
     width: 100%;
 }
 
-.grid-row-title{
-    font-weight: bold;    
-}
-
-.grid-row-title a,
-.grid-row-title a:visited{
-    color: black;
-    text-decoration: none;
-    cursor: pointer;
-}
-
-.icon
-{
-    color: #317145;
-    font-size: 30px;
-    margin-right: 20px;
-}
-
-.list-header{
-    padding-top: 10px;
-    padding-left: 10px;
-    padding-right: 10px;
-    width: 100%;
-}
-
-.model-action-group{
+.model-action-group {
     gap: 8px;
     flex-wrap: wrap;
-}
-
-.action-message{
-    margin: 12px 10px 0;
-    padding: 10px 12px;
-    border-radius: 8px;
-}
-
-.action-message-info{
-    background: #e8f5e9;
-    color: #1b5e20;
-}
-
-.action-message-error{
-    background: #ffebee;
-    color: #b71c1c;
 }

@@ -12,28 +12,51 @@ public partial class Home : FlowzerComponentBase
     private ExtendedUserTaskSubscriptionDto[] _tasks = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
+    private int WorkflowCount { get; set; }
+    private int DeployedWorkflowCount { get; set; }
+    private int ActiveInstanceCount { get; set; }
+    private int FormCount { get; set; }
+    private int OpenTaskCount => _tasks.Length;
 
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
- 
-    
+
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _tasks = await FlowzerApi.GetAllUserTasks();
+            var userTasksTask = FlowzerApi.GetAllUserTasks();
+            var workflowsTask = FlowzerApi.GetAllBpmnMetaDefinitions();
+            var instancesTask = FlowzerApi.GetAllInstances();
+            var formsTask = FlowzerApi.GetFormMetaDatas();
+
+            await Task.WhenAll(userTasksTask, workflowsTask, instancesTask, formsTask);
+
+            _tasks = userTasksTask.Result;
+
+            var workflows = workflowsTask.Result;
+            WorkflowCount = workflows.Length;
+            DeployedWorkflowCount = workflows.Count(model => model.DeployedId.HasValue);
+
+            var instances = instancesTask.Result;
+            ActiveInstanceCount = InstanceListFilterHelper.Apply(instances, InstanceListFilter.Active).Count();
+            FormCount = formsTask.Result.Count;
             LoadErrorMessage = null;
         }
         catch (Exception exception)
         {
             _tasks = [];
-            LoadErrorMessage = $"Could not load user tasks. {exception.Message}";
+            WorkflowCount = 0;
+            DeployedWorkflowCount = 0;
+            ActiveInstanceCount = 0;
+            FormCount = 0;
+            LoadErrorMessage = $"Could not load dashboard data. {exception.Message}";
         }
         finally
         {
             IsLoading = false;
         }
     }
-    
+
     private async Task OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
     {
         var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
@@ -44,21 +67,21 @@ public partial class Home : FlowzerComponentBase
         }
 
         string? version = null;
-        if (formName.Contains(":"))
+        if (formName.Contains(':'))
         {
-            var parts = formName.Split(":");
+            var parts = formName.Split(':');
             formName = parts[0];
             version = parts[1];
         }
-        
+
         var formMeta = (await FlowzerApi.GetFormMetaByName(formName)).SingleOrDefault();
-        
+
         if (formMeta == null)
         {
             ErrorDialog($"Could not find any form Named with '{formName}'");
             return;
         }
-        
+
         FormDto form;
         if (version == null)
         {
@@ -75,7 +98,6 @@ public partial class Home : FlowzerComponentBase
             return;
         }
 
-        
         DialogParameters parameters = new()
         {
             Title = $"Test Form",
@@ -85,21 +107,20 @@ public partial class Home : FlowzerComponentBase
             Modal = true,
             PreventScroll = true,
             ShowTitle = false,
-            SecondaryActionEnabled = true ,
+            SecondaryActionEnabled = true,
             SecondaryAction = "Cancel",
             PrimaryAction = "Submit"
         };
-        
+
         var data = new FilloutFormParameter()
         {
-            
             Schema = form.FormData,
             Data = JsonConvert.SerializeObject(userTaskSubscription.Token.Variables)
         };
-        
+
         IDialogReference dialog = await DialogService.ShowDialogAsync<FilloutForm>(data, parameters);
         DialogResult? result = await dialog.Result;
-        
+
         if (!result.Cancelled && result.Data is FilloutFormParameter formResult && !string.IsNullOrWhiteSpace(formResult.OutData))
         {
             var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(formResult.OutData) ?? new ExpandoObject();
@@ -118,20 +139,18 @@ public partial class Home : FlowzerComponentBase
                 Data = dataObj
             };
             await FlowzerApi.CompleteUserTask(userTaskResult);
+            _tasks = _tasks.Where(task => task.Token.Id != userTaskSubscription.Token.Id).ToArray();
+            await InvokeAsync(StateHasChanged);
         }
-        
     }
-
-
 }
 
-public class FlowzerComponentBase: ComponentBase
+public class FlowzerComponentBase : ComponentBase
 {
     [Inject] public required IDialogService DialogService { get; set; }
-    
+
     public void ErrorDialog(string message)
     {
         DialogService.ShowError(message, "Error");
     }
-
 }

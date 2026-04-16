@@ -1,12 +1,22 @@
-<div id="header">
-    <div id="titel-info" >
-        <a href="@BackLink"><i class="fa-solid fa-chevron-left"></i></a>
-        @LeftSide
-    </div>
-    <div>
-        @RigthSide
-    </div>
-        
-    
+<header class="detail-header">
+    <div class="detail-header-main">
+        @if (!string.IsNullOrWhiteSpace(BackLink))
+        {
+            <a class="detail-back-link" href="@BackLink" aria-label="Back">
+                <i class="fa-solid fa-chevron-left"></i>
+                <span>Back</span>
+            </a>
+        }
 
-</div>
+        <div class="detail-header-body">
+            @LeftSide
+        </div>
+    </div>
+
+    @if (RigthSide != null)
+    {
+        <div class="detail-header-actions">
+            @RigthSide
+        </div>
+    }
+</header>
