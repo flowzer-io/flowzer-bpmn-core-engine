@@ -110,6 +110,20 @@ Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst
 PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 ```
 
+Wenn dieser Skip-Pfad verwendet wird, muss das Frontend unter **.NET 10** ebenfalls explizit mit der gewünschten WASM-Umgebung gestartet werden. Für den Playwright-Fall sieht ein passender manueller Start z. B. so aus:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Playwright \
+dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj \
+  --configuration Release \
+  --no-build \
+  --no-launch-profile \
+  -p:WasmApplicationEnvironmentName=Playwright \
+  --urls http://localhost:5290
+```
+
+Alternativ kann die Playwright-Konfiguration über `FLOWZER_FRONTEND_ENVIRONMENT=<env>` auf eine andere Client-Umgebung gestellt werden; wichtig ist in jedem Fall, dass `WasmApplicationEnvironmentName` und die erwartete `appsettings.<env>.json` zusammenpassen.
+
 Für verwaltete Playwright-Läufe werden absichtlich eigene Ports genutzt, damit lokale Debug-Sessions auf `5182`/`5269` nicht mit den Smoke-Tests kollidieren:
 
 - Web-API: `http://localhost:5288`
