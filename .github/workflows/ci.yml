@@ -148,6 +148,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - dotnet
+    timeout-minutes: 25
 
     steps:
       - name: Repository auschecken
@@ -177,10 +178,12 @@ jobs:
 
       - name: Chromium für Playwright installieren
         working-directory: tests/ui-smoke
+        timeout-minutes: 10
         run: npm run install:browsers
 
       - name: UI-Smoke-Tests ausführen
         working-directory: tests/ui-smoke
+        timeout-minutes: 15
         run: npm test
 
       - name: Playwright-Artefakte hochladen
