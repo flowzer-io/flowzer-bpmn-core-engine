@@ -18,7 +18,7 @@ Bitte lies zuerst:
 
 ### .NET
 
-Empfohlen wird aktuell **.NET 8**.
+Empfohlen wird aktuell **.NET 10 SDK**. `global.json` ist die technische Quelle für die verwendete SDK-Version; README und diese Beitragsdoku sind die dokumentarische Referenz.
 
 ```bash
 dotnet restore core-engine.sln

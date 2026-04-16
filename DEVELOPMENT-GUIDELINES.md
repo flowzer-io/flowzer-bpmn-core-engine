@@ -2,7 +2,7 @@
 
 ## Übersicht
 
-Dieses Dokument definiert die Entwicklungsrichtlinien und Best Practices für das flowzer-bpmn-core-engine Projekt - eine BPMN 2.0 konforme Ausführungsengine in C# .NET 8.
+Dieses Dokument definiert die Entwicklungsrichtlinien und Best Practices für das flowzer-bpmn-core-engine Projekt - eine BPMN 2.0 orientierte Ausführungsengine in C# auf **.NET 10**. Maßgeblich für die konkrete SDK-Version ist `global.json`.
 
 ## Projektstruktur
 
@@ -31,7 +31,7 @@ src/
 - Klare Interface-Abgrenzungen zwischen den Schichten
 
 ### 3. Modern C# Practices
-- .NET 8 Target Framework
+- .NET 10 Target Framework
 - Nullable Reference Types aktiviert
 - Primary Constructors für einfache Klassen
 - `required` Properties für essentielle Daten

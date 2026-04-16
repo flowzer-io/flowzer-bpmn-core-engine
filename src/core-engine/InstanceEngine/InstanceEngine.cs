@@ -88,7 +88,7 @@ public partial class InstanceEngine
         }
         
         // Process- und SubProcess-Tokens werden rückwärts durchlaufen, damit abgeschlossene Kindtokens
-        // zuerst ausgewertet werden und die Ausführungsreihenfolge unter .NET 8 reproduzierbar bleibt.
+        // zuerst ausgewertet werden und die Ausführungsreihenfolge unter aktuellen .NET-Laufzeiten deterministisch bleibt.
         foreach (var token in activeTokens.AsEnumerable().Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
         {
             new ProcessFlowNodeHandler().Execute(this, token);

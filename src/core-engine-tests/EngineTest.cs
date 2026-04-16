@@ -460,8 +460,8 @@ public class EngineTest
         var remainingTime = dueDate - DateTime.UtcNow;
         using (new AssertionScope())
         {
-            remainingTime.Should().BeGreaterOrEqualTo(TimeSpan.FromSeconds(1));
-            remainingTime.Should().BeLessOrEqualTo(TimeSpan.FromSeconds(2.5));
+            remainingTime.Should().BeGreaterThanOrEqualTo(TimeSpan.FromSeconds(1));
+            remainingTime.Should().BeLessThanOrEqualTo(TimeSpan.FromSeconds(2.5));
             timerSubscription.RemainingOccurrences.Should().Be(10);
         }
     }
