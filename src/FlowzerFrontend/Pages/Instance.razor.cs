@@ -26,7 +26,8 @@ public partial class Instance : IAsyncDisposable
     public IEnumerable<ITreeViewItem> VariableItems = [];
     private IEnumerable<ITreeViewItem> Items = [];
 
-    public string ErrorString { get; set; } = string.Empty;
+    private string? ErrorHeadline { get; set; }
+    private string? ErrorDetails { get; set; }
     private string SelectedTokenTitle { get; set; } = "Select a token";
     private string SelectedTokenFlowNodeId { get; set; } = string.Empty;
     private string SelectedTokenVariablesJson { get; set; } = string.Empty;
@@ -66,6 +67,7 @@ public partial class Instance : IAsyncDisposable
           _instance.SignalSubscriptionCount +
           _instance.UserTaskSubscriptionCount +
           _instance.ServiceSubscriptionCount;
+    private bool HasError => !string.IsNullOrWhiteSpace(ErrorHeadline);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -95,7 +97,7 @@ public partial class Instance : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ErrorString = $"Could not render instance diagram. {exception.Message}";
+            SetError("Could not render the instance diagram", exception.Message);
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -235,7 +237,7 @@ public partial class Instance : IAsyncDisposable
     private async Task LoadDiagramXml(string xml)
     {
         await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.importXml", xml);
-        ErrorString = string.Empty;
+        ClearError();
     }
 
     private async Task OpenSendRestRequestAsync(RestExampleRequest restData)
@@ -273,7 +275,7 @@ public partial class Instance : IAsyncDisposable
     private async Task Reload()
     {
         IsRefreshing = true;
-        ErrorString = string.Empty;
+        ClearError();
 
         try
         {
@@ -286,7 +288,7 @@ public partial class Instance : IAsyncDisposable
             Items = [];
             VariableItems = [];
             CurrentSelectedToken = null;
-            ErrorString = $"Could not load instance details. {exception.Message}";
+            SetError("Could not load instance details", exception.Message);
         }
         finally
         {
@@ -299,7 +301,7 @@ public partial class Instance : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ErrorString = $"Could not render instance diagram. {exception.Message}";
+            SetError("Could not render the instance diagram", exception.Message);
         }
     }
 
@@ -315,13 +317,13 @@ public partial class Instance : IAsyncDisposable
 
         await LoadDiagramXml(xml);
         await ShowTokens(_instance.Tokens);
-        ErrorString = string.Empty;
+        ClearError();
         await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnRetryClick()
     {
-        ErrorString = string.Empty;
+        ClearError();
 
         if (!IsViewerInitialized)
         {
@@ -341,6 +343,18 @@ public partial class Instance : IAsyncDisposable
         }
 
         NavigationManager.NavigateTo(UriHelper.GetEditDefinitionUrl(_instance.RelatedDefinitionId, _instance.DefinitionId));
+    }
+
+    private void SetError(string headline, string details)
+    {
+        ErrorHeadline = headline;
+        ErrorDetails = details;
+    }
+
+    private void ClearError()
+    {
+        ErrorHeadline = null;
+        ErrorDetails = null;
     }
 
     private async Task OnRefreshClickAsync()

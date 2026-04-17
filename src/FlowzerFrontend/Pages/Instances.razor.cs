@@ -21,6 +21,10 @@ public partial class Instances : ComponentBase
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
     private InstanceListFilter CurrentFilter { get; set; } = InstanceListFilter.All;
+    private int AllCount { get; set; }
+    private int ActiveCount { get; set; }
+    private int DoneCount { get; set; }
+    private int ErrorCount { get; set; }
     public string? SearchText
     {
         get => _searchText;
@@ -37,15 +41,20 @@ public partial class Instances : ComponentBase
     }
 
     public string CurrentFilterLabel => InstanceListFilterHelper.ToDisplayLabel(CurrentFilter);
-    private int AllCount => AllInstances.Count;
-    private int ActiveCount => CountInstances(InstanceListFilter.Active);
-    private int DoneCount => CountInstances(InstanceListFilter.Done);
-    private int ErrorCount => CountInstances(InstanceListFilter.Error);
+    private bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
     private string ResultLabel => SearchText?.Trim() switch
     {
         { Length: > 0 } => $"Showing {VisibleInstances.Count} matching instances",
         _ => $"Showing {VisibleInstances.Count} instances"
     };
+    private string EmptyStateTitle => HasSearchText
+        ? $"No instances match “{SearchText!.Trim()}”"
+        : CurrentFilter == InstanceListFilter.All
+            ? "No instances right now"
+            : $"No {CurrentFilterLabel.ToLowerInvariant()} instances right now";
+    private string EmptyStateDescription => HasSearchText
+        ? "Try a different search term or clear the current search to return to the active runtime view."
+        : "Start a workflow from the catalog or switch the current runtime filter to inspect other instances.";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -69,7 +78,7 @@ public partial class Instances : ComponentBase
         }
         finally
         {
-            RefreshVisibleInstances();
+            RefreshViewState();
             IsLoading = false;
         }
     }
@@ -79,9 +88,18 @@ public partial class Instances : ComponentBase
         VisibleInstances = InstanceListViewHelper.ApplyQuery(AllInstances, CurrentFilter, SearchText).ToList();
     }
 
-    private int CountInstances(InstanceListFilter filter)
+    private void RefreshMetrics()
     {
-        return InstanceListFilterHelper.Apply(AllInstances, filter).Count();
+        AllCount = AllInstances.Count;
+        ActiveCount = InstanceListFilterHelper.Apply(AllInstances, InstanceListFilter.Active).Count();
+        DoneCount = InstanceListFilterHelper.Apply(AllInstances, InstanceListFilter.Done).Count();
+        ErrorCount = InstanceListFilterHelper.Apply(AllInstances, InstanceListFilter.Error).Count();
+    }
+
+    private void RefreshViewState()
+    {
+        RefreshVisibleInstances();
+        RefreshMetrics();
     }
 
     private void OnOpenInstanceClick(Guid instanceId)
@@ -97,5 +115,10 @@ public partial class Instances : ComponentBase
     private static string GetStateToneClass(ProcessInstanceStateDto state)
     {
         return ProcessInstanceStateViewHelper.GetToneClass(state);
+    }
+
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 }

@@ -58,9 +58,16 @@
                     <FluentTextField @bind-Value="SearchText"
                                      Style="min-width: min(360px, 100%);"
                                      Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
                                      Placeholder="Search workflows by name, id or description">
                         <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
                     </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="models-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
                     <FluentCombobox Placeholder="Sort by name"
                                     TOption="Option<SortDirection>"
                                     Items="@SortDirections"
@@ -94,7 +101,7 @@
 
                 @if (IsLoading)
                 {
-                    <div id="models-loading-state" class="inline-state-message inline-state-message-info">Loading models...</div>
+                    <div id="models-loading-state" class="inline-state-message inline-state-message-info">Loading workflows...</div>
                 }
                 else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
                 {
@@ -103,9 +110,15 @@
                 else if (!items.Any())
                 {
                     <div id="models-empty-state" class="empty-state">
-                        <div class="empty-state-title">No workflows match the current view</div>
-                        <p class="empty-state-description">Create a new workflow or broaden the current search to see more definitions.</p>
-                        <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create workflow</FluentButton>
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="models-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create workflow</FluentButton>
+                        </div>
                     </div>
                 }
                 else
@@ -137,7 +150,7 @@
                                 <FluentButton Id="@($"model-open-latest-{context.DefinitionId}")"
                                               Appearance="Appearance.Stealth"
                                               @onclick="@(() => OnOpenLatestClick(context))">
-                                    Open
+                                    Open latest
                                 </FluentButton>
                                 @if (context.DeployedId.HasValue)
                                 {

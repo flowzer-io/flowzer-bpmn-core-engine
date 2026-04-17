@@ -15,6 +15,7 @@ public partial class Forms : ComponentBase
     private List<FormMetaDataDto> VisibleForms { get; set; } = [];
     private bool IsLoading { get; set; } = true;
     private string? LoadErrorMessage { get; set; }
+    private bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
     public string? SearchText
     {
         get => _searchText;
@@ -37,6 +38,12 @@ public partial class Forms : ComponentBase
         { Length: > 0 } => $"Showing {VisibleFormCount} of {TotalFormCount} forms",
         _ => $"Showing {VisibleFormCount} forms"
     };
+    private string EmptyStateTitle => HasSearchText
+        ? $"No forms match “{SearchText!.Trim()}”"
+        : "No forms yet";
+    private string EmptyStateDescription => HasSearchText
+        ? "Try another search term or clear the current search to get back to the full form catalog."
+        : "Create the first reusable form so workflows can collect and validate user input.";
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,5 +77,10 @@ public partial class Forms : ComponentBase
     private void RefreshVisibleForms()
     {
         VisibleForms = FormListViewHelper.ApplyQuery(AllForms, SearchText).ToList();
+    }
+
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 }

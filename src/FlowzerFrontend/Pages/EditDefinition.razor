@@ -63,7 +63,7 @@
         </RigthSide>
     </HeaderElement>
 
-    @if (!IsDocumentLoading && string.IsNullOrWhiteSpace(ErrorString))
+    @if (!IsDocumentLoading && !HasError)
     {
         <div class="summary-grid">
             <article class="summary-card">
@@ -97,12 +97,15 @@
     {
         <div id="definition-loading-state" class="inline-state-message inline-state-message-info">Loading workflow model...</div>
     }
-    else if (!string.IsNullOrWhiteSpace(ErrorString))
+    else if (HasError)
     {
         <div id="definition-load-error" class="diagram-inline-message" role="alert">
             <div class="section-title-group">
-                <strong>Could not open the workflow</strong>
-                <span>@ErrorString</span>
+                <strong>@ErrorHeadline</strong>
+                @if (!string.IsNullOrWhiteSpace(ErrorDetails))
+                {
+                    <span>@ErrorDetails</span>
+                }
             </div>
             <div class="diagram-inline-actions">
                 <FluentButton Id="definition-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">

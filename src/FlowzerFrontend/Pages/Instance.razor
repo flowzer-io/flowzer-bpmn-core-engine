@@ -38,7 +38,7 @@
         </RigthSide>
     </HeaderElement>
 
-    @if (_instance != null && string.IsNullOrWhiteSpace(ErrorString))
+    @if (_instance != null && !HasError)
     {
         <div class="summary-grid">
             <article class="summary-card">
@@ -64,12 +64,15 @@
         </div>
     }
 
-    @if (!string.IsNullOrWhiteSpace(ErrorString))
+    @if (HasError)
     {
         <div id="instance-load-error" class="inline-state-message inline-state-message-error" role="alert">
             <div class="section-title-group">
-                <strong>Could not load instance details</strong>
-                <span>@ErrorString</span>
+                <strong>@ErrorHeadline</strong>
+                @if (!string.IsNullOrWhiteSpace(ErrorDetails))
+                {
+                    <span>@ErrorDetails</span>
+                }
             </div>
             <div class="diagram-inline-actions">
                 <FluentButton Id="instance-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">

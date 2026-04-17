@@ -44,6 +44,8 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 
 - klareres Intro mit direkten Einstiegsaktionen
 - Summary-Cards für offene Aufgaben, Workflows, aktive Instanzen und Formulare
+- Summary-Cards zusätzlich als **direkte Navigationskacheln** für Kernbereiche nutzbar
+- Fehlerinstanzen als eigener sichtbarer Einstieg in die Runtime ergänzt
 - offenere Task-Karten statt rein technischer Listenwirkung
 - nach abgeschlossener User-Task wird die Karte direkt aus der Übersicht entfernt
 
@@ -51,17 +53,19 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 
 - Seite fachlich klarer als **Workflow-Katalog** inszeniert
 - explizite Aktionen pro Workflow:
-  - **Open**
+  - **Open latest**
   - **Open deployed**
   - **Start instance**
 - Version-/Lifecycle-Kontext sichtbarer
 - konsistentere Search-/Sort-Toolbar
+- expliziter **Clear search**-Pfad und kontextabhängige Empty States für Treffer- vs. Leer-Katalog-Fälle
 
 ## 4. Formular-Katalog
 
 - explizite **Open form**-Aktionen statt versteckter Zeileninteraktion
 - bessere Such- und Ergebnisrückmeldung
 - klarere Empty States
+- expliziter **Clear search**-Pfad bei aktiver Filterung
 
 ## 5. Instanzliste
 
@@ -69,6 +73,7 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - zusätzliche **Suche nach Workflowname, Workflow-Key oder Instanz-ID**
 - klarere Runtime-Chips für Tokens, Messages, Signals, User Tasks und Services
 - explizite **Open instance**-Aktion pro Zeile
+- kontextabhängige Empty States und expliziter **Clear search**-Pfad
 
 ## 6. Instanzdetailansicht
 
@@ -80,6 +85,7 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - Diagramm als eigene Hauptfläche
 - Token-Inspektion jetzt mit **getrennten Tabs für Variables und Output**
 - Subscription-Panel klarer strukturiert; wartende Messages lassen sich gezielt auslösen
+- Fehlerzustände getrennt nach **Headline + Detail**, damit Diagramm- und Ladefehler nicht mehr doppelt oder missverständlich erscheinen
 
 ## 7. Workflow-Editor
 
@@ -89,6 +95,7 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
   - **Deploy current version**
   - **Start instance**
 - Diagramm und Properties-Panel bleiben als zusammengehörige Arbeitsfläche besser lesbar
+- Workflow-Fehlermeldungen verwenden konsistent die Endnutzer-Sprache **Workflow** statt gemischter Model-/Workflow-Begriffe
 
 ## 8. Form-Editor
 

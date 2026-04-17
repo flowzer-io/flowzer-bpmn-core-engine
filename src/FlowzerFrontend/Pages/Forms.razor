@@ -52,9 +52,16 @@
                     <FluentTextField @bind-Value="SearchText"
                                      Style="min-width: min(360px, 100%);"
                                      Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
                                      Placeholder="Search forms by name or identifier">
                         <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
                     </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="forms-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
                 </div>
 
                 <span class="results-label">@ResultLabel</span>
@@ -81,9 +88,15 @@
                 else if (!items.Any())
                 {
                     <div id="forms-empty-state" class="empty-state">
-                        <div class="empty-state-title">No forms match the current view</div>
-                        <p class="empty-state-description">Create a new form or broaden the search to see additional form definitions.</p>
-                        <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create form</FluentButton>
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="forms-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create form</FluentButton>
+                        </div>
                     </div>
                 }
                 else

@@ -23,6 +23,9 @@ public partial class Models
     private string? ActionErrorMessage { get; set; }
     private string? ActionInfoMessage { get; set; }
     private string? StartingDefinitionId { get; set; }
+    private int TotalModelCount { get; set; }
+    private int DeployedModelCount { get; set; }
+    private int DraftModelCount { get; set; }
     public string? SearchText
     {
         get => _searchText;
@@ -56,15 +59,18 @@ public partial class Models
     }
 
     public string? SelectedSortDirectionString { get; set; }
-
-    private int TotalModelCount => AllModels.Count;
-    private int DeployedModelCount => AllModels.Count(model => model.DeployedId.HasValue);
-    private int DraftModelCount => AllModels.Count(model => !model.DeployedId.HasValue);
+    private bool HasSearchText => !string.IsNullOrWhiteSpace(SearchText);
     private string ResultLabel => SearchText?.Trim() switch
     {
         { Length: > 0 } => $"Showing {VisibleModels.Count} of {TotalModelCount} workflows",
         _ => $"Showing {VisibleModels.Count} workflows"
     };
+    private string EmptyStateTitle => HasSearchText
+        ? $"No workflows match “{SearchText!.Trim()}”"
+        : "No workflows yet";
+    private string EmptyStateDescription => HasSearchText
+        ? "Try another search term or clear the current search to see more workflows."
+        : "Create the first workflow to start modeling, deploying and running BPMN definitions from the same place.";
 
     protected override void OnInitialized()
     {
@@ -145,11 +151,11 @@ public partial class Models
         catch (Exception exception)
         {
             AllModels = [];
-            LoadErrorMessage = $"Could not load models. {exception.Message}";
+            LoadErrorMessage = $"Could not load workflows. {exception.Message}";
         }
         finally
         {
-            RefreshVisibleModels();
+            RefreshViewState();
             IsLoading = false;
         }
     }
@@ -159,6 +165,24 @@ public partial class Models
         VisibleModels = ModelListViewHelper
             .ApplyQuery(AllModels, SearchText, SelectedSortDirection?.Value ?? SortDirection.Ascending)
             .ToList();
+    }
+
+    private void RefreshMetrics()
+    {
+        TotalModelCount = AllModels.Count;
+        DeployedModelCount = AllModels.Count(model => model.DeployedId.HasValue);
+        DraftModelCount = TotalModelCount - DeployedModelCount;
+    }
+
+    private void RefreshViewState()
+    {
+        RefreshVisibleModels();
+        RefreshMetrics();
+    }
+
+    private void ClearSearch()
+    {
+        SearchText = string.Empty;
     }
 
     private void ClearActionMessages()

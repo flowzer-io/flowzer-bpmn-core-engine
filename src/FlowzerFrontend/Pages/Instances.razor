@@ -66,9 +66,16 @@
                     <FluentTextField @bind-Value="SearchText"
                                      Style="min-width: min(360px, 100%);"
                                      Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
                                      Placeholder="Search by workflow name, workflow key or instance id">
                         <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
                     </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="instances-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
                     <span id="instances-filter-label" class="pill-chip">Showing: @CurrentFilterLabel</span>
                 </div>
                 <span class="results-label">@ResultLabel</span>
@@ -95,9 +102,15 @@
                 else if (!items.Any())
                 {
                     <div id="instances-empty-state" class="empty-state">
-                        <div class="empty-state-title">No instances match the selected view</div>
-                        <p class="empty-state-description">Try another runtime filter, clear the search or start a workflow from the catalog to create a new instance.</p>
-                        <a class="cta-link cta-link-primary" href="/models">Open workflows</a>
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="instances-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <a class="cta-link cta-link-primary" href="/models">Open workflows</a>
+                        </div>
                     </div>
                 }
                 else

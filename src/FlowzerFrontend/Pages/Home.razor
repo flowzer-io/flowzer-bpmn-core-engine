@@ -23,30 +23,35 @@
     @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
     {
         <div class="summary-grid">
-            <article class="summary-card">
+            <a id="home-summary-open-tasks" class="summary-card summary-card-link" href="#home-user-task-section">
                 <span class="summary-label">Open user tasks</span>
                 <strong class="summary-value">@OpenTaskCount</strong>
                 <span class="summary-hint">Need action from a human right now</span>
-            </article>
-            <article class="summary-card">
+            </a>
+            <a id="home-summary-workflows" class="summary-card summary-card-link" href="/models">
                 <span class="summary-label">Workflows</span>
                 <strong class="summary-value">@WorkflowCount</strong>
                 <span class="summary-hint">@DeployedWorkflowCount deployed and available</span>
-            </article>
-            <article class="summary-card">
+            </a>
+            <a id="home-summary-active-instances" class="summary-card summary-card-link" href="/instances/active">
                 <span class="summary-label">Active instances</span>
                 <strong class="summary-value">@ActiveInstanceCount</strong>
                 <span class="summary-hint">Running, waiting or otherwise in progress</span>
-            </article>
-            <article class="summary-card">
+            </a>
+            <a id="home-summary-failed-instances" class="summary-card summary-card-link" href="/instances/error">
+                <span class="summary-label">Failed instances</span>
+                <strong class="summary-value">@FailedInstanceCount</strong>
+                <span class="summary-hint">Jump straight into runtime issues that currently need attention</span>
+            </a>
+            <a id="home-summary-forms" class="summary-card summary-card-link" href="/forms">
                 <span class="summary-label">Forms</span>
                 <strong class="summary-value">@FormCount</strong>
                 <span class="summary-hint">Reusable user-facing building blocks</span>
-            </article>
+            </a>
         </div>
     }
 
-    <section class="surface-panel">
+    <section id="home-user-task-section" class="surface-panel">
         <div class="section-header">
             <div class="section-title-group">
                 <h2 class="section-title">Open user tasks</h2>

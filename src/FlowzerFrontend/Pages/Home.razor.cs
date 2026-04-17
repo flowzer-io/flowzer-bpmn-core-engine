@@ -15,6 +15,7 @@ public partial class Home : FlowzerComponentBase
     private int WorkflowCount { get; set; }
     private int DeployedWorkflowCount { get; set; }
     private int ActiveInstanceCount { get; set; }
+    private int FailedInstanceCount { get; set; }
     private int FormCount { get; set; }
     private int OpenTaskCount => _tasks.Length;
 
@@ -39,6 +40,7 @@ public partial class Home : FlowzerComponentBase
 
             var instances = instancesTask.Result;
             ActiveInstanceCount = InstanceListFilterHelper.Apply(instances, InstanceListFilter.Active).Count();
+            FailedInstanceCount = InstanceListFilterHelper.Apply(instances, InstanceListFilter.Error).Count();
             FormCount = formsTask.Result.Count;
             LoadErrorMessage = null;
         }
@@ -48,6 +50,7 @@ public partial class Home : FlowzerComponentBase
             WorkflowCount = 0;
             DeployedWorkflowCount = 0;
             ActiveInstanceCount = 0;
+            FailedInstanceCount = 0;
             FormCount = 0;
             LoadErrorMessage = $"Could not load dashboard data. {exception.Message}";
         }
