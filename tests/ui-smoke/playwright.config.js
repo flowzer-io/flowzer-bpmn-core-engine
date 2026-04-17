@@ -72,11 +72,14 @@ module.exports = defineConfig({
           timeout: 120_000
         },
         {
-          command: `dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-build --no-launch-profile --urls ${frontendServerOrigin}`,
+          // .NET 10 verwendet bei Standalone-Blazor-WASM für lokale Builds standardmäßig wieder die
+          // Development-Umgebung. Für UI-Smokes muss deshalb die gewünschte Client-Umgebung bereits
+          // beim Frontend-Build per WasmApplicationEnvironmentName fest verdrahtet werden.
+          command: `dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-launch-profile -p:WasmApplicationEnvironmentName=${frontendEnvironmentName} --urls ${frontendServerOrigin}`,
           env: frontendWebServerEnvironment,
           url: frontendServerOrigin,
           reuseExistingServer,
-          timeout: 120_000
+          timeout: 180_000
         }
       ]
 });

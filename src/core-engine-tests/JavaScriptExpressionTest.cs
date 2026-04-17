@@ -83,7 +83,7 @@ public class JavaScriptExpressionTest
             stopwatch.Stop();
 
             result.Should().Be("Mike");
-            TestContext.WriteLine($"FEEL-Auswertung erfolgreich in {stopwatch.ElapsedMilliseconds} ms");
+            TestContext.Out.WriteLine($"FEEL-Auswertung erfolgreich in {stopwatch.ElapsedMilliseconds} ms");
         }
         catch (Exception exception) when (IsMissingV8Dependency(exception))
         {
@@ -123,6 +123,6 @@ public class ConsoleWrapper
     public void Log(string message)
     {
         Console.WriteLine(message);
-        TestContext.WriteLine(message);
+        TestContext.Out.WriteLine(message);
     }
 }

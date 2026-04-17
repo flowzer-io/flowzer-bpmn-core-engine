@@ -63,7 +63,7 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 
 ### Voraussetzungen
 
-- **.NET 8 SDK** empfohlen
+- **.NET 10 SDK** (siehe `global.json`)
 - **Node.js 20+** für `/bpmn.io`
 - Git
 

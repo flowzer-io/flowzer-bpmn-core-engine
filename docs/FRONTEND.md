@@ -41,6 +41,7 @@ ASPNETCORE_ENVIRONMENT=Development \
   dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj \
   --configuration Release \
   --no-launch-profile \
+  -p:WasmApplicationEnvironmentName=Development \
   --urls http://localhost:5269
 ```
 
@@ -121,10 +122,26 @@ Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst
 PLAYWRIGHT_SKIP_WEBSERVERS=1 npm --prefix tests/ui-smoke run test
 ```
 
+Wenn dieser Skip-Pfad verwendet wird, muss das Frontend unter **.NET 10** ebenfalls explizit mit der gewünschten WASM-Umgebung gestartet werden. Für den Playwright-Fall sieht ein passender manueller Start z. B. so aus:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Playwright \
+dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj \
+  --configuration Release \
+  --no-build \
+  --no-launch-profile \
+  -p:WasmApplicationEnvironmentName=Playwright \
+  --urls http://localhost:5290
+```
+
+Alternativ kann die Playwright-Konfiguration über `FLOWZER_FRONTEND_ENVIRONMENT=<env>` auf eine andere Client-Umgebung gestellt werden; wichtig ist in jedem Fall, dass `WasmApplicationEnvironmentName` und die erwartete `appsettings.<env>.json` zusammenpassen.
+
 Für verwaltete Playwright-Läufe werden absichtlich eigene Ports genutzt, damit lokale Debug-Sessions auf `5182`/`5269` nicht mit den Smoke-Tests kollidieren:
 
 - Web-API: `http://localhost:5288`
 - Frontend: `http://localhost:5290`
+
+Seit dem Upgrade auf **.NET 10** wird die Client-Umgebung einer Standalone-Blazor-WASM-App nicht mehr zuverlässig über `launchSettings.json` bzw. nur über den Host-Prozess gesteuert. Für die UI-Smokes startet die Playwright-Konfiguration das Frontend deshalb explizit mit `-p:WasmApplicationEnvironmentName=Playwright`, damit weiterhin `appsettings.Playwright.json` statt `appsettings.Development.json` geladen wird.
 
 Der `npm test`-Pfad verwendet zusätzlich einen kleinen Prozesswächter. Dieser erkennt alte verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse aus früheren Läufen und räumt nach dem Test auch neu entstandene Browser-Reste wieder weg. Damit bleiben keine CPU-intensiven Headless-Prozesse mehr unbemerkt liegen.
 
