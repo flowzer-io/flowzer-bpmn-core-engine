@@ -13,7 +13,7 @@ public partial class EditDefinition : IAsyncDisposable
 
     [Parameter]
     public string? MetaDefinitionId { get; set; }
-        
+
     [Parameter]
     public Guid? DefinitionId { get; set; }
 
@@ -28,10 +28,9 @@ public partial class EditDefinition : IAsyncDisposable
 
     [Inject]
     public required NavigationManager NavigationManager { get; set; }
-    
-    private FluentMenuButton _menubutton = new();
- 
-    public string? ErrorString { get; set; }
+
+    private string? ErrorHeadline { get; set; }
+    private string? ErrorDetails { get; set; }
     public bool IsDocumentLoading { get; set; } = true;
     private bool IsEditorInitialized { get; set; }
     private string? PendingXml { get; set; }
@@ -42,25 +41,32 @@ public partial class EditDefinition : IAsyncDisposable
     private bool ActionFeedbackIsError { get; set; }
 
     private BpmnMetaDefinitionDto CurrentMetaDefinition { get; set; } = CreateLoadingMetaDefinition();
-
     private BpmnDefinitionDto CurrentDefinition { get; set; } = CreateEmptyDefinition();
 
     public List<BpmnMetaDefinitionDto> AvailableVersions { get; set; } = new();
 
-    private bool CanEditMetadata => !IsDocumentLoading && string.IsNullOrWhiteSpace(ErrorString);
+    private bool HasError => !string.IsNullOrWhiteSpace(ErrorHeadline);
+    private bool CanEditMetadata => !IsDocumentLoading && !HasError;
     private bool CanPersistDefinition =>
         !IsDocumentLoading &&
         !IsPersistingDefinition &&
         IsEditorInitialized &&
-        string.IsNullOrWhiteSpace(ErrorString);
+        !HasError;
     private bool CanStartInstance =>
         !IsDocumentLoading &&
         !IsPersistingDefinition &&
         !string.IsNullOrWhiteSpace(CurrentMetaDefinition.DefinitionId) &&
         CurrentDefinition.DeployedOn.HasValue &&
-        string.IsNullOrWhiteSpace(ErrorString);
+        !HasError;
     private bool IsCurrentDefinitionDeployed => CurrentDefinition.DeployedOn.HasValue;
     private string CurrentDefinitionStateLabel => IsCurrentDefinitionDeployed ? "Deployed" : "Draft";
+    private string CurrentDefinitionVersionLabel => CurrentDefinition.Id == Guid.Empty ? "Version pending" : $"Version {CurrentDefinition.Version}";
+    private string CurrentDefinitionContextLabel => IsCurrentDefinitionDeployed
+        ? "This is the currently deployed version and can start new instances."
+        : "This is a draft version that still needs deployment before runtime can use it.";
+    private string LastSavedLabel => CurrentDefinition.Id == Guid.Empty
+        ? "Not saved yet"
+        : CurrentDefinition.SavedOn.ToLocalTime().ToString("g");
 
     protected override async Task OnParametersSetAsync()
     {
@@ -78,7 +84,7 @@ public partial class EditDefinition : IAsyncDisposable
     {
         await base.OnAfterRenderAsync(firstRender);
 
-        if (NeedsEditorInitialization)
+        if (NeedsEditorInitialization && !IsDocumentLoading && !HasError)
         {
             NeedsEditorInitialization = false;
             await TryInitializeEditorAsync();
@@ -101,13 +107,13 @@ public partial class EditDefinition : IAsyncDisposable
             await LoadDiagramXml(xml);
             PendingXml = null;
             LastFailedXmlImport = null;
-            ErrorString = null;
+            ClearError();
         }
         catch (Exception exception)
         {
             LastFailedXmlImport = xml;
             PendingXml = xml;
-            ErrorString = $"Failed to load BPMN XML into the editor: {exception.Message}";
+            SetError("Could not render the workflow", $"The BPMN editor could not import the workflow XML. {exception.Message}");
             await SafeStateHasChangedAsync();
         }
     }
@@ -119,13 +125,13 @@ public partial class EditDefinition : IAsyncDisposable
             await JsRuntime.EvalCodeBehindJsScripts(this);
             await JsRuntime.InvokeVoidAsyncNoneCached($"{EditorInteropPath}.initialize");
             IsEditorInitialized = true;
-            ErrorString = null;
+            ClearError();
             await SafeStateHasChangedAsync();
         }
         catch (Exception exception)
         {
             IsEditorInitialized = false;
-            ErrorString = $"Failed to initialize the BPMN editor: {exception.Message}";
+            SetError("Could not prepare the workflow editor", $"The BPMN editor could not be initialized. {exception.Message}");
             await SafeStateHasChangedAsync();
         }
     }
@@ -133,7 +139,7 @@ public partial class EditDefinition : IAsyncDisposable
     private async Task LoadModel()
     {
         IsDocumentLoading = true;
-        ErrorString = null;
+        ClearError();
         ClearActionFeedback();
         PendingXml = null;
         LastFailedXmlImport = null;
@@ -144,7 +150,7 @@ public partial class EditDefinition : IAsyncDisposable
         {
             if (string.IsNullOrWhiteSpace(MetaDefinitionId))
             {
-                ErrorString = "No model identifier was provided.";
+                SetError("Could not open the workflow", "No workflow identifier was provided by the current route.");
                 CurrentMetaDefinition = CreateUnavailableMetaDefinition();
                 return;
             }
@@ -157,7 +163,7 @@ public partial class EditDefinition : IAsyncDisposable
             var xml = await FlowzerApi.GetXmlDefinition(CurrentDefinition.Id);
             if (string.IsNullOrWhiteSpace(xml))
             {
-                ErrorString = "No XML found for this model.";
+                SetError("Could not open the workflow", "No BPMN XML was found for this workflow.");
                 return;
             }
 
@@ -167,7 +173,7 @@ public partial class EditDefinition : IAsyncDisposable
         {
             CurrentMetaDefinition = CreateUnavailableMetaDefinition(MetaDefinitionId);
             CurrentDefinition = CreateEmptyDefinition();
-            ErrorString = $"Could not load model. {exception.Message}";
+            SetError("Could not open the workflow", exception.Message);
         }
         finally
         {
@@ -179,7 +185,7 @@ public partial class EditDefinition : IAsyncDisposable
     private async Task LoadDiagramXml(string xml)
     {
         await JsRuntime.InvokeVoidAsyncNoneCached($"{EditorInteropPath}.importXml", xml);
-        ErrorString = null;
+        ClearError();
     }
 
     private async Task OnSaveClick()
@@ -235,9 +241,9 @@ public partial class EditDefinition : IAsyncDisposable
 
             CurrentDefinition = persistedDefinition;
             DefinitionId = persistedDefinition.Id;
-            PendingXml = xmlData;
+            PendingXml = null;
             LastFailedXmlImport = null;
-            ErrorString = null;
+            ClearError();
 
             var targetUrl = UriHelper.GetEditDefinitionUrl(CurrentMetaDefinition.DefinitionId, persistedDefinition.Id);
             NavigationManager.NavigateTo(targetUrl, replace: true);
@@ -281,7 +287,7 @@ public partial class EditDefinition : IAsyncDisposable
 
     private async Task OnRetryClick()
     {
-        ErrorString = null;
+        ClearError();
 
         if (!IsEditorInitialized)
         {
@@ -334,6 +340,18 @@ public partial class EditDefinition : IAsyncDisposable
     {
         ActionFeedbackMessage = null;
         ActionFeedbackIsError = false;
+    }
+
+    private void SetError(string headline, string details)
+    {
+        ErrorHeadline = headline;
+        ErrorDetails = details;
+    }
+
+    private void ClearError()
+    {
+        ErrorHeadline = null;
+        ErrorDetails = null;
     }
 
     private static BpmnMetaDefinitionDto CreateLoadingMetaDefinition(string? definitionId = null)

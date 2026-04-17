@@ -1,30 +1,39 @@
-﻿@page "/definition/{MetaDefinitionId}"
+@page "/definition/{MetaDefinitionId}"
 @page "/definition/{MetaDefinitionId}/{DefinitionId:guid}"
-@using Microsoft.FluentUI.AspNetCore.Components
 @using FlowzerFrontend.Components
+@using Microsoft.FluentUI.AspNetCore.Components
 
-<div class="main-content">
-
+<div class="page-stack definition-page">
     <HeaderElement BackLink="/models">
         <LeftSide>
-            @if (CanEditMetadata)
-            {
-                <LabelWithEdit @bind-Label="CurrentMetaDefinition.Name" AfterChanged="AfterChanged" />
-            }
-            else
-            {
-                <span id="current-file-name">@CurrentMetaDefinition.Name</span>
-            }
-            <span id="current-file-version">Version: @(CurrentDefinition.Id == Guid.Empty ? "-" : CurrentDefinition.Version.ToString()) </span>
-            <FluentBadge Id="definition-state-badge"
-                         Appearance="@(IsCurrentDefinitionDeployed ? Appearance.Accent : Appearance.Lightweight)">
-                @CurrentDefinitionStateLabel
-            </FluentBadge>
+            <div class="entity-header">
+                <div class="entity-title-row">
+                    @if (CanEditMetadata)
+                    {
+                        <LabelWithEdit @bind-Label="CurrentMetaDefinition.Name" AfterChanged="AfterChanged" />
+                    }
+                    else
+                    {
+                        <span id="current-file-name">@CurrentMetaDefinition.Name</span>
+                    }
+                    <span id="current-file-version" class="status-pill status-pill-neutral">@CurrentDefinitionVersionLabel</span>
+                    <FluentBadge Id="definition-state-badge"
+                                 Appearance="@(IsCurrentDefinitionDeployed ? Appearance.Accent : Appearance.Lightweight)">
+                        @CurrentDefinitionStateLabel
+                    </FluentBadge>
+                </div>
+                <div class="entity-meta-row">
+                    <span>Workflow key @CurrentMetaDefinition.DefinitionId</span>
+                    <span>@CurrentDefinitionContextLabel</span>
+                    @if (!string.IsNullOrWhiteSpace(CurrentMetaDefinition.Description))
+                    {
+                        <span>@CurrentMetaDefinition.Description</span>
+                    }
+                </div>
+            </div>
         </LeftSide>
         <RigthSide>
-            <FluentStack Class="action-button-group">
-                @* <FluentCombobox AriaLabel="Pre-selected option" Items="@AvailableVersions" @bind-Value="@CurrentDefinition" Height="200px" /> *@
-
+            <FluentStack Orientation="Orientation.Horizontal" Class="definition-action-group">
                 <FluentButton IconStart="@(new Icons.Regular.Size16.Play())"
                               Appearance="Appearance.Neutral"
                               Disabled="@(!CanStartInstance)"
@@ -35,12 +44,12 @@
                               Appearance="Appearance.Accent"
                               Disabled="@(!CanPersistDefinition)"
                               @onclick="OnDeployClick">
-                    Deploy
+                    Deploy current version
                 </FluentButton>
                 <FluentButton IconEnd="@(new Icons.Regular.Size16.Save())"
                               Disabled="@(!CanPersistDefinition)"
                               @onclick="OnSaveClick">
-                    Save
+                    Save draft
                 </FluentButton>
 
                 <FluentMenuButton Text="Options"
@@ -48,11 +57,32 @@
                                   OnMenuChanged="OnSaveMenuChoosen"
                                   ButtonAppearance="Appearance.Neutral"
                                   Disabled="@(!CanPersistDefinition)">
-                    <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
+                    <FluentMenuItem Id="SaveAs">Save copy...</FluentMenuItem>
                 </FluentMenuButton>
             </FluentStack>
         </RigthSide>
     </HeaderElement>
+
+    @if (!IsDocumentLoading && !HasError)
+    {
+        <div class="summary-grid">
+            <article class="summary-card">
+                <span class="summary-label">Workflow key</span>
+                <strong class="summary-value summary-value-inline">@CurrentMetaDefinition.DefinitionId</strong>
+                <span class="summary-hint">Stable identifier used by the API and runtime to address this workflow.</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Current version</span>
+                <strong class="summary-value summary-value-inline">@(CurrentDefinition.Id == Guid.Empty ? "Not saved yet" : CurrentDefinition.Version.ToString())</strong>
+                <span class="summary-hint">Save creates a new draft version, deploy promotes the current version to runtime.</span>
+            </article>
+            <article class="summary-card">
+                <span class="summary-label">Last saved</span>
+                <strong class="summary-value summary-value-inline">@LastSavedLabel</strong>
+                <span class="summary-hint">Useful when checking whether the editor shows the latest persisted content.</span>
+            </article>
+        </div>
+    }
 
     @if (!string.IsNullOrWhiteSpace(ActionFeedbackMessage))
     {
@@ -63,20 +93,20 @@
         </div>
     }
 
-    <div class="content with-diagram" id="designer-container">
-        <div class="canvas" id="js-canvas"></div>
-        <div class="properties-panel-parent" id="js-properties-panel"></div>
-    </div>
-
     @if (IsDocumentLoading)
     {
-        <p id="definition-loading-state">Loading model...</p>
+        <div id="definition-loading-state" class="inline-state-message inline-state-message-info">Loading workflow model...</div>
     }
-    else if (!string.IsNullOrWhiteSpace(ErrorString))
+    else if (HasError)
     {
         <div id="definition-load-error" class="diagram-inline-message" role="alert">
-            <span>Error :-(</span><br />
-            @ErrorString
+            <div class="section-title-group">
+                <strong>@ErrorHeadline</strong>
+                @if (!string.IsNullOrWhiteSpace(ErrorDetails))
+                {
+                    <span>@ErrorDetails</span>
+                }
+            </div>
             <div class="diagram-inline-actions">
                 <FluentButton Id="definition-retry-button" Appearance="Appearance.Accent" @onclick="OnRetryClick">
                     Retry
@@ -84,5 +114,20 @@
             </div>
         </div>
     }
+    else
+    {
+        <section class="surface-panel definition-editor-surface">
+            <div class="section-header">
+                <div class="section-title-group">
+                    <h2 class="section-title">Workflow editor</h2>
+                    <p class="section-subtitle">Adjust BPMN flow, properties and deployment state in one place. The diagram and properties panel stay visible side by side on larger screens.</p>
+                </div>
+            </div>
 
+            <div class="content with-diagram" id="designer-container">
+                <div class="canvas" id="js-canvas"></div>
+                <div class="properties-panel-parent" id="js-properties-panel"></div>
+            </div>
+        </section>
+    }
 </div>

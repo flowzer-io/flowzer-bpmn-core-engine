@@ -1,10 +1,10 @@
-using System.Text.Json;
 using FlowzerFrontend.BusinessLogic;
 using FlowzerFrontend.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.FluentUI.AspNetCore.Components;
 using Microsoft.JSInterop;
 using WebApiEngine.Shared;
+
 namespace FlowzerFrontend.Pages;
 
 public partial class Instance : IAsyncDisposable
@@ -15,20 +15,25 @@ public partial class Instance : IAsyncDisposable
     private bool IsViewerInitialized { get; set; }
     private bool NeedsViewerInitialization { get; set; } = true;
     private string? PendingXml { get; set; }
+    private bool IsRefreshing { get; set; }
 
     [Parameter] public Guid InstanceGuid { get; set; }
 
     [Inject] public required IJSRuntime JsRuntime { get; set; }
-
     [Inject] public required FlowzerApi FlowzerApi { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
 
     public IEnumerable<ITreeViewItem> VariableItems = [];
-    
-    public string? VariableContent;
-
     private IEnumerable<ITreeViewItem> Items = [];
-    
-    public string ErrorString { get; set; } = string.Empty;
+
+    private string? ErrorHeadline { get; set; }
+    private string? ErrorDetails { get; set; }
+    private string SelectedTokenTitle { get; set; } = "Select a token";
+    private string SelectedTokenFlowNodeId { get; set; } = string.Empty;
+    private string SelectedTokenVariablesJson { get; set; } = string.Empty;
+    private string SelectedTokenOutputJson { get; set; } = string.Empty;
+    private bool SelectedTokenHasVariables { get; set; }
+    private bool SelectedTokenHasOutputData { get; set; }
 
     private ITreeViewItem? _currentSelectedToken;
     public ITreeViewItem? CurrentSelectedToken
@@ -37,26 +42,32 @@ public partial class Instance : IAsyncDisposable
         set
         {
             _currentSelectedToken = value;
-            VariableContent = LoadVariablesTreeForToken(_currentSelectedToken?.Id);
+            ApplyTokenSelection(_currentSelectedToken?.Id);
         }
-    }
-
-    private string? LoadVariablesTreeForToken(string? tokenId)
-    {
-        if (string.IsNullOrEmpty(tokenId))
-            return null;
-        
-        var token = _instance?.Tokens.FirstOrDefault(x => x.Id.ToString() == tokenId);
-        if (token?.OutputData == null)
-            return null;
-
-        return JsonSerializer.Serialize(token.OutputData, new JsonSerializerOptions() {WriteIndented = true});
-
     }
 
     private bool _trapFocus = true;
     private bool _modal = true;
     private readonly Dictionary<string, object> _treeItemMappings = new();
+
+    private string InstanceTitle => _instance == null
+        ? "Instance"
+        : $"{_instance.RelatedDefinitionName} · {_instance.InstanceId}";
+    private string InstanceStateLabel => _instance == null
+        ? "Loading"
+        : ProcessInstanceStateViewHelper.GetLabel(_instance.State);
+    private string InstanceStateToneClass => _instance == null
+        ? "status-pill-neutral"
+        : ProcessInstanceStateViewHelper.GetToneClass(_instance.State);
+    private int TokenCount => _instance?.Tokens.Count ?? 0;
+    private int ActiveTokenCount => _instance?.Tokens.Count(token => token.State == FlowNodeStateDto.Active) ?? 0;
+    private int WaitingSubscriptionCount => _instance == null
+        ? 0
+        : _instance.MessageSubscriptionCount +
+          _instance.SignalSubscriptionCount +
+          _instance.UserTaskSubscriptionCount +
+          _instance.ServiceSubscriptionCount;
+    private bool HasError => !string.IsNullOrWhiteSpace(ErrorHeadline);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -86,7 +97,7 @@ public partial class Instance : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ErrorString = $"Could not render instance diagram. {exception.Message}";
+            SetError("Could not render the instance diagram", exception.Message);
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -100,9 +111,9 @@ public partial class Instance : IAsyncDisposable
 
     private async Task LoadData()
     {
+        _treeItemMappings.Clear();
         _instance = await FlowzerApi.GetProcessInstance(InstanceGuid);
-        var data = await FlowzerApi.GetXmlDefinition(_instance.DefinitionId);
-        PendingXml = data;
+        PendingXml = await FlowzerApi.GetXmlDefinition(_instance.DefinitionId);
         await ShowVariables(_instance.Tokens);
         LoadSubscriptionOverview();
         await InvokeAsync(StateHasChanged);
@@ -111,14 +122,29 @@ public partial class Instance : IAsyncDisposable
     private async Task ShowVariables(List<TokenDto> instanceTokens)
     {
         VariableItems = InstanceTreeViewBuilder.BuildTokenItems(instanceTokens);
-        
+        CurrentSelectedToken = VariableItems.FirstOrDefault();
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyTokenSelection(string? tokenId)
+    {
+        var token = _instance?.Tokens.FirstOrDefault(candidate => candidate.Id.ToString() == tokenId);
+        var selectionDetails = TokenSelectionViewHelper.Create(token);
+        SelectedTokenTitle = selectionDetails.Title;
+        SelectedTokenFlowNodeId = selectionDetails.FlowNodeId;
+        SelectedTokenVariablesJson = selectionDetails.VariablesJson;
+        SelectedTokenOutputJson = selectionDetails.OutputJson;
+        SelectedTokenHasVariables = selectionDetails.HasVariables;
+        SelectedTokenHasOutputData = selectionDetails.HasOutputData;
     }
 
     private void LoadSubscriptionOverview()
     {
         if (_instance == null)
+        {
+            Items = [];
             return;
+        }
 
         var subscriptionOverview = InstanceTreeViewBuilder.BuildSubscriptionOverview(_instance);
         foreach (var item in subscriptionOverview)
@@ -164,13 +190,12 @@ public partial class Instance : IAsyncDisposable
         };
     }
 
-
     private async Task ShowTokens(List<TokenDto> instanceTokens)
     {
         await ClearTokens();
         try
         {
-            foreach (var instanceToken in instanceTokens.Where(x => IsActive(x.State)).GroupBy(x => x.CurrentFlowNodeId))
+            foreach (var instanceToken in instanceTokens.Where(token => token.State == FlowNodeStateDto.Active).GroupBy(token => token.CurrentFlowNodeId))
             {
                 await AddToken(instanceToken.Key, instanceToken.Count());
             }
@@ -181,16 +206,11 @@ public partial class Instance : IAsyncDisposable
         }
     }
 
-    private bool IsActive(FlowNodeStateDto state)
-    {
-        return state == FlowNodeStateDto.Active;
-    }
-
     private async Task AddToken(string? instanceTokenKey, int instanceTokensCount)
     {
         if (string.IsNullOrEmpty(instanceTokenKey) || !IsViewerInitialized)
             return;
-        
+
         try
         {
             _ = await JsRuntime.InvokeAsyncNoneCached<bool>($"{ViewerInteropPath}.addToken", instanceTokenKey, instanceTokensCount);
@@ -217,15 +237,14 @@ public partial class Instance : IAsyncDisposable
     private async Task LoadDiagramXml(string xml)
     {
         await JsRuntime.InvokeVoidAsyncNoneCached($"{ViewerInteropPath}.importXml", xml);
-        ErrorString = string.Empty;
+        ClearError();
     }
 
     private async Task OpenSendRestRequestAsync(RestExampleRequest restData)
     {
-
         DialogParameters parameters = new()
         {
-            Title = $"Send Event",
+            Title = "Send Event",
             Width = "80%",
             TrapFocus = _trapFocus,
             Modal = _modal,
@@ -236,28 +255,28 @@ public partial class Instance : IAsyncDisposable
         {
             RestExampleRequest = restData
         };
-        var dialog =  await DialogService.ShowDialogAsync<RestDialog>(restDialogParams, parameters);
+        var dialog = await DialogService.ShowDialogAsync<RestDialog>(restDialogParams, parameters);
         await dialog.Result;
         await LoadData();
-
     }
 
     private bool GetTreeRelatedItem<T>(string id, out T o)
     {
-        if (_treeItemMappings.TryGetValue(id, out var obj))
+        if (_treeItemMappings.TryGetValue(id, out var obj) && obj is T castedT)
         {
-            if (obj is T castedT)
-            {
-                o = castedT;
-                return true;
-            }
+            o = castedT;
+            return true;
         }
+
         o = default!;
         return false;
     }
 
     private async Task Reload()
     {
+        IsRefreshing = true;
+        ClearError();
+
         try
         {
             await LoadData();
@@ -268,8 +287,12 @@ public partial class Instance : IAsyncDisposable
             PendingXml = null;
             Items = [];
             VariableItems = [];
-            VariableContent = null;
-            ErrorString = $"Could not load instance details. {exception.Message}";
+            CurrentSelectedToken = null;
+            SetError("Could not load instance details", exception.Message);
+        }
+        finally
+        {
+            IsRefreshing = false;
         }
 
         try
@@ -278,7 +301,7 @@ public partial class Instance : IAsyncDisposable
         }
         catch (Exception exception)
         {
-            ErrorString = $"Could not render instance diagram. {exception.Message}";
+            SetError("Could not render the instance diagram", exception.Message);
         }
     }
 
@@ -294,13 +317,13 @@ public partial class Instance : IAsyncDisposable
 
         await LoadDiagramXml(xml);
         await ShowTokens(_instance.Tokens);
-        ErrorString = string.Empty;
+        ClearError();
         await InvokeAsync(StateHasChanged);
     }
 
     private async Task OnRetryClick()
     {
-        ErrorString = string.Empty;
+        ClearError();
 
         if (!IsViewerInitialized)
         {
@@ -309,6 +332,33 @@ public partial class Instance : IAsyncDisposable
             return;
         }
 
+        await Reload();
+    }
+
+    private void OnOpenWorkflowClick()
+    {
+        if (_instance == null)
+        {
+            return;
+        }
+
+        NavigationManager.NavigateTo(UriHelper.GetEditDefinitionUrl(_instance.RelatedDefinitionId, _instance.DefinitionId));
+    }
+
+    private void SetError(string headline, string details)
+    {
+        ErrorHeadline = headline;
+        ErrorDetails = details;
+    }
+
+    private void ClearError()
+    {
+        ErrorHeadline = null;
+        ErrorDetails = null;
+    }
+
+    private async Task OnRefreshClickAsync()
+    {
         await Reload();
     }
 

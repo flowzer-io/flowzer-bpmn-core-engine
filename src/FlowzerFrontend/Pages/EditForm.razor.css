@@ -1,9 +1,12 @@
-.main-content{
-    display: grid;
-    grid-template-rows: auto 1fr;
-    height: 100%;
+.edit-form-actions {
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
-.iframe-container{
-    margin: 10px;
+.form-editor-surface {
+    min-height: 70vh;
+}
+
+.iframe-container {
+    min-height: 64vh;
 }

@@ -1,51 +1,129 @@
 @page "/forms"
+@using FlowzerFrontend.BusinessLogic
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
 
+<LayoutWithLeftMenu>
+    <MenuContent>
+        <div class="sidebar-panel">
+            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" @onclick="OnNewClick">
+                New form
+            </FluentButton>
+        </div>
 
+        <div class="sidebar-panel">
+            <div class="sidebar-hint-title">Form catalog</div>
+            <p class="sidebar-hint-copy">Forms back user tasks and should stay easy to find, update and validate.</p>
+        </div>
+    </MenuContent>
+    <MainContent>
+        <div class="page-stack">
+            <section class="surface-panel page-intro">
+                <div class="page-intro-copy">
+                    <span class="page-eyebrow">Human interaction</span>
+                    <h1 class="page-title">Forms</h1>
+                    <p class="page-subtitle">Keep form assets easy to browse and edit so task-driven workflows stay understandable for users and operators.</p>
+                </div>
 
-<div class="main-content">
-    <LayoutWithLeftMenu>
-        <MenuContent>
-            <FluentNavMenu>
-                <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
-                    New Form
-                </FluentButton>
-                @* <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="/instances/all">All Instances</FluentNavLink> *@
-                @* <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="/instances/done">Done</FluentNavLink> *@
-                @* <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="/instances/active">Error</FluentNavLink> *@
-            </FluentNavMenu>
-        </MenuContent>
-        <MainContent>
-            <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                <h1>Forms</h1>
+                <div class="page-actions">
+                    <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">New form</FluentButton>
+                    <a class="cta-link cta-link-secondary" href="/models">Open workflows</a>
+                </div>
+            </section>
+
+            @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
+            {
+                <div class="summary-grid">
+                    <article class="summary-card">
+                        <span class="summary-label">Total forms</span>
+                        <strong class="summary-value">@TotalFormCount</strong>
+                        <span class="summary-hint">Reusable building blocks for user tasks</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Visible results</span>
+                        <strong class="summary-value">@VisibleFormCount</strong>
+                        <span class="summary-hint">Filtered with the current search input</span>
+                    </article>
+                </div>
+            }
+
+            <section class="surface-panel toolbar-panel">
+                <div class="toolbar-group">
+                    <FluentTextField @bind-Value="SearchText"
+                                     Style="min-width: min(360px, 100%);"
+                                     Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
+                                     Placeholder="Search forms by name or identifier">
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
+                    </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="forms-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
+                </div>
+
+                <span class="results-label">@ResultLabel</span>
+            </section>
+
+            <section class="surface-panel">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">Form library</h2>
+                        <p class="section-subtitle">Browse the current form assets and jump straight into editing without relying on row-title clicks.</p>
+                    </div>
+                </div>
+
+                @{ var items = VisibleForms; }
 
                 @if (IsLoading)
                 {
-                    <p id="forms-loading-state">Loading forms...</p>
+                    <div id="forms-loading-state" class="inline-state-message inline-state-message-info">Loading forms...</div>
                 }
                 else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
                 {
-                    <p id="forms-load-error" role="alert">@LoadErrorMessage</p>
+                    <div id="forms-load-error" class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
                 }
-                else if (!Data.Any())
+                else if (!items.Any())
                 {
-                    <p id="forms-empty-state">No forms are available yet.</p>
+                    <div id="forms-empty-state" class="empty-state">
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="forms-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create form</FluentButton>
+                        </div>
+                    </div>
                 }
                 else
                 {
-                    <div class="list-header">
-                        <FluentDataGrid Items="@Data" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
-                            <SelectColumn TGridItem="FormMetaDataDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
-                            <TemplateColumn Title="Title">
-                                <div class="grid-row-title"><a href="@UriHelper.GetShowFormUrl(@context.FormId)">@context.Name</a></div>
-                                <div class="grid-row-subtitle">Instance @context.FormId</div>
-                            </TemplateColumn>
-                        </FluentDataGrid>
-                    </div>
+                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1.6fr) minmax(260px, 1fr) auto" ShowHover="true">
+                        <TemplateColumn Title="Form">
+                            <div class="entity-row-stack">
+                                <div class="entity-row-title"><a href="@UriHelper.GetShowFormUrl(context.FormId)">@context.Name</a></div>
+                                <div class="entity-row-subtitle">Form @context.FormId</div>
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Usage hint">
+                            <div class="entity-row-stack">
+                                <div class="entity-row-metric">Ready for user task mapping</div>
+                                <div class="entity-row-hint">Use the form name or explicit version binding inside workflow definitions.</div>
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Actions">
+                            <FluentButton Id="@($"form-open-{context.FormId}")"
+                                          Appearance="Appearance.Neutral"
+                                          @onclick="@(() => OnEditClick(context.FormId))">
+                                Open form
+                            </FluentButton>
+                        </TemplateColumn>
+                    </FluentDataGrid>
                 }
-
-            </FluentStack>
-        </MainContent>
-    </LayoutWithLeftMenu>
-</div>
+            </section>
+        </div>
+    </MainContent>
+</LayoutWithLeftMenu>

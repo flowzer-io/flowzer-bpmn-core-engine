@@ -1,32 +1,23 @@
-﻿@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components
 @inherits LayoutComponentBase
 
 <FluentBodyContent>
+    <div class="app-shell">
+        <header class="app-topbar">
+            <a class="app-brand-link" href="/">
+                <span class="app-brand-title">Flowzer</span>
+                <span class="app-brand-subtitle">BPMN workflow studio</span>
+            </a>
 
-    <div class="page">
-        <nav>
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <div class="nav-item">
-                    Home    
-                </div>
-            </NavLink>
-            <NavLink class="nav-link" href="/models">
-                <div class="nav-item">
-                    Models
-                </div>
-            </NavLink>
-            <NavLink class="nav-link" href="/instances">
-                <div class="nav-item">
-                    Instances
-                </div>
-            </NavLink>
-            <NavLink class="nav-link" href="/forms">
-                <div class="nav-item">
-                    Forms
-                </div>
-            </NavLink>
-        </nav>
-        <main>
+            <nav class="app-topnav" aria-label="Primary navigation">
+                <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
+                <NavLink class="app-nav-link" href="/models">Workflows</NavLink>
+                <NavLink class="app-nav-link" href="/instances">Instances</NavLink>
+                <NavLink class="app-nav-link" href="/forms">Forms</NavLink>
+            </nav>
+        </header>
+
+        <main class="app-page">
             @Body
         </main>
     </div>
@@ -37,4 +28,3 @@
     <FluentMessageBarProvider />
     <FluentMenuProvider />
 </FluentBodyContent>
-

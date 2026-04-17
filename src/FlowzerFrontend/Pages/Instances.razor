@@ -4,84 +4,159 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
 
-
-
-<div style="height: 100%; ">
-    <LayoutWithLeftMenu>
-        <MenuContent>
+<LayoutWithLeftMenu>
+    <MenuContent>
+        <div class="sidebar-panel">
             <FluentNavMenu>
-                <FluentNavLink Icon="@(new Icons.Regular.Size20.PersonRunning())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.All))">All Instances</FluentNavLink>
-                <FluentNavLink Icon="@(new Icons.Regular.Size20.Play())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Active))">Active Instances</FluentNavLink>
-                <FluentNavLink Icon="@(new Icons.Filled.Size20.RecordStop())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Done))">Done Instances</FluentNavLink>
-                <FluentNavLink Icon="@(new Icons.Regular.Size20.Warning())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Error))">Failed Instances</FluentNavLink>
+                <FluentNavLink Id="instances-filter-all" Icon="@(new Icons.Regular.Size20.Apps())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.All))">All instances (@AllCount)</FluentNavLink>
+                <FluentNavLink Id="instances-filter-active" Icon="@(new Icons.Regular.Size20.Play())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Active))">Active instances (@ActiveCount)</FluentNavLink>
+                <FluentNavLink Id="instances-filter-done" Icon="@(new Icons.Filled.Size20.RecordStop())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Done))">Done instances (@DoneCount)</FluentNavLink>
+                <FluentNavLink Id="instances-filter-error" Icon="@(new Icons.Regular.Size20.Warning())" Href="@UriHelper.GetInstancesUrl(InstanceListFilterHelper.ToRouteSegment(InstanceListFilter.Error))">Failed instances (@ErrorCount)</FluentNavLink>
             </FluentNavMenu>
-        </MenuContent>
-        <MainContent>
-            <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                <h1>Instances</h1>
-                <p id="instances-filter-label">Showing: @CurrentFilterLabel</p>
-                @{
-                    var items = Data.ToList();
-                }
+        </div>
+
+        <div class="sidebar-panel">
+            <div class="sidebar-hint-title">Runtime focus</div>
+            <p class="sidebar-hint-copy">Use filters and search together to find exactly the instance that needs action without leaving the runtime overview.</p>
+        </div>
+    </MenuContent>
+    <MainContent>
+        <div class="page-stack">
+            <section class="surface-panel page-intro">
+                <div class="page-intro-copy">
+                    <span class="page-eyebrow">Runtime</span>
+                    <h1 class="page-title">Instances</h1>
+                    <p class="page-subtitle">Track workflow execution, identify waiting subscriptions and jump straight into the exact instance that needs attention.</p>
+                </div>
+
+                <div class="page-actions">
+                    <a class="cta-link cta-link-secondary" href="/models">Open workflows</a>
+                    <a class="cta-link cta-link-secondary" href="/">Open task inbox</a>
+                </div>
+            </section>
+
+            @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
+            {
+                <div class="summary-grid">
+                    <article class="summary-card">
+                        <span class="summary-label">All instances</span>
+                        <strong class="summary-value">@AllCount</strong>
+                        <span class="summary-hint">Every known runtime instance</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Active</span>
+                        <strong class="summary-value">@ActiveCount</strong>
+                        <span class="summary-hint">Running, waiting or otherwise in progress</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Done</span>
+                        <strong class="summary-value">@DoneCount</strong>
+                        <span class="summary-hint">Completed, terminated or compensated</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Failed</span>
+                        <strong class="summary-value">@ErrorCount</strong>
+                        <span class="summary-hint">Require troubleshooting or replay decisions</span>
+                    </article>
+                </div>
+            }
+
+            <section class="surface-panel toolbar-panel">
+                <div class="toolbar-group instances-toolbar-group">
+                    <FluentTextField @bind-Value="SearchText"
+                                     Style="min-width: min(360px, 100%);"
+                                     Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
+                                     Placeholder="Search by workflow name, workflow key or instance id">
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
+                    </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="instances-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
+                    <span id="instances-filter-label" class="pill-chip">Showing: @CurrentFilterLabel</span>
+                </div>
+                <span class="results-label">@ResultLabel</span>
+            </section>
+
+            <section class="surface-panel">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">Instance list</h2>
+                        <p class="section-subtitle">Search, filter and then open an instance explicitly instead of relying on subtle title links.</p>
+                    </div>
+                </div>
+
+                @{ var items = VisibleInstances; }
 
                 @if (IsLoading)
                 {
-                    <p id="instances-loading-state">Loading instances...</p>
+                    <div id="instances-loading-state" class="inline-state-message inline-state-message-info">Loading instances...</div>
                 }
                 else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
                 {
-                    <p id="instances-load-error" role="alert">@LoadErrorMessage</p>
+                    <div id="instances-load-error" class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
                 }
                 else if (!items.Any())
                 {
-                    <p id="instances-empty-state">No instances match the selected filter.</p>
+                    <div id="instances-empty-state" class="empty-state">
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="instances-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <a class="cta-link cta-link-primary" href="/models">Open workflows</a>
+                        </div>
+                    </div>
                 }
                 else
                 {
-                    <div class="list-header">
-                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto" ShowHover="true">
-                            <SelectColumn TGridItem="ProcessInstanceInfoDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"/>
-                            <TemplateColumn Title="Workflow">
-                                <div class="grid-row-title"><a href="@UriHelper.GetShowInstanceUrl(@context.InstanceId)">@context.RelatedDefinitionName</a></div>
-                                <div class="grid-row-subtitle">Instance @context.InstanceId</div>
-                                <div class="grid-row-description">
-                                    @if (context.MessageSubscriptionCount > 0)
-                                    {
-                                        <div class="batch">
-                                            <i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages
-                                        </div>
-                                    }
-
-                                    @if (context.SignalSubscriptionCount > 0)
-                                    {
-                                        <div class="batch">
-                                            <i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Signals
-                                        </div>
-                                    }
-
-                                    @if (context.UserTaskSubscriptionCount > 0)
-                                    {
-                                        <div class="batch">
-                                            <i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount UserTasks
-                                        </div>
-                                    }
-                                    @if (context.ServiceSubscriptionCount > 0)
-                                    {
-                                        <div class="batch">
-                                            <i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services
-                                        </div>
-                                    }
-
-                                </div>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Status">
-                                <div class="state">@context.State</div>
-                            </TemplateColumn>
-                        </FluentDataGrid>
-                    </div>
+                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1.4fr) minmax(260px, 1fr) minmax(160px, 0.7fr) auto" ShowHover="true">
+                        <TemplateColumn Title="Workflow">
+                            <div class="entity-row-stack">
+                                <div class="entity-row-title"><a href="@UriHelper.GetShowInstanceUrl(context.InstanceId)">@context.RelatedDefinitionName</a></div>
+                                <div class="entity-row-subtitle">Instance @context.InstanceId</div>
+                                <div class="entity-row-hint">Workflow key @context.RelatedDefinitionId</div>
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Runtime signals">
+                            <div class="pill-cluster">
+                                <span class="pill-chip"><i class="fa-solid fa-diagram-project"></i> @context.Tokens.Count Tokens</span>
+                                @if (context.MessageSubscriptionCount > 0)
+                                {
+                                    <span class="pill-chip"><i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages</span>
+                                }
+                                @if (context.SignalSubscriptionCount > 0)
+                                {
+                                    <span class="pill-chip"><i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Signals</span>
+                                }
+                                @if (context.UserTaskSubscriptionCount > 0)
+                                {
+                                    <span class="pill-chip"><i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount User tasks</span>
+                                }
+                                @if (context.ServiceSubscriptionCount > 0)
+                                {
+                                    <span class="pill-chip"><i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services</span>
+                                }
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Status">
+                            <span class="status-pill @GetStateToneClass(context.State)">@GetStateLabel(context.State)</span>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Actions">
+                            <FluentButton Id="@($"instance-open-{context.InstanceId}")"
+                                          Appearance="Appearance.Neutral"
+                                          @onclick="@(() => OnOpenInstanceClick(context.InstanceId))">
+                                Open instance
+                            </FluentButton>
+                        </TemplateColumn>
+                    </FluentDataGrid>
                 }
-
-            </FluentStack>
-        </MainContent>
-    </LayoutWithLeftMenu>
-</div>
+            </section>
+        </div>
+    </MainContent>
+</LayoutWithLeftMenu>

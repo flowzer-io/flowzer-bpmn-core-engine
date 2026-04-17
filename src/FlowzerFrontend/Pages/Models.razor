@@ -3,129 +3,178 @@
 @using FlowzerFrontend.BusinessLogic
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
-<div class="main-content">
-    <LayoutWithLeftMenu>
-        <MenuContent>
-            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" OnClick="OnNewClick">
-                New Model
-            </FluentButton>
-            <FluentNavMenu Collapsible="false">
-                <FluentNavLink Icon="@(new Icons.Regular.Size24.Home())" Href="/models">All Models</FluentNavLink>
-            </FluentNavMenu>
-        </MenuContent>
-        <MainContent>
-            <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                <h1>Models</h1>
-                @{
-                    var items = Data.ToList();
-                }
-                <div class="list-header">
-                    <FluentStack Orientation="Orientation.Vertical" Width="100%">
-                        <FluentTextField @bind-Value="SearchText" Style="min-width: 60%;" Appearance="FluentInputAppearance.Filled" Placeholder="Search">
-                            <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral"/>
-                        </FluentTextField>
-                        <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center"  Width="100%">
-                            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Center" HorizontalAlignment="HorizontalAlignment.End" Width="100%">
-                                <FluentCombobox Placeholder="Sort direction" Autofocus="true"
-                                                TOption="Option<SortDirection>"
-                                                Items="@SortDirections"
-                                                OptionText="@(i => i.Text)"
-                                                @bind-Value="@SelectedSortDirectionString"
-                                                @bind-SelectedOption="@SelectedSortDirection" Height="200px"/>
-                            </FluentStack>
 
-                        </FluentStack>
-                    </FluentStack>
+<LayoutWithLeftMenu>
+    <MenuContent>
+        <div class="sidebar-panel">
+            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" @onclick="OnNewClick">
+                New workflow
+            </FluentButton>
+        </div>
+
+        <div class="sidebar-panel">
+            <div class="sidebar-hint-title">Workflow lifecycle</div>
+            <p class="sidebar-hint-copy">Create drafts, deploy the currently trusted version and start instances from the same place.</p>
+        </div>
+    </MenuContent>
+    <MainContent>
+        <div class="page-stack">
+            <section class="surface-panel page-intro">
+                <div class="page-intro-copy">
+                    <span class="page-eyebrow">Workflows</span>
+                    <h1 class="page-title">Workflows</h1>
+                    <p class="page-subtitle">Design BPMN workflows, keep version context visible and move quickly from authoring to runtime actions.</p>
                 </div>
 
-                <FluentDivider Style="width: 100%;" Role="DividerRole.Separator"></FluentDivider>
-                @if (!string.IsNullOrWhiteSpace(ActionInfoMessage))
-                {
-                    <p id="models-action-info" class="action-message action-message-info" role="status">@ActionInfoMessage</p>
-                }
-                else if (!string.IsNullOrWhiteSpace(ActionErrorMessage))
-                {
-                    <p id="models-action-error" class="action-message action-message-error" role="alert">@ActionErrorMessage</p>
-                }
+                <div class="page-actions">
+                    <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">New workflow</FluentButton>
+                    <a class="cta-link cta-link-secondary" href="/instances/active">View active instances</a>
+                </div>
+            </section>
+
+            @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
+            {
+                <div class="summary-grid">
+                    <article class="summary-card">
+                        <span class="summary-label">Total workflows</span>
+                        <strong class="summary-value">@TotalModelCount</strong>
+                        <span class="summary-hint">All known workflow definitions</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Live workflows</span>
+                        <strong class="summary-value">@DeployedModelCount</strong>
+                        <span class="summary-hint">Deployable and startable from the UI</span>
+                    </article>
+                    <article class="summary-card">
+                        <span class="summary-label">Draft-only workflows</span>
+                        <strong class="summary-value">@DraftModelCount</strong>
+                        <span class="summary-hint">Still need a first deployment</span>
+                    </article>
+                </div>
+            }
+
+            <section class="surface-panel toolbar-panel">
+                <div class="toolbar-group">
+                    <FluentTextField @bind-Value="SearchText"
+                                     Style="min-width: min(360px, 100%);"
+                                     Appearance="FluentInputAppearance.Filled"
+                                     Immediate="true"
+                                     Placeholder="Search workflows by name, id or description">
+                        <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
+                    </FluentTextField>
+                    @if (HasSearchText)
+                    {
+                        <FluentButton Id="models-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                            Clear search
+                        </FluentButton>
+                    }
+                    <FluentCombobox Placeholder="Sort by name"
+                                    TOption="Option<SortDirection>"
+                                    Items="@SortDirections"
+                                    OptionText="@(i => i.Text)"
+                                    @bind-Value="@SelectedSortDirectionString"
+                                    @bind-SelectedOption="@SelectedSortDirection"
+                                    Height="200px" />
+                </div>
+
+                <span class="results-label">@ResultLabel</span>
+            </section>
+
+            @if (!string.IsNullOrWhiteSpace(ActionInfoMessage))
+            {
+                <div id="models-action-info" class="inline-state-message inline-state-message-info" role="status">@ActionInfoMessage</div>
+            }
+            else if (!string.IsNullOrWhiteSpace(ActionErrorMessage))
+            {
+                <div id="models-action-error" class="inline-state-message inline-state-message-error" role="alert">@ActionErrorMessage</div>
+            }
+
+            <section class="surface-panel">
+                <div class="section-header">
+                    <div class="section-title-group">
+                        <h2 class="section-title">Workflow catalog</h2>
+                        <p class="section-subtitle">Every workflow keeps draft and deployed actions visible right where you need them.</p>
+                    </div>
+                </div>
+
+                @{ var items = VisibleModels; }
+
                 @if (IsLoading)
                 {
-                    <p id="models-loading-state">Loading models...</p>
+                    <div id="models-loading-state" class="inline-state-message inline-state-message-info">Loading workflows...</div>
                 }
                 else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
                 {
-                    <p id="models-load-error" role="alert">@LoadErrorMessage</p>
+                    <div id="models-load-error" class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
                 }
                 else if (!items.Any())
                 {
-                    <p id="models-empty-state">No models match the current filter.</p>
+                    <div id="models-empty-state" class="empty-state">
+                        <div class="empty-state-title">@EmptyStateTitle</div>
+                        <p class="empty-state-description">@EmptyStateDescription</p>
+                        <div class="empty-state-actions">
+                            @if (HasSearchText)
+                            {
+                                <FluentButton Id="models-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
+                            }
+                            <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create workflow</FluentButton>
+                        </div>
+                    </div>
                 }
                 else
                 {
-                    <div class="list-header">
-                        <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="80px 1fr auto auto" ShowHover="true">
-                            <SelectColumn TGridItem="ExtendedBpmnMetaDefinitionDto" SelectMode="DataGridSelectMode.Multiple" @bind-SelectedItems="@SelectedItems"  />
-                            <TemplateColumn Title="Workflow">
-                                <FluentLayout Orientation="Orientation.Horizontal">
-                                    <div>
-                                        <i class="fa-solid fa-code-compare icon"></i>    
-                                    </div>
-                                    <FluentLayout Orientation="Orientation.Vertical">
-                                        <div class="grid-row-title"><a href="@UriHelper.GetEditDefinitionUrl(@context.DefinitionId)">@context.Name</a></div>
-                                        <div class="grid-row-subtitle">Workflow</div>
-                                        <div class="grid-row-description">@context.Description</div>
-                                    </FluentLayout>
-                                </FluentLayout>
-                            </TemplateColumn>
-                            <TemplateColumn Title="Latest Version">
-                                <div class="lastchange">@(context.LatestVersion?.ToString() ?? "-")</div>
-                                @if (context.DeployedVersion == context.LatestVersion)
+                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1.6fr) minmax(240px, 0.9fr) minmax(240px, 1fr)" ShowHover="true">
+                        <TemplateColumn Title="Workflow">
+                            <div class="entity-row-stack">
+                                <div class="entity-row-title"><a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId)">@context.Name</a></div>
+                                <div class="entity-row-subtitle">@context.DefinitionId</div>
+                                @if (!string.IsNullOrWhiteSpace(context.Description))
                                 {
-                                    <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
-                                        <FluentBadge Appearance="Appearance.Neutral" BackgroundColor="green" Color="white">Deployed</FluentBadge>
-                                    </a>
+                                    <div class="grid-row-description">@context.Description</div>
                                 }
-                                else if (context.DeployedVersion == null)
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Lifecycle">
+                            <div class="entity-row-stack">
+                                <div class="entity-row-metric">Latest version: @(context.LatestVersion?.ToString() ?? "-")</div>
+                                <div class="entity-row-hint">Updated @FormatTimestamp(context.LatestVersionDateTime)</div>
+                                <span class="status-pill @GetLifecycleToneClass(context)">@GetLifecycleLabel(context)</span>
+                                @if (context.DeployedId.HasValue)
                                 {
-                                    <FluentBadge  Appearance="Appearance.Lightweight">Not Deployed</FluentBadge>
+                                    <div class="entity-row-hint">Live since @FormatTimestamp(context.DeployedVersionDateTime)</div>
+                                }
+                            </div>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Actions">
+                            <FluentStack Orientation="Orientation.Horizontal" Class="model-action-group">
+                                <FluentButton Id="@($"model-open-latest-{context.DefinitionId}")"
+                                              Appearance="Appearance.Stealth"
+                                              @onclick="@(() => OnOpenLatestClick(context))">
+                                    Open latest
+                                </FluentButton>
+                                @if (context.DeployedId.HasValue)
+                                {
+                                    <FluentButton Id="@($"model-open-deployed-{context.DefinitionId}")"
+                                                  Appearance="Appearance.Neutral"
+                                                  @onclick="@(() => OnOpenDeployedClick(context))">
+                                        Open deployed
+                                    </FluentButton>
+                                    <FluentButton Id="@($"model-start-instance-{context.DefinitionId}")"
+                                                  Appearance="Appearance.Accent"
+                                                  Disabled="@IsStartActionBusy(context)"
+                                                  @onclick="@(() => OnStartInstanceClickAsync(context))">
+                                        Start instance
+                                    </FluentButton>
                                 }
                                 else
                                 {
-                                    <a href="@UriHelper.GetEditDefinitionUrl(context.DefinitionId, context.DeployedId)">
-                                        <FluentBadge Appearance="Appearance.Accent">@context.DeployedVersion Deployed</FluentBadge>
-                                    </a>
+                                    <span class="status-pill status-pill-neutral">Deploy required</span>
                                 }
-                            </TemplateColumn>
-                            <TemplateColumn Title="Actions">
-                                <FluentStack Orientation="Orientation.Horizontal" Class="model-action-group">
-                                    <FluentButton Id="@($"model-open-latest-{context.DefinitionId}")"
-                                                  Appearance="Appearance.Stealth"
-                                                  @onclick="@(() => OnOpenLatestClick(context))">
-                                        Open
-                                    </FluentButton>
-                                    @if (context.DeployedId.HasValue)
-                                    {
-                                        <FluentButton Id="@($"model-open-deployed-{context.DefinitionId}")"
-                                                      Appearance="Appearance.Neutral"
-                                                      @onclick="@(() => OnOpenDeployedClick(context))">
-                                            Open deployed
-                                        </FluentButton>
-                                        <FluentButton Id="@($"model-start-instance-{context.DefinitionId}")"
-                                                      Appearance="Appearance.Accent"
-                                                      Disabled="@IsStartActionBusy(context)"
-                                                      @onclick="@(() => OnStartInstanceClickAsync(context))">
-                                            Start instance
-                                        </FluentButton>
-                                    }
-                                    else
-                                    {
-                                        <FluentBadge Appearance="Appearance.Lightweight">Deploy required</FluentBadge>
-                                    }
-                                </FluentStack>
-                            </TemplateColumn>
-                        </FluentDataGrid>
-                    </div>
+                            </FluentStack>
+                        </TemplateColumn>
+                    </FluentDataGrid>
                 }
-            </FluentStack>
-        </MainContent>
-    </LayoutWithLeftMenu>
-</div>
+            </section>
+        </div>
+    </MainContent>
+</LayoutWithLeftMenu>

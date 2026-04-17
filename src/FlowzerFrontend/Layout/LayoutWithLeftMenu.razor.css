@@ -1,8 +1,31 @@
-.main-content{
-    height: 100%;
+.workspace-shell {
+    display: grid;
+    grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
 }
 
-::deep .left-site-container{
-    padding: 10px;
-    height: 100%;
+.workspace-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 104px;
+}
+
+.workspace-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+@media (max-width: 960px) {
+    .workspace-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .workspace-sidebar {
+        position: static;
+    }
 }

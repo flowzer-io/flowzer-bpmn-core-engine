@@ -4,43 +4,71 @@
 @using FlowzerFrontend.BusinessLogic
 @using FlowzerFrontend.Components
 
-
-<div class="main-content">
+<div class="page-stack">
     <HeaderElement BackLink="/forms">
         <LeftSide>
-            <LabelWithEdit @bind-Label=@CurrentFormMeta.Name AfterChanged="AfterTitleChanged"/>
+            <div class="entity-header">
+                <div class="entity-title-row">
+                    <LabelWithEdit @bind-Label="CurrentFormMeta.Name" AfterChanged="AfterTitleChanged" />
+                    <span class="status-pill status-pill-neutral">@CurrentFormVersionLabel</span>
+                </div>
+                <div class="entity-meta-row">
+                    <span>Form @CurrentFormMeta.FormId</span>
+                    <span>Latest saved version in the catalog</span>
+                </div>
+            </div>
         </LeftSide>
         <RigthSide>
-            <FluentStack Orientation="Orientation.Horizontal" >
-               
-                <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveFormClicked" >
-                    Save
+            <FluentStack Orientation="Orientation.Horizontal" Class="edit-form-actions">
+                <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveFormClicked">
+                    Save form
                 </FluentButton>
-                <FluentButton Appearance="Appearance.Neutral" IconStart="new Icons.Regular.Size20.Form()"  OnClick="TestFormClicked" >
-                    Test Form
+                <FluentButton Appearance="Appearance.Neutral" IconStart="new Icons.Regular.Size20.Form()" OnClick="TestFormClicked">
+                    Test form
                 </FluentButton>
                 <FluentMenuButton Text="Options" IconStart="new Icons.Regular.Size20.Options()" ButtonAppearance="Appearance.Neutral">
                     <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
-                </FluentMenuButton>    
+                </FluentMenuButton>
             </FluentStack>
         </RigthSide>
     </HeaderElement>
 
+    @if (!string.IsNullOrWhiteSpace(ActionFeedbackMessage))
+    {
+        <div id="edit-form-feedback" class="inline-state-message @(ActionFeedbackIsError ? "inline-state-message-error" : "inline-state-message-info")" role="@(ActionFeedbackIsError ? "alert" : "status")">
+            @ActionFeedbackMessage
+        </div>
+    }
+
+    <section class="surface-panel page-intro edit-form-intro">
+        <div class="page-intro-copy">
+            <span class="page-eyebrow">Form design</span>
+            <h1 class="page-title">Form editor</h1>
+            <p class="page-subtitle">Keep the form builder focused on the schema itself while surfacing version context and save actions around it.</p>
+        </div>
+    </section>
+
     @if (IsLoading)
     {
-        <p id="edit-form-loading-state">Loading form...</p>
+        <div id="edit-form-loading-state" class="inline-state-message inline-state-message-info">Loading form...</div>
     }
     else if (!string.IsNullOrWhiteSpace(ErrorString))
     {
-        <p id="edit-form-error" role="alert">@ErrorString</p>
+        <div id="edit-form-error" class="inline-state-message inline-state-message-error" role="alert">@ErrorString</div>
     }
     else
     {
-        <div class="iframe-container">
-            <iframe src="/formio" width="100%" height="100%"></iframe>
-        </div>
+        <section class="surface-panel form-editor-surface">
+            <div class="section-header">
+                <div class="section-title-group">
+                    <h2 class="section-title">Builder canvas</h2>
+                    <p class="section-subtitle">Adjust fields, layout and validation rules directly inside the embedded form designer.</p>
+                </div>
+            </div>
+
+            <div class="iframe-container">
+                <iframe src="/formio" width="100%" height="100%"></iframe>
+            </div>
+        </section>
     }
-    
-
 </div>
-

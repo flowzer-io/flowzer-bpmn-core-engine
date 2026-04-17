@@ -1,28 +1,19 @@
-#current-file-name{
+#current-file-name {
     font-size: var(--header-tile-size);
 }
 
-.main-content{
-    display:grid;
-    grid-template-rows: auto 1fr;
-    height: 100%;
+.definition-page {
+    min-height: 0;
 }
 
-.content{
-    padding-top: 0;
-}
-
-#menu{
-    padding: 5px;
-}
-#designer-container{
-    border-top: lightgray 1px solid;
+.definition-action-group {
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .diagram-inline-message {
-    margin: 16px;
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid #d1d5db;
     background: #f8fafc;
 }
@@ -43,20 +34,40 @@
     margin-top: 12px;
 }
 
-/*============== BPMN Designer zeug ==============*/
+.definition-editor-surface {
+    overflow: hidden;
+}
+
+#designer-container {
+    min-height: 620px;
+    height: clamp(560px, 72vh, 860px);
+    border: 1px solid var(--surface-border);
+    border-radius: 16px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.summary-value-inline {
+    font-size: 1.1rem;
+    line-height: 1.3;
+}
 
 #js-properties-panel {
-    width: 400px;
+    width: 380px;
+    max-width: 38vw;
 }
+
 ::deep a:link {
     text-decoration: none;
 }
+
 ::deep .content {
     position: relative;
     width: 100%;
     height: 100%;
     display: flex;
 }
+
 ::deep .content > .message {
     width: 100%;
     height: 100%;
@@ -65,11 +76,13 @@
     font-size: 16px;
     color: #111;
 }
+
 ::deep .content > .message .note {
     vertical-align: middle;
     text-align: center;
     display: table-cell;
 }
+
 ::deep .content > .message.error .details {
     max-width: 500px;
     font-size: 12px;
@@ -77,60 +90,67 @@
     text-align: left;
     color: #BD2828;
 }
+
 ::deep .content > .message.error pre {
     border: solid 1px #BD2828;
     background: #fefafa;
     padding: 10px;
     color: #BD2828;
 }
+
 ::deep .content:not(.with-error) .error,
 ::deep .content.with-error .intro,
 ::deep .content.with-diagram .intro {
     display: none;
 }
+
 ::deep .content .canvas {
     width: 100%;
 }
+
 ::deep .content .canvas,
 ::deep .content .properties-panel-parent {
     display: none;
 }
+
 ::deep .content.with-diagram .canvas,
 ::deep .content.with-diagram .properties-panel-parent {
     display: block;
 }
-::deep .buttons {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    padding: 0;
-    margin: 0;
-    list-style: none;
+
+::deep .content.with-diagram .canvas {
+    min-height: 100%;
 }
-::deep .buttons > li {
-    display: inline-block;
-    margin-right: 10px;
-}
-::deep .buttons > li > a {
-    background: #DDD;
-    border: solid 1px #666;
-    display: inline-block;
-    padding: 5px;
-}
-::deep .buttons a {
-    opacity: 0.3;
-}
-::deep .buttons a.active {
-    opacity: 1;
-}
+
 ::deep .properties-panel-parent {
-    border-left: 1px solid #ccc;
+    border-left: 1px solid var(--surface-border);
     overflow: auto;
+    background: #fbfcfe;
 }
+
 ::deep .properties-panel-parent:empty {
     display: none;
 }
+
 ::deep .properties-panel-parent > .djs-properties-panel {
     padding-bottom: 70px;
     min-height: 100%;
+}
+
+@media (max-width: 1180px) {
+    #designer-container {
+        height: auto;
+        min-height: 720px;
+    }
+
+    #js-properties-panel {
+        width: 100%;
+        max-width: none;
+        border-left: none;
+        border-top: 1px solid var(--surface-border);
+    }
+
+    ::deep .content.with-diagram {
+        flex-direction: column;
+    }
 }

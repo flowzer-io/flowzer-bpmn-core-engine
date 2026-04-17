@@ -84,6 +84,18 @@ Geprüft werden insbesondere:
 
 ## Aktuelle Frontend-Konventionen für Kernseiten
 
+### UI-/UX-Refresh April 2026
+
+Der aktuelle Stand auf `next` enthält einen größeren UX-Rundumschlag für die wichtigsten Frontend-Flächen. Ziel war nicht nur optische Politur, sondern vor allem eine klarere Bedienlogik:
+
+- **einheitliche App-Shell** mit klarer Hauptnavigation und stärkerem Produktcharakter
+- **explizite Primäraktionen** statt versteckter Titel-Links
+- **bessere Empty-/Error-/Loading-States** auf Listen- und Detailseiten
+- **konsistentere List-/Detailmuster** für Workflows, Formulare und Runtime-Instanzen
+- **stärkere Runtime-Transparenz** in der Instanzdetailansicht (Diagramm, Token, Subscriptions, Payloads)
+
+Die fachlichen Leitgedanken und Folgeideen sind in [docs/UI-UX-AUDIT-2026-04.md](UI-UX-AUDIT-2026-04.md) dokumentiert.
+
 - Listen- und Startseiten zeigen bei Ladefehlern eine sichtbare Inline-Fehlermeldung statt still abzustürzen.
 - Leere Listen rendern einen expliziten Empty State.
 - Instanzfilter werden ausschließlich über gültige Frontend-Routen (`all`, `active`, `done`, `error`) adressiert.
@@ -152,12 +164,14 @@ Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
 
 ### Empfohlene manuelle Checks
 
-1. `/models` öffnen und ein Modell laden
-2. prüfen, dass die Liste pro deploytem Workflow explizite `Open`-, `Open deployed`- und `Start instance`-Aktionen zeigt
-3. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
-4. einmal `Save` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
-5. testweise einen deployten Workflow direkt starten und die Instanzansicht prüfen
-6. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
+1. `/models` öffnen und einen Workflow laden
+2. prüfen, dass die Liste pro deploytem Workflow explizite `Open latest`-, `Open deployed`- und `Start instance`-Aktionen zeigt
+3. eine Suche eingeben und prüfen, dass ein expliziter `Clear search`-Pfad sichtbar ist
+4. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
+5. einmal `Save draft` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
+6. testweise einen deployten Workflow direkt starten und die Instanzansicht prüfen
+7. Dashboard-Übersicht öffnen und prüfen, dass die Summary-Cards direkt auf Workflows, aktive Instanzen, Fehlerinstanzen und Formulare verzweigen
+8. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
 
 ## Hinweise zur lokalen Datenbasis
 
