@@ -164,11 +164,11 @@ Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
 
 ### Empfohlene manuelle Checks
 
-1. `/models` öffnen und ein Modell laden
-2. prüfen, dass die Liste pro deploytem Workflow explizite `Open`-, `Open deployed`- und `Start instance`-Aktionen zeigt
+1. `/models` öffnen und einen Workflow laden
+2. prüfen, dass die Liste pro deploytem Workflow explizite `Open latest`-, `Open deployed`- und `Start instance`-Aktionen zeigt
 3. eine Suche eingeben und prüfen, dass ein expliziter `Clear search`-Pfad sichtbar ist
 4. prüfen, dass Diagramm **und** Properties Panel sichtbar sind
-5. einmal `Save` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
+5. einmal `Save draft` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
 6. testweise einen deployten Workflow direkt starten und die Instanzansicht prüfen
 7. Dashboard-Übersicht öffnen und prüfen, dass die Summary-Cards direkt auf Workflows, aktive Instanzen, Fehlerinstanzen und Formulare verzweigen
 8. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
