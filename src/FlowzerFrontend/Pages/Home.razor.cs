@@ -62,10 +62,13 @@ public partial class Home : FlowzerComponentBase
 
     private async Task OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
     {
+        try
+        {
         var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
         if (string.IsNullOrWhiteSpace(formName))
         {
-            ErrorDialog("Form Name ('Implementation') is missing in BPMN file");
+
+            ErrorDialog($"The user task \"{userTaskSubscription.Name}\" has no form configured. Set the 'Form key' (Implementation) in the BPMN task properties.");
             return;
         }
 
@@ -77,15 +80,26 @@ public partial class Home : FlowzerComponentBase
             version = parts[1];
         }
 
-        var formMeta = (await FlowzerApi.GetFormMetaByName(formName)).SingleOrDefault();
+        FormMetaDataDto? formMeta;
+        try
+        {
+            formMeta = (await FlowzerApi.GetFormMetaByName(formName)).SingleOrDefault();
+        }
+        catch (Exception ex)
+        {
+            ErrorDialog($"Could not look up form \"{formName}\": {ex.Message}");
+            return;
+        }
 
         if (formMeta == null)
         {
-            ErrorDialog($"Could not find any form Named with '{formName}'");
+            ErrorDialog($"No form named \"{formName}\" found in the form catalog. Create the form first or fix the task configuration.");
             return;
         }
 
         FormDto form;
+        try
+        {
         if (version == null)
         {
             form = await FlowzerApi.GetLatestForm(formMeta.FormId);
@@ -94,18 +108,25 @@ public partial class Home : FlowzerComponentBase
         {
             form = await FlowzerApi.GetForm(formMeta.FormId, VersionDto.FromString(version));
         }
+        }
+        catch (Exception ex)
+        {
+            ErrorDialog($"Could not load form \"{formName}\": {ex.Message}");
+            return;
+        }
 
         if (string.IsNullOrEmpty(form.FormData))
         {
-            ErrorDialog("Form Data is missing in Formulardata");
+            ErrorDialog($"The form \"{formName}\" exists but has no content. Open the form editor and save it first.");
             return;
         }
 
         DialogParameters parameters = new()
         {
             Title = userTaskSubscription.Name,
-            Width = "80%",
-            Height = "90%",
+
+            Width = "min(860px, 92vw)",
+            Height = "auto",
             TrapFocus = true,
             Modal = true,
             PreventScroll = true,
@@ -144,6 +165,11 @@ public partial class Home : FlowzerComponentBase
             await FlowzerApi.CompleteUserTask(userTaskResult);
             _tasks = _tasks.Where(task => task.Token.Id != userTaskSubscription.Token.Id).ToArray();
             await InvokeAsync(StateHasChanged);
+        }
+        }
+        catch (Exception ex)
+        {
+            ErrorDialog($"An unexpected error occurred: {ex.Message}");
         }
     }
 }

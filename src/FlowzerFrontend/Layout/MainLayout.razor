@@ -3,22 +3,50 @@
 
 <FluentBodyContent>
     <div class="app-shell">
-        <header class="app-topbar">
+        <nav class="app-sidenav" aria-label="Primary navigation">
             <a class="app-brand-link" href="/">
-                <span class="app-brand-title">Flowzer</span>
-                <span class="app-brand-subtitle">BPMN workflow studio</span>
+                <i class="fa-solid fa-circle-nodes app-brand-icon"></i>
+                <div class="app-brand-text">
+                    <span class="app-brand-title">Flowzer</span>
+                    <span class="app-brand-subtitle">BPMN Studio</span>
+                </div>
             </a>
 
-            <nav class="app-topnav" aria-label="Primary navigation">
-                <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">Home</NavLink>
-                <NavLink class="app-nav-link" href="/models">Workflows</NavLink>
-                <NavLink class="app-nav-link" href="/instances">Instances</NavLink>
-                <NavLink class="app-nav-link" href="/forms">Forms</NavLink>
-            </nav>
-        </header>
+            <div class="app-sidenav-items">
+                <NavLink class="app-nav-link" href="/tasks">
+                    <i class="fa-solid fa-inbox"></i>
+                    <span>Tasks</span>
+                </NavLink>
 
-        <main class="app-page">
-            @Body
+                <div class="app-sidenav-section-label">Admin</div>
+
+                <NavLink class="app-nav-link" href="" Match="NavLinkMatch.All">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Dashboard</span>
+                </NavLink>
+                <NavLink class="app-nav-link" href="/models">
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span>Workflows</span>
+                </NavLink>
+                <NavLink class="app-nav-link" href="/instances">
+                    <i class="fa-solid fa-play"></i>
+                    <span>Instances</span>
+                </NavLink>
+                <NavLink class="app-nav-link" href="/forms">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Forms</span>
+                </NavLink>
+            </div>
+
+            <div class="app-sidenav-footer">
+                <span>BPMN workflow studio</span>
+            </div>
+        </nav>
+
+        <main class="app-main">
+            <div class="app-page">
+                @Body
+            </div>
         </main>
     </div>
 

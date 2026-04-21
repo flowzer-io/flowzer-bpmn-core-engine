@@ -39,23 +39,35 @@
             {
                 <div class="summary-grid">
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-neutral">
+                            <i class="fa-solid fa-layer-group"></i>
+                        </div>
                         <span class="summary-label">All instances</span>
                         <strong class="summary-value">@AllCount</strong>
                         <span class="summary-hint">Every known runtime instance</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-info">
+                            <i class="fa-solid fa-play"></i>
+                        </div>
                         <span class="summary-label">Active</span>
                         <strong class="summary-value">@ActiveCount</strong>
                         <span class="summary-hint">Running, waiting or otherwise in progress</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-success">
+                            <i class="fa-solid fa-flag-checkered"></i>
+                        </div>
                         <span class="summary-label">Done</span>
                         <strong class="summary-value">@DoneCount</strong>
                         <span class="summary-hint">Completed, terminated or compensated</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge @(ErrorCount > 0 ? "summary-card-badge-danger" : "summary-card-badge-success")">
+                            <i class="fa-solid @(ErrorCount > 0 ? "fa-triangle-exclamation" : "fa-circle-check")"></i>
+                        </div>
                         <span class="summary-label">Failed</span>
-                        <strong class="summary-value">@ErrorCount</strong>
+                        <strong class="summary-value @(ErrorCount > 0 ? "summary-value-danger" : "")">@ErrorCount</strong>
                         <span class="summary-hint">Require troubleshooting or replay decisions</span>
                     </article>
                 </div>

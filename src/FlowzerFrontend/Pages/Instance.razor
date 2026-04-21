@@ -42,21 +42,33 @@
     {
         <div class="summary-grid">
             <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-info">
+                    <i class="fa-solid fa-circle-dot"></i>
+                </div>
                 <span class="summary-label">Tokens</span>
                 <strong class="summary-value">@TokenCount</strong>
                 <span class="summary-hint">@ActiveTokenCount active and visualized in the live diagram.</span>
             </article>
             <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-warning">
+                    <i class="fa-solid fa-hourglass-half"></i>
+                </div>
                 <span class="summary-label">Waiting subscriptions</span>
                 <strong class="summary-value">@WaitingSubscriptionCount</strong>
                 <span class="summary-hint">Messages, signals, user tasks and service callbacks currently blocking progress.</span>
             </article>
             <article class="summary-card">
+                <div class="summary-card-badge @(_instance.UserTaskSubscriptionCount > 0 ? "summary-card-badge-warning" : "summary-card-badge-neutral")">
+                    <i class="fa-regular fa-user"></i>
+                </div>
                 <span class="summary-label">Open user tasks</span>
                 <strong class="summary-value">@(_instance.UserTaskSubscriptionCount)</strong>
                 <span class="summary-hint">Human interactions that can be handled from the task inbox or this runtime view.</span>
             </article>
             <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-neutral">
+                    <i class="fa-regular fa-envelope"></i>
+                </div>
                 <span class="summary-label">Message subscriptions</span>
                 <strong class="summary-value">@(_instance.MessageSubscriptionCount)</strong>
                 <span class="summary-hint">Use the subscription panel to inspect or trigger waiting messages.</span>
