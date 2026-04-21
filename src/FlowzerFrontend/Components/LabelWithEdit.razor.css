@@ -1,0 +1,38 @@
+.label-edit-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.label-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.label-edit-btn:hover {
+    background: var(--neutral-bg);
+    border-color: var(--surface-border);
+    color: var(--brand-strong);
+}
+
+.label-edit-btn-save {
+    background: var(--success-bg);
+    border-color: #a5d6a7;
+    color: var(--success-text);
+}
+
+.label-edit-btn-save:hover {
+    background: #c8e6c9;
+    color: var(--success-text);
+}

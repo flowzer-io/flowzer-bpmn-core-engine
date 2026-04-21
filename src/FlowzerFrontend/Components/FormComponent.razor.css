@@ -1,5 +1,7 @@
-
-#iframe_viewer{
+#iframe_viewer {
     width: 100%;
-    height: 65%;
+    height: calc(80vh - 140px);
+    min-height: 320px;
+    border: none;
+    display: block;
 }

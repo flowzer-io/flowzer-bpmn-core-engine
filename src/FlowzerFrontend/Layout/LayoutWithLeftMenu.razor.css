@@ -10,7 +10,7 @@
     flex-direction: column;
     gap: 16px;
     position: sticky;
-    top: 104px;
+    top: 24px;
 }
 
 .workspace-main {

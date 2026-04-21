@@ -6,17 +6,18 @@
     <section class="surface-panel page-intro">
         <div class="page-intro-copy">
             <span class="page-eyebrow">Overview</span>
-            <h1 class="page-title">Welcome to Flowzer</h1>
+            <h1 class="page-title">Dashboard</h1>
             <p class="page-subtitle">
-                Keep workflow design, runtime monitoring and form maintenance close together.
-                The dashboard highlights where users need action right now.
+                All open tasks, workflow status and runtime health at a glance.
             </p>
         </div>
 
         <div class="page-actions">
-            <a class="cta-link cta-link-primary" href="/models">Manage workflows</a>
-            <a class="cta-link cta-link-secondary" href="/instances/active">Open active instances</a>
-            <a class="cta-link cta-link-secondary" href="/forms">Manage forms</a>
+            <a class="cta-link cta-link-primary" href="/models">
+                <i class="fa-solid fa-diagram-project"></i> Manage workflows
+            </a>
+            <a class="cta-link cta-link-secondary" href="/instances/active">Active instances</a>
+            <a class="cta-link cta-link-secondary" href="/forms">Forms</a>
         </div>
     </section>
 
@@ -24,26 +25,41 @@
     {
         <div class="summary-grid">
             <a id="home-summary-open-tasks" class="summary-card summary-card-link" href="#home-user-task-section">
+                <div class="summary-card-badge @(OpenTaskCount > 0 ? "summary-card-badge-warning" : "summary-card-badge-success")">
+                    <i class="fa-solid @(OpenTaskCount > 0 ? "fa-user-clock" : "fa-user-check")"></i>
+                </div>
                 <span class="summary-label">Open user tasks</span>
                 <strong class="summary-value">@OpenTaskCount</strong>
                 <span class="summary-hint">Need action from a human right now</span>
             </a>
             <a id="home-summary-workflows" class="summary-card summary-card-link" href="/models">
+                <div class="summary-card-badge summary-card-badge-info">
+                    <i class="fa-solid fa-diagram-project"></i>
+                </div>
                 <span class="summary-label">Workflows</span>
                 <strong class="summary-value">@WorkflowCount</strong>
                 <span class="summary-hint">@DeployedWorkflowCount deployed and available</span>
             </a>
             <a id="home-summary-active-instances" class="summary-card summary-card-link" href="/instances/active">
+                <div class="summary-card-badge summary-card-badge-info">
+                    <i class="fa-solid fa-play"></i>
+                </div>
                 <span class="summary-label">Active instances</span>
                 <strong class="summary-value">@ActiveInstanceCount</strong>
                 <span class="summary-hint">Running, waiting or otherwise in progress</span>
             </a>
             <a id="home-summary-failed-instances" class="summary-card summary-card-link" href="/instances/error">
+                <div class="summary-card-badge @(FailedInstanceCount > 0 ? "summary-card-badge-danger" : "summary-card-badge-success")">
+                    <i class="fa-solid @(FailedInstanceCount > 0 ? "fa-triangle-exclamation" : "fa-circle-check")"></i>
+                </div>
                 <span class="summary-label">Failed instances</span>
-                <strong class="summary-value">@FailedInstanceCount</strong>
-                <span class="summary-hint">Jump straight into runtime issues that currently need attention</span>
+                <strong class="summary-value @(FailedInstanceCount > 0 ? "summary-value-danger" : "")">@FailedInstanceCount</strong>
+                <span class="summary-hint">@(FailedInstanceCount == 0 ? "All instances running healthy" : "Jump straight into runtime issues")</span>
             </a>
             <a id="home-summary-forms" class="summary-card summary-card-link" href="/forms">
+                <div class="summary-card-badge summary-card-badge-neutral">
+                    <i class="fa-solid fa-file-lines"></i>
+                </div>
                 <span class="summary-label">Forms</span>
                 <strong class="summary-value">@FormCount</strong>
                 <span class="summary-hint">Reusable user-facing building blocks</span>
@@ -54,8 +70,10 @@
     <section id="home-user-task-section" class="surface-panel">
         <div class="section-header">
             <div class="section-title-group">
-                <h2 class="section-title">Open user tasks</h2>
-                <p class="section-subtitle">Directly continue the work that currently waits for a user interaction.</p>
+                <h2 class="section-title">
+                    <i class="fa-solid fa-inbox"></i> Open user tasks
+                </h2>
+                <p class="section-subtitle">Directly continue work that currently waits for a user interaction.</p>
             </div>
             <a class="cta-link cta-link-secondary" href="/instances/active">See runtime details</a>
         </div>
@@ -71,7 +89,8 @@
         else if (_tasks.Length == 0)
         {
             <div id="home-empty-state" class="empty-state">
-                <div class="empty-state-title">No open tasks at the moment</div>
+                <div class="home-empty-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <div class="empty-state-title">No open tasks right now</div>
                 <p class="empty-state-description">Once a workflow reaches a user task, it will show up here as a direct call to action.</p>
                 <a class="cta-link cta-link-primary" href="/models">Open workflows</a>
             </div>
@@ -83,11 +102,19 @@
                 {
                     <button type="button" class="dashboard-task-card user-task-card" @onclick="() => OnCardClick(userTaskSubscriptionDto)">
                         <div class="dashboard-task-card-header">
-                            <span class="dashboard-task-workflow">@userTaskSubscriptionDto.DefinitionMetaName</span>
-                            <span class="pill-chip">Open task</span>
+                            <span class="dashboard-task-workflow">
+                                <i class="fa-solid fa-diagram-project"></i>
+                                @userTaskSubscriptionDto.DefinitionMetaName
+                            </span>
+                            <span class="pill-chip pill-chip-action">
+                                <i class="fa-regular fa-circle-dot"></i> Open task
+                            </span>
                         </div>
                         <strong class="dashboard-task-title">@userTaskSubscriptionDto.Name</strong>
-                        <span class="dashboard-task-description">Open the linked form and continue the workflow with the latest runtime data.</span>
+                        <span class="dashboard-task-description">Click to open the linked form and continue the workflow.</span>
+                        <div class="dashboard-task-footer">
+                            <span class="dashboard-task-cta">Open form <i class="fa-solid fa-arrow-right"></i></span>
+                        </div>
                     </button>
                 }
             </div>

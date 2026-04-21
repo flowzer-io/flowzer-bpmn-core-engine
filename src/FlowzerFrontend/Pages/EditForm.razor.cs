@@ -184,13 +184,13 @@ public partial class EditForm : FlowzerComponentBase
     {
         DialogParameters parameters = new()
         {
-            Title = $"Test Form",
-            Width = "80%",
-            Height = "90%",
+            Title = "Form preview",
+            Width = "min(860px, 92vw)",
+            Height = "auto",
             TrapFocus = true,
             Modal = true,
             PreventScroll = true,
-            ShowTitle = false,
+            ShowTitle = true,
             SecondaryActionEnabled = false,
             SecondaryAction = "",
             PrimaryAction = ""

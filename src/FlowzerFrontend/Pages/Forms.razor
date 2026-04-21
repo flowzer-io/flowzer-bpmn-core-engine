@@ -35,11 +35,17 @@
             {
                 <div class="summary-grid">
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-info">
+                            <i class="fa-solid fa-file-lines"></i>
+                        </div>
                         <span class="summary-label">Total forms</span>
                         <strong class="summary-value">@TotalFormCount</strong>
                         <span class="summary-hint">Reusable building blocks for user tasks</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-neutral">
+                            <i class="fa-solid fa-filter"></i>
+                        </div>
                         <span class="summary-label">Visible results</span>
                         <strong class="summary-value">@VisibleFormCount</strong>
                         <span class="summary-hint">Filtered with the current search input</span>
@@ -101,17 +107,17 @@
                 }
                 else
                 {
-                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1.6fr) minmax(260px, 1fr) auto" ShowHover="true">
+                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1fr) minmax(240px, 0.6fr) auto" ShowHover="true">
                         <TemplateColumn Title="Form">
                             <div class="entity-row-stack">
                                 <div class="entity-row-title"><a href="@UriHelper.GetShowFormUrl(context.FormId)">@context.Name</a></div>
-                                <div class="entity-row-subtitle">Form @context.FormId</div>
+                                <div class="entity-row-subtitle">@context.FormId</div>
                             </div>
                         </TemplateColumn>
-                        <TemplateColumn Title="Usage hint">
+                        <TemplateColumn Title="Form key (for BPMN)">
                             <div class="entity-row-stack">
-                                <div class="entity-row-metric">Ready for user task mapping</div>
-                                <div class="entity-row-hint">Use the form name or explicit version binding inside workflow definitions.</div>
+                                <div class="entity-row-metric">@context.Name</div>
+                                <div class="entity-row-hint">Use in task 'Form key' field</div>
                             </div>
                         </TemplateColumn>
                         <TemplateColumn Title="Actions">

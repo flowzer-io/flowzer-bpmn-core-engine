@@ -36,16 +36,25 @@
             {
                 <div class="summary-grid">
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-info">
+                            <i class="fa-solid fa-diagram-project"></i>
+                        </div>
                         <span class="summary-label">Total workflows</span>
                         <strong class="summary-value">@TotalModelCount</strong>
                         <span class="summary-hint">All known workflow definitions</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-success">
+                            <i class="fa-solid fa-circle-check"></i>
+                        </div>
                         <span class="summary-label">Live workflows</span>
                         <strong class="summary-value">@DeployedModelCount</strong>
                         <span class="summary-hint">Deployable and startable from the UI</span>
                     </article>
                     <article class="summary-card">
+                        <div class="summary-card-badge summary-card-badge-warning">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </div>
                         <span class="summary-label">Draft-only workflows</span>
                         <strong class="summary-value">@DraftModelCount</strong>
                         <span class="summary-hint">Still need a first deployment</span>
