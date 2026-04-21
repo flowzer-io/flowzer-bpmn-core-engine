@@ -65,7 +65,7 @@ public partial class Home : FlowzerComponentBase
         var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
         if (string.IsNullOrWhiteSpace(formName))
         {
-            ErrorDialog("Form Name ('Implementation') is missing in BPMNN file");
+            ErrorDialog("Form Name ('Implementation') is missing in BPMN file");
             return;
         }
 
@@ -103,13 +103,13 @@ public partial class Home : FlowzerComponentBase
 
         DialogParameters parameters = new()
         {
-            Title = $"Test Form",
+            Title = userTaskSubscription.Name,
             Width = "80%",
             Height = "90%",
             TrapFocus = true,
             Modal = true,
             PreventScroll = true,
-            ShowTitle = false,
+            ShowTitle = true,
             SecondaryActionEnabled = true,
             SecondaryAction = "Cancel",
             PrimaryAction = "Submit"

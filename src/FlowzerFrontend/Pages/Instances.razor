@@ -125,22 +125,22 @@
                         </TemplateColumn>
                         <TemplateColumn Title="Runtime signals">
                             <div class="pill-cluster">
-                                <span class="pill-chip"><i class="fa-solid fa-diagram-project"></i> @context.Tokens.Count Tokens</span>
+                                <span class="pill-chip"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> @context.Tokens.Count Tokens</span>
                                 @if (context.MessageSubscriptionCount > 0)
                                 {
-                                    <span class="pill-chip"><i class="fa-regular fa-envelope"></i> @context.MessageSubscriptionCount Messages</span>
+                                    <span class="pill-chip"><i class="fa-regular fa-envelope" aria-hidden="true"></i> @context.MessageSubscriptionCount Messages</span>
                                 }
                                 @if (context.SignalSubscriptionCount > 0)
                                 {
-                                    <span class="pill-chip"><i class="fa-solid fa-tower-broadcast"></i> @context.SignalSubscriptionCount Signals</span>
+                                    <span class="pill-chip"><i class="fa-solid fa-tower-broadcast" aria-hidden="true"></i> @context.SignalSubscriptionCount Signals</span>
                                 }
                                 @if (context.UserTaskSubscriptionCount > 0)
                                 {
-                                    <span class="pill-chip"><i class="fa-regular fa-user"></i> @context.UserTaskSubscriptionCount User tasks</span>
+                                    <span class="pill-chip"><i class="fa-regular fa-user" aria-hidden="true"></i> @context.UserTaskSubscriptionCount User tasks</span>
                                 }
                                 @if (context.ServiceSubscriptionCount > 0)
                                 {
-                                    <span class="pill-chip"><i class="fa-solid fa-robot"></i> @context.ServiceSubscriptionCount Services</span>
+                                    <span class="pill-chip"><i class="fa-solid fa-robot" aria-hidden="true"></i> @context.ServiceSubscriptionCount Services</span>
                                 }
                             </div>
                         </TemplateColumn>

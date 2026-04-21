@@ -1,6 +1,6 @@
 
 
-<iframe id="iframe_viewer" src="/formioViewer" allowtransparency = "true"></iframe>
+<iframe id="iframe_viewer" src="/formioViewer"></iframe>
 
 
 <script>
@@ -14,7 +14,7 @@
     }
 
     function messageHandler(event){
-        if (event.data.type === "event" && event.data.eventTyp === "formChanged" && window.dotNetRef){
+        if (event.data.type === "event" && event.data.eventType === "formChanged" && window.dotNetRef){
             console.log("sending formchange to dotnet");
             window.dotNetRef.invokeMethodAsync('OnFormChange',  event.data);
         }

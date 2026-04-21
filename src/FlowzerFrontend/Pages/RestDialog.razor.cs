@@ -17,7 +17,7 @@ public partial class RestDialog
 
     public string? Result { get; set; }
     
-    private async Task SendRequst()
+    private async Task SendRequest()
     {
         var respContent = "";
         try

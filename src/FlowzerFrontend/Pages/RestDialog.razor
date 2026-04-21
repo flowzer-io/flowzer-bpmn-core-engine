@@ -6,7 +6,7 @@
         <FluentTextField Class="rest-input-field" Label="Url" @bind-Value="@Content.RestExampleRequest.Url" ></FluentTextField>
         <FluentTextArea  Class="rest-input-field" Label="Body" @bind-Value="@Content.RestExampleRequest.Body" Rows="12"></FluentTextArea>
 
-        <FluentButton @onclick="SendRequst">Send</FluentButton>
+        <FluentButton @onclick="SendRequest">Send</FluentButton>
         
         @if(Result != null)
         {

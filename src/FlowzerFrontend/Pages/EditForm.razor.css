@@ -3,10 +3,7 @@
     flex-wrap: wrap;
 }
 
-.form-editor-surface {
-    min-height: 70vh;
-}
-
 .iframe-container {
-    min-height: 64vh;
+    height: 64vh;
+    min-height: 480px;
 }

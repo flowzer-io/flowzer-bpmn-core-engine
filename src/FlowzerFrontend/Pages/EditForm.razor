@@ -18,7 +18,7 @@
                 </div>
             </div>
         </LeftSide>
-        <RigthSide>
+        <RightSide>
             <FluentStack Orientation="Orientation.Horizontal" Class="edit-form-actions">
                 <FluentButton IconStart="new Icons.Regular.Size20.Save()" Appearance="Appearance.Accent" OnClick="SaveFormClicked">
                     Save form
@@ -30,7 +30,7 @@
                     <FluentMenuItem Id="SaveAs">Save Copy...</FluentMenuItem>
                 </FluentMenuButton>
             </FluentStack>
-        </RigthSide>
+        </RightSide>
     </HeaderElement>
 
     @if (!string.IsNullOrWhiteSpace(ActionFeedbackMessage))
@@ -39,14 +39,6 @@
             @ActionFeedbackMessage
         </div>
     }
-
-    <section class="surface-panel page-intro edit-form-intro">
-        <div class="page-intro-copy">
-            <span class="page-eyebrow">Form design</span>
-            <h1 class="page-title">Form editor</h1>
-            <p class="page-subtitle">Keep the form builder focused on the schema itself while surfacing version context and save actions around it.</p>
-        </div>
-    </section>
 
     @if (IsLoading)
     {
@@ -67,7 +59,7 @@
             </div>
 
             <div class="iframe-container">
-                <iframe src="/formio" width="100%" height="100%"></iframe>
+                <iframe src="/formio" width="100%" height="100%" title="Form builder"></iframe>
             </div>
         </section>
     }
