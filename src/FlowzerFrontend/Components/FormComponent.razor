@@ -15,7 +15,6 @@
 
     function messageHandler(event){
         if (event.data.type === "event" && event.data.eventType === "formChanged" && window.dotNetRef){
-            console.log("sending formchange to dotnet");
             window.dotNetRef.invokeMethodAsync('OnFormChange',  event.data);
         }
         
