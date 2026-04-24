@@ -2,8 +2,8 @@
     <div class="detail-header-main">
         @if (!string.IsNullOrWhiteSpace(BackLink))
         {
-            <a class="detail-back-link" href="@BackLink" aria-label="Back">
-                <i class="fa-solid fa-chevron-left"></i>
+            <a class="detail-back-link" href="@BackLink">
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
                 <span>Back</span>
             </a>
         }
@@ -13,10 +13,10 @@
         </div>
     </div>
 
-    @if (RigthSide != null)
+    @if (RightSide != null)
     {
         <div class="detail-header-actions">
-            @RigthSide
+            @RightSide
         </div>
     }
 </header>

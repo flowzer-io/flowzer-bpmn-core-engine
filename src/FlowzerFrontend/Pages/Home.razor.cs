@@ -62,88 +62,114 @@ public partial class Home : FlowzerComponentBase
 
     private async Task OnCardClick(ExtendedUserTaskSubscriptionDto userTaskSubscription)
     {
-        var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
-        if (string.IsNullOrWhiteSpace(formName))
+        try
         {
-            ErrorDialog("Form Name ('Implementation') is missing in BPMNN file");
-            return;
-        }
-
-        string? version = null;
-        if (formName.Contains(':'))
-        {
-            var parts = formName.Split(':');
-            formName = parts[0];
-            version = parts[1];
-        }
-
-        var formMeta = (await FlowzerApi.GetFormMetaByName(formName)).SingleOrDefault();
-
-        if (formMeta == null)
-        {
-            ErrorDialog($"Could not find any form Named with '{formName}'");
-            return;
-        }
-
-        FormDto form;
-        if (version == null)
-        {
-            form = await FlowzerApi.GetLatestForm(formMeta.FormId);
-        }
-        else
-        {
-            form = await FlowzerApi.GetForm(formMeta.FormId, VersionDto.FromString(version));
-        }
-
-        if (string.IsNullOrEmpty(form.FormData))
-        {
-            ErrorDialog("Form Data is missing in Formulardata");
-            return;
-        }
-
-        DialogParameters parameters = new()
-        {
-            Title = $"Test Form",
-            Width = "80%",
-            Height = "90%",
-            TrapFocus = true,
-            Modal = true,
-            PreventScroll = true,
-            ShowTitle = false,
-            SecondaryActionEnabled = true,
-            SecondaryAction = "Cancel",
-            PrimaryAction = "Submit"
-        };
-
-        var data = new FilloutFormParameter()
-        {
-            Schema = form.FormData,
-            Data = JsonConvert.SerializeObject(userTaskSubscription.Token.Variables)
-        };
-
-        IDialogReference dialog = await DialogService.ShowDialogAsync<FilloutForm>(data, parameters);
-        DialogResult? result = await dialog.Result;
-
-        if (!result.Cancelled && result.Data is FilloutFormParameter formResult && !string.IsNullOrWhiteSpace(formResult.OutData))
-        {
-            var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(formResult.OutData) ?? new ExpandoObject();
-            var flowNodeId = TokenDisplayHelper.GetFlowElementId(userTaskSubscription.Token);
-            if (string.IsNullOrWhiteSpace(flowNodeId))
+            var formName = TokenDisplayHelper.GetImplementation(userTaskSubscription.Token);
+            if (string.IsNullOrWhiteSpace(formName))
             {
-                ErrorDialog("FlowNode Id is missing in token data.");
+                ErrorDialog($"The user task \"{userTaskSubscription.Name}\" has no form configured. Set the 'Form key' (Implementation) in the BPMN task properties.");
                 return;
             }
 
-            var userTaskResult = new UserTaskResultDto()
+            string? version = null;
+            if (formName.Contains(':'))
             {
-                FlowNodeId = flowNodeId,
-                TokenId = userTaskSubscription.Token.Id,
-                ProcessInstanceId = userTaskSubscription.ProcessInstanceId,
-                Data = dataObj
+                var parts = formName.Split(':');
+                formName = parts[0];
+                version = parts[1];
+            }
+
+            List<FormMetaDataDto> formMetas;
+            try
+            {
+                formMetas = await FlowzerApi.GetFormMetaByName(formName);
+            }
+            catch (Exception ex)
+            {
+                ErrorDialog($"Could not look up form \"{formName}\": {ex.Message}");
+                return;
+            }
+
+            if (formMetas.Count > 1)
+            {
+                ErrorDialog($"Multiple forms named \"{formName}\" were found in the form catalog. Rename duplicate forms or use a unique form key before completing this task.");
+                return;
+            }
+
+            var formMeta = formMetas.SingleOrDefault();
+            if (formMeta == null)
+            {
+                ErrorDialog($"No form named \"{formName}\" found in the form catalog. Create the form first or fix the task configuration.");
+                return;
+            }
+
+            FormDto form;
+            try
+            {
+                form = version == null
+                    ? await FlowzerApi.GetLatestForm(formMeta.FormId)
+                    : await FlowzerApi.GetForm(formMeta.FormId, VersionDto.FromString(version));
+            }
+            catch (Exception ex)
+            {
+                ErrorDialog($"Could not load form \"{formName}\": {ex.Message}");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(form.FormData))
+            {
+                ErrorDialog($"The form \"{formName}\" exists but has no content. Open the form editor and save it first.");
+                return;
+            }
+
+            DialogParameters parameters = new()
+            {
+                Title = userTaskSubscription.Name,
+                Width = "min(860px, 92vw)",
+                Height = "auto",
+                TrapFocus = true,
+                Modal = true,
+                PreventScroll = true,
+                ShowTitle = true,
+                SecondaryActionEnabled = true,
+                SecondaryAction = "Cancel",
+                PrimaryAction = "Submit"
             };
-            await FlowzerApi.CompleteUserTask(userTaskResult);
-            _tasks = _tasks.Where(task => task.Token.Id != userTaskSubscription.Token.Id).ToArray();
-            await InvokeAsync(StateHasChanged);
+
+            var data = new FilloutFormParameter()
+            {
+                Schema = form.FormData,
+                Data = JsonConvert.SerializeObject(userTaskSubscription.Token.Variables)
+            };
+
+            IDialogReference dialog = await DialogService.ShowDialogAsync<FilloutForm>(data, parameters);
+            DialogResult? result = await dialog.Result;
+
+            if (!result.Cancelled && result.Data is FilloutFormParameter formResult && !string.IsNullOrWhiteSpace(formResult.OutData))
+            {
+                var dataObj = JsonConvert.DeserializeObject<ExpandoObject>(formResult.OutData) ?? new ExpandoObject();
+                var flowNodeId = TokenDisplayHelper.GetFlowElementId(userTaskSubscription.Token);
+                if (string.IsNullOrWhiteSpace(flowNodeId))
+                {
+                    ErrorDialog("FlowNode Id is missing in token data.");
+                    return;
+                }
+
+                var userTaskResult = new UserTaskResultDto()
+                {
+                    FlowNodeId = flowNodeId,
+                    TokenId = userTaskSubscription.Token.Id,
+                    ProcessInstanceId = userTaskSubscription.ProcessInstanceId,
+                    Data = dataObj
+                };
+                await FlowzerApi.CompleteUserTask(userTaskResult);
+                _tasks = _tasks.Where(task => task.Token.Id != userTaskSubscription.Token.Id).ToArray();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorDialog($"An unexpected error occurred: {ex.Message}");
         }
     }
 }

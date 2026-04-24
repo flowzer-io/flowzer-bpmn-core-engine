@@ -29,7 +29,6 @@
         }
 
         window.addEventListener('message', async function(event) {
-            console.log("Executing " + event.data.func + " " + JSON.stringify(event.data.arguments)); // Message received from child
             let ret = callFunctionWithoutCaching(event.data.func, ...event.data.arguments);
 
             // Check if ret is a Promise

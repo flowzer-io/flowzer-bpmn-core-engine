@@ -35,8 +35,8 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 
 ## 1. App-Shell und Navigation
 
-- modernisierte Topbar mit stärkerer Flowzer-Identität
-- klarere Primärnavigation
+- modernisierte Sidebar mit stärkerer Flowzer-Identität
+- klarere Primärnavigation mit separatem Einstieg in die tägliche Task-Arbeit
 - user-facing Bezeichnung **Workflows** statt rein technischem **Models** in der Hauptnavigation
 - stabilere Workspace-Struktur statt sperrigem Splitter-Gefühl
 
@@ -45,11 +45,19 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - klareres Intro mit direkten Einstiegsaktionen
 - Summary-Cards für offene Aufgaben, Workflows, aktive Instanzen und Formulare
 - Summary-Cards zusätzlich als **direkte Navigationskacheln** für Kernbereiche nutzbar
+- offene Aufgaben verweisen jetzt konsequent auf die dedizierte Task-Inbox, statt als versteckter Anker innerhalb des Dashboards zu wirken
 - Fehlerinstanzen als eigener sichtbarer Einstieg in die Runtime ergänzt
 - offenere Task-Karten statt rein technischer Listenwirkung
 - nach abgeschlossener User-Task wird die Karte direkt aus der Übersicht entfernt
 
-## 3. Workflow-Katalog
+## 3. Task-Inbox
+
+- eigene Seite **My tasks** für die operative Tagesarbeit ergänzt
+- offene User Tasks und startbare Workflows sind getrennte, klar benannte Arbeitsbereiche
+- Dashboard bleibt Übersicht und Einstieg, die eigentliche Aufgabenbearbeitung hat aber einen fokussierten Ort
+- Refresh- und Start-Aktionen sind explizit sichtbar
+
+## 4. Workflow-Katalog
 
 - Seite fachlich klarer als **Workflow-Katalog** inszeniert
 - explizite Aktionen pro Workflow:
@@ -60,14 +68,14 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - konsistentere Search-/Sort-Toolbar
 - expliziter **Clear search**-Pfad und kontextabhängige Empty States für Treffer- vs. Leer-Katalog-Fälle
 
-## 4. Formular-Katalog
+## 5. Formular-Katalog
 
 - explizite **Open form**-Aktionen statt versteckter Zeileninteraktion
 - bessere Such- und Ergebnisrückmeldung
 - klarere Empty States
 - expliziter **Clear search**-Pfad bei aktiver Filterung
 
-## 5. Instanzliste
+## 6. Instanzliste
 
 - Filter-Navigation bleibt prominent in der Sidebar
 - zusätzliche **Suche nach Workflowname, Workflow-Key oder Instanz-ID**
@@ -75,7 +83,7 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - explizite **Open instance**-Aktion pro Zeile
 - kontextabhängige Empty States und expliziter **Clear search**-Pfad
 
-## 6. Instanzdetailansicht
+## 7. Instanzdetailansicht
 
 - deutlich stärkere Kopfzeile mit Status, Workflow-Referenz und Aktionen
 - direkte Aktionen:
@@ -87,7 +95,7 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - Subscription-Panel klarer strukturiert; wartende Messages lassen sich gezielt auslösen
 - Fehlerzustände getrennt nach **Headline + Detail**, damit Diagramm- und Ladefehler nicht mehr doppelt oder missverständlich erscheinen
 
-## 7. Workflow-Editor
+## 8. Workflow-Editor
 
 - bessere Kontextdarstellung für Workflow-Key, Version, Status und zuletzt gespeicherten Stand
 - verständlichere Aktionen:
@@ -97,11 +105,15 @@ Das Frontend war funktional nutzbar, fühlte sich aber in mehreren Kernflächen 
 - Diagramm und Properties-Panel bleiben als zusammengehörige Arbeitsfläche besser lesbar
 - Workflow-Fehlermeldungen verwenden konsistent die Endnutzer-Sprache **Workflow** statt gemischter Model-/Workflow-Begriffe
 
-## 8. Form-Editor
+## 9. Form-Editor
 
 - ruhigere visuelle Rahmung des Builders
 - konsistentere Feedback-Fläche für Save/Test-Aktionen
 - Version und Metadaten sichtbarer im Kopfbereich
+
+## Preview-Status
+
+Eine echte gehostete Preview-CI/CD-Umgebung existiert aktuell noch nicht. Als pragmatische Zwischenstufe erzeugt der UI-Smoke-Job jetzt ein Artefakt `ui-design-preview` mit Desktop-Screenshots von Dashboard, Task-Inbox, Workflow-Katalog, Instanzen und Formularen sowie mobilen Screenshots der wichtigsten Einstiege. Damit lassen sich Design-Änderungen im PR visuell prüfen, ohne bereits Hosting-Infrastruktur vorauszusetzen.
 
 ## Strukturelle Codeverbesserungen
 
@@ -123,6 +135,7 @@ Der Rundumschlag bringt die Kernpfade deutlich nach vorn, aber ein paar sinnvoll
 3. **noch klarere Domain-Sprache** (intern weiter `Models`, außen noch konsistenter `Workflows`)  
 4. **Keyboard-/Power-User-Flows** für Autoren und Operatoren  
 5. **Design-Tokens/Theme-Schicht** weiter systematisieren, damit spätere UI-Arbeit weniger ad hoc wird
+6. **echte Preview-Umgebung** pro PR, sobald Hosting-Ziel, Secrets und Persistenzmodell geklärt sind
 
 ## Fazit
 

@@ -16,6 +16,6 @@ public partial class HeaderElement : ComponentBase
     public RenderFragment? LeftSide { get; set; }
 
     [Parameter]
-    public RenderFragment? RigthSide { get; set; }
+    public RenderFragment? RightSide { get; set; }
 
 }

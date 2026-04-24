@@ -11,9 +11,17 @@ function isIgnoredFailedRequest(url) {
 const smokePages = [
   {
     path: '/',
-    heading: 'Welcome to Flowzer',
+    heading: 'Dashboard',
     ready: async page => {
-      await expect(page.getByText('Welcome to Flowzer', { exact: false })).toBeVisible();
+      await expect(page.getByText('All open tasks, workflow status and runtime health at a glance.')).toBeVisible();
+    }
+  },
+  {
+    path: '/tasks',
+    heading: 'My tasks',
+    ready: async page => {
+      await expect(page.getByRole('heading', { level: 2, name: 'Open tasks' })).toBeVisible();
+      await expect(page.getByRole('heading', { level: 2, name: 'Start a workflow' })).toBeVisible();
     }
   },
   {
@@ -94,19 +102,40 @@ for (const smokePage of smokePages) {
 test('Hauptnavigation springt zwischen den Kernseiten', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
 
-  const topNav = page.locator('.app-topnav');
+  const primaryNav = page.locator('.app-sidenav');
 
-  await topNav.getByRole('link', { name: 'Workflows', exact: true }).click();
+  await primaryNav.getByRole('link', { name: 'Tasks', exact: true }).click();
+  await expect(page).toHaveURL(/\/tasks$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'My tasks' })).toBeVisible();
+
+  await primaryNav.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+
+  await primaryNav.getByRole('link', { name: 'Workflows', exact: true }).click();
   await expect(page).toHaveURL(/\/models$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Workflows' })).toBeVisible();
 
-  await topNav.getByRole('link', { name: 'Forms', exact: true }).click();
+  await primaryNav.getByRole('link', { name: 'Forms', exact: true }).click();
   await expect(page).toHaveURL(/\/forms$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Forms' })).toBeVisible();
 
-  await topNav.getByRole('link', { name: 'Instances', exact: true }).click();
+  await primaryNav.getByRole('link', { name: 'Instances', exact: true }).click();
   await expect(page).toHaveURL(/\/instances$/);
   await expect(page.getByRole('heading', { level: 1, name: 'Instances' })).toBeVisible();
+});
+
+// Testzweck: Prüft, dass die mobile Hauptnavigation ohne störendes Abschnittslabel nutzbar bleibt.
+test('Mobile Hauptnavigation bleibt kompakt und nutzbar', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/tasks', { waitUntil: 'networkidle' });
+
+  const primaryNav = page.locator('.app-sidenav');
+  await expect(primaryNav.locator('.app-sidenav-section-label')).toBeHidden();
+
+  await primaryNav.getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
 });
 
 // Testzweck: Prüft, dass die Instanzfilter-Navigation ausschließlich auf gültige Frontend-Routen verzweigt.
@@ -134,6 +163,10 @@ test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', asyn
 test('Dashboard-Zusammenfassung verlinkt die wichtigsten Kernbereiche direkt', async ({ page }) => {
   await page.goto('/', { waitUntil: 'networkidle' });
 
+  await page.locator('#home-summary-open-tasks').click();
+  await expect(page).toHaveURL(/\/tasks$/);
+
+  await page.goto('/', { waitUntil: 'networkidle' });
   await page.locator('#home-summary-workflows').click();
   await expect(page).toHaveURL(/\/models$/);
 

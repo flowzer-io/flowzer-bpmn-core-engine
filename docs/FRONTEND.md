@@ -64,6 +64,7 @@ Damit bleibt der normale Blazor-Start ruhiger, ohne den expliziten Debug-Pfad ga
 Die Smoke- und kleinen Happy-Path-E2E-Tests liegen unter `tests/ui-smoke` und prüfen aktuell die Kernrouten:
 
 - `/`
+- `/tasks`
 - `/models`
 - `/forms`
 - `/instances`
@@ -76,6 +77,7 @@ Geprüft werden insbesondere:
 
 - erfolgreiche Seitennavigation
 - sichtbare Kern-UI je Route
+- direkte Task-Inbox als klarer Einstieg für offene User Tasks und startbare Workflows
 - funktionierende Filter-Navigation innerhalb der Instanzliste
 - API-gesäte Happy Paths für Formulare, Modelle und Instanzverläufe
 - explizite **Open**-/`Open deployed`-/`Start instance`-Aktionen in der Modellliste für deployte Workflows
@@ -88,7 +90,8 @@ Geprüft werden insbesondere:
 
 Der aktuelle Stand auf `next` enthält einen größeren UX-Rundumschlag für die wichtigsten Frontend-Flächen. Ziel war nicht nur optische Politur, sondern vor allem eine klarere Bedienlogik:
 
-- **einheitliche App-Shell** mit klarer Hauptnavigation und stärkerem Produktcharakter
+- **einheitliche App-Shell** mit Sidebar-Navigation, klarer Hauptnavigation und stärkerem Produktcharakter
+- **dedizierte Task-Inbox** als täglicher Einstieg für offene User Tasks und startbare Workflows
 - **explizite Primäraktionen** statt versteckter Titel-Links
 - **bessere Empty-/Error-/Loading-States** auf Listen- und Detailseiten
 - **konsistentere List-/Detailmuster** für Workflows, Formulare und Runtime-Instanzen
@@ -115,6 +118,17 @@ npm --prefix tests/ui-smoke run install:browsers
 dotnet build core-engine.sln --configuration Release
 npm --prefix tests/ui-smoke run test
 ```
+
+### Design-Preview-Screenshots erzeugen
+
+Eine echte gehostete Preview-Umgebung gibt es aktuell noch nicht. Für PR-Reviews erzeugt die CI aber ein schlankes Artefakt `ui-design-preview` mit Screenshots der wichtigsten Kernseiten sowie zwei mobilen Einstiegen. Lokal kann dasselbe Artefakt so erzeugt werden:
+
+```bash
+dotnet build core-engine.sln --configuration Release
+npm --prefix tests/ui-smoke run preview:screenshots
+```
+
+Die Screenshots landen unter `tests/ui-smoke/design-preview/` und werden nicht versioniert.
 
 Die Playwright-Konfiguration startet Web-API und Frontend standardmäßig selbst. Wenn beide Prozesse bereits laufen, kann der automatische Start übersprungen werden:
 
@@ -171,7 +185,8 @@ Für die BPMN-Seiten gelten jetzt zusätzlich ein paar harte Erwartungswerte:
 5. einmal `Save draft` auslösen und kontrollieren, dass die URL auf eine konkrete Definitions-GUID springt
 6. testweise einen deployten Workflow direkt starten und die Instanzansicht prüfen
 7. Dashboard-Übersicht öffnen und prüfen, dass die Summary-Cards direkt auf Workflows, aktive Instanzen, Fehlerinstanzen und Formulare verzweigen
-8. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
+8. Task-Inbox öffnen und prüfen, dass offene Aufgaben und startbare Workflows als getrennte Arbeitsbereiche sichtbar sind
+9. testweise eine ungültige Modellroute öffnen und die Inline-Fehlermeldung verifizieren
 
 ## Hinweise zur lokalen Datenbasis
 

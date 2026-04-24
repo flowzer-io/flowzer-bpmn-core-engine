@@ -1,0 +1,141 @@
+@page "/tasks"
+@using Microsoft.FluentUI.AspNetCore.Components
+@inherits FlowzerComponentBase
+
+<div class="page-stack">
+
+    <section class="surface-panel page-intro">
+        <div class="page-intro-copy">
+            <span class="page-eyebrow">Task inbox</span>
+            <h1 class="page-title">My tasks</h1>
+            <p class="page-subtitle">Complete open tasks assigned to you and start new workflow instances.</p>
+        </div>
+        <div class="page-actions">
+            <button type="button" class="cta-link cta-link-secondary" @onclick="RefreshAsync">
+                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Refresh
+            </button>
+        </div>
+    </section>
+
+    @if (IsLoading)
+    {
+        <div class="inline-state-message inline-state-message-info">Loading tasks...</div>
+    }
+    else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+    {
+        <div class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
+    }
+    else
+    {
+        <div class="summary-grid">
+            <article class="summary-card">
+                <div class="summary-card-badge @(OpenTaskCount > 0 ? "summary-card-badge-warning" : "summary-card-badge-success")">
+                    <i class="fa-solid @(OpenTaskCount > 0 ? "fa-user-clock" : "fa-user-check")"></i>
+                </div>
+                <span class="summary-label">Open tasks</span>
+                <strong class="summary-value">@OpenTaskCount</strong>
+                <span class="summary-hint">Waiting for your input</span>
+            </article>
+            <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-info">
+                    <i class="fa-solid fa-diagram-project"></i>
+                </div>
+                <span class="summary-label">Startable workflows</span>
+                <strong class="summary-value">@StartableWorkflowCount</strong>
+                <span class="summary-hint">Deployed and ready to start</span>
+            </article>
+        </div>
+    }
+
+    <!-- Task Inbox -->
+    <section class="surface-panel">
+        <div class="section-header">
+            <div class="section-title-group">
+                <h2 class="section-title"><i class="fa-solid fa-inbox"></i> Open tasks</h2>
+                <p class="section-subtitle">Click a task to open the form and complete the step.</p>
+            </div>
+        </div>
+
+        @if (IsLoading)
+        {
+            <div class="inline-state-message inline-state-message-info">Loading tasks...</div>
+        }
+        else if (_tasks.Length == 0)
+        {
+            <div class="empty-state">
+                <div class="home-empty-icon"><i class="fa-solid fa-circle-check"></i></div>
+                <div class="empty-state-title">No open tasks</div>
+                <p class="empty-state-description">You're all caught up. Once a workflow reaches a user task, it will appear here.</p>
+            </div>
+        }
+        else
+        {
+            <div class="tasks-task-grid">
+                @foreach (var task in _tasks)
+                {
+                    <button type="button" class="tasks-task-card" @onclick="() => OnTaskClick(task)">
+                        <div class="tasks-task-header">
+                            <span class="tasks-task-workflow">
+                                <i class="fa-solid fa-diagram-project"></i>
+                                @task.DefinitionMetaName
+                            </span>
+                            <span class="pill-chip tasks-pill-open">
+                                <i class="fa-regular fa-circle-dot"></i> Open
+                            </span>
+                        </div>
+                        <strong class="tasks-task-title">@task.Name</strong>
+                        <div class="tasks-task-cta">Open form <i class="fa-solid fa-arrow-right"></i></div>
+                    </button>
+                }
+            </div>
+        }
+    </section>
+
+    <!-- Start new workflow -->
+    <section class="surface-panel">
+        <div class="section-header">
+            <div class="section-title-group">
+                <h2 class="section-title"><i class="fa-solid fa-rocket"></i> Start a workflow</h2>
+                <p class="section-subtitle">Deployed workflows you can start a new instance of.</p>
+            </div>
+        </div>
+
+        @if (IsLoading)
+        {
+            <div class="inline-state-message inline-state-message-info">Loading workflows...</div>
+        }
+        else if (_deployedWorkflows.Length == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-state-title">No deployed workflows</div>
+                <p class="empty-state-description">No workflows are currently deployed. An administrator needs to deploy a workflow before it can be started here.</p>
+            </div>
+        }
+        else
+        {
+            <div class="tasks-workflow-grid">
+                @foreach (var wf in _deployedWorkflows)
+                {
+                    <div class="tasks-workflow-card @(_busyWorkflows.Contains(wf.DefinitionId) ? "tasks-workflow-card-busy" : "")">
+                        <div class="tasks-workflow-icon">
+                            <i class="fa-solid fa-diagram-project"></i>
+                        </div>
+                        <div class="tasks-workflow-info">
+                            <strong class="tasks-workflow-name">@wf.Name</strong>
+                            @if (!string.IsNullOrWhiteSpace(wf.Description))
+                            {
+                                <p class="tasks-workflow-description">@wf.Description</p>
+                            }
+                        </div>
+                        <FluentButton Appearance="Appearance.Accent"
+                                      Disabled="@_busyWorkflows.Contains(wf.DefinitionId)"
+                                      @onclick="@(() => OnStartWorkflowAsync(wf))">
+                            @(_busyWorkflows.Contains(wf.DefinitionId) ? "Starting..." : "Start")
+                        </FluentButton>
+                    </div>
+                }
+            </div>
+        }
+    </section>
+
+</div>
