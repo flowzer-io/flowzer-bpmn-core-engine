@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -n \"::deep\" /Users/christian/Projekte/BPMN/flowzer-bpmn-core-engine/src/FlowzerFrontend/Pages/*.razor.css)",
-      "Bash(grep -rn \"console.log\\\\|console.error\\\\|console.warn\" /Users/christian/Projekte/BPMN/flowzer-bpmn-core-engine/src/FlowzerFrontend/Pages/*.razor)",
-      "Bash(git checkout:*)"
-    ]
-  }
-}

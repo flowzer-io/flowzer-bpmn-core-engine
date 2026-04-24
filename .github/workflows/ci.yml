@@ -186,6 +186,11 @@ jobs:
         timeout-minutes: 15
         run: npm test
 
+      - name: UI-Design-Preview-Screenshots erzeugen
+        working-directory: tests/ui-smoke
+        timeout-minutes: 10
+        run: npm run preview:screenshots
+
       - name: Playwright-Artefakte hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -196,13 +201,22 @@ jobs:
             tests/ui-smoke/test-results
           if-no-files-found: ignore
 
+      - name: UI-Design-Preview hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-design-preview
+          path: tests/ui-smoke/design-preview
+          if-no-files-found: ignore
+
       - name: CI-Zusammenfassung schreiben
         if: always()
         run: |
           cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## UI-Smoke-Tests
 
-          - Playwright prüft die Kernrouten `/`, `/models`, `/forms` und `/instances`.
+          - Playwright prüft die Kernrouten `/`, `/tasks`, `/models`, `/forms` und `/instances`.
           - Web-API und Blazor-Frontend werden im Testjob reproduzierbar lokal gestartet.
           - Artefakte mit HTML-Report und Testresultaten werden bei Bedarf hochgeladen.
+          - Zusätzlich erzeugt der Job ein Artefakt `ui-design-preview` mit Screenshots der wichtigsten UI-Seiten für visuelle PR-Reviews.
           EOF

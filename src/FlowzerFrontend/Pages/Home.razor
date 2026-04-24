@@ -13,9 +13,10 @@
         </div>
 
         <div class="page-actions">
-            <a class="cta-link cta-link-primary" href="/models">
-                <i class="fa-solid fa-diagram-project"></i> Manage workflows
+            <a class="cta-link cta-link-primary" href="/tasks">
+                <i class="fa-solid fa-inbox"></i> Open task inbox
             </a>
+            <a class="cta-link cta-link-secondary" href="/models">Manage workflows</a>
             <a class="cta-link cta-link-secondary" href="/instances/active">Active instances</a>
             <a class="cta-link cta-link-secondary" href="/forms">Forms</a>
         </div>
@@ -24,13 +25,13 @@
     @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
     {
         <div class="summary-grid">
-            <a id="home-summary-open-tasks" class="summary-card summary-card-link" href="#home-user-task-section">
+            <a id="home-summary-open-tasks" class="summary-card summary-card-link" href="/tasks">
                 <div class="summary-card-badge @(OpenTaskCount > 0 ? "summary-card-badge-warning" : "summary-card-badge-success")">
                     <i class="fa-solid @(OpenTaskCount > 0 ? "fa-user-clock" : "fa-user-check")"></i>
                 </div>
                 <span class="summary-label">Open user tasks</span>
                 <strong class="summary-value">@OpenTaskCount</strong>
-                <span class="summary-hint">Need action from a human right now</span>
+                <span class="summary-hint">Open the dedicated task inbox</span>
             </a>
             <a id="home-summary-workflows" class="summary-card summary-card-link" href="/models">
                 <div class="summary-card-badge summary-card-badge-info">
@@ -73,9 +74,9 @@
                 <h2 class="section-title">
                     <i class="fa-solid fa-inbox"></i> Open user tasks
                 </h2>
-                <p class="section-subtitle">Directly continue work that currently waits for a user interaction.</p>
+                <p class="section-subtitle">The dashboard shows a compact preview. Use the task inbox for focused work.</p>
             </div>
-            <a class="cta-link cta-link-secondary" href="/instances/active">See runtime details</a>
+            <a class="cta-link cta-link-secondary" href="/tasks">Open task inbox</a>
         </div>
 
         @if (IsLoading)

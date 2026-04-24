@@ -263,6 +263,16 @@ a {
     color: var(--brand-strong);
 }
 
+.page-title:focus,
+.page-title:focus-visible {
+    /*
+     * FocusOnNavigate fokussiert die Seitenüberschrift nach Routenwechseln
+     * für Screenreader. Die Überschrift selbst ist kein interaktives Element,
+     * daher wirkt ein sichtbarer Ring hier wie eine versehentliche Auswahl.
+     */
+    outline: none;
+}
+
 .page-subtitle {
     color: var(--text-muted);
     font-size: 0.9rem;
@@ -890,6 +900,10 @@ fluent-dialog [slot="footer"] {
         padding: 6px 8px;
         gap: 2px;
         overflow-x: auto;
+    }
+
+    .app-sidenav-section-label {
+        display: none;
     }
 
     .app-sidenav-footer {

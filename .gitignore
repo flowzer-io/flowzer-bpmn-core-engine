@@ -253,6 +253,8 @@ orleans.codegen.cs
 **/node_modules/
 tests/ui-smoke/playwright-report/
 tests/ui-smoke/test-results/
+tests/ui-smoke/design-preview/
+.claude/
 
 # RIA/Silverlight projects
 Generated_Code/
