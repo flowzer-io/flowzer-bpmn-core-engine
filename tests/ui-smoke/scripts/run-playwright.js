@@ -3,7 +3,9 @@
 const { spawn } = require('child_process');
 const { cleanupProcesses, listCandidateProcesses, DEFAULT_STALE_THRESHOLD_SECONDS } = require('./playwright-process-guard');
 
-const args = process.argv.slice(2);
+const rawArgs = process.argv.slice(2);
+const shouldCaptureDesignPreview = rawArgs.includes('--capture-design-preview');
+const args = rawArgs.filter(arg => arg !== '--capture-design-preview');
 const knownPids = new Set(listCandidateProcesses().map(processInfo => processInfo.pid));
 const staleThresholdSeconds = Number.parseInt(
   process.env.PLAYWRIGHT_PROCESS_STALE_THRESHOLD_SECONDS || '',
@@ -50,7 +52,10 @@ async function main()
     {
       cwd: __dirname + '/..',
       stdio: 'inherit',
-      env: process.env
+      env: {
+        ...process.env,
+        ...(shouldCaptureDesignPreview ? { FLOWZER_CAPTURE_DESIGN_PREVIEW: '1' } : {})
+      }
     }
   );
 

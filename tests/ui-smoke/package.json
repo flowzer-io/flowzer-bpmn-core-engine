@@ -5,7 +5,7 @@
     "install:browsers": "playwright install --with-deps chromium",
     "test": "node ./scripts/run-playwright.js",
     "test:headed": "node ./scripts/run-playwright.js --headed",
-    "preview:screenshots": "FLOWZER_CAPTURE_DESIGN_PREVIEW=1 node ./scripts/run-playwright.js tests/design-preview.spec.js"
+    "preview:screenshots": "node ./scripts/run-playwright.js --capture-design-preview tests/design-preview.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1"

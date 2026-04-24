@@ -70,8 +70,21 @@ public partial class Tasks : FlowzerComponentBase
             }
 
             List<FormMetaDataDto> formMetas;
-            try { formMetas = await FlowzerApi.GetFormMetaByName(formName); }
-            catch (Exception ex) { ErrorDialog($"Could not look up form \"{formName}\": {ex.Message}"); return; }
+            try
+            {
+                formMetas = await FlowzerApi.GetFormMetaByName(formName);
+            }
+            catch (Exception ex)
+            {
+                ErrorDialog($"Could not look up form \"{formName}\": {ex.Message}");
+                return;
+            }
+
+            if (formMetas.Count > 1)
+            {
+                ErrorDialog($"Multiple forms named \"{formName}\" were found. Rename duplicate forms or use a unique form key before completing this task.");
+                return;
+            }
 
             var formMeta = formMetas.SingleOrDefault();
             if (formMeta == null)
@@ -81,8 +94,17 @@ public partial class Tasks : FlowzerComponentBase
             }
 
             FormDto form;
-            try { form = version == null ? await FlowzerApi.GetLatestForm(formMeta.FormId) : await FlowzerApi.GetForm(formMeta.FormId, VersionDto.FromString(version)); }
-            catch (Exception ex) { ErrorDialog($"Could not load form \"{formName}\": {ex.Message}"); return; }
+            try
+            {
+                form = version == null
+                    ? await FlowzerApi.GetLatestForm(formMeta.FormId)
+                    : await FlowzerApi.GetForm(formMeta.FormId, VersionDto.FromString(version));
+            }
+            catch (Exception ex)
+            {
+                ErrorDialog($"Could not load form \"{formName}\": {ex.Message}");
+                return;
+            }
 
             if (string.IsNullOrEmpty(form.FormData))
             {

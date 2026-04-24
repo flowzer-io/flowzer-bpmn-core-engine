@@ -9,9 +9,10 @@
     {
         <span id="current-file-name">@Label</span>
     }
-    <button class="label-edit-btn @(TitleEditMode ? "label-edit-btn-save" : "")"
+    <button type="button"
+            class="label-edit-btn @(TitleEditMode ? "label-edit-btn-save" : "")"
             title="@(TitleEditMode ? "Save name" : "Edit name")"
             @onclick="ToggleTitleEditMode">
-        <i class="fa-solid @(TitleEditMode ? "fa-check" : "fa-pencil")"></i>
+        <i class="fa-solid @(TitleEditMode ? "fa-check" : "fa-pencil")" aria-hidden="true"></i>
     </button>
 </div>

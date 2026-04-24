@@ -80,10 +80,6 @@
     color: var(--brand-accent);
 }
 
-.summary-value-danger {
-    color: var(--danger-text);
-}
-
 .home-empty-icon {
     font-size: 2.5rem;
     color: var(--success-text);
