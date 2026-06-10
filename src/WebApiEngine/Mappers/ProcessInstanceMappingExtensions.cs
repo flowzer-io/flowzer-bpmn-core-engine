@@ -14,21 +14,8 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(processInstanceInfo);
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
-        var definitionMetadata = await definitionStorage.GetMetaDefinitionById(processInstanceInfo.metaDefinitionId);
-
-        return new ProcessInstanceInfoDto
-        {
-            InstanceId = processInstanceInfo.InstanceId,
-            DefinitionId = processInstanceInfo.DefinitionId,
-            RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
-            RelatedDefinitionName = definitionMetadata.Name,
-            MessageSubscriptionCount = processInstanceInfo.MessageSubscriptionCount,
-            SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,
-            UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
-            ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
-            State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList()
-        };
+        var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
+        return processInstanceInfo.ToDto(metaNamesById);
     }
 
     public static async Task<List<ProcessInstanceInfoDto>> ToDtosAsync(
@@ -38,9 +25,43 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(processInstances);
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
-        var mappedInstances = await Task.WhenAll(
-            processInstances.Select(instance => instance.ToDtoAsync(definitionStorage)));
+        var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
+        return processInstances
+            .Select(instance => instance.ToDto(metaNamesById))
+            .ToList();
+    }
 
-        return mappedInstances.ToList();
+    private static async Task<Dictionary<string, string>> GetMetaNamesByIdAsync(IDefinitionStorage definitionStorage)
+    {
+        var metaDefinitions = await definitionStorage.GetAllMetaDefinitions();
+        return metaDefinitions
+            .GroupBy(metaDefinition => metaDefinition.DefinitionId)
+            .ToDictionary(group => group.Key, group => group.First().Name);
+    }
+
+    private static ProcessInstanceInfoDto ToDto(
+        this ProcessInstanceInfo processInstanceInfo,
+        IReadOnlyDictionary<string, string> metaNamesById)
+    {
+        // Instanzen ohne zugehörige Meta-Definition (z. B. nach einem Direkt-Deploy
+        // an der Katalogpflege vorbei) dürfen die Instanzliste nicht zerstören —
+        // dann bleibt die technische Definition-Id als Anzeigename sichtbar.
+        var relatedDefinitionName = metaNamesById.TryGetValue(processInstanceInfo.metaDefinitionId, out var name)
+            ? name
+            : processInstanceInfo.metaDefinitionId;
+
+        return new ProcessInstanceInfoDto
+        {
+            InstanceId = processInstanceInfo.InstanceId,
+            DefinitionId = processInstanceInfo.DefinitionId,
+            RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
+            RelatedDefinitionName = relatedDefinitionName,
+            MessageSubscriptionCount = processInstanceInfo.MessageSubscriptionCount,
+            SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,
+            UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
+            ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
+            State = (ProcessInstanceStateDto)processInstanceInfo.State,
+            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList()
+        };
     }
 }

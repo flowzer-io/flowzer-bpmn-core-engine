@@ -96,12 +96,41 @@ public class DefinitionControllerIntegrationTest
         payload.ErrorMessage.Should().Contain("cannot be started directly from the UI");
     }
 
+    // Testzweck: Prüft, dass ein Deploy ohne zugehörige Meta-Definition kontrolliert abgelehnt wird,
+    // statt verwaiste Definitionen zu hinterlassen, die später die Instanzliste zerstören.
+    [Test]
+    public async Task DeployDefinition_ShouldReturnBadRequest_WhenMetaDefinitionIsMissing()
+    {
+        const string definitionId = "workflow-deploy-without-meta";
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(CreatePlainStartXml(definitionId), Encoding.UTF8, "text/plain"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("No meta definition found");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+        storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
+    }
+
     // Testzweck: Prüft, dass ein fehlgeschlagener Deploy-Versuch keine halb persistierte Definitionsversion zurücklässt.
     [Test]
     public async Task DeployDefinition_ShouldCleanupStoredVersion_WhenSubscriptionSetupFails()
     {
         const string definitionId = "workflow-deploy-cleanup";
         var storage = TestStorage.Create(throwOnMessageSubscriptionAdd: true);
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "Deploy cleanup"
+        });
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();

@@ -17,7 +17,24 @@ public class DefinitionBusinessLogic(
     {
         
         var model = ModelParser.ParseModel(rawContent);
-        
+
+        // Auth zuerst: Ohne aufgelösten Benutzer bleibt die Antwort 401,
+        // unabhängig davon, ob die Meta-Definition existiert.
+        var currentUser = currentUserContextAccessor.GetCurrentUser();
+        var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
+
+        if (deploy)
+        {
+            // Ein Deploy ohne Meta-Definition hinterlässt Instanzen, deren Katalog-
+            // Eintrag fehlt, und macht damit die komplette Instanzliste unbrauchbar.
+            var metaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
+            if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != model.Id))
+            {
+                throw new InvalidOperationException(
+                    $"No meta definition found for definitionId {model.Id}. " +
+                    "Create the workflow in the catalog first, then deploy it.");
+            }
+        }
 
         var highestVersion = await storageSystem.DefinitionStorage.GetMaxVersionId(model.Id);
         
@@ -35,12 +52,6 @@ public class DefinitionBusinessLogic(
             }
             
         }
-    
-        
-                
-        var currentUser = currentUserContextAccessor.GetCurrentUser();
-        var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
-
         var definition = new BpmnDefinition()
         {
             Id = Guid.NewGuid(),

@@ -121,6 +121,30 @@ public class InstanceControllerIntegrationTest
             [activeInstanceId, completedInstanceId, failedInstanceId]);
         payload.Result.Should().Contain(instance => instance.State == ProcessInstanceStateDto.Completed);
         payload.Result.Should().Contain(instance => instance.State == ProcessInstanceStateDto.Failed);
+        payload.Result.Should().OnlyContain(instance => instance.RelatedDefinitionName == "Invoice Process");
+    }
+
+    // Testzweck: Prüft, dass Instanzen ohne zugehörige Meta-Definition die Instanzliste nicht zerstören,
+    // sondern mit der technischen Definition-Id als Anzeigename ausgeliefert werden.
+    [Test]
+    public async Task GetAllInstances_ShouldFallBackToDefinitionId_WhenMetaDefinitionIsMissing()
+    {
+        var orphanInstanceId = Guid.NewGuid();
+        var storage = TestStorage.CreateWithOrphanInstance(orphanInstanceId, "orphan-process");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/instance");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<List<ProcessInstanceInfoDto>>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result.Should().ContainSingle();
+        payload.Result![0].InstanceId.Should().Be(orphanInstanceId);
+        payload.Result[0].RelatedDefinitionId.Should().Be("orphan-process");
+        payload.Result[0].RelatedDefinitionName.Should().Be("orphan-process");
     }
 
     /// <summary>
@@ -258,6 +282,35 @@ public class InstanceControllerIntegrationTest
             return new TestStorage(definitionId, definitionStorage, subscriptionStorage, instanceStorage);
         }
 
+        public static TestStorage CreateWithOrphanInstance(Guid instanceId, string orphanMetaDefinitionId)
+        {
+            var definitionId = Guid.NewGuid();
+            var definitionStorage = new TestDefinitionStorage(
+                new BpmnMetaDefinition
+                {
+                    DefinitionId = "invoice-process",
+                    Name = "Invoice Process"
+                });
+
+            var instanceStorage = new TestInstanceStorage(new ProcessInstanceInfo
+            {
+                InstanceId = instanceId,
+                metaDefinitionId = orphanMetaDefinitionId,
+                DefinitionId = definitionId,
+                ProcessId = "Process_Orphan",
+                Tokens = [],
+                IsFinished = false,
+                State = ProcessInstanceState.Running,
+                MessageSubscriptionCount = 0,
+                SignalSubscriptionCount = 0,
+                UserTaskSubscriptionCount = 0,
+                ServiceSubscriptionCount = 0
+            });
+
+            var subscriptionStorage = new TestMessageSubscriptionStorage();
+            return new TestStorage(definitionId, definitionStorage, subscriptionStorage, instanceStorage);
+        }
+
         private static ProcessInstanceInfo CreateProcessInstance(
             Guid instanceId,
             Guid definitionId,
@@ -314,7 +367,15 @@ public class InstanceControllerIntegrationTest
         public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => Task.FromResult<BpmnDefinition?>(null);
-        public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());
+        public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(new[]
+        {
+            new ExtendedBpmnMetaDefinition
+            {
+                DefinitionId = metaDefinition.DefinitionId,
+                Name = metaDefinition.Name,
+                Description = metaDefinition.Description
+            }
+        });
         public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition) => Task.CompletedTask;
         public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition) => Task.CompletedTask;
         public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id) => Task.FromResult(metaDefinition);
