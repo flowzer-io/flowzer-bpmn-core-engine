@@ -214,7 +214,6 @@ a {
 }
 
 .surface-panel,
-.sidebar-panel,
 .summary-card,
 .empty-state {
     background: white;
@@ -223,8 +222,7 @@ a {
     box-shadow: var(--surface-shadow);
 }
 
-.surface-panel,
-.sidebar-panel {
+.surface-panel {
     padding: 20px;
 }
 
@@ -445,6 +443,74 @@ a {
     white-space: nowrap;
 }
 
+.toolbar-panel-stacked {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.toolbar-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+/* ─── Filter Tabs ────────────────────────────────────────────────── */
+
+.filter-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.filter-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: white;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.filter-tab:hover {
+    background: #f5f8fd;
+    color: var(--brand-strong);
+}
+
+.filter-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--neutral-bg);
+    color: var(--neutral-text);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.filter-tab-active,
+.filter-tab-active:hover {
+    background: var(--brand-accent);
+    border-color: var(--brand-accent);
+    color: white;
+}
+
+.filter-tab-active .filter-tab-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: white;
+}
+
 /* ─── Section Header ─────────────────────────────────────────────── */
 
 .section-header {
@@ -645,21 +711,6 @@ a {
     opacity: 0.5;
 }
 
-/* ─── Sidebar Panel ──────────────────────────────────────────────── */
-
-.sidebar-hint-title {
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: var(--brand-strong);
-    margin-bottom: 6px;
-}
-
-.sidebar-hint-copy {
-    color: var(--text-muted);
-    font-size: 0.88rem;
-    line-height: 1.5;
-}
-
 /* ─── Entity / Detail Header ─────────────────────────────────────── */
 
 .detail-header-main,
@@ -688,9 +739,7 @@ a {
 }
 
 .surface-panel .fa-solid,
-.surface-panel .fa-regular,
-.sidebar-panel .fa-solid,
-.sidebar-panel .fa-regular {
+.surface-panel .fa-regular {
     color: var(--brand-accent);
 }
 
@@ -852,6 +901,9 @@ fluent-dialog [slot="footer"] {
 }
 
 .fluent-data-grid tbody tr td {
+    /* FluentDataGrid setzt inline height:32px pro Zelle — mehrzeilige
+       Zellinhalte (entity-row-stack) überlappen sonst. */
+    height: auto !important;
     padding: 12px !important;
     vertical-align: top !important;
     border-bottom: 1px solid var(--surface-border) !important;

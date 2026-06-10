@@ -42,35 +42,35 @@ const smokePages = [
     path: '/instances',
     heading: 'Instances',
     ready: async page => {
-      await expect(page.getByText('Showing: All instances')).toBeVisible();
+      await expect(page.locator('#instances-filter-all')).toHaveClass(/filter-tab-active/);
     }
   },
   {
     path: '/instances/all',
     heading: 'Instances',
     ready: async page => {
-      await expect(page.getByText('Showing: All instances')).toBeVisible();
+      await expect(page.locator('#instances-filter-all')).toHaveClass(/filter-tab-active/);
     }
   },
   {
     path: '/instances/active',
     heading: 'Instances',
     ready: async page => {
-      await expect(page.getByText('Showing: Active instances')).toBeVisible();
+      await expect(page.locator('#instances-filter-active')).toHaveClass(/filter-tab-active/);
     }
   },
   {
     path: '/instances/done',
     heading: 'Instances',
     ready: async page => {
-      await expect(page.getByText('Showing: Completed instances')).toBeVisible();
+      await expect(page.locator('#instances-filter-done')).toHaveClass(/filter-tab-active/);
     }
   },
   {
     path: '/instances/error',
     heading: 'Instances',
     ready: async page => {
-      await expect(page.getByText('Showing: Failed instances')).toBeVisible();
+      await expect(page.locator('#instances-filter-error')).toHaveClass(/filter-tab-active/);
     }
   }
 ];
@@ -144,19 +144,19 @@ test('Instanzfilter-Navigation bleibt innerhalb gültiger Frontend-Routen', asyn
 
   await page.locator('#instances-filter-all').click();
   await expect(page).toHaveURL(/\/instances\/all$/);
-  await expect(page.getByText('Showing: All instances')).toBeVisible();
+  await expect(page.locator('#instances-filter-all')).toHaveClass(/filter-tab-active/);
 
   await page.locator('#instances-filter-active').click();
   await expect(page).toHaveURL(/\/instances\/active$/);
-  await expect(page.getByText('Showing: Active instances')).toBeVisible();
+  await expect(page.locator('#instances-filter-active')).toHaveClass(/filter-tab-active/);
 
   await page.locator('#instances-filter-done').click();
   await expect(page).toHaveURL(/\/instances\/done$/);
-  await expect(page.getByText('Showing: Completed instances')).toBeVisible();
+  await expect(page.locator('#instances-filter-done')).toHaveClass(/filter-tab-active/);
 
   await page.locator('#instances-filter-error').click();
   await expect(page).toHaveURL(/\/instances\/error$/);
-  await expect(page.getByText('Showing: Failed instances')).toBeVisible();
+  await expect(page.locator('#instances-filter-error')).toHaveClass(/filter-tab-active/);
 });
 
 // Testzweck: Prüft, dass die Dashboard-Zusammenfassung als direkter Einstieg in die wichtigsten Kernbereiche funktioniert.

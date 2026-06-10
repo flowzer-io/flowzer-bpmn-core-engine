@@ -3,133 +3,116 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @using WebApiEngine.Shared
 
-<LayoutWithLeftMenu>
-    <MenuContent>
-        <div class="sidebar-panel">
-            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.ArrowUpload())" Appearance="Appearance.Accent" @onclick="OnNewClick">
-                New form
-            </FluentButton>
+<div class="page-stack">
+    <section class="surface-panel page-intro">
+        <div class="page-intro-copy">
+            <span class="page-eyebrow">Human interaction</span>
+            <h1 class="page-title">Forms</h1>
+            <p class="page-subtitle">Keep form assets easy to browse and edit so task-driven workflows stay understandable for users and operators.</p>
         </div>
 
-        <div class="sidebar-panel">
-            <div class="sidebar-hint-title">Form catalog</div>
-            <p class="sidebar-hint-copy">Forms back user tasks and should stay easy to find, update and validate.</p>
+        <div class="page-actions">
+            <FluentButton Id="new-button" IconStart="@(new Icons.Regular.Size16.Add())" Appearance="Appearance.Accent" @onclick="OnNewClick">New form</FluentButton>
         </div>
-    </MenuContent>
-    <MainContent>
-        <div class="page-stack">
-            <section class="surface-panel page-intro">
-                <div class="page-intro-copy">
-                    <span class="page-eyebrow">Human interaction</span>
-                    <h1 class="page-title">Forms</h1>
-                    <p class="page-subtitle">Keep form assets easy to browse and edit so task-driven workflows stay understandable for users and operators.</p>
-                </div>
+    </section>
 
-                <div class="page-actions">
-                    <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">New form</FluentButton>
-                    <a class="cta-link cta-link-secondary" href="/models">Open workflows</a>
+    @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
+    {
+        <div class="summary-grid">
+            <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-info">
+                    <i class="fa-solid fa-file-lines"></i>
                 </div>
-            </section>
+                <span class="summary-label">Total forms</span>
+                <strong class="summary-value">@TotalFormCount</strong>
+                <span class="summary-hint">Reusable building blocks for user tasks</span>
+            </article>
+            <article class="summary-card">
+                <div class="summary-card-badge summary-card-badge-neutral">
+                    <i class="fa-solid fa-filter"></i>
+                </div>
+                <span class="summary-label">Visible results</span>
+                <strong class="summary-value">@VisibleFormCount</strong>
+                <span class="summary-hint">Filtered with the current search input</span>
+            </article>
+        </div>
+    }
 
-            @if (!IsLoading && string.IsNullOrWhiteSpace(LoadErrorMessage))
+    <section class="surface-panel toolbar-panel">
+        <div class="toolbar-group">
+            <FluentTextField @bind-Value="SearchText"
+                             Style="min-width: min(360px, 100%);"
+                             Appearance="FluentInputAppearance.Filled"
+                             Immediate="true"
+                             Placeholder="Search forms by name or identifier">
+                <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
+            </FluentTextField>
+            @if (HasSearchText)
             {
-                <div class="summary-grid">
-                    <article class="summary-card">
-                        <div class="summary-card-badge summary-card-badge-info">
-                            <i class="fa-solid fa-file-lines"></i>
-                        </div>
-                        <span class="summary-label">Total forms</span>
-                        <strong class="summary-value">@TotalFormCount</strong>
-                        <span class="summary-hint">Reusable building blocks for user tasks</span>
-                    </article>
-                    <article class="summary-card">
-                        <div class="summary-card-badge summary-card-badge-neutral">
-                            <i class="fa-solid fa-filter"></i>
-                        </div>
-                        <span class="summary-label">Visible results</span>
-                        <strong class="summary-value">@VisibleFormCount</strong>
-                        <span class="summary-hint">Filtered with the current search input</span>
-                    </article>
-                </div>
+                <FluentButton Id="forms-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
+                    Clear search
+                </FluentButton>
             }
+        </div>
 
-            <section class="surface-panel toolbar-panel">
-                <div class="toolbar-group">
-                    <FluentTextField @bind-Value="SearchText"
-                                     Style="min-width: min(360px, 100%);"
-                                     Appearance="FluentInputAppearance.Filled"
-                                     Immediate="true"
-                                     Placeholder="Search forms by name or identifier">
-                        <FluentIcon Value="@(new Icons.Regular.Size16.Search())" Slot="start" Color="Color.Neutral" />
-                    </FluentTextField>
+        <span class="results-label">@ResultLabel</span>
+    </section>
+
+    <section class="surface-panel">
+        <div class="section-header">
+            <div class="section-title-group">
+                <h2 class="section-title">Form library</h2>
+                <p class="section-subtitle">Browse the current form assets and jump straight into editing without relying on row-title clicks.</p>
+            </div>
+        </div>
+
+        @{ var items = VisibleForms; }
+
+        @if (IsLoading)
+        {
+            <div id="forms-loading-state" class="inline-state-message inline-state-message-info">Loading forms...</div>
+        }
+        else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
+        {
+            <div id="forms-load-error" class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
+        }
+        else if (!items.Any())
+        {
+            <div id="forms-empty-state" class="empty-state">
+                <div class="empty-state-title">@EmptyStateTitle</div>
+                <p class="empty-state-description">@EmptyStateDescription</p>
+                <div class="empty-state-actions">
                     @if (HasSearchText)
                     {
-                        <FluentButton Id="forms-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">
-                            Clear search
-                        </FluentButton>
+                        <FluentButton Id="forms-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
                     }
+                    <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create form</FluentButton>
                 </div>
-
-                <span class="results-label">@ResultLabel</span>
-            </section>
-
-            <section class="surface-panel">
-                <div class="section-header">
-                    <div class="section-title-group">
-                        <h2 class="section-title">Form library</h2>
-                        <p class="section-subtitle">Browse the current form assets and jump straight into editing without relying on row-title clicks.</p>
+            </div>
+        }
+        else
+        {
+            <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1fr) minmax(240px, 0.6fr) auto" ShowHover="true">
+                <TemplateColumn Title="Form">
+                    <div class="entity-row-stack">
+                        <div class="entity-row-title"><a href="@UriHelper.GetShowFormUrl(context.FormId)">@context.Name</a></div>
+                        <div class="entity-row-subtitle">@context.FormId</div>
                     </div>
-                </div>
-
-                @{ var items = VisibleForms; }
-
-                @if (IsLoading)
-                {
-                    <div id="forms-loading-state" class="inline-state-message inline-state-message-info">Loading forms...</div>
-                }
-                else if (!string.IsNullOrWhiteSpace(LoadErrorMessage))
-                {
-                    <div id="forms-load-error" class="inline-state-message inline-state-message-error" role="alert">@LoadErrorMessage</div>
-                }
-                else if (!items.Any())
-                {
-                    <div id="forms-empty-state" class="empty-state">
-                        <div class="empty-state-title">@EmptyStateTitle</div>
-                        <p class="empty-state-description">@EmptyStateDescription</p>
-                        <div class="empty-state-actions">
-                            @if (HasSearchText)
-                            {
-                                <FluentButton Id="forms-empty-clear-search" Appearance="Appearance.Neutral" @onclick="ClearSearch">Clear search</FluentButton>
-                            }
-                            <FluentButton Appearance="Appearance.Accent" @onclick="OnNewClick">Create form</FluentButton>
-                        </div>
+                </TemplateColumn>
+                <TemplateColumn Title="Form key (for BPMN)">
+                    <div class="entity-row-stack">
+                        <div class="entity-row-metric">@context.Name</div>
+                        <div class="entity-row-hint">Use in task 'Form key' field</div>
                     </div>
-                }
-                else
-                {
-                    <FluentDataGrid Items="@items.AsQueryable()" style="width: 100%;" GridTemplateColumns="minmax(0, 1fr) minmax(240px, 0.6fr) auto" ShowHover="true">
-                        <TemplateColumn Title="Form">
-                            <div class="entity-row-stack">
-                                <div class="entity-row-title"><a href="@UriHelper.GetShowFormUrl(context.FormId)">@context.Name</a></div>
-                                <div class="entity-row-subtitle">@context.FormId</div>
-                            </div>
-                        </TemplateColumn>
-                        <TemplateColumn Title="Form key (for BPMN)">
-                            <div class="entity-row-stack">
-                                <div class="entity-row-metric">@context.Name</div>
-                                <div class="entity-row-hint">Use in task 'Form key' field</div>
-                            </div>
-                        </TemplateColumn>
-                        <TemplateColumn Title="Actions">
-                            <FluentButton Id="@($"form-open-{context.FormId}")"
-                                          Appearance="Appearance.Neutral"
-                                          @onclick="@(() => OnEditClick(context.FormId))">
-                                Open form
-                            </FluentButton>
-                        </TemplateColumn>
-                    </FluentDataGrid>
-                }
-            </section>
-        </div>
-    </MainContent>
-</LayoutWithLeftMenu>
+                </TemplateColumn>
+                <TemplateColumn Title="Actions">
+                    <FluentButton Id="@($"form-open-{context.FormId}")"
+                                  Appearance="Appearance.Neutral"
+                                  @onclick="@(() => OnEditClick(context.FormId))">
+                        Open form
+                    </FluentButton>
+                </TemplateColumn>
+            </FluentDataGrid>
+        }
+    </section>
+</div>
