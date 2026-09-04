@@ -23,8 +23,15 @@ public class InstanceStorage : IInstanceStorage
 
     public async Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId)
     {
-        var path = Directory.GetFiles(_instancesPath, $"instance_*_{processInstanceId}.json").Single();
-        var content = await File.ReadAllTextAsync(path);
+        // Eine fehlende Instanz ist ein erwartbarer 404, kein Serverfehler. Die Datei kann
+        // zwischen Listing und Lesen auch von einem parallelen Vorgang ersetzt werden.
+        var path = Directory.GetFiles(_instancesPath, $"instance_*_{processInstanceId}.json").SingleOrDefault();
+        var content = path is null ? null : await StorageFile.ReadAllTextIfExistsAsync(path);
+        if (content is null)
+        {
+            throw new FileNotFoundException($"Process instance {processInstanceId} was not found.");
+        }
+
         return JsonConvert.DeserializeObject<ProcessInstanceInfo>(content, _newtonSoftDefaultSettings)!;
     }
 

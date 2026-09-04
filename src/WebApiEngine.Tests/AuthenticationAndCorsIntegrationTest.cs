@@ -82,6 +82,25 @@ public class AuthenticationAndCorsIntegrationTest
         storage.LastRequestedUserTaskUserId.Should().Be(userId);
     }
 
+    // Testzweck: Entra ID liefert die Benutzer-Id im Claim `oid`, nicht in `sub`. Der Claim muss
+    // unter seinem Originalnamen ankommen (kein Inbound-Claim-Mapping) und als Benutzer-Id gelten.
+    [Test]
+    public async Task UserTasks_ShouldResolveUserFromOidClaim_WhenSubjectIsNotAGuid()
+    {
+        var storage = new TestStorage();
+        var userId = Guid.NewGuid();
+        await using var factory = CreateJwtFactory(storage);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            CreateToken(claims: [new Claim("sub", "opaque-subject-from-entra"), new Claim("oid", userId.ToString())]));
+
+        var response = await client.GetAsync("/usertask");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.LastRequestedUserTaskUserId.Should().Be(userId);
+    }
+
     // Testzweck: Ein Token eines fremden Issuers oder mit falscher Audience wird abgelehnt.
     [Test]
     public async Task ProtectedEndpoints_ShouldReturnUnauthorized_WhenTokenIssuerOrAudienceDoesNotMatch()
@@ -193,6 +212,11 @@ public class AuthenticationAndCorsIntegrationTest
 
     private static string CreateToken(Guid userId, string issuer = Issuer, string audience = Audience)
     {
+        return CreateToken([new Claim("sub", userId.ToString())], issuer, audience);
+    }
+
+    private static string CreateToken(Claim[] claims, string issuer = Issuer, string audience = Audience)
+    {
         var handler = new JsonWebTokenHandler();
         return handler.CreateToken(new SecurityTokenDescriptor
         {
@@ -200,7 +224,7 @@ public class AuthenticationAndCorsIntegrationTest
             Audience = audience,
             Expires = DateTime.UtcNow.AddMinutes(5),
             SigningCredentials = new SigningCredentials(SigningKey, SecurityAlgorithms.HmacSha256),
-            Subject = new ClaimsIdentity([new Claim("sub", userId.ToString())])
+            Subject = new ClaimsIdentity(claims)
         });
     }
 

@@ -28,6 +28,26 @@ public class ExclusiveGatewayDefaultFlowTest
         reachedNodeNames.Should().NotContain("ShouldNotReached");
     }
 
+    // Testzweck: Trifft die Bedingung eines anderen Flusses zu, darf der Standardfluss nicht
+    // zusaetzlich genommen werden. Das ist der Gegenpfad zum vorigen Test und sichert, dass der
+    // Fix den Standardfluss nur als Rueckfall behandelt.
+    [Test]
+    public async Task ExclusiveGatewaySuppressesDefaultFlowWhenConditionMatches()
+    {
+        await using var stream = File.OpenRead("embeddings/ExklusiveGatewayDefaultFlow.bpmn");
+        var model = await ModelParser.ParseModel(stream);
+        var process = model.GetProcesses().First();
+        dynamic variables = new System.Dynamic.ExpandoObject();
+        variables.Condition = 1;
+
+        var instanceEngine = Helper.CreateProcessEngine(process).StartProcess((System.Dynamic.ExpandoObject)variables);
+
+        instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
+        var reachedNodeNames = instanceEngine.Tokens.Select(token => token.CurrentFlowNode?.Name).ToArray();
+        reachedNodeNames.Should().Contain("ShouldNotReached");
+        reachedNodeNames.Should().NotContain("ShouldReached");
+    }
+
     // Testzweck: Der Parser muss das default-Attribut eines exklusiven Gateways auf den
     // benannten Sequenzfluss übertragen.
     [Test]

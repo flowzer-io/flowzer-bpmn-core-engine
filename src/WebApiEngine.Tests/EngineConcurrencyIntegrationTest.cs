@@ -32,6 +32,34 @@ public class EngineConcurrencyIntegrationTest
         var definition = await context.StoreDefinitionAsync(provider, CreateUserTaskXml());
         await businessLogic.DeployDefinition(definition);
 
+        // Parallele Leser wie GET /instance, GET /usertask und GET /instance/{id} laufen ohne
+        // Sperre und duerfen an halb geschriebenen oder gerade geloeschten Dateien nicht scheitern.
+        using var readerCancellation = new CancellationTokenSource();
+        var readerFailures = new List<Exception>();
+        var readers = Enumerable.Range(0, 3).Select(_ => Task.Run(async () =>
+        {
+            using var readerStorage = provider.GetTransactionalStorage();
+            while (!readerCancellation.IsCancellationRequested)
+            {
+                try
+                {
+                    var instances = (await readerStorage.InstanceStorage.GetAllInstances()).ToArray();
+                    await readerStorage.SubscriptionStorage.GetAllUserTasksExtended(UserId);
+                    foreach (var instance in instances)
+                    {
+                        await readerStorage.InstanceStorage.GetProcessInstance(instance.InstanceId);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    lock (readerFailures)
+                    {
+                        readerFailures.Add(exception);
+                    }
+                }
+            }
+        })).ToArray();
+
         var startedInstances = await Task.WhenAll(Enumerable.Range(0, InstanceCount)
             .Select(_ => Task.Run(() => businessLogic.StartProcessInstance(definition.DefinitionId))));
 
@@ -46,6 +74,10 @@ public class EngineConcurrencyIntegrationTest
                 FlowNodeId = "UserTask_Review"
             }, UserId);
         })));
+
+        readerCancellation.Cancel();
+        await Task.WhenAll(readers);
+        readerFailures.Should().BeEmpty("parallel readers must tolerate concurrent engine mutations");
 
         using var storage = provider.GetTransactionalStorage();
         var instances = (await storage.InstanceStorage.GetAllInstances()).ToArray();
@@ -113,6 +145,11 @@ public class EngineConcurrencyIntegrationTest
             };
 
             using var storage = provider.GetTransactionalStorage();
+            await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition
+            {
+                DefinitionId = definition.DefinitionId,
+                Name = "Review"
+            });
             await storage.DefinitionStorage.StoreDefinition(definition);
             await storage.DefinitionStorage.StoreBinary(definition.Id, xml);
             return definition;

@@ -29,8 +29,14 @@ public static class FlowzerAuthenticationExtensions
                 jwt.Authority = options.JwtBearer.Authority;
                 jwt.Audience = options.JwtBearer.Audience;
                 jwt.RequireHttpsMetadata = options.JwtBearer.RequireHttpsMetadata;
-                jwt.TokenValidationParameters.ValidIssuer = options.JwtBearer.Authority;
-                jwt.TokenValidationParameters.ValidAudience = options.JwtBearer.Audience;
+
+                // Der gueltige Issuer kommt aus den OIDC-Metadaten der Authority. Ein fest auf die
+                // Authority gesetzter ValidIssuer wuerde Tokens ablehnen, deren `iss` davon
+                // abweicht (Entra-v1-Tokens, abschliessender Schraegstrich bei Keycloak).
+                //
+                // Claims bleiben unter ihren Originalnamen (`sub`, `oid`), damit der
+                // Benutzerkontext sie so liest, wie es in OPERATIONS.md dokumentiert ist.
+                jwt.MapInboundClaims = false;
             });
 
         services.AddAuthorizationBuilder()

@@ -13,15 +13,32 @@ internal static class StorageFile
     public static async Task WriteAllTextAtomicAsync(string path, string content)
     {
         var temporaryPath = $"{path}{TemporarySuffix}{Guid.NewGuid():N}";
-        await File.WriteAllTextAsync(temporaryPath, content);
-        File.Move(temporaryPath, path, overwrite: true);
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, content);
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        catch
+        {
+            // Schlaegt Schreiben oder Umbenennen fehl, darf keine Temporaerdatei liegen bleiben.
+            DeleteIfExists(temporaryPath);
+            throw;
+        }
     }
 
     public static void WriteAllTextAtomic(string path, string content)
     {
         var temporaryPath = $"{path}{TemporarySuffix}{Guid.NewGuid():N}";
-        File.WriteAllText(temporaryPath, content);
-        File.Move(temporaryPath, path, overwrite: true);
+        try
+        {
+            File.WriteAllText(temporaryPath, content);
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        catch
+        {
+            DeleteIfExists(temporaryPath);
+            throw;
+        }
     }
 
     /// <summary>

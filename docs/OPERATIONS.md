@@ -32,8 +32,8 @@ Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
 Verhalten bei `JwtBearer`:
 
 - Alle Endpunkte verlangen ein gültiges Token (Fallback-Policy). `GET /health` und `GET /health/ready` bleiben anonym für Orchestrator-Probes.
-- Die Benutzer-Id wird aus den Claims `nameidentifier`, `sub` oder `oid` gelesen und muss eine GUID sein. Entra ID liefert `oid` als GUID, Keycloak `sub`. Andere Formate führen zu 401 auf benutzerbezogenen Pfaden.
-- Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr, auch nicht im Development-Modus.
+- Die Benutzer-Id wird aus den Claims `nameidentifier`, `sub` oder `oid` gelesen (Originalnamen, kein Inbound-Claim-Mapping) und muss eine GUID sein. Entra ID liefert `oid` als GUID, Keycloak `sub`. Andere Formate führen zu 401 auf benutzerbezogenen Pfaden. Der gültige Issuer stammt aus den OIDC-Metadaten der Authority.
+- Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
 - Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
 
 Noch offen: Das Blazor-Frontend besitzt keinen OIDC-Client und kann bei aktivem `JwtBearer` keine Token beschaffen. Für einen Pilot ist deshalb ein Reverse Proxy mit Token-Weitergabe oder die Ergänzung von `Microsoft.AspNetCore.Components.WebAssembly.Authentication` im Frontend nötig. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.

@@ -392,21 +392,6 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         return instance;
     }
     
-    private async Task<InstanceEngine> StartProcess(Guid definitionsId, string relatedDefinitionId,
-        Process process)
-    {
-        
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-        var processEngine = new ProcessEngine(process);
-        var instance = processEngine.StartProcess();
-        
-        await AddOrUpdateInstance(definitionsId, relatedDefinitionId, process.Id, storageSystem, instance);
-
-        storageSystem.CommitChanges();
-        
-        return instance;
-    }
-
     private async  Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance)
     {
