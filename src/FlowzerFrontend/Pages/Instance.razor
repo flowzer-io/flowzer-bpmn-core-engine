@@ -34,6 +34,9 @@
                 <FluentButton Appearance="Appearance.Accent" Disabled="@IsRefreshing" @onclick="OnRefreshClickAsync">
                     Refresh runtime
                 </FluentButton>
+                <FluentButton Id="instance-cancel-button" Appearance="Appearance.Stealth" Disabled="@(!CanCancel)" @onclick="OnCancelClickAsync">
+                    Cancel instance
+                </FluentButton>
             </FluentStack>
         </RightSide>
     </HeaderElement>

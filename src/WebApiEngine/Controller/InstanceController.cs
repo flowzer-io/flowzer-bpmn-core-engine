@@ -1,5 +1,6 @@
 using BpmnServiceTask = BPMN.Activities.ServiceTask;
 using Flowzer.Shared;
+using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
@@ -8,8 +9,30 @@ namespace WebApiEngine.Controller;
 
 [ApiController, Route("[controller]")]
 public class InstanceController(
-    IStorageSystem storageSystem) : FlowzerControllerBase
+    IStorageSystem storageSystem,
+    BpmnBusinessLogic bpmnBusinessLogic,
+    ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
+    /// <summary>
+    /// Bricht eine laufende Instanz ab. Beendete Instanzen antworten mit 409, unbekannte mit 404.
+    /// </summary>
+    [HttpPost("{instanceId}/cancel")]
+    public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> CancelInstance(Guid instanceId)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("cancelling instances");
+
+        try
+        {
+            var cancelledInstance = await bpmnBusinessLogic.CancelInstance(instanceId);
+            var dto = await cancelledInstance.ToDtoAsync(storageSystem.DefinitionStorage);
+            return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(dto));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new ApiStatusResult<ProcessInstanceInfoDto>(exception.Message));
+        }
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiStatusResult<List<ProcessInstanceInfoDto>>>> GetAllInstances()
     {

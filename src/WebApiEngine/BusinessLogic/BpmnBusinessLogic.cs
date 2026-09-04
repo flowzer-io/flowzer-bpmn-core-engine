@@ -334,6 +334,41 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         }
     }
 
+    /// <summary>
+    /// Bricht eine laufende Instanz ab: aktive und wartende Tokens werden terminiert, offene
+    /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
+    /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
+    /// </summary>
+    public async Task<ProcessInstanceInfo> CancelInstance(Guid instanceId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+            if (processInstance.IsFinished)
+            {
+                throw new InvalidOperationException(
+                    $"Process instance \"{instanceId}\" is already finished and cannot be cancelled.");
+            }
+
+            var instance = new InstanceEngine(processInstance.Tokens)
+            {
+                InstanceId = processInstance.InstanceId
+            };
+            instance.Cancel();
+
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId, processInstance.ProcessId, instance);
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
     public async Task<ProcessInstanceInfo> StartProcessInstance(string relatedDefinitionId, string? processId = null)
     {
         await _engineMutationLock.WaitAsync();

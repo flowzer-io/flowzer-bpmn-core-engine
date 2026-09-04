@@ -97,6 +97,101 @@ public class ApiContractHardeningIntegrationTest
         payload.ErrorMessage.Should().Contain("Exclusive Gateway");
     }
 
+    // Testzweck: Eine wartende Instanz muss sich ueber die API abbrechen lassen: Tokens werden
+    // terminiert, offene User-Task-Subscriptions entfernt, die Instanz gilt als beendet.
+    [Test]
+    public async Task CancelInstance_ShouldTerminateWaitingInstance_AndRemoveOpenSubscriptions()
+    {
+        var storage = new TestStorage();
+        var instanceId = Guid.NewGuid();
+        var (_, tokens) = CreateInstanceWaitingAtUserTaskBeforeBrokenGateway(instanceId);
+        storage.Instances.Add(CreateWaitingInstance(instanceId, tokens));
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync($"/instance/{instanceId}/cancel", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.State.Should().Be(ProcessInstanceStateDto.Terminated);
+        payload.Result.FinishedAt.Should().NotBeNull();
+        storage.Instances.Single().IsFinished.Should().BeTrue();
+        storage.RemovedUserTaskSubscriptionInstanceIds.Should().Contain(instanceId);
+    }
+
+    // Testzweck: Eine bereits beendete Instanz kann nicht erneut abgebrochen werden; das ist ein
+    // Zustandskonflikt (409), kein Serverfehler und kein stilles OK.
+    [Test]
+    public async Task CancelInstance_ShouldReturnConflict_WhenInstanceIsAlreadyFinished()
+    {
+        var storage = new TestStorage();
+        var instanceId = Guid.NewGuid();
+        var (_, tokens) = CreateInstanceWaitingAtUserTaskBeforeBrokenGateway(instanceId);
+        foreach (var token in tokens)
+        {
+            token.State = FlowNodeState.Completed;
+        }
+        var instance = CreateWaitingInstance(instanceId, tokens);
+        instance.IsFinished = true;
+        instance.State = ProcessInstanceState.Completed;
+        storage.Instances.Add(instance);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync($"/instance/{instanceId}/cancel", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("already finished");
+    }
+
+    // Testzweck: Abbruch ist eine Verwaltungsaktion und verlangt wie Deploy und User-Task-Abschluss
+    // einen aufgeloesten Benutzerkontext (401 ausserhalb von Development ohne Anmeldung).
+    [Test]
+    public async Task CancelInstance_ShouldReturnUnauthorized_WhenNoUserContextOutsideDevelopment()
+    {
+        await using var factory = new TestWebApplicationFactory(new TestStorage(), environmentName: "Production", useFixedUser: false);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync($"/instance/{Guid.NewGuid()}/cancel", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Testzweck: Abbruch einer unbekannten Instanz ist 404.
+    [Test]
+    public async Task CancelInstance_ShouldReturnNotFound_WhenInstanceDoesNotExist()
+    {
+        await using var factory = new TestWebApplicationFactory(new TestStorage());
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync($"/instance/{Guid.NewGuid()}/cancel", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    private static ProcessInstanceInfo CreateWaitingInstance(Guid instanceId, List<Token> tokens)
+    {
+        return new ProcessInstanceInfo
+        {
+            InstanceId = instanceId,
+            metaDefinitionId = "broken-gateway",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_BrokenGateway",
+            Tokens = tokens,
+            IsFinished = false,
+            State = ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 1,
+            ServiceSubscriptionCount = 0
+        };
+    }
+
     // Testzweck: Die Formular-Auflösung (Form-Key -> neueste Version) gehoert in die API. Ohne
     // Versionsangabe im Form-Key muss die hoechste gespeicherte Version geliefert werden.
     [Test]
@@ -392,6 +487,7 @@ public class ApiContractHardeningIntegrationTest
         public List<ExtendedUserTaskSubscription> UserTaskSubscriptions { get; } = [];
         public List<FormMetadata> FormMetadatas { get; } = [];
         public List<Form> Forms { get; } = [];
+        public List<Guid> RemovedUserTaskSubscriptionInstanceIds { get; } = [];
 
         public IDefinitionStorage DefinitionStorage => new TestDefinitionStorage(this);
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
@@ -468,6 +564,7 @@ public class ApiContractHardeningIntegrationTest
 
         public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId)
         {
+            storage.RemovedUserTaskSubscriptionInstanceIds.Add(instanceId);
         }
 
         public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;

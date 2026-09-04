@@ -68,6 +68,12 @@ public partial class Instance : IAsyncDisposable
           _instance.UserTaskSubscriptionCount +
           _instance.ServiceSubscriptionCount;
     private bool HasError => !string.IsNullOrWhiteSpace(ErrorHeadline);
+    private bool IsCancelling { get; set; }
+    private bool CanCancel => _instance != null && !HasError && !IsCancelling && !IsRefreshing &&
+                              _instance.State is not (ProcessInstanceStateDto.Completed
+                                  or ProcessInstanceStateDto.Terminated
+                                  or ProcessInstanceStateDto.Failed
+                                  or ProcessInstanceStateDto.Compensated);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -355,6 +361,38 @@ public partial class Instance : IAsyncDisposable
     {
         ErrorHeadline = null;
         ErrorDetails = null;
+    }
+
+    private async Task OnCancelClickAsync()
+    {
+        if (!CanCancel || _instance == null)
+        {
+            return;
+        }
+
+        var confirmed = await JsRuntime.InvokeAsync<bool>(
+            "confirm",
+            $"Cancel instance {_instance.InstanceId}? Active tokens are terminated and open tasks disappear. Completed activities are not compensated.");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        IsCancelling = true;
+        try
+        {
+            await FlowzerApi.CancelInstance(_instance.InstanceId);
+            await Reload();
+        }
+        catch (Exception exception)
+        {
+            SetError("Could not cancel the instance", exception.Message);
+        }
+        finally
+        {
+            IsCancelling = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task OnRefreshClickAsync()
