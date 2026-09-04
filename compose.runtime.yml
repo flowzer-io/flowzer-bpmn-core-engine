@@ -6,6 +6,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       FLOWZER_STORAGE_ROOT: /data/flowzer-storage
+      # Authentifizierung: None (Default) oder JwtBearer mit Authority und Audience des Identity Providers.
+      Authentication__Scheme: ${FLOWZER_AUTH_SCHEME:-None}
+      Authentication__JwtBearer__Authority: ${FLOWZER_AUTH_AUTHORITY:-}
+      Authentication__JwtBearer__Audience: ${FLOWZER_AUTH_AUDIENCE:-}
+      Authentication__JwtBearer__RequireHttpsMetadata: ${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}
     volumes:
       - ./.data/runtime-storage:/data/flowzer-storage
     healthcheck:
@@ -19,6 +24,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+    environment:
+      # Leer = ohne Anmeldung (nur fuer lokale Pruefungen). Fuer den Pilot beide Werte setzen.
+      FLOWZER_OIDC_AUTHORITY: ${FLOWZER_OIDC_AUTHORITY:-}
+      FLOWZER_OIDC_CLIENT_ID: ${FLOWZER_OIDC_CLIENT_ID:-}
+      FLOWZER_OIDC_SCOPES: ${FLOWZER_OIDC_SCOPES:-}
     depends_on:
       api:
         condition: service_healthy
