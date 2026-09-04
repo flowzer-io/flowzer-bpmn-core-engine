@@ -1,0 +1,14 @@
+<Project>
+  <!--
+    Zentrale NuGet-Audit-Einstellungen fuer alle Projekte der Solution.
+    Restore prueft auch transitive Pakete gegen bekannte Schwachstellen.
+    Hohe und kritische Befunde (NU1903, NU1904) brechen Restore und damit CI ab;
+    moderate und niedrige Befunde bleiben sichtbare Warnungen.
+  -->
+  <PropertyGroup>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+    <WarningsAsErrors>$(WarningsAsErrors);NU1903;NU1904</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
