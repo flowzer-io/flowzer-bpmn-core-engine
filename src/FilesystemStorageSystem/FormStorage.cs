@@ -47,7 +47,7 @@ public class FormStorage : IFormStorage
         EnsureDirectoryCreated();
         var fullFileName = GetMetaFilePath(formMetadata.FormId);
         var data = JsonConvert.SerializeObject(formMetadata, _storage.NewtonSoftDefaultSettings);
-        await File.WriteAllTextAsync(fullFileName, data);
+        await StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
     public Task<FormMetadata> GetFormMetaData(Guid formId)
@@ -62,12 +62,8 @@ public class FormStorage : IFormStorage
     {
         EnsureDirectoryCreated();
 
-        var metadatas = Directory.GetFiles(_metaPath, "*.json")
-            .Select(filePath =>
-            {
-                var data = File.ReadAllText(filePath);
-                return JsonConvert.DeserializeObject<FormMetadata>(data, _storage.NewtonSoftDefaultSettings)!;
-            })
+        var metadatas = StorageFile.ReadExistingFiles(_metaPath, "*.json")
+            .Select(entry => JsonConvert.DeserializeObject<FormMetadata>(entry.Content, _storage.NewtonSoftDefaultSettings)!)
             .ToList();
 
         return Task.FromResult<IEnumerable<FormMetadata>>(metadatas);
@@ -107,7 +103,7 @@ public class FormStorage : IFormStorage
         EnsureDirectoryCreated();
         var fullFileName = Path.Combine(_basePath, $"{form.FormId}_{form.Id}.json");
         var data = JsonConvert.SerializeObject(form, _storage.NewtonSoftDefaultSettings);
-        await File.WriteAllTextAsync(fullFileName, data);
+        await StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
     public Task<Form> GetForm(Guid id)
@@ -124,12 +120,8 @@ public class FormStorage : IFormStorage
     public Task<IEnumerable<Form>> GetForms(Guid formId)
     {
         EnsureDirectoryCreated();
-        var forms = Directory.GetFiles(_basePath, GetFormSearchPattern(formId))
-            .Select(filePath =>
-            {
-                var data = File.ReadAllText(filePath);
-                return JsonConvert.DeserializeObject<Form>(data, _storage.NewtonSoftDefaultSettings)!;
-            })
+        var forms = StorageFile.ReadExistingFiles(_basePath, GetFormSearchPattern(formId))
+            .Select(entry => JsonConvert.DeserializeObject<Form>(entry.Content, _storage.NewtonSoftDefaultSettings)!)
             .ToList();
 
         return Task.FromResult<IEnumerable<Form>>(forms);
