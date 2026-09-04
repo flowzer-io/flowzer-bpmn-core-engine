@@ -146,6 +146,45 @@ public class ApiContractHardeningIntegrationTest
         payload!.Result!.Id.Should().Be(requested.Id);
     }
 
+    // Testzweck: Ein Formularname darf selbst Doppelpunkte enthalten. Nur ein Suffix, das eine
+    // Version ist, gilt als Versionsangabe.
+    [Test]
+    public async Task GetUserTaskForm_ShouldTreatColonInNameAsPartOfName_WhenSuffixIsNoVersion()
+    {
+        var storage = new TestStorage();
+        var formId = Guid.NewGuid();
+        storage.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Pruefung: Detail" });
+        var form = new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" };
+        storage.Forms.Add(form);
+        var subscription = AddUserTaskSubscription(storage, formKey: "Pruefung: Detail");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/usertask/{subscription.Id}/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Result!.Id.Should().Be(form.Id);
+    }
+
+    // Testzweck: Ein Definitionsupload jenseits der Obergrenze wird als 413 abgelehnt, bevor der
+    // Body geparst wird. Ohne Limit koennte ein einzelner Request Speicher und die Engine-Sperre
+    // beliebig lange binden.
+    [Test]
+    public async Task UploadDefinition_ShouldReturnPayloadTooLarge_WhenBodyExceedsLimit()
+    {
+        var storage = new TestStorage();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+        var oversized = new string('x', WebApiEngine.Controller.FlowzerControllerBase.MaxRawContentBytes + 1);
+
+        var response = await client.PostAsync("/definition", new StringContent(oversized));
+
+        response.StatusCode.Should().Be(HttpStatusCode.RequestEntityTooLarge);
+        storage.Binaries.Should().BeEmpty();
+    }
+
     // Testzweck: Ein unbekannter Form-Key ist ein Modellierungsfehler des Workflows und muss als
     // 400 mit sprechender Meldung zurueckkommen, nicht als leeres Formular oder 500.
     [Test]

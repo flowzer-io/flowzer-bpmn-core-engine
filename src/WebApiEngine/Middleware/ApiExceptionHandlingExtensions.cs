@@ -50,6 +50,7 @@ public static class ApiExceptionHandlingExtensions
     {
         return exception switch
         {
+            BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
             DefinitionStorageConflictException => StatusCodes.Status409Conflict,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,

@@ -67,9 +67,16 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
         return Result.Success(match);
     }
 
+    /// <summary>
+    /// Trennt <c>Name:Major.Minor</c> in Name und Version. Nur ein Suffix, das tatsaechlich eine
+    /// Version ist, gilt als Versionsangabe; ein Formularname darf selbst Doppelpunkte enthalten
+    /// ("Pruefung: Detail"). Ein Suffix, das wie eine Version aussieht, aber ungueltig ist
+    /// ("Name:1.x"), wird als Fehler gemeldet, damit Tippfehler nicht still die neueste Version
+    /// liefern.
+    /// </summary>
     private static (string Name, Model.Version? Version, string? Error) SplitFormKey(string formKey)
     {
-        var separatorIndex = formKey.IndexOf(':');
+        var separatorIndex = formKey.LastIndexOf(':');
         if (separatorIndex < 0)
         {
             return (formKey.Trim(), null, null);
@@ -83,6 +90,11 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
             return (name, null, null);
         }
 
+        if (!LooksLikeVersion(versionPart))
+        {
+            return (formKey.Trim(), null, null);
+        }
+
         try
         {
             return (name, Model.Version.FromString(versionPart), null);
@@ -91,5 +103,10 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
         {
             return (name, null, $"The form key \"{formKey}\" has an invalid version: {exception.Message}");
         }
+    }
+
+    private static bool LooksLikeVersion(string candidate)
+    {
+        return candidate.Length > 0 && candidate.All(character => char.IsDigit(character) || character == '.');
     }
 }

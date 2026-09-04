@@ -364,6 +364,37 @@ public class ManualMappingExtensionsTest
         restored.StartTime.Should().Be(start);
     }
 
+    // Testzweck: Der Zeitpunkt des letzten Statuswechsels muss den Weg durch die JSON-Ablage
+    // ueberleben, auch wenn `State` in der Datei nach `LastStateChangeTime` steht. Der State-Setter
+    // wuerde den Zeitstempel sonst beim Laden auf "jetzt" setzen und FinishedAt verfaelschen.
+    [Test]
+    public void Token_LastStateChangeTime_ShouldSurviveJsonRoundTrip_RegardlessOfPropertyOrder()
+    {
+        var changedAt = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        var token = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(),
+            CurrentBaseElement = new UserTask { Id = "UserTask_1", Name = "Review", Implementation = "Approval" },
+            ActiveBoundaryEvents = [],
+            State = FlowNodeState.Completed
+        };
+        token.LastStateChangeTime = changedAt;
+        var settings = new Newtonsoft.Json.JsonSerializerSettings
+        {
+            TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
+            TypeNameAssemblyFormatHandling = Newtonsoft.Json.TypeNameAssemblyFormatHandling.Simple
+        };
+
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(token, settings);
+        var stateIndex = json.IndexOf("\"State\"", StringComparison.Ordinal);
+        var changeIndex = json.IndexOf("\"LastStateChangeTime\"", StringComparison.Ordinal);
+        var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<Token>(json, settings)!;
+
+        changeIndex.Should().BeGreaterThan(stateIndex, "LastStateChangeTime must be written after State");
+        restored.State.Should().Be(FlowNodeState.Completed);
+        restored.LastStateChangeTime.Should().Be(changedAt);
+    }
+
     // Testzweck: Form-Key, Faelligkeit, Wiedervorlage und Prioritaet stehen nur am BPMN-Element des
     // User-Tasks und muessen flach in das erweiterte Subscription-DTO gehoben werden.
     [Test]
