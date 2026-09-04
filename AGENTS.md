@@ -9,7 +9,7 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 ## Lies zuerst
 
 1. [README.md](README.md)
-2. [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
+2. [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md) und [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 3. [docs/ROADMAP.md](docs/ROADMAP.md)
 4. [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md)
 5. [.github/copilot-instructions.md](.github/copilot-instructions.md)
@@ -62,10 +62,13 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 
 ### .NET
 
+Es wird ein SDK im Feature-Band 10.0.1xx benötigt (`global.json`, `rollForward: latestPatch`). SDK 10.0.400 baut das Blazor-Frontend nicht.
+
 ```bash
 dotnet restore core-engine.sln
+python3 scripts/ci/check_test_purpose_comments.py
 dotnet build core-engine.sln
-dotnet test src/core-engine-tests/core-engine-tests.csproj
+dotnet test core-engine.sln
 ```
 
 ### bpmn.io
