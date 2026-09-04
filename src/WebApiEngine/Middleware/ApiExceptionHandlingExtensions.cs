@@ -1,4 +1,5 @@
 using System.Text.Json;
+using core_engine.Exceptions;
 using FilesystemStorageSystem.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using WebApiEngine.Shared;
@@ -54,6 +55,15 @@ public static class ApiExceptionHandlingExtensions
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
             NotImplementedException => StatusCodes.Status501NotImplemented,
+
+            // Modell- und Laufzeitfehler der Engine sind fachliche Fehler im BPMN,
+            // keine Serverstörung. Eine Meldung wie "SequenceFlow without a Condition
+            // and not default for Exclusive Gateway" muss die modellierende Person
+            // lesen können — als 500 würde sie maskiert und wäre in der Oberfläche
+            // nicht diagnostizierbar.
+            FlowzerRuntimeException or FlowzerModelParseException or ModelValidationException =>
+                StatusCodes.Status422UnprocessableEntity,
+
             _ => StatusCodes.Status500InternalServerError
         };
     }

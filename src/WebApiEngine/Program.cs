@@ -29,6 +29,7 @@ builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.AddSingleton<UserTaskFormResolver>();
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddCors(options =>

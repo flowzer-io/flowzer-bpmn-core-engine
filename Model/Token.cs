@@ -23,7 +23,10 @@ public class Token
         }
     }
 
-    public DateTime StartTime { get; } = DateTime.UtcNow;
+    // Der Setter ist nötig, damit der Startzeitpunkt beim Laden aus der Ablage erhalten
+    // bleibt: Newtonsoft.Json überspringt schreibgeschützte Auto-Properties, wodurch
+    // jeder Ladevorgang den Zeitstempel auf "jetzt" zurücksetzen würde.
+    public DateTime StartTime { get; set; } = DateTime.UtcNow;
     public DateTime LastStateChangeTime { get; set; } = DateTime.UtcNow;
     public Token? PreviousToken { get; set; }
     public SequenceFlow? LastSequenceFlow { get; set; }

@@ -1,3 +1,4 @@
+using System.Text;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
@@ -110,10 +111,15 @@ public class DefinitionController(
      
         
     [HttpGet("xml/{guid}")]
-    public async Task<ActionResult<string>> GetDefinitionXml([FromRoute] Guid guid)
+    [Produces("application/xml")]
+    public async Task<ActionResult> GetDefinitionXml([FromRoute] Guid guid)
     {
         var xml = await storageSystem.DefinitionStorage.GetBinary(guid);
-        return Ok(xml);
+
+        // Bewusst als Content mit festem Content-Type: Über `Ok(xml)` liefert die
+        // Content-Negotiation bei `Accept: application/json` ein JSON-String-Literal
+        // ("<?xml version=\"1.0\" …") — für jeden XML-Parser unbrauchbar.
+        return Content(xml, "application/xml", Encoding.UTF8);
     }
 
     

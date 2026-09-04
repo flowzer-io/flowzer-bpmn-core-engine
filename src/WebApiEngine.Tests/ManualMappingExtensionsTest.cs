@@ -5,8 +5,10 @@ using BPMN.Process;
 using FluentAssertions;
 using Flowzer.Shared;
 using Model;
+using StorageSystem;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using Task = System.Threading.Tasks.Task;
 
 namespace WebApiEngine.Tests;
 
@@ -246,5 +248,172 @@ public class ManualMappingExtensionsTest
 
         result.CurrentFlowNodeId.Should().BeEmpty();
         result.CurrentFlowElement.Should().BeNull();
+    }
+    // Testzweck: Token-Zeitstempel (Erzeugung, letzter Statuswechsel) muessen im DTO ankommen,
+    // damit Clients einen Verlauf darstellen koennen, ohne das Flow-Element zu parsen.
+    [Test]
+    public void Token_ToDto_ShouldMapStartAndLastStateChangeTime()
+    {
+        var token = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(),
+            CurrentBaseElement = new UserTask { Id = "UserTask_1", Name = "Review", Implementation = "Approval" },
+            ActiveBoundaryEvents = [],
+            StartTime = new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc),
+            LastStateChangeTime = new DateTime(2026, 9, 1, 9, 30, 0, DateTimeKind.Utc)
+        };
+
+        var dto = token.ToDto();
+
+        dto.StartTime.Should().Be(new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc));
+        dto.LastStateChangeTime.Should().Be(new DateTime(2026, 9, 1, 9, 30, 0, DateTimeKind.Utc));
+    }
+
+    // Testzweck: Start- und Endzeitpunkt einer Instanz werden aus den Tokens abgeleitet: das aelteste
+    // Token markiert den Start, der letzte Statuswechsel einer beendeten Instanz das Ende. Eine
+    // laufende Instanz hat kein Ende, eine Instanz ohne Tokens keinen Start.
+    [Test]
+    public async Task ProcessInstanceInfo_ToDtoAsync_ShouldDeriveStartedAtAndFinishedAtFromTokens()
+    {
+        var definitionStorage = new EmptyDefinitionStorage();
+        var process = new Process { Id = "Process_1", Name = "P", DefinitionsId = "Definitions_1", IsExecutable = true, FlowElements = [] };
+        var start = new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc);
+        var end = new DateTime(2026, 9, 1, 12, 0, 0, DateTimeKind.Utc);
+        var finishedInstance = new ProcessInstanceInfo
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "meta",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            IsFinished = true,
+            State = ProcessInstanceState.Completed,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0,
+            Tokens =
+            [
+                new Token { ProcessInstanceId = Guid.NewGuid(), CurrentBaseElement = process, ActiveBoundaryEvents = [], StartTime = start, LastStateChangeTime = end },
+                new Token { ProcessInstanceId = Guid.NewGuid(), CurrentBaseElement = process, ActiveBoundaryEvents = [], StartTime = start.AddMinutes(5), LastStateChangeTime = end.AddMinutes(-10) }
+            ]
+        };
+        var runningInstance = new ProcessInstanceInfo
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "meta",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            IsFinished = false,
+            State = ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0,
+            Tokens = [new Token { ProcessInstanceId = Guid.NewGuid(), CurrentBaseElement = process, ActiveBoundaryEvents = [], StartTime = start, LastStateChangeTime = end }]
+        };
+        var emptyInstance = new ProcessInstanceInfo
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "meta",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            IsFinished = false,
+            State = ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0,
+            Tokens = []
+        };
+
+        var finishedDto = await finishedInstance.ToDtoAsync(definitionStorage);
+        var runningDto = await runningInstance.ToDtoAsync(definitionStorage);
+        var emptyDto = await emptyInstance.ToDtoAsync(definitionStorage);
+
+        finishedDto.StartedAt.Should().Be(start);
+        finishedDto.FinishedAt.Should().Be(end);
+        runningDto.StartedAt.Should().Be(start);
+        runningDto.FinishedAt.Should().BeNull();
+        emptyDto.StartedAt.Should().BeNull();
+        emptyDto.FinishedAt.Should().BeNull();
+    }
+
+    // Testzweck: Der Startzeitpunkt eines Tokens muss den Weg durch die JSON-Ablage ueberleben.
+    // Ein schreibgeschuetztes Auto-Property wird von Newtonsoft uebersprungen und wuerde bei jedem
+    // Laden auf "jetzt" zurueckgesetzt.
+    [Test]
+    public void Token_StartTime_ShouldSurviveJsonRoundTrip()
+    {
+        var start = new DateTime(2026, 9, 1, 8, 0, 0, DateTimeKind.Utc);
+        var token = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(),
+            CurrentBaseElement = new UserTask { Id = "UserTask_1", Name = "Review", Implementation = "Approval" },
+            ActiveBoundaryEvents = [],
+            StartTime = start
+        };
+        var settings = new Newtonsoft.Json.JsonSerializerSettings
+        {
+            TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Auto,
+            TypeNameAssemblyFormatHandling = Newtonsoft.Json.TypeNameAssemblyFormatHandling.Simple
+        };
+
+        var json = Newtonsoft.Json.JsonConvert.SerializeObject(token, settings);
+        var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<Token>(json, settings)!;
+
+        restored.StartTime.Should().Be(start);
+    }
+
+    // Testzweck: Form-Key, Faelligkeit, Wiedervorlage und Prioritaet stehen nur am BPMN-Element des
+    // User-Tasks und muessen flach in das erweiterte Subscription-DTO gehoben werden.
+    [Test]
+    public void ExtendedUserTaskSubscription_ToDto_ShouldExposeFormKeyAndSchedule()
+    {
+        var subscription = new ExtendedUserTaskSubscription
+        {
+            Id = Guid.NewGuid(),
+            Name = "Review",
+            Token = new Token
+            {
+                ProcessInstanceId = Guid.NewGuid(),
+                CurrentBaseElement = new UserTask
+                {
+                    Id = "UserTask_1",
+                    Name = "Review",
+                    Implementation = "Approval:1.0",
+                    FlowzerDueDate = "2026-10-01T10:00:00Z",
+                    FlowzerFollowUpDate = "2026-09-28T10:00:00Z",
+                    FlowzerPriority = "high"
+                },
+                ActiveBoundaryEvents = []
+            },
+            MetaDefinitionId = "meta",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1"
+        };
+
+        var dto = subscription.ToDto();
+
+        dto.FormKey.Should().Be("Approval:1.0");
+        dto.DueDate.Should().Be("2026-10-01T10:00:00Z");
+        dto.FollowUpDate.Should().Be("2026-09-28T10:00:00Z");
+        dto.Priority.Should().Be("high");
+    }
+
+    private sealed class EmptyDefinitionStorage : StorageSystem.IDefinitionStorage
+    {
+        public Task StoreBinary(Guid guid, string data) => throw new NotSupportedException();
+        public Task<string> GetBinary(Guid guid) => throw new NotSupportedException();
+        public Task<Guid[]> GetAllBinaryDefinitions() => throw new NotSupportedException();
+        public Task<BpmnDefinition[]> GetAllDefinitions() => throw new NotSupportedException();
+        public Task StoreDefinition(BpmnDefinition definition) => throw new NotSupportedException();
+        public Task<Model.Version?> GetMaxVersionId(string modelId) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
+        public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => throw new NotSupportedException();
+        public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());
+        public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition) => throw new NotSupportedException();
+        public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition) => throw new NotSupportedException();
+        public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id) => throw new NotSupportedException();
     }
 }
