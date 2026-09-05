@@ -1,4 +1,6 @@
 node_modules/
+# package-lock.json gehoert ausdruecklich ins Repository: Ohne sie scheitert `npm ci`,
+# und jeder Bau koennte andere Versionen ziehen als der geprueften.
 dist/
 .env
 .env.local
