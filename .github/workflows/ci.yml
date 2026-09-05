@@ -147,6 +147,11 @@ jobs:
 
       # Die Oberflaeche liefert eine Kopie desselben Bundles aus. Weicht sie ab, laeuft in
       # Produktion eine andere Version als die hier gebaute und gepruefte.
+      # Eine API-Route, die das Gateway nicht weiterleitet, beantwortet die Oberflaeche mit
+      # ihrer Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
+      - name: Weiterleitungsliste des Gateways pruefen
+        run: ./tests/ui-smoke/check-gateway-routes.sh
+
       - name: Ausgeliefertes Bundle mit dem gebauten vergleichen
         run: |
           if ! cmp -s bpmn.io/public/app.js src/FlowzerFrontend/wwwroot/app.js; then
