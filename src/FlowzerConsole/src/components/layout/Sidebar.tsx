@@ -3,10 +3,10 @@ import { Link, useRouterState } from '@tanstack/react-router';
 import { Icon } from '@/components/ui/Icon';
 import { cn, mix } from '@/lib/cn';
 import { useAppearance } from '@/stores/appearance';
-import { describeRole, useSession } from '@/stores/session';
+import { describeRole, useSession, useCan } from '@/stores/session';
 
 import { LogoMark, LogoWordmark } from './Logo';
-import { activeNavKey, NAV_ITEMS } from './navigation';
+import { activeNavKey, visibleNavItems } from './navigation';
 
 interface SidebarProps {
   onOpenUserMenu: () => void;
@@ -17,6 +17,8 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
   const sidebar = useAppearance((state) => state.sidebar);
   const toggleSidebar = useAppearance((state) => state.toggleSidebar);
   const user = useSession((state) => state.user);
+  const can = useCan();
+  const navItems = visibleNavItems(can);
 
   const expanded = sidebar === 'full';
   const currentKey = activeNavKey(pathname);
@@ -54,7 +56,7 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
           </div>
         )}
 
-        {NAV_ITEMS.map((item) => {
+        {navItems.map((item) => {
           const active = item.key === currentKey;
           return (
             <Link

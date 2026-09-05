@@ -39,6 +39,8 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
   const user = useSession((state) => state.user);
   const signOut = useSession((state) => state.signOut);
   const { accent, setAccent, density, setDensity, theme, setTheme } = useAppearance();
+  const taskFocus = useAppearance((state) => state.taskFocus);
+  const setTaskFocus = useAppearance((state) => state.setTaskFocus);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -117,7 +119,32 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
             </div>
 
             <div>
-              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Ansicht</div>
+              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Umfang</div>
+              <div className="flex gap-2">
+                {[
+                  { value: false, label: 'Volle Konsole' },
+                  { value: true, label: 'Nur Aufgaben' },
+                ].map((option) => (
+                  <button
+                    key={String(option.value)}
+                    type="button"
+                    onClick={() => setTaskFocus(option.value)}
+                    className={cn(
+                      'flex-1 cursor-pointer rounded-[var(--r-sm)] border px-2 py-1.5 text-[12.5px] font-semibold',
+                      taskFocus === option.value
+                        ? 'border-accent text-accent'
+                        : 'border-border text-muted hover:border-border-strong',
+                    )}
+                    style={taskFocus === option.value ? { background: mix('--accent', 10) } : undefined}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Darstellung</div>
               <div className="flex gap-2">
                 {(['light', 'dark', 'system'] as const).map((option) => (
                   <button

@@ -10,6 +10,7 @@ import { useDiagnostics, useHealth, useInstances, useTimers } from '@/lib/api/qu
 import type { OperationsDiagnosticsDto } from '@/lib/api/types';
 import { instanceBucket } from '@/lib/api/normalize';
 import { formatDueIn, formatDuration, formatNumber, formatRelative, parseApiDate, shortId } from '@/lib/format';
+import { useCan } from '@/stores/session';
 
 type HealthLevel = 'ok' | 'warn' | 'error';
 
@@ -20,8 +21,12 @@ const TIMER_GRID = 'grid-cols-[minmax(140px,1.6fr)_minmax(90px,1fr)_62px_128px]'
 
 export function OperationsPage() {
   const navigate = useNavigate();
-  const diagnosticsQuery = useDiagnostics();
-  const timersQuery = useTimers();
+  const mayOperate = useCan()('operator');
+
+  // Ohne Betriebsrolle lehnt die API die Diagnose ab. Die Abfragen gar nicht erst zu
+  // stellen ist ehrlicher als eine Seite voller Fehlermeldungen.
+  const diagnosticsQuery = useDiagnostics({ enabled: mayOperate });
+  const timersQuery = useTimers({ enabled: mayOperate });
   const healthQuery = useHealth();
   const instancesQuery = useInstances();
 
@@ -50,6 +55,18 @@ export function OperationsPage() {
     () => (instancesQuery.data ?? []).filter((instance) => instanceBucket(instance.state) === 'error'),
     [instancesQuery.data],
   );
+
+  if (!mayOperate) {
+    return (
+      <div className="p-6">
+        <EmptyState
+          icon="lock"
+          title="Betrieb und Diagnose"
+          description="Dieser Bereich zeigt den Zustand der Engine, laufende Timer und hängende Arbeit. Er ist der Betriebsrolle vorbehalten; bitten Sie die IT um die Freigabe, wenn Sie ihn brauchen."
+        />
+      </div>
+    );
+  }
 
   return (
     <PageContainer>

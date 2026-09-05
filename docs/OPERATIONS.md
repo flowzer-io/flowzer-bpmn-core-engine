@@ -56,6 +56,8 @@ Es gibt zwei, beide gegen dieselbe API und denselben Identity Provider:
 | Blazor WebAssembly | `flowzer-frontend` | `flowzer.maass.it` |
 | React-Konsole | `flowzer-console` | `console.flowzer.maass.it` |
 
+Die React-Konsole richtet ihre Anzeige nach den Rollen im Token: Was eine Rolle verlangt, die jemand nicht hat, bietet sie gar nicht erst an. Die Blazor-Oberfläche zeigt alles und lässt die API ablehnen. Beide sind gleich sicher — die Entscheidung trifft in jedem Fall die API — aber die Konsole erklärt besser, was möglich ist.
+
 Der Parallelbetrieb dient dem Vergleich. Sobald die Entscheidung gefallen ist, entfällt eine von beiden samt ihrer Adresse, ihrem Image und ihren Einträgen im Identity Provider. Die Konsole ist in `src/FlowzerConsole/README.md` beschrieben.
 
 ### API-Vertrag

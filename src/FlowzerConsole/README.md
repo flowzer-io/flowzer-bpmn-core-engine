@@ -37,7 +37,16 @@ Die Rollen aus dem Token bestimmen, was die Oberfläche anbietet:
 | `operator` | Diagnose, Instanzabbruch, Sicht auf alle Aufgaben |
 | `worker` | Aufträge für Service-Tasks abholen |
 
-Wer weder `modeler` noch `operator` trägt, sieht die reduzierte Aufgabenoberfläche statt der vollständigen Konsole. Die Anzeige richtet sich nach den Rollen, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
+Die vollständige Konsole steht jedem Zugelassenen offen: Definitionen, Instanzen und Formulare darf die API jeder zugelassenen Person zeigen. Erst was schreibt oder den Betrieb betrifft, verlangt eine Rolle — dann bietet die Oberfläche es gar nicht erst an, statt es anzubieten und ablehnen zu lassen:
+
+| Ohne Rolle nicht sichtbar | Verlangt |
+| --- | --- |
+| Speichern und Deployen im Modellierer, neue Workflows und Formulare anlegen | `modeler` |
+| Der Bereich Betrieb mit Diagnose und Timern | `operator` |
+
+Die reduzierte Aufgabenansicht bleibt erhalten, aber als eigene Wahl im Benutzermenü unter „Umfang“. Sie ist keine Folge fehlender Rollen mehr; das war strenger als die API und verbarg Ansichten, die dem Zugang offenstanden.
+
+Die Anzeige richtet sich nach den Rollen, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
 
 ## Konfiguration zur Laufzeit
 
