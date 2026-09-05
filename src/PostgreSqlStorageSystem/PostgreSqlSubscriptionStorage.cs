@@ -84,6 +84,23 @@ internal sealed class PostgreSqlSubscriptionStorage(PostgreSqlSession session, I
         return subscriptions;
     }
 
+    public async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId)
+    {
+        var subscriptions = (await QueryAsync<ExtendedUserTaskSubscription>(
+            "SELECT body FROM {schema}.user_task_subscriptions WHERE id = @id",
+            [("id", userTaskId)])).ToList();
+
+        var subscription = subscriptions.SingleOrDefault();
+        if (subscription is null)
+        {
+            return null;
+        }
+
+        subscription.DefinitionMetaName = await ResolveMetaName(subscription.MetaDefinitionId);
+        subscription.DefinitionVersion = await ResolveVersion(subscription.DefinitionId);
+        return subscription;
+    }
+
     public Task AddUserTaskSubscription(UserTaskSubscription userTasks) => ExecuteAsync("""
         INSERT INTO {schema}.user_task_subscriptions (id, related_definition_id, process_instance_id, body)
         VALUES (@id, @relatedDefinitionId, @instanceId, @body)

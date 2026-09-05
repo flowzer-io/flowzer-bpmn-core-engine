@@ -4,7 +4,7 @@ WORKDIR /src
 COPY global.json Directory.Build.props ./
 
 # Nur die für die Web-API relevanten Projekte vorziehen, damit Restore-Layer stabil bleiben.
-COPY Model/Model.csproj Model/
+COPY src/Model/Model.csproj src/Model/
 COPY src/FlowzerBPMN/FlowzerBPMN.csproj src/FlowzerBPMN/
 COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
 COPY src/StorageSystemShared/StorageSystemShared.csproj src/StorageSystemShared/

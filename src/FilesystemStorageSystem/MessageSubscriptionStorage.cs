@@ -144,6 +144,25 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         return ret;
     }
     
+    public async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId)
+    {
+        // Der Dateiname traegt die Id; ein Verzeichnislisting ist dafuer nicht noetig.
+        var path = Path.Combine(_messageSubscriptionsPath, $"usertask_{userTaskId}.json");
+        var content = StorageFile.ReadAllTextIfExists(path);
+        if (content is null)
+        {
+            return null;
+        }
+
+        var subscription = JsonConvert.DeserializeObject<ExtendedUserTaskSubscription>(content, _newtonSoftDefaultSettings)!;
+        var metaDefinition = await _storage.DefinitionStorage.GetMetaDefinitionById(subscription.MetaDefinitionId);
+        var definition = await _storage.DefinitionStorage.GetDefinitionById(subscription.DefinitionId);
+        subscription.DefinitionMetaName = metaDefinition.Name;
+        subscription.DefinitionVersion = definition.Version;
+
+        return subscription;
+    }
+
     public Task AddUserTaskSubscription(UserTaskSubscription userTasks)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"usertask_{userTasks.Id}.json");

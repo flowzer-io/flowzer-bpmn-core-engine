@@ -7,7 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\src\FlowzerBPMN\FlowzerBPMN.csproj" />
+      <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
     </ItemGroup>
 
     <ItemGroup>

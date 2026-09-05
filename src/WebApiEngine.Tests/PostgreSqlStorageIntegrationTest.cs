@@ -200,6 +200,16 @@ public class PostgreSqlStorageIntegrationTest
 
         var extended = (await storage.SubscriptionStorage.GetAllUserTasksExtended(Guid.NewGuid())).ToList();
 
+        // Der Einzelzugriff muss dieselben angereicherten Werte liefern wie die Liste; sonst
+        // haengt das Ergebnis davon ab, ueber welchen Weg gelesen wurde.
+        var wanted = extended.Single(candidate => candidate.Name == "Review");
+        var single = await storage.SubscriptionStorage.GetUserTaskExtended(wanted.Id);
+        single.Should().NotBeNull();
+        single!.Name.Should().Be("Review");
+        single.DefinitionMetaName.Should().Be(wanted.DefinitionMetaName);
+        single.DefinitionVersion.Should().Be(wanted.DefinitionVersion);
+        (await storage.SubscriptionStorage.GetUserTaskExtended(Guid.NewGuid())).Should().BeNull();
+
         extended.Should().HaveCount(2);
         extended.Single(s => s.Name == "Review").DefinitionMetaName.Should().Be("Reviews");
         extended.Single(s => s.Name == "Review").DefinitionVersion.Should().Be(new Model.Version(3, 1));
