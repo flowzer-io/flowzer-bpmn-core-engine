@@ -4,6 +4,7 @@ using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using Microsoft.AspNetCore.Authorization;
 
 namespace WebApiEngine.Controller;
 
@@ -17,6 +18,8 @@ public class InstanceController(
     /// Bricht eine laufende Instanz ab. Beendete Instanzen antworten mit 409, unbekannte mit 404.
     /// </summary>
     [HttpPost("{instanceId}/cancel")]
+    // Ein Abbruch beendet fremde Arbeit; das ist eine Betriebsentscheidung.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> CancelInstance(Guid instanceId)
     {
         currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("cancelling instances");

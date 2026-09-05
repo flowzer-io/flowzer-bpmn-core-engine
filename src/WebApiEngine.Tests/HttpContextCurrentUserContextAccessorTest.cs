@@ -10,6 +10,42 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class HttpContextCurrentUserContextAccessorTest
 {
+    // Testzweck: Fuer die Zuweisungspruefung sammelt der Kontext alle Kennungen, unter denen ein
+    // BPMN-Modell die Person meinen kann, und ihre Gruppen aus dem groups-Claim.
+    [Test]
+    public void GetCurrentUser_ShouldCollectAllKnownNamesAndGroups()
+    {
+        var userId = Guid.NewGuid();
+        var accessor = CreateAccessor(
+            environmentName: Environments.Production,
+            claims:
+            [
+                new Claim("sub", userId.ToString()),
+                new Claim("preferred_username", "anna"),
+                new Claim("email", "anna@maass.it"),
+                new Claim("groups", "/abteilungen/buchhaltung"),
+                new Claim("groups", "/client-access/flowzer")
+            ]);
+
+        var currentUser = accessor.GetCurrentUser();
+
+        currentUser.Names.Should().Contain(["anna", "anna@maass.it", userId.ToString()]);
+        currentUser.Groups.Should().BeEquivalentTo(["/abteilungen/buchhaltung", "/client-access/flowzer"]);
+    }
+
+    // Testzweck: Ohne Anmeldung bleiben Kennungen und Gruppen leer, damit die Zuweisungspruefung
+    // nichts faelschlich zuordnet.
+    [Test]
+    public void GetCurrentUser_ShouldReportNoNamesOrGroups_WhenNobodyIsAuthenticated()
+    {
+        var accessor = CreateAccessor(environmentName: Environments.Production, claims: []);
+
+        var currentUser = accessor.GetCurrentUser();
+
+        currentUser.Names.Should().BeEmpty();
+        currentUser.Groups.Should().BeEmpty();
+    }
+
     // Testzweck: Deckt den Fall „Get Current User Should Resolve Name Identifier Claim“ ab.
     [Test]
     public void GetCurrentUser_ShouldResolveNameIdentifierClaim()

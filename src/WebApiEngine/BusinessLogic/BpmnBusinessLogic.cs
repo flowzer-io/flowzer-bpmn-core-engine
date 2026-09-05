@@ -5,6 +5,8 @@ using BPMN.Events;
 using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using WebApiEngine.Auth;
+
 namespace WebApiEngine.BusinessLogic;
 
 public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
@@ -109,9 +111,15 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 {
                     Id = Guid.NewGuid(),
                     Token = activeUserTask,
-                    Name = userTask.Name, //todo: add user candidates
-                    UserCandidates = [], //todo: add user candidates
-                    UserGroups = [], //todo: add user groups
+                    Name = userTask.Name,
+                    // Die Zuweisungen aus dem Modell werden beim Anlegen festgehalten. Aendert
+                    // sich spaeter eine Definition, behaelt eine laufende Aufgabe die Zuweisung,
+                    // mit der sie entstanden ist.
+                    Assignee = string.IsNullOrWhiteSpace(userTask.FlowzerAssignee) ? null : userTask.FlowzerAssignee.Trim(),
+                    CandidateUsers = UserTaskAssignment.SplitList(userTask.FlowzerCandidateUsers),
+                    CandidateGroups = UserTaskAssignment.SplitList(userTask.FlowzerCandidateGroups),
+                    UserCandidates = [],
+                    UserGroups = [],
                     CurrenAssignedUser = null,
                     ProcessInstanceId = processInstanceId,
                     DefinitionId = definitionId,

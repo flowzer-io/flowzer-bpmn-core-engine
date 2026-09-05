@@ -32,6 +32,8 @@ services:
       Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
       Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
       Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
+      Authentication__JwtBearer__Roles__Modeler: "${FLOWZER_AUTH_ROLE_MODELER:-}"
+      Authentication__JwtBearer__Roles__Operator: "${FLOWZER_AUTH_ROLE_OPERATOR:-}"
       # Das Gateway laeuft im selben Docker-Netz; nur von dort wird der Weiterleitungsheader
       # geglaubt. Ohne diese Angabe zaehlt jedes anonyme Kontingent gegen die Proxy-Adresse.
       ForwardedHeaders__KnownNetworks__0: "${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}"

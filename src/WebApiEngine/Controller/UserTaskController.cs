@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
@@ -11,6 +12,7 @@ public class UserTaskController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
     UserTaskFormResolver userTaskFormResolver,
+    IAuthorizationService authorizationService,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
 
@@ -20,9 +22,22 @@ public class UserTaskController(
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var userId = currentUser.RequireResolvedUserId("reading user tasks");
         var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId);
-        var dtos = userTaskSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
+
+        // Die Ablage kennt nur die technische Id; die Zuweisungen im Modell nennen Namen und
+        // Gruppen. Gefiltert wird deshalb hier, wo der vollstaendige Benutzerkontext vorliegt.
+        var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
+        var seeAll = await HasOperatorRole();
+
+        var dtos = userTaskSubscriptions
+            .Where(subscription => UserTaskAssignment.IsVisibleTo(subscription, identity, seeAll))
+            .Select(subscription => subscription.ToDto())
+            .ToArray();
+
         return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
+
+    private async Task<bool> HasOperatorRole() =>
+        (await authorizationService.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
 
     /// <summary>
     /// Liefert das Formular, das zu einem offenen User-Task gehört.
@@ -37,6 +52,14 @@ public class UserTaskController(
 
         // Einzelzugriff statt aller Aufgaben aller Personen: der Aufwand haengt sonst am Gesamtbestand.
         var subscription = await storageSystem.SubscriptionStorage.GetUserTaskExtended(userTaskId);
+
+        // Eine Aufgabe, die dieser Person nicht zusteht, wird wie eine unbekannte behandelt;
+        // ein eigener Fehlercode wuerde ihre Existenz verraten.
+        if (subscription is not null
+            && !UserTaskAssignment.IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), await HasOperatorRole()))
+        {
+            subscription = null;
+        }
 
         if (subscription is null)
         {
