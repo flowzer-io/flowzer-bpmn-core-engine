@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
 using StorageSystem;
+using StorageSystem.Exceptions;
 using WebApiEngine.Auth;
 using WebApiEngine.Shared;
 
@@ -147,6 +148,176 @@ public class DefinitionControllerIntegrationTest
         storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
         storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
     }
+
+    // Testzweck: Prüft, dass ein neuer Workflow unter dem übergebenen Namen im Katalog landet —
+    // vorher hieß jeder neue Eintrag „New Definition" und musste hinterher umbenannt werden.
+    [Test]
+    public async Task NewDefinition_ShouldStoreTheGivenName()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/definition/new?name=Urlaubsantrag", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.Name.Should().Be("Urlaubsantrag");
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().ContainSingle()
+            .Which.Name.Should().Be("Urlaubsantrag");
+        // Zum Katalogeintrag gehört von Anfang an eine leere Version, sonst ließe sich der
+        // Workflow nicht öffnen.
+        storage.DefinitionStorageSeed.Definitions.Should().ContainSingle();
+    }
+
+    // Testzweck: Prüft, dass ein Name ohne Inhalt nicht zu einem namenlosen Katalogeintrag führt.
+    [Test]
+    public async Task NewDefinition_ShouldFallBackToADefaultName_WhenNameIsBlank()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync("/definition/new?name=%20%20", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload!.Result!.Name.Should().Be("Neuer Workflow");
+    }
+
+    // Testzweck: Prüft, dass das Löschen den Katalogeintrag, alle Versionen und deren XML entfernt.
+    // Ein zurückbleibendes XML wäre weiterhin über /definition/xml abrufbar.
+    [Test]
+    public async Task MetaDelete_ShouldRemoveCatalogEntryVersionsAndBinaries()
+    {
+        const string definitionId = "workflow-to-delete";
+        var versionGuid = Guid.NewGuid();
+        var storage = TestStorage.Create();
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "Wegwerfprozess"
+        });
+        storage.DefinitionStorageSeed.Definitions.Add(new BpmnDefinition
+        {
+            Id = versionGuid,
+            DefinitionId = definitionId,
+            Hash = "hash-delete",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = true
+        });
+        storage.DefinitionStorageSeed.Binaries[versionGuid] = CreatePlainStartXml(definitionId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/definition/meta/{definitionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.DefinitionId.Should().Be(definitionId);
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().BeEmpty();
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+        storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass beendete Instanzen mit dem Workflow verschwinden. Bleiben sie
+    // liegen, stehen sie ohne Definition in der Instanzliste — ohne Namen und ohne Diagramm.
+    [Test]
+    public async Task MetaDelete_ShouldRemoveFinishedInstancesOfTheDefinition()
+    {
+        const string definitionId = "workflow-with-finished-instance";
+        var storage = TestStorage.Create();
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "Fertig"
+        });
+
+        var finishedId = Guid.NewGuid();
+        storage.InstanceStorageSeed.Instances[finishedId] = CreateInstanceInfo(finishedId, definitionId, finished: true);
+
+        // Eine fremde Instanz darf unangetastet bleiben.
+        var foreignId = Guid.NewGuid();
+        storage.InstanceStorageSeed.Instances[foreignId] = CreateInstanceInfo(foreignId, "anderer-workflow", finished: true);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/definition/meta/{definitionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.InstanceStorageSeed.Instances.Should().NotContainKey(finishedId);
+        storage.InstanceStorageSeed.Instances.Should().ContainKey(foreignId);
+    }
+
+    // Testzweck: Prüft, dass laufende Instanzen das Löschen aufhalten. Ohne ihre Definition
+    // könnte die Engine sie nicht mehr fortsetzen.
+    [Test]
+    public async Task MetaDelete_ShouldReturnConflict_WhenInstancesAreStillRunning()
+    {
+        const string definitionId = "workflow-with-running-instance";
+        var storage = TestStorage.Create();
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "Laeuft noch"
+        });
+        var instanceId = Guid.NewGuid();
+        storage.InstanceStorageSeed.Instances[instanceId] = CreateInstanceInfo(instanceId, definitionId, finished: false);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/definition/meta/{definitionId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("laufende Instanz");
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().ContainSingle();
+    }
+
+    // Testzweck: Prüft, dass ein unbekannter Workflow mit 404 beantwortet wird und nicht als
+    // erfolgreiches Löschen durchgeht — die Oberfläche zeigte sonst einen Erfolg ohne Wirkung.
+    [Test]
+    public async Task MetaDelete_ShouldReturnNotFound_ForUnknownDefinition()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync("/definition/meta/gibt-es-nicht");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload!.Successful.Should().BeFalse();
+    }
+
+    private static ProcessInstanceInfo CreateInstanceInfo(Guid instanceId, string metaDefinitionId, bool finished) =>
+        new()
+        {
+            InstanceId = instanceId,
+            metaDefinitionId = metaDefinitionId,
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            Tokens = [],
+            IsFinished = finished,
+            State = finished ? ProcessInstanceState.Completed : ProcessInstanceState.Running,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0
+        };
 
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
     {
@@ -346,13 +517,24 @@ public class DefinitionControllerIntegrationTest
 
         public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id)
         {
-            var metadata = MetaDefinitions.Single(existing => existing.DefinitionId == id);
+            var metadata = MetaDefinitions.SingleOrDefault(existing => existing.DefinitionId == id)
+                ?? throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {id}");
             return Task.FromResult<BpmnMetaDefinition>(new BpmnMetaDefinition
             {
                 DefinitionId = metadata.DefinitionId,
                 Name = metadata.Name,
                 Description = metadata.Description
             });
+        }
+
+        public Task DeleteMetaDefinition(string definitionId)
+        {
+            if (MetaDefinitions.RemoveAll(existing => existing.DefinitionId == definitionId) == 0)
+            {
+                throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {definitionId}");
+            }
+
+            return Task.CompletedTask;
         }
     }
 
@@ -437,6 +619,12 @@ public class DefinitionControllerIntegrationTest
 
         public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() =>
             Task.FromResult(Instances.Values.AsEnumerable());
+
+        public Task DeleteInstance(Guid processInstanceId)
+        {
+            Instances.Remove(processInstanceId);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class NoOpFormStorage : IFormStorage

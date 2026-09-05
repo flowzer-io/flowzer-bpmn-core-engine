@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parents[2]
 CS_TEST_DIRECTORIES = [
     ROOT / 'src' / 'core-engine-tests',
     ROOT / 'src' / 'WebApiEngine.Tests',
-    ROOT / 'src' / 'FlowzerFrontend.Tests',
 ]
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',
@@ -85,7 +84,10 @@ def has_purpose_comment_before_js_test(lines: list[str], index: int) -> bool:
         if PURPOSE_COMMENT.match(stripped):
             return True
 
-        if not stripped:
+        # Wie bei C#: Ein mehrzeiliger Testzweck darf die `// Testzweck:`-Zeile nicht
+        # verdecken. Vorher galt nur die unmittelbar vorangehende Zeile, ein zweisatziger
+        # Kommentar zaehlte also als fehlend.
+        if not stripped or stripped.startswith('//'):
             cursor -= 1
             continue
 

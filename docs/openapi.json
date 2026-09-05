@@ -150,9 +150,18 @@
       }
     },
     "/Definition/new": {
-      "get": {
+      "post": {
         "tags": [
           "Definition"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
         ],
         "responses": {
           "200": {
@@ -364,6 +373,43 @@
     },
     "/Definition/meta/{id}": {
       "get": {
+        "tags": [
+          "Definition"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnMetaDefinitionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnMetaDefinitionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnMetaDefinitionDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
         "tags": [
           "Definition"
         ],

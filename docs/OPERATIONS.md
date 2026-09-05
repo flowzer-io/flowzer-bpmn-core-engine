@@ -45,20 +45,26 @@ Verhalten bei `JwtBearer`:
 - Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
 - Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
 
-Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet.
+Die Konsole meldet sich über ihre zur Laufzeit geladene `config.json` (`oidcAuthority`, `oidcClientId`, `oidcAudience`, `oidcScopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen diese Werte gesetzt sein; eine halb gefüllte Konfiguration bricht den Start der Konsole bewusst mit einer Fehlermeldung ab, statt stillschweigend ohne Anmeldung weiterzulaufen.
 
-### Oberflächen
+### Oberfläche
 
-Es gibt zwei, beide gegen dieselbe API und denselben Identity Provider:
+Es gibt genau eine: die React-Konsole (Image `flowzer-console`). Die frühere Blazor-Oberfläche
+und ihr Image `flowzer-frontend` sind entfernt.
 
 | Oberfläche | Image | Adresse bei Maass IT |
 | --- | --- | --- |
-| Blazor WebAssembly | `flowzer-frontend` | `flowzer.maass.it` |
-| React-Konsole | `flowzer-console` | `console.flowzer.maass.it` |
+| React-Konsole | `flowzer-console` | `flowzer.maass.it` |
 
-Die React-Konsole richtet ihre Anzeige nach den Rollen im Token: Was eine Rolle verlangt, die jemand nicht hat, bietet sie gar nicht erst an. Die Blazor-Oberfläche zeigt alles und lässt die API ablehnen. Beide sind gleich sicher — die Entscheidung trifft in jedem Fall die API — aber die Konsole erklärt besser, was möglich ist.
+Die Konsole richtet ihre Anzeige nach den Rollen im Token: Was eine Rolle verlangt, die jemand
+nicht hat, bietet sie gar nicht erst an. Die Entscheidung trifft in jedem Fall die API — die
+Oberfläche erspart nur den Weg zu einer Ablehnung. Ihr Aufbau ist in
+`src/FlowzerConsole/README.md` beschrieben.
 
-Der Parallelbetrieb dient dem Vergleich. Sobald die Entscheidung gefallen ist, entfällt eine von beiden samt ihrer Adresse, ihrem Image und ihren Einträgen im Identity Provider. Die Konsole ist in `src/FlowzerConsole/README.md` beschrieben.
+**Beim Umstieg zu erledigen:** Die alte Adresse `console.flowzer.maass.it` und der Dienst
+`frontend` entfallen aus dem Coolify-Stack; die Redirect-URIs des Identity Providers müssen auf
+`flowzer.maass.it` zeigen. Das GHCR-Paket `flowzer-frontend` wird nicht mehr gebaut und kann
+nach dem letzten Deployment archiviert werden.
 
 ### API-Vertrag
 
@@ -92,7 +98,7 @@ Für den Pilotbetrieb mit Identity Provider und Frontend-Anmeldung siehe [RUNBOO
 
 ## CORS
 
-Abschnitt `Cors:AllowedOrigins` (Array). Konfigurierte Origins werden exakt zugelassen. Ohne Konfiguration erlaubt der Development-Modus weiterhin jede Origin (Blazor-Dev-Server, Playwright); alle anderen Umgebungen setzen keine CORS-Header. Hinter dem Runtime-Gateway laufen API und Frontend unter derselben Origin und brauchen kein CORS.
+Abschnitt `Cors:AllowedOrigins` (Array). Konfigurierte Origins werden exakt zugelassen. Ohne Konfiguration erlaubt der Development-Modus weiterhin jede Origin (Vite-Dev-Server, Playwright); alle anderen Umgebungen setzen keine CORS-Header. Hinter dem Konsolen-nginx laufen API und Oberfläche unter derselben Origin und brauchen kein CORS.
 
 ```bash
 Cors__AllowedOrigins__0=https://flowzer.example.com
@@ -138,19 +144,19 @@ dotnet run --project src/WebApiEngine/WebApiEngine.csproj \
   --urls http://localhost:5182
 ```
 
-### Frontend
+### Oberfläche
 
 ```bash
-ASPNETCORE_ENVIRONMENT=Development \
-dotnet run --project src/FlowzerFrontend/FlowzerFrontend.csproj \
-  --configuration Release \
-  --no-launch-profile \
-  --urls http://localhost:5269
+npm --prefix src/FlowzerConsole ci
+npm --prefix src/FlowzerConsole run dev
 ```
+
+Der Entwicklungsserver hört auf `http://localhost:5273` und leitet `/api` an die oben
+gestartete API weiter. Ein anderes Ziel setzt `FLOWZER_API_URL`.
 
 ## Lokaler Start per Docker Compose
 
-Für einen reproduzierbaren Entwicklungsstack liegt jetzt `compose.local.yml` im Repository-Root.
+Für einen reproduzierbaren Entwicklungsstack liegt `compose.local.yml` im Repository-Root. Er startet nur die API.
 
 ### Starten
 
@@ -158,12 +164,12 @@ Für einen reproduzierbaren Entwicklungsstack liegt jetzt `compose.local.yml` im
 ./scripts/local/start-stack.sh
 ```
 
-Das Start-Skript wartet, bis API und Frontend ihren Health-Status erreicht haben.
+Das Start-Skript wartet, bis die API ihren Health-Status erreicht hat. Die Oberfläche läuft daneben mit `npm --prefix src/FlowzerConsole run dev`.
 
 Alternativ direkt:
 
 ```bash
-docker compose -f compose.local.yml up -d --wait api frontend
+docker compose -f compose.local.yml up -d --wait api
 ```
 
 ### Prüfen
@@ -292,34 +298,28 @@ Die OTLP-Konfiguration redigiert dabei Benutzerinformationen, Query-Parameter un
 
 ```bash
 docker compose -f compose.local.yml logs -f api
-docker compose -f compose.local.yml logs -f frontend
 
 docker compose -f compose.runtime.yml logs -f api
-docker compose -f compose.runtime.yml logs -f frontend
+docker compose -f compose.runtime.yml logs -f console
 docker compose -f compose.runtime.yml logs -f gateway
 ```
 
 ### Lokale UI-Smokes gegen laufenden Stack
 
-Wenn API und Frontend bereits laufen, können die Playwright-Smokes gezielt gegen den bestehenden Stack ausgeführt werden:
+Wenn API und Konsole bereits laufen, können die Playwright-Smokes gezielt gegen den bestehenden Stack ausgeführt werden:
 
 ```bash
 PLAYWRIGHT_SKIP_WEBSERVERS=1 \
 FLOWZER_API_URL=http://localhost:5182 \
-FLOWZER_FRONTEND_URL=http://localhost:5269 \
+FLOWZER_CONSOLE_URL=http://localhost:5273 \
 npm --prefix tests/ui-smoke run test
 ```
 
 Der `npm test`-Pfad enthält zusätzlich den Prozesswächter für verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse.
 
-Dasselbe funktioniert auch gegen den runtime-nahen Gateway-Stack:
-
-```bash
-PLAYWRIGHT_SKIP_WEBSERVERS=1 \
-FLOWZER_API_URL=http://localhost:5288 \
-FLOWZER_FRONTEND_URL=http://localhost:5288 \
-npm --prefix tests/ui-smoke run test
-```
+Ohne diese Variablen startet Playwright API und Konsole selbst. Die Smokes laufen bewusst gegen
+den Vite-Entwicklungsserver: Nur dort meldet die Konsole ohne Identity Provider einen
+technischen Benutzer an; ein Produktionsbündel zeigte stattdessen die Anmeldeseite.
 
 ## Ablage: Dateisystem oder PostgreSQL
 

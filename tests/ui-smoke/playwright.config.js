@@ -2,17 +2,21 @@ const fs = require('fs');
 const path = require('path');
 const { defineConfig } = require('@playwright/test');
 
-const frontendUrl = process.env.FLOWZER_FRONTEND_URL || 'http://localhost:5290';
+// Die Konsole laeuft im Smoke bewusst ueber den Vite-Entwicklungsserver:
+// Ohne konfigurierten Identity Provider meldet sie dort einen Entwicklungsbenutzer an.
+// Ein Produktionsbuendel zeigte stattdessen die Anmeldeseite und kaeme nie zu den Seiten,
+// die hier geprueft werden sollen.
+const consoleUrl = process.env.FLOWZER_CONSOLE_URL || 'http://localhost:5290';
 const apiUrl = process.env.FLOWZER_API_URL || 'http://localhost:5288';
-const frontendServerOrigin = new URL(frontendUrl).origin;
+const consoleServerOrigin = new URL(consoleUrl).origin;
 const apiServerOrigin = new URL(apiUrl).origin;
+const consolePort = new URL(consoleUrl).port || '5290';
 const playwrightTempRoot = path.resolve(__dirname, '.tmp');
 const managedStorageRoot = path.resolve(
   process.env.PLAYWRIGHT_MANAGED_STORAGE_ROOT || path.join(playwrightTempRoot, 'storage')
 );
 const reuseExistingServer = !process.env.CI && process.env.PLAYWRIGHT_REUSE_EXISTING_SERVER === '1';
 const apiEnvironmentName = process.env.FLOWZER_API_ENVIRONMENT || 'Development';
-const frontendEnvironmentName = process.env.FLOWZER_FRONTEND_ENVIRONMENT || 'Playwright';
 
 function isPathWithin(parentPath, childPath)
 {
@@ -38,16 +42,6 @@ const sharedWebServerEnvironment = {
   FLOWZER_STORAGE_ROOT: managedStorageRoot
 };
 
-const apiWebServerEnvironment = {
-  ...sharedWebServerEnvironment,
-  ASPNETCORE_ENVIRONMENT: apiEnvironmentName
-};
-
-const frontendWebServerEnvironment = {
-  ...sharedWebServerEnvironment,
-  ASPNETCORE_ENVIRONMENT: frontendEnvironmentName
-};
-
 module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: false,
@@ -57,7 +51,7 @@ module.exports = defineConfig({
   timeout: 60_000,
   reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
   use: {
-    baseURL: frontendUrl,
+    baseURL: consoleUrl,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure'
   },
@@ -66,18 +60,17 @@ module.exports = defineConfig({
     : [
         {
           command: `dotnet run --project ../../src/WebApiEngine/WebApiEngine.csproj --configuration Release --no-build --no-launch-profile --urls ${apiServerOrigin}`,
-          env: apiWebServerEnvironment,
+          env: { ...sharedWebServerEnvironment, ASPNETCORE_ENVIRONMENT: apiEnvironmentName },
           url: `${apiServerOrigin}/swagger/index.html`,
           reuseExistingServer,
           timeout: 120_000
         },
         {
-          // .NET 10 verwendet bei Standalone-Blazor-WASM für lokale Builds standardmäßig wieder die
-          // Development-Umgebung. Für UI-Smokes muss deshalb die gewünschte Client-Umgebung bereits
-          // beim Frontend-Build per WasmApplicationEnvironmentName fest verdrahtet werden.
-          command: `dotnet run --project ../../src/FlowzerFrontend/FlowzerFrontend.csproj --configuration Release --no-launch-profile -p:WasmApplicationEnvironmentName=${frontendEnvironmentName} --urls ${frontendServerOrigin}`,
-          env: frontendWebServerEnvironment,
-          url: frontendServerOrigin,
+          // `FLOWZER_API_URL` steuert das Proxy-Ziel von /api in vite.config.ts.
+          command: `npm run dev -- --port ${consolePort} --strictPort`,
+          cwd: path.resolve(__dirname, '../../src/FlowzerConsole'),
+          env: { ...sharedWebServerEnvironment, FLOWZER_API_URL: apiServerOrigin },
+          url: consoleServerOrigin,
           reuseExistingServer,
           timeout: 180_000
         }

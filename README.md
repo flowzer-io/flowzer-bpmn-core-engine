@@ -1,9 +1,9 @@
 # Flowzer BPMN Core Engine
 
-Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, Frontend und ersten Beispielprozessen.
+Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, React-Oberfläche und ersten Beispielprozessen.
 
-> **Stand: 5. September 2026**
-> Das Repository ist arbeitsfähig, die Kernpfade sind getestet und die API kann jetzt gegen einen OIDC-Identity-Provider abgesichert werden. Für den Firmeneinsatz fehlen noch die Identity-Provider-Anbindung im Frontend, ein Rollenmodell und eine Datenbank-Persistenz. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
+> **Stand: 6. September 2026**
+> Das Repository ist arbeitsfähig, die Kernpfade sind getestet, die API ist gegen einen OIDC-Identity-Provider abgesichert und kennt ein Rollenmodell. Die Oberfläche ist die **React-Konsole** in `src/FlowzerConsole`; die frühere Blazor-Oberfläche wurde entfernt. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
 ## Warum das Projekt spannend ist
 
@@ -12,8 +12,7 @@ Das Projekt bringt bereits einige starke Bausteine mit:
 - BPMN-Modellklassen in `/src/FlowzerBPMN`
 - Ausführungslogik in `/src/core-engine`
 - API-Schicht in `/src/WebApiEngine`
-- Frontend in `/src/FlowzerFrontend`
-- BPMN-Modeler-/Properties-Panel-Integration in `/bpmn.io`
+- Oberfläche in `/src/FlowzerConsole` (React, TypeScript, bpmn-js, Form.io)
 - Testprozesse und Unit-Tests in `/src/core-engine-tests`
 - Beispielcode in `/examples`
 
@@ -41,7 +40,6 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 ```text
 .
 ├── Model/                        # Geteilte DTOs / Modelklassen
-├── bpmn.io/                      # JS-basierter BPMN-Editor / Properties Panel Beispiel
 ├── examples/                     # Kleine Nutzungsbeispiele
 ├── src/
 │   ├── FlowzerBPMN/              # BPMN-Domänenmodell
@@ -49,7 +47,7 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 │   ├── core-engine-tests/        # Unit-Tests + BPMN-Testdateien
 │   ├── WebApiEngine/             # ASP.NET Core API
 │   ├── WebApiEngine.Shared/      # API-DTOs
-│   ├── FlowzerFrontend/          # Blazor-Frontend
+│   ├── FlowzerConsole/           # React-Oberfläche (Vite, TanStack, bpmn-js, Form.io)
 │   ├── FilesystemStorageSystem/  # Dateibasierte Persistenz
 │   ├── StorageSystemShared/      # Storage-Abstraktionen
 │   └── Flowzer.Shared/           # Gemeinsame Hilfslogik
@@ -63,8 +61,8 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 
 ### Voraussetzungen
 
-- **.NET 10 SDK im Feature-Band 10.0.1xx** (siehe `global.json`, z. B. 10.0.100 vom offiziellen Installer). Ein SDK aus einem anderen Band, etwa 10.0.400 aus Homebrew, wird bewusst abgelehnt, weil dessen Razor-Compiler das Blazor-Frontend nicht baut. Liegt ein solches SDK vorn im `PATH`, hilft `export PATH=/usr/local/share/dotnet:$PATH`.
-- **Node.js 20+** für `/bpmn.io`
+- **.NET 10 SDK im Feature-Band 10.0.1xx** (siehe `global.json`, z. B. 10.0.100 vom offiziellen Installer). Ein SDK aus einem anderen Band, etwa 10.0.400 aus Homebrew, wird abgelehnt. Liegt ein solches SDK vorn im `PATH`, hilft `export PATH=/usr/local/share/dotnet:$PATH`.
+- **Node.js 22.15+** für die Konsole und die UI-Smokes
 - Git
 
 ### .NET-Projekte
@@ -75,23 +73,26 @@ python3 scripts/ci/check_test_purpose_comments.py
 dotnet build core-engine.sln
 dotnet test src/core-engine-tests/core-engine-tests.csproj
 dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj
-dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj
 ```
 
-### BPMN-Editor / bpmn.io
+### Oberfläche
 
 ```bash
-cd bpmn.io
-npm install
-npm run build
+npm --prefix src/FlowzerConsole ci
+npm --prefix src/FlowzerConsole run dev     # spricht über /api gegen http://localhost:5182
+npm --prefix src/FlowzerConsole run test
+npm --prefix src/FlowzerConsole run build
 ```
+
+Ohne konfigurierten Identity Provider meldet die Konsole im Entwicklungsmodus einen
+technischen Benutzer an, damit sich alle Seiten lokal ohne Anmeldung prüfen lassen.
 
 ## Bekannte Stolpersteine
 
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Kernpfade sind stabil, aber noch nicht vollständig aufgeräumt**
-   Build, CI sowie Kern-, Web-API-, Frontend- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
+   Build, CI sowie Kern-, Web-API-, Konsolen- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
@@ -119,7 +120,7 @@ Die Web-API läuft standardmäßig ohne Authentifizierung (`Authentication:Schem
 }
 ```
 
-Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` in `wwwroot/appsettings*.json` (Authority, ClientId, Scopes) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Ohne diese Werte läuft es wie bisher mit dem technischen Development-Benutzer.
+Die Konsole meldet sich über die zur Laufzeit geladene `config.json` (Authority, Client-Id, Audience, Scopes) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Die Werte kommen im Container aus Umgebungsvariablen, siehe `deploy/console/entrypoint.sh`.
 
 Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
 
@@ -129,7 +130,7 @@ Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_
 
 ## Release und Deployment
 
-Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-frontend`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
 
 ## Dokumentation
 
@@ -140,7 +141,7 @@ Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/fl
 - [docs/CODEBASE-AUDIT-2026-04.md](docs/CODEBASE-AUDIT-2026-04.md) – Audit-Feststellungen und Folgepakete nach der Revitalisierung
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
-- [docs/FRONTEND.md](docs/FRONTEND.md) – Frontend-Konfiguration, lokale Starts und UI-Smoke-Tests
+- [src/FlowzerConsole/README.md](src/FlowzerConsole/README.md) – Oberfläche: Konfiguration, lokale Starts, Aufbau
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot
 - [DEVELOPMENT-GUIDELINES.md](DEVELOPMENT-GUIDELINES.md) – Entwicklungsprinzipien
@@ -153,7 +154,7 @@ Die sinnvolle Reihenfolge ist aktuell:
 1. **Pilot starten** nach [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md): Identity Provider registrieren, `.env` füllen, Stack hinter dem Reverse Proxy betreiben
 2. **Rollen und Zuweisungen** für Aufgaben, Definitionen und Diagnose
 3. **PostgreSQL-Persistenz** hinter `IStorageSystem`
-4. **Eine Oberfläche festlegen** (Blazor oder React-Konsole)
+4. **Fehler-, Eskalations- und Kompensationssemantik** in der Engine
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md) und [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
@@ -179,24 +180,25 @@ dotnet run --project src/FlowzerDemoConsole/FlowzerDemoConsole.csproj
 
 Eine Schritt-für-Schritt-Erklärung und die erwartete Ausgabe stehen in [docs/DEMO.md](docs/DEMO.md).
 
-## Frontend lokal und per UI-Smoke testen
+## Oberfläche per UI-Smoke testen
 
-Für das Frontend gibt es jetzt einen dokumentierten API-Konfigurationspfad und erste Playwright-Smoke-Tests.
-
-Schnellstart:
+Die Playwright-Smokes starten API und Konsole selbst und prüfen die Kernrouten im Browser.
 
 ```bash
 dotnet build core-engine.sln --configuration Release
+npm --prefix src/FlowzerConsole ci
 npm --prefix tests/ui-smoke ci
 npm --prefix tests/ui-smoke run install:browsers
 npm --prefix tests/ui-smoke run test
 ```
 
-Details zu API-Basisadresse, lokalen Startbefehlen und den getesteten Routen stehen in [docs/FRONTEND.md](docs/FRONTEND.md).
+Zusätzlich vergleicht `tests/ui-smoke/check-gateway-routes.sh` die Weiterleitungsliste des
+Konsolen-Gateways mit den tatsächlichen API-Routen — fehlt dort eine Route, beantwortet die
+Konsole sie mit ihrer eigenen Startseite und der Aufruf bekommt 200 statt der erwarteten Antwort.
 
 ## Lokaler Stack per Docker Compose
 
-Für einen reproduzierbaren API-/Frontend-Start gibt es jetzt zusätzlich einen kleinen lokalen Compose-Stack:
+Für einen reproduzierbaren API-Start gibt es zusätzlich einen kleinen lokalen Compose-Stack (die Oberfläche läuft daneben mit `npm run dev`):
 
 ```bash
 ./scripts/local/start-stack.sh

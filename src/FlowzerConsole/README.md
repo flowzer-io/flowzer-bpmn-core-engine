@@ -1,6 +1,9 @@
 # Flowzer Console
 
-React-Oberfläche für die Flowzer-BPMN-Engine. Sie spricht dieselbe Web-API und denselben Identity Provider wie die Blazor-Oberfläche und läuft unter einer eigenen Adresse, damit beide nebeneinander betrachtet werden können.
+Die Oberfläche der Flowzer-BPMN-Engine: React, TypeScript, Vite. Sie enthält den
+BPMN-Modellierer (bpmn-js mit Camunda-8-Eigenschaftenpanel), den Formulareditor (Form.io),
+die Instanz- und Aufgabenansichten sowie den Betriebsbereich. Die frühere Blazor-Oberfläche
+ist entfernt; diese hier ist die einzige.
 
 ## Entwickeln
 
@@ -24,7 +27,7 @@ Der Entwicklungsserver läuft auf `http://localhost:5273` und leitet `/api` an d
 
 Authorization Code Flow mit PKCE gegen den konfigurierten Identity Provider. Die Konsole ist ein öffentlicher Client ohne Geheimnis; ein Geheimnis im Browser wäre keines. Das Zugangstoken geht als Bearer an die API und wird im Hintergrund über eine eigene, minimale Seite erneuert.
 
-Die Sitzung liegt in `sessionStorage`: Sie endet mit dem Tab und wandert nicht in andere Fenster. Das ist für einen öffentlichen Client mit PKCE üblich, hat aber eine bekannte Grenze — wer es schafft, fremdes JavaScript in die Seite zu bekommen, kann das Token lesen. Wer diese Grenze nicht akzeptieren will, braucht einen serverseitigen Vermittler, der das Token behält und der Oberfläche nur ein HttpOnly-Cookie gibt. Das ist ein eigener Umbau und keine Einstellung; er lohnt sich, sobald die Entscheidung für diese Oberfläche gefallen ist.
+Die Sitzung liegt in `sessionStorage`: Sie endet mit dem Tab und wandert nicht in andere Fenster. Das ist für einen öffentlichen Client mit PKCE üblich, hat aber eine bekannte Grenze — wer es schafft, fremdes JavaScript in die Seite zu bekommen, kann das Token lesen. Wer diese Grenze nicht akzeptieren will, braucht einen serverseitigen Vermittler, der das Token behält und der Oberfläche nur ein HttpOnly-Cookie gibt. Das ist ein eigener Umbau und keine Einstellung; er steht als nächster Härtungsschritt an.
 
 Die API muss im selben Origin liegen. Das mitgelieferte nginx leitet die API-Pfade weiter, deshalb genügt dort `/`. Eine Adresse in einem anderen Origin wird abgelehnt: Das Zugangstoken ginge dorthin, und der Browser gäbe den Header, mit dem die API eine Ablehnung einordnet, ohne ausdrückliche Freigabe gar nicht heraus.
 
@@ -64,3 +67,27 @@ Ein gebautes Bündel ist unveränderlich; die Adressen dürfen deshalb nicht bei
 Heißen die Rollen im Identity Provider anders als `access`, `modeler`, `operator` und `worker`, gehören die abweichenden Namen unter `roleNames` in die `config.json`. Die API wertet sie ebenfalls konfigurierbar aus; beide Seiten müssen dieselben Namen kennen.
 
 Im Entwicklungsbetrieb ohne `config.json` greifen die `VITE_`-Werte aus `.env`.
+
+## Fremde Oberflächen im Bündel
+
+Zwei Bibliotheken bringen eine eigene, fest verdrahtete Optik mit. Beide sind deshalb an
+die Design-Tokens der Konsole angeglichen, und beides ist leicht zu übersehen:
+
+- **bpmn-js und das Eigenschaftenpanel** (`src/components/bpmn/bpmn.css`). Das Panel
+  deklariert seine Farben auf `.bio-properties-panel` selbst; Überschreibungen müssen
+  deshalb auf demselben Element stehen, nicht auf dem Rahmen darum. Die Regeln für
+  Palette und Kontextmenü kommen bewusst ohne `:where()` aus, weil die eigenen Regeln von
+  diagram-js zweistufig sind.
+- **Form.io** (`src/components/forms/formio.css`). Form.io setzt Bootstrap-5-Vorlagen und
+  Bootstrap-Symbole voraus. Bootstrap global einzubinden würde Tailwind überschreiben,
+  deshalb sind nur die tatsächlich verwendeten Bausteine nachgezogen — begrenzt auf
+  `.formio-surface` **und** `.formio-dialog`. Der Eigenschaftendialog des Editors hängt am
+  `<body>`, also außerhalb jeder Seitenfläche; Regeln nur unter `.formio-surface`
+  erreichen ihn nicht.
+
+## Volle Höhe
+
+Seiten, die den Rest des Fensters füllen (Modellierer, Instanzansicht), hängen sich als
+`flex min-h-0 flex-1` in die Flex-Spalte von `AppShell` ein. Eine Prozenthöhe (`h-full`)
+gegen einen Flex-Container löst Safari nicht auf — die Zeichenfläche wäre dort 0 Pixel hoch,
+und der Modellierer schiene gar nicht erst zu starten.

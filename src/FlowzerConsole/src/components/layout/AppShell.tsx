@@ -68,7 +68,14 @@ export function AppShell() {
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar onOpenPalette={() => setPaletteOpen(true)} onOpenUserMenu={() => setUserMenuOpen(true)} />
-        <main className="flex-1 overflow-auto">
+        {/*
+          * Flex-Spalte mit `min-h-0`: Seiten, die den Rest der Hoehe fuellen sollen (Modeler,
+          * Instanzansicht), koennen sich hier mit `flex-1` einhaengen. Mit einem blossen
+          * `flex-1 overflow-auto` und `h-full` in der Seite loeste Safari die Prozenthoehe
+          * gegen einen Flex-Container nicht auf — die Zeichenflaeche wurde 0 Pixel hoch und
+          * der Modeler schien gar nicht erst zu starten.
+          */}
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto">
           <AccessDeniedNotice />
           <Outlet />
         </main>

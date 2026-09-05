@@ -197,24 +197,34 @@ async function saveForm(request, { formId = randomUUID(), name, schema }) {
 
 async function createDefinitionMeta(request, { name, description = '' }) {
   // Alle Definitions-Endpunkte liefern denselben Umschlag; das Ergebnis steht in `result`.
-  const createResponse = await request.get(buildApiUrl('/definition/new'), buildRequestOptions());
+  // Der Name geht direkt mit: `POST /definition/new` legt gleich benannt an.
+  const createResponse = await request.post(
+    buildApiUrl(`/definition/new?name=${encodeURIComponent(name)}`),
+    buildRequestOptions());
   const createdDefinition = ensureApiSuccess(
     await readJson(createResponse, 'Creating definition metadata'),
     'Creating definition metadata');
   const definitionId = createdDefinition?.definitionId || createdDefinition?.DefinitionId;
 
-  const updateResponse = await request.put(buildApiUrl('/definition/meta'), buildRequestOptions({
-    data: {
-      definitionId,
-      name,
-      description
-    }
-  }));
-  ensureApiSuccess(
-    await readJson(updateResponse, 'Updating definition metadata'),
-    'Updating definition metadata');
+  if (description) {
+    const updateResponse = await request.put(buildApiUrl('/definition/meta'), buildRequestOptions({
+      data: { definitionId, name, description }
+    }));
+    ensureApiSuccess(
+      await readJson(updateResponse, 'Updating definition metadata'),
+      'Updating definition metadata');
+  }
 
   return definitionId;
+}
+
+async function deleteDefinitionMeta(request, { definitionId }) {
+  const response = await request.delete(
+    buildApiUrl(`/definition/meta/${encodeURIComponent(definitionId)}`),
+    buildRequestOptions());
+  return ensureApiSuccess(
+    await readJson(response, 'Deleting definition metadata'),
+    'Deleting definition metadata');
 }
 
 async function deployDefinition(request, { xml }) {
@@ -289,6 +299,7 @@ module.exports = {
   buildPlainStartXml,
   buildMessageStartUserTaskXml,
   createDefinitionMeta,
+  deleteDefinitionMeta,
   createFormSchema,
   deployDefinition,
   getUserTasks,

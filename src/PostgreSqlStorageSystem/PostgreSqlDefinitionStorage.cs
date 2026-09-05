@@ -137,9 +137,10 @@ internal sealed class PostgreSqlDefinitionStorage(PostgreSqlSession session) : I
         {
             if (!definitionsByCatalogId.TryGetValue(metaDefinition.DefinitionId, out var definitions))
             {
-                // Bewusste Abweichung von der Dateiablage, die hier den gesamten Katalog mit "nicht
-                // gefunden" abbrechen laesst: Ein verwaister Katalogeintrag (Definition geloescht,
-                // Metadatensatz geblieben) darf die Liste fuer alle anderen nicht unbrauchbar machen.
+                // Nur die Anreicherung wird uebersprungen; der Eintrag selbst steht bereits in
+                // `metaDefinitions` und bleibt damit in der Liste. Ein Eintrag ohne Version ist
+                // kein Fehler: So sieht ein frisch angelegter Workflow vor der ersten
+                // gespeicherten Fassung aus, und so sieht ein abgebrochenes Loeschen aus.
                 continue;
             }
 
@@ -180,6 +181,17 @@ internal sealed class PostgreSqlDefinitionStorage(PostgreSqlSession session) : I
         if (await command.ExecuteNonQueryAsync() == 0)
         {
             throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {metaDefinition.DefinitionId}");
+        }
+    });
+
+    public Task DeleteMetaDefinition(string definitionId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction,
+            "DELETE FROM {schema}.meta_definitions WHERE definition_id = @definitionId");
+        command.Parameters.AddWithValue("definitionId", definitionId);
+        if (await command.ExecuteNonQueryAsync() == 0)
+        {
+            throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {definitionId}");
         }
     });
 

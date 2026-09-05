@@ -26,5 +26,13 @@ public interface IDefinitionStorage
     Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition);
     Task<BpmnMetaDefinition> GetMetaDefinitionById(string id);
 
+    /// <summary>
+    /// Entfernt einen Katalogeintrag. Bewusst ohne stillen Standard: Eine Ablage, die das
+    /// Loeschen nicht beherrscht, muss das melden — ein wirkungsloses Loeschen sieht in der
+    /// Oberflaeche wie ein Erfolg aus und der Eintrag ist nach dem Neuladen wieder da.
+    /// </summary>
+    Task DeleteMetaDefinition(string definitionId) =>
+        throw new NotSupportedException($"{GetType().Name} unterstuetzt das Loeschen von Katalogeintraegen nicht.");
+
     #endregion
 }

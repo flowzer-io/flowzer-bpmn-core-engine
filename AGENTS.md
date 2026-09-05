@@ -21,8 +21,7 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 - `src/core-engine/` – Prozessausführung, Handler, Expressions
 - `src/core-engine-tests/` – Regressionstests und BPMN-Testdateien
 - `src/WebApiEngine/` – REST-API
-- `src/FlowzerFrontend/` – Blazor-Frontend
-- `bpmn.io/` – JS-/Modeler-Experiment
+- `src/FlowzerConsole/` – Oberfläche (React, TypeScript, Vite)
 
 ## Arbeitsprinzipien
 
@@ -71,12 +70,14 @@ dotnet build core-engine.sln
 dotnet test core-engine.sln
 ```
 
-### bpmn.io
+### Oberfläche
 
 ```bash
-cd bpmn.io
-npm install
-npm run build
+npm --prefix src/FlowzerConsole ci
+npm --prefix src/FlowzerConsole run typecheck
+npm --prefix src/FlowzerConsole run lint
+npm --prefix src/FlowzerConsole run test
+npm --prefix src/FlowzerConsole run build
 ```
 
 ## Erwartung an gute Agenten-Arbeit

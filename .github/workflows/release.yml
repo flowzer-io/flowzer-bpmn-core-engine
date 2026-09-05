@@ -1,6 +1,6 @@
 name: Release
 
-# Baut die Container-Images fuer API und Frontend, veroeffentlicht sie in der GitHub Container
+# Baut die Container-Images fuer API und Konsole, veroeffentlicht sie in der GitHub Container
 # Registry und stoesst anschliessend das Coolify-Deployment fuer die konfigurierte Umgebung an.
 # Deploy-Zugangsdaten liegen ausschliesslich im GitHub-Environment `maassit-production`.
 
@@ -23,7 +23,6 @@ concurrency:
 env:
   REGISTRY: ghcr.io
   IMAGE_API: ghcr.io/${{ github.repository_owner }}/flowzer-api
-  IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/flowzer-frontend
   IMAGE_CONSOLE: ghcr.io/${{ github.repository_owner }}/flowzer-console
 
 jobs:
@@ -43,14 +42,13 @@ jobs:
           short_sha="$(git rev-parse --short=12 HEAD)"
           echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
-          extra_api=""; extra_frontend=""; extra_console=""
+          extra_api=""; extra_console=""
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            extra_api="$IMAGE_API:latest"; extra_frontend="$IMAGE_FRONTEND:latest"; extra_console="$IMAGE_CONSOLE:latest"
+            extra_api="$IMAGE_API:latest"; extra_console="$IMAGE_CONSOLE:latest"
           elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
-            extra_api="$IMAGE_API:${GITHUB_REF#refs/tags/}"; extra_frontend="$IMAGE_FRONTEND:${GITHUB_REF#refs/tags/}"; extra_console="$IMAGE_CONSOLE:${GITHUB_REF#refs/tags/}"
+            extra_api="$IMAGE_API:${GITHUB_REF#refs/tags/}"; extra_console="$IMAGE_CONSOLE:${GITHUB_REF#refs/tags/}"
           fi
           echo "extra_api=$extra_api" >> "$GITHUB_OUTPUT"
-          echo "extra_frontend=$extra_frontend" >> "$GITHUB_OUTPUT"
           echo "extra_console=$extra_console" >> "$GITHUB_OUTPUT"
 
       - name: Buildx einrichten
@@ -78,22 +76,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
-
-      - name: Frontend-Image bauen und pushen
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.frontend
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.meta.outputs.extra_frontend }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,scope=frontend,mode=max
 
       - name: Konsolen-Image bauen und pushen
         uses: docker/build-push-action@v6

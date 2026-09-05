@@ -94,24 +94,72 @@
   opacity: 0.35;
 }
 
+/* --- Palette, Kontextmenue und Auswahlmenues ------------------------------ */
+
+/*
+ * Die Bedienflaechen von diagram-js bringen feste helle Farben mit. Im dunklen Thema
+ * standen sie als weisse Bloecke im Bild; die Symbole darin sind eine Schrift und
+ * folgen `color`.
+ *
+ * Bewusst OHNE `:where()`: Die eigenen Regeln von diagram-js sind zweistufig
+ * (`.djs-palette .entry`). In `:where()` zaehlt der Inhalt null, die Regel verlaere
+ * damit — die Symbole blieben in ihrem Ausgangsgrau und waeren kaum zu erkennen.
+ */
+.bpmn-surface .djs-palette,
+.bpmn-surface .djs-popup,
+.bpmn-surface .djs-popup-body {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.bpmn-surface .djs-palette {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+}
+
+.bpmn-surface .djs-palette .entry,
+.bpmn-surface .djs-popup .entry,
+.bpmn-surface .djs-context-pad .entry {
+  color: var(--text);
+}
+
+.bpmn-surface .djs-palette .entry:hover,
+.bpmn-surface .djs-popup .entry:hover,
+.bpmn-surface .djs-context-pad .entry:hover {
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.bpmn-surface .djs-palette .separator {
+  border-color: var(--border);
+}
+
+.bpmn-surface .djs-context-pad .entry {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.bpmn-surface .djs-popup-header,
+.bpmn-surface .djs-popup-title,
+.bpmn-surface .djs-popup-search input {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.bpmn-surface .djs-popup-search input {
+  border: 1px solid var(--border);
+}
+
+.bpmn-surface .djs-popup .entry.active {
+  background: color-mix(in oklab, var(--accent) 14%, var(--surface));
+}
+
 /* --- Eigenschaften-Panel des Modellers ------------------------------------ */
 
 .bpmn-properties {
-  --color-grey-225-10-15: var(--border);
-  --color-grey-225-10-35: var(--border-strong);
-  --color-grey-225-10-55: var(--muted);
-  --color-grey-225-10-75: var(--faint);
-  --color-grey-225-10-80: var(--surface-2);
-  --color-grey-225-10-85: var(--surface-2);
-  --color-grey-225-10-90: var(--surface-2);
-  --color-grey-225-10-95: var(--surface);
-  --color-grey-225-10-97: var(--surface);
-  --color-white: var(--surface);
-  --color-black: var(--text);
-  --color-blue-205-100-45: var(--accent);
-  --color-blue-205-100-50: var(--accent);
-  --color-blue-205-100-95: color-mix(in oklab, var(--accent) 12%, transparent);
-
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-ui);
@@ -119,7 +167,42 @@
   overflow: auto;
 }
 
-.bpmn-properties .bio-properties-panel {
+/*
+ * Die Farben muessen auf `.bio-properties-panel` selbst stehen, nicht auf dem Rahmen
+ * darum: @bpmn-io/properties-panel deklariert dieselben Custom Properties auf genau
+ * diesem Element. Eine Deklaration am Element schlaegt jeden geerbten Wert — auf dem
+ * Elternknoten gesetzt blieben die Tokens wirkungslos, und das Panel stand im dunklen
+ * Thema weiss und praktisch unlesbar da.
+ *
+ * Die dunkelste Graustufe ist die Textfarbe des Panels (nicht eine Kante); sie muss
+ * deshalb auf `--text` zeigen, sonst steht heller Text auf heller Flaeche.
+ */
+.bpmn-properties .bio-properties-panel,
+.bpmn-properties .djs-parent {
+  --color-grey-225-10-15: var(--text);
+  --color-grey-225-10-35: var(--muted);
+  --color-grey-225-10-55: var(--muted);
+  --color-grey-225-10-75: var(--faint);
+  --color-grey-225-10-80: var(--border-strong);
+  --color-grey-225-10-85: var(--border);
+  --color-grey-225-10-90: var(--border);
+  --color-grey-225-10-95: var(--surface-2);
+  --color-grey-225-10-97: var(--surface-2);
+  --color-grey-0-0-22: var(--text);
+  --color-white: var(--surface);
+  --color-black: var(--text);
+  --color-blue-205-100-35: var(--accent);
+  --color-blue-205-100-40: var(--accent);
+  --color-blue-205-100-45: var(--accent);
+  --color-blue-205-100-50: var(--accent);
+  --color-blue-205-100-85: color-mix(in oklab, var(--accent) 35%, var(--surface));
+  --color-blue-205-100-95: color-mix(in oklab, var(--accent) 12%, var(--surface));
+  --color-red-360-100-45: var(--fail);
+  --color-red-360-100-92: color-mix(in oklab, var(--fail) 25%, var(--surface));
+  --color-red-360-100-97: color-mix(in oklab, var(--fail) 12%, var(--surface));
+  --color-amber-39-100-33: var(--wait);
+  --color-amber-38-100-96: color-mix(in oklab, var(--wait) 12%, var(--surface));
+
   background: var(--surface);
   color: var(--text);
 }

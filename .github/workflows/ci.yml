@@ -71,15 +71,6 @@ jobs:
             --logger "trx;LogFileName=webapi-tests.trx" \
             --results-directory ./TestResults/ci
 
-      - name: Frontend-Unit-Tests ausführen
-        run: |
-          dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj \
-            --no-restore \
-            --no-build \
-            --configuration Release \
-            --logger "trx;LogFileName=frontend-tests.trx" \
-            --results-directory ./TestResults/ci
-
       - name: Coverage-Kennzahlen extrahieren
         id: coverage
         run: |
@@ -116,53 +107,11 @@ jobs:
           ## .NET-Validierung
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
-          - Zusätzlich laufen Web-API- und Frontend-Unit-Tests im selben Job mit.
+          - Zusätzlich laufen die Web-API-Tests im selben Job mit.
           - Die Core-Engine-Tests laufen jetzt wieder vollständig ohne Quarantänefilter im CI-Pfad.
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`
           EOF
-
-  bpmn_io:
-    name: Build für bpmn.io
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Repository auschecken
-        uses: actions/checkout@v4
-
-      - name: Node.js einrichten
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: bpmn.io/package-lock.json
-
-      - name: Node-Abhängigkeiten installieren
-        working-directory: bpmn.io
-        run: npm ci
-
-      - name: BPMN-Frontend bauen
-        working-directory: bpmn.io
-        run: npm run build
-
-      # Die Oberflaeche liefert eine Kopie desselben Bundles aus. Weicht sie ab, laeuft in
-      # Produktion eine andere Version als die hier gebaute und gepruefte.
-      # Eine API-Route, die das Gateway nicht weiterleitet, beantwortet die Oberflaeche mit
-      # ihrer Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
-      - name: Weiterleitungsliste des Gateways pruefen
-        run: ./tests/ui-smoke/check-gateway-routes.sh
-
-      - name: Ausgeliefertes Bundle mit dem gebauten vergleichen
-        run: |
-          if ! cmp -s bpmn.io/public/app.js src/FlowzerFrontend/wwwroot/app.js; then
-            echo "bpmn.io/public/app.js und src/FlowzerFrontend/wwwroot/app.js sind verschieden." >&2
-            echo "Nach einer Aenderung an bpmn.io/ bitte scripts/build-bpmn-bundle.sh ausfuehren und beide Dateien einchecken." >&2
-            exit 1
-          fi
-
-      - name: Bekannte Schwachstellen der Node-Abhaengigkeiten pruefen
-        working-directory: bpmn.io
-        run: npm audit --audit-level=high
 
   console:
     name: Build und Tests der React-Konsole
@@ -199,12 +148,18 @@ jobs:
         working-directory: src/FlowzerConsole
         run: npm run build
 
+      # Eine API-Route, die das Gateway der Konsole nicht weiterleitet, beantwortet die
+      # Konsole mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die
+      # erwartete Antwort. Genau so ist /job zuerst durchgerutscht.
+      - name: Weiterleitungsliste des Gateways pruefen
+        run: ./tests/ui-smoke/check-gateway-routes.sh
+
       - name: Bekannte Schwachstellen der Abhaengigkeiten pruefen
         working-directory: src/FlowzerConsole
         run: npm audit --audit-level=high
 
-  frontend_smoke:
-    name: UI-Smoke-Tests
+  console_smoke:
+    name: UI-Smoke-Tests der Konsole
     runs-on: ubuntu-latest
     needs:
       - dotnet
@@ -232,6 +187,10 @@ jobs:
       - name: Solution bauen
         run: dotnet build core-engine.sln --no-restore --configuration Release
 
+      - name: Abhaengigkeiten der Konsole installieren
+        working-directory: src/FlowzerConsole
+        run: npm ci
+
       - name: Playwright-Abhängigkeiten installieren
         working-directory: tests/ui-smoke
         run: npm ci
@@ -246,11 +205,6 @@ jobs:
         timeout-minutes: 15
         run: npm test
 
-      - name: UI-Design-Preview-Screenshots erzeugen
-        working-directory: tests/ui-smoke
-        timeout-minutes: 10
-        run: npm run preview:screenshots
-
       - name: Playwright-Artefakte hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -261,22 +215,13 @@ jobs:
             tests/ui-smoke/test-results
           if-no-files-found: ignore
 
-      - name: UI-Design-Preview hochladen
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-design-preview
-          path: tests/ui-smoke/design-preview
-          if-no-files-found: ignore
-
       - name: CI-Zusammenfassung schreiben
         if: always()
         run: |
           cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## UI-Smoke-Tests
 
-          - Playwright prüft die Kernrouten `/`, `/tasks`, `/models`, `/forms` und `/instances`.
-          - Web-API und Blazor-Frontend werden im Testjob reproduzierbar lokal gestartet.
-          - Artefakte mit HTML-Report und Testresultaten werden bei Bedarf hochgeladen.
-          - Zusätzlich erzeugt der Job ein Artefakt `ui-design-preview` mit Screenshots der wichtigsten UI-Seiten für visuelle PR-Reviews.
+          - Playwright prüft die Kernrouten `/`, `/workflows`, `/instances`, `/forms` und `/tasks` der Konsole.
+          - Web-API und Konsole werden im Testjob reproduzierbar lokal gestartet.
+          - Der Modeler wird mit geöffnetem Diagramm geprüft — eine leere Zeichenfläche fällt damit auf.
           EOF

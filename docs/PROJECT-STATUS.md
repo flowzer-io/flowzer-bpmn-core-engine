@@ -31,12 +31,12 @@ Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbe
 ### 2. Build, CI und Testbasis
 
 - die Solution baut auf dem aktuellen Arbeitsstand reproduzierbar
-- GitHub Actions für .NET und `bpmn.io` sind vorhanden
+- GitHub Actions für .NET und die Konsole sind vorhanden
 - die wichtigsten lokalen Testpfade laufen wieder:
   - `dotnet build core-engine.sln`
   - `dotnet test src/core-engine-tests/core-engine-tests.csproj`
   - `dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`
-  - `dotnet test src/FlowzerFrontend.Tests/FlowzerFrontend.Tests.csproj`
+  - `npm --prefix src/FlowzerConsole run test`
   - `tests/ui-smoke` per Playwright
 
 ### 3. Bereits umgesetzte Stabilisierung
