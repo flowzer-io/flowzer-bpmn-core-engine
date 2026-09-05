@@ -123,6 +123,14 @@ Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` in `wwwroot/appsettin
 
 Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
 
+## Ablage
+
+Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_ROOT`. Für den Betrieb steht eine PostgreSQL-Ablage mit echten Transaktionen bereit (`Storage:Provider=PostgreSql`, Migrationen per `dotnet WebApiEngine.dll --migrate`). Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#ablage-dateisystem-oder-postgresql).
+
+## Release und Deployment
+
+Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-frontend`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+
 ## Dokumentation
 
 - [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md) – Review September 2026: Stand, Sofortmaßnahmen, offene Probleme, nächste Schritte

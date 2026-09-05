@@ -271,6 +271,28 @@ FLOWZER_FRONTEND_URL=http://localhost:5288 \
 npm --prefix tests/ui-smoke run test
 ```
 
+## Ablage: Dateisystem oder PostgreSQL
+
+Abschnitt `Storage`:
+
+| Schlüssel | Bedeutung |
+|---|---|
+| `Storage__Provider` | `Filesystem` (Default, JSON-Dateien unter `FLOWZER_STORAGE_ROOT`) oder `PostgreSql` |
+| `Storage__PostgreSql__ConnectionString` | Laufzeitverbindung (Rolle ohne DDL) |
+| `Storage__PostgreSql__MigrationConnectionString` | Verbindung mit DDL-Rechten für Migrationen; leer = Laufzeitverbindung |
+| `Storage__PostgreSql__Schema` | Schema, Default `flowzer` |
+| `Storage__PostgreSql__ApplyMigrationsOnStartup` | nur für einfache Umgebungen; produktiv läuft der Migrationsschritt getrennt |
+
+PostgreSQL ist der Betriebspfad: Jede Engine-Operation läuft in einer Datenbanktransaktion und wird atomar sichtbar. Die Dokumente werden mit derselben JSON-Serialisierung wie in der Dateiablage abgelegt; ein Wechsel zwischen beiden Ablagen ist damit ein reiner Kopiervorgang.
+
+Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
+
+```bash
+dotnet WebApiEngine.dll --migrate
+```
+
+genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt).
+
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
 Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
