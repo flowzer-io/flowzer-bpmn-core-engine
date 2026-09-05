@@ -114,9 +114,28 @@ export function hasCapability(user: SessionUser | null, capability: FlowzerCapab
   return user?.roles.has(getRuntimeConfig().roleNames[capability]) ?? false;
 }
 
-/** Wer veröffentlichen oder den Betrieb einsehen darf, sieht die vollständige Konsole. */
+/**
+ * Die vollständige Konsole steht jedem Zugelassenen offen.
+ *
+ * Vorher hing sie an den Rollen fürs Modellieren oder den Betrieb. Das war strenger
+ * als die API: Definitionen, Instanzen und Formulare darf jeder Zugelassene lesen,
+ * erst Schreiben und die Diagnose verlangen eine Rolle. Wer nur Aufgaben bearbeitet,
+ * bekam so eine Oberfläche zu sehen, die weniger konnte als sein Zugang hergab.
+ *
+ * Die reduzierte Aufgabenansicht bleibt erhalten, aber als eigene Wahl im
+ * Benutzermenü statt als Folge fehlender Rollen.
+ */
 export function seesFullConsole(user: SessionUser | null): boolean {
-  return hasCapability(user, 'modeler') || hasCapability(user, 'operator');
+  return hasCapability(user, 'access');
+}
+
+/**
+ * Prüft eine Fähigkeit der angemeldeten Person. Für die Anzeige gedacht: Was die
+ * Oberfläche gar nicht erst anbietet, führt auch nicht zu einer Ablehnung.
+ */
+export function useCan(): (capability: FlowzerCapability) => boolean {
+  const user = useSession((state) => state.user);
+  return (capability) => hasCapability(user, capability);
 }
 
 // Der API-Client holt Token und Benutzer-Id bei jedem Aufruf frisch.

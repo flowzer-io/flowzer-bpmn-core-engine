@@ -14,11 +14,18 @@ interface AppearanceState {
   accent: Accent;
   density: Density;
   sidebar: SidebarMode;
+  /**
+   * Reduzierte Ansicht: nur die eigenen Aufgaben, ohne Navigation. Eine eigene Wahl
+   * für alle, die ausschließlich Aufgaben bearbeiten — nicht die Folge fehlender
+   * Rollen, denn Lesen darf jeder Zugelassene.
+   */
+  taskFocus: boolean;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
   setAccent: (accent: Accent) => void;
   setDensity: (density: Density) => void;
   toggleSidebar: () => void;
+  setTaskFocus: (taskFocus: boolean) => void;
 }
 
 /**
@@ -32,12 +39,14 @@ export const useAppearance = create<AppearanceState>()(
       accent: 'iris',
       density: 'comfortable',
       sidebar: 'full',
+      taskFocus: false,
       setTheme: (theme) => set({ theme }),
       toggleTheme: () =>
         set((state) => ({ theme: resolveTheme(state.theme) === 'dark' ? 'light' : 'dark' })),
       setAccent: (accent) => set({ accent }),
       setDensity: (density) => set({ density }),
       toggleSidebar: () => set((state) => ({ sidebar: state.sidebar === 'full' ? 'rail' : 'full' })),
+      setTaskFocus: (taskFocus) => set({ taskFocus }),
     }),
     { name: 'flowzer-console-appearance' },
   ),
