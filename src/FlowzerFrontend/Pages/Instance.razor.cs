@@ -68,6 +68,12 @@ public partial class Instance : IAsyncDisposable
           _instance.UserTaskSubscriptionCount +
           _instance.ServiceSubscriptionCount;
     private bool HasError => !string.IsNullOrWhiteSpace(ErrorHeadline);
+    private bool IsCancelling { get; set; }
+    private bool CanCancel => _instance != null && !HasError && !IsCancelling && !IsRefreshing &&
+                              _instance.State is not (ProcessInstanceStateDto.Completed
+                                  or ProcessInstanceStateDto.Terminated
+                                  or ProcessInstanceStateDto.Failed
+                                  or ProcessInstanceStateDto.Compensated);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -355,6 +361,50 @@ public partial class Instance : IAsyncDisposable
     {
         ErrorHeadline = null;
         ErrorDetails = null;
+    }
+
+    private async Task OnCancelClickAsync()
+    {
+        if (!CanCancel || _instance == null)
+        {
+            return;
+        }
+
+        bool confirmed;
+        try
+        {
+            confirmed = await JsRuntime.InvokeAsync<bool>(
+                "confirm",
+                $"Cancel instance {_instance.InstanceId}? Active tokens are terminated and open tasks disappear. Completed activities are not compensated.");
+        }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Blockierte oder nicht verfuegbare Dialoge (eingebettete Kontexte, strikte Browser-
+            // Richtlinien) duerfen keinen unbestaetigten Abbruch ausloesen.
+            SetError("Could not open the confirmation dialog", exception.Message);
+            return;
+        }
+
+        if (!confirmed)
+        {
+            return;
+        }
+
+        IsCancelling = true;
+        try
+        {
+            await FlowzerApi.CancelInstance(_instance.InstanceId);
+            await Reload();
+        }
+        catch (Exception exception)
+        {
+            SetError("Could not cancel the instance", exception.Message);
+        }
+        finally
+        {
+            IsCancelling = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task OnRefreshClickAsync()

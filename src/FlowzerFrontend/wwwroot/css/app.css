@@ -181,6 +181,45 @@ a {
     user-select: none;
 }
 
+.app-user-menu {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.app-user-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-user-logout {
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    font: inherit;
+    padding: 2px 8px;
+    text-decoration: none;
+}
+
+.app-user-logout:hover,
+.app-user-logout:focus-visible {
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}
+
 .app-sidenav-footer {
     padding: 14px 16px;
     border-top: 1px solid rgba(255, 255, 255, 0.07);

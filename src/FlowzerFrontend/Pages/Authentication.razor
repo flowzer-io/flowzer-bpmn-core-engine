@@ -1,0 +1,15 @@
+@page "/authentication/{action}"
+@attribute [AllowAnonymous]
+@layout EmptyLayout
+
+<RemoteAuthenticatorView Action="@Action">
+    <LoggingIn><p class="inline-state-message inline-state-message-info">Signing in...</p></LoggingIn>
+    <CompletingLoggingIn><p class="inline-state-message inline-state-message-info">Completing sign-in...</p></CompletingLoggingIn>
+    <LogOut><p class="inline-state-message inline-state-message-info">Signing out...</p></LogOut>
+    <LogOutSucceeded><p class="inline-state-message inline-state-message-info">You are signed out. <a href="/">Sign in again</a></p></LogOutSucceeded>
+    <LogInFailed><p class="inline-state-message inline-state-message-error" role="alert">Sign-in failed: @context</p></LogInFailed>
+</RemoteAuthenticatorView>
+
+@code {
+    [Parameter] public string? Action { get; set; }
+}

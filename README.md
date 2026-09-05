@@ -119,11 +119,14 @@ Die Web-API läuft standardmäßig ohne Authentifizierung (`Authentication:Schem
 }
 ```
 
-Details, Einschränkungen und die Frontend-Seite stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc).
+Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` in `wwwroot/appsettings*.json` (Authority, ClientId, Scopes) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Ohne diese Werte läuft es wie bisher mit dem technischen Development-Benutzer.
+
+Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
 
 ## Dokumentation
 
 - [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md) – Review September 2026: Stand, Sofortmaßnahmen, offene Probleme, nächste Schritte
+- [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md) – Pilotbetrieb: Identity Provider, Compose-Stack, Backup, Fehlerbilder
 - [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md) – ehrliche Bestandsaufnahme
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
 - [docs/CODEBASE-AUDIT-2026-04.md](docs/CODEBASE-AUDIT-2026-04.md) – Audit-Feststellungen und Folgepakete nach der Revitalisierung
@@ -139,11 +142,10 @@ Details, Einschränkungen und die Frontend-Seite stehen in [docs/OPERATIONS.md](
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Identity Provider anbinden** (API-Konfiguration vorhanden, Frontend-OIDC-Client fehlt)
-2. **Pilotbetrieb hinter TLS-Reverse-Proxy mit persistentem Volume und Backup**
-3. **Rollen und Zuweisungen** für Aufgaben, Definitionen und Diagnose
-4. **PostgreSQL-Persistenz** hinter `IStorageSystem`
-5. **Eine Oberfläche festlegen** (Blazor oder React-Konsole)
+1. **Pilot starten** nach [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md): Identity Provider registrieren, `.env` füllen, Stack hinter dem Reverse Proxy betreiben
+2. **Rollen und Zuweisungen** für Aufgaben, Definitionen und Diagnose
+3. **PostgreSQL-Persistenz** hinter `IStorageSystem`
+4. **Eine Oberfläche festlegen** (Blazor oder React-Konsole)
 
 Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md) und [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
