@@ -95,11 +95,15 @@ server {
   #
   # Swagger fehlt bewusst: Die Beschreibung der API gehoert nicht unter die oeffentliche
   # Adresse der Oberflaeche.
-  location ~ ^/(health|definition|instance|job|message|usertask|form|timer)(/|\$) {
+  # Bewusst ~* und nicht ~: ASP.NET Core routet unabhaengig von Gross- und Kleinschreibung,
+  # und die OpenAPI-Beschreibung nennt die Pfade mit grossem Anfangsbuchstaben
+  # (/Definition/meta). Ein daraus erzeugter Client traefe eine Regel mit ~ nicht und bekaeme
+  # die Startseite der Oberflaeche mit Status 200 statt der Antwort der API.
+  location ~* ^/(health|definition|instance|job|message|usertask|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 
-  location ~ ^/operations/ {
+  location ~* ^/operations/ {
     proxy_pass \$flowzer_api;
   }
 

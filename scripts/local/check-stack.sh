@@ -2,11 +2,9 @@
 set -euo pipefail
 
 api_url="${FLOWZER_API_URL:-http://localhost:5182}"
-frontend_url="${FLOWZER_FRONTEND_URL:-http://localhost:5269}"
 health_file="$(mktemp /tmp/flowzer-health.XXXXXX.json)"
 ready_file="$(mktemp /tmp/flowzer-ready.XXXXXX.json)"
 diagnostics_file="$(mktemp /tmp/flowzer-ops.XXXXXX.json)"
-frontend_file="$(mktemp /tmp/flowzer-frontend.XXXXXX.html)"
 curl_opts=(
   --fail
   --silent
@@ -19,7 +17,7 @@ curl_opts=(
   --retry-connrefused
 )
 
-trap 'rm -f "$health_file" "$ready_file" "$diagnostics_file" "$frontend_file"' EXIT
+trap 'rm -f "$health_file" "$ready_file" "$diagnostics_file"' EXIT
 
 echo "Checking API liveness: ${api_url}/health"
 curl "${curl_opts[@]}" "${api_url}/health" >"$health_file"
@@ -37,7 +35,6 @@ grep -Eqi '"(successful|Successful)"[[:space:]]*:[[:space:]]*true' "$diagnostics
 cat "$diagnostics_file"
 echo
 
-echo "Checking frontend root: ${frontend_url}"
-curl "${curl_opts[@]}" "${frontend_url}" >"$frontend_file"
-grep -q "FlowzerFrontend" "$frontend_file"
-echo "Frontend responded successfully."
+# Die Oberflaeche laeuft lokal nicht im Container, sondern mit `npm run dev` in
+# src/FlowzerConsole gegen diese API. Geprueft wird hier deshalb nur die API.
+echo "API responded successfully."

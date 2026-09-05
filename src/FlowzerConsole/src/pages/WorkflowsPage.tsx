@@ -8,10 +8,18 @@ import { Card, EmptyState } from '@/components/ui/Card';
 import { Chip, Dot, toneSurface, type Tone } from '@/components/ui/Chip';
 import { SearchInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
+import { ConfirmModal } from '@/components/ui/Modal';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, Skeleton } from '@/components/ui/States';
-import { useCreateDefinition, useDefinitions, useInstances, useStartInstance } from '@/lib/api/queries';
+import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
+import {
+  useCreateDefinition,
+  useDefinitions,
+  useDeleteDefinition,
+  useInstances,
+  useStartInstance,
+} from '@/lib/api/queries';
 import type { ExtendedBpmnMetaDefinitionDto, VersionDto } from '@/lib/api/types';
 import { instanceBucket } from '@/lib/api/normalize';
 import { formatRelative, parseApiDate } from '@/lib/format';
@@ -66,7 +74,11 @@ export function WorkflowsPage() {
   const definitionsQuery = useDefinitions();
   const instancesQuery = useInstances();
   const createDefinition = useCreateDefinition();
+  const deleteDefinition = useDeleteDefinition();
   const startInstance = useStartInstance();
+
+  const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
 
   /** Anzahl laufender Instanzen je Definition — für die Fußzeile der Karten. */
   const activeByDefinition = useMemo(() => {
@@ -119,19 +131,7 @@ export function WorkflowsPage() {
             icon="add"
             disabled={!mayPublish}
             title={mayPublish ? undefined : 'Neue Workflows anzulegen ist der Rolle fuer das Modellieren vorbehalten.'}
-            loading={createDefinition.isPending}
-            onClick={() => {
-              createDefinition.mutate(undefined, {
-                onSuccess: (meta) => {
-                  toast.success('Neuer Workflow angelegt');
-                  void navigate({ to: `/workflows/${encodeURIComponent(meta.definitionId)}` });
-                },
-                onError: (error) =>
-                  toast.error('Workflow konnte nicht angelegt werden', {
-                    description: error instanceof Error ? error.message : undefined,
-                  }),
-              });
-            }}
+            onClick={() => setCreating(true)}
           >
             Neuer Workflow
           </Button>
@@ -268,12 +268,75 @@ export function WorkflowsPage() {
                   >
                     Bearbeiten
                   </Button>
+                  {mayPublish && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      icon="delete"
+                      title={`„${definition.name}" löschen`}
+                      className="w-[38px] px-0"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPendingDelete(definition);
+                      }}
+                    >
+                      {/* Der Name gehoert in die Beschriftung: In einer Kachelwand gibt es
+                          viele gleich aussehende Loeschknoepfe. */}
+                      <span className="sr-only">{definition.name} löschen</span>
+                    </Button>
+                  )}
                 </div>
               </div>
             </Card>
           );
         })}
       </div>
+
+      <NewWorkflowDialog
+        open={creating}
+        onOpenChange={setCreating}
+        busy={createDefinition.isPending}
+        onCreate={(name) =>
+          createDefinition.mutate(name, {
+            onSuccess: (meta) => {
+              setCreating(false);
+              toast.success(`„${meta.name}" angelegt`);
+              void navigate({ to: `/workflows/${encodeURIComponent(meta.definitionId)}` });
+            },
+            onError: (error) =>
+              toast.error('Workflow konnte nicht angelegt werden', {
+                description: error instanceof Error ? error.message : undefined,
+              }),
+          })
+        }
+      />
+
+      <ConfirmModal
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        destructive
+        busy={deleteDefinition.isPending}
+        title={`„${pendingDelete?.name ?? ''}" löschen?`}
+        description="Alle Versionen dieses Workflows, ihre Diagramme und die bereits beendeten Instanzen werden entfernt. Das lässt sich nicht rückgängig machen. Laufende Instanzen verhindern das Löschen."
+        confirmLabel="Endgültig löschen"
+        confirmIcon="delete"
+        onConfirm={() => {
+          const target = pendingDelete;
+          if (!target) return;
+          deleteDefinition.mutate(target.definitionId, {
+            onSuccess: () => {
+              setPendingDelete(null);
+              toast.success(`„${target.name}" gelöscht`);
+            },
+            onError: (error) =>
+              toast.error('Workflow konnte nicht gelöscht werden', {
+                description: error instanceof Error ? error.message : undefined,
+              }),
+          });
+        }}
+      />
     </PageContainer>
   );
 }

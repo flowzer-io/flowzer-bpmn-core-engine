@@ -54,6 +54,39 @@ public class ApplicationRolesIntegrationTest
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
+    // Testzweck: Auch das Anlegen eines Workflows verlangt die Modelliererrolle. Der Endpunkt
+    // legt Daten an und war als einziger Schreibpfad des Katalogs ungeschuetzt — mit blosser
+    // Zugangsrolle liess sich der Katalog fuellen.
+    [Test]
+    public async Task CreatingAWorkflow_ShouldRequireTheModelerRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+        var withoutRole = await client.PostAsync("/definition/new?name=Test", content: null);
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["modeler"]));
+        var withRole = await client.PostAsync("/definition/new?name=Test", content: null);
+
+        withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        withRole.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
+    }
+
+    // Testzweck: Loeschen ist ebenfalls der Modelliererrolle vorbehalten. Ohne sie darf der
+    // Aufruf nicht einmal bis zur Pruefung auf laufende Instanzen kommen.
+    [Test]
+    public async Task DeletingAWorkflow_ShouldRequireTheModelerRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+
+        var response = await client.DeleteAsync("/definition/meta/beliebig");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     // Testzweck: Die Diagnose ist dem Betrieb vorbehalten.
     [Test]
     public async Task Diagnostics_ShouldRequireTheOperatorRole()

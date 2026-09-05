@@ -8,11 +8,19 @@ Dieses Runbook beschreibt, wie Flowzer als Einzelknoten-Pilot hinter einem TLS-t
 
 ```text
 Browser ──TLS──▶ Reverse Proxy (Unternehmen) ──▶ Gateway (nginx, Port 5288)
-                                                  ├── /definition, /instance, /usertask, /form, /message, /timer, /operations, /health ──▶ Web-API
-                                                  └── alles andere ──▶ Blazor-Frontend (statisch, nginx)
+                                                  └── alles ──▶ Konsole (nginx)
+                                                                 ├── /definition, /instance, /usertask, /form,
+                                                                 │   /message, /timer, /job, /operations/, /health ──▶ Web-API
+                                                                 └── alles andere ──▶ statisches Bundle
 Web-API ──▶ Dateiablage (persistentes Volume .data/runtime-storage)
 Browser ──▶ Identity Provider (OIDC, Authorization Code + PKCE)
 ```
+
+Die Aufteilung zwischen Oberfläche und API macht der Konsolen-Container selbst
+(`deploy/console/entrypoint.sh`). Das Gateway leitet nur weiter — eine zweite Routenliste
+dort könnte von der des Containers abweichen und in Produktion anders wirken als im Test.
+`tests/ui-smoke/check-gateway-routes.sh` vergleicht die Liste des Containers mit den
+tatsächlichen Controller-Routen.
 
 Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht unterstützt. Statt der Dateiablage kann PostgreSQL verwendet werden (`Storage__Provider=PostgreSql`, siehe `docs/OPERATIONS.md`); der Compose-Stack für Coolify (`compose.coolify.yaml`) nutzt ausschließlich PostgreSQL.
 
@@ -112,7 +120,7 @@ Aktive Tokens werden terminiert, offene Aufgaben entfernt. Bereits erledigte Akt
 
 ```bash
 docker compose -f compose.runtime.yml logs -f api
-docker compose -f compose.runtime.yml logs -f frontend
+docker compose -f compose.runtime.yml logs -f console
 docker compose -f compose.runtime.yml logs -f gateway
 ```
 

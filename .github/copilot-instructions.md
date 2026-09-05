@@ -26,8 +26,7 @@ Bitte also:
 - `src/core-engine/` – Engine, Handler, Parser, Expressions
 - `src/core-engine-tests/` – Regressionstests und BPMN-Testmodelle
 - `src/WebApiEngine/` – ASP.NET Core API
-- `src/FlowzerFrontend/` – Blazor-Frontend
-- `bpmn.io/` – JS-/Modeler-Themen
+- `src/FlowzerConsole/` – Oberfläche (React, TypeScript, Vite)
 
 ## Arbeitsprinzipien
 

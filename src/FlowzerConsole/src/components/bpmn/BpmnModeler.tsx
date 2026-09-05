@@ -139,7 +139,18 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       setReady(true);
     }
 
-    void create();
+    // Ohne diesen Fang blieb ein Fehler beim Nachladen der bpmn-js-Buendel eine stille
+    // abgelehnte Zusage: `ready` wurde nie wahr, und die Seite zeigte dauerhaft
+    // „Modeler wird geladen …“ — von aussen nicht von einem Hänger zu unterscheiden.
+    create().catch((cause: unknown) => {
+      if (disposed) return;
+      console.error('[BpmnModeler] Start fehlgeschlagen', cause);
+      setError(
+        cause instanceof Error
+          ? `Der Modeler konnte nicht gestartet werden: ${cause.message}`
+          : 'Der Modeler konnte nicht gestartet werden.',
+      );
+    });
 
     return () => {
       disposed = true;
@@ -176,9 +187,9 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
 
   return (
     <div className={cn('flex min-h-0 flex-1', className)}>
-      <div className="canvas-grid bpmn-surface relative min-w-0 flex-1">
+      <div className="canvas-grid bpmn-surface relative min-h-[420px] min-w-0 flex-1">
         <div ref={canvasRef} className="h-full w-full" />
-        {!ready && (
+        {!ready && !error && (
           <div className="absolute inset-0 grid place-items-center">
             <InlineSpinner label="Modeler wird geladen …" />
           </div>

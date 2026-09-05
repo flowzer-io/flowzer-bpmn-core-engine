@@ -47,6 +47,18 @@ public class InstanceStorage : IInstanceStorage
         return (await GetAllInstances()).Where(x => !x.IsFinished);
     }
 
+    public Task DeleteInstance(Guid processInstanceId)
+    {
+        // Der Dateiname traegt die Definition mit, die zur Zeit des Schreibens galt; gesucht
+        // wird deshalb ueber das Muster und nicht ueber einen zusammengesetzten Pfad.
+        foreach (var path in Directory.GetFiles(_instancesPath, $"instance_*_{processInstanceId}.json"))
+        {
+            File.Delete(path);
+        }
+
+        return Task.CompletedTask;
+    }
+
     public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances()
     {
         var instances = StorageFile.ReadExistingFiles(_instancesPath, "*.json")

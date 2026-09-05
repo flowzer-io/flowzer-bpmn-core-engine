@@ -20,21 +20,25 @@ services:
       retries: 18
       start_period: 30s
 
-  frontend:
+  console:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile.console
     environment:
-      # Leer = ohne Anmeldung (nur fuer lokale Pruefungen mit FLOWZER_AUTH_SCHEME=None).
-      # Bei JwtBearer Authority, Client-Id und die API-Scopes setzen, sonst antwortet die API 401.
+      FLOWZER_API_UPSTREAM: api:8080
+      FLOWZER_API_BASE_URL: /
+      # Diese Werte sind Pflicht: Das ausgelieferte Buendel ist ein Produktionsbuendel und
+      # zeigt ohne Identity Provider nur die Anmeldeseite. Der technische Benutzer greift
+      # ausschliesslich im Entwicklungsserver (npm run dev), nicht hier.
       FLOWZER_OIDC_AUTHORITY: ${FLOWZER_OIDC_AUTHORITY:-}
       FLOWZER_OIDC_CLIENT_ID: ${FLOWZER_OIDC_CLIENT_ID:-}
+      FLOWZER_OIDC_AUDIENCE: ${FLOWZER_AUTH_AUDIENCE:-}
       FLOWZER_OIDC_SCOPES: ${FLOWZER_OIDC_SCOPES:-}
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ | grep -q FlowzerFrontend || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/config.json >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 18
@@ -45,7 +49,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
-      frontend:
+      console:
         condition: service_healthy
     ports:
       - "${FLOWZER_RUNTIME_PORT:-5288}:8080"

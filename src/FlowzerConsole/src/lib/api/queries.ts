@@ -117,9 +117,22 @@ export function useUpdateDefinitionMeta() {
 export function useCreateDefinition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => definitionsApi.createEmpty(),
+    mutationFn: (name: string) => definitionsApi.create(name),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+    },
+  });
+}
+
+export function useDeleteDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (definitionId: string) => definitionsApi.deleteMeta(definitionId),
+    onSuccess: () => {
+      // Nicht nur der Katalog: Eine geloeschte Definition verschwindet auch aus den
+      // Instanz- und Betriebsansichten, die ihren Namen aufloesen.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.definitions });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
     },
   });
 }

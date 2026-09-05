@@ -35,6 +35,13 @@ internal sealed class PostgreSqlInstanceStorage(PostgreSqlSession session) : IIn
 
     public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => Query("SELECT body FROM {schema}.instances");
 
+    public Task DeleteInstance(Guid processInstanceId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction, "DELETE FROM {schema}.instances WHERE instance_id = @id");
+        command.Parameters.AddWithValue("id", processInstanceId);
+        await command.ExecuteNonQueryAsync();
+    });
+
     private Task<IEnumerable<ProcessInstanceInfo>> Query(string sql) => session.RunAsync<IEnumerable<ProcessInstanceInfo>>(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction, sql);

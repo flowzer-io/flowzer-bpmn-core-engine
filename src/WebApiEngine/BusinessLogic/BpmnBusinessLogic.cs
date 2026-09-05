@@ -86,6 +86,76 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         await DeleteExistingSubscriptions(storageSystem, definition.DefinitionId);
     }
 
+    /// <summary>
+    /// Entfernt einen Workflow vollstaendig: Startanmeldungen (Nachrichten, Signale, Timer,
+    /// User-Tasks ohne Instanzbezug), beendete Instanzen samt ihrer Anmeldungen und Auftraege,
+    /// den Katalogeintrag, alle Versionen und deren BPMN-XML.
+    ///
+    /// Bewusst hier und nicht im Controller: Der Schritt laeuft unter derselben Sperre wie der
+    /// Instanzstart. Sonst koennte zwischen der Pruefung auf laufende Instanzen und dem
+    /// Loeschen noch eine Instanz starten — und stuende danach ohne ihre Definition da.
+    /// Ueber die transaktionale Ablage ist das Loeschen bei PostgreSQL ausserdem ganz oder
+    /// gar nicht; ein Abbruch mittendrin laesst keinen halben Katalog zurueck.
+    /// </summary>
+    /// <returns>Die Anzahl laufender Instanzen. Groesser als null heisst: nichts geloescht.</returns>
+    public async Task<int> DeleteDefinition(string relatedDefinitionId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var activeInstances = (await storageSystem.InstanceStorage.GetAllActiveInstances())
+                .Count(instance => instance.metaDefinitionId == relatedDefinitionId);
+            if (activeInstances > 0)
+            {
+                return activeInstances;
+            }
+
+            var versions = (await storageSystem.DefinitionStorage.GetAllDefinitions())
+                .Where(definition => definition.DefinitionId == relatedDefinitionId)
+                .ToArray();
+
+            // Beendete Instanzen gehen mit. Blieben sie liegen, stuenden sie danach ohne
+            // Definition in der Liste: ohne Namen, ohne abrufbares Diagramm, und ihre
+            // Auftraege und Anmeldungen haetten niemanden mehr, der sie aufraeumt.
+            var finishedInstances = (await storageSystem.InstanceStorage.GetAllInstances())
+                .Where(instance => instance.metaDefinitionId == relatedDefinitionId)
+                .ToArray();
+
+            foreach (var instance in finishedInstances)
+            {
+                await storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(instance.InstanceId);
+                storageSystem.SubscriptionStorage.RemoveProcessSingalSubscriptionsByProcessInstanceId(instance.InstanceId);
+                storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(instance.InstanceId);
+                await storageSystem.SubscriptionStorage.RemoveProcessTimerSubscriptionsByProcessInstanceId(instance.InstanceId);
+                await storageSystem.ServiceTaskStorage.RemoveJobsByInstanceId(instance.InstanceId);
+                await storageSystem.InstanceStorage.DeleteInstance(instance.InstanceId);
+            }
+
+            await DeleteExistingSubscriptions(storageSystem, relatedDefinitionId);
+
+            // Versionen zuerst, der Katalogeintrag zuletzt. Die Dateiablage kennt keine
+            // Transaktion: Bricht es dazwischen ab, bleibt ein Eintrag ohne Versionen stehen —
+            // sichtbar, harmlos und ein zweiter Aufruf raeumt ihn ab. Andersherum lieferte der
+            // zweite Aufruf 404, waehrend Version und XML unerreichbar liegen blieben.
+            foreach (var version in versions)
+            {
+                await storageSystem.DefinitionStorage.DeleteBinary(version.Id);
+                await storageSystem.DefinitionStorage.DeleteDefinition(version.Id);
+            }
+
+            await storageSystem.DefinitionStorage.DeleteMetaDefinition(relatedDefinitionId);
+
+            storageSystem.CommitChanges();
+            return 0;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
     private async Task DeleteExistingSubscriptions(ITransactionalStorage storageSystem, string relatedDefinitionId)
     {
         await storageSystem.SubscriptionStorage.RemoveAllProcessMessageSubscriptionsWithNoInstancedId(relatedDefinitionId);
@@ -483,6 +553,16 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            // Der Katalogeintrag entscheidet, ob es den Workflow gibt. Ohne diese Pruefung liesse
+            // sich eine Version starten, die nach dem Loeschen des Workflows noch liegt — etwa
+            // weil ein paralleles Speichern sie erst danach geschrieben hat.
+            var metaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
+            if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != relatedDefinitionId))
+            {
+                throw new InvalidOperationException(
+                    $"No workflow \"{relatedDefinitionId}\" exists in the catalog.");
+            }
 
             var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
                 ?? throw new InvalidOperationException(

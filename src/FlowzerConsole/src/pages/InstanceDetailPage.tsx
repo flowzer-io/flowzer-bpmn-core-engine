@@ -75,7 +75,7 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const variableEntries = Object.entries(variables);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="border-border bg-surface flex flex-none flex-wrap items-center gap-3.5 gap-y-2.5 border-b px-6 py-3">
         <Button
           variant="ghost"
