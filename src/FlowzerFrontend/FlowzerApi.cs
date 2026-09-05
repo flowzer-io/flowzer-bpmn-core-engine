@@ -20,16 +20,12 @@ public class FlowzerApi: ApiBase
     
     internal async Task<BpmnMetaDefinitionDto> GetMetaDefinitionById(string definitionId)
     {
-        return await GetRequiredJsonAsync<BpmnMetaDefinitionDto>(
-            $"definition/meta/{definitionId}",
-            $"No meta definition found for definitionId {definitionId}");
+        return await GetAsJsonAndThrowOnErrorAsync<BpmnMetaDefinitionDto>($"definition/meta/{definitionId}");
     }
 
     internal async Task<BpmnDefinitionDto> GetLatestDefinition(string metaDefinitionId)
     {
-        return await GetRequiredJsonAsync<BpmnDefinitionDto>(
-            $"definition/meta/{metaDefinitionId}/latest",
-            $"No definition found for definitionId {metaDefinitionId}");
+        return await GetAsJsonAndThrowOnErrorAsync<BpmnDefinitionDto>($"definition/meta/{metaDefinitionId}/latest");
     }
     
     /// <summary>
@@ -37,9 +33,7 @@ public class FlowzerApi: ApiBase
     /// </summary>
     public async Task<BpmnDefinitionDto> GetDefinition(Guid? definitionId)
     {
-        return await GetRequiredJsonAsync<BpmnDefinitionDto>(
-            $"definition/{definitionId}",
-            $"No definition found for definitionId {definitionId}");
+        return await GetAsJsonAndThrowOnErrorAsync<BpmnDefinitionDto>($"definition/{definitionId}");
     }
     
     /// <summary>
@@ -63,7 +57,7 @@ public class FlowzerApi: ApiBase
     /// </summary>
     public Task<ExtendedBpmnMetaDefinitionDto[]> GetAllBpmnMetaDefinitions()
     {
-        return GetAsJsonAsyncSave<ExtendedBpmnMetaDefinitionDto[]>("definition/meta");
+        return GetAsJsonAndThrowOnErrorAsync<ExtendedBpmnMetaDefinitionDto[]>("definition/meta");
     }
 
     /// <summary>
@@ -71,7 +65,7 @@ public class FlowzerApi: ApiBase
     /// </summary>
     public async Task<BpmnMetaDefinitionDto> CreateEmptyDefinition()
     {
-        return await GetAsJsonAsyncSave<BpmnMetaDefinitionDto>("definition/new");
+        return await GetAsJsonAndThrowOnErrorAsync<BpmnMetaDefinitionDto>("definition/new");
     }
 
     /// <summary>
@@ -80,7 +74,11 @@ public class FlowzerApi: ApiBase
     public async Task<BpmnDefinitionDto> UploadDefinition(string xml, Guid? previousGuid = null)
     {
         var url = AppendPreviousGuidQuery("definition", previousGuid);
-        return await PostAsJsonAsyncSave<BpmnDefinitionDto>(url, xml);
+        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<BpmnDefinitionDto>>(url, xml, true, false);
+        if (apiStatusResult.Successful)
+            return apiStatusResult.Result!;
+
+        throw new ApiException(apiStatusResult.ErrorMessage);
     }
 
     /// <summary>

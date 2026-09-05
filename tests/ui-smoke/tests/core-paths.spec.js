@@ -186,7 +186,9 @@ test('Der Modeler speichert mit Versionsbezug und aktualisiert die Definitionsro
   const saveResponse = await responsePromise;
   expect(saveResponse.ok()).toBeTruthy();
 
-  const savedDefinition = await saveResponse.json();
+  // Auch der Upload liefert den einheitlichen Umschlag; die Definition steht in `result`.
+  const savedPayload = await saveResponse.json();
+  const savedDefinition = savedPayload.result ?? savedPayload.Result ?? savedPayload;
   const savedDefinitionGuid = savedDefinition.id || savedDefinition.Id;
   expect(savedDefinitionGuid).toBeTruthy();
   expect(savedDefinitionGuid).not.toBe(definitionGuid);
