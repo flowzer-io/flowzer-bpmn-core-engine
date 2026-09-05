@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-Der Entwicklungsserver läuft auf `http://localhost:5173` und leitet `/api` an die Web-API weiter (`FLOWZER_API_URL`, Standard `http://localhost:5182`). Ohne konfigurierten Identity Provider meldet sich die Konsole als technischer Benutzer über den Header `X-Flowzer-UserId`; die API akzeptiert das nur im Entwicklungsmodus.
+Der Entwicklungsserver läuft auf `http://localhost:5273` und leitet `/api` an die Web-API weiter (`FLOWZER_API_URL`, Standard `http://localhost:5182`). Ohne konfigurierten Identity Provider meldet sich die Konsole als technischer Benutzer über den Header `X-Flowzer-UserId`; die API akzeptiert das nur im Entwicklungsmodus.
 
 | Befehl | Zweck |
 | --- | --- |
@@ -22,7 +22,11 @@ Der Entwicklungsserver läuft auf `http://localhost:5173` und leitet `/api` an d
 
 ## Anmeldung
 
-Authorization Code Flow mit PKCE gegen den konfigurierten Identity Provider. Die Konsole ist ein öffentlicher Client ohne Geheimnis; ein Geheimnis im Browser wäre keines. Das Zugangstoken geht als Bearer an die API und wird im Hintergrund erneuert.
+Authorization Code Flow mit PKCE gegen den konfigurierten Identity Provider. Die Konsole ist ein öffentlicher Client ohne Geheimnis; ein Geheimnis im Browser wäre keines. Das Zugangstoken geht als Bearer an die API und wird im Hintergrund über eine eigene, minimale Seite erneuert.
+
+Die Sitzung liegt in `sessionStorage`: Sie endet mit dem Tab und wandert nicht in andere Fenster. Das ist für einen öffentlichen Client mit PKCE üblich, hat aber eine bekannte Grenze — wer es schafft, fremdes JavaScript in die Seite zu bekommen, kann das Token lesen. Wer diese Grenze nicht akzeptieren will, braucht einen serverseitigen Vermittler, der das Token behält und der Oberfläche nur ein HttpOnly-Cookie gibt. Das ist ein eigener Umbau und keine Einstellung; er lohnt sich, sobald die Entscheidung für diese Oberfläche gefallen ist.
+
+Die API muss im selben Origin liegen. Das mitgelieferte nginx leitet die API-Pfade weiter, deshalb genügt dort `/`. Eine Adresse in einem anderen Origin wird abgelehnt: Das Zugangstoken ginge dorthin, und der Browser gäbe den Header, mit dem die API eine Ablehnung einordnet, ohne ausdrückliche Freigabe gar nicht heraus.
 
 Die Rollen aus dem Token bestimmen, was die Oberfläche anbietet:
 
@@ -47,5 +51,7 @@ Ein gebautes Bündel ist unveränderlich; die Adressen dürfen deshalb nicht bei
 | `FLOWZER_OIDC_CLIENT_ID` | Client-Id der Konsole |
 | `FLOWZER_OIDC_AUDIENCE` | Audience der API im Token; unter ihr stehen die Clientrollen |
 | `FLOWZER_OIDC_SCOPES` | zusätzliche Scopes über `openid profile email` hinaus |
+
+Heißen die Rollen im Identity Provider anders als `access`, `modeler`, `operator` und `worker`, gehören die abweichenden Namen unter `roleNames` in die `config.json`. Die API wertet sie ebenfalls konfigurierbar aus; beide Seiten müssen dieselben Namen kennen.
 
 Im Entwicklungsbetrieb ohne `config.json` greifen die `VITE_`-Werte aus `.env`.

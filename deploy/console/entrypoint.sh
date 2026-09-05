@@ -16,6 +16,12 @@ OIDC_CLIENT_ID="${FLOWZER_OIDC_CLIENT_ID:-}"
 # Rollen fremder Clients mitgelesen.
 OIDC_AUDIENCE="${FLOWZER_OIDC_AUDIENCE:-}"
 OIDC_SCOPES="${FLOWZER_OIDC_SCOPES:-}"
+# Namen der Rollen, wie der Betrieb sie vergeben hat. Die API wertet sie ebenfalls
+# konfigurierbar aus; beide Seiten muessen dieselben Namen kennen.
+ROLE_ACCESS="${FLOWZER_ROLE_ACCESS:-access}"
+ROLE_MODELER="${FLOWZER_ROLE_MODELER:-modeler}"
+ROLE_OPERATOR="${FLOWZER_ROLE_OPERATOR:-operator}"
+ROLE_WORKER="${FLOWZER_ROLE_WORKER:-worker}"
 
 # Steuerzeichen haben in diesen Werten nichts verloren und wuerden das JSON unbrauchbar
 # machen; danach Backslash und Anfuehrungszeichen maskieren.
@@ -35,7 +41,13 @@ cat > "$TARGET" <<EOF
   "oidcAuthority": "$(json_escape "$OIDC_AUTHORITY")",
   "oidcClientId": "$(json_escape "$OIDC_CLIENT_ID")",
   "oidcAudience": "$(json_escape "$OIDC_AUDIENCE")",
-  "oidcScopes": [$SCOPES_JSON]
+  "oidcScopes": [$SCOPES_JSON],
+  "roleNames": {
+    "access": "$(json_escape "$ROLE_ACCESS")",
+    "modeler": "$(json_escape "$ROLE_MODELER")",
+    "operator": "$(json_escape "$ROLE_OPERATOR")",
+    "worker": "$(json_escape "$ROLE_WORKER")"
+  }
 }
 EOF
 

@@ -1,8 +1,7 @@
 import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { FLOWZER_ROLES } from '@/lib/auth/roles';
-import { useSession } from '@/stores/session';
+import { seesFullConsole, useSession } from '@/stores/session';
 
 import { AccessDeniedNotice } from './AccessDeniedNotice';
 import { CommandPalette } from './CommandPalette';
@@ -26,11 +25,10 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const seesFullConsoleForShortcut =
-    (user?.roles.has(FLOWZER_ROLES.modeler) ?? false) || (user?.roles.has(FLOWZER_ROLES.operator) ?? false);
+  const fullConsole = seesFullConsole(user);
 
   useEffect(() => {
-    if (!seesFullConsoleForShortcut) return;
+    if (!fullConsole) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
@@ -41,19 +39,20 @@ export function AppShell() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [seesFullConsoleForShortcut]);
+  }, [fullConsole]);
 
   if (status !== 'signed-in' || !user) {
     return <SignInGate status={status} />;
   }
 
-  const seesFullConsole = user.roles.has(FLOWZER_ROLES.modeler) || user.roles.has(FLOWZER_ROLES.operator);
-
-  if (!seesFullConsole) {
+  if (!fullConsole) {
     // Bewusst ohne Befehlspalette: Sie führt durch den gesamten Katalog und die
-    // Instanzen und würde die reduzierte Ansicht wieder öffnen.
+    // Instanzen und würde die reduzierte Ansicht wieder öffnen. Der Hinweis auf einen
+    // fehlenden Zugang gehört aber auch hierher: Ohne die Zugangsrolle sähe man sonst
+    // nur eine leere Aufgabenliste mit einer technischen Fehlermeldung.
     return (
       <WorkerShell onOpenUserMenu={() => setUserMenuOpen(true)}>
+        <AccessDeniedNotice />
         <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
       </WorkerShell>
     );
