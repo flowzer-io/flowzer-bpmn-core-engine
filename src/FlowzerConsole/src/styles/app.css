@@ -1,0 +1,151 @@
+@import 'tailwindcss';
+
+@import '@fontsource-variable/bricolage-grotesque';
+@import '@fontsource-variable/hanken-grotesk';
+@import '@fontsource-variable/jetbrains-mono';
+
+@import './tokens.css';
+
+/*
+ * Tailwind-Theme wird `inline` an die Custom-Properties gebunden. Dadurch
+ * reagieren Utilities wie `bg-surface` oder `text-muted` automatisch auf den
+ * Theme-Wechsel, ohne dass Tailwind zwei Varianten generieren muss.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-inset: var(--inset);
+
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-2: var(--accent-2);
+
+  --color-run: var(--run);
+  --color-done: var(--done);
+  --color-fail: var(--fail);
+  --color-wait: var(--wait);
+
+  --font-display: var(--font-display);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+
+  --radius-sm: var(--r-sm);
+  --radius-DEFAULT: var(--r);
+  --radius-lg: var(--r-lg);
+  --radius-xl: var(--r-xl);
+
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
+
+  --animate-token-pulse: tokenPulse 2s ease-in-out infinite;
+  --animate-fade-up: fadeUp 0.5s both;
+  --animate-fade-in-fast: fadeUp 0.16s ease both;
+  --animate-spin-slow: spin 1.4s linear infinite;
+}
+
+@keyframes tokenPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--accent) 50%, transparent),
+      0 0 12px 3px color-mix(in oklab, var(--accent) 40%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 9px color-mix(in oklab, var(--accent) 0%, transparent),
+      0 0 20px 7px color-mix(in oklab, var(--accent) 55%, transparent);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes flowDash {
+  to {
+    background-position: -24px 0;
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 20px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--accent) 26%, transparent);
+  }
+
+  :where(button, input, textarea, select, a, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 7px;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--faint);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+/* Der Punkte-Raster-Hintergrund der Diagrammflächen. */
+@utility canvas-grid {
+  background-color: var(--inset);
+  background-image: radial-gradient(color-mix(in oklab, var(--muted) 20%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}

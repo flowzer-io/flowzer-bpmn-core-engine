@@ -1,0 +1,189 @@
+/*
+ * Form.io bringt eigene, an Bootstrap angelehnte Klassen mit. Hier werden nur die
+ * Farben und Kanten an die Design-Tokens der Konsole angeglichen — das Layout
+ * bleibt unangetastet, damit Formulare wie im Builder erstellt aussehen.
+ */
+
+.formio-surface {
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.formio-surface .formio-component {
+  margin-bottom: 16px;
+}
+
+.formio-surface label,
+.formio-surface .col-form-label {
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.formio-surface :where(input.form-control, textarea.form-control, select.form-control, .form-control) {
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.formio-surface :where(input.form-control, textarea.form-control, select.form-control):focus {
+  border-color: var(--accent);
+  box-shadow: none;
+  outline: none;
+}
+
+.formio-surface .form-control::placeholder {
+  color: var(--faint);
+}
+
+.formio-surface .input-group-text {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.formio-surface :where(.btn) {
+  border-radius: var(--r-sm);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+}
+
+.formio-surface .btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.formio-surface .btn-secondary {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.formio-surface .formio-errors .error,
+.formio-surface .invalid-feedback {
+  color: var(--fail);
+  font-size: 12.5px;
+}
+
+.formio-surface .form-check-input:checked {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.formio-surface .table {
+  color: var(--text);
+}
+
+.formio-surface :where(.card, .panel) {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.formio-surface :where(.card-header, .panel-heading) {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+/*
+ * Der Form.io-Builder setzt Bootstrap voraus (Akkordeon, Grid-Utilities). Wir
+ * binden Bootstrap bewusst nicht global ein — das würde die restliche Oberfläche
+ * überschreiben. Stattdessen werden hier nur die wenigen Regeln nachgezogen, die
+ * der Builder tatsächlich braucht, streng auf `.formio-builder` begrenzt.
+ */
+.formio-builder .accordion-collapse.collapse:not(.show) {
+  display: none;
+}
+
+.formio-builder .accordion-collapse.collapse.show {
+  visibility: visible;
+}
+
+.formio-builder .d-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+}
+
+.formio-builder .gap-1 {
+  gap: 6px;
+}
+
+.formio-builder .w-100 {
+  width: 100%;
+}
+
+.formio-builder .m-0 {
+  margin: 0;
+}
+
+.formio-builder .p-2 {
+  padding: 8px;
+}
+
+.formio-builder .row {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0 -8px;
+}
+
+.formio-builder [class*='col-'] {
+  padding: 0 8px;
+}
+
+.formio-builder .col-xs-4,
+.formio-builder .col-sm-4,
+.formio-builder .col-md-4 {
+  flex: 0 0 33.333%;
+  max-width: 33.333%;
+}
+
+.formio-builder .col-xs-8,
+.formio-builder .col-sm-8,
+.formio-builder .col-md-8 {
+  flex: 0 0 66.666%;
+  max-width: 66.666%;
+}
+
+/* Builder-spezifische Flächen. */
+.formio-builder .builder-sidebar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px;
+}
+
+.formio-builder .formcomponent {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 12.5px;
+  margin-bottom: 6px;
+}
+
+.formio-builder .builder-group-button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.formio-builder .drag-and-drop-alert {
+  background: var(--inset);
+  border: 1px dashed var(--border-strong);
+  color: var(--muted);
+}
+
+.formio-builder .component-btn-group .btn {
+  padding: 2px 6px;
+  font-size: 11px;
+}

@@ -1,0 +1,112 @@
+/*
+ * Design-Tokens der Flowzer Console.
+ *
+ * Übernommen aus dem Design "Flowzer Console". Die Tokens bleiben bewusst als
+ * CSS-Custom-Properties erhalten, damit Theme, Akzentfarbe, Dichte und
+ * Sidebar-Modus zur Laufzeit über data-Attribute am <html>-Element umgeschaltet
+ * werden können — ohne Re-Render und ohne Klassen-Neuberechnung.
+ */
+
+:root {
+  --font-display: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+  --font-ui: 'Hanken Grotesk Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface-2: #f1efea;
+  --inset: #f7f5f1;
+
+  --text: #1b1b22;
+  --muted: #6c6a77;
+  --faint: #9c99a5;
+
+  --border: #e9e6df;
+  --border-strong: #dbd7ce;
+
+  --shadow: 0 1px 2px rgba(28, 24, 12, 0.05), 0 1px 3px rgba(28, 24, 12, 0.03);
+  --shadow-lg: 0 10px 34px rgba(28, 24, 12, 0.1);
+
+  --accent: #5b52e6;
+  --accent-ink: #ffffff;
+  --accent-2: #8b84f2;
+
+  /* Zustandsfarben: run = laufend, done = abgeschlossen, fail = Fehler, wait = wartend */
+  --run: #0e93bd;
+  --done: #1c9a55;
+  --fail: #df516a;
+  --wait: #cf8a1f;
+
+  --r-sm: 9px;
+  --r: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+
+  --sidebar-w: 250px;
+  --pad: 20px;
+  --row-h: 56px;
+  --gap: 14px;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #0f0f14;
+  --surface: #18181f;
+  --surface-2: #20202a;
+  --inset: #14141a;
+
+  --text: #f1f0ed;
+  --muted: #a3a1ac;
+  --faint: #6d6b78;
+
+  --border: #282833;
+  --border-strong: #383843;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 14px 44px rgba(0, 0, 0, 0.55);
+
+  --run: #2bb4da;
+  --done: #33b56c;
+  --fail: #f0687c;
+  --wait: #e5a53c;
+
+  color-scheme: dark;
+}
+
+[data-accent='iris'] {
+  --accent: #5b52e6;
+  --accent-ink: #fff;
+  --accent-2: #8b84f2;
+}
+[data-accent='teal'] {
+  --accent: #0d9ca6;
+  --accent-ink: #fff;
+  --accent-2: #48c6cd;
+}
+[data-accent='emerald'] {
+  --accent: #0f9d63;
+  --accent-ink: #fff;
+  --accent-2: #49c68e;
+}
+[data-accent='amber'] {
+  --accent: #d3860f;
+  --accent-ink: #2a1c06;
+  --accent-2: #eeb256;
+}
+[data-accent='rose'] {
+  --accent: #e1436a;
+  --accent-ink: #fff;
+  --accent-2: #f07f98;
+}
+
+[data-density='compact'] {
+  --pad: 14px;
+  --row-h: 46px;
+  --gap: 10px;
+}
+
+[data-sidebar='rail'] {
+  --sidebar-w: 76px;
+}

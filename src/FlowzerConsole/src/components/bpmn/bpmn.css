@@ -1,0 +1,131 @@
+/*
+ * Anpassung der bpmn-js-Standardoptik an die Design-Tokens der Konsole.
+ *
+ * bpmn-js zeichnet Formen mit **Inline-Styles** (`style="stroke: black"`). Reine
+ * CSS-Regeln verlieren dagegen, deshalb sind die Farbüberschreibungen hier mit
+ * `!important` ausgezeichnet — anders lässt sich das Diagramm nicht an ein
+ * dunkles Thema anpassen.
+ *
+ * Die Klassen `flowzer-completed`, `flowzer-active` und `flowzer-failed` setzt
+ * `BpmnViewer` über `canvas.addMarker()` auf die Elemente einer Instanz.
+ */
+
+.bpmn-surface .djs-container {
+  background: transparent;
+}
+
+/* --- Grundfarben: Formen, Kanten, Beschriftungen --------------------------- */
+
+.bpmn-surface .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--border-strong) !important;
+}
+
+.bpmn-surface .djs-visual > :where(rect, circle, polygon) {
+  fill: var(--surface) !important;
+}
+
+/* Pfeilspitzen und ausgefüllte Ereignis-Symbole. */
+.bpmn-surface .djs-visual > path[fill='black'],
+.bpmn-surface marker path {
+  fill: var(--border-strong) !important;
+  stroke: var(--border-strong) !important;
+}
+
+.bpmn-surface .djs-visual text,
+.bpmn-surface .djs-visual text tspan {
+  fill: var(--text) !important;
+  stroke: none !important;
+  font-family: var(--font-ui) !important;
+}
+
+/* --- Zustandsmarkierungen einer Instanz ----------------------------------- */
+
+/* Bereits durchlaufene Elemente. */
+.bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--accent) !important;
+  stroke-width: 2px !important;
+}
+
+.bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--accent) 9%, var(--surface)) !important;
+}
+
+/* Das Element, auf dem die Instanz gerade steht. */
+.bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--accent) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--accent) 16%, var(--surface)) !important;
+}
+
+.bpmn-surface .flowzer-active {
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--accent) 45%, transparent));
+}
+
+/* Fehlgeschlagene Elemente. */
+.bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--fail) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--fail) 16%, var(--surface)) !important;
+}
+
+.bpmn-surface .flowzer-failed {
+  filter: drop-shadow(0 0 10px color-mix(in oklab, var(--fail) 45%, transparent));
+}
+
+/* Der pulsierende Token-Punkt am aktiven Element. */
+.flowzer-token {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  animation: tokenPulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* Die bpmn.io-Marke soll die Vorschaubilder nicht dominieren. */
+.bpmn-surface .bjs-powered-by {
+  opacity: 0.35;
+}
+
+/* --- Eigenschaften-Panel des Modellers ------------------------------------ */
+
+.bpmn-properties {
+  --color-grey-225-10-15: var(--border);
+  --color-grey-225-10-35: var(--border-strong);
+  --color-grey-225-10-55: var(--muted);
+  --color-grey-225-10-75: var(--faint);
+  --color-grey-225-10-80: var(--surface-2);
+  --color-grey-225-10-85: var(--surface-2);
+  --color-grey-225-10-90: var(--surface-2);
+  --color-grey-225-10-95: var(--surface);
+  --color-grey-225-10-97: var(--surface);
+  --color-white: var(--surface);
+  --color-black: var(--text);
+  --color-blue-205-100-45: var(--accent);
+  --color-blue-205-100-50: var(--accent);
+  --color-blue-205-100-95: color-mix(in oklab, var(--accent) 12%, transparent);
+
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-ui);
+  height: 100%;
+  overflow: auto;
+}
+
+.bpmn-properties .bio-properties-panel {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.bpmn-properties :where(input, textarea, select) {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
