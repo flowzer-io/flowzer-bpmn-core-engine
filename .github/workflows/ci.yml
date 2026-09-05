@@ -25,7 +25,9 @@ env:
   # Opt-in vorab in den Node-24-Runtimepfad für JavaScript-basierte GitHub Actions,
   # damit die CI nicht erst kurz vor der Abschaltung von Node 20 überrascht wird.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  NODE_VERSION: '20'
+  # webpack-dev-server 6 verlangt Node >= 22.15; mit Node 20 laeuft nur der Build,
+  # nicht der Entwicklungsserver.
+  NODE_VERSION: '22'
 
 jobs:
   dotnet:

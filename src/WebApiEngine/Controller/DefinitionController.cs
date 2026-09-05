@@ -2,6 +2,8 @@ using System.Text;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using Microsoft.AspNetCore.Authorization;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Controller;
 
@@ -12,6 +14,7 @@ public class DefinitionController(
 {
     
     [HttpPost]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<BpmnDefinitionDto>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
         var rawContent = await GetRawContent();
@@ -20,6 +23,7 @@ public class DefinitionController(
     }
     
     [HttpPost("deploy")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
         BpmnDefinition? definition = null;
@@ -152,6 +156,7 @@ public class DefinitionController(
     
 
     [HttpPost("meta")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
         var definition = dto.ToModel();
@@ -161,6 +166,7 @@ public class DefinitionController(
     
     
     [HttpPut("meta")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
     {
         var definition = dto.ToModel();

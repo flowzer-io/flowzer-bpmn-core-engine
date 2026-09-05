@@ -11,6 +11,15 @@ public class UserTaskSubscriptionDto
     public Guid? ProcessInstanceId { get; set; }
     public required Guid DefinitionId { get; set; }
     public required string ProcessId { get; set; }
+
+    /// <summary>Zuweisung aus dem BPMN-Modell; leer heisst: fuer alle Zugelassenen offen.</summary>
+    public string? Assignee { get; set; }
+
+    /// <summary>Kandidaten aus dem Modell, bereits in Einzelwerte zerlegt.</summary>
+    public List<string> CandidateUsers { get; set; } = [];
+
+    /// <summary>Kandidatengruppen aus dem Modell, bereits in Einzelwerte zerlegt.</summary>
+    public List<string> CandidateGroups { get; set; } = [];
 }
 
 public class ExtendedUserTaskSubscriptionDto:UserTaskSubscriptionDto

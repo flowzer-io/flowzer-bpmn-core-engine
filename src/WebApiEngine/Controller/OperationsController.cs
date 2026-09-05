@@ -3,10 +3,14 @@ using Microsoft.Extensions.Options;
 using Model;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
+using Microsoft.AspNetCore.Authorization;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Controller;
 
 [ApiController, Route("operations")]
+// Diagnose zeigt Ablageort, Zaehler und Zustaende des Hosts; das gehoert dem Betrieb.
+[Authorize(Policy = FlowzerPolicies.Operator)]
 public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,

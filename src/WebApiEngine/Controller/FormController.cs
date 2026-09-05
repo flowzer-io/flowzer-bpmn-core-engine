@@ -2,6 +2,7 @@ using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 using WebApiEngine.Auth;
+using Microsoft.AspNetCore.Authorization;
 
 namespace WebApiEngine.Controller;
 
@@ -14,6 +15,7 @@ public class FormController(
 {
 
     [HttpPost()]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<FormDto>>> SaveForm(FormDto formDto)
     {
         Form form;
@@ -96,6 +98,7 @@ public class FormController(
         }
         
         [HttpPost("meta/{formId}")]
+        [Authorize(Policy = FlowzerPolicies.Modeler)]
         public async Task<ActionResult<ApiStatusResult>> SaveFormMetadata(Guid formId, FormMetaDataDto formMetadataDto)
         {
             formMetadataDto.FormId = formId;

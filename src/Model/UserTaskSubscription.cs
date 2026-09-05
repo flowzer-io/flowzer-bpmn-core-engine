@@ -13,7 +13,19 @@ public class UserTaskSubscription
     public required string MetaDefinitionId { get; set; }
     public required Guid DefinitionId { get; set; }
     public required string ProcessId { get; set; }
-    
+
+    /// <summary>
+    /// Zuweisung aus dem BPMN-Modell (<c>zeebe:assignmentDefinition/@assignee</c>). Ein freier Text,
+    /// weil das Modell die Person unter dem Namen meint, den der Identity Provider fuehrt:
+    /// Benutzername, E-Mail oder technische Id.
+    /// </summary>
+    public string? Assignee { get; set; }
+
+    /// <summary>Kandidaten aus <c>@candidateUsers</c>, bereits in Einzelwerte zerlegt.</summary>
+    public List<string> CandidateUsers { get; set; } = [];
+
+    /// <summary>Kandidatengruppen aus <c>@candidateGroups</c>, bereits in Einzelwerte zerlegt.</summary>
+    public List<string> CandidateGroups { get; set; } = [];
 }
 
 
