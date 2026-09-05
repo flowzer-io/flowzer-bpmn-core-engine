@@ -370,9 +370,21 @@ public partial class Instance : IAsyncDisposable
             return;
         }
 
-        var confirmed = await JsRuntime.InvokeAsync<bool>(
-            "confirm",
-            $"Cancel instance {_instance.InstanceId}? Active tokens are terminated and open tasks disappear. Completed activities are not compensated.");
+        bool confirmed;
+        try
+        {
+            confirmed = await JsRuntime.InvokeAsync<bool>(
+                "confirm",
+                $"Cancel instance {_instance.InstanceId}? Active tokens are terminated and open tasks disappear. Completed activities are not compensated.");
+        }
+        catch (Exception exception) when (exception is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // Blockierte oder nicht verfuegbare Dialoge (eingebettete Kontexte, strikte Browser-
+            // Richtlinien) duerfen keinen unbestaetigten Abbruch ausloesen.
+            SetError("Could not open the confirmation dialog", exception.Message);
+            return;
+        }
+
         if (!confirmed)
         {
             return;

@@ -35,10 +35,14 @@ if (oidcOptions.IsEnabled)
         options.ProviderOptions.Authority = oidcOptions.Authority;
         options.ProviderOptions.ClientId = oidcOptions.ClientId;
         options.ProviderOptions.ResponseType = "code";
-        options.ProviderOptions.DefaultScopes.Clear();
+        // Die Standard-Scopes der Bibliothek (openid, profile) bleiben erhalten; konfigurierte
+        // Scopes wie der API-Scope oder offline_access kommen dazu.
         foreach (var scope in oidcOptions.ResolveScopes())
         {
-            options.ProviderOptions.DefaultScopes.Add(scope);
+            if (!options.ProviderOptions.DefaultScopes.Contains(scope))
+            {
+                options.ProviderOptions.DefaultScopes.Add(scope);
+            }
         }
 
         options.UserOptions.NameClaim = "name";

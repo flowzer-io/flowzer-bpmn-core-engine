@@ -18,6 +18,9 @@ public sealed class FlowzerApiAuthorizationMessageHandler : AuthorizationMessage
         FlowzerApiOptions apiOptions)
         : base(accessTokenProvider, navigationManager)
     {
+        // ResolveBaseAddress liefert die Basis immer mit abschliessendem Schraegstrich; die
+        // Bibliothek prueft per Praefix, sodass auch Unterpfade wie https://host/flowzer/ passen.
+        // Alle FlowzerApi-Aufrufe sind relativ zu dieser Basis.
         var apiBaseAddress = apiOptions.ResolveBaseAddress(hostEnvironment.BaseAddress);
         ConfigureHandler(authorizedUrls: [apiBaseAddress.ToString()]);
     }

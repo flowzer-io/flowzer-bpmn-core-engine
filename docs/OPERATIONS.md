@@ -36,7 +36,7 @@ Verhalten bei `JwtBearer`:
 - Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
 - Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
 
-Noch offen: Das Blazor-Frontend besitzt keinen OIDC-Client und kann bei aktivem `JwtBearer` keine Token beschaffen. Für einen Pilot ist deshalb ein Reverse Proxy mit Token-Weitergabe oder die Ergänzung von `Microsoft.AspNetCore.Components.WebAssembly.Authentication` im Frontend nötig. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.
+Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.
 
 Für den Pilotbetrieb mit Identity Provider und Frontend-Anmeldung siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md).
 

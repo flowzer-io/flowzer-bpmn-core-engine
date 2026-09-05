@@ -119,6 +119,10 @@ public class ApiContractHardeningIntegrationTest
         payload.Result.FinishedAt.Should().NotBeNull();
         storage.Instances.Single().IsFinished.Should().BeTrue();
         storage.RemovedUserTaskSubscriptionInstanceIds.Should().Contain(instanceId);
+        storage.RemovedMessageSubscriptionInstanceIds.Should().Contain(instanceId);
+        storage.RemovedSignalSubscriptionInstanceIds.Should().Contain(instanceId);
+        storage.RemovedTimerSubscriptionInstanceIds.Should().Contain(instanceId);
+        storage.AddedUserTaskSubscriptions.Should().BeEmpty("a cancelled instance must not re-register user tasks");
     }
 
     // Testzweck: Eine bereits beendete Instanz kann nicht erneut abgebrochen werden; das ist ein
@@ -488,6 +492,10 @@ public class ApiContractHardeningIntegrationTest
         public List<FormMetadata> FormMetadatas { get; } = [];
         public List<Form> Forms { get; } = [];
         public List<Guid> RemovedUserTaskSubscriptionInstanceIds { get; } = [];
+        public List<Guid> RemovedMessageSubscriptionInstanceIds { get; } = [];
+        public List<Guid> RemovedSignalSubscriptionInstanceIds { get; } = [];
+        public List<Guid> RemovedTimerSubscriptionInstanceIds { get; } = [];
+        public List<UserTaskSubscription> AddedUserTaskSubscriptions { get; } = [];
 
         public IDefinitionStorage DefinitionStorage => new TestDefinitionStorage(this);
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
@@ -539,7 +547,12 @@ public class ApiContractHardeningIntegrationTest
         public Task<IEnumerable<MessageSubscription>> GetMessageSubscription(string messageName, string? correlationKey, Guid? instanceId) => Task.FromResult(Enumerable.Empty<MessageSubscription>());
         public Task<IEnumerable<MessageSubscription>> GetMessageSubscription(Guid instanceId) => Task.FromResult(Enumerable.Empty<MessageSubscription>());
         public Task AddMessageSubscription(MessageSubscription messageSubscription) => Task.CompletedTask;
-        public Task RemoveProcessMessageSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+        public Task RemoveProcessMessageSubscriptionsByProcessInstanceId(Guid instanceId)
+        {
+            storage.RemovedMessageSubscriptionInstanceIds.Add(instanceId);
+            return Task.CompletedTask;
+        }
+
         public Task RemoveAllProcessMessageSubscriptionsWithNoInstancedId(string metaDefinitionId) => Task.CompletedTask;
         public Task RemoveAllProcessSignalSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
 
@@ -551,6 +564,7 @@ public class ApiContractHardeningIntegrationTest
 
         public void RemoveProcessSingalSubscriptionsByProcessInstanceId(Guid instanceId)
         {
+            storage.RemovedSignalSubscriptionInstanceIds.Add(instanceId);
         }
 
         public Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId) =>
@@ -559,7 +573,12 @@ public class ApiContractHardeningIntegrationTest
         public Task<IEnumerable<ExtendedUserTaskSubscription>> GetAllUserTasksExtended(Guid userId) =>
             Task.FromResult(storage.UserTaskSubscriptions.AsEnumerable());
 
-        public Task AddUserTaskSubscription(UserTaskSubscription userTasks) => Task.CompletedTask;
+        public Task AddUserTaskSubscription(UserTaskSubscription userTasks)
+        {
+            storage.AddedUserTaskSubscriptions.Add(userTasks);
+            return Task.CompletedTask;
+        }
+
         public Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId) => Task.CompletedTask;
 
         public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId)
@@ -572,7 +591,13 @@ public class ApiContractHardeningIntegrationTest
         public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) => Task.FromResult(Enumerable.Empty<TimerSubscription>());
         public Task AddTimerSubscription(TimerSubscription timerSubscription) => Task.CompletedTask;
         public Task RemoveTimerSubscription(Guid timerSubscriptionId) => Task.CompletedTask;
-        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId) => Task.CompletedTask;
+
+        public Task RemoveProcessTimerSubscriptionsByProcessInstanceId(Guid instanceId)
+        {
+            storage.RemovedTimerSubscriptionInstanceIds.Add(instanceId);
+            return Task.CompletedTask;
+        }
+
         public Task RemoveAllProcessTimerSubscriptionsWithNoInstanceId(string relatedDefinitionId) => Task.CompletedTask;
     }
 

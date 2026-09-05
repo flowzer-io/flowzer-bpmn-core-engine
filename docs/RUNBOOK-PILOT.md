@@ -29,13 +29,14 @@ Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind ni
 
 1. **API-Registrierung** (z. B. „Flowzer API“): Application ID URI `api://<api-client-id>`, ein Scope `access_as_user`. Die Audience der API ist `api://<api-client-id>` (oder die Client-Id, je nach Tokenversion; im Zweifel beide Varianten im Token prüfen).
 2. **SPA-Registrierung** (z. B. „Flowzer Console“): Plattform „Single-page application“, Redirect-URIs `https://<flowzer-host>/authentication/login-callback` und `https://<flowzer-host>/authentication/logout-callback`. Der SPA-Registrierung die API-Berechtigung `access_as_user` erteilen und Admin-Consent geben.
-3. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Die Benutzer-Id kommt als `oid`-Claim (GUID).
+3. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Die API nimmt den ersten GUID-Claim in der Reihenfolge `nameidentifier`, `sub`, `oid`; bei Entra ID ist `sub` ein opakes Kennzeichen und `oid` die GUID des Benutzers. Optional `offline_access` in die Scopes aufnehmen, damit Refresh-Tokens ausgestellt werden.
 
 ### Keycloak
 
 1. Realm anlegen, Client `flowzer-console` als Public Client mit PKCE, gültige Redirect-URIs wie oben, Web Origins `https://<flowzer-host>`.
 2. Audience-Mapper, der `flowzer-api` in das Access-Token schreibt; die API erwartet diese Audience.
 3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-Id kommt als `sub`-Claim (GUID).
+4. Werte für `.env` (abweichend von der Entra-Vorlage): `FLOWZER_AUTH_AUDIENCE=flowzer-api`, `FLOWZER_OIDC_SCOPES` leer lassen oder nur `offline_access`, weil Keycloak die Audience über den Mapper setzt.
 
 ## 3. Konfigurieren
 
@@ -53,7 +54,9 @@ cp .env.example .env
 | `FLOWZER_AUTH_AUDIENCE` | erwartete Audience im Access-Token |
 | `FLOWZER_OIDC_AUTHORITY` | Issuer für die Oberfläche (in der Regel identisch) |
 | `FLOWZER_OIDC_CLIENT_ID` | Client-Id der SPA-Registrierung |
-| `FLOWZER_OIDC_SCOPES` | zusätzlich zu `openid profile`, z. B. `api://<api-client-id>/access_as_user` |
+| `FLOWZER_OIDC_SCOPES` | zusätzlich zu den Standard-Scopes `openid profile`, leerzeichengetrennt, z. B. `api://<api-client-id>/access_as_user offline_access` |
+
+Wichtig: `FLOWZER_AUTH_SCHEME=JwtBearer` und die `FLOWZER_OIDC_*`-Werte gehören zusammen. Bleiben die Frontend-Werte leer, zeigt die Oberfläche einen technischen Benutzer ohne Anmeldung, während die API jeden Aufruf mit 401 ablehnt.
 
 Die Oberfläche läuft hinter dem Gateway unter derselben Origin wie die API; CORS ist deshalb nicht nötig. Wird die API unter einer anderen Origin betrieben, zusätzlich `Cors__AllowedOrigins__0` an der API setzen (siehe `docs/OPERATIONS.md`).
 
@@ -77,7 +80,11 @@ docker compose -f compose.runtime.yml up -d --wait
 2. `curl -s https://<flowzer-host>/definition/meta` liefert **401** (Anmeldung wirkt).
 3. Im Browser `https://<flowzer-host>/` öffnen: Weiterleitung zum Identity Provider, danach Dashboard mit Benutzername im Seitenmenü.
 4. Workflow anlegen, deployen, Instanz starten, Aufgabe in der Task-Inbox abschließen.
-5. `https://<flowzer-host>/operations/diagnostics` (angemeldet) zeigt Scheduler- und Ablage-Zustand.
+5. Diagnose per Token abrufen (das Access-Token liegt in der Browser-Sitzung und wird bei direkter Navigation nicht mitgesendet):
+
+   ```bash
+   curl -s -H "Authorization: Bearer <token>" https://<flowzer-host>/operations/diagnostics
+   ```
 
 ## 6. Betrieb
 
@@ -135,7 +142,7 @@ Die Ablage bleibt erhalten. Vor einem Update ein Backup ziehen.
 | Symptom | Ursache | Abhilfe |
 |---|---|---|
 | Frontend lädt, API antwortet 401 | Access-Token trägt nicht die erwartete Audience | `FLOWZER_OIDC_SCOPES` um den API-Scope ergänzen, `FLOWZER_AUTH_AUDIENCE` prüfen |
-| Alle benutzerbezogenen Aufrufe 401 trotz Login | `sub`/`oid` ist keine GUID | Entra: `oid` verwenden; Keycloak: `sub` ist GUID; andere IdPs brauchen einen GUID-Claim |
+| Alle benutzerbezogenen Aufrufe 401 trotz Login | weder `nameidentifier`, `sub` noch `oid` ist eine GUID | Access-Token dekodieren und die Claims prüfen; Entra liefert `oid`, Keycloak `sub` als GUID; andere IdPs brauchen einen Mapper, der eine GUID in einen dieser Claims schreibt |
 | API startet nicht: „Authentication:JwtBearer:Authority must be set“ | `FLOWZER_AUTH_SCHEME=JwtBearer` ohne Authority/Audience | `.env` vervollständigen |
 | Frontend zeigt „Sign-in failed“ | Redirect-URI oder Client-Id passt nicht zur Registrierung | Redirect-URIs `/authentication/login-callback` und `/authentication/logout-callback` prüfen |
 | `docker compose build` scheitert am SDK | Falsches Feature-Band | Images nutzen `sdk:10.0.103`; `global.json` verlangt 10.0.1xx |

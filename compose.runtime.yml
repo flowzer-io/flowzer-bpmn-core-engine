@@ -25,7 +25,8 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     environment:
-      # Leer = ohne Anmeldung (nur fuer lokale Pruefungen). Fuer den Pilot beide Werte setzen.
+      # Leer = ohne Anmeldung (nur fuer lokale Pruefungen mit FLOWZER_AUTH_SCHEME=None).
+      # Bei JwtBearer Authority, Client-Id und die API-Scopes setzen, sonst antwortet die API 401.
       FLOWZER_OIDC_AUTHORITY: ${FLOWZER_OIDC_AUTHORITY:-}
       FLOWZER_OIDC_CLIENT_ID: ${FLOWZER_OIDC_CLIENT_ID:-}
       FLOWZER_OIDC_SCOPES: ${FLOWZER_OIDC_SCOPES:-}
