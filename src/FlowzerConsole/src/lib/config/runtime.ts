@@ -21,7 +21,28 @@ export interface RuntimeConfig {
   oidcAudience: string;
   /** Zusätzliche Scopes über `openid profile email` hinaus. */
   oidcScopes: string[];
+  /**
+   * Namen der Rollen, wie der Betrieb sie im Identity Provider vergeben hat. Die API
+   * wertet sie konfigurierbar aus; heißt eine Rolle dort `flowzer.modeler`, muss die
+   * Oberfläche denselben Namen kennen, sonst zeigt sie trotz Berechtigung die
+   * reduzierte Ansicht.
+   */
+  roleNames: RoleNames;
 }
+
+export interface RoleNames {
+  access: string;
+  modeler: string;
+  operator: string;
+  worker: string;
+}
+
+const DEFAULT_ROLE_NAMES: RoleNames = {
+  access: 'access',
+  modeler: 'modeler',
+  operator: 'operator',
+  worker: 'worker',
+};
 
 export class RuntimeConfigError extends Error {}
 
@@ -31,6 +52,7 @@ const FALLBACK: RuntimeConfig = {
   oidcClientId: (import.meta.env.VITE_FLOWZER_OIDC_CLIENT_ID ?? '').trim(),
   oidcAudience: (import.meta.env.VITE_FLOWZER_OIDC_AUDIENCE ?? '').trim(),
   oidcScopes: splitScopes(import.meta.env.VITE_FLOWZER_OIDC_SCOPES),
+  roleNames: DEFAULT_ROLE_NAMES,
 };
 
 let current: RuntimeConfig = FALLBACK;
@@ -56,13 +78,17 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
   try {
     const response = await fetch(`${import.meta.env.BASE_URL}config.json`, { cache: 'no-store' });
     if (response.ok) {
-      const raw = (await response.json()) as Partial<RuntimeConfig> & { oidcScopes?: string[] | string };
+      const raw = (await response.json()) as Partial<RuntimeConfig> & {
+        oidcScopes?: string[] | string;
+        roleNames?: Partial<RoleNames>;
+      };
       current = {
         apiBaseUrl: (raw.apiBaseUrl ?? FALLBACK.apiBaseUrl).replace(/\/+$/, ''),
         oidcAuthority: (raw.oidcAuthority ?? FALLBACK.oidcAuthority).trim(),
         oidcClientId: (raw.oidcClientId ?? FALLBACK.oidcClientId).trim(),
         oidcAudience: (raw.oidcAudience ?? FALLBACK.oidcAudience).trim(),
         oidcScopes: Array.isArray(raw.oidcScopes) ? raw.oidcScopes : splitScopes(raw.oidcScopes),
+        roleNames: { ...DEFAULT_ROLE_NAMES, ...(raw.roleNames ?? {}) },
       };
     }
   } catch {
@@ -83,21 +109,28 @@ function validate(config: RuntimeConfig): void {
     );
   }
 
-  // Das Zugangstoken geht als Bearer an diese Adresse. Ein absolutes Ziel müsste
-  // ausdrücklich vertrauenswürdig sein; ein relativer Pfad bleibt beim eigenen Origin.
-  if (config.apiBaseUrl.length > 0 && !config.apiBaseUrl.startsWith('/')) {
-    const target = tryParse(config.apiBaseUrl);
-    if (!target || target.protocol !== 'https:' || target.origin === 'null') {
+  // Die API muss im selben Origin liegen. Zwei Gründe: Das Zugangstoken geht als
+  // Bearer an diese Adresse, und die Einordnung einer Ablehnung kommt aus dem Header
+  // `X-Flowzer-Access-Denied`, den ein Browser über Origin-Grenzen hinweg nur mit
+  // `Access-Control-Expose-Headers` herausgibt. Ohne ihn erschiene jede fehlende
+  // Einzelberechtigung als kompletter Zugangsverlust.
+  //
+  // Ein führender Schrägstrich genügt als Prüfung nicht: `//fremde.example` ist
+  // protokollrelativ und landet bei einem fremden Origin.
+  if (config.apiBaseUrl.length > 0) {
+    const resolved = tryParse(config.apiBaseUrl, window.location.origin);
+    if (!resolved || resolved.origin !== window.location.origin) {
       throw new RuntimeConfigError(
-        `Die API-Adresse "${config.apiBaseUrl}" ist weder ein relativer Pfad noch eine https-Adresse.`,
+        `Die API-Adresse "${config.apiBaseUrl}" liegt nicht im selben Origin wie die Oberfläche. ` +
+          'Im Container leitet das mitgelieferte nginx die API-Pfade weiter; dort genügt "/".',
       );
     }
   }
 }
 
-function tryParse(value: string): URL | null {
+function tryParse(value: string, base?: string): URL | null {
   try {
-    return new URL(value);
+    return new URL(value, base);
   } catch {
     return null;
   }

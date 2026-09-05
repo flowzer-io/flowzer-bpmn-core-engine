@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 import { setAccessDeniedHandler, setAuthTokenProvider, setUserIdProvider } from '@/lib/api/client';
-import { decodeJwtPayload, FLOWZER_ROLES, readRoles } from '@/lib/auth/roles';
+import { decodeJwtPayload, readRoles, type FlowzerCapability } from '@/lib/auth/roles';
 import { getUser, getUserManager, signIn, signOut } from '@/lib/auth/oidc';
 import { getRuntimeConfig, isAuthenticationConfigured } from '@/lib/config/runtime';
 
@@ -45,7 +45,7 @@ const DEVELOPMENT_USER: SessionUser = {
   id: 'd266f2b6-e96e-4d4a-9c20-c8e541394df0',
   name: 'Entwicklungsbenutzer',
   initials: 'EB',
-  roles: new Set(Object.values(FLOWZER_ROLES)),
+  roles: new Set(['access', 'modeler', 'operator', 'worker']),
 };
 
 export const useSession = create<SessionState>()((set, get) => ({
@@ -100,19 +100,23 @@ export const useSession = create<SessionState>()((set, get) => ({
  */
 export function describeRole(user: SessionUser | null): string {
   if (!user) return '';
-  if (user.roles.has(FLOWZER_ROLES.operator)) return 'Betrieb';
-  if (user.roles.has(FLOWZER_ROLES.modeler)) return 'Modellieren';
-  if (user.roles.has(FLOWZER_ROLES.access)) return 'Aufgaben';
+  if (hasCapability(user, 'operator')) return 'Betrieb';
+  if (hasCapability(user, 'modeler')) return 'Modellieren';
+  if (hasCapability(user, 'access')) return 'Aufgaben';
   return 'Kein Zugang';
 }
 
-/** Prüft eine Rolle für die Anzeige. Die Entscheidung trifft weiterhin die API. */
-export function useHasRole(role: string): boolean {
-  return useSession((state) => state.user?.roles.has(role) ?? false);
+/**
+ * Prüft eine Fähigkeit anhand des Rollennamens, den der Betrieb vergeben hat.
+ * Die Anzeige richtet sich danach; die Entscheidung trifft weiterhin die API.
+ */
+export function hasCapability(user: SessionUser | null, capability: FlowzerCapability): boolean {
+  return user?.roles.has(getRuntimeConfig().roleNames[capability]) ?? false;
 }
 
-export function hasRole(role: string): boolean {
-  return useSession.getState().user?.roles.has(role) ?? false;
+/** Wer veröffentlichen oder den Betrieb einsehen darf, sieht die vollständige Konsole. */
+export function seesFullConsole(user: SessionUser | null): boolean {
+  return hasCapability(user, 'modeler') || hasCapability(user, 'operator');
 }
 
 // Der API-Client holt Token und Benutzer-Id bei jedem Aufruf frisch.

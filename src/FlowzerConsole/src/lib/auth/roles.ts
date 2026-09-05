@@ -1,16 +1,10 @@
 /**
- * Rollen, die die Flowzer-API kennt. Sie stehen im Access-Token unter
- * `resource_access.<audience>.roles` (Keycloak) oder als `roles` (Entra ID) und
- * entscheiden, was die Konsole überhaupt anbieten darf.
+ * Fähigkeiten, die die Konsole unterscheidet. Wie die zugehörigen Rollen im Identity
+ * Provider heißen, entscheidet der Betrieb; die Namen stehen deshalb in der
+ * Laufzeitkonfiguration und nicht hier. Die Rollen selbst stehen im Access-Token unter
+ * `resource_access.<audience>.roles` (Keycloak) oder als `roles` (Entra ID).
  */
-export const FLOWZER_ROLES = {
-  access: 'access',
-  modeler: 'modeler',
-  operator: 'operator',
-  worker: 'worker',
-} as const;
-
-export type FlowzerRole = (typeof FLOWZER_ROLES)[keyof typeof FLOWZER_ROLES];
+export type FlowzerCapability = 'access' | 'modeler' | 'operator' | 'worker';
 
 interface AccessTokenClaims {
   resource_access?: Record<string, { roles?: string[] } | undefined>;
