@@ -47,6 +47,17 @@ Verhalten bei `JwtBearer`:
 
 Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet.
 
+### Oberflächen
+
+Es gibt zwei, beide gegen dieselbe API und denselben Identity Provider:
+
+| Oberfläche | Image | Adresse bei Maass IT |
+| --- | --- | --- |
+| Blazor WebAssembly | `flowzer-frontend` | `flowzer.maass.it` |
+| React-Konsole | `flowzer-console` | `console.flowzer.maass.it` |
+
+Der Parallelbetrieb dient dem Vergleich. Sobald die Entscheidung gefallen ist, entfällt eine von beiden samt ihrer Adresse, ihrem Image und ihren Einträgen im Identity Provider. Die Konsole ist in `src/FlowzerConsole/README.md` beschrieben.
+
 ### API-Vertrag
 
 Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, und die Health-Endpunkte mit ihrem schlanken Probe-Vertrag.

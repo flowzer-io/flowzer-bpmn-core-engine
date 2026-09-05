@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+
+# Vite- und TypeScript-Zwischenstände
+.vite/
+*.tsbuildinfo
+
+# Generiertes OpenAPI-Schema (npm run api:types)
+src/lib/api/schema.gen.ts
