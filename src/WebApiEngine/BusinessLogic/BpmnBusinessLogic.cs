@@ -32,6 +32,10 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
         cancellationToken.ThrowIfCancellationRequested();
         await RestoreInstanceTimerSubscriptions();
+
+        // Zwischen den beiden Schritten liegt der teure Teil; ein Abbruch beim Herunterfahren
+        // soll spaetestens hier greifen, statt die Faelligkeiten noch durchzuarbeiten.
+        cancellationToken.ThrowIfCancellationRequested();
         await HandleTime(DateTime.UtcNow);
     }
     

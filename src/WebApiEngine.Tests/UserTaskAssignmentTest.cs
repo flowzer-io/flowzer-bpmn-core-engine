@@ -1,3 +1,5 @@
+using BPMN.Common;
+using BPMN.HumanInteraction;
 using FluentAssertions;
 using Model;
 using WebApiEngine.Auth;
@@ -71,6 +73,47 @@ public class UserTaskAssignmentTest
         UserTaskAssignment.IsVisibleTo(task, Identity("dora", groups: ["/abteilungen/buchhaltung"]), seeAll: false).Should().BeTrue();
         UserTaskAssignment.IsVisibleTo(task, Identity("dora", groups: ["buchhaltung"]), seeAll: false).Should().BeTrue();
         UserTaskAssignment.IsVisibleTo(task, Identity("dora", groups: ["/buchhaltung-archiv"]), seeAll: false).Should().BeFalse();
+    }
+
+    // Testzweck: Nennt das Modell einen vollstaendigen Pfad, muss dieser genau stimmen. Sonst
+    // oeffnete /extern/buchhaltung auch die Aufgaben von /intern/buchhaltung.
+    [Test]
+    public void GroupMatching_ShouldCompareFullPathsExactly_WhenTheModelNamesAPath()
+    {
+        var task = CreateTask(candidateGroups: "/intern/buchhaltung");
+
+        UserTaskAssignment.IsVisibleTo(task, Identity("dora", groups: ["/intern/buchhaltung"]), seeAll: false).Should().BeTrue();
+        UserTaskAssignment.IsVisibleTo(task, Identity("dora", groups: ["/extern/buchhaltung"]), seeAll: false).Should().BeFalse();
+    }
+
+    // Testzweck: Aufgaben aus der Zeit vor dieser Auswertung tragen die Felder nicht; sie werden
+    // aus dem Modellelement im Token nachgezogen, statt fuer alle sichtbar zu bleiben.
+    [Test]
+    public void EnsureAssignmentFromModel_ShouldFillMissingFieldsFromTheStoredUserTask()
+    {
+        var userTask = new UserTask
+        {
+            Id = "UserTask_1",
+            Name = "Freigabe",
+            Implementation = "Formular",
+            FlowzerAssignee = "anna",
+            FlowzerCandidateGroups = "buchhaltung"
+        };
+        var task = CreateTask();
+        task.Token = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(),
+            CurrentBaseElement = userTask,
+            ActiveBoundaryEvents = [],
+            State = FlowNodeState.Active
+        };
+
+        UserTaskAssignment.EnsureAssignmentFromModel(task);
+
+        task.Assignee.Should().Be("anna");
+        task.CandidateGroups.Should().BeEquivalentTo(["buchhaltung"]);
+        UserTaskAssignment.IsVisibleTo(task, Identity("bert"), seeAll: false).Should().BeFalse();
+        UserTaskAssignment.IsVisibleTo(task, Identity("anna"), seeAll: false).Should().BeTrue();
     }
 
     // Testzweck: Wer den Betrieb verantwortet, sieht alles; sonst waere eine haengende Instanz

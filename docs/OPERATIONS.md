@@ -44,7 +44,9 @@ Verhalten bei `JwtBearer`:
 - Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
 - Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
 
-Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet. ### Rollen und Zuweisungen
+Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet.
+
+### Rollen und Zuweisungen
 
 Drei Ebenen, die unabhängig voneinander wirken:
 
@@ -54,7 +56,9 @@ Drei Ebenen, die unabhängig voneinander wirken:
 
 Die Aufgabenliste wertet `zeebe:assignmentDefinition` aus: `assignee`, `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer genannten Gruppe gehört; wer die Operator-Rolle trägt, sieht alle.
 
-Für den Abgleich zählt jede Kennung, die im Token steht: `preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell genügt der Gruppenname. Groß- und Kleinschreibung spielt keine Rolle, ein Teiltreffer zählt nicht.
+Für den Abgleich zählt jede Kennung, die im Token steht: `preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit `/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt keine Rolle, ein Teiltreffer zählt nicht.
+
+Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig.
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 

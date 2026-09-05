@@ -19,6 +19,33 @@ public static class UserTaskAssignment
 {
     private static readonly char[] Separators = [',', ';'];
 
+    /// <summary>
+    /// Ergaenzt fehlende Zuweisungsfelder aus dem BPMN-Element im gespeicherten Token.
+    ///
+    /// Aufgaben, die vor der Einfuehrung dieser Felder entstanden sind, tragen sie nicht. Ohne
+    /// diesen Nachzug blieben genau die laufenden Aufgaben fuer alle sichtbar, waehrend neue
+    /// zugewiesen werden. Das Token enthaelt das Modellelement, deshalb braucht es keine
+    /// Datenwanderung in der Ablage.
+    /// </summary>
+    public static void EnsureAssignmentFromModel(UserTaskSubscription subscription)
+    {
+        if (!string.IsNullOrWhiteSpace(subscription.Assignee)
+            || subscription.CandidateUsers.Count > 0
+            || subscription.CandidateGroups.Count > 0)
+        {
+            return;
+        }
+
+        if (subscription.Token?.CurrentFlowNode is not BPMN.HumanInteraction.UserTask userTask)
+        {
+            return;
+        }
+
+        subscription.Assignee = string.IsNullOrWhiteSpace(userTask.FlowzerAssignee) ? null : userTask.FlowzerAssignee.Trim();
+        subscription.CandidateUsers = SplitList(userTask.FlowzerCandidateUsers);
+        subscription.CandidateGroups = SplitList(userTask.FlowzerCandidateGroups);
+    }
+
     /// <summary>Zerlegt eine Modellangabe wie <c>"bert, carla"</c> in Einzelwerte.</summary>
     public static List<string> SplitList(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -72,13 +99,22 @@ public static class UserTaskAssignment
 
     /// <summary>
     /// Keycloak liefert Gruppen als Pfad (<c>/abteilungen/buchhaltung</c>), Modelle nennen
-    /// meist nur den Namen. Verglichen wird deshalb der vollstaendige Pfad und sein letztes Glied,
-    /// niemals ein Teilstring: <c>buchhaltung</c> darf nicht auf <c>buchhaltung-archiv</c> passen.
+    /// meist nur den Namen.
+    ///
+    /// Nennt das Modell einen Pfad, wird genau dieser Pfad verlangt: <c>/extern/buchhaltung</c>
+    /// darf nicht auf <c>/intern/buchhaltung</c> passen. Nennt es nur einen Namen, zaehlt das
+    /// letzte Glied des Pfades. Ein Teilstring reicht nie: <c>buchhaltung</c> passt nicht auf
+    /// <c>buchhaltung-archiv</c>.
     /// </summary>
     private static bool IsSameGroup(string modelValue, string identityGroup)
     {
-        var wanted = Normalize(modelValue).TrimStart('/');
+        var wanted = Normalize(modelValue);
         var actual = Normalize(identityGroup);
+
+        if (wanted.Contains('/'))
+        {
+            return actual.TrimStart('/') == wanted.TrimStart('/');
+        }
 
         return actual.TrimStart('/') == wanted
                || actual.Split('/', StringSplitOptions.RemoveEmptyEntries).LastOrDefault() == wanted;
