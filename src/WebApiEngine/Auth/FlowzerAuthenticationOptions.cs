@@ -56,6 +56,9 @@ public sealed class FlowzerAuthenticationOptions
 
         /// <summary>Darf Diagnose sehen, alle Aufgaben sehen und Instanzen abbrechen.</summary>
         public string Operator { get; set; } = string.Empty;
+
+        /// <summary>Darf Auftraege fuer Service-Tasks abholen und zurueckmelden.</summary>
+        public string Worker { get; set; } = string.Empty;
     }
 
     public void Validate()

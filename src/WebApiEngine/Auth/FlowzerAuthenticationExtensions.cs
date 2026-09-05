@@ -84,7 +84,8 @@ public static class FlowzerAuthenticationExtensions
         foreach (var (policyName, roleName) in new[]
                  {
                      (FlowzerPolicies.Modeler, options.JwtBearer.Roles.Modeler),
-                     (FlowzerPolicies.Operator, options.JwtBearer.Roles.Operator)
+                     (FlowzerPolicies.Operator, options.JwtBearer.Roles.Operator),
+                     (FlowzerPolicies.Worker, options.JwtBearer.Roles.Worker)
                  })
         {
             var capabilityRole = roleName;
@@ -110,7 +111,8 @@ public static class FlowzerAuthenticationExtensions
         services.AddAuthorizationBuilder()
             .AddPolicy(FlowzerPolicies.Access, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Modeler, policy => policy.RequireAssertion(_ => true))
-            .AddPolicy(FlowzerPolicies.Operator, policy => policy.RequireAssertion(_ => true));
+            .AddPolicy(FlowzerPolicies.Operator, policy => policy.RequireAssertion(_ => true))
+            .AddPolicy(FlowzerPolicies.Worker, policy => policy.RequireAssertion(_ => true));
 
         return services;
     }

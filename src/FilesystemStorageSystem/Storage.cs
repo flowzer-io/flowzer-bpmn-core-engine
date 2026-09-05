@@ -16,11 +16,13 @@ public class Storage : IStorageSystem
         DefinitionStorage = new DefinitionStorage(this);
         InstanceStorage = new InstanceStorage(this);
         FormStorage = new FormStorage(this);
+        ServiceTaskStorage = new ServiceTaskStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IServiceTaskStorage ServiceTaskStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
 
     public JsonSerializerSettings NewtonSoftDefaultSettings =>

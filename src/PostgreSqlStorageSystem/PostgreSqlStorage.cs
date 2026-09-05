@@ -18,12 +18,14 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
+        ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IServiceTaskStorage ServiceTaskStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -43,12 +45,14 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
+        ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IServiceTaskStorage ServiceTaskStorage { get; }
 
     public void CommitChanges() => _session.Commit();
 

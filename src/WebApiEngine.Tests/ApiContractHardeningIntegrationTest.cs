@@ -501,6 +501,7 @@ public class ApiContractHardeningIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new TestInstanceStorage(this);
         public IFormStorage FormStorage => new TestFormStorage(this);
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

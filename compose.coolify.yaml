@@ -34,9 +34,13 @@ services:
       Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
       Authentication__JwtBearer__Roles__Modeler: "${FLOWZER_AUTH_ROLE_MODELER:-}"
       Authentication__JwtBearer__Roles__Operator: "${FLOWZER_AUTH_ROLE_OPERATOR:-}"
+      Authentication__JwtBearer__Roles__Worker: "${FLOWZER_AUTH_ROLE_WORKER:-}"
       # Das Gateway laeuft im selben Docker-Netz; nur von dort wird der Weiterleitungsheader
       # geglaubt. Ohne diese Angabe zaehlt jedes anonyme Kontingent gegen die Proxy-Adresse.
       ForwardedHeaders__KnownNetworks__0: "${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}"
+      # Ohne freigegebene Zieladresse nimmt die Engine keine Webhook-Anmeldung an.
+      ServiceTaskWebhooks__Enabled: "${FLOWZER_WEBHOOKS_ENABLED:-true}"
+      ServiceTaskWebhooks__AllowedHosts__0: "${FLOWZER_WEBHOOK_ALLOWED_HOST:-}"
       RateLimiting__Enabled: "${FLOWZER_RATE_LIMIT_ENABLED:-true}"
       RateLimiting__PermitLimit: "${FLOWZER_RATE_LIMIT_PERMITS:-300}"
       RateLimiting__WindowSeconds: "${FLOWZER_RATE_LIMIT_WINDOW_SECONDS:-60}"

@@ -16,4 +16,7 @@ public interface IStorageSystem
     IInstanceStorage InstanceStorage { get; }
     
     IFormStorage FormStorage { get; }
+
+    /// <summary>Auftraege fuer externe Worker und deren Webhook-Anmeldungen.</summary>
+    IServiceTaskStorage ServiceTaskStorage { get; }
 }
