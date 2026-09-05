@@ -9,6 +9,14 @@ namespace WebApiEngine.BusinessLogic;
 
 public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
 {
+    // Die dateibasierte Ablage kennt weder Transaktionen noch Sperren. Parallele HTTP-Requests
+    // und der Timer-Scheduler wuerden sonst gleichzeitig Instanz- und Subscription-Dateien
+    // lesen, loeschen und schreiben (Read-Modify-Write ohne Schutz). Alle Engine-Mutationen
+    // laufen deshalb nacheinander durch diese eine Sperre; reine Lesepfade der Controller
+    // bleiben davon unberuehrt. Durchsatz ist fuer eine Workflow-Engine dieser Groesse
+    // unkritisch, verlorene Statuswechsel waeren es nicht.
+    private readonly SemaphoreSlim _engineMutationLock = new(1, 1);
+
     public void Load(bool enableTimerAutomation = true)
     {
         if (!enableTimerAutomation)
@@ -22,35 +30,43 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     
     public async Task DeployDefinition(BpmnDefinition definition)
     {
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-        
-        
-        var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
-        var model =  ModelParser.ParseModel(xmlData);
-        
-        
-        await UndeployDefinition(definition, storageSystem);
-        
-        foreach (var process in model.GetProcesses())
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            var pe = new ProcessEngine(process);
-            await SaveSubscriptions(storageSystem, pe, definition.DefinitionId, definition.Id, process.Id);
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+        
+        
+            var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
+            var model =  ModelParser.ParseModel(xmlData);
+        
+        
+            await UndeployDefinition(definition, storageSystem);
+        
+            foreach (var process in model.GetProcesses())
+            {
+                var pe = new ProcessEngine(process);
+                await SaveSubscriptions(storageSystem, pe, definition.DefinitionId, definition.Id, process.Id);
+            }
+
+
+            var deployedDefiniton = await storageSystem.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId);
+            if (deployedDefiniton != null)
+            {
+                deployedDefiniton.IsActive = false;
+                await storageSystem.DefinitionStorage.StoreDefinition(deployedDefiniton);
+            }
+
+            definition.IsActive = true;
+            definition.DeployedOn = DateTime.UtcNow;
+            await storageSystem.DefinitionStorage.StoreDefinition(definition);
+        
+            storageSystem.CommitChanges();
+        
         }
-
-
-        var deployedDefiniton = await storageSystem.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId);
-        if (deployedDefiniton != null)
+        finally
         {
-            deployedDefiniton.IsActive = false;
-            await storageSystem.DefinitionStorage.StoreDefinition(deployedDefiniton);
+            _engineMutationLock.Release();
         }
-
-        definition.IsActive = true;
-        definition.DeployedOn = DateTime.UtcNow;
-        await storageSystem.DefinitionStorage.StoreDefinition(definition);
-        
-        storageSystem.CommitChanges();
-        
     }
 
     private async Task UndeployDefinition(BpmnDefinition definition, ITransactionalStorage storageSystem)
@@ -166,168 +182,235 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
     public async Task<int> HandleTime(DateTime time)
     {
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-
-        var dueTimers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions())
-            .Where(subscription => subscription.DueAt <= time)
-            .OrderBy(subscription => subscription.DueAt)
-            .ToArray();
-
-        var processedTimers = 0;
-
-        foreach (var dueStartTimer in dueTimers.Where(subscription => subscription.ProcessInstanceId == null))
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            try
-            {
-                processedTimers += await HandleStartTimer(storageSystem, dueStartTimer, time);
-            }
-            catch (Exception exception)
-            {
-                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
-                    exception,
-                    "Processing start timer subscription {TimerSubscriptionId} for definition {DefinitionId} failed.",
-                    dueStartTimer.Id,
-                    dueStartTimer.DefinitionId);
-            }
-        }
+            using var storageSystem = storageProvider.GetTransactionalStorage();
 
-        foreach (var dueInstanceTimerGroup in dueTimers
-                     .Where(subscription => subscription.ProcessInstanceId != null)
-                     .GroupBy(subscription => subscription.ProcessInstanceId!.Value))
+            var dueTimers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions())
+                .Where(subscription => subscription.DueAt <= time)
+                .OrderBy(subscription => subscription.DueAt)
+                .ToArray();
+
+            var processedTimers = 0;
+
+            foreach (var dueStartTimer in dueTimers.Where(subscription => subscription.ProcessInstanceId == null))
+            {
+                try
+                {
+                    processedTimers += await HandleStartTimer(storageSystem, dueStartTimer, time);
+                }
+                catch (Exception exception)
+                {
+                    (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
+                        exception,
+                        "Processing start timer subscription {TimerSubscriptionId} for definition {DefinitionId} failed.",
+                        dueStartTimer.Id,
+                        dueStartTimer.DefinitionId);
+                }
+            }
+
+            foreach (var dueInstanceTimerGroup in dueTimers
+                         .Where(subscription => subscription.ProcessInstanceId != null)
+                         .GroupBy(subscription => subscription.ProcessInstanceId!.Value))
+            {
+                try
+                {
+                    await HandleInstanceTimers(storageSystem, dueInstanceTimerGroup.Key, time);
+                    processedTimers += dueInstanceTimerGroup.Count();
+                }
+                catch (Exception exception)
+                {
+                    (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
+                        exception,
+                        "Processing due timer subscriptions for instance {InstanceId} failed.",
+                        dueInstanceTimerGroup.Key);
+                }
+            }
+
+            if (processedTimers > 0)
+            {
+                storageSystem.CommitChanges();
+            }
+
+            return processedTimers;
+        }
+        finally
         {
-            try
-            {
-                await HandleInstanceTimers(storageSystem, dueInstanceTimerGroup.Key, time);
-                processedTimers += dueInstanceTimerGroup.Count();
-            }
-            catch (Exception exception)
-            {
-                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
-                    exception,
-                    "Processing due timer subscriptions for instance {InstanceId} failed.",
-                    dueInstanceTimerGroup.Key);
-            }
+            _engineMutationLock.Release();
         }
-
-        if (processedTimers > 0)
-        {
-            storageSystem.CommitChanges();
-        }
-
-        return processedTimers;
     }
 
 
     public async Task<InstanceEngine> HandleMessage(Message message)
     {
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-
-        var messageSubscription =
-            (await storageSystem.SubscriptionStorage
-                .GetMessageSubscription(message.Name, message.CorrelationKey, message.InstanceId))
-            .FirstOrDefault();
-
-        if (messageSubscription is null)
-            throw new ArgumentException($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\" and instanceId {message.InstanceId}.");
-
-        InstanceEngine instance;
-        if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(messageSubscription.ProcessInstanceId.Value);
-            instance = new InstanceEngine(processInstance.Tokens);
-            instance.InstanceId = messageSubscription.ProcessInstanceId.Value;
-            instance.HandleMessage(message);
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var messageSubscription =
+                (await storageSystem.SubscriptionStorage
+                    .GetMessageSubscription(message.Name, message.CorrelationKey, message.InstanceId))
+                .FirstOrDefault();
+
+            if (messageSubscription is null)
+                throw new ArgumentException($"No process instance is waiting for a message with the name \"{message.Name}\" and correlation key \"{message.CorrelationKey}\" and instanceId {message.InstanceId}.");
+
+            InstanceEngine instance;
+            if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
+            {
+                var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(messageSubscription.ProcessInstanceId.Value);
+                instance = new InstanceEngine(processInstance.Tokens);
+                instance.InstanceId = messageSubscription.ProcessInstanceId.Value;
+                instance.HandleMessage(message);
+            }
+            else //the message is for a new instance, so create a new one
+            {
+                var xmlData = await storageSystem.DefinitionStorage.GetBinary(messageSubscription.DefinitionId);
+                var model =  ModelParser.ParseModel(xmlData);
+
+                var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
+                if (process == null)
+                    throw new FileNotFoundException($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
+            
+                instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
+            
+            }
+
+            await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
+            storageSystem.CommitChanges();
+
+            return instance;
         }
-        else //the message is for a new instance, so create a new one
+        finally
         {
-            var xmlData = await storageSystem.DefinitionStorage.GetBinary(messageSubscription.DefinitionId);
-            var model =  ModelParser.ParseModel(xmlData);
-
-            var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
-            if (process == null)
-                throw new FileNotFoundException($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
-            
-            instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
-            
+            _engineMutationLock.Release();
         }
-
-        await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
-        storageSystem.CommitChanges();
-
-        return instance;
     }
     
     public async Task<InstanceEngine> HandleUserTask(UserTaskResult userTaskResult, Guid userId)
     {
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-
-        if (userTaskResult.ProcessInstanceId == null)
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            throw new ArgumentException("User task results require a ProcessInstanceId.", nameof(userTaskResult.ProcessInstanceId));
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            if (userTaskResult.ProcessInstanceId == null)
+            {
+                throw new ArgumentException("User task results require a ProcessInstanceId.", nameof(userTaskResult.ProcessInstanceId));
+            }
+
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
+            var instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
+
+            var activeUserTaskToken = instance.GetActiveUserTasks()
+                .SingleOrDefault(token => token.Id == userTaskResult.TokenId);
+
+            if (activeUserTaskToken == null)
+            {
+                throw new ArgumentException(
+                    $"The user task token \"{userTaskResult.TokenId}\" is not active for process instance \"{userTaskResult.ProcessInstanceId}\".",
+                    nameof(userTaskResult.TokenId));
+            }
+
+            if (!string.Equals(activeUserTaskToken.CurrentFlowNode?.Id, userTaskResult.FlowNodeId, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    $"The user task token \"{userTaskResult.TokenId}\" does not belong to flow node \"{userTaskResult.FlowNodeId}\".",
+                    nameof(userTaskResult.FlowNodeId));
+            }
+
+            instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return instance;
         }
-
-        var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
-        var instance = new InstanceEngine(processInstance.Tokens);
-        instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
-
-        var activeUserTaskToken = instance.GetActiveUserTasks()
-            .SingleOrDefault(token => token.Id == userTaskResult.TokenId);
-
-        if (activeUserTaskToken == null)
+        finally
         {
-            throw new ArgumentException(
-                $"The user task token \"{userTaskResult.TokenId}\" is not active for process instance \"{userTaskResult.ProcessInstanceId}\".",
-                nameof(userTaskResult.TokenId));
+            _engineMutationLock.Release();
         }
+    }
 
-        if (!string.Equals(activeUserTaskToken.CurrentFlowNode?.Id, userTaskResult.FlowNodeId, StringComparison.Ordinal))
+    /// <summary>
+    /// Bricht eine laufende Instanz ab: aktive und wartende Tokens werden terminiert, offene
+    /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
+    /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
+    /// </summary>
+    public async Task<ProcessInstanceInfo> CancelInstance(Guid instanceId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            throw new ArgumentException(
-                $"The user task token \"{userTaskResult.TokenId}\" does not belong to flow node \"{userTaskResult.FlowNodeId}\".",
-                nameof(userTaskResult.FlowNodeId));
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+            if (processInstance.IsFinished)
+            {
+                throw new InvalidOperationException(
+                    $"Process instance \"{instanceId}\" is already finished and cannot be cancelled.");
+            }
+
+            var instance = new InstanceEngine(processInstance.Tokens)
+            {
+                InstanceId = processInstance.InstanceId
+            };
+            instance.Cancel();
+
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId, processInstance.ProcessId, instance);
         }
-
-        instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
-        await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-        storageSystem.CommitChanges();
-
-        return instance;
+        finally
+        {
+            _engineMutationLock.Release();
+        }
     }
 
     public async Task<ProcessInstanceInfo> StartProcessInstance(string relatedDefinitionId, string? processId = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
-        using var storageSystem = storageProvider.GetTransactionalStorage();
+            using var storageSystem = storageProvider.GetTransactionalStorage();
 
-        var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
-            ?? throw new InvalidOperationException(
-                $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
+            var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
+                ?? throw new InvalidOperationException(
+                    $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
 
-        var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
-        var model = ModelParser.ParseModel(xmlData);
-        var process = ResolveDirectStartProcess(model, deployedDefinition, processId);
+            var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
+            var model = ModelParser.ParseModel(xmlData);
+            var process = ResolveDirectStartProcess(model, deployedDefinition, processId);
 
-        var processEngine = new ProcessEngine(process);
-        var instance = processEngine.StartProcess();
-        var processInstanceInfo = CreateProcessInstanceInfo(
-            deployedDefinition.Id,
-            relatedDefinitionId,
-            process.Id,
-            instance);
+            var processEngine = new ProcessEngine(process);
+            var instance = processEngine.StartProcess();
+            var processInstanceInfo = CreateProcessInstanceInfo(
+                deployedDefinition.Id,
+                relatedDefinitionId,
+                process.Id,
+                instance);
 
-        await SaveSubscriptions(
-            storageSystem,
-            instance,
-            relatedDefinitionId,
-            deployedDefinition.Id,
-            process.Id,
-            instance.InstanceId);
-        await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+            await SaveSubscriptions(
+                storageSystem,
+                instance,
+                relatedDefinitionId,
+                deployedDefinition.Id,
+                process.Id,
+                instance.InstanceId);
+            await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
 
-        storageSystem.CommitChanges();
+            storageSystem.CommitChanges();
 
-        return processInstanceInfo;
+            return processInstanceInfo;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
     }
 
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
@@ -344,21 +427,6 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         return instance;
     }
     
-    private async Task<InstanceEngine> StartProcess(Guid definitionsId, string relatedDefinitionId,
-        Process process)
-    {
-        
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-        var processEngine = new ProcessEngine(process);
-        var instance = processEngine.StartProcess();
-        
-        await AddOrUpdateInstance(definitionsId, relatedDefinitionId, process.Id, storageSystem, instance);
-
-        storageSystem.CommitChanges();
-        
-        return instance;
-    }
-
     private async  Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance)
     {
@@ -368,31 +436,39 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
     private async Task RestoreInstanceTimerSubscriptions()
     {
-        using var storageSystem = storageProvider.GetTransactionalStorage();
-
-        var activeInstances = await storageSystem.InstanceStorage.GetAllActiveInstances();
-        foreach (var processInstance in activeInstances)
+        await _engineMutationLock.WaitAsync();
+        try
         {
-            if (!HasSingleMasterToken(processInstance))
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var activeInstances = await storageSystem.InstanceStorage.GetAllActiveInstances();
+            foreach (var processInstance in activeInstances)
             {
-                (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(
-                    "Skipping timer subscription restore for instance {InstanceId} because the stored token set has no single master token.",
+                if (!HasSingleMasterToken(processInstance))
+                {
+                    (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(
+                        "Skipping timer subscription restore for instance {InstanceId} because the stored token set has no single master token.",
+                        processInstance.InstanceId);
+                    continue;
+                }
+
+                var instance = new InstanceEngine(processInstance.Tokens);
+                instance.InstanceId = processInstance.InstanceId;
+                await SaveActiveTimers(
+                    storageSystem,
+                    instance,
+                    processInstance.metaDefinitionId,
+                    processInstance.DefinitionId,
+                    processInstance.ProcessId,
                     processInstance.InstanceId);
-                continue;
             }
 
-            var instance = new InstanceEngine(processInstance.Tokens);
-            instance.InstanceId = processInstance.InstanceId;
-            await SaveActiveTimers(
-                storageSystem,
-                instance,
-                processInstance.metaDefinitionId,
-                processInstance.DefinitionId,
-                processInstance.ProcessId,
-                processInstance.InstanceId);
+            storageSystem.CommitChanges();
         }
-
-        storageSystem.CommitChanges();
+        finally
+        {
+            _engineMutationLock.Release();
+        }
     }
 
     private async Task<int> HandleStartTimer(

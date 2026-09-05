@@ -15,4 +15,15 @@ public class ProcessInstanceInfoDto
     
     public ProcessInstanceStateDto State { get; set; }
     public List<TokenDto> Tokens { get; set; } = [];
+
+    /// <summary>
+    /// Startzeitpunkt der Instanz (UTC), abgeleitet aus dem ältesten Token.
+    /// Null, solange die Instanz noch kein Token besitzt.
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
+    /// Endzeitpunkt der Instanz (UTC). Nur gesetzt, wenn die Instanz beendet ist.
+    /// </summary>
+    public DateTime? FinishedAt { get; set; }
 }

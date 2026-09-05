@@ -21,7 +21,9 @@ public static class RuntimeMappingExtensions
             Variables = token.Variables,
             OutputData = token.OutputData,
             PreviousTokenId = token.PreviousToken?.Id,
-            ParentTokenId = token.ParentTokenId
+            ParentTokenId = token.ParentTokenId,
+            StartTime = token.StartTime,
+            LastStateChangeTime = token.LastStateChangeTime
         };
     }
 
@@ -47,6 +49,11 @@ public static class RuntimeMappingExtensions
     {
         ArgumentNullException.ThrowIfNull(subscription);
 
+        // Der Form-Key und die Termine stehen nur am BPMN-Modellelement. Sie werden
+        // hier flach in das DTO gehoben, damit Clients sie nicht aus dem dynamischen
+        // Flow-Element herausparsen müssen (API-first).
+        var userTask = subscription.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask;
+
         return new ExtendedUserTaskSubscriptionDto
         {
             Id = subscription.Id,
@@ -59,7 +66,11 @@ public static class RuntimeMappingExtensions
             DefinitionId = subscription.DefinitionId,
             ProcessId = subscription.ProcessId,
             DefinitionMetaName = subscription.DefinitionMetaName,
-            DefinitionVersion = subscription.DefinitionVersion.ToDto()
+            DefinitionVersion = subscription.DefinitionVersion.ToDto(),
+            FormKey = userTask?.Implementation,
+            DueDate = userTask?.FlowzerDueDate,
+            FollowUpDate = userTask?.FlowzerFollowUpDate,
+            Priority = userTask?.FlowzerPriority
         };
     }
 }

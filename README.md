@@ -2,8 +2,8 @@
 
 Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, Frontend und ersten Beispielprozessen.
 
-> **Stand: 12. April 2026**
-> Das Repository ist auf `next` wieder klar arbeitsfähig und deutlich weiter als noch in der reinen Rettungsphase. Es bleibt aber eher ein **produktnaher Prototyp mit belastbarer Basis** als ein fertig gehärtetes Framework.
+> **Stand: 5. September 2026**
+> Das Repository ist arbeitsfähig, die Kernpfade sind getestet und die API kann jetzt gegen einen OIDC-Identity-Provider abgesichert werden. Für den Firmeneinsatz fehlen noch die Identity-Provider-Anbindung im Frontend, ein Rollenmodell und eine Datenbank-Persistenz. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
 ## Warum das Projekt spannend ist
 
@@ -63,7 +63,7 @@ Mehr Details: [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md)
 
 ### Voraussetzungen
 
-- **.NET 10 SDK** (siehe `global.json`)
+- **.NET 10 SDK im Feature-Band 10.0.1xx** (siehe `global.json`, z. B. 10.0.100 vom offiziellen Installer). Ein SDK aus einem anderen Band, etwa 10.0.400 aus Homebrew, wird bewusst abgelehnt, weil dessen Razor-Compiler das Blazor-Frontend nicht baut. Liegt ein solches SDK vorn im `PATH`, hilft `export PATH=/usr/local/share/dotnet:$PATH`.
 - **Node.js 20+** für `/bpmn.io`
 - Git
 
@@ -102,8 +102,39 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 4. **Betrieb und Auth sind noch nicht am Ziel**
    Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext und die Web-API liefert erste Operations-Diagnose-Informationen inklusive optionaler OpenTelemetry-Exporter-Konfiguration, aber Themen wie echte Authentifizierung, Rollenmodell, Secrets, TLS und Recovery-Automatisierung bleiben weiterhin Folgepakete.
 
+## Authentifizierung und CORS
+
+Die Web-API läuft standardmäßig ohne Authentifizierung (`Authentication:Scheme=None`); im Development-Modus identifiziert der Header `X-Flowzer-UserId` den Benutzer. Für echte Umgebungen prüft die API OIDC-Tokens:
+
+```json
+"Authentication": {
+  "Scheme": "JwtBearer",
+  "JwtBearer": {
+    "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+    "Audience": "<client-id-der-api>"
+  }
+},
+"Cors": {
+  "AllowedOrigins": ["https://flowzer.example.com"]
+}
+```
+
+Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` in `wwwroot/appsettings*.json` (Authority, ClientId, Scopes) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Ohne diese Werte läuft es wie bisher mit dem technischen Development-Benutzer.
+
+Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
+
+## Ablage
+
+Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_ROOT`. Für den Betrieb steht eine PostgreSQL-Ablage mit echten Transaktionen bereit (`Storage:Provider=PostgreSql`, Migrationen per `dotnet WebApiEngine.dll --migrate`). Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#ablage-dateisystem-oder-postgresql).
+
+## Release und Deployment
+
+Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-frontend`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+
 ## Dokumentation
 
+- [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md) – Review September 2026: Stand, Sofortmaßnahmen, offene Probleme, nächste Schritte
+- [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md) – Pilotbetrieb: Identity Provider, Compose-Stack, Backup, Fehlerbilder
 - [docs/PROJECT-STATUS.md](docs/PROJECT-STATUS.md) – ehrliche Bestandsaufnahme
 - [docs/ROADMAP.md](docs/ROADMAP.md) – Vorschlag für die nächsten Schritte
 - [docs/CODEBASE-AUDIT-2026-04.md](docs/CODEBASE-AUDIT-2026-04.md) – Audit-Feststellungen und Folgepakete nach der Revitalisierung
@@ -119,12 +150,12 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 
 Die sinnvolle Reihenfolge ist aktuell:
 
-1. **Auth-/Identity-Story über Claim-/Rollenmodell und Betriebssignale weiter ausbauen**
-2. **Betriebsbasis mit Telemetrie, Secrets, TLS und Recovery vertiefen**
-3. **Timer-Recovery nur noch in speziellen Boundary-/Spezialfällen nachziehen**
-4. **Status-, Architektur- und Contributor-Dokumentation laufend nachziehen**
+1. **Pilot starten** nach [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md): Identity Provider registrieren, `.env` füllen, Stack hinter dem Reverse Proxy betreiben
+2. **Rollen und Zuweisungen** für Aufgaben, Definitionen und Diagnose
+3. **PostgreSQL-Persistenz** hinter `IStorageSystem`
+4. **Eine Oberfläche festlegen** (Blazor oder React-Konsole)
 
-Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md).
+Details dazu stehen in [docs/ROADMAP.md](docs/ROADMAP.md) und [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
 ## Minimaler `ICore`-Nutzungsweg
 

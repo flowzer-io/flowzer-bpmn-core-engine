@@ -66,7 +66,9 @@ def has_purpose_comment_before_csharp_test(lines: list[str], index: int) -> bool
         if PURPOSE_COMMENT.match(stripped):
             return True
 
-        if not stripped or CS_ATTRIBUTE.match(line):
+        # Mehrzeilige Testzweck-Kommentare: Folgezeilen beginnen ebenfalls mit `//`
+        # und dürfen die eigentliche `// Testzweck:`-Zeile nicht verdecken.
+        if not stripped or CS_ATTRIBUTE.match(line) or stripped.startswith('//'):
             cursor -= 1
             continue
 

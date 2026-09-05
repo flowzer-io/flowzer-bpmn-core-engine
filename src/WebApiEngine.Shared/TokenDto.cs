@@ -22,6 +22,15 @@ public class TokenDto
     
     public Guid? PreviousTokenId { get; set; }
     public Guid? ParentTokenId { get; init; }
-    
-    
+
+    /// <summary>
+    /// Zeitpunkt, zu dem das Token erzeugt wurde (UTC).
+    /// Grundlage für die Verlaufsdarstellung in der Oberfläche.
+    /// </summary>
+    public DateTime StartTime { get; set; }
+
+    /// <summary>
+    /// Zeitpunkt des letzten Statuswechsels (UTC).
+    /// </summary>
+    public DateTime LastStateChangeTime { get; set; }
 }

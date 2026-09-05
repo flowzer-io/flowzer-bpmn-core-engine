@@ -117,6 +117,24 @@ public class FlowzerApi: ApiBase
     }
 
     /// <summary>
+    /// Bricht eine laufende Prozessinstanz ab. Beendete Instanzen liefern einen Konflikt als ApiException.
+    /// </summary>
+    public async Task<ProcessInstanceInfoDto> CancelInstance(Guid instanceGuid)
+    {
+        var apiStatusResult = await PostAsJsonAsyncSave<ApiStatusResult<ProcessInstanceInfoDto>>(
+            $"instance/{instanceGuid}/cancel",
+            new { },
+            throwOnUnsuccessfulStatusCodes: false);
+
+        if (apiStatusResult.Successful)
+        {
+            return apiStatusResult.Result!;
+        }
+
+        throw new ApiException(apiStatusResult.ErrorMessage);
+    }
+
+    /// <summary>
     /// Lädt alle bekannten Prozessinstanzen.
     /// </summary>
     public async Task<List<ProcessInstanceInfoDto>> GetAllInstances()

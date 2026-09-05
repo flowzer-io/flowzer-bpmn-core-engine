@@ -1,6 +1,6 @@
 # Laufzeitlücken und aktueller Restbestand
 
-**Stand:** 12. April 2026
+**Stand:** 5. September 2026
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `next` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
 
@@ -55,7 +55,25 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 - `InstanceEngine.Cancel()` terminiert jetzt aktive/wartende Tokens der Instanz konsistent.
 - Das ersetzt noch **keine vollständige BPMN-Kompensation**, verhindert aber, dass der API-/Runtime-Pfad an einer nackten `NotImplementedException` scheitert.
 
+### 9. Standardflüsse an exklusiven Gateways funktionieren
+
+- `ExclusiveGateway` implementiert `IHasDefault`; der Parser überträgt das `default`-Attribut auf den Sequenzfluss.
+- Der Standardfluss greift nur, wenn keine Bedingung zutrifft.
+
+### 10. Engine-Mutationen laufen serialisiert
+
+- `BpmnBusinessLogic` serialisiert Deploy, Start, User-Task, Message und Timer über eine Sperre.
+- Die Dateiablage schreibt atomar und toleriert beim Lesen parallel gelöschte Dateien.
+
 ## Weiterhin bewusst offen
+
+### 0. Betriebsfähigkeit
+
+- Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
+- Service-Tasks haben keinen Worker-Vertrag (kein Polling, kein Ergebnis-Endpunkt).
+- Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.
+- Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.
+
 
 ### 1. Timer-Ausführung und Persistenz
 

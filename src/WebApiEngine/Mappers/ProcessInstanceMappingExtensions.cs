@@ -61,7 +61,29 @@ public static class ProcessInstanceMappingExtensions
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
             ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList()
+            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList(),
+            StartedAt = GetStartedAt(processInstanceInfo),
+            FinishedAt = GetFinishedAt(processInstanceInfo)
         };
+    }
+
+    // Die Ablage speichert keinen eigenen Instanz-Zeitstempel. Start- und Endzeitpunkt
+    // werden deshalb aus den Tokens abgeleitet: das älteste Token markiert den Start,
+    // der letzte Statuswechsel einer beendeten Instanz deren Ende.
+    private static DateTime? GetStartedAt(ProcessInstanceInfo processInstanceInfo)
+    {
+        return processInstanceInfo.Tokens.Count == 0
+            ? null
+            : processInstanceInfo.Tokens.Min(token => token.StartTime);
+    }
+
+    private static DateTime? GetFinishedAt(ProcessInstanceInfo processInstanceInfo)
+    {
+        if (!processInstanceInfo.IsFinished || processInstanceInfo.Tokens.Count == 0)
+        {
+            return null;
+        }
+
+        return processInstanceInfo.Tokens.Max(token => token.LastStateChangeTime);
     }
 }

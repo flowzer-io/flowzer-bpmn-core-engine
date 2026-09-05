@@ -1,8 +1,12 @@
+using Microsoft.AspNetCore.Authorization;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
 
-[ApiController, Route("[controller]")]
+/// <summary>
+/// Liveness/Readiness fuer Orchestratoren. Bewusst anonym, auch bei aktiver Authentifizierung.
+/// </summary>
+[ApiController, Route("[controller]"), AllowAnonymous]
 public class HealthController(
     ITransactionalStorageProvider storageProvider,
     IHostEnvironment environment,

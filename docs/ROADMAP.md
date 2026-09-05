@@ -27,6 +27,35 @@ Die erste große Stabilisierungsrunde ist bereits erfolgt:
 
 Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
 
+Seit September 2026 zusätzlich vorhanden (siehe [REVIEW-2026-09.md](./REVIEW-2026-09.md)): OIDC-Token-Prüfung in der API, konfigurierbares CORS, nebenläufigkeitsfeste Dateiablage, lauffähige Container, NuGet-Audit-Gate, Standardfluss-Fix.
+
+## Priorität 0: Firmeneinsatz vorbereiten
+
+### 0.1 Identity Provider anbinden
+
+- API (`Authentication:Scheme=JwtBearer`) und Frontend (`Oidc`) sind konfigurierbar, siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md)
+- offen: Registrierung im Unternehmens-IdP und Benutzer-Id-Format (GUID in `oid`/`sub`) verifizieren
+
+### 0.2 Pilot hinter Reverse Proxy
+
+- TLS-Terminierung, persistentes Volume für die Ablage, tägliches Backup
+- ein echter Prozess mit Formularen, User-Tasks und Timer
+
+### 0.3 Rollen und Zuweisungen
+
+- Kandidaten, Gruppen und Zuständigkeit aus `zeebe:assignmentDefinition` auswerten
+- Sichtbarkeit von Aufgaben, Definitionen und Diagnose nach Rolle
+
+### 0.4 Persistenz
+
+- PostgreSQL-Implementierung von `IStorageSystem` mit Migrationen
+- Dateiablage bleibt für Entwicklung und Tests
+
+### 0.5 Eine Oberfläche
+
+- React-Konsole in eigenem PR mit CI, Container und Smokes bewerten
+- danach Blazor ablösen oder den React-Branch schließen
+
 ## Priorität 1: Timer- und Runtime-Restlücken schließen
 
 ### 1.2 BPMN-Fehlerpfade und weitergehende Timer-Semantik vertiefen

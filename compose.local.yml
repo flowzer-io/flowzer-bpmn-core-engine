@@ -1,6 +1,6 @@
 services:
   api:
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    image: mcr.microsoft.com/dotnet/sdk:10.0.103
     working_dir: /workspace
     command: >
       bash -lc "
@@ -22,7 +22,7 @@ services:
       start_period: 90s
 
   frontend:
-    image: mcr.microsoft.com/dotnet/sdk:8.0
+    image: mcr.microsoft.com/dotnet/sdk:10.0.103
     working_dir: /workspace
     command: >
       bash -lc "

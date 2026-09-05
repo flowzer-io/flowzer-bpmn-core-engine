@@ -10,6 +10,7 @@ namespace WebApiEngine.Controller;
 public class UserTaskController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
+    UserTaskFormResolver userTaskFormResolver,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
 
@@ -23,7 +24,35 @@ public class UserTaskController(
         return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
     }
 
+    /// <summary>
+    /// Liefert das Formular, das zu einem offenen User-Task gehört.
+    /// Fasst die bisher clientseitige Auflösung (Form-Key lesen, Metadaten suchen,
+    /// Version laden) zu einem einzigen Aufruf zusammen.
+    /// </summary>
+    [HttpGet("{userTaskId:guid}/form")]
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> GetUserTaskForm([FromRoute] Guid userTaskId)
+    {
+        var currentUser = currentUserContextAccessor.GetCurrentUser();
+        var userId = currentUser.RequireResolvedUserId("reading user tasks");
 
+        var subscription = (await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId))
+            .FirstOrDefault(candidate => candidate.Id == userTaskId);
+
+        if (subscription is null)
+        {
+            return NotFound(new ApiStatusResult<FormDto>($"User task {userTaskId} was not found."));
+        }
+
+        var formKey = (subscription.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
+        var resolved = await userTaskFormResolver.ResolveAsync(formKey);
+
+        if (resolved.Form is null)
+        {
+            return BadRequest(new ApiStatusResult<FormDto>(resolved.ErrorMessage));
+        }
+
+        return Ok(new ApiStatusResult<FormDto>(resolved.Form.ToDto()));
+    }
 
     [HttpPost]
     public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult([FromBody] UserTaskResultDto messageDto)

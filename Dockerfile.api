@@ -1,7 +1,7 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.103 AS build
 WORKDIR /src
 
-COPY global.json ./
+COPY global.json Directory.Build.props ./
 
 # Nur die für die Web-API relevanten Projekte vorziehen, damit Restore-Layer stabil bleiben.
 COPY Model/Model.csproj Model/
@@ -9,6 +9,7 @@ COPY src/FlowzerBPMN/FlowzerBPMN.csproj src/FlowzerBPMN/
 COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
 COPY src/StorageSystemShared/StorageSystemShared.csproj src/StorageSystemShared/
 COPY src/FilesystemStorageSystem/FilesystemStorageSystem.csproj src/FilesystemStorageSystem/
+COPY src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj src/PostgreSqlStorageSystem/
 COPY src/core-engine/core-engine.csproj src/core-engine/
 COPY src/WebApiEngine.Shared/WebApiEngine.Shared.csproj src/WebApiEngine.Shared/
 COPY src/WebApiEngine/WebApiEngine.csproj src/WebApiEngine/
@@ -16,13 +17,16 @@ COPY src/WebApiEngine/WebApiEngine.csproj src/WebApiEngine/
 RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
 
 COPY . .
+# Zweiter Restore nach dem vollstaendigen Quell-Copy: faengt Projektreferenzen ab, die in der
+# obigen Layer-Liste fehlen, statt spaeter mit --no-restore hart zu scheitern.
+RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
 RUN dotnet publish src/WebApiEngine/WebApiEngine.csproj \
     --configuration Release \
     --no-restore \
     --output /app/publish \
     /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 RUN apt-get update \

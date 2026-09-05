@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_ExclusiveGatewayDefault" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_ExclusiveGatewayDefault" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_ToGateway</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_ToGateway" sourceRef="StartEvent_1" targetRef="Gateway_1" />
+
+    <!-- Flow_Default traegt bewusst keine Bedingung und ist ueber das
+         default-Attribut als Standardfluss markiert. -->
+    <bpmn:exclusiveGateway id="Gateway_1" default="Flow_Default">
+      <bpmn:incoming>Flow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Conditional</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Default</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="Flow_Conditional" sourceRef="Gateway_1" targetRef="EndEvent_Conditional">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Condition=1</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Default" sourceRef="Gateway_1" targetRef="EndEvent_Default" />
+
+    <bpmn:endEvent id="EndEvent_Conditional" name="ShouldNotReached">
+      <bpmn:incoming>Flow_Conditional</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Default" name="ShouldReached">
+      <bpmn:incoming>Flow_Default</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_ExclusiveGatewayDefault">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="StartEvent_1">
+        <dc:Bounds x="160" y="182" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway" bpmnElement="Gateway_1" isMarkerVisible="true">
+        <dc:Bounds x="275" y="175" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_EndConditional" bpmnElement="EndEvent_Conditional">
+        <dc:Bounds x="432" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_EndDefault" bpmnElement="EndEvent_Default">
+        <dc:Bounds x="432" y="262" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_ToGateway" bpmnElement="Flow_ToGateway">
+        <di:waypoint x="196" y="200" /><di:waypoint x="275" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Conditional" bpmnElement="Flow_Conditional">
+        <di:waypoint x="300" y="175" /><di:waypoint x="300" y="120" /><di:waypoint x="432" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Default" bpmnElement="Flow_Default">
+        <di:waypoint x="300" y="225" /><di:waypoint x="300" y="280" /><di:waypoint x="432" y="280" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

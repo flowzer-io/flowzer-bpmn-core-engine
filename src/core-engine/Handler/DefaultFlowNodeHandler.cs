@@ -54,10 +54,20 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
             || config.ExpressionHandler.MatchExpression(processInstance.GetProcessToken(token).Variables!, x.FlowzerCondition)
         ).ToArray();
 
-        // 2.2 Wenn es einen Default-Sequenzfluss gibt, dann lösche diesen, falls es noch einen Sequenzfluss mit Bedingung
-        if (sequenceFlowsWithConditionsPresent && outgoingSequenceFlows.Any(x => x.FlowzerIsDefault == true))
+        // 2.2 Der Standardfluss ist nur der Rückfallpfad: Er wird verworfen, sobald ein
+        // anderer Sequenzfluss übrig bleibt. Bleibt keiner übrig, greift er — genau das
+        // ist laut BPMN 2.0 seine Aufgabe (und so beschreibt es auch der Kommentar oben).
+        //
+        // Zuvor wurde der Standardfluss immer entfernt, sobald irgendwo Bedingungen
+        // vorkamen. Traf dann keine Bedingung zu, blieb die Menge leer und ein exklusives
+        // Gateway brach mit "No Condition is true for Exclusive Gateway" ab.
+        var nonDefaultSequenceFlows = outgoingSequenceFlows
+            .Where(x => x.FlowzerIsDefault is null or false)
+            .ToArray();
+
+        if (sequenceFlowsWithConditionsPresent && nonDefaultSequenceFlows.Length > 0)
         {
-            outgoingSequenceFlows = outgoingSequenceFlows.Where(x => x.FlowzerIsDefault is null or false).ToArray();
+            outgoingSequenceFlows = nonDefaultSequenceFlows;
         }
 
         // 3. Erzeuge für jeden Sequenzfluss ein neues Token

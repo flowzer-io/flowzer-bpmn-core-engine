@@ -1,4 +1,4 @@
-namespace FilesystemStorageSystem.Exceptions;
+namespace StorageSystem.Exceptions;
 
 /// <summary>
 /// Signalisiert einen Konflikt beim Persistieren von Definitionen oder Metadaten,

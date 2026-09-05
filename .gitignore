@@ -410,3 +410,6 @@ FodyWeavers.xsd
 
 package-lock.json
 !tests/ui-smoke/package-lock.json
+
+# Laufzeitkonfiguration des Compose-Stacks (Vorlage: .env.example)
+.env
