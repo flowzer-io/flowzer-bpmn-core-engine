@@ -35,8 +35,8 @@ public class UserTaskController(
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var userId = currentUser.RequireResolvedUserId("reading user tasks");
 
-        var subscription = (await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId))
-            .FirstOrDefault(candidate => candidate.Id == userTaskId);
+        // Einzelzugriff statt aller Aufgaben aller Personen: der Aufwand haengt sonst am Gesamtbestand.
+        var subscription = await storageSystem.SubscriptionStorage.GetUserTaskExtended(userTaskId);
 
         if (subscription is null)
         {

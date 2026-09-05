@@ -163,7 +163,7 @@ public class TimerRuntimeIntegrationTest
         };
 
         var recoveredBusinessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
-        recoveredBusinessLogic.Load();
+        await recoveredBusinessLogic.LoadAsync();
 
         var nextSubscription = storage.TimerSubscriptions.Should().ContainSingle().Subject;
         using (new AssertionScope())

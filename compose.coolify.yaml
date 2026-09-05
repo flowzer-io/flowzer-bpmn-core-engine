@@ -32,6 +32,10 @@ services:
       Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
       Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
       Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
+      RateLimiting__Enabled: "${FLOWZER_RATE_LIMIT_ENABLED:-true}"
+      RateLimiting__PermitLimit: "${FLOWZER_RATE_LIMIT_PERMITS:-300}"
+      RateLimiting__WindowSeconds: "${FLOWZER_RATE_LIMIT_WINDOW_SECONDS:-60}"
+      Limits__MaxUploadBytes: "${FLOWZER_MAX_UPLOAD_BYTES:-8388608}"
       TimerScheduler__Enabled: "true"
       TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
       TZ: Europe/Berlin

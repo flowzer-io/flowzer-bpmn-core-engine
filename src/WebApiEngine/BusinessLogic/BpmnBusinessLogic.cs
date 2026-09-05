@@ -17,15 +17,20 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     // unkritisch, verlorene Statuswechsel waeren es nicht.
     private readonly SemaphoreSlim _engineMutationLock = new(1, 1);
 
-    public void Load(bool enableTimerAutomation = true)
+    /// <summary>
+    /// Stellt die persistierten Timer wieder her und holt ueberfaellige Faelligkeiten nach.
+    /// Wird beim Hochlauf vom <see cref="Background.EngineStartupService"/> aufgerufen.
+    /// </summary>
+    public async Task LoadAsync(bool enableTimerAutomation = true, CancellationToken cancellationToken = default)
     {
         if (!enableTimerAutomation)
         {
             return;
         }
 
-        RestoreInstanceTimerSubscriptions().GetAwaiter().GetResult();
-        HandleTime(DateTime.UtcNow).GetAwaiter().GetResult();
+        cancellationToken.ThrowIfCancellationRequested();
+        await RestoreInstanceTimerSubscriptions();
+        await HandleTime(DateTime.UtcNow);
     }
     
     public async Task DeployDefinition(BpmnDefinition definition)

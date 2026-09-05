@@ -3,9 +3,9 @@ using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Diagnostics;
+using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
-using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,9 +38,12 @@ builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddSingleton<UserTaskFormResolver>();
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+// Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
+builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
+builder.Services.AddFlowzerLimits(builder.Configuration);
 
 var app = builder.Build();
 
@@ -55,6 +58,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseFlowzerCors();
+// Grenzen vor der Authentifizierung: ein zu grosser oder zu haeufiger Aufruf soll den
+// teureren Teil der Pipeline gar nicht erst erreichen.
+app.UseFlowzerLimits();
 app.UseFlowzerAuthentication();
 
 // TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
@@ -62,9 +68,6 @@ app.UseFlowzerAuthentication();
 app.MapControllers();
 
 await app.ApplyStartupMigrationsIfConfiguredAsync();
-
-var timerSchedulerOptions = app.Services.GetRequiredService<IOptions<TimerSchedulerOptions>>().Value;
-app.Services.GetRequiredService<BpmnBusinessLogic>().Load(timerSchedulerOptions.Enabled);
 
 app.Run();
 return 0;

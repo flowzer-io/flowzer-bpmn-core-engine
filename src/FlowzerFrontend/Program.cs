@@ -57,6 +57,8 @@ else
     builder.Services.AddScoped<AuthenticationStateProvider, DevelopmentAuthenticationStateProvider>();
 }
 
+builder.Services.AddSingleton<ApiAccessState>();
+
 builder.Services.AddScoped(serviceProvider =>
 {
     HttpMessageHandler handler = new HttpClientHandler();
@@ -66,6 +68,10 @@ builder.Services.AddScoped(serviceProvider =>
         authorizationHandler.InnerHandler = handler;
         handler = authorizationHandler;
     }
+
+    // Aussen um die Kette: sieht jede Antwort und erkennt daran, ob dieses Konto
+    // ueberhaupt fuer Flowzer freigeschaltet ist.
+    handler = new ApiAccessStateHandler(serviceProvider.GetRequiredService<ApiAccessState>()) { InnerHandler = handler };
 
     var httpClient = new HttpClient(handler)
     {

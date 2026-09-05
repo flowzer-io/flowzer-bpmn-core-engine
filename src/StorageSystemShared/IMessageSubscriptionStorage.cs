@@ -30,6 +30,15 @@ public interface IMessageSubscriptionStorage
     Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId);
     
     Task<IEnumerable<ExtendedUserTaskSubscription>> GetAllUserTasksExtended(Guid userId);
+
+    /// <summary>
+    /// Liefert genau eine angereicherte User-Task-Subscription oder <c>null</c>.
+    /// Die Standardimplementierung filtert die Liste und ist damit fuer jede Ablage korrekt;
+    /// Ablagen mit direktem Zugriff sollten sie ueberschreiben, weil das Laden aller Aufgaben
+    /// aller Personen linear mit dem Bestand teurer wird.
+    /// </summary>
+    async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId) =>
+        (await GetAllUserTasksExtended(Guid.Empty)).FirstOrDefault(candidate => candidate.Id == userTaskId);
     Task AddUserTaskSubscription(UserTaskSubscription userTasks);
     Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId);
 
