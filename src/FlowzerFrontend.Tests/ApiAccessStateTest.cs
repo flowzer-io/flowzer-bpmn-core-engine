@@ -68,15 +68,50 @@ public class ApiAccessStateTest
         notified.Should().Be(1);
     }
 
-    private static HttpClient CreateClient(ApiAccessState state, HttpStatusCode statusCode)
+    // Testzweck: Eine 403 wegen einer fehlenden Einzelberechtigung darf nicht als kompletter
+    // Zugangsverlust erscheinen; wer sie bekommt, ist fuer Flowzer offensichtlich freigeschaltet.
+    [Test]
+    public async Task Handler_ShouldNotReportAccessDenied_WhenOnlyASingleCapabilityIsMissing()
     {
-        var handler = new ApiAccessStateHandler(state) { InnerHandler = new StubHandler(statusCode) };
+        var state = new ApiAccessState();
+        state.MarkAccessDenied();
+        using var client = CreateClient(state, HttpStatusCode.Forbidden, deniedHeader: "capability");
+
+        await client.PostAsync("https://api.test/definition/deploy", new StringContent(""));
+
+        state.IsAccessDenied.Should().BeFalse();
+    }
+
+    // Testzweck: Eine 403 ohne Einordnung wird weiterhin als fehlender Zugang gewertet, damit
+    // eine aeltere API-Version die Anzeige nicht verschluckt.
+    [Test]
+    public async Task Handler_ShouldAssumeMissingAccess_WhenTheApiSendsNoClassification()
+    {
+        var state = new ApiAccessState();
+        using var client = CreateClient(state, HttpStatusCode.Forbidden);
+
+        await client.GetAsync("https://api.test/usertask");
+
+        state.IsAccessDenied.Should().BeTrue();
+    }
+
+    private static HttpClient CreateClient(ApiAccessState state, HttpStatusCode statusCode, string? deniedHeader = null)
+    {
+        var handler = new ApiAccessStateHandler(state) { InnerHandler = new StubHandler(statusCode, deniedHeader) };
         return new HttpClient(handler);
     }
 
-    private sealed class StubHandler(HttpStatusCode statusCode) : HttpMessageHandler
+    private sealed class StubHandler(HttpStatusCode statusCode, string? deniedHeader = null) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(statusCode));
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(statusCode);
+            if (deniedHeader is not null)
+            {
+                response.Headers.Add(ApiAccessStateHandler.AccessDeniedHeader, deniedHeader);
+            }
+
+            return Task.FromResult(response);
+        }
     }
 }

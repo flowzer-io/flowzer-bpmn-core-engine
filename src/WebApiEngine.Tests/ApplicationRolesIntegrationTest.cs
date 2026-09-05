@@ -108,6 +108,27 @@ public class ApplicationRolesIntegrationTest
         complete.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    // Testzweck: Die API ordnet jede Ablehnung ein. Ohne diese Angabe koennte die Oberflaeche
+    // eine fehlende Einzelberechtigung nicht von einem fehlenden Zugang unterscheiden.
+    [Test]
+    public async Task Forbidden_ShouldSayWhetherTheAccountOrOnlyTheCapabilityIsMissing()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator", requiredRole: "access");
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["access"]));
+        var capabilityMissing = await client.GetAsync("/operations/diagnostics");
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["operator"]));
+        var accountMissing = await client.GetAsync("/operations/diagnostics");
+
+        capabilityMissing.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        capabilityMissing.Headers.GetValues("X-Flowzer-Access-Denied").Should().ContainSingle().Which.Should().Be("capability");
+
+        accountMissing.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        accountMissing.Headers.GetValues("X-Flowzer-Access-Denied").Should().ContainSingle().Which.Should().Be("application");
+    }
+
     private static AuthenticationHeaderValue Bearer(string token) => new("Bearer", token);
 
     private static string CreateToken(string[]? roles = null)

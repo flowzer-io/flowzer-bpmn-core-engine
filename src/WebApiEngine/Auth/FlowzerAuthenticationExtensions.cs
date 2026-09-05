@@ -40,8 +40,11 @@ public static class FlowzerAuthenticationExtensions
             });
 
         var authorization = services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(BuildBasePolicy(options).Build());
+            .SetFallbackPolicy(BuildBasePolicy(options).Build())
+            .AddPolicy(FlowzerPolicies.Access, policy => policy.Combine(BuildBasePolicy(options).Build()));
         AddApplicationRolePolicies(authorization, options);
+
+        services.AddSingleton<IAuthorizationMiddlewareResultHandler, FlowzerAuthorizationResultHandler>();
 
         return services;
     }
@@ -105,6 +108,7 @@ public static class FlowzerAuthenticationExtensions
     public static IServiceCollection AddFlowzerOpenApplicationRolePolicies(this IServiceCollection services)
     {
         services.AddAuthorizationBuilder()
+            .AddPolicy(FlowzerPolicies.Access, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Modeler, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Operator, policy => policy.RequireAssertion(_ => true));
 
