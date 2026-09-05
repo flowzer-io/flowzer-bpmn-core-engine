@@ -214,8 +214,8 @@ public class AuthenticationAndCorsIntegrationTest
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    // Testzweck: Keycloak liefert Clientrollen unter `resource_access.<audience>.roles`; genau diese
-    // Struktur muss die Pflichtrolle erfuellen, Rollen anderer Clients nicht.
+    // Testzweck: Keycloak liefert Clientrollen unter `resource_access.<audience>.roles` als JSON-Objekt
+    // im Token; genau diese Struktur muss die Pflichtrolle erfuellen, Rollen anderer Clients nicht.
     [Test]
     public async Task ProtectedEndpoints_ShouldHonorKeycloakClientRoles_WhenRequiredRoleIsConfigured()
     {
@@ -224,11 +224,16 @@ public class AuthenticationAndCorsIntegrationTest
         await using var factory = CreateJwtFactory(storage, requiredRole: "access");
         using var client = factory.CreateClient();
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
+        var keycloakToken = CreateToken(claims:
         [
             new Claim("sub", userId.ToString()),
             new Claim("resource_access", """{"flowzer-api":{"roles":["access"]}}""", JsonClaimValueTypes.Json)
-        ]));
+        ]);
+        // Der Testtoken traegt den Claim wie Keycloak als JSON-Objekt, nicht als String.
+        new JsonWebToken(keycloakToken).TryGetPayloadValue<System.Text.Json.JsonElement>("resource_access", out var resourceAccess).Should().BeTrue();
+        resourceAccess.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", keycloakToken);
         var allowed = await client.GetAsync("/usertask");
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
