@@ -20,9 +20,8 @@ public class ApiExceptionContractTest
 
         var action = async () => await api.GetDefinition(Guid.NewGuid());
 
-        await action.Should()
-            .ThrowAsync<ApiContractException>()
-            .WithMessage("No definition found for definitionId *");
+        // Ein leerer Koerper ist ein Vertragsbruch der API, kein fachlicher Fehler.
+        await action.Should().ThrowAsync<ApiContractException>();
     }
 
     // Testzweck: Prüft, dass nicht erfolgreiche HTTP-Statuscodes beim Speichern eines Formulars als HttpRequestException propagiert werden.

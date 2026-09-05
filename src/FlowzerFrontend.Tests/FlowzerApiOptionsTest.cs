@@ -252,7 +252,9 @@ public class FlowzerApiOptionsTest
     {
         var previousGuid = Guid.NewGuid();
         var definitionDto = CreateDefinitionDto();
-        var handler = new RecordingHttpMessageHandler(System.Text.Json.JsonSerializer.Serialize(definitionDto));
+        // Die API antwortet mit dem einheitlichen Umschlag; der Client packt ihn aus.
+        var handler = new RecordingHttpMessageHandler(
+            System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<BpmnDefinitionDto>(definitionDto)));
 
         using var httpClient = new HttpClient(handler)
         {
@@ -272,7 +274,9 @@ public class FlowzerApiOptionsTest
     public async Task UploadDefinition_ShouldNotIncludePreviousGuidQuery_WhenGuidIsEmpty()
     {
         var definitionDto = CreateDefinitionDto();
-        var handler = new RecordingHttpMessageHandler(System.Text.Json.JsonSerializer.Serialize(definitionDto));
+        // Die API antwortet mit dem einheitlichen Umschlag; der Client packt ihn aus.
+        var handler = new RecordingHttpMessageHandler(
+            System.Text.Json.JsonSerializer.Serialize(new ApiStatusResult<BpmnDefinitionDto>(definitionDto)));
 
         using var httpClient = new HttpClient(handler)
         {
