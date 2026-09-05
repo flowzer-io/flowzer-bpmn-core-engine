@@ -47,6 +47,12 @@ Verhalten bei `JwtBearer`:
 
 Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet.
 
+### API-Vertrag
+
+Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, und die Health-Endpunkte mit ihrem schlanken Probe-Vertrag.
+
+Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von einem Test gegen die erzeugte Beschreibung verglichen. Eine gewollte Änderung wird mit `scripts/ci/update-openapi-snapshot.sh` neu festgeschrieben und mit eingecheckt; eine ungewollte fällt in der CI auf, statt beim Client.
+
 ### Service-Tasks
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
