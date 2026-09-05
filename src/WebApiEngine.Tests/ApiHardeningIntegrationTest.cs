@@ -362,10 +362,11 @@ public class ApiHardeningIntegrationTest
         var response = await client.PostAsync("/definition", new StringContent(xml));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var payload = await response.Content.ReadFromJsonAsync<BpmnDefinitionDto>();
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>();
         payload.Should().NotBeNull();
-        payload!.SavedByUser.Should().Be(expectedUserId);
-        payload.Hash.Should().Be(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml))));
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.SavedByUser.Should().Be(expectedUserId);
+        payload.Result.Hash.Should().Be(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml))));
         storage.StoredDefinitions.Should().ContainSingle();
         storage.StoredDefinitions[0].SavedByUser.Should().Be(expectedUserId);
     }
@@ -818,6 +819,7 @@ public class ApiHardeningIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new TestInstanceStorage(this);
         public IFormStorage FormStorage => new TestFormStorage(this);
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

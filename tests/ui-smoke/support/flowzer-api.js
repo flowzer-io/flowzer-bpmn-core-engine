@@ -196,8 +196,11 @@ async function saveForm(request, { formId = randomUUID(), name, schema }) {
 }
 
 async function createDefinitionMeta(request, { name, description = '' }) {
+  // Alle Definitions-Endpunkte liefern denselben Umschlag; das Ergebnis steht in `result`.
   const createResponse = await request.get(buildApiUrl('/definition/new'), buildRequestOptions());
-  const createdDefinition = await readJson(createResponse, 'Creating definition metadata');
+  const createdDefinition = ensureApiSuccess(
+    await readJson(createResponse, 'Creating definition metadata'),
+    'Creating definition metadata');
   const definitionId = createdDefinition?.definitionId || createdDefinition?.DefinitionId;
 
   const updateResponse = await request.put(buildApiUrl('/definition/meta'), buildRequestOptions({
@@ -207,7 +210,9 @@ async function createDefinitionMeta(request, { name, description = '' }) {
       description
     }
   }));
-  await readJson(updateResponse, 'Updating definition metadata');
+  ensureApiSuccess(
+    await readJson(updateResponse, 'Updating definition metadata'),
+    'Updating definition metadata');
 
   return definitionId;
 }

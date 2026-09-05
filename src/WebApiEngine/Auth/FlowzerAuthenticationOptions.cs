@@ -36,6 +36,29 @@ public sealed class FlowzerAuthenticationOptions
         /// App-Rolle im Claim <c>roles</c> (Entra ID) tragen; sonst antwortet die API 403.
         /// </summary>
         public string RequiredRole { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Namen der Anwendungsrollen. Leer gelassen ist die jeweilige Faehigkeit fuer alle
+        /// zugelassenen Personen offen; so aendert das Update fuer bestehende Installationen nichts.
+        /// </summary>
+        public ApplicationRoles Roles { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Zugang und Faehigkeit sind zwei verschiedene Fragen: <c>RequiredRole</c> entscheidet, wer
+    /// Flowzer benutzen darf, diese Rollen entscheiden, wer veroeffentlichen und wer den Betrieb
+    /// einsehen darf.
+    /// </summary>
+    public sealed class ApplicationRoles
+    {
+        /// <summary>Darf Definitionen und Formulare anlegen, aendern und veroeffentlichen.</summary>
+        public string Modeler { get; set; } = string.Empty;
+
+        /// <summary>Darf Diagnose sehen, alle Aufgaben sehen und Instanzen abbrechen.</summary>
+        public string Operator { get; set; } = string.Empty;
+
+        /// <summary>Darf Auftraege fuer Service-Tasks abholen und zurueckmelden.</summary>
+        public string Worker { get; set; } = string.Empty;
     }
 
     public void Validate()

@@ -28,7 +28,7 @@ public sealed class HttpContextCurrentUserContextAccessor(
                              ?? TryResolveClaim(user, "oid", "claim:oid");
         if (claimBasedUser is not null)
         {
-            return claimBasedUser;
+            return claimBasedUser with { Names = CollectNames(user), Groups = CollectGroups(user) };
         }
 
         // Der technische Header ist nur ein Ersatz fuer fehlende Authentifizierung. Ist der
@@ -43,6 +43,41 @@ public sealed class HttpContextCurrentUserContextAccessor(
 
         return new CurrentUserContext(FallbackUserId, "fallback:system-user", true);
     }
+
+    /// <summary>
+    /// Sammelt alles, womit ein Modell die Person benennen koennte. Die technische Id gehoert
+    /// dazu, weil manche Modelle sie direkt eintragen.
+    /// </summary>
+    private static IReadOnlyCollection<string> CollectNames(ClaimsPrincipal? user)
+    {
+        if (user is null)
+        {
+            return [];
+        }
+
+        string[] claimTypes =
+        [
+            "preferred_username", "email", "upn", "unique_name", "name",
+            "sub", "oid", ClaimTypes.NameIdentifier, ClaimTypes.Email, ClaimTypes.Name
+        ];
+
+        return claimTypes
+            .SelectMany(user.FindAll)
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IReadOnlyCollection<string> CollectGroups(ClaimsPrincipal? user) =>
+        user is null
+            ? []
+            : user.FindAll("groups")
+                .Concat(user.FindAll(ClaimTypes.GroupSid))
+                .Select(claim => claim.Value)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
 
     private static CurrentUserContext? TryResolveClaim(
         ClaimsPrincipal? user,

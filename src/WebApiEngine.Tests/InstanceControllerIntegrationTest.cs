@@ -337,6 +337,7 @@ public class InstanceControllerIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => SubscriptionStorageSeed;
         public IInstanceStorage InstanceStorage => InstanceStorageSeed;
         public IFormStorage FormStorage { get; } = new TestFormStorage();
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

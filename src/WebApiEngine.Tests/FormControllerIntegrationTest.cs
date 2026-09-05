@@ -197,6 +197,7 @@ public class FormControllerIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage { get; } = new NoOpMessageSubscriptionStorage();
         public IInstanceStorage InstanceStorage { get; } = new NoOpInstanceStorage();
         public IFormStorage FormStorage { get; } = formStorage;
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

@@ -25,7 +25,9 @@ env:
   # Opt-in vorab in den Node-24-Runtimepfad für JavaScript-basierte GitHub Actions,
   # damit die CI nicht erst kurz vor der Abschaltung von Node 20 überrascht wird.
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  NODE_VERSION: '20'
+  # webpack-dev-server 6 verlangt Node >= 22.15; mit Node 20 laeuft nur der Build,
+  # nicht der Entwicklungsserver.
+  NODE_VERSION: '22'
 
 jobs:
   dotnet:
@@ -142,6 +144,20 @@ jobs:
       - name: BPMN-Frontend bauen
         working-directory: bpmn.io
         run: npm run build
+
+      # Die Oberflaeche liefert eine Kopie desselben Bundles aus. Weicht sie ab, laeuft in
+      # Produktion eine andere Version als die hier gebaute und gepruefte.
+      - name: Ausgeliefertes Bundle mit dem gebauten vergleichen
+        run: |
+          if ! cmp -s bpmn.io/public/app.js src/FlowzerFrontend/wwwroot/app.js; then
+            echo "bpmn.io/public/app.js und src/FlowzerFrontend/wwwroot/app.js sind verschieden." >&2
+            echo "Nach einer Aenderung an bpmn.io/ bitte scripts/build-bpmn-bundle.sh ausfuehren und beide Dateien einchecken." >&2
+            exit 1
+          fi
+
+      - name: Bekannte Schwachstellen der Node-Abhaengigkeiten pruefen
+        working-directory: bpmn.io
+        run: npm audit --audit-level=high
 
   frontend_smoke:
     name: UI-Smoke-Tests

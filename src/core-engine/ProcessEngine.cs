@@ -146,6 +146,15 @@ public class ProcessEngine : ICatchHandler
         return [];
     }
 
+    /// <summary>
+    /// Eine Definition ohne laufende Instanz hat keine wartenden Service-Tasks; Auftraege
+    /// entstehen erst mit einer Instanz.
+    /// </summary>
+    public List<Token> ActiveServiceTasks()
+    {
+        return [];
+    }
+
     private static bool TryAdvanceTimerStartState(TimerStartState currentState, out TimerStartState nextState)
     {
         var currentSchedule = new TimerSchedule(

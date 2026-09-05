@@ -357,6 +357,7 @@ public class AuthenticationAndCorsIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => new EmptySubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new EmptyInstanceStorage();
         public IFormStorage FormStorage => new EmptyFormStorage();
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

@@ -3,9 +3,10 @@ using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Diagnostics;
+using WebApiEngine.Jobs;
+using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
-using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,12 +39,41 @@ builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddSingleton<UserTaskFormResolver>();
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+// Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
+builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
+
+// Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
+// um eine Benachrichtigung an angemeldete Adressen.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
+                              ?? new FlowzerWebhookOptions());
+builder.Services.AddSingleton<ServiceTaskJobService>();
+builder.Services.AddSingleton<ServiceTaskWebhookService>();
+builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
+// Keine Weiterleitungen: Ein freigegebenes Ziel koennte sonst auf eine interne Adresse
+// umleiten, und die Engine wuerde ihr eigenes Netz von innen aufrufen.
+builder.Services.AddHttpClient("flowzer-webhook")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
+builder.Services.AddFlowzerLimits(builder.Configuration);
+
+// Die Uploadgrenze auch am Server selbst setzen. Die Middleware setzt sie je Anfrage; ohne
+// diesen Wert bliebe fuer alles, was die Middleware nicht erreicht, das Server-Default stehen.
+var configuredUploadLimit = builder.Configuration.GetSection(FlowzerUploadLimitOptions.SectionName)
+    .Get<FlowzerUploadLimitOptions>() ?? new FlowzerUploadLimitOptions();
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = configuredUploadLimit.MaxUploadBytes);
+
+// Hinter dem Gateway steht die echte Adresse des Aufrufers nur im Weiterleitungsheader.
+// Ohne diese Auswertung liefe das Kontingent fuer alle anonymen Aufrufer gegen die Adresse
+// des Proxys, also gegen ein gemeinsames Fenster.
+builder.Services.AddFlowzerForwardedHeaders(builder.Configuration);
 
 var app = builder.Build();
 
+app.UseFlowzerForwardedHeaders();
 app.UseFlowzerRequestDiagnostics();
 app.UseFlowzerApiExceptionHandling();
 
@@ -55,16 +85,18 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseFlowzerCors();
+// Ein zu grosser Koerper soll gar nicht erst gepuffert werden.
+app.UseFlowzerUploadLimit();
 app.UseFlowzerAuthentication();
+// Erst nach der Authentifizierung steht fest, wer anfragt; davor liefe jedes Kontingent
+// gegen dieselbe Adress-Partition.
+app.UseFlowzerRateLimiting();
 
 // TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
 
 app.MapControllers();
 
 await app.ApplyStartupMigrationsIfConfiguredAsync();
-
-var timerSchedulerOptions = app.Services.GetRequiredService<IOptions<TimerSchedulerOptions>>().Value;
-app.Services.GetRequiredService<BpmnBusinessLogic>().Load(timerSchedulerOptions.Enabled);
 
 app.Run();
 return 0;

@@ -5,6 +5,9 @@ using BPMN.Events;
 using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using WebApiEngine.Auth;
+using Variables = System.Dynamic.ExpandoObject;
+
 namespace WebApiEngine.BusinessLogic;
 
 public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
@@ -17,15 +20,24 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     // unkritisch, verlorene Statuswechsel waeren es nicht.
     private readonly SemaphoreSlim _engineMutationLock = new(1, 1);
 
-    public void Load(bool enableTimerAutomation = true)
+    /// <summary>
+    /// Stellt die persistierten Timer wieder her und holt ueberfaellige Faelligkeiten nach.
+    /// Wird beim Hochlauf vom <see cref="Background.EngineStartupService"/> aufgerufen.
+    /// </summary>
+    public async Task LoadAsync(bool enableTimerAutomation = true, CancellationToken cancellationToken = default)
     {
         if (!enableTimerAutomation)
         {
             return;
         }
 
-        RestoreInstanceTimerSubscriptions().GetAwaiter().GetResult();
-        HandleTime(DateTime.UtcNow).GetAwaiter().GetResult();
+        cancellationToken.ThrowIfCancellationRequested();
+        await RestoreInstanceTimerSubscriptions();
+
+        // Zwischen den beiden Schritten liegt der teure Teil; ein Abbruch beim Herunterfahren
+        // soll spaetestens hier greifen, statt die Faelligkeiten noch durchzuarbeiten.
+        cancellationToken.ThrowIfCancellationRequested();
+        await HandleTime(DateTime.UtcNow);
     }
     
     public async Task DeployDefinition(BpmnDefinition definition)
@@ -88,6 +100,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         await SaveCatchMessages(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         SaveActiveSignals(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         await SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        await SaveServiceTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         await SaveActiveTimers(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
 
@@ -104,15 +117,72 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 {
                     Id = Guid.NewGuid(),
                     Token = activeUserTask,
-                    Name = userTask.Name, //todo: add user candidates
-                    UserCandidates = [], //todo: add user candidates
-                    UserGroups = [], //todo: add user groups
+                    Name = userTask.Name,
+                    // Die Zuweisungen aus dem Modell werden beim Anlegen festgehalten. Aendert
+                    // sich spaeter eine Definition, behaelt eine laufende Aufgabe die Zuweisung,
+                    // mit der sie entstanden ist.
+                    Assignee = string.IsNullOrWhiteSpace(userTask.FlowzerAssignee) ? null : userTask.FlowzerAssignee.Trim(),
+                    CandidateUsers = UserTaskAssignment.SplitList(userTask.FlowzerCandidateUsers),
+                    CandidateGroups = UserTaskAssignment.SplitList(userTask.FlowzerCandidateGroups),
+                    UserCandidates = [],
+                    UserGroups = [],
                     CurrenAssignedUser = null,
                     ProcessInstanceId = processInstanceId,
                     DefinitionId = definitionId,
                     MetaDefinitionId = metaDefinitionId,
                     ProcessId = processId
                 });
+        }
+    }
+
+    /// <summary>
+    /// Legt fuer jeden wartenden Service-Task einen Auftrag an, den ein externer Worker holen
+    /// kann. Bereits vergebene Auftraege derselben Instanz behalten ihren Zustand: Ein Worker,
+    /// der gerade arbeitet, darf seine Sperre nicht durch einen Zwischenstand verlieren.
+    /// </summary>
+    private async Task SaveServiceTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId,
+        Guid definitionId, string processId, Guid? processInstanceId)
+    {
+        if (processInstanceId is null)
+        {
+            return;
+        }
+
+        var activeTokens = catchHandler.ActiveServiceTasks();
+        var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
+            .Where(job => job.ProcessInstanceId == processInstanceId.Value)
+            .ToList();
+
+        // Auftraege zu Tokens, die nicht mehr warten, sind erledigt oder abgebrochen.
+        var activeTokenIds = activeTokens.Select(token => token.Id).ToHashSet();
+        foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.Token.Id)))
+        {
+            await storageSystem.ServiceTaskStorage.RemoveJob(obsolete.Id);
+        }
+
+        foreach (var token in activeTokens)
+        {
+            if (existing.Any(job => job.Token.Id == token.Id))
+            {
+                continue;
+            }
+
+            var serviceTask = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            await storageSystem.ServiceTaskStorage.SaveJob(new ServiceTaskJob
+            {
+                Id = Guid.NewGuid(),
+                Type = serviceTask.Implementation,
+                Name = serviceTask.Name,
+                Token = token,
+                ProcessInstanceId = processInstanceId.Value,
+                MetaDefinitionId = metaDefinitionId,
+                DefinitionId = definitionId,
+                ProcessId = processId,
+                // Ein Modell ohne Angabe bekommt einen Versuch; sonst waere der Auftrag von
+                // Anfang an unbearbeitbar.
+                Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
+                Variables = token.Variables
+            });
         }
     }
 
@@ -289,6 +359,42 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         }
     }
     
+    /// <summary>
+    /// Uebernimmt das Ergebnis eines externen Workers und fuehrt den Token weiter.
+    /// Laeuft wie jede andere Zustandsaenderung unter der Engine-Sperre.
+    /// </summary>
+    public async Task<InstanceEngine> CompleteServiceTaskJob(ServiceTaskJob job, Variables? result, Guid userId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
+            var instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = job.ProcessInstanceId;
+
+            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.Token.Id);
+            if (activeToken is null)
+            {
+                throw new ArgumentException(
+                    $"The service task token \"{job.Token.Id}\" is not active for process instance \"{job.ProcessInstanceId}\".",
+                    nameof(job));
+            }
+
+            instance.HandleTaskResult(activeToken.Id, result, userId);
+            await storageSystem.ServiceTaskStorage.RemoveJob(job.Id);
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return instance;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
     public async Task<InstanceEngine> HandleUserTask(UserTaskResult userTaskResult, Guid userId)
     {
         await _engineMutationLock.WaitAsync();

@@ -2,9 +2,17 @@ using System.Text;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using Microsoft.AspNetCore.Authorization;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Controller;
 
+/// <summary>
+/// Definitionen und ihr Katalog. Alle Antworten tragen den einheitlichen Umschlag
+/// <see cref="ApiStatusResult{T}"/>: Ein Client muss den Erfolgsfall nicht am Statuscode und den
+/// Fehlerfall am Antwortkoerper unterscheiden, sondern liest beides an derselben Stelle.
+/// Ausnahme ist bewusst nur die XML-Auslieferung, die ein Dokument liefert, kein JSON.
+/// </summary>
 [ApiController, Route("[controller]")]
 public class DefinitionController(
     IStorageSystem storageSystem,
@@ -12,14 +20,16 @@ public class DefinitionController(
 {
     
     [HttpPost]
-    public async Task<ActionResult<BpmnDefinitionDto>> UploadDefinition([FromQuery] Guid? previousGuid)
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
         var rawContent = await GetRawContent();
         var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid);
-        return Ok(definition.ToDto());
+        return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
     }
     
     [HttpPost("deploy")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
         BpmnDefinition? definition = null;
@@ -64,7 +74,7 @@ public class DefinitionController(
 
 
     [HttpGet("new")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto>> NewDefinition()
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> NewDefinition()
     {
         
         var definitionId = "definition_" + Guid.NewGuid();
@@ -87,25 +97,24 @@ public class DefinitionController(
         };
         await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
         
-        return Ok(metaDefinition.ToDto());
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(metaDefinition.ToDto()));
     }
 
     
 
     [HttpGet]
-    public async Task<ActionResult<BpmnDefinitionDto[]>> GetAllDefinitions()
+    public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto[]>>> GetAllDefinitions()
     {
         var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetAllDefinitions();
         var bpmnDefinitionDto = allBinaryDefinitions.Select(definition => definition.ToDto()).ToArray();
-        return Ok(bpmnDefinitionDto);
+        return Ok(new ApiStatusResult<BpmnDefinitionDto[]>(bpmnDefinitionDto));
     }
     
     [HttpGet("{id}")]
-    public async Task<ActionResult<BpmnDefinitionDto>> GetDefinitionById([FromRoute] Guid id)
+    public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> GetDefinitionById([FromRoute] Guid id)
     {
         var definitionById = await storageSystem.DefinitionStorage.GetDefinitionById(id);
-        var bpmnDefinitionDto = definitionById.ToDto();
-        return Ok(bpmnDefinitionDto);
+        return Ok(new ApiStatusResult<BpmnDefinitionDto>(definitionById.ToDto()));
     }
     
      
@@ -126,46 +135,46 @@ public class DefinitionController(
     #region meta
 
     [HttpGet("meta")]
-    public async Task<ActionResult<ExtendedBpmnMetaDefinitionDto[]>> MetaIndex()
+    public async Task<ActionResult<ApiStatusResult<ExtendedBpmnMetaDefinitionDto[]>>> MetaIndex()
     {
         var allMetaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
         var bpmnDefinitionDto = allMetaDefinitions.Select(definition => definition.ToDto()).ToArray();
-        return Ok(bpmnDefinitionDto);
+        return Ok(new ApiStatusResult<ExtendedBpmnMetaDefinitionDto[]>(bpmnDefinitionDto));
     }
     
     [HttpGet("meta/{id}")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaGetById([FromRoute] string id)
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaGetById([FromRoute] string id)
     {
-        var allBinaryDefinitions = await storageSystem.DefinitionStorage.GetMetaDefinitionById(id);
-        var bpmnDefinitionDto = allBinaryDefinitions.ToDto();
-        return Ok(bpmnDefinitionDto);
+        var metaDefinition = await storageSystem.DefinitionStorage.GetMetaDefinitionById(id);
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(metaDefinition.ToDto()));
     }
     
         
     [HttpGet("meta/{id}/latest")]
-    public async Task<ActionResult<BpmnDefinitionDto>> LatestDefinition([FromRoute] string id)
+    public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> LatestDefinition([FromRoute] string id)
     {
         var latestDefinition = await storageSystem.DefinitionStorage.GetLatestDefinition(id);
-        var bpmnDefinitionDto = latestDefinition.ToDto();
-        return Ok(bpmnDefinitionDto);
+        return Ok(new ApiStatusResult<BpmnDefinitionDto>(latestDefinition.ToDto()));
     }
     
 
     [HttpPost("meta")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
         var definition = dto.ToModel();
         await storageSystem.DefinitionStorage.StoreMetaDefinition(definition);
-        return Ok(definition.ToDto());
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(definition.ToDto()));
     }
     
     
     [HttpPut("meta")]
-    public async Task<ActionResult<BpmnMetaDefinitionDto>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
     {
         var definition = dto.ToModel();
         await storageSystem.DefinitionStorage.UpdateMetaDefinition(definition);
-        return Ok(definition.ToDto());
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(definition.ToDto()));
     }
 
  
