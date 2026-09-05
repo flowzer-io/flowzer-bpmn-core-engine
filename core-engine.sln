@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StorageSystemShared", "src\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "StorageSystems", "StorageSystems", "{7A61EBA3-1799-49D8-A7A3-BB5036038E2A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model", "Model\Model.csproj", "{E7521C7E-3722-48CB-86B4-41C8BF86DDCC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model", "src\Model\Model.csproj", "{E7521C7E-3722-48CB-86B4-41C8BF86DDCC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FlowzerFrontend", "src\FlowzerFrontend\FlowzerFrontend.csproj", "{A1DA0221-BDFE-43D2-9384-7628A14A0EEB}"
 EndProject

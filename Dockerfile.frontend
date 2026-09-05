@@ -4,7 +4,7 @@ WORKDIR /src
 COPY global.json Directory.Build.props ./
 
 # Restore auf das Frontend + seine Referenzen begrenzen.
-COPY Model/Model.csproj Model/
+COPY src/Model/Model.csproj src/Model/
 COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
 COPY src/WebApiEngine.Shared/WebApiEngine.Shared.csproj src/WebApiEngine.Shared/
 COPY src/FlowzerFrontend/FlowzerFrontend.csproj src/FlowzerFrontend/

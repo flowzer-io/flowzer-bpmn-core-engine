@@ -17,7 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Model\Model.csproj" />
+      <ProjectReference Include="..\Model\Model.csproj" />
       <ProjectReference Include="..\core-engine\core-engine.csproj" />
       <ProjectReference Include="..\FilesystemStorageSystem\FilesystemStorageSystem.csproj" />
       <ProjectReference Include="..\PostgreSqlStorageSystem\PostgreSqlStorageSystem.csproj" />
