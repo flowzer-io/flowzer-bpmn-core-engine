@@ -80,6 +80,23 @@ public class HttpContextCurrentUserContextAccessorTest
         currentUser.IsFallback.Should().BeTrue();
     }
 
+    // Testzweck: Ist der Request bereits authentifiziert (z. B. JWT ohne GUID-Claim), darf der
+    // technische Development-Header die Identitaet nicht ueberschreiben. Er ist nur ein Ersatz
+    // fuer fehlende Authentifizierung.
+    [Test]
+    public void GetCurrentUser_ShouldIgnoreHeader_WhenRequestIsAuthenticatedWithoutGuidClaim()
+    {
+        var accessor = CreateAccessor(
+            environmentName: Environments.Development,
+            claims: [new Claim("sub", "opaque-subject")],
+            headerUserId: Guid.NewGuid());
+
+        var currentUser = accessor.GetCurrentUser();
+
+        currentUser.IsFallback.Should().BeTrue();
+        currentUser.Source.Should().Be("fallback:system-user");
+    }
+
     private static HttpContextCurrentUserContextAccessor CreateAccessor(
         string environmentName,
         IEnumerable<Claim>? claims = null,

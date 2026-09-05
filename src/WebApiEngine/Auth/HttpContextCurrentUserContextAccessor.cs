@@ -31,8 +31,12 @@ public sealed class HttpContextCurrentUserContextAccessor(
             return claimBasedUser;
         }
 
+        // Der technische Header ist nur ein Ersatz fuer fehlende Authentifizierung. Ist der
+        // Request bereits authentifiziert (JWT ohne verwertbaren GUID-Claim), darf der Header
+        // die Identitaet nicht ueberschreiben.
+        var isAuthenticated = user?.Identity?.IsAuthenticated ?? false;
         var headerValue = httpContext?.Request.Headers[UserIdHeaderName].FirstOrDefault();
-        if (hostEnvironment.IsDevelopment() && Guid.TryParse(headerValue, out var headerUserId))
+        if (hostEnvironment.IsDevelopment() && !isAuthenticated && Guid.TryParse(headerValue, out var headerUserId))
         {
             return new CurrentUserContext(headerUserId, "header:x-flowzer-userid", false);
         }

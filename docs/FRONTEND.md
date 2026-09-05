@@ -22,6 +22,8 @@ Damit lässt sich das Frontend lokal direkt gegen die Web-API starten, ohne dass
 
 Zusätzlich kann `FlowzerApi:DevelopmentUserId` gesetzt werden. Wenn das Frontend selbst im `Development`- oder `Playwright`-Modus läuft, sendet es diesen Wert automatisch als `X-Flowzer-UserId` an die Web-API. Damit bleiben lokal gehärtete Definition-, User-Task- und Formularpfade testbar, ohne Produktionsumgebungen wieder für freie Header-Impersonation zu öffnen.
 
+> Bei aktiver JWT-Bearer-Authentifizierung der API (`Authentication:Scheme=JwtBearer`) reicht der Header nicht mehr aus. Das Blazor-Frontend hat noch keinen OIDC-Client; siehe [OPERATIONS.md](./OPERATIONS.md#authentifizierung-jwt-bearer--oidc).
+
 ## Lokaler Start
 
 ### Web-API

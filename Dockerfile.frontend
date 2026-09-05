@@ -1,7 +1,7 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.103 AS build
 WORKDIR /src
 
-COPY global.json ./
+COPY global.json Directory.Build.props ./
 
 # Restore auf das Frontend + seine Referenzen begrenzen.
 COPY Model/Model.csproj Model/

@@ -1,6 +1,6 @@
 # Betriebs- und Deployment-Basis
 
-**Stand:** 12. April 2026
+**Stand:** 5. September 2026
 
 Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `next`: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade.
 
@@ -17,6 +17,34 @@ Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `next`:
 - definierter Storage-Pfad für dateibasierte Persistenz
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 - optionale OpenTelemetry-Exporter für Console und OTLP
+
+## Authentifizierung (JWT Bearer / OIDC)
+
+Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
+
+| Schlüssel | Bedeutung |
+|---|---|
+| `Authentication__Scheme` | `None` (Default, kein Schutz) oder `JwtBearer` |
+| `Authentication__JwtBearer__Authority` | OIDC-Issuer, z. B. `https://login.microsoftonline.com/<tenant>/v2.0` oder `https://keycloak.example/realms/flowzer` |
+| `Authentication__JwtBearer__Audience` | erwartete Audience (Client-/App-Id der API) |
+| `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für lokale IdPs ohne TLS auf `false` |
+
+Verhalten bei `JwtBearer`:
+
+- Alle Endpunkte verlangen ein gültiges Token (Fallback-Policy). `GET /health` und `GET /health/ready` bleiben anonym für Orchestrator-Probes.
+- Die Benutzer-Id wird aus den Claims `nameidentifier`, `sub` oder `oid` gelesen (Originalnamen, kein Inbound-Claim-Mapping) und muss eine GUID sein. Entra ID liefert `oid` als GUID, Keycloak `sub`. Andere Formate führen zu 401 auf benutzerbezogenen Pfaden. Der gültige Issuer stammt aus den OIDC-Metadaten der Authority.
+- Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
+- Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
+
+Noch offen: Das Blazor-Frontend besitzt keinen OIDC-Client und kann bei aktivem `JwtBearer` keine Token beschaffen. Für einen Pilot ist deshalb ein Reverse Proxy mit Token-Weitergabe oder die Ergänzung von `Microsoft.AspNetCore.Components.WebAssembly.Authentication` im Frontend nötig. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.
+
+## CORS
+
+Abschnitt `Cors:AllowedOrigins` (Array). Konfigurierte Origins werden exakt zugelassen. Ohne Konfiguration erlaubt der Development-Modus weiterhin jede Origin (Blazor-Dev-Server, Playwright); alle anderen Umgebungen setzen keine CORS-Header. Hinter dem Runtime-Gateway laufen API und Frontend unter derselben Origin und brauchen kein CORS.
+
+```bash
+Cors__AllowedOrigins__0=https://flowzer.example.com
+```
 
 ## Health-Signale
 
@@ -240,6 +268,10 @@ npm --prefix tests/ui-smoke run test
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
 Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
+
+### Nebenläufigkeit
+
+Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engine-Mutationen (Deploy, Start, User-Task, Message, Timer) über eine prozessweite Sperre, schreibt Dateien atomar (Temporärdatei plus Umbenennen) und toleriert beim Lesen parallel gelöschte Dateien. Das macht einen **einzelnen API-Prozess** robust. Mehrere API-Instanzen auf derselben Ablage werden nicht unterstützt.
 
 ### Relevante Verzeichnisse
 

@@ -1,7 +1,7 @@
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.103 AS build
 WORKDIR /src
 
-COPY global.json ./
+COPY global.json Directory.Build.props ./
 
 # Nur die für die Web-API relevanten Projekte vorziehen, damit Restore-Layer stabil bleiben.
 COPY Model/Model.csproj Model/
@@ -22,7 +22,7 @@ RUN dotnet publish src/WebApiEngine/WebApiEngine.csproj \
     --output /app/publish \
     /p:UseAppHost=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 RUN apt-get update \

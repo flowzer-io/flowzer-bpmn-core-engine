@@ -1,10 +1,10 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 12. April 2026
+**Stand:** 5. September 2026
 
 ## Kurzfazit
 
-Das Projekt ist **nicht mehr im kritischen Stillstand**, sondern wieder in einer aktiven Stabilisierungs- und Ausbauphase.
+Das Projekt ist **nicht mehr im kritischen Stillstand**, sondern wieder in einer aktiven Stabilisierungs- und Ausbauphase. Das Review vom September 2026 ([REVIEW-2026-09.md](./REVIEW-2026-09.md)) hat die Betriebsvoraussetzungen für einen Firmeneinsatz nachgezogen: OIDC-Authentifizierung in der API, nebenläufigkeitsfeste Dateiablage, lauffähige Container, NuGet-Audit als CI-Gate und einen Engine-Fix für Standardflüsse an exklusiven Gateways.
 
 Meine ehrliche Einschätzung auf dem heutigen Stand:
 
@@ -14,7 +14,7 @@ Meine ehrliche Einschätzung auf dem heutigen Stand:
 | Architektur-Grundlage | gut |
 | Build-/CI-Zustand | solide |
 | Testbarkeit | solide mit Ausbaupotenzial |
-| Produktreife | mittel |
+| Produktreife | mittel, Pilot mit Identity Provider möglich |
 | Wiederbelebungschance | sehr gut |
 
 Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbeitsfähig**, `next` ist als Integrationsbranch etabliert und die größten Basisprobleme wurden bereits systematisch angegangen.
@@ -63,6 +63,11 @@ Unter anderem bereits umgesetzt:
 - Request- und Timer-Scheduler-Diagnosepfad mit Dauer-, Status- und Tick-Signalen
 - optionale OpenTelemetry-Exporter für Console und OTLP inklusive Konfigurations- und Diagnosepfad
 - dokumentierte Recovery-/Backup-Hinweise für die dateibasierte Persistenz
+- September 2026: JWT-Bearer-/OIDC-Authentifizierung und konfigurierbares CORS in der Web-API
+- September 2026: Engine-Mutationen serialisiert, Dateiablage mit atomaren Schreibzugriffen
+- September 2026: `GET /usertask/{id}/form`, Zeitstempel und Form-Key in den API-Verträgen, 422 für Modellfehler
+- September 2026: Standardfluss an exklusiven Gateways funktioniert
+- September 2026: Docker/Compose auf .NET 10, NuGet-Audit als Restore-Gate, SDK-Band festgepinnt
 
 ## Was weiterhin bremst
 
@@ -70,9 +75,11 @@ Unter anderem bereits umgesetzt:
 
 Besonders relevant sind noch:
 
-- weiter ausgebautes Playwright-/E2E-Smoke-Set
+- Identity-Provider-Anbindung im Frontend (die API prüft Tokens bereits)
+- Rollen, Kandidaten und Gruppen für Aufgaben; heute sieht jede angemeldete Person alles
+- Persistenz jenseits von JSON-Dateien (Einzelknoten, keine Historie, keine Abfragen)
+- Entscheidung für genau eine Oberfläche (Blazor oder React-Konsole aus `feat/react-console`)
 - Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
-- weitere Auth-/Identity- und Fehlerpfade jenseits des aktuellen Benutzerkontext-Guards
 - Release-/Telemetrie-/Secret-/Recovery-Story über die jetzt vorhandene OTLP-/Console-Basis hinaus
 
 ### 2. Es gibt noch Restlücken im Codebestand

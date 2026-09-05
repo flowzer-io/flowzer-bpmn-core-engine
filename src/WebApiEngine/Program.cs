@@ -29,18 +29,11 @@ builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.AddSingleton<UserTaskFormResolver>();
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAllOrigins",
-        builder =>
-        {
-            builder.AllowAnyOrigin()
-                .AllowAnyHeader()
-                .AllowAnyMethod();
-        });
-});
+builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
+builder.Services.AddFlowzerAuthentication(builder.Configuration);
 
 var app = builder.Build();
 
@@ -54,9 +47,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowAllOrigins"); // Diese Zeile stellt sicher, dass die CORS-Richtlinie angewendet wird
+app.UseFlowzerCors();
+app.UseFlowzerAuthentication();
 
-// app.UseHttpsRedirection();
+// TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
 
 app.MapControllers();
 
