@@ -8,9 +8,11 @@ namespace WebApiEngine.Jobs;
 /// <summary>
 /// Vergabe und Rueckmeldung von Auftraegen an externe Worker.
 ///
-/// Die Vergabe laeuft unter einer eigenen Sperre. Ohne sie koennten zwei Worker denselben
-/// Auftrag lesen, beide die Sperre setzen und beide die Arbeit machen; bei einem Service-Task
-/// mit Seiteneffekt waere das eine doppelte Ausfuehrung.
+/// Die Vergabe ist in der Ablage atomar. Zusaetzlich laeuft jede Zustandsaenderung eines
+/// Auftrags in diesem Prozess unter einer Sperre und liest den Auftrag dabei neu: Waere der
+/// Abschluss davon ausgenommen, koennte ein Worker mit abgelaufener Frist noch abschliessen,
+/// waehrend ein zweiter denselben Auftrag bereits uebernommen hat, und ein Service-Task mit
+/// Seiteneffekt liefe doppelt.
 /// </summary>
 public sealed class ServiceTaskJobService(
     ITransactionalStorageProvider storageProvider,
@@ -20,36 +22,36 @@ public sealed class ServiceTaskJobService(
 {
     private readonly SemaphoreSlim _assignmentLock = new(1, 1);
 
-    public async Task<IReadOnlyList<ServiceTaskJob>> FetchAndLock(string type, string workerId, int maxJobs, TimeSpan lockDuration)
+    /// <summary>
+    /// Bildet den Sperrinhaber. Er enthaelt die authentifizierte Person, nicht nur die frei
+    /// gewaehlte Worker-Kennung aus dem Anfragekoerper: Sonst genuegte ein geratener Name, um
+    /// die Sperre eines fremden Workers zu bedienen.
+    /// </summary>
+    public static string BuildLockOwner(Guid userId, string workerId) => $"{userId:N}:{workerId}";
+
+    public async Task<IReadOnlyList<ServiceTaskJob>> FetchAndLock(
+        string type,
+        Guid userId,
+        string workerId,
+        int maxJobs,
+        TimeSpan lockDuration)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        var lockOwner = BuildLockOwner(userId, workerId);
 
         await _assignmentLock.WaitAsync();
         try
         {
             using var storage = storageProvider.GetTransactionalStorage();
-
-            var available = (await storage.ServiceTaskStorage.GetJobsByType(type))
-                .Where(job => job.IsAvailableAt(now))
-                .OrderBy(job => job.CreatedAt)
-                .Take(maxJobs)
-                .ToList();
-
-            foreach (var job in available)
-            {
-                job.LockedBy = workerId;
-                job.LockedUntil = now.Add(lockDuration);
-                await storage.ServiceTaskStorage.SaveJob(job);
-            }
-
+            var claimed = await storage.ServiceTaskStorage.ClaimJobs(type, lockOwner, now, now.Add(lockDuration), maxJobs);
             storage.CommitChanges();
 
-            if (available.Count > 0)
+            if (claimed.Count > 0)
             {
-                logger.LogInformation("{Count} Auftraege vom Typ {Type} an Worker {Worker} vergeben.", available.Count, type, workerId);
+                logger.LogInformation("{Count} Auftraege vom Typ {Type} an Worker {Worker} vergeben.", claimed.Count, type, workerId);
             }
 
-            return available;
+            return claimed;
         }
         finally
         {
@@ -58,26 +60,29 @@ public sealed class ServiceTaskJobService(
     }
 
     /// <summary>
-    /// Nimmt das Ergebnis entgegen. Der Auftrag muss diesem Worker gehoeren und seine Frist
-    /// darf nicht abgelaufen sein: Sonst hat inzwischen ein anderer Worker uebernommen, und
-    /// zwei Ergebnisse fuer denselben Token wuerden den Prozess doppelt weiterfuehren.
+    /// Nimmt das Ergebnis entgegen. Der Auftrag muss diesem Worker im Moment des Abschlusses
+    /// noch gehoeren; sonst hat inzwischen ein anderer uebernommen.
     /// </summary>
-    public async Task<JobOperationResult> Complete(Guid jobId, string workerId, Variables? variables, Guid userId)
+    public async Task<JobOperationResult> Complete(Guid jobId, Guid userId, string workerId, Variables? variables)
     {
-        var job = await LoadJob(jobId);
-        if (job is null)
-        {
-            return JobOperationResult.NotFound;
-        }
+        var lockOwner = BuildLockOwner(userId, workerId);
 
-        var lockProblem = CheckLock(job, workerId);
-        if (lockProblem is not null)
+        await _assignmentLock.WaitAsync();
+        try
         {
-            return lockProblem.Value;
-        }
+            var (job, problem) = await LoadOwnJob(jobId, lockOwner);
+            if (problem is not null)
+            {
+                return problem.Value;
+            }
 
-        await businessLogic.CompleteServiceTaskJob(job, variables, userId);
-        return JobOperationResult.Ok;
+            await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
+            return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
     }
 
     /// <summary>
@@ -85,27 +90,31 @@ public sealed class ServiceTaskJobService(
     /// wieder vergeben; sonst bleibt er liegen und wartet auf einen Eingriff, statt still zu
     /// verschwinden.
     /// </summary>
-    public async Task<JobOperationResult> Fail(Guid jobId, string workerId, string? errorMessage, int? remainingRetries, TimeSpan retryBackoff)
+    public async Task<JobOperationResult> Fail(
+        Guid jobId,
+        Guid userId,
+        string workerId,
+        string? errorMessage,
+        int? remainingRetries,
+        TimeSpan retryBackoff)
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
+        var lockOwner = BuildLockOwner(userId, workerId);
 
         await _assignmentLock.WaitAsync();
         try
         {
             using var storage = storageProvider.GetTransactionalStorage();
-            var job = await storage.ServiceTaskStorage.GetJob(jobId);
+            var job = await storage.ServiceTaskStorage.GetLockedJob(jobId, lockOwner, now);
             if (job is null)
             {
-                return JobOperationResult.NotFound;
+                return await ClassifyMissingJob(storage, jobId);
             }
 
-            var lockProblem = CheckLock(job, workerId);
-            if (lockProblem is not null)
-            {
-                return lockProblem.Value;
-            }
-
-            job.Retries = remainingRetries ?? Math.Max(0, job.Retries - 1);
+            // Der Worker darf die Zahl der Versuche senken, nicht erhoehen: Sonst koennte ein
+            // fehlerhafter Worker sich selbst unbegrenzt viele Anlaeufe verschaffen.
+            var proposed = remainingRetries ?? job.Retries - 1;
+            job.Retries = Math.Clamp(proposed, 0, job.Retries - 1);
             job.LastErrorMessage = errorMessage;
             job.LockedBy = null;
             job.LockedUntil = null;
@@ -132,25 +141,35 @@ public sealed class ServiceTaskJobService(
         return (await storage.ServiceTaskStorage.GetJobs()).OrderBy(job => job.CreatedAt).ToList();
     }
 
-    private async Task<ServiceTaskJob?> LoadJob(Guid jobId)
+    private async Task<(ServiceTaskJob? Job, JobOperationResult? Problem)> LoadOwnJob(Guid jobId, string lockOwner)
     {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
         using var storage = storageProvider.GetTransactionalStorage();
-        return await storage.ServiceTaskStorage.GetJob(jobId);
+
+        var job = await storage.ServiceTaskStorage.GetLockedJob(jobId, lockOwner, now);
+        if (job is not null)
+        {
+            return (job, null);
+        }
+
+        return (null, await ClassifyMissingJob(storage, jobId));
     }
 
-    private JobOperationResult? CheckLock(ServiceTaskJob job, string workerId)
+    /// <summary>
+    /// Trennt "gibt es nicht" von "gehoert gerade jemand anderem". Der Unterschied sagt dem
+    /// Worker, ob er den Auftrag vergessen oder ihn erneut abholen soll.
+    /// </summary>
+    private async Task<JobOperationResult> ClassifyMissingJob(ITransactionalStorage storage, Guid jobId)
     {
-        if (!string.Equals(job.LockedBy, workerId, StringComparison.Ordinal))
+        var existing = await storage.ServiceTaskStorage.GetJob(jobId);
+        if (existing is null)
         {
-            return JobOperationResult.NotLockedByWorker;
+            return JobOperationResult.NotFound;
         }
 
-        if (job.LockedUntil is null || job.LockedUntil <= timeProvider.GetUtcNow().UtcDateTime)
-        {
-            return JobOperationResult.LockExpired;
-        }
-
-        return null;
+        return existing.LockedUntil is null || existing.LockedUntil <= timeProvider.GetUtcNow().UtcDateTime
+            ? JobOperationResult.LockExpired
+            : JobOperationResult.NotLockedByWorker;
     }
 }
 

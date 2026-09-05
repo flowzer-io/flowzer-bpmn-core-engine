@@ -16,6 +16,9 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class ServiceTaskJobServiceTest
 {
+    /// <summary>Die angemeldete Person hinter dem Worker; sie gehoert zum Sperrinhaber.</summary>
+    private static readonly Guid WorkerUser = Guid.Parse("A1B2C3D4-0000-4000-8000-000000000001");
+
     // Testzweck: Ein freier Auftrag wird genau einem Worker zugeteilt und ist danach gesperrt.
     [Test]
     public async Task FetchAndLock_ShouldHandOutAJobOnlyOnce()
@@ -23,11 +26,11 @@ public class ServiceTaskJobServiceTest
         var context = new JobTestContext();
         await context.AddJob("zahlung");
 
-        var first = await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5));
-        var second = await context.Service.FetchAndLock("zahlung", "worker-b", 10, TimeSpan.FromMinutes(5));
+        var first = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5));
+        var second = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-b", 10, TimeSpan.FromMinutes(5));
 
         first.Should().ContainSingle();
-        first.Single().LockedBy.Should().Be("worker-a");
+        first.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, "worker-a"));
         second.Should().BeEmpty();
     }
 
@@ -39,7 +42,7 @@ public class ServiceTaskJobServiceTest
         await context.AddJob("zahlung");
         await context.AddJob("versand");
 
-        var jobs = await context.Service.FetchAndLock("versand", "worker-a", 10, TimeSpan.FromMinutes(5));
+        var jobs = await context.Service.FetchAndLock("versand", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5));
 
         jobs.Should().ContainSingle();
         jobs.Single().Type.Should().Be("versand");
@@ -52,13 +55,13 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
         await context.AddJob("zahlung");
-        await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5));
+        await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5));
 
         context.Time.Advance(TimeSpan.FromMinutes(6));
-        var afterExpiry = await context.Service.FetchAndLock("zahlung", "worker-b", 10, TimeSpan.FromMinutes(5));
+        var afterExpiry = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-b", 10, TimeSpan.FromMinutes(5));
 
         afterExpiry.Should().ContainSingle();
-        afterExpiry.Single().LockedBy.Should().Be("worker-b");
+        afterExpiry.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, "worker-b"));
     }
 
     // Testzweck: Nur der Worker, dem der Auftrag gehoert, darf zurueckmelden. Sonst koennten
@@ -68,9 +71,9 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
         await context.AddJob("zahlung");
-        var job = (await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
-        var result = await context.Service.Complete(job.Id, "worker-b", null, Guid.NewGuid());
+        var result = await context.Service.Complete(job.Id, WorkerUser, "worker-b", null);
 
         result.Should().Be(JobOperationResult.NotLockedByWorker);
     }
@@ -82,10 +85,10 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
         await context.AddJob("zahlung");
-        var job = (await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
         context.Time.Advance(TimeSpan.FromMinutes(6));
-        var result = await context.Service.Complete(job.Id, "worker-a", null, Guid.NewGuid());
+        var result = await context.Service.Complete(job.Id, WorkerUser, "worker-a", null);
 
         result.Should().Be(JobOperationResult.LockExpired);
     }
@@ -97,13 +100,13 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
         await context.AddJob("zahlung", retries: 3);
-        var job = (await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
-        var result = await context.Service.Fail(job.Id, "worker-a", "Endpunkt nicht erreichbar", null, TimeSpan.FromSeconds(30));
-        var immediately = await context.Service.FetchAndLock("zahlung", "worker-b", 10, TimeSpan.FromMinutes(5));
+        var result = await context.Service.Fail(job.Id, WorkerUser, "worker-a", "Endpunkt nicht erreichbar", null, TimeSpan.FromSeconds(30));
+        var immediately = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-b", 10, TimeSpan.FromMinutes(5));
 
         context.Time.Advance(TimeSpan.FromSeconds(31));
-        var afterBackoff = await context.Service.FetchAndLock("zahlung", "worker-b", 10, TimeSpan.FromMinutes(5));
+        var afterBackoff = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-b", 10, TimeSpan.FromMinutes(5));
 
         result.Should().Be(JobOperationResult.Ok);
         immediately.Should().BeEmpty();
@@ -119,14 +122,57 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
         await context.AddJob("zahlung", retries: 1);
-        var job = (await context.Service.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
-        await context.Service.Fail(job.Id, "worker-a", "endgueltig", null, TimeSpan.FromSeconds(1));
+        await context.Service.Fail(job.Id, WorkerUser, "worker-a", "endgueltig", null, TimeSpan.FromSeconds(1));
         context.Time.Advance(TimeSpan.FromMinutes(10));
-        var afterwards = await context.Service.FetchAndLock("zahlung", "worker-b", 10, TimeSpan.FromMinutes(5));
+        var afterwards = await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-b", 10, TimeSpan.FromMinutes(5));
 
         afterwards.Should().BeEmpty();
         (await context.Service.GetAll()).Should().ContainSingle(candidate => candidate.Id == job.Id);
+    }
+
+    // Testzweck: Die Sperre gehoert der angemeldeten Person, nicht der frei gewaehlten
+    // Worker-Kennung. Sonst genuegte ein geratener Name, um fremde Auftraege abzuschliessen.
+    [Test]
+    public async Task Complete_ShouldBeRefused_WhenAnotherPersonUsesTheSameWorkerName()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var someoneElse = Guid.NewGuid();
+
+        var result = await context.Service.Complete(job.Id, someoneElse, "worker-a", null);
+
+        result.Should().Be(JobOperationResult.NotLockedByWorker);
+    }
+
+    // Testzweck: Ein Worker darf die Zahl der Versuche nicht heraufsetzen; sonst verschafft er
+    // sich unbegrenzt viele Anlaeufe.
+    [Test]
+    public async Task Fail_ShouldNotAllowTheWorkerToGrantItselfMoreAttempts()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung", retries: 2);
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        await context.Service.Fail(job.Id, WorkerUser, "worker-a", "Fehler", int.MaxValue, TimeSpan.Zero);
+
+        (await context.Service.GetAll()).Single().Retries.Should().Be(1);
+    }
+
+    // Testzweck: Negative Angaben duerfen den Auftrag nicht in einen Zustand bringen, in dem er
+    // weder vergeben noch erkennbar erschoepft ist.
+    [Test]
+    public async Task Fail_ShouldNotAllowNegativeAttempts()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung", retries: 2);
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        await context.Service.Fail(job.Id, WorkerUser, "worker-a", "Fehler", -5, TimeSpan.Zero);
+
+        (await context.Service.GetAll()).Single().Retries.Should().Be(0);
     }
 
     // Testzweck: Ein unbekannter Auftrag ist kein Serverfehler; er ist meist schon erledigt.
@@ -135,7 +181,7 @@ public class ServiceTaskJobServiceTest
     {
         var context = new JobTestContext();
 
-        var result = await context.Service.Complete(Guid.NewGuid(), "worker-a", null, Guid.NewGuid());
+        var result = await context.Service.Complete(Guid.NewGuid(), WorkerUser, "worker-a", null);
 
         result.Should().Be(JobOperationResult.NotFound);
     }

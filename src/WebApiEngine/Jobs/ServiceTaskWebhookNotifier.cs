@@ -10,9 +10,9 @@ namespace WebApiEngine.Jobs;
 /// <summary>
 /// Benachrichtigt angemeldete Worker, sobald ein Auftrag ihres Typs frei ist.
 ///
-/// Die Benachrichtigung enthält bewusst nur Kennung und Typ des Auftrags, keine Prozessdaten:
-/// Sie geht an eine Adresse, die jemand angemeldet hat, und soll nichts preisgeben, was der
-/// Worker nicht ohnehin über die authentifizierten Endpunkte holen kann.
+/// Die Benachrichtigung enthält bewusst nur Kennung, Typ und Entstehungszeit des Auftrags. Auch
+/// die Instanzkennung fehlt: Sie ließe sich sonst über eine angemeldete Adresse mitschreiben,
+/// ohne dass der Empfänger je einen Auftrag abholt.
 /// </summary>
 public sealed class ServiceTaskWebhookNotifier(
     ITransactionalStorageProvider storageProvider,
@@ -26,8 +26,12 @@ public sealed class ServiceTaskWebhookNotifier(
     public const string EventHeader = "X-Flowzer-Event";
     public const string JobAvailableEvent = "service-task.available";
 
-    /// <summary>Auftragskennungen, die bereits gemeldet wurden. Verhindert Dauerbenachrichtigung.</summary>
-    private readonly HashSet<Guid> _announced = [];
+    /// <summary>
+    /// Bereits gemeldete Paare aus Anmeldung und Auftrag. Der Schluessel enthaelt die Anmeldung,
+    /// nicht nur den Auftrag: Sonst bekaeme bei mehreren Workern desselben Typs nur der erste
+    /// eine Benachrichtigung.
+    /// </summary>
+    private readonly HashSet<(Guid WebhookId, Guid JobId)> _announced = [];
 
     public async Task NotifyPendingJobs(CancellationToken cancellationToken)
     {
@@ -49,7 +53,8 @@ public sealed class ServiceTaskWebhookNotifier(
         // Erledigte Auftraege aus der Merkliste nehmen, damit sie nicht unbegrenzt waechst und
         // eine erneute Vergabe desselben Auftrags nach einem Fehlschlag wieder gemeldet wird.
         var availableIds = jobs.Select(job => job.Id).ToHashSet();
-        _announced.IntersectWith(availableIds);
+        var webhookIds = webhooks.Select(webhook => webhook.Id).ToHashSet();
+        _announced.RemoveWhere(entry => !availableIds.Contains(entry.JobId) || !webhookIds.Contains(entry.WebhookId));
 
         foreach (var webhook in webhooks)
         {
@@ -59,7 +64,8 @@ public sealed class ServiceTaskWebhookNotifier(
             }
 
             var matching = jobs.Where(job =>
-                string.Equals(job.Type, webhook.Type, StringComparison.Ordinal) && !_announced.Contains(job.Id)).ToList();
+                string.Equals(job.Type, webhook.Type, StringComparison.Ordinal)
+                && !_announced.Contains((webhook.Id, job.Id))).ToList();
 
             foreach (var job in matching)
             {
@@ -70,8 +76,14 @@ public sealed class ServiceTaskWebhookNotifier(
 
                 if (await Deliver(webhook, job, cancellationToken))
                 {
-                    _announced.Add(job.Id);
+                    _announced.Add((webhook.Id, job.Id));
+                    continue;
                 }
+
+                // Ein unerreichbarer Worker soll nicht in einem einzigen Durchgang abgeschaltet
+                // werden, nur weil gerade viele Auftraege vorliegen: Der Zaehler steht fuer
+                // Durchgaenge, nicht fuer Auftraege.
+                break;
             }
         }
     }
@@ -91,7 +103,6 @@ public sealed class ServiceTaskWebhookNotifier(
             @event = JobAvailableEvent,
             jobId = job.Id,
             type = job.Type,
-            processInstanceId = job.ProcessInstanceId,
             createdAt = job.CreatedAt
         });
 

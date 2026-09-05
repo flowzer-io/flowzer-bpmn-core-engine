@@ -14,6 +14,9 @@ namespace WebApiEngine.Controller;
 /// benachrichtigt, sobald ein Auftrag vorliegt.
 /// </summary>
 [ApiController, Route("job")]
+// Auftraege tragen die Eingabewerte des Prozessschritts. Wer sie abholt, liest damit
+// Prozessdaten; das ist eine eigene Rolle und nicht jede angemeldete Person.
+[Authorize(Policy = FlowzerPolicies.Worker)]
 public class JobController(
     ServiceTaskJobService jobService,
     ServiceTaskWebhookService webhookService,
@@ -38,8 +41,10 @@ public class JobController(
             return BadRequest(new ApiStatusResult<ServiceTaskJobDto[]>("LockSeconds must be between 1 and 3600."));
         }
 
+        var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("fetching service task jobs");
         var jobs = await jobService.FetchAndLock(
             request.Type,
+            userId,
             request.WorkerId,
             request.MaxJobs,
             TimeSpan.FromSeconds(request.LockSeconds));
@@ -53,7 +58,7 @@ public class JobController(
         var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("completing service tasks");
         var variables = request.Variables is null ? null : ToVariables(request.Variables);
 
-        return Translate(await jobService.Complete(jobId, request.WorkerId, variables, userId));
+        return Translate(await jobService.Complete(jobId, userId, request.WorkerId, variables));
     }
 
     [HttpPost("{jobId:guid}/fail")]
@@ -64,8 +69,10 @@ public class JobController(
             return BadRequest(new ApiStatusResult("RetryBackoffSeconds must be between 0 and 86400."));
         }
 
+        var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("failing service tasks");
         return Translate(await jobService.Fail(
             jobId,
+            userId,
             request.WorkerId,
             request.ErrorMessage,
             request.Retries,
@@ -82,6 +89,8 @@ public class JobController(
     }
 
     [HttpGet("webhook")]
+    // Eine Webhook-Anmeldung laesst die Engine eine fremde Adresse aufrufen; das entscheidet der Betrieb.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
     public async Task<ActionResult<ApiStatusResult<ServiceTaskWebhookDto[]>>> GetWebhooks()
     {
         var webhooks = await webhookService.GetAll();
@@ -89,6 +98,8 @@ public class JobController(
     }
 
     [HttpPost("webhook")]
+    // Eine Webhook-Anmeldung laesst die Engine eine fremde Adresse aufrufen; das entscheidet der Betrieb.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
     public async Task<ActionResult<ApiStatusResult<ServiceTaskWebhookDto>>> RegisterWebhook([FromBody] ServiceTaskWebhookDto request)
     {
         var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("registering service task webhooks");
@@ -103,6 +114,8 @@ public class JobController(
     }
 
     [HttpDelete("webhook/{webhookId:guid}")]
+    // Eine Webhook-Anmeldung laesst die Engine eine fremde Adresse aufrufen; das entscheidet der Betrieb.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
     public async Task<ActionResult<ApiStatusResult>> RemoveWebhook(Guid webhookId)
     {
         if (!await webhookService.Remove(webhookId))
@@ -137,7 +150,9 @@ public class JobController(
         FlowNodeId = job.Token.CurrentFlowNode?.Id,
         CreatedAt = job.CreatedAt,
         LockedUntil = job.LockedUntil,
-        LockedBy = job.LockedBy,
+        // Nur die Worker-Kennung, nicht die Person dahinter: Der Sperrinhaber enthaelt intern
+        // beides, nach aussen genuegt der Name, unter dem der Worker sich gemeldet hat.
+        LockedBy = job.LockedBy?.Split(':', 2).LastOrDefault(),
         Retries = job.Retries,
         RetryAt = job.RetryAt,
         LastErrorMessage = job.LastErrorMessage,

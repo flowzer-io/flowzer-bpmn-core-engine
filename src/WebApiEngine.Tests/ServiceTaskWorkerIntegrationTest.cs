@@ -17,6 +17,7 @@ namespace WebApiEngine.Tests;
 public class ServiceTaskWorkerIntegrationTest
 {
     private static readonly Guid UserId = Guid.Parse("2D3B8F8E-1F84-4B7B-9E4E-6B1B1C2D3E4F");
+    private static readonly Guid WorkerUser = UserId;
 
     // Testzweck: Eine gestartete Instanz mit Service-Task erzeugt genau einen Auftrag mit dem
     // im Modell angegebenen Typ.
@@ -42,9 +43,9 @@ public class ServiceTaskWorkerIntegrationTest
         using var context = new WorkerContext();
         await context.DeployServiceProcess();
         await context.BusinessLogic.StartProcessInstance("Definitions_Service");
-        var job = (await context.JobService.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.JobService.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
-        var result = await context.JobService.Complete(job.Id, "worker-a", null, UserId);
+        var result = await context.JobService.Complete(job.Id, UserId, "worker-a", null);
 
         result.Should().Be(JobOperationResult.Ok);
         (await context.JobService.GetAll()).Should().BeEmpty();
@@ -62,7 +63,7 @@ public class ServiceTaskWorkerIntegrationTest
         using var context = new WorkerContext();
         await context.DeployServiceProcess();
         await context.BusinessLogic.StartProcessInstance("Definitions_Service");
-        var job = (await context.JobService.FetchAndLock("zahlung", "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var job = (await context.JobService.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
 
         // Ein Timerdurchlauf speichert laufende Instanzen erneut.
         await context.BusinessLogic.HandleTime(DateTime.UtcNow);
@@ -70,7 +71,7 @@ public class ServiceTaskWorkerIntegrationTest
         var jobs = await context.JobService.GetAll();
         jobs.Should().ContainSingle();
         jobs.Single().Id.Should().Be(job.Id);
-        jobs.Single().LockedBy.Should().Be("worker-a");
+        jobs.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, "worker-a"));
     }
 
     private sealed class WorkerContext : IDisposable

@@ -12,6 +12,37 @@ internal sealed class InMemoryServiceTaskStorage : IServiceTaskStorage
     private readonly Dictionary<Guid, ServiceTaskJob> _jobs = [];
     private readonly Dictionary<Guid, ServiceTaskWebhook> _webhooks = [];
 
+    public Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs)
+    {
+        var claimed = _jobs.Values
+            .Where(job => string.Equals(job.Type, type, StringComparison.Ordinal) && job.IsAvailableAt(now))
+            .OrderBy(job => job.CreatedAt)
+            .Take(maxJobs)
+            .ToList();
+
+        foreach (var job in claimed)
+        {
+            job.LockedBy = lockOwner;
+            job.LockedUntil = lockedUntil;
+        }
+
+        return Task.FromResult<IReadOnlyList<ServiceTaskJob>>(claimed);
+    }
+
+    public Task<ServiceTaskJob?> GetLockedJob(Guid jobId, string lockOwner, DateTime now)
+    {
+        var job = _jobs.GetValueOrDefault(jobId);
+        if (job is null
+            || !string.Equals(job.LockedBy, lockOwner, StringComparison.Ordinal)
+            || job.LockedUntil is null
+            || job.LockedUntil <= now)
+        {
+            return Task.FromResult<ServiceTaskJob?>(null);
+        }
+
+        return Task.FromResult<ServiceTaskJob?>(job);
+    }
+
     public Task SaveJob(ServiceTaskJob job)
     {
         _jobs[job.Id] = job;

@@ -9,6 +9,22 @@ public interface IServiceTaskStorage
 {
     Task SaveJob(ServiceTaskJob job);
 
+    /// <summary>
+    /// Vergibt bis zu <paramref name="maxJobs"/> freie Auftraege des Typs an
+    /// <paramref name="lockOwner"/> und liefert genau die, die dabei uebernommen wurden.
+    ///
+    /// Muss atomar sein: Lesen, Pruefen und Sperren in einem Schritt. Eine Vergabe aus zwei
+    /// Schritten laesst zwei Aufrufer denselben Auftrag uebernehmen, und ein Service-Task mit
+    /// Seiteneffekt liefe dann doppelt.
+    /// </summary>
+    Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs);
+
+    /// <summary>
+    /// Liefert den Auftrag nur, wenn er <paramref name="lockOwner"/> zum Zeitpunkt
+    /// <paramref name="now"/> tatsaechlich gehoert; sonst <c>null</c>.
+    /// </summary>
+    Task<ServiceTaskJob?> GetLockedJob(Guid jobId, string lockOwner, DateTime now);
+
     Task<ServiceTaskJob?> GetJob(Guid jobId);
 
     Task<IEnumerable<ServiceTaskJob>> GetJobs();

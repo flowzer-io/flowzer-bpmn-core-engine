@@ -51,7 +51,10 @@ builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOpt
 builder.Services.AddSingleton<ServiceTaskJobService>();
 builder.Services.AddSingleton<ServiceTaskWebhookService>();
 builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
-builder.Services.AddHttpClient("flowzer-webhook");
+// Keine Weiterleitungen: Ein freigegebenes Ziel koennte sonst auf eine interne Adresse
+// umleiten, und die Engine wuerde ihr eigenes Netz von innen aufrufen.
+builder.Services.AddHttpClient("flowzer-webhook")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);

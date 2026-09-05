@@ -68,6 +68,35 @@ public class ServiceTaskWebhookTest
         (await service.GetAll()).Should().ContainSingle();
     }
 
+    // Testzweck: Ein freigegebener Name, der auf eine interne Adresse zeigt, wird abgelehnt.
+    // Sonst liesse sich die Engine benutzen, um ihr eigenes Netz von innen aufzurufen.
+    [TestCase("https://localhost/hook", false)]
+    [TestCase("https://127.0.0.1/hook", false)]
+    [TestCase("https://169.254.169.254/latest/meta-data", false)]
+    [TestCase("https://10.1.2.3/hook", false)]
+    [TestCase("https://192.168.1.5/hook", false)]
+    [TestCase("https://172.17.0.4/hook", false)]
+    [TestCase("https://93.184.216.34/hook", true)]
+    public void ValidateTarget_ShouldRefuseInternalAddresses(string url, bool expectedAllowed)
+    {
+        var problem = ServiceTaskWebhookService.DescribeInternalTarget(new Uri(url));
+
+        (problem is null).Should().Be(expectedAllowed);
+    }
+
+    // Testzweck: Ein leeres Geheimnis bei erneuter Anmeldung heisst "unveraendert". Wuerde es
+    // geloescht, schaltete ein Lesen-und-Zurueckschreiben die Signatur still ab.
+    [Test]
+    public async Task Register_ShouldKeepTheExistingSecret_WhenNoneIsSupplied()
+    {
+        var service = CreateService(allowedHosts: ["worker.maass.it"]);
+        await service.Register("zahlung", "https://worker.maass.it/hook", "geheim", null, Guid.NewGuid());
+
+        var second = await service.Register("zahlung", "https://worker.maass.it/hook", null, "ohne Geheimnis", Guid.NewGuid());
+
+        second.Webhook!.Secret.Should().Be("geheim");
+    }
+
     // Testzweck: Die Signatur ist reproduzierbar und haengt am Geheimnis; ein Worker kann sie
     // damit selbst nachrechnen.
     [Test]

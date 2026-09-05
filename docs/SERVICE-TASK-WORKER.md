@@ -20,7 +20,9 @@ Ohne `retries` bekommt der Auftrag einen Versuch.
 
 ## Abholen und zurückmelden
 
-Alle Endpunkte verlangen ein gültiges Token wie jeder andere Fachendpunkt.
+Alle Endpunkte unter `/job` verlangen die Rolle **Worker** (`Authentication__JwtBearer__Roles__Worker`). Ein Auftrag enthält die Eingabewerte des Prozessschritts; wer nur Aufgaben bearbeitet, soll deswegen nicht die Eingaben aller Service-Tasks lesen können. `GET /job` und die Webhook-Verwaltung verlangen zusätzlich die Betriebsrolle.
+
+Die Sperre gehört der angemeldeten Person zusammen mit ihrer Worker-Kennung, nicht der Kennung allein. Eine geratene Kennung genügt deshalb nicht, um fremde Aufträge zurückzumelden.
 
 **Aufträge übernehmen**
 
@@ -67,7 +69,9 @@ Liegt ein Auftrag dieses Typs frei, ruft Flowzer die Adresse einmal je Auftrag a
   "processInstanceId": "…", "createdAt": "2026-09-05T12:00:00Z" }
 ```
 
-Die Benachrichtigung enthält bewusst keine Prozessdaten. Sie sagt nur, dass Arbeit vorliegt; geholt und zurückgemeldet wird über dieselben Endpunkte wie oben, mit Anmeldung. Ist ein `secret` hinterlegt, trägt der Aufruf den Header `X-Flowzer-Signature` mit `sha256=<HMAC-SHA256 über den Nachrichtentext>`. Der Worker bildet dieselbe Signatur und erkennt daran, dass die Benachrichtigung von dieser Installation stammt.
+Die Benachrichtigung enthält bewusst keine Prozessdaten. Sie sagt nur, dass Arbeit vorliegt; geholt und zurückgemeldet wird über dieselben Endpunkte wie oben, mit Anmeldung. Ist ein `secret` hinterlegt, trägt der Aufruf den Header `X-Flowzer-Signature` mit `sha256=<HMAC-SHA256 über den Nachrichtentext>`. Der Worker bildet dieselbe Signatur und erkennt daran, dass die Benachrichtigung von dieser Installation stammt. Eine erneute Anmeldung ohne `secret` lässt das bestehende unverändert; `GET /job/webhook` liefert es nicht zurück, ein Lesen-und-Zurückschreiben würde die Signatur sonst still abschalten.
+
+Weiterleitungen folgt die Engine nicht, und ein Ziel, das auf eine interne Adresse auflöst (Loopback, private Netze, Link-Local einschließlich der Metadatendienste), wird abgelehnt. Ohne diese Prüfungen wäre eine Anmeldung ein Weg, die Engine das eigene Netz von innen aufrufen zu lassen.
 
 Nach `MaxConsecutiveFailures` Fehlversuchen in Folge wird eine Adresse nicht mehr benachrichtigt. `GET /job/webhook` zeigt Zustand und letzten Fehler; das Geheimnis wird nie zurückgeliefert.
 
@@ -80,7 +84,8 @@ Nach `MaxConsecutiveFailures` Fehlversuchen in Folge wird eine Adresse nicht meh
 | `ServiceTaskWebhooks__AllowHttp` | Default `false`; nur für Worker ohne TLS im selben Netz |
 | `ServiceTaskWebhooks__TimeoutSeconds` | Default 10 |
 | `ServiceTaskWebhooks__PollIntervalSeconds` | Default 5; wie oft nach freien Aufträgen gesehen wird |
-| `ServiceTaskWebhooks__MaxConsecutiveFailures` | Default 10 |
+| `ServiceTaskWebhooks__MaxConsecutiveFailures` | Default 10; gezählt werden Durchgänge, nicht einzelne Aufträge |
+| `Authentication__JwtBearer__Roles__Worker` | Rolle für die Endpunkte unter `/job`. Leer heißt: für alle Zugelassenen offen |
 
 Die leere Freigabeliste ist Absicht: Eine Webhook-Anmeldung ist eine Aufforderung an die Engine, eine fremde Adresse aufzurufen. Ohne ausdrückliche Freigabe nimmt sie keine an.
 

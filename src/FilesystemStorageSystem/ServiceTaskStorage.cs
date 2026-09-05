@@ -24,6 +24,54 @@ public class ServiceTaskStorage : IServiceTaskStorage
 
     private JsonSerializerSettings Settings => _storage.NewtonSoftDefaultSettings;
 
+    /// <summary>
+    /// Die Dateiablage kennt keine Transaktionen. Die Vergabe wird deshalb prozessweit
+    /// serialisiert: Lesen, Pruefen und Schreiben laufen unter derselben Sperre. Das traegt fuer
+    /// den Einzelknotenbetrieb, fuer den diese Ablage gedacht ist; im Mehrknotenbetrieb gehoert
+    /// die PostgreSQL-Ablage darunter, die den Auftrag in einem Statement uebernimmt.
+    /// </summary>
+    private static readonly SemaphoreSlim ClaimLock = new(1, 1);
+
+    public async Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs)
+    {
+        await ClaimLock.WaitAsync();
+        try
+        {
+            var claimed = ReadAll()
+                .Where(job => string.Equals(job.Type, type, StringComparison.Ordinal) && job.IsAvailableAt(now))
+                .OrderBy(job => job.CreatedAt)
+                .Take(maxJobs)
+                .ToList();
+
+            foreach (var job in claimed)
+            {
+                job.LockedBy = lockOwner;
+                job.LockedUntil = lockedUntil;
+                await SaveJob(job);
+            }
+
+            return claimed;
+        }
+        finally
+        {
+            ClaimLock.Release();
+        }
+    }
+
+    public async Task<ServiceTaskJob?> GetLockedJob(Guid jobId, string lockOwner, DateTime now)
+    {
+        var job = await GetJob(jobId);
+        if (job is null
+            || !string.Equals(job.LockedBy, lockOwner, StringComparison.Ordinal)
+            || job.LockedUntil is null
+            || job.LockedUntil <= now)
+        {
+            return null;
+        }
+
+        return job;
+    }
+
     public Task SaveJob(ServiceTaskJob job)
     {
         var path = Path.Combine(_basePath, $"{JobPrefix}{job.Id}.json");

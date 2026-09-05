@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Model;
 using StorageSystem;
 
@@ -55,8 +57,18 @@ public sealed class ServiceTaskWebhookService(
             CreatedBy = userId
         };
 
-        webhook.Secret = secret;
+        // Ein leeres Geheimnis heisst "unveraendert", nicht "abschalten": `GET /job/webhook`
+        // liefert es bewusst nicht zurueck, ein Lesen-und-Schreiben wuerde die Signatur sonst
+        // still ausschalten. Zum Entfernen die Anmeldung loeschen und neu anlegen.
+        if (!string.IsNullOrWhiteSpace(secret))
+        {
+            webhook.Secret = secret;
+        }
+
         webhook.Description = description;
+
+        // Eine erneute Anmeldung ist eine bewusste Handlung des Betriebs; sie gibt einer
+        // abgeschalteten Adresse wieder eine Chance.
         webhook.ConsecutiveFailures = 0;
         webhook.LastError = null;
 
@@ -107,7 +119,66 @@ public sealed class ServiceTaskWebhookService(
             || (pattern.StartsWith("*.", StringComparison.Ordinal)
                 && host.EndsWith(pattern[1..], StringComparison.OrdinalIgnoreCase)));
 
-        return allowed ? null : $"Host '{host}' is not an allowed webhook target.";
+        if (!allowed)
+        {
+            return $"Host '{host}' is not an allowed webhook target.";
+        }
+
+        return DescribeInternalTarget(url);
+    }
+
+    /// <summary>
+    /// Lehnt Ziele im eigenen Netz ab. Ein freigegebener Name kann auf 127.0.0.1, auf den
+    /// Metadatendienst der Cloud oder in das Containernetz zeigen; die Engine wuerde dann von
+    /// innen Adressen aufrufen, die von aussen nicht erreichbar sind.
+    /// </summary>
+    public static string? DescribeInternalTarget(Uri url)
+    {
+        IPAddress[] addresses;
+        try
+        {
+            addresses = IPAddress.TryParse(url.Host, out var literal)
+                ? [literal]
+                : Dns.GetHostAddresses(url.DnsSafeHost);
+        }
+        catch (SocketException)
+        {
+            return $"Host '{url.Host}' could not be resolved.";
+        }
+
+        if (addresses.Length == 0)
+        {
+            return $"Host '{url.Host}' could not be resolved.";
+        }
+
+        var internalAddress = addresses.FirstOrDefault(IsInternal);
+        return internalAddress is null ? null : $"Host '{url.Host}' resolves to the internal address {internalAddress}.";
+    }
+
+    private static bool IsInternal(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address) || address.IsIPv6LinkLocal || address.IsIPv6SiteLocal || address.IsIPv6Multicast)
+        {
+            return true;
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return address.IsIPv4MappedToIPv6 ? IsInternal(address.MapToIPv4()) : address.Equals(IPAddress.IPv6Any);
+        }
+
+        var octets = address.GetAddressBytes();
+        return octets[0] switch
+        {
+            10 => true,
+            127 => true,
+            0 => true,
+            169 when octets[1] == 254 => true,          // Link-Local, darunter der Metadatendienst
+            172 when octets[1] >= 16 && octets[1] <= 31 => true,
+            192 when octets[1] == 168 => true,
+            100 when octets[1] >= 64 && octets[1] <= 127 => true,  // Carrier-Grade NAT
+            _ => false
+        };
     }
 }
 
