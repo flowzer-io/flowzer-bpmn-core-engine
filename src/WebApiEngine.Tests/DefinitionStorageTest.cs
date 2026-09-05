@@ -54,6 +54,52 @@ public class DefinitionStorageTest
         await action.Should().ThrowAsync<DefinitionStorageNotFoundException>();
     }
 
+    // Testzweck: Prüft, dass eine Kennung mit Pfadtrennern nicht zu einem Dateinamen wird.
+    // Die Kennung kommt aus der Adresse eines HTTP-Aufrufs; ohne diese Prüfung zeigte
+    // `DELETE /definition/meta/{id}` auf eine Datei außerhalb des Metaverzeichnisses.
+    [TestCase("../andere")]
+    [TestCase("..")]
+    [TestCase("unter/ordner")]
+    [TestCase("")]
+    public async Task MetaDefinitionAccess_ShouldRejectIdentifiersThatEscapeTheDirectory(string definitionId)
+    {
+        using var context = new DefinitionStorageTestContext();
+
+        var read = async () => await context.DefinitionStorage.GetMetaDefinitionById(definitionId);
+        var delete = async () => await context.DefinitionStorage.DeleteMetaDefinition(definitionId);
+
+        await read.Should().ThrowAsync<ArgumentException>();
+        await delete.Should().ThrowAsync<ArgumentException>();
+    }
+
+    // Testzweck: Prüft, dass das Löschen eines fehlenden Katalogeintrags als NotFound endet und
+    // nicht stillschweigend als Erfolg — die Oberfläche zeigte sonst ein Löschen ohne Wirkung.
+    [Test]
+    public async Task DeleteMetaDefinition_ShouldThrowNotFoundException_WhenMetaDoesNotExist()
+    {
+        using var context = new DefinitionStorageTestContext();
+
+        var action = async () => await context.DefinitionStorage.DeleteMetaDefinition(context.DefinitionId);
+
+        await action.Should().ThrowAsync<DefinitionStorageNotFoundException>();
+    }
+
+    // Testzweck: Prüft, dass ein Katalogeintrag ohne Version die Liste nicht sprengt. Genau so
+    // sieht ein frisch angelegter Workflow aus; vorher brach der gesamte Katalog dabei ab.
+    [Test]
+    public async Task GetAllMetaDefinitions_ShouldIncludeEntriesWithoutAnyVersion()
+    {
+        using var context = new DefinitionStorageTestContext();
+        await context.DefinitionStorage.StoreMetaDefinition(context.CreateMetaDefinition("Ohne Version"));
+
+        var metaDefinitions = await context.DefinitionStorage.GetAllMetaDefinitions();
+
+        var entry = metaDefinitions.Should().ContainSingle(meta => meta.DefinitionId == context.DefinitionId).Subject;
+        entry.Name.Should().Be("Ohne Version");
+        // Ohne Version gibt es auch keine aktive: Die Karte im Katalog zeigt „Entwurf".
+        entry.DeployedId.Should().BeNull();
+    }
+
     private sealed class DefinitionStorageTestContext : IDisposable
     {
         private readonly string _definitionsPath;

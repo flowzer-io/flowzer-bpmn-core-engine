@@ -55,31 +55,8 @@ services:
       retries: 12
       start_period: 30s
 
-  frontend:
-    image: ghcr.io/flowzer-io/flowzer-frontend:${FLOWZER_IMAGE_TAG:-latest}
-    restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
-    expose:
-      - 8080
-    environment:
-      # Das Frontend-nginx bedient die Oberflaeche und leitet API-Pfade an den API-Container.
-      FLOWZER_API_UPSTREAM: api:8080
-      FLOWZER_API_BASE_URL: /
-      FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
-      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}"
-      FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-
-  # Zweite Oberflaeche zum Vergleich. Sie spricht dieselbe API und denselben Identity
-  # Provider wie die Blazor-Oberflaeche und laeuft nur unter einer eigenen Adresse,
-  # damit beide nebeneinander betrachtet werden koennen.
+  # Die Oberflaeche. Ihr nginx liefert die Konsole aus und leitet die API-Pfade an den
+  # API-Container weiter, sodass Browser und API denselben Ursprung teilen.
   console:
     image: ghcr.io/flowzer-io/flowzer-console:${FLOWZER_IMAGE_TAG:-latest}
     restart: unless-stopped

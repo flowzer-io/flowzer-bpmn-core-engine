@@ -1,6 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import '@formio/js/dist/formio.form.min.css';
+// Symbole der Form.io-Vorlagen (Kalender, Datei-Upload, Signatur) — ohne die Schrift
+// blieben die zugehoerigen Schaltflaechen im Formular leer.
+import 'bootstrap-icons/font/bootstrap-icons.css';
 import './formio.css';
 
 import { InlineSpinner } from '@/components/ui/States';

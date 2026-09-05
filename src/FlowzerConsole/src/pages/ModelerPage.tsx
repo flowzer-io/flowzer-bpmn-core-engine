@@ -6,10 +6,12 @@ import { BpmnModeler, type BpmnModelerHandle } from '@/components/bpmn/BpmnModel
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
+import { ConfirmModal } from '@/components/ui/Modal';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import {
   useDefinitionXml,
   useDefinitions,
+  useDeleteDefinition,
   useDeployDefinition,
   useLatestDefinition,
   useSaveDefinition,
@@ -43,10 +45,12 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
   const mayPublish = useCan()('modeler');
   const updateMeta = useUpdateDefinitionMeta();
   const startInstance = useStartInstance();
+  const deleteDefinition = useDeleteDefinition();
 
   const [dirty, setDirty] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [renaming, setRenaming] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const definition = definitionsQuery.data?.find((entry) => entry.definitionId === definitionId);
   const name = definition?.name ?? definitionId;
@@ -141,6 +145,11 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
     );
   }
 
+  // `useDefinitionXml` ist abgeschaltet, solange die Version unbekannt ist — ein
+  // abgeschalteter Query bleibt in TanStack Query dauerhaft „pending“. Nur an
+  // `isPending` gemessen zeigte die Seite deshalb endlos den Ladehinweis.
+  const loadingDiagram = latestQuery.isPending || (Boolean(latestQuery.data?.id) && xmlQuery.isPending);
+
   if (latestQuery.error) {
     return (
       <div className="p-8">
@@ -150,7 +159,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="border-border bg-surface flex flex-none flex-wrap items-center gap-3 gap-y-2.5 border-b px-[22px] py-2.5">
         <Button
           variant="ghost"
@@ -278,6 +287,17 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
 
         {mayPublish ? (
           <>
+            <Button
+              size="sm"
+              variant="danger"
+              icon="delete"
+              title="Workflow löschen"
+              className="w-[34px] px-0"
+              onClick={() => setConfirmDelete(true)}
+            >
+              <span className="sr-only">Löschen</span>
+            </Button>
+
             <Button size="sm" icon="save" loading={saveDefinition.isPending} onClick={() => void handleSave()}>
               Speichern
             </Button>
@@ -297,11 +317,19 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
         )}
       </div>
 
-      {xmlQuery.isPending ? (
+      {loadingDiagram && (
         <div className="grid flex-1 place-items-center">
           <InlineSpinner label="Diagramm wird geladen …" />
         </div>
-      ) : (
+      )}
+
+      {!loadingDiagram && xmlQuery.error && (
+        <div className="grid flex-1 place-items-center p-8">
+          <ErrorState error={xmlQuery.error} onRetry={() => void xmlQuery.refetch()} />
+        </div>
+      )}
+
+      {!loadingDiagram && !xmlQuery.error && (
         <BpmnModeler
           ref={modelerRef}
           xml={xmlQuery.data}
@@ -309,6 +337,31 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           onZoomChange={setZoom}
         />
       )}
+
+      <ConfirmModal
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        destructive
+        busy={deleteDefinition.isPending}
+        title={`„${name}" löschen?`}
+        description="Alle Versionen dieses Workflows, ihre Diagramme und die bereits beendeten Instanzen werden entfernt. Das lässt sich nicht rückgängig machen. Laufende Instanzen verhindern das Löschen."
+        confirmLabel="Endgültig löschen"
+        confirmIcon="delete"
+        onConfirm={() =>
+          deleteDefinition.mutate(definitionId, {
+            onSuccess: () => {
+              setConfirmDelete(false);
+              setDirty(false);
+              toast.success(`„${name}" gelöscht`);
+              void navigate({ to: '/workflows' });
+            },
+            onError: (error) =>
+              toast.error('Workflow konnte nicht gelöscht werden', {
+                description: error instanceof Error ? error.message : undefined,
+              }),
+          })
+        }
+      />
     </div>
   );
 }

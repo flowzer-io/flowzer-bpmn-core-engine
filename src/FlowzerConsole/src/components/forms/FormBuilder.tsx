@@ -2,6 +2,9 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 
 import '@formio/js/dist/formio.form.min.css';
 import '@formio/js/dist/formio.builder.min.css';
+// Die Vorlagen von @formio/bootstrap geben Symbole als <i class="bi bi-…"> aus
+// (`defaultIconset: "bi"`). Ohne diese Schrift bleibt jede Schaltflaeche des Editors leer.
+import 'bootstrap-icons/font/bootstrap-icons.css';
 import './formio.css';
 
 import { InlineSpinner } from '@/components/ui/States';

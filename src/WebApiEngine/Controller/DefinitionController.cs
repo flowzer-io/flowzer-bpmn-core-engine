@@ -4,6 +4,7 @@ using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 using Microsoft.AspNetCore.Authorization;
 using WebApiEngine.Auth;
+using StorageSystem.Exceptions;
 
 namespace WebApiEngine.Controller;
 
@@ -43,12 +44,12 @@ public class DefinitionController(
         }
         catch (UnauthorizedAccessException)
         {
-            await CleanupFailedDeployVersionAsync(definition);
+            await CleanupOrphanedVersionAsync(definition);
             throw;
         }
         catch (Exception e)
         {
-            await CleanupFailedDeployVersionAsync(definition);
+            await CleanupOrphanedVersionAsync(definition);
             return BadRequest(new ApiStatusResult<BpmnDefinitionDto>(e.Message));
         }
     }
@@ -73,10 +74,25 @@ public class DefinitionController(
     }
 
 
-    [HttpGet("new")]
-    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> NewDefinition()
+    /// <summary>
+    /// Legt eine leere Definition samt Katalogeintrag an.
+    ///
+    /// Bewusst POST und nicht GET: Der Aufruf legt Daten an. Als GET reichte ein Link oder ein
+    /// Vorablade-Versuch des Browsers, um den Katalog mit leeren Eintraegen zu fuellen.
+    /// Der Name kommt vom Aufrufer — die Oberflaeche fragt ihn, bevor sie anlegt, damit kein
+    /// unbenannter Entwurf entsteht, den danach niemand zuordnen kann.
+    /// </summary>
+    [HttpPost("new")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> NewDefinition([FromQuery] string? name)
     {
-        
+        var trimmedName = name?.Trim();
+        if (trimmedName is { Length: > MaxDefinitionNameLength })
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                $"Der Name darf höchstens {MaxDefinitionNameLength} Zeichen lang sein."));
+        }
+
         var definitionId = "definition_" + Guid.NewGuid();
         var modelId = "model_" + Guid.NewGuid();
         var emptyXml = $"""
@@ -89,14 +105,27 @@ public class DefinitionController(
                         </bpmn:definitions>
                         """;
         
-        await definitionBusinessLogic.StoreDefinition(emptyXml, null);
+        // Version und Katalogeintrag liegen in getrennten Transaktionen. Scheitert der zweite
+        // Schritt, bleibt sonst eine Version ohne Eintrag zurueck — im Katalog unsichtbar, ueber
+        // /definition und /definition/xml aber weiterhin abrufbar. Deshalb dasselbe Aufraeumen
+        // wie beim fehlgeschlagenen Deploy.
+        var definition = await definitionBusinessLogic.StoreDefinition(emptyXml, null);
         var metaDefinition = new BpmnMetaDefinition
         {
             DefinitionId = definitionId,
-            Name = "New Definition"
+            Name = string.IsNullOrWhiteSpace(trimmedName) ? "Neuer Workflow" : trimmedName
         };
-        await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
-        
+
+        try
+        {
+            await storageSystem.DefinitionStorage.StoreMetaDefinition(metaDefinition);
+        }
+        catch
+        {
+            await CleanupOrphanedVersionAsync(definition);
+            throw;
+        }
+
         return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(metaDefinition.ToDto()));
     }
 
@@ -177,10 +206,60 @@ public class DefinitionController(
         return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(definition.ToDto()));
     }
 
- 
+    /// <summary>
+    /// Loescht einen Workflow endgueltig: Katalogeintrag, alle Versionen, deren BPMN-XML und
+    /// die bereits beendeten Instanzen samt ihrer Anmeldungen und offenen Worker-Auftraege.
+    ///
+    /// Laufende Instanzen halten das Loeschen auf: Ihnen wuerde die Definition unter den
+    /// Fuessen weggezogen, die Engine koennte sie danach nicht mehr fortsetzen. Der Aufruf
+    /// antwortet dann mit 409 und nennt die Anzahl.
+    ///
+    /// Beendete Instanzen gehen mit — die Prozesshistorie dieses Workflows ist danach fort.
+    /// Blieben sie liegen, stuenden sie ohne Definition in der Instanzliste: ohne Namen und
+    /// ohne abrufbares Diagramm. Der Aufruf ist nicht rueckgaengig zu machen.
+    /// </summary>
+    [HttpDelete("meta/{id}")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaDelete([FromRoute] string id)
+    {
+        BpmnMetaDefinition metaDefinition;
+        try
+        {
+            // Wirft, wenn es den Eintrag nicht gibt — dann ist das Loeschen kein Erfolg.
+            // Zugleich die Vorlage fuer die Antwort: Danach ist der Eintrag weg.
+            metaDefinition = await storageSystem.DefinitionStorage.GetMetaDefinitionById(id);
+        }
+        catch (DefinitionStorageNotFoundException)
+        {
+            return NotFound(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                errorMessage: $"Es gibt keinen Workflow mit der Kennung {id}."));
+        }
+
+        // Pruefung und Loeschen liegen in der Engine unter derselben Sperre wie der
+        // Instanzstart; hier auseinandergezogen koennte dazwischen eine Instanz starten.
+        var activeInstances = await bpmnBusinessLogic.DeleteDefinition(id);
+        if (activeInstances > 0)
+        {
+            return Conflict(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                errorMessage: $"Der Workflow hat noch {activeInstances} laufende Instanz(en). Erst beenden oder abbrechen, dann löschen."));
+        }
+
+        // Bewusst der geloeschte Eintrag und nicht nur die Kennung als Zeichenkette:
+        // `new ApiStatusResult<string>(id)` traefe den Konstruktor fuer die Fehlermeldung
+        // und meldete den erfolgreichen Aufruf als Fehlschlag.
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(metaDefinition.ToDto()));
+    }
+
     #endregion
 
-    private async Task CleanupFailedDeployVersionAsync(BpmnDefinition? definition)
+    /// <summary>Grenze fuer den Namen einer Definition — verhindert unbrauchbar lange Katalogeintraege.</summary>
+    private const int MaxDefinitionNameLength = 200;
+
+    /// <summary>
+    /// Entfernt eine Version, deren zugehoeriger Schritt fehlgeschlagen ist. Ohne das bliebe
+    /// sie im Katalog unsichtbar liegen und waere trotzdem ueber /definition abrufbar.
+    /// </summary>
+    private async Task CleanupOrphanedVersionAsync(BpmnDefinition? definition)
     {
         if (definition == null)
         {
@@ -194,8 +273,8 @@ public class DefinitionController(
         }
         catch
         {
-            // Best effort only: the original deploy error is more relevant for the caller
-            // than cleanup follow-up problems in the date-based storage fallback.
+            // Best effort only: the original error is more relevant for the caller than
+            // cleanup follow-up problems in the date-based storage fallback.
         }
     }
 }

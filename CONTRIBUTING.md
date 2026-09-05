@@ -26,19 +26,19 @@ dotnet build core-engine.sln --no-restore --configuration Release
 dotnet test src/core-engine-tests/core-engine-tests.csproj --no-restore --configuration Release
 ```
 
-### bpmn.io
+### Oberfläche
 
 ```bash
-cd bpmn.io
-npm install
-npm run build
+npm --prefix src/FlowzerConsole ci
+npm --prefix src/FlowzerConsole run test
+npm --prefix src/FlowzerConsole run build
 ```
 
 ## Aktuell bekannte Probleme
 
 Bitte berücksichtige diese Baustellen bei deiner Arbeit:
 
-- Auf `next` gibt es jetzt eine erste GitHub-Actions-CI für Restore, Build, Test und `bpmn.io`.
+- Auf `next` gibt es eine GitHub-Actions-CI für Restore, Build, Test, die Konsole und die UI-Smokes.
 - Zwei Tests sind aktuell noch temporär quarantiniert: `ParallelTaskTest` und `SequentialTest`.
 - Für Test-/CI-Umgebungen ohne native V8-Abhängigkeit gibt es jetzt einen abgesicherten Fallback-Pfad; die vollständige FEEL-/V8-Story bleibt trotzdem ein Architekturthema.
 - Einige Doku- und Architektur-Aussagen im Altbestand waren optimistischer als der tatsächliche Reifegrad.
@@ -65,15 +65,11 @@ REST-Endpunkte, Business-Logik und DTO-Mapping liegen vor allem in:
 - `src/WebApiEngine/`
 - `src/WebApiEngine.Shared/`
 
-### Frontend
+### Oberfläche
 
-Blazor-Frontend:
+React-Konsole samt BPMN-Modeler und Formulareditor:
 
-- `src/FlowzerFrontend/`
-
-Modeler-/JS-Themen:
-
-- `bpmn.io/`
+- `src/FlowzerConsole/`
 
 ## Qualitätsanspruch für Beiträge
 

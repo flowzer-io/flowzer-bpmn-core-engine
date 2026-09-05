@@ -102,21 +102,35 @@ public class DefinitionStorage : IDefinitionStorage
         if (Directory.Exists(_metabasePath) == false)
             Directory.CreateDirectory(_metabasePath);
         
+        // Einmal alle Versionen lesen statt je Katalogeintrag erneut: Der alte Weg las die
+        // gesamte Ablage n-mal und warf ausserdem, sobald ein Eintrag noch keine Version
+        // hatte — dann war der komplette Katalog nicht mehr abrufbar.
+        var definitionsByCatalogId = (await GetAllDefinitions())
+            .GroupBy(definition => definition.DefinitionId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+
         foreach (var (_, content) in StorageFile.ReadExistingFiles(_metabasePath, "*.json"))
         {
             var bpmnMetaDefinition = JsonConvert.DeserializeObject<ExtendedBpmnMetaDefinition>(content)!;
-            var bpmnDefinition = await GetLatestDefinition(bpmnMetaDefinition.DefinitionId);
 
-            bpmnMetaDefinition.LatestVersion = bpmnDefinition.Version;
-            bpmnMetaDefinition.LatestVersionDateTime = bpmnDefinition.SavedOn;
-
-            var deployed = await GetDeployedDefinition(bpmnDefinition.DefinitionId);
-            if (deployed != null)
+            // Ein frisch angelegter Eintrag hat noch keine Version, und nach einem
+            // abgebrochenen Loeschen kann eine Version fehlen. Beides ist kein Fehler:
+            // Der Eintrag gehoert in die Liste, nur eben ohne Versionsangaben.
+            if (definitionsByCatalogId.TryGetValue(bpmnMetaDefinition.DefinitionId, out var definitions))
             {
-                bpmnMetaDefinition.DeployedId = deployed.Id;
-                bpmnMetaDefinition.DeployedVersion = deployed.Version;
-                bpmnMetaDefinition.DeployedVersionDateTime = deployed.SavedOn;
+                var latest = definitions.MaxBy(definition => definition.Version)!;
+                bpmnMetaDefinition.LatestVersion = latest.Version;
+                bpmnMetaDefinition.LatestVersionDateTime = latest.SavedOn;
+
+                var deployed = definitions.SingleOrDefault(definition => definition.IsActive);
+                if (deployed != null)
+                {
+                    bpmnMetaDefinition.DeployedId = deployed.Id;
+                    bpmnMetaDefinition.DeployedVersion = deployed.Version;
+                    bpmnMetaDefinition.DeployedVersionDateTime = deployed.SavedOn;
+                }
             }
+
             ret.Add(bpmnMetaDefinition);
         }
         
@@ -143,6 +157,18 @@ public class DefinitionStorage : IDefinitionStorage
         }
         var data = JsonConvert.SerializeObject(metaDefinition,_storage.NewtonSoftDefaultSettings);
         return StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
+    }
+
+    public Task DeleteMetaDefinition(string definitionId)
+    {
+        var fullFileName = GetMetaDefinitionPath(definitionId);
+        if (!File.Exists(fullFileName))
+        {
+            throw new DefinitionStorageNotFoundException($"No meta definition found for definitionId {definitionId}");
+        }
+
+        File.Delete(fullFileName);
+        return Task.CompletedTask;
     }
 
     public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id)
@@ -187,7 +213,26 @@ public class DefinitionStorage : IDefinitionStorage
 
     private string GetDefinitionPath(Guid id) => Path.Combine(_basePath, $"{id}.json");
 
-    private string GetMetaDefinitionPath(string definitionId) => Path.Combine(_metabasePath, $"{definitionId}.json");
+    private string GetMetaDefinitionPath(string definitionId) =>
+        Path.Combine(_metabasePath, $"{EnsureUsableAsFileName(definitionId)}.json");
+
+    /// <summary>
+    /// Die Kennung einer Definition kommt aus der Adresse eines HTTP-Aufrufs und wird hier zu
+    /// einem Dateinamen. Ein Trennzeichen oder ein ".." darin zeigte auf eine Datei ausserhalb
+    /// des Ordners — beim Loeschen waere das eine fremde Datei.
+    /// </summary>
+    private static string EnsureUsableAsFileName(string definitionId)
+    {
+        if (string.IsNullOrWhiteSpace(definitionId)
+            || definitionId is "." or ".."
+            || definitionId.AsSpan().IndexOfAny(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) >= 0
+            || definitionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException($"\"{definitionId}\" ist keine gueltige Kennung einer Definition.", nameof(definitionId));
+        }
+
+        return definitionId;
+    }
 
     private static void EnsureDirectoryExists(string path)
     {

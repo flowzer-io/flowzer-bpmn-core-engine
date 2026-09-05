@@ -50,8 +50,19 @@ export const definitionsApi = {
   getXml: (versionGuid: string, signal?: AbortSignal) =>
     request<string>(`/definition/xml/${encodeURIComponent(versionGuid)}`, { signal, asText: true }),
 
-  /** `GET /definition/new` — erzeugt eine leere Definition inklusive Katalogeintrag. */
-  createEmpty: () => requestStatusResult<BpmnMetaDefinitionDto>('/definition/new'),
+  /**
+   * `POST /definition/new` — erzeugt eine leere Definition inklusive Katalogeintrag.
+   * Der Name wird mitgegeben: Die Oberflaeche fragt ihn, bevor sie anlegt.
+   */
+  create: (name: string) =>
+    requestStatusResult<BpmnMetaDefinitionDto>('/definition/new', {
+      method: 'POST',
+      query: { name },
+    }),
+
+  /** `DELETE /definition/meta/{id}` — loescht Katalogeintrag, alle Versionen und deren XML. */
+  deleteMeta: (definitionId: string) =>
+    requestStatus(`/definition/meta/${encodeURIComponent(definitionId)}`, { method: 'DELETE' }),
 
   /** `POST /definition` — speichert BPMN-XML als neue Version (ohne Deploy). */
   save: (xml: string, previousGuid?: string) =>

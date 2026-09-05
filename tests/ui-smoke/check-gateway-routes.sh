@@ -6,25 +6,28 @@ set -euo pipefail
 # bekommt 200 und niemals die erwartete Antwort. Genau so ist /job zuerst durchgerutscht.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-# Beide Oberflaechen liefern die API unter ihrer eigenen Adresse aus; beide Listen
-# muessen vollstaendig sein.
+# Die Konsole liefert die API unter ihrer eigenen Adresse aus; ihre Liste muss
+# vollstaendig sein.
 declare -a entrypoints=(
-  "$repo_root/deploy/frontend/entrypoint.sh"
   "$repo_root/deploy/console/entrypoint.sh"
 )
 
 # Eine Route gilt als weitergeleitet, wenn sie in einer Alternativenliste steht
 # (`^/(a|b|c)(/|$)`) oder als eigener Ort mit Unterpfad (`^/route/`). Die zweite Form
 # braucht es dort, wo die Oberflaeche selbst eine Seite gleichen Namens hat.
+#
+# Die Routen werden hier klein geschrieben verglichen. Das ist nur zulaessig, solange die
+# Regeln im Entrypoint case-insensitiv sind (`location ~*`); die naechste Pruefung stellt
+# das sicher.
 route_is_proxied() {
   local entrypoint="$1"
   local route="$2"
 
   local alternatives
-  alternatives="$(grep -o 'location ~ \^/([^)]*)' "$entrypoint" | sed 's|.*(\(.*\))|\1|' | tr '|' '\n' | sort -u)"
+  alternatives="$(grep -o 'location ~\*\? \^/([^)]*)' "$entrypoint" | sed 's|.*(\(.*\))|\1|' | tr '|' '\n' | sort -u)"
   grep -qx "$route" <<<"$alternatives" && return 0
 
-  grep -q "location ~ \^/$route/" "$entrypoint"
+  grep -q "location ~\*\? \^/$route/" "$entrypoint"
 }
 
 # Die Routen der Controller stehen in ihren Route-Attributen.
@@ -61,6 +64,16 @@ if [ "${#missing[@]}" -gt 0 ]; then
   printf 'Ergaenze sie im jeweiligen entrypoint.sh unter deploy/.\n' >&2
   exit 1
 fi
+
+# ASP.NET Core routet unabhaengig von Gross- und Kleinschreibung; die OpenAPI-Beschreibung
+# nennt die Pfade mit grossem Anfangsbuchstaben. Eine case-sensitive Regel wuerde einen
+# daraus erzeugten Client an der API vorbei auf die Startseite schicken — mit Status 200.
+for entrypoint in "${entrypoints[@]}"; do
+  if grep -q 'location ~ \^/' "$entrypoint"; then
+    printf 'In %s gibt es case-sensitive Weiterleitungsregeln (location ~). Bitte location ~* verwenden.\n' "$entrypoint" >&2
+    exit 1
+  fi
+done
 
 # In einem nicht in Anfuehrungszeichen gesetzten Heredoc fuehrt die Shell Rueckwaerts-
 # anfuehrungszeichen und $(...) aus. Ein Kommentar mit Backticks landete so als

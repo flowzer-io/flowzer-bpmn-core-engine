@@ -6,7 +6,7 @@ gateway_url="${FLOWZER_GATEWAY_URL:-http://localhost:${runtime_port}}"
 health_file="$(mktemp /tmp/flowzer-runtime-health.XXXXXX.json)"
 ready_file="$(mktemp /tmp/flowzer-runtime-ready.XXXXXX.json)"
 diagnostics_file="$(mktemp /tmp/flowzer-runtime-ops.XXXXXX.json)"
-frontend_file="$(mktemp /tmp/flowzer-runtime-frontend.XXXXXX.html)"
+console_file="$(mktemp /tmp/flowzer-runtime-console.XXXXXX.json)"
 curl_opts=(
   --fail
   --silent
@@ -19,7 +19,7 @@ curl_opts=(
   --retry-connrefused
 )
 
-trap 'rm -f "$health_file" "$ready_file" "$diagnostics_file" "$frontend_file"' EXIT
+trap 'rm -f "$health_file" "$ready_file" "$diagnostics_file" "$console_file"' EXIT
 
 echo "Checking runtime gateway liveness: ${gateway_url}/health"
 curl "${curl_opts[@]}" "${gateway_url}/health" >"$health_file"
@@ -37,7 +37,10 @@ grep -Eqi '"(successful|Successful)"[[:space:]]*:[[:space:]]*true' "$diagnostics
 cat "$diagnostics_file"
 echo
 
-echo "Checking runtime frontend root: ${gateway_url}"
-curl "${curl_opts[@]}" "${gateway_url}" >"$frontend_file"
-grep -q "FlowzerFrontend" "$frontend_file"
-echo "Runtime frontend responded successfully."
+# Die Laufzeitkonfiguration der Konsole entsteht erst beim Start des Containers. Sie ist
+# damit der aussagekraeftigste Beleg dafuer, dass die Oberflaeche wirklich hochgelaufen ist —
+# die Startseite liefert nginx auch dann, wenn der Einstiegspunkt nichts geschrieben hat.
+echo "Checking runtime console config: ${gateway_url}/config.json"
+curl "${curl_opts[@]}" "${gateway_url}/config.json" >"$console_file"
+grep -q '"apiBaseUrl"' "$console_file"
+echo "Runtime console responded successfully."
