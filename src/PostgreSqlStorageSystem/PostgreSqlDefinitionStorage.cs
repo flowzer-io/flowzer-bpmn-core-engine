@@ -75,7 +75,15 @@ internal sealed class PostgreSqlDefinitionStorage(PostgreSqlSession session) : I
         command.Parameters.AddWithValue("minor", definition.Version.Minor);
         command.Parameters.AddWithValue("savedOn", DateTime.SpecifyKind(definition.SavedOn, DateTimeKind.Utc));
         command.Parameters.AddWithValue("body", StorageJson.Serialize(definition));
-        await command.ExecuteNonQueryAsync();
+        try
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new DefinitionStorageConflictException(
+                $"Definition '{definition.DefinitionId}' already has a version {definition.Version.Major}.{definition.Version.Minor}.");
+        }
     });
 
     public Task DeleteDefinition(Guid id) => session.RunAsync(async (connection, transaction) =>
@@ -129,6 +137,9 @@ internal sealed class PostgreSqlDefinitionStorage(PostgreSqlSession session) : I
         {
             if (!definitionsByCatalogId.TryGetValue(metaDefinition.DefinitionId, out var definitions))
             {
+                // Bewusste Abweichung von der Dateiablage, die hier den gesamten Katalog mit "nicht
+                // gefunden" abbrechen laesst: Ein verwaister Katalogeintrag (Definition geloescht,
+                // Metadatensatz geblieben) darf die Liste fuer alle anderen nicht unbrauchbar machen.
                 continue;
             }
 

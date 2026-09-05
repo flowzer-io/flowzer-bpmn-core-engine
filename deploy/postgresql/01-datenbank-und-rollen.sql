@@ -65,9 +65,12 @@ SELECT format(
 SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
 SELECT format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
 
--- Die Migrationshistorie bleibt der Laufzeit verborgen.
-SELECT format('REVOKE ALL ON TABLE %I.schema_migrations FROM %I', :'schema', :'laufzeitrolle')
-WHERE EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = :'schema' AND tablename = 'schema_migrations') \gexec
+-- Die Migrationshistorie wird hier angelegt (Migrator: CREATE TABLE IF NOT EXISTS wird zum No-op)
+-- und der Laufzeit ausdruecklich entzogen. Die Default-Privileges oben gelten nur fuer Tabellen,
+-- die spaeter entstehen; auf eine bereits vorhandene Tabelle wirkt der REVOKE dauerhaft.
+SELECT format('CREATE TABLE IF NOT EXISTS %I.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())', :'schema') \gexec
+SELECT format('ALTER TABLE %I.schema_migrations OWNER TO %I', :'schema', :'migrationsrolle') \gexec
+SELECT format('REVOKE ALL ON TABLE %I.schema_migrations FROM %I', :'schema', :'laufzeitrolle') \gexec
 
 -- 4. Nachweis ----------------------------------------------------------------
 

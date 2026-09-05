@@ -29,7 +29,7 @@ public class PostgreSqlStorageIntegrationTest
     {
         try
         {
-            _container = new PostgreSqlBuilder().WithImage("postgres:17-alpine").Build();
+            _container = new PostgreSqlBuilder("postgres:17-alpine").Build();
             await _container.StartAsync();
         }
         catch (Exception exception)
@@ -289,6 +289,27 @@ public class PostgreSqlStorageIntegrationTest
         stored.Should().OnlyContain(instance => instance.State == ProcessInstanceState.Completed);
         (await reader.SubscriptionStorage.GetAllUserTasksExtended(Guid.NewGuid())).Should().BeEmpty();
         (await reader.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId))!.Id.Should().Be(definition.Id);
+    }
+
+    [Test]
+    public async Task DuplicateVersionNumbersAreRejectedAsConflicts()
+    {
+        // Zwei parallele Uploads, die dieselbe Versionsnummer berechnet haben, duerfen nicht beide landen.
+        var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var first = CreateDefinition("catalog-dup", 1, 0, isActive: false);
+        var second = CreateDefinition("catalog-dup", 1, 0, isActive: false);
+        await storage.DefinitionStorage.StoreDefinition(first);
+
+        var storeDuplicate = () => storage.DefinitionStorage.StoreDefinition(second);
+        await storeDuplicate.Should().ThrowAsync<DefinitionStorageConflictException>();
+
+        // Dieselbe Version erneut unter derselben Id ist eine Aktualisierung, kein Konflikt.
+        await storage.DefinitionStorage.StoreDefinition(first);
+
+        var formId = Guid.NewGuid();
+        await storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
+        var saveDuplicateForm = () => storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
+        await saveDuplicateForm.Should().ThrowAsync<DefinitionStorageConflictException>();
     }
 
     private static BpmnDefinition CreateDefinition(string definitionId, int major, int minor, bool isActive) => new()

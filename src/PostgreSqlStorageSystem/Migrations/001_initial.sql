@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS {schema}.definitions (
     body            text NOT NULL
 );
 CREATE INDEX IF NOT EXISTS definitions_definition_id_idx ON {schema}.definitions (definition_id);
+-- Zwei parallele Uploads duerfen nicht dieselbe Versionsnummer erhalten; die Anwendung
+-- meldet den Verstoss als Konflikt (409), statt stillschweigend zwei "1.0" zu fuehren.
+CREATE UNIQUE INDEX IF NOT EXISTS definitions_definition_version_uidx ON {schema}.definitions (definition_id, version_major, version_minor);
 
 CREATE TABLE IF NOT EXISTS {schema}.definition_binaries (
     id   uuid PRIMARY KEY,
@@ -78,6 +81,7 @@ CREATE TABLE IF NOT EXISTS {schema}.forms (
     body           text NOT NULL
 );
 CREATE INDEX IF NOT EXISTS forms_form_id_idx ON {schema}.forms (form_id);
+CREATE UNIQUE INDEX IF NOT EXISTS forms_form_version_uidx ON {schema}.forms (form_id, version_major, version_minor);
 
 CREATE TABLE IF NOT EXISTS {schema}.form_metadata (
     form_id  uuid PRIMARY KEY,

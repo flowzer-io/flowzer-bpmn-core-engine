@@ -179,7 +179,12 @@ internal sealed class PostgreSqlSubscriptionStorage(PostgreSqlSession session, I
         var command = session.CreateCommand(connection, transaction, sql);
         foreach (var (name, value) in parameters)
         {
-            command.Parameters.AddWithValue(name, value);
+            // Nullable Spalten typisiert uebergeben, damit Npgsql den Typ bei DBNull nicht raten muss.
+            var parameter = command.Parameters.AddWithValue(name, value);
+            if (value is DBNull)
+            {
+                parameter.NpgsqlDbType = name.EndsWith("Id", StringComparison.Ordinal) ? NpgsqlTypes.NpgsqlDbType.Uuid : NpgsqlTypes.NpgsqlDbType.Text;
+            }
         }
 
         return command;

@@ -25,7 +25,15 @@ public static class FlowzerStorageExtensions
             return services;
         }
 
-        var dataSource = new NpgsqlDataSourceBuilder(options.PostgreSql.ConnectionString).Build();
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(options.PostgreSql.ConnectionString);
+        // Gemeinsame Cluster begrenzen Verbindungen je Rolle; der Pool bleibt darunter, damit
+        // Lastspitzen in einer Warteschlange landen statt in "too many connections for role".
+        if (dataSourceBuilder.ConnectionStringBuilder.MaxPoolSize > 20)
+        {
+            dataSourceBuilder.ConnectionStringBuilder.MaxPoolSize = 20;
+        }
+
+        var dataSource = dataSourceBuilder.Build();
         services.AddSingleton(dataSource);
         services.AddSingleton<IStorageSystem>(new PostgreSqlStorage(dataSource, options.PostgreSql.Schema));
         services.AddSingleton<ITransactionalStorageProvider>(new PostgreSqlTransactionalStorageProvider(dataSource, options.PostgreSql.Schema));

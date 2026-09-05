@@ -16,6 +16,9 @@ internal sealed class PostgreSqlSession(NpgsqlDataSource dataSource, string sche
 
     public string Schema { get; } = schema;
 
+    /// <summary>Wie im Migrator: Bezeichner immer gequotet einsetzen, nie roh.</summary>
+    private string QuotedSchema { get; } = "\"" + schema.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
     public async Task<T> RunAsync<T>(Func<NpgsqlConnection, NpgsqlTransaction?, Task<T>> operation)
     {
         if (transactional)
@@ -24,8 +27,13 @@ internal sealed class PostgreSqlSession(NpgsqlDataSource dataSource, string sche
             return await operation(connection, _transaction);
         }
 
+        // Auch eine einzelne Operation kann mehrere Statements umfassen (z. B. Metadaten und
+        // Versionen loeschen). Eine kurze Transaktion je Operation haelt sie atomar.
         await using var pooledConnection = await dataSource.OpenConnectionAsync();
-        return await operation(pooledConnection, null);
+        await using var shortTransaction = await pooledConnection.BeginTransactionAsync();
+        var result = await operation(pooledConnection, shortTransaction);
+        await shortTransaction.CommitAsync();
+        return result;
     }
 
     public async Task RunAsync(Func<NpgsqlConnection, NpgsqlTransaction?, Task> operation)
@@ -47,13 +55,16 @@ internal sealed class PostgreSqlSession(NpgsqlDataSource dataSource, string sche
         }
 
         using var pooledConnection = dataSource.OpenConnection();
-        return operation(pooledConnection, null);
+        using var shortTransaction = pooledConnection.BeginTransaction();
+        var result = operation(pooledConnection, shortTransaction);
+        shortTransaction.Commit();
+        return result;
     }
 
     public NpgsqlCommand CreateCommand(NpgsqlConnection connection, NpgsqlTransaction? transaction, string sql)
     {
         var command = connection.CreateCommand();
-        command.CommandText = sql.Replace("{schema}", Schema, StringComparison.Ordinal);
+        command.CommandText = sql.Replace("{schema}", QuotedSchema, StringComparison.Ordinal);
         command.Transaction = transaction;
         return command;
     }

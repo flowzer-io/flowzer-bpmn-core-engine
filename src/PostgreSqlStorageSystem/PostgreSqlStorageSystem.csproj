@@ -21,4 +21,8 @@
         <EmbeddedResource Include="Migrations\*.sql" />
     </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="WebApiEngine.Tests" />
+  </ItemGroup>
+
 </Project>

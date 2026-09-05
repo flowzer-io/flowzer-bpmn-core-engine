@@ -9,13 +9,14 @@ using Version = Model.Version;
 namespace WebApiEngine.BusinessLogic;
 
 public class DefinitionBusinessLogic(
-    IStorageSystem storageSystem,
+    ITransactionalStorageProvider storageProvider,
     ICurrentUserContextAccessor currentUserContextAccessor)
 {
     
     public async Task<BpmnDefinition> StoreDefinition(string rawContent, Guid? previousGuid, bool deploy = false)
     {
-        
+        // Definition und XML gehoeren zusammen: eine Transaktion, ein Commit.
+        using var storageSystem = storageProvider.GetTransactionalStorage();
         var model = ModelParser.ParseModel(rawContent);
 
         // Auth zuerst: Ohne aufgelösten Benutzer bleibt die Antwort 401,
@@ -66,6 +67,7 @@ public class DefinitionBusinessLogic(
 
         await storageSystem.DefinitionStorage.StoreDefinition(definition);
         await storageSystem.DefinitionStorage.StoreBinary(definition.Id, rawContent);
+        storageSystem.CommitChanges();
 
         return definition;
     }

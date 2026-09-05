@@ -34,9 +34,13 @@ public sealed class PostgreSqlStorageOptions
             throw new InvalidOperationException("Storage:PostgreSql:ConnectionString must be set when Storage:Provider is 'PostgreSql'.");
         }
 
-        if (string.IsNullOrWhiteSpace(Schema) || !Schema.All(character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '_'))
+        if (string.IsNullOrWhiteSpace(Schema)
+            || Schema.Length > 63
+            || !(char.IsAsciiLetterLower(Schema[0]) || Schema[0] == '_')
+            || !Schema.All(character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '_')
+            || Schema.StartsWith("pg_", StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("Storage:PostgreSql:Schema must consist of lowercase letters, digits or underscores.");
+            throw new InvalidOperationException("Storage:PostgreSql:Schema must start with a lowercase letter or underscore, consist of lowercase letters, digits or underscores, and must not start with 'pg_'.");
         }
     }
 }

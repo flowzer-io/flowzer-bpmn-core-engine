@@ -41,6 +41,15 @@ jobs:
         run: |
           short_sha="$(git rev-parse --short=12 HEAD)"
           echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
+          extra_api=""; extra_frontend=""
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            extra_api="$IMAGE_API:latest"; extra_frontend="$IMAGE_FRONTEND:latest"
+          elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            extra_api="$IMAGE_API:${GITHUB_REF#refs/tags/}"; extra_frontend="$IMAGE_FRONTEND:${GITHUB_REF#refs/tags/}"
+          fi
+          echo "extra_api=$extra_api" >> "$GITHUB_OUTPUT"
+          echo "extra_frontend=$extra_frontend" >> "$GITHUB_OUTPUT"
 
       - name: Buildx einrichten
         uses: docker/setup-buildx-action@v3
@@ -61,7 +70,7 @@ jobs:
           platforms: linux/amd64
           tags: |
             ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
-            ${{ env.IMAGE_API }}:latest
+            ${{ steps.meta.outputs.extra_api }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -77,7 +86,7 @@ jobs:
           platforms: linux/amd64
           tags: |
             ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.image_tag }}
-            ${{ env.IMAGE_FRONTEND }}:latest
+            ${{ steps.meta.outputs.extra_frontend }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -87,9 +96,14 @@ jobs:
   deploy:
     name: Coolify-Deployment (Maass IT)
     needs: images
+    # Produktion folgt ausschliesslich main; Tags und manuelle Laeufe anderer Branches bauen nur Images.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: maassit-production
+    concurrency:
+      group: coolify-flowzer-maass-it
+      cancel-in-progress: false
     env:
       COOLIFY_API_BASE: ${{ vars.COOLIFY_API_BASE }}
       COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}

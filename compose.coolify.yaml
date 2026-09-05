@@ -6,7 +6,7 @@ services:
     image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
     restart: "no"
     exclude_from_hc: true
-    command: ["dotnet", "WebApiEngine.dll", "--migrate"]
+    command: ["--migrate"]
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       Storage__Provider: PostgreSql

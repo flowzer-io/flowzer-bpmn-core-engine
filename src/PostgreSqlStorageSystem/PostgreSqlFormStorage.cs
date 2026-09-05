@@ -1,5 +1,7 @@
 using Model;
+using Npgsql;
 using StorageSystem;
+using StorageSystem.Exceptions;
 using Version = Model.Version;
 
 namespace PostgreSqlStorageSystem;
@@ -71,7 +73,15 @@ internal sealed class PostgreSqlFormStorage(PostgreSqlSession session) : IFormSt
         command.Parameters.AddWithValue("major", form.Version.Major);
         command.Parameters.AddWithValue("minor", form.Version.Minor);
         command.Parameters.AddWithValue("body", StorageJson.Serialize(form));
-        await command.ExecuteNonQueryAsync();
+        try
+        {
+            await command.ExecuteNonQueryAsync();
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new DefinitionStorageConflictException(
+                $"Form '{form.FormId}' already has a version {form.Version.Major}.{form.Version.Minor}.");
+        }
     });
 
     public Task<Form> GetForm(Guid id) => session.RunAsync(async (connection, transaction) =>
