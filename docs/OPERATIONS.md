@@ -61,10 +61,16 @@ nicht hat, bietet sie gar nicht erst an. Die Entscheidung trifft in jedem Fall d
 Oberfläche erspart nur den Weg zu einer Ablehnung. Ihr Aufbau ist in
 `src/FlowzerConsole/README.md` beschrieben.
 
-**Beim Umstieg zu erledigen:** Die alte Adresse `console.flowzer.maass.it` und der Dienst
-`frontend` entfallen aus dem Coolify-Stack; die Redirect-URIs des Identity Providers müssen auf
-`flowzer.maass.it` zeigen. Das GHCR-Paket `flowzer-frontend` wird nicht mehr gebaut und kann
-nach dem letzten Deployment archiviert werden.
+Der Umstieg ist am 6. September 2026 abgeschlossen: Der Coolify-Stack bildet nur noch den
+Dienst `console` auf `https://flowzer.maass.it` ab, der Client `flowzer-maass-it` im Realm
+MaassIT kennt genau drei Rückleitungen unter dieser Adresse (Anmeldung, Abmeldung, stille
+Erneuerung), und das GHCR-Paket `flowzer-frontend` ist gelöscht. Die Adresse
+`console.flowzer.maass.it` existiert nicht mehr.
+
+Die Keycloak-Seite ist deklarativ in
+`roles/keycloak/files/ensure-flowzer-maassit-client.sh` des Repositories
+`MaassIT/Serverkonfiguration` beschrieben; ein Lauf mit `FLOWZER_KEYCLOAK_DRY_RUN=1` meldet
+jede geplante Änderung, ohne zu schreiben.
 
 ### API-Vertrag
 
