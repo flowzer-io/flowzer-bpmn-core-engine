@@ -66,7 +66,9 @@ server {
   proxy_read_timeout 120s;
   client_max_body_size 8m;
 
-  location ~ ^/(health|definition|instance|message|usertask|form|timer|operations|swagger)(/|\$) {
+  # Diese Liste muss alle API-Routen enthalten. Fehlt eine, beantwortet die Oberflaeche sie
+  # mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
+  location ~ ^/(health|definition|instance|job|message|usertask|form|timer|operations|swagger)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 
