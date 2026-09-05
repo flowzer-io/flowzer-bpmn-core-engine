@@ -18,6 +18,7 @@ import {
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
+import { useCan } from '@/stores/session';
 
 interface ModelerPageProps {
   definitionId: string;
@@ -37,6 +38,9 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
 
   const saveDefinition = useSaveDefinition();
   const deployDefinition = useDeployDefinition();
+  // Lesen darf jeder Zugelassene; Veroeffentlichen verlangt die Modelliererrolle.
+  // Was die API ablehnen wuerde, bietet die Oberflaeche gar nicht erst an.
+  const mayPublish = useCan()('modeler');
   const updateMeta = useUpdateDefinitionMeta();
   const startInstance = useStartInstance();
 
@@ -272,19 +276,25 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           </Button>
         )}
 
-        <Button size="sm" icon="save" loading={saveDefinition.isPending} onClick={() => void handleSave()}>
-          Speichern
-        </Button>
+        {mayPublish ? (
+          <>
+            <Button size="sm" icon="save" loading={saveDefinition.isPending} onClick={() => void handleSave()}>
+              Speichern
+            </Button>
 
-        <Button
-          size="sm"
-          variant="primary"
-          icon="rocket_launch"
-          loading={deployDefinition.isPending}
-          onClick={() => void handleDeploy()}
-        >
-          Deployen
-        </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              icon="rocket_launch"
+              loading={deployDefinition.isPending}
+              onClick={() => void handleDeploy()}
+            >
+              Deployen
+            </Button>
+          </>
+        ) : (
+          <Chip tone="muted">Nur Ansicht</Chip>
+        )}
       </div>
 
       {xmlQuery.isPending ? (

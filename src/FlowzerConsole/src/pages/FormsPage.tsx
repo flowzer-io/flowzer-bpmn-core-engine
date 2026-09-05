@@ -14,6 +14,7 @@ import { ErrorState, InlineSpinner, Skeleton } from '@/components/ui/States';
 import { useForm, useForms, useSaveForm, useSaveFormMeta } from '@/lib/api/queries';
 import { cn } from '@/lib/cn';
 import { iconForLabel } from '@/lib/taskView';
+import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
 
@@ -29,6 +30,8 @@ export function FormsPage() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const builderRef = useRef<FormBuilderHandle>(null);
+  // Formulare darf jeder Zugelassene lesen; anlegen und aendern verlangt die Modelliererrolle.
+  const mayPublish = useCan()('modeler');
 
   const formsQuery = useForms();
   const saveForm = useSaveForm();
@@ -125,7 +128,7 @@ export function FormsPage() {
         title="Formulare"
         description="Formulare, die Nutzende beim Bearbeiten von Aufgaben ausfüllen."
         actions={
-          <Button variant="primary" icon="add" onClick={() => setCreating((open) => !open)}>
+          <Button variant="primary" icon="add" onClick={() => setCreating((open) => !open)} disabled={!mayPublish}>
             Neues Formular
           </Button>
         }

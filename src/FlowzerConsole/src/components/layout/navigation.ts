@@ -1,4 +1,6 @@
 /** Die Hauptnavigation der Konsole — Reihenfolge und Icons wie im Design. */
+import type { FlowzerCapability } from '@/lib/auth/roles';
+
 export interface NavItem {
   key: string;
   label: string;
@@ -6,6 +8,11 @@ export interface NavItem {
   path: string;
   /** Weitere Pfade, bei denen dieser Eintrag aktiv erscheinen soll. */
   matches?: string[];
+  /**
+   * Fähigkeit, die dieser Bereich verlangt. Ohne Angabe genügt der Zugang: Lesen
+   * darf die API jeder Zugelassene, erst Schreiben und der Betrieb sind Rollen.
+   */
+  requires?: FlowzerCapability;
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
@@ -13,7 +20,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
-  { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations' },
+  { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
 ] as const;
 
 export function activeNavKey(pathname: string): string {
@@ -39,3 +46,11 @@ export const PAGE_TITLES: Record<string, string> = {
   // das Dashboard. Der Titel wird in der Kopfzeile trotzdem gebraucht.
   tasks: 'Meine Aufgaben',
 };
+
+/**
+ * Behält nur die Bereiche, die diese Person auch benutzen kann. Ein Eintrag, der zu
+ * einer Ablehnung führt, gehört nicht in die Navigation.
+ */
+export function visibleNavItems(can: (capability: FlowzerCapability) => boolean): NavItem[] {
+  return NAV_ITEMS.filter((item) => !item.requires || can(item.requires));
+}

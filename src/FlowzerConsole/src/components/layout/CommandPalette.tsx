@@ -7,8 +7,9 @@ import { Icon } from '@/components/ui/Icon';
 import { useDefinitions, useInstances, useUserTasks } from '@/lib/api/queries';
 import { shortId } from '@/lib/format';
 import { useAppearance } from '@/stores/appearance';
+import { useCan } from '@/stores/session';
 
-import { NAV_ITEMS } from './navigation';
+import { visibleNavItems } from './navigation';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -33,6 +34,7 @@ const MAX_PER_GROUP = 6;
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const navigate = useNavigate();
   const toggleTheme = useAppearance((state) => state.toggleTheme);
+  const can = useCan();
 
   // Nur laden, während die Palette offen ist — sonst hält sie unnötig Abfragen wach.
   const definitionsQuery = useDefinitions({ enabled: open });
@@ -50,7 +52,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     };
 
     return [
-      ...NAV_ITEMS.map((item) => ({
+      ...visibleNavItems(can).map((item) => ({
         id: `nav-${item.key}`,
         group: 'Navigation',
         icon: item.icon,

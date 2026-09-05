@@ -16,6 +16,7 @@ import type { ExtendedBpmnMetaDefinitionDto, VersionDto } from '@/lib/api/types'
 import { instanceBucket } from '@/lib/api/normalize';
 import { formatRelative, parseApiDate } from '@/lib/format';
 import { iconForLabel } from '@/lib/taskView';
+import { useCan } from '@/stores/session';
 
 type SortKey = 'updated' | 'name' | 'active';
 
@@ -61,6 +62,7 @@ export function WorkflowsPage() {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortKey>('updated');
 
+  const mayPublish = useCan()('modeler');
   const definitionsQuery = useDefinitions();
   const instancesQuery = useInstances();
   const createDefinition = useCreateDefinition();
@@ -115,6 +117,8 @@ export function WorkflowsPage() {
           <Button
             variant="primary"
             icon="add"
+            disabled={!mayPublish}
+            title={mayPublish ? undefined : 'Neue Workflows anzulegen ist der Rolle fuer das Modellieren vorbehalten.'}
             loading={createDefinition.isPending}
             onClick={() => {
               createDefinition.mutate(undefined, {
