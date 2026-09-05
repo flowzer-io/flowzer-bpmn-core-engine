@@ -97,6 +97,12 @@ services:
       # Audience, die die API prueft.
       FLOWZER_OIDC_AUDIENCE: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
       FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
+      # Dieselben Rollennamen wie die API; heisst eine Rolle im Identity Provider anders,
+      # zeigt die Oberflaeche sonst trotz Berechtigung die reduzierte Ansicht.
+      FLOWZER_ROLE_ACCESS: "${FLOWZER_AUTH_REQUIRED_ROLE:-access}"
+      FLOWZER_ROLE_MODELER: "${FLOWZER_AUTH_ROLE_MODELER:-modeler}"
+      FLOWZER_ROLE_OPERATOR: "${FLOWZER_AUTH_ROLE_OPERATOR:-operator}"
+      FLOWZER_ROLE_WORKER: "${FLOWZER_AUTH_ROLE_WORKER:-worker}"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
       interval: 15s

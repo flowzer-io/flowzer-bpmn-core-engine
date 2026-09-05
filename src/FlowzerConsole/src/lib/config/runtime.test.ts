@@ -41,3 +41,32 @@ describe('loadRuntimeConfig', () => {
     expect(config.oidcAudience).toBe('flowzer-api');
   });
 });
+
+describe('Herkunft der API-Adresse', () => {
+  // Testzweck: //fremde.example beginnt mit einem Schraegstrich, ist aber protokollrelativ
+  // und landet bei einem fremden Origin. Das Zugangstoken ginge dorthin.
+  it('lehnt eine protokollrelative Adresse ab', async () => {
+    withConfig({ apiBaseUrl: '//fremde.example', oidcAuthority: '', oidcClientId: '' });
+
+    await expect(loadRuntimeConfig()).rejects.toBeInstanceOf(RuntimeConfigError);
+  });
+
+  // Testzweck: Auch eine vollstaendige https-Adresse in einem anderen Origin ist keine
+  // Option: Der Browser gibt den Header zur Einordnung einer Ablehnung nicht heraus.
+  it('lehnt eine Adresse in einem anderen Origin ab', async () => {
+    withConfig({ apiBaseUrl: 'https://fremde.example/api', oidcAuthority: '', oidcClientId: '' });
+
+    await expect(loadRuntimeConfig()).rejects.toBeInstanceOf(RuntimeConfigError);
+  });
+
+  // Testzweck: Abweichende Rollennamen kommen aus der Konfiguration; sonst zeigte die
+  // Oberflaeche trotz Berechtigung die reduzierte Ansicht.
+  it('uebernimmt abweichende Rollennamen', async () => {
+    withConfig({ apiBaseUrl: '/', oidcAuthority: '', oidcClientId: '', roleNames: { modeler: 'flowzer.modeler' } });
+
+    const config = await loadRuntimeConfig();
+
+    expect(config.roleNames.modeler).toBe('flowzer.modeler');
+    expect(config.roleNames.operator).toBe('operator');
+  });
+});
