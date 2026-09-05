@@ -1,0 +1,14 @@
+node_modules/
+# package-lock.json gehoert ausdruecklich ins Repository: Ohne sie scheitert `npm ci`,
+# und jeder Bau koennte andere Versionen ziehen als der geprueften.
+dist/
+.env
+.env.local
+.env.*.local
+
+# Vite- und TypeScript-Zwischenstände
+.vite/
+*.tsbuildinfo
+
+# Generiertes OpenAPI-Schema (npm run api:types)
+src/lib/api/schema.gen.ts

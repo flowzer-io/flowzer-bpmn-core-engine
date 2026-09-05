@@ -1,0 +1,41 @@
+/** Die Hauptnavigation der Konsole — Reihenfolge und Icons wie im Design. */
+export interface NavItem {
+  key: string;
+  label: string;
+  icon: string;
+  path: string;
+  /** Weitere Pfade, bei denen dieser Eintrag aktiv erscheinen soll. */
+  matches?: string[];
+}
+
+export const NAV_ITEMS: readonly NavItem[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: 'space_dashboard', path: '/' },
+  { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
+  { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
+  { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
+  { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations' },
+] as const;
+
+export function activeNavKey(pathname: string): string {
+  if (pathname === '/') return 'dashboard';
+  if (pathname.startsWith('/tasks')) return 'tasks';
+
+  const match = NAV_ITEMS.find(
+    (item) =>
+      item.path !== '/' &&
+      (pathname.startsWith(item.path) || item.matches?.some((prefix) => pathname.startsWith(prefix))),
+  );
+
+  return match?.key ?? 'dashboard';
+}
+
+export const PAGE_TITLES: Record<string, string> = {
+  dashboard: 'Dashboard',
+  workflows: 'Workflows',
+  instances: 'Instanzen',
+  forms: 'Formulare',
+  operations: 'Betrieb & Diagnose',
+  // `/tasks` hat bewusst keinen Navigationseintrag: Aufgaben erreicht man über
+  // das Dashboard. Der Titel wird in der Kopfzeile trotzdem gebraucht.
+  tasks: 'Meine Aufgaben',
+};

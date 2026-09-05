@@ -1,5 +1,16 @@
 # Frontend und UI-Smoke-Tests
 
+## Zwei Frontends
+
+| Projekt | Stack | Status |
+|---|---|---|
+| `src/FlowzerConsole` | React 19, TypeScript, Vite | **Neu, künftige Oberfläche** — siehe [dessen README](../src/FlowzerConsole/README.md) |
+| `src/FlowzerFrontend` | Blazor WebAssembly | Bestand, wird abgelöst |
+
+Die neue Konsole ist API-first: Sie spricht ausschließlich REST und hat keine
+.NET-Abhängigkeit. Dieses Dokument beschreibt weiterhin das Blazor-Frontend und
+die daran hängenden Playwright-Smoke-Tests.
+
 ## Ziel
 
 Das Blazor-Frontend soll reproduzierbar gegen die Web-API laufen – lokal, in CI und später auch hinter einem Reverse Proxy.
@@ -21,8 +32,6 @@ Aktuell gilt damit bewusst:
 Damit lässt sich das Frontend lokal direkt gegen die Web-API starten, ohne dass im Code harte URLs verdrahtet bleiben.
 
 Zusätzlich kann `FlowzerApi:DevelopmentUserId` gesetzt werden. Wenn das Frontend selbst im `Development`- oder `Playwright`-Modus läuft, sendet es diesen Wert automatisch als `X-Flowzer-UserId` an die Web-API. Damit bleiben lokal gehärtete Definition-, User-Task- und Formularpfade testbar, ohne Produktionsumgebungen wieder für freie Header-Impersonation zu öffnen.
-
-> Bei aktiver JWT-Bearer-Authentifizierung der API (`Authentication:Scheme=JwtBearer`) reicht der Header nicht mehr aus. Dann wird der Abschnitt `Oidc` gesetzt (`Authority`, `ClientId`, `Scopes`): Das Frontend meldet sich per Authorization Code + PKCE an, hängt das Access-Token als Bearer an alle API-Aufrufe und zeigt Benutzername und Abmeldung im Seitenmenü. Ohne `Oidc` gilt die Oberfläche als technischer Benutzer angemeldet, damit dieselben `[Authorize]`-Regeln greifen. Halbe Konfiguration (nur Authority oder nur ClientId) bricht den Start ab. Ablauf für den Pilot: [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md).
 
 ## Lokaler Start
 

@@ -76,3 +76,30 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  # Zweite Oberflaeche zum Vergleich. Sie spricht dieselbe API und denselben Identity
+  # Provider wie die Blazor-Oberflaeche und laeuft nur unter einer eigenen Adresse,
+  # damit beide nebeneinander betrachtet werden koennen.
+  console:
+    image: ghcr.io/flowzer-io/flowzer-console:${FLOWZER_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - 8080
+    environment:
+      FLOWZER_API_UPSTREAM: api:8080
+      FLOWZER_API_BASE_URL: /
+      FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
+      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_CONSOLE_OIDC_CLIENT_ID:-${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}}"
+      # Unter dieser Audience stehen die Clientrollen im Token; sie entspricht der
+      # Audience, die die API prueft.
+      FLOWZER_OIDC_AUDIENCE: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
+      FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s

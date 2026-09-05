@@ -164,6 +164,45 @@ jobs:
         working-directory: bpmn.io
         run: npm audit --audit-level=high
 
+  console:
+    name: Build und Tests der React-Konsole
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: src/FlowzerConsole/package-lock.json
+
+      - name: Abhaengigkeiten installieren
+        working-directory: src/FlowzerConsole
+        run: npm ci
+
+      - name: Typen pruefen
+        working-directory: src/FlowzerConsole
+        run: npm run typecheck
+
+      - name: Linter
+        working-directory: src/FlowzerConsole
+        run: npm run lint
+
+      - name: Tests
+        working-directory: src/FlowzerConsole
+        run: npm run test
+
+      - name: Bauen
+        working-directory: src/FlowzerConsole
+        run: npm run build
+
+      - name: Bekannte Schwachstellen der Abhaengigkeiten pruefen
+        working-directory: src/FlowzerConsole
+        run: npm audit --audit-level=high
+
   frontend_smoke:
     name: UI-Smoke-Tests
     runs-on: ubuntu-latest
