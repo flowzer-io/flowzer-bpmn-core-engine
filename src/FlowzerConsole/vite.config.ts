@@ -43,7 +43,10 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // Source Maps legen den vollstaendigen Client offen, auch die Anmeldepfade. Sie
+    // entstehen nur, wenn ausdruecklich verlangt (npm run build -- --sourcemap bzw.
+    // FLOWZER_SOURCEMAPS=1); das Auslieferungsbuendel enthaelt keine.
+    sourcemap: process.env.FLOWZER_SOURCEMAPS === '1' ,
     rollupOptions: {
       output: {
         // bpmn-js und Form.io sind groß und werden nur auf einzelnen Routen gebraucht.

@@ -12,6 +12,9 @@ TARGET="/usr/share/nginx/html/config.json"
 API_BASE_URL="${FLOWZER_API_BASE_URL:-/}"
 OIDC_AUTHORITY="${FLOWZER_OIDC_AUTHORITY:-}"
 OIDC_CLIENT_ID="${FLOWZER_OIDC_CLIENT_ID:-}"
+# Audience der API im Access-Token. Unter ihr stehen die Clientrollen; ohne sie wuerden
+# Rollen fremder Clients mitgelesen.
+OIDC_AUDIENCE="${FLOWZER_OIDC_AUDIENCE:-}"
 OIDC_SCOPES="${FLOWZER_OIDC_SCOPES:-}"
 
 # Steuerzeichen haben in diesen Werten nichts verloren und wuerden das JSON unbrauchbar
@@ -31,6 +34,7 @@ cat > "$TARGET" <<EOF
   "apiBaseUrl": "$(json_escape "$API_BASE_URL")",
   "oidcAuthority": "$(json_escape "$OIDC_AUTHORITY")",
   "oidcClientId": "$(json_escape "$OIDC_CLIENT_ID")",
+  "oidcAudience": "$(json_escape "$OIDC_AUDIENCE")",
   "oidcScopes": [$SCOPES_JSON]
 }
 EOF
@@ -64,9 +68,26 @@ server {
   proxy_read_timeout 120s;
   client_max_body_size 8m;
 
+  # Die Oberflaeche gehoert in kein fremdes Rahmenfenster, und der Browser soll den
+  # Inhaltstyp nicht raten.
+  add_header X-Frame-Options DENY always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
+
   # Diese Liste muss alle API-Routen enthalten. Fehlt eine, beantwortet die Konsole sie
   # mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
-  location ~ ^/(health|definition|instance|job|message|usertask|form|timer|operations|swagger)(/|\$) {
+  #
+  # Der Pfad operations traegt bewusst einen Schraegstrich: Die Konsole hat selbst eine Seite
+  # unter /operations, die API nur den Unterpfad /operations/diagnostics. Ohne den
+  # Schraegstrich liefe ein Neuladen der Betriebsseite gegen die API statt gegen den Router.
+  #
+  # Swagger fehlt bewusst: Die Beschreibung der API gehoert nicht unter die oeffentliche
+  # Adresse der Oberflaeche.
+  location ~ ^/(health|definition|instance|job|message|usertask|form|timer)(/|\$) {
+    proxy_pass \$flowzer_api;
+  }
+
+  location ~ ^/operations/ {
     proxy_pass \$flowzer_api;
   }
 
@@ -89,6 +110,10 @@ server {
 
   root /usr/share/nginx/html;
   index index.html;
+
+  add_header X-Frame-Options DENY always;
+  add_header X-Content-Type-Options nosniff always;
+  add_header Referrer-Policy strict-origin-when-cross-origin always;
 
   location / {
     try_files $uri $uri/ /index.html;

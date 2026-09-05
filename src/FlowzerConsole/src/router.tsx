@@ -9,7 +9,7 @@ import {
 } from '@tanstack/react-router';
 
 import { AppShell } from '@/components/layout/AppShell';
-import { AuthenticationCallbackPage, SignedOutPage } from '@/pages/AuthenticationCallbackPage';
+import { AuthenticationCallbackPage, SignedOutPage, SilentCallbackPage } from '@/pages/AuthenticationCallbackPage';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -40,6 +40,12 @@ const logoutCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/authentication/logout-callback',
   component: SignedOutPage,
+});
+
+const silentCallbackRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/authentication/silent-callback',
+  component: SilentCallbackPage,
 });
 
 /** Alles Uebrige laeuft in der Anwendungshuelle, die die Anmeldung voraussetzt. */
@@ -160,6 +166,7 @@ function NotFound() {
 const routeTree = rootRoute.addChildren([
   loginCallbackRoute,
   logoutCallbackRoute,
+  silentCallbackRoute,
   shellRoute.addChildren([
     dashboardRoute,
     workflowsRoute.addChildren([workflowsIndexRoute, workflowDetailRoute]),

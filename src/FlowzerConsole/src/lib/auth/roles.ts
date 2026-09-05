@@ -15,32 +15,48 @@ export type FlowzerRole = (typeof FLOWZER_ROLES)[keyof typeof FLOWZER_ROLES];
 interface AccessTokenClaims {
   resource_access?: Record<string, { roles?: string[] } | undefined>;
   roles?: string[];
+  aud?: string | string[];
   [claim: string]: unknown;
 }
 
 /**
- * Liest die Rollen aus einem Access-Token. Ohne konfigurierte Audience wird jede
- * Clientrolle akzeptiert; das ist der Entwicklungsfall mit einem einzigen Client.
+ * Liest die Rollen aus einem Access-Token.
+ *
+ * Maßgeblich ist die Audience der API: Genau dort stehen die Rollen, die die API
+ * auswertet. Ist keine konfiguriert, gilt die Audience aus dem Token selbst. Alle
+ * Clients zusammenzuwerfen wäre falsch — jemand mit `operator` auf einer anderen
+ * Anwendung sähe hier sonst die vollständige Konsole.
  */
 export function readRoles(claims: AccessTokenClaims | undefined, audience: string): Set<string> {
   const roles = new Set<string>();
   if (!claims) return roles;
 
+  // Entra ID liefert App-Rollen flach; sie gelten per Definition für die Audience des Tokens.
   for (const role of claims.roles ?? []) {
     if (typeof role === 'string') roles.add(role);
   }
 
   const resourceAccess = claims.resource_access;
-  if (resourceAccess && typeof resourceAccess === 'object') {
-    const entries = audience ? [resourceAccess[audience]] : Object.values(resourceAccess);
-    for (const entry of entries) {
-      for (const role of entry?.roles ?? []) {
-        if (typeof role === 'string') roles.add(role);
-      }
+  if (!resourceAccess || typeof resourceAccess !== 'object') return roles;
+
+  for (const name of resolveAudiences(claims, audience)) {
+    for (const role of resourceAccess[name]?.roles ?? []) {
+      if (typeof role === 'string') roles.add(role);
     }
   }
 
   return roles;
+}
+
+/** Konfigurierte Audience, sonst die des Tokens. Niemals alle Clients. */
+function resolveAudiences(claims: AccessTokenClaims, audience: string): string[] {
+  if (audience) return [audience];
+
+  const fromToken = claims.aud;
+  if (typeof fromToken === 'string') return [fromToken];
+  if (Array.isArray(fromToken)) return fromToken.filter((value): value is string => typeof value === 'string');
+
+  return [];
 }
 
 /**

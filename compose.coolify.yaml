@@ -92,7 +92,10 @@ services:
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
       FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
-      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_CONSOLE_OIDC_CLIENT_ID:-${FLOWZER_OIDC_CLIENT_ID}}"
+      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_CONSOLE_OIDC_CLIENT_ID:-${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}}"
+      # Unter dieser Audience stehen die Clientrollen im Token; sie entspricht der
+      # Audience, die die API prueft.
+      FLOWZER_OIDC_AUDIENCE: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
       FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]

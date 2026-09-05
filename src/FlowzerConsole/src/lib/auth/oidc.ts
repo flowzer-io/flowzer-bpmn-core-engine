@@ -4,6 +4,7 @@ import { getRuntimeConfig, isAuthenticationConfigured } from '@/lib/config/runti
 
 export const LOGIN_CALLBACK_PATH = '/authentication/login-callback';
 export const LOGOUT_CALLBACK_PATH = '/authentication/logout-callback';
+export const SILENT_CALLBACK_PATH = '/authentication/silent-callback';
 
 let manager: UserManager | null = null;
 
@@ -21,11 +22,16 @@ export function getUserManager(): UserManager | null {
     client_id: config.oidcClientId,
     redirect_uri: new URL(LOGIN_CALLBACK_PATH, window.location.origin).toString(),
     post_logout_redirect_uri: new URL(LOGOUT_CALLBACK_PATH, window.location.origin).toString(),
+    // Die stille Erneuerung bekommt eine eigene, minimale Seite. Ohne sie lädt der
+    // Erneuerungs-Frame die vollständige Anwendung samt Weiterleitung.
+    silent_redirect_uri: new URL(SILENT_CALLBACK_PATH, window.location.origin).toString(),
     response_type: 'code',
     scope: ['openid', 'profile', 'email', ...config.oidcScopes].join(' '),
 
     // Erneuern im Hintergrund, damit eine lange Sitzung nicht mitten in der Arbeit endet.
     automaticSilentRenew: true,
+    // Beim Abmelden auch die Token beim Identity Provider entwerten, nicht nur lokal löschen.
+    revokeTokensOnSignout: true,
     // Der Zustand liegt in sessionStorage: Er endet mit dem Tab und wandert nicht
     // in andere Fenster, in denen jemand anderes angemeldet sein könnte.
     userStore: new WebStorageStateStore({ store: window.sessionStorage }),
@@ -52,6 +58,27 @@ export async function signOut(): Promise<void> {
 
 export async function completeSignIn(): Promise<string> {
   const user = await getUserManager()?.signinCallback();
-  const target = typeof user?.state === 'string' ? user.state : '/';
-  return target.startsWith('/') ? target : '/';
+  return sanitiseReturnTo(typeof user?.state === 'string' ? user.state : undefined);
+}
+
+export async function completeSilentSignIn(): Promise<void> {
+  await getUserManager()?.signinSilentCallback();
+}
+
+/**
+ * Nur Ziele im eigenen Origin. `//evil.example` ist protokollrelativ und verließe
+ * den Origin, obwohl es mit einem Schrägstrich beginnt; ein Backslash tut in
+ * manchen Browsern dasselbe.
+ */
+export function sanitiseReturnTo(target: string | undefined): string {
+  if (!target || !target.startsWith('/') || target.startsWith('//') || target.startsWith('/\\')) {
+    return '/';
+  }
+
+  try {
+    const resolved = new URL(target, window.location.origin);
+    return resolved.origin === window.location.origin ? `${resolved.pathname}${resolved.search}` : '/';
+  } catch {
+    return '/';
+  }
 }

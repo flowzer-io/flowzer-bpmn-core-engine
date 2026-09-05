@@ -45,6 +45,7 @@ Ein gebautes Bündel ist unveränderlich; die Adressen dürfen deshalb nicht bei
 | `FLOWZER_API_UPSTREAM` | Ziel der Weiterleitung als `host:port`, z. B. `api:8080` |
 | `FLOWZER_OIDC_AUTHORITY` | OIDC-Issuer; leer heißt: ohne Anmeldung |
 | `FLOWZER_OIDC_CLIENT_ID` | Client-Id der Konsole |
+| `FLOWZER_OIDC_AUDIENCE` | Audience der API im Token; unter ihr stehen die Clientrollen |
 | `FLOWZER_OIDC_SCOPES` | zusätzliche Scopes über `openid profile email` hinaus |
 
 Im Entwicklungsbetrieb ohne `config.json` greifen die `VITE_`-Werte aus `.env`.

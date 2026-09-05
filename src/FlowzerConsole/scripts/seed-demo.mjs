@@ -205,7 +205,9 @@ async function main() {
   }
 
   // 2. Katalogeintrag anlegen — ohne ihn lehnt die API den Deploy ab.
-  const metas = (await call('/definition/meta')) ?? [];
+  // Auch der Katalog liefert den einheitlichen Umschlag; das Ergebnis steht in `result`.
+  const metaResponse = await call('/definition/meta');
+  const metas = metaResponse?.result ?? metaResponse ?? [];
   if (!metas.some((meta) => meta.definitionId === DEFINITION_ID)) {
     await call('/definition/meta', {
       method: 'POST',

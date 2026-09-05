@@ -36,9 +36,10 @@ function initials(name: string): string {
 }
 
 /**
- * Ohne Identity Provider läuft die Konsole wie die Anwendung selbst als technischer
- * Benutzer. Die API akzeptiert das nur im Entwicklungsmodus; in Produktion ist ein
- * Identity Provider konfiguriert und dieser Zweig kommt nicht vor.
+ * Ohne Identity Provider läuft die Konsole als technischer Benutzer. Die API
+ * akzeptiert das ausschließlich im Entwicklungsmodus, und nur dort greift dieser
+ * Zweig: In einem Produktionsbündel bliebe die Anwendung sonst mit voller Ansicht
+ * stehen, während die API jeden Aufruf ablehnt.
  */
 const DEVELOPMENT_USER: SessionUser = {
   id: 'd266f2b6-e96e-4d4a-9c20-c8e541394df0',
@@ -54,6 +55,12 @@ export const useSession = create<SessionState>()((set, get) => ({
 
   refresh: async () => {
     if (!isAuthenticationConfigured()) {
+      if (!import.meta.env.DEV) {
+        // Fail-closed: lieber die Anmeldeseite als eine Oberfläche, die nichts kann.
+        set({ status: 'anonymous', user: null });
+        return;
+      }
+
       set({ status: 'signed-in', user: DEVELOPMENT_USER });
       return;
     }
@@ -75,7 +82,7 @@ export const useSession = create<SessionState>()((set, get) => ({
         name,
         email: profile.email,
         initials: initials(name),
-        roles: readRoles(claims, audienceFromScopes()),
+        roles: readRoles(claims, getRuntimeConfig().oidcAudience),
       },
     });
   },
@@ -86,14 +93,6 @@ export const useSession = create<SessionState>()((set, get) => ({
     if (get().accessDenied !== denied) set({ accessDenied: denied });
   },
 }));
-
-/**
- * Die Rollen der API stehen im Token unter ihrer eigenen Audience. Sie ist in den
- * Scopes hinterlegt; fehlt sie, werden alle Clientrollen gelesen.
- */
-function audienceFromScopes(): string {
-  return getRuntimeConfig().oidcScopes.find((scope) => scope.startsWith('flowzer-')) ?? '';
-}
 
 /**
  * Kurzer Zusatz unter dem Namen: die stärkste Rolle, die die Person trägt.
@@ -122,7 +121,7 @@ setAuthTokenProvider(() => {
   if (!manager) return null;
   return currentAccessToken;
 });
-setUserIdProvider(() => (isAuthenticationConfigured() ? null : DEVELOPMENT_USER.id));
+setUserIdProvider(() => (!isAuthenticationConfigured() && import.meta.env.DEV ? DEVELOPMENT_USER.id : null));
 setAccessDeniedHandler((denied) => useSession.getState().setAccessDenied(denied));
 
 /**

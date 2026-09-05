@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { completeSignIn } from '@/lib/auth/oidc';
+import { completeSignIn, completeSilentSignIn } from '@/lib/auth/oidc';
 
 /**
  * Nimmt die Rückleitung des Identity Providers entgegen und führt dorthin weiter,
@@ -45,6 +45,20 @@ export function AuthenticationCallbackPage() {
       <p className="text-muted text-sm">Anmeldung wird abgeschlossen …</p>
     </div>
   );
+}
+
+/**
+ * Rückleitung der stillen Erneuerung. Sie läuft in einem unsichtbaren Rahmen und
+ * darf die Anwendung nicht laden: Sie meldet nur das Ergebnis an das Hauptfenster.
+ */
+export function SilentCallbackPage() {
+  useEffect(() => {
+    void completeSilentSignIn().catch(() => {
+      // Der Fehler erreicht das Hauptfenster über die Ereignisse des UserManagers.
+    });
+  }, []);
+
+  return null;
 }
 
 /** Rückleitung nach dem Abmelden. */

@@ -26,7 +26,12 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  const seesFullConsoleForShortcut =
+    (user?.roles.has(FLOWZER_ROLES.modeler) ?? false) || (user?.roles.has(FLOWZER_ROLES.operator) ?? false);
+
   useEffect(() => {
+    if (!seesFullConsoleForShortcut) return;
+
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -36,25 +41,20 @@ export function AppShell() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [seesFullConsoleForShortcut]);
 
   if (status !== 'signed-in' || !user) {
     return <SignInGate status={status} />;
   }
 
-  const overlays = (
-    <>
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
-      <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
-    </>
-  );
-
   const seesFullConsole = user.roles.has(FLOWZER_ROLES.modeler) || user.roles.has(FLOWZER_ROLES.operator);
 
   if (!seesFullConsole) {
+    // Bewusst ohne Befehlspalette: Sie führt durch den gesamten Katalog und die
+    // Instanzen und würde die reduzierte Ansicht wieder öffnen.
     return (
       <WorkerShell onOpenUserMenu={() => setUserMenuOpen(true)}>
-        {overlays}
+        <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
       </WorkerShell>
     );
   }
@@ -71,7 +71,8 @@ export function AppShell() {
         </main>
       </div>
 
-      {overlays}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
     </div>
   );
 }
