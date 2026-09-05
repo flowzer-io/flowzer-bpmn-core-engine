@@ -69,7 +69,7 @@ Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest
 
 ### 0. Betriebsfähigkeit
 
-- Instanzen lassen sich über die API weder abbrechen noch zurücksetzen (`InstanceEngine.Cancel()` ist nicht angebunden).
+- Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
 - Service-Tasks haben keinen Worker-Vertrag (kein Polling, kein Ergebnis-Endpunkt).
 - Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.
 - Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.

@@ -33,9 +33,8 @@ Seit September 2026 zusätzlich vorhanden (siehe [REVIEW-2026-09.md](./REVIEW-20
 
 ### 0.1 Identity Provider anbinden
 
-- Entra ID oder Keycloak als Issuer konfigurieren (`Authentication:Scheme=JwtBearer`)
-- OIDC-Client im Frontend ergänzen, Development-Header nur noch lokal
-- Benutzer-Id-Format (GUID in `oid`/`sub`) mit dem IdP abstimmen
+- API (`Authentication:Scheme=JwtBearer`) und Frontend (`Oidc`) sind konfigurierbar, siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md)
+- offen: Registrierung im Unternehmens-IdP und Benutzer-Id-Format (GUID in `oid`/`sub`) verifizieren
 
 ### 0.2 Pilot hinter Reverse Proxy
 

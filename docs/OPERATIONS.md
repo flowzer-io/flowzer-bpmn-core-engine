@@ -38,6 +38,8 @@ Verhalten bei `JwtBearer`:
 
 Noch offen: Das Blazor-Frontend besitzt keinen OIDC-Client und kann bei aktivem `JwtBearer` keine Token beschaffen. Für einen Pilot ist deshalb ein Reverse Proxy mit Token-Weitergabe oder die Ergänzung von `Microsoft.AspNetCore.Components.WebAssembly.Authentication` im Frontend nötig. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.
 
+Für den Pilotbetrieb mit Identity Provider und Frontend-Anmeldung siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md).
+
 ## CORS
 
 Abschnitt `Cors:AllowedOrigins` (Array). Konfigurierte Origins werden exakt zugelassen. Ohne Konfiguration erlaubt der Development-Modus weiterhin jede Origin (Blazor-Dev-Server, Playwright); alle anderen Umgebungen setzen keine CORS-Header. Hinter dem Runtime-Gateway laufen API und Frontend unter derselben Origin und brauchen kein CORS.
@@ -45,6 +47,10 @@ Abschnitt `Cors:AllowedOrigins` (Array). Konfigurierte Origins werden exakt zuge
 ```bash
 Cors__AllowedOrigins__0=https://flowzer.example.com
 ```
+
+## Instanzen abbrechen
+
+`POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
 
 ## Health-Signale
 
