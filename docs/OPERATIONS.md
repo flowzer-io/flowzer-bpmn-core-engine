@@ -46,6 +46,10 @@ Verhalten bei `JwtBearer`:
 
 Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet.
 
+### Service-Tasks
+
+Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
+
 ### Rollen und Zuweisungen
 
 Drei Ebenen, die unabhängig voneinander wirken:

@@ -490,6 +490,7 @@ public class TimerRuntimeIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new TestInstanceStorage(this);
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

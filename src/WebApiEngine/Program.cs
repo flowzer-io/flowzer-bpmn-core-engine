@@ -3,6 +3,7 @@ using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Diagnostics;
+using WebApiEngine.Jobs;
 using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
@@ -41,6 +42,17 @@ builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSecti
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
 builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
+
+// Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
+// um eine Benachrichtigung an angemeldete Adressen.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
+                              ?? new FlowzerWebhookOptions());
+builder.Services.AddSingleton<ServiceTaskJobService>();
+builder.Services.AddSingleton<ServiceTaskWebhookService>();
+builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
+builder.Services.AddHttpClient("flowzer-webhook");
+builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
 builder.Services.AddFlowzerLimits(builder.Configuration);

@@ -101,6 +101,7 @@ public class TimerControllerIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => SubscriptionStorageSeed;
         public IInstanceStorage InstanceStorage { get; } = new NoOpInstanceStorage();
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

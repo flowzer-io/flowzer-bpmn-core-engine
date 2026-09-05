@@ -225,6 +225,7 @@ public class DefinitionControllerIntegrationTest
         public IMessageSubscriptionStorage SubscriptionStorage => _subscriptionStorage;
         public IInstanceStorage InstanceStorage => _instanceStorage;
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();
+        public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
         {

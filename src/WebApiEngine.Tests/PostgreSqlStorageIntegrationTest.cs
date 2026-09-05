@@ -79,8 +79,17 @@ public class PostgreSqlStorageIntegrationTest
 
         appliedAgain.Should().BeEmpty();
         await using var connection = await _dataSource!.OpenConnectionAsync();
-        await using var command = new NpgsqlCommand($"SELECT count(*) FROM {Schema}.schema_migrations", connection);
-        ((long)(await command.ExecuteScalarAsync())!).Should().Be(1);
+
+        // Jede eingebettete Migration steht genau einmal in der Historie. Die Zahl waechst mit
+        // jeder neuen Datei; entscheidend ist, dass ein zweiter Lauf nichts hinzufuegt.
+        await using var historyCommand = new NpgsqlCommand(
+            $"SELECT count(*), count(DISTINCT version) FROM {Schema}.schema_migrations", connection);
+        await using var reader = await historyCommand.ExecuteReaderAsync();
+        (await reader.ReadAsync()).Should().BeTrue();
+        var total = reader.GetInt64(0);
+        var distinct = reader.GetInt64(1);
+        total.Should().Be(distinct);
+        total.Should().BeGreaterThan(0);
     }
 
     // Testzweck: Definitionen, Binaerdaten und Katalog verhalten sich wie in der Dateiablage:

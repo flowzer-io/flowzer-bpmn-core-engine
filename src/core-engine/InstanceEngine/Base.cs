@@ -367,4 +367,9 @@ public partial class InstanceEngine: ICatchHandler
     {
         return GetActiveUserTasks().ToList();
     }
+
+    public List<Token> ActiveServiceTasks()
+    {
+        return GetActiveServiceTasks().ToList();
+    }
 }
