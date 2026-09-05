@@ -9,6 +9,7 @@ COPY src/FlowzerBPMN/FlowzerBPMN.csproj src/FlowzerBPMN/
 COPY src/Flowzer.Shared/Flowzer.Shared.csproj src/Flowzer.Shared/
 COPY src/StorageSystemShared/StorageSystemShared.csproj src/StorageSystemShared/
 COPY src/FilesystemStorageSystem/FilesystemStorageSystem.csproj src/FilesystemStorageSystem/
+COPY src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj src/PostgreSqlStorageSystem/
 COPY src/core-engine/core-engine.csproj src/core-engine/
 COPY src/WebApiEngine.Shared/WebApiEngine.Shared.csproj src/WebApiEngine.Shared/
 COPY src/WebApiEngine/WebApiEngine.csproj src/WebApiEngine/
@@ -16,6 +17,9 @@ COPY src/WebApiEngine/WebApiEngine.csproj src/WebApiEngine/
 RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
 
 COPY . .
+# Zweiter Restore nach dem vollstaendigen Quell-Copy: faengt Projektreferenzen ab, die in der
+# obigen Layer-Liste fehlen, statt spaeter mit --no-restore hart zu scheitern.
+RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
 RUN dotnet publish src/WebApiEngine/WebApiEngine.csproj \
     --configuration Release \
     --no-restore \

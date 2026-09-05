@@ -1,0 +1,175 @@
+name: Release
+
+# Baut die Container-Images fuer API und Frontend, veroeffentlicht sie in der GitHub Container
+# Registry und stoesst anschliessend das Coolify-Deployment fuer die konfigurierte Umgebung an.
+# Deploy-Zugangsdaten liegen ausschliesslich im GitHub-Environment `maassit-production`.
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_API: ghcr.io/${{ github.repository_owner }}/flowzer-api
+  IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/flowzer-frontend
+
+jobs:
+  images:
+    name: Images bauen und veroeffentlichen
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Image-Tag bestimmen
+        id: meta
+        run: |
+          short_sha="$(git rev-parse --short=12 HEAD)"
+          echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
+          # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
+          extra_api=""; extra_frontend=""
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            extra_api="$IMAGE_API:latest"; extra_frontend="$IMAGE_FRONTEND:latest"
+          elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
+            extra_api="$IMAGE_API:${GITHUB_REF#refs/tags/}"; extra_frontend="$IMAGE_FRONTEND:${GITHUB_REF#refs/tags/}"
+          fi
+          echo "extra_api=$extra_api" >> "$GITHUB_OUTPUT"
+          echo "extra_frontend=$extra_frontend" >> "$GITHUB_OUTPUT"
+
+      - name: Buildx einrichten
+        uses: docker/setup-buildx-action@v3
+
+      - name: Bei GHCR anmelden
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: API-Image bauen und pushen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.extra_api }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Frontend-Image bauen und pushen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.extra_frontend }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+  deploy:
+    name: Coolify-Deployment (Maass IT)
+    needs: images
+    # Produktion folgt ausschliesslich main; Tags und manuelle Laeufe anderer Branches bauen nur Images.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: maassit-production
+    concurrency:
+      group: coolify-flowzer-maass-it
+      cancel-in-progress: false
+    env:
+      COOLIFY_API_BASE: ${{ vars.COOLIFY_API_BASE }}
+      COOLIFY_APP_UUID: ${{ vars.COOLIFY_APP_UUID }}
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      IMAGE_TAG: ${{ needs.images.outputs.image_tag }}
+    steps:
+      - name: Konfiguration pruefen
+        run: |
+          test -n "$COOLIFY_API_BASE" || { echo "COOLIFY_API_BASE fehlt (Environment-Variable)." >&2; exit 2; }
+          test -n "$COOLIFY_APP_UUID" || { echo "COOLIFY_APP_UUID fehlt (Environment-Variable)." >&2; exit 2; }
+          test -n "$COOLIFY_TOKEN" || { echo "COOLIFY_TOKEN fehlt (Environment-Secret)." >&2; exit 2; }
+          case "$COOLIFY_API_BASE" in
+            https://*/api/v1) ;;
+            *) echo "COOLIFY_API_BASE hat nicht das erwartete Format https://host/api/v1." >&2; exit 2 ;;
+          esac
+
+      - name: Image-Tag in Coolify pinnen
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            --request PATCH \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "{\"key\":\"FLOWZER_IMAGE_TAG\",\"value\":\"$IMAGE_TAG\",\"is_preview\":false}" \
+            "$COOLIFY_API_BASE/applications/$COOLIFY_APP_UUID/envs" > /dev/null
+          echo "FLOWZER_IMAGE_TAG=$IMAGE_TAG"
+
+      - name: Deployment ausloesen
+        id: deploy
+        run: |
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          curl --fail --silent --show-error --max-time 30 \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            --output "$response_file" \
+            "$COOLIFY_API_BASE/deploy?uuid=$COOLIFY_APP_UUID&force=true"
+          deployment_uuid="$(jq -er '.deployments[0].deployment_uuid // .deployment_uuid' "$response_file")"
+          printf 'deployment_uuid=%s\n' "$deployment_uuid" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment abwarten
+        env:
+          DEPLOYMENT_UUID: ${{ steps.deploy.outputs.deployment_uuid }}
+        run: |
+          for attempt in $(seq 1 90); do
+            status="$(curl --fail --silent --show-error --max-time 20 \
+              --header "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$COOLIFY_API_BASE/deployments/$DEPLOYMENT_UUID" | jq -er '.status')"
+            case "$status" in
+              finished) echo "Coolify-Deployment abgeschlossen."; exit 0 ;;
+              failed|cancelled-by-user) echo "Coolify-Deployment endete mit Status: $status" >&2; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Zeitueberschreitung beim Warten auf das Coolify-Deployment." >&2
+          exit 1
+
+      - name: Veroeffentlichten Stand pruefen
+        env:
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+        run: |
+          test -n "$PUBLIC_BASE_URL" || { echo "PUBLIC_BASE_URL nicht gesetzt, Pruefung uebersprungen."; exit 0; }
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --max-time 15 "$PUBLIC_BASE_URL/health/ready" | grep -q '"Healthy"'; then
+              echo "Readiness unter $PUBLIC_BASE_URL bestaetigt."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Readiness unter $PUBLIC_BASE_URL nicht erreicht." >&2
+          exit 1

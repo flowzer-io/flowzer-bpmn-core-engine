@@ -14,7 +14,7 @@ Web-API ──▶ Dateiablage (persistentes Volume .data/runtime-storage)
 Browser ──▶ Identity Provider (OIDC, Authorization Code + PKCE)
 ```
 
-Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht unterstützt.
+Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht unterstützt. Statt der Dateiablage kann PostgreSQL verwendet werden (`Storage__Provider=PostgreSql`, siehe `docs/OPERATIONS.md`); der Compose-Stack für Coolify (`compose.coolify.yaml`) nutzt ausschließlich PostgreSQL.
 
 ## 1. Voraussetzungen
 
@@ -128,11 +128,17 @@ docker compose -f compose.runtime.yml up -d --wait
 
 Die Ablage bleibt erhalten. Vor einem Update ein Backup ziehen.
 
+## 6b. Variante Coolify mit GitHub Container Registry
+
+Für Maaß IT läuft der Stack über Coolify (`compose.coolify.yaml`): Der Workflow `release.yml` baut die Images bei jedem Push auf `main`, veröffentlicht sie in der GitHub Container Registry, setzt `FLOWZER_IMAGE_TAG` in Coolify auf die Revision und löst das Deployment aus. Der Dienst `migrate` bringt die PostgreSQL-Datenbank vor dem API-Start auf den aktuellen Stand; das Frontend-nginx leitet die API-Pfade an den API-Container (`FLOWZER_API_UPSTREAM`), sodass Traefik nur eine Domain kennt.
+
+Benötigte Coolify-Umgebungsvariablen: `STORAGE_CONNECTION_STRING`, `STORAGE_MIGRATION_CONNECTION_STRING`, `FLOWZER_AUTH_AUTHORITY`, `FLOWZER_AUTH_AUDIENCE`, `FLOWZER_OIDC_AUTHORITY`, `FLOWZER_OIDC_CLIENT_ID`, optional `FLOWZER_OIDC_SCOPES`, `STORAGE_SCHEMA`, `FLOWZER_IMAGE_TAG`. GitHub-Environment `maassit-production`: Variablen `COOLIFY_API_BASE`, `COOLIFY_APP_UUID`, `PUBLIC_BASE_URL`, Secret `COOLIFY_TOKEN`.
+
 ## 7. Bekannte Grenzen des Piloten
 
 - Kein Rollenmodell: jede angemeldete Person sieht alle Workflows, Instanzen, Aufgaben und die Diagnose.
 - Zuweisungen (`assignee`, `candidateGroups`) aus dem BPMN werden nicht ausgewertet.
-- Dateiablage: ein API-Prozess, keine Historie, keine Abfragen über Instanzen hinaus.
+- Dateiablage: ein API-Prozess, keine Historie; mit PostgreSQL echte Transaktionen, aber weiterhin ein API-Prozess (Engine-Sperre im Prozess).
 - Fälligkeiten werden angezeigt, nicht ausgewertet.
 - Service-Tasks haben keinen Worker-Vertrag; sie warten, bis ein Ergebnis über `POST /usertask` bzw. die Engine gemeldet wird.
 - Fehler-, Eskalations- und Kompensationsereignisse führen nur in einen Best-Effort-Fehlerzustand.
