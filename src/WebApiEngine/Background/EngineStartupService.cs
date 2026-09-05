@@ -5,17 +5,19 @@ namespace WebApiEngine.Background;
 
 /// <summary>
 /// Holt beim Hochlauf die persistierten Timer zurueck und arbeitet ueberfaellige Faelligkeiten ab.
-/// Frueher lief das synchron nach <c>app.Run()</c>-Vorbereitung im Startpfad: ein blockierender
-/// Aufruf auf einer asynchronen Kette, der bei traeger Ablage den Start anhielt und Ausnahmen erst
-/// nach dem Binden der Ports zeigte. Als gehosteter Dienst laeuft es im normalen Startvertrag,
-/// vor dem <see cref="TimerSchedulerBackgroundService"/>, der danach zyklisch weiterarbeitet.
+///
+/// Das laeuft in <see cref="StartingAsync"/>, nicht in <c>StartAsync</c>: Gehostete Dienste starten
+/// in Registrierungsreihenfolge, und der Web-Host ist vor allen eigenen Diensten registriert. In
+/// <c>StartAsync</c> waeren die Ports also schon offen, bevor der gespeicherte Zustand
+/// wiederhergestellt ist. <c>StartingAsync</c> laeuft vor jedem <c>StartAsync</c> und damit vor dem
+/// ersten angenommenen Request; schlaegt die Wiederherstellung fehl, startet der Host gar nicht erst.
 /// </summary>
 public sealed class EngineStartupService(
     BpmnBusinessLogic businessLogic,
     IOptions<TimerSchedulerOptions> timerSchedulerOptions,
-    ILogger<EngineStartupService> logger) : IHostedService
+    ILogger<EngineStartupService> logger) : IHostedLifecycleService
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartingAsync(CancellationToken cancellationToken)
     {
         var enabled = timerSchedulerOptions.Value.Enabled;
         logger.LogInformation("Engine-Wiederherstellung startet (Timerautomatik: {Enabled}).", enabled);
@@ -25,5 +27,13 @@ public sealed class EngineStartupService(
         logger.LogInformation("Engine-Wiederherstellung abgeschlossen.");
     }
 
+    public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StartedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StoppingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task StoppedAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

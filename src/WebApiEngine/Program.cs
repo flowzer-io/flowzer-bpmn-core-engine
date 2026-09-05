@@ -45,8 +45,20 @@ builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
 builder.Services.AddFlowzerLimits(builder.Configuration);
 
+// Die Uploadgrenze auch am Server selbst setzen. Die Middleware setzt sie je Anfrage; ohne
+// diesen Wert bliebe fuer alles, was die Middleware nicht erreicht, das Server-Default stehen.
+var configuredUploadLimit = builder.Configuration.GetSection(FlowzerUploadLimitOptions.SectionName)
+    .Get<FlowzerUploadLimitOptions>() ?? new FlowzerUploadLimitOptions();
+builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = configuredUploadLimit.MaxUploadBytes);
+
+// Hinter dem Gateway steht die echte Adresse des Aufrufers nur im Weiterleitungsheader.
+// Ohne diese Auswertung liefe das Kontingent fuer alle anonymen Aufrufer gegen die Adresse
+// des Proxys, also gegen ein gemeinsames Fenster.
+builder.Services.AddFlowzerForwardedHeaders(builder.Configuration);
+
 var app = builder.Build();
 
+app.UseFlowzerForwardedHeaders();
 app.UseFlowzerRequestDiagnostics();
 app.UseFlowzerApiExceptionHandling();
 
@@ -58,10 +70,12 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseFlowzerCors();
-// Grenzen vor der Authentifizierung: ein zu grosser oder zu haeufiger Aufruf soll den
-// teureren Teil der Pipeline gar nicht erst erreichen.
-app.UseFlowzerLimits();
+// Ein zu grosser Koerper soll gar nicht erst gepuffert werden.
+app.UseFlowzerUploadLimit();
 app.UseFlowzerAuthentication();
+// Erst nach der Authentifizierung steht fest, wer anfragt; davor liefe jedes Kontingent
+// gegen dieselbe Adress-Partition.
+app.UseFlowzerRateLimiting();
 
 // TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
 

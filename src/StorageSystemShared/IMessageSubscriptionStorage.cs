@@ -33,9 +33,13 @@ public interface IMessageSubscriptionStorage
 
     /// <summary>
     /// Liefert genau eine angereicherte User-Task-Subscription oder <c>null</c>.
-    /// Die Standardimplementierung filtert die Liste und ist damit fuer jede Ablage korrekt;
-    /// Ablagen mit direktem Zugriff sollten sie ueberschreiben, weil das Laden aller Aufgaben
-    /// aller Personen linear mit dem Bestand teurer wird.
+    ///
+    /// Die Standardimplementierung filtert die Liste. Sie traegt nur, solange
+    /// <see cref="GetAllUserTasksExtended"/> ihr Argument ignoriert, was beide mitgelieferten
+    /// Ablagen tun; sonst suchte sie im Bestand einer nicht existierenden Person. Jede Ablage,
+    /// die dort nach Person filtert, muss diese Methode ueberschreiben. Ablagen mit direktem
+    /// Zugriff sollten das ohnehin tun, weil das Laden aller Aufgaben aller Personen linear mit
+    /// dem Bestand teurer wird.
     /// </summary>
     async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId) =>
         (await GetAllUserTasksExtended(Guid.Empty)).FirstOrDefault(candidate => candidate.Id == userTaskId);

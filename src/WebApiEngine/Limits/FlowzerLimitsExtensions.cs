@@ -72,24 +72,29 @@ public static class FlowzerLimitsExtensions
         return services;
     }
 
-    public static IApplicationBuilder UseFlowzerLimits(this IApplicationBuilder app)
+    /// <summary>
+    /// Groessengrenze fuer Anfragekoerper. Gehoert vor die Authentifizierung: Ein zu grosser
+    /// Koerper soll gar nicht erst gepuffert werden.
+    /// </summary>
+    public static IApplicationBuilder UseFlowzerUploadLimit(this IApplicationBuilder app)
     {
         var uploadLimit = app.ApplicationServices.GetRequiredService<FlowzerUploadLimitOptions>();
 
-        // Vor der Authentifizierung: ein zu grosser Koerper soll gar nicht erst gepuffert werden.
         app.Use(async (context, next) =>
         {
             if (!IsExempt(context))
             {
+                // Die Kappung selbst macht der Server anhand dieses Features; der Content-Length-
+                // Vergleich ist nur die schnellere Absage. Ohne Header (chunked, HTTP/2) greift
+                // weiterhin das Feature beim Lesen des Koerpers.
                 var sizeFeature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
                 if (sizeFeature is { IsReadOnly: false })
                 {
                     sizeFeature.MaxRequestBodySize = uploadLimit.MaxUploadBytes;
                 }
 
-                if (context.Request.ContentLength > uploadLimit.MaxUploadBytes)
+                if (context.Request.ContentLength is { } declaredLength && declaredLength > uploadLimit.MaxUploadBytes)
                 {
-                    // Der Content-Length-Header erlaubt die Absage, bevor ein einziges Byte gelesen wird.
                     throw new BadHttpRequestException(
                         $"Request body exceeds the configured limit of {uploadLimit.MaxUploadBytes} bytes.",
                         StatusCodes.Status413PayloadTooLarge);
@@ -99,6 +104,15 @@ public static class FlowzerLimitsExtensions
             await next();
         });
 
+        return app;
+    }
+
+    /// <summary>
+    /// Kontingent je Aufrufer. Gehoert <b>nach</b> die Authentifizierung: Davor ist
+    /// <c>HttpContext.User</c> leer, und jede Anfrage fiele in dieselbe Adress-Partition.
+    /// </summary>
+    public static IApplicationBuilder UseFlowzerRateLimiting(this IApplicationBuilder app)
+    {
         var rateLimiting = app.ApplicationServices.GetRequiredService<FlowzerRateLimitingOptions>();
         if (rateLimiting.Enabled)
         {
