@@ -1,7 +1,7 @@
 using Model;
 using Newtonsoft.Json;
 using StorageSystem;
-using FilesystemStorageSystem.Exceptions;
+using StorageSystem.Exceptions;
 using Version = Model.Version;
 
 namespace FilesystemStorageSystem;

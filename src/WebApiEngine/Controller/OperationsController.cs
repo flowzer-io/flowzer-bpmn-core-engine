@@ -12,6 +12,7 @@ public class OperationsController(
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
     IOptions<FlowzerObservabilityOptions> observabilityOptions,
+    WebApiEngine.Persistence.FlowzerStorageOptions storageOptions,
     ILogger<OperationsController> logger) : ControllerBase
 {
     [HttpGet("diagnostics")]
@@ -37,7 +38,7 @@ public class OperationsController(
                 Environment = environment.EnvironmentName,
                 Storage = new OperationsStorageSnapshotDto
                 {
-                    StorageRootHint = ResolveStorageRootHint(environment),
+                    StorageRootHint = storageOptions.IsPostgreSql ? storageOptions.Describe() : ResolveStorageRootHint(environment),
                     TotalDefinitions = definitions.Length,
                     ActiveDefinitions = definitions.Count(definition => definition.IsActive),
                     DefinitionMetadataEntries = metaDefinitions.Length,

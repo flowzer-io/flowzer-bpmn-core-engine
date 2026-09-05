@@ -1,5 +1,5 @@
 using FilesystemStorageSystem;
-using FilesystemStorageSystem.Exceptions;
+using StorageSystem.Exceptions;
 using FluentAssertions;
 using Model;
 

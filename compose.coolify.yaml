@@ -1,0 +1,64 @@
+# Produktions-Stack fuer Coolify (Projekt MIT Tools, Server cool4). Die Images kommen aus der
+# GitHub Container Registry; der Release-Workflow pinnt FLOWZER_IMAGE_TAG auf die Revision und
+# loest das Deployment aus. Geheime Werte liegen ausschliesslich in Coolify-Environment-Variablen.
+services:
+  migrate:
+    image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
+    restart: "no"
+    exclude_from_hc: true
+    command: ["dotnet", "WebApiEngine.dll", "--migrate"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__ConnectionString: "${STORAGE_MIGRATION_CONNECTION_STRING:?STORAGE_MIGRATION_CONNECTION_STRING muss gesetzt sein}"
+      Storage__PostgreSql__MigrationConnectionString: "${STORAGE_MIGRATION_CONNECTION_STRING}"
+      Storage__PostgreSql__Schema: "${STORAGE_SCHEMA:-flowzer}"
+
+  api:
+    image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - 8080
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__ConnectionString: "${STORAGE_CONNECTION_STRING:?STORAGE_CONNECTION_STRING muss gesetzt sein}"
+      Storage__PostgreSql__Schema: "${STORAGE_SCHEMA:-flowzer}"
+      Authentication__Scheme: "${FLOWZER_AUTH_SCHEME:-JwtBearer}"
+      Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
+      Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
+      TimerScheduler__Enabled: "true"
+      TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
+      TZ: Europe/Berlin
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/flowzer-io/flowzer-frontend:${FLOWZER_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - 8080
+    environment:
+      # Das Frontend-nginx bedient die Oberflaeche und leitet API-Pfade an den API-Container.
+      FLOWZER_API_UPSTREAM: api:8080
+      FLOWZER_API_BASE_URL: /
+      FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
+      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}"
+      FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s

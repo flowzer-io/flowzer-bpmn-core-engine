@@ -35,4 +35,36 @@ cat > "$TARGET" <<EOF
 }
 EOF
 
+# Optional als Gateway: Ist FLOWZER_API_UPSTREAM gesetzt (z. B. api:8080), leitet nginx alle
+# API-Pfade dorthin und bedient nur den Rest als statische Oberflaeche. So braucht ein
+# Deployment hinter Traefik/Coolify keinen zusaetzlichen Gateway-Container.
+API_UPSTREAM="${FLOWZER_API_UPSTREAM:-}"
+if [ -n "$API_UPSTREAM" ]; then
+  cat > /etc/nginx/conf.d/default.conf <<NGINX
+server {
+  listen 8080;
+  server_name _;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  proxy_http_version 1.1;
+  proxy_set_header Host \$host;
+  proxy_set_header X-Real-IP \$remote_addr;
+  proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto \$http_x_forwarded_proto;
+  proxy_read_timeout 120s;
+  client_max_body_size 8m;
+
+  location ~ ^/(health|definition|instance|message|usertask|form|timer|operations|swagger)(/|\$) {
+    proxy_pass http://${API_UPSTREAM};
+  }
+
+  location / {
+    try_files \$uri \$uri/ /index.html;
+  }
+}
+NGINX
+fi
+
 exec nginx -g 'daemon off;'
