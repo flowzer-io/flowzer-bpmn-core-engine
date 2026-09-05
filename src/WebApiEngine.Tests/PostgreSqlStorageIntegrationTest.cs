@@ -291,6 +291,7 @@ public class PostgreSqlStorageIntegrationTest
         (await reader.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId))!.Id.Should().Be(definition.Id);
     }
 
+    // Testzweck: Doppelte Versionsnummern je Katalog bzw. Formular werden als Konflikt gemeldet, nicht gespeichert.
     [Test]
     public async Task DuplicateVersionNumbersAreRejectedAsConflicts()
     {

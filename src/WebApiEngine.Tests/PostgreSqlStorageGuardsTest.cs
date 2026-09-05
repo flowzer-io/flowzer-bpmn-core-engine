@@ -16,6 +16,7 @@ namespace WebApiEngine.Tests;
 [TestFixture]
 public class PostgreSqlStorageGuardsTest
 {
+    // Testzweck: Ein manipulierter $type-Wert in der Datenbank darf keine fremde Klasse instanziieren.
     [Test]
     public void SerializerRejectsTypesOutsideTheKnownAssemblies()
     {
@@ -30,6 +31,7 @@ public class PostgreSqlStorageGuardsTest
             .Which.Message.Should().Contain("not allowed");
     }
 
+    // Testzweck: Die Typ-Allowlist laesst die polymorphen BPMN-Elemente in Tokens weiterhin durch.
     [Test]
     public void SerializerRoundTripsPolymorphicFlowzerTypes()
     {
@@ -52,6 +54,7 @@ public class PostgreSqlStorageGuardsTest
         copy.Tokens.Last().CurrentBaseElement.Should().BeOfType<UserTask>().Which.Name.Should().Be("Aufgabe");
     }
 
+    // Testzweck: Der Schemaname wird als schlichter Bezeichner validiert; alles andere wird abgelehnt.
     [TestCase("flowzer", true)]
     [TestCase("_intern", true)]
     [TestCase("flowzer_2", true)]
