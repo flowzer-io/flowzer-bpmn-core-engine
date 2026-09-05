@@ -200,14 +200,86 @@ public class AuthenticationAndCorsIntegrationTest
         response.Headers.GetValues("Access-Control-Allow-Origin").Should().ContainSingle().Which.Should().Be("*");
     }
 
-    private static TestWebApplicationFactory CreateJwtFactory(TestStorage storage, string environmentName = "Production")
+    // Testzweck: Mit konfigurierter Pflichtrolle reicht ein gueltiges Token nicht; ohne die Rolle
+    // antwortet die API 403, damit selbstregistrierte Realm-Konten keinen Zugang bekommen.
+    [Test]
+    public async Task ProtectedEndpoints_ShouldReturnForbidden_WhenRequiredRoleIsMissing()
     {
-        return new TestWebApplicationFactory(storage, environmentName, new Dictionary<string, string?>
+        await using var factory = CreateJwtFactory(new TestStorage(), requiredRole: "access");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(Guid.NewGuid()));
+
+        var response = await client.GetAsync("/usertask");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // Testzweck: Keycloak liefert Clientrollen unter `resource_access.<audience>.roles` als JSON-Objekt
+    // im Token; genau diese Struktur muss die Pflichtrolle erfuellen, Rollen anderer Clients nicht.
+    [Test]
+    public async Task ProtectedEndpoints_ShouldHonorKeycloakClientRoles_WhenRequiredRoleIsConfigured()
+    {
+        var storage = new TestStorage();
+        var userId = Guid.NewGuid();
+        await using var factory = CreateJwtFactory(storage, requiredRole: "access");
+        using var client = factory.CreateClient();
+
+        var keycloakToken = CreateToken(claims:
+        [
+            new Claim("sub", userId.ToString()),
+            new Claim("resource_access", """{"flowzer-api":{"roles":["access"]}}""", JsonClaimValueTypes.Json)
+        ]);
+        // Der Testtoken traegt den Claim wie Keycloak als JSON-Objekt, nicht als String.
+        new JsonWebToken(keycloakToken).TryGetPayloadValue<System.Text.Json.JsonElement>("resource_access", out var resourceAccess).Should().BeTrue();
+        resourceAccess.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", keycloakToken);
+        var allowed = await client.GetAsync("/usertask");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
+        [
+            new Claim("sub", userId.ToString()),
+            new Claim("resource_access", """{"other-api":{"roles":["access"]}}""", JsonClaimValueTypes.Json)
+        ]));
+        var otherClient = await client.GetAsync("/usertask");
+
+        allowed.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.LastRequestedUserTaskUserId.Should().Be(userId);
+        otherClient.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    // Testzweck: Entra ID liefert App-Rollen im Claim `roles`; die Pflichtrolle gilt auch dort.
+    [Test]
+    public async Task ProtectedEndpoints_ShouldHonorEntraAppRoles_WhenRequiredRoleIsConfigured()
+    {
+        await using var factory = CreateJwtFactory(new TestStorage(), requiredRole: "access");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
+        [
+            new Claim("sub", Guid.NewGuid().ToString()),
+            new Claim("roles", "reader"),
+            new Claim("roles", "access")
+        ]));
+
+        var response = await client.GetAsync("/usertask");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private static TestWebApplicationFactory CreateJwtFactory(TestStorage storage, string environmentName = "Production", string? requiredRole = null)
+    {
+        var settings = new Dictionary<string, string?>
         {
             ["Authentication:Scheme"] = "JwtBearer",
             ["Authentication:JwtBearer:Authority"] = Issuer,
             ["Authentication:JwtBearer:Audience"] = Audience
-        }, useStaticSigningKey: true);
+        };
+        if (requiredRole is not null)
+        {
+            settings["Authentication:JwtBearer:RequiredRole"] = requiredRole;
+        }
+
+        return new TestWebApplicationFactory(storage, environmentName, settings, useStaticSigningKey: true);
     }
 
     private static string CreateToken(Guid userId, string issuer = Issuer, string audience = Audience)

@@ -39,10 +39,17 @@ public static class FlowzerAuthenticationExtensions
                 jwt.MapInboundClaims = false;
             });
 
-        services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build());
+        var fallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser();
+        if (!string.IsNullOrWhiteSpace(options.JwtBearer.RequiredRole))
+        {
+            // Ein Realm mit Selbstregistrierung stellt jedem ein gueltiges Token aus. Erst die
+            // Pflichtrolle macht daraus einen Zugang zur Anwendung.
+            var audience = options.JwtBearer.Audience;
+            var requiredRole = options.JwtBearer.RequiredRole;
+            fallbackPolicy.RequireAssertion(context => TokenRoles.HasRole(context.User, audience, requiredRole));
+        }
+
+        services.AddAuthorizationBuilder().SetFallbackPolicy(fallbackPolicy.Build());
 
         return services;
     }

@@ -135,7 +135,8 @@ jobs:
         run: |
           response_file="$(mktemp)"
           trap 'rm -f "$response_file"' EXIT
-          curl --fail --silent --show-error --max-time 30 \
+          # Coolify 4.3 nimmt den Deploy-Aufruf nur als POST an (GET antwortet 405).
+          curl --fail --silent --show-error --max-time 30 --request POST \
             --header "Authorization: Bearer $COOLIFY_TOKEN" \
             --output "$response_file" \
             "$COOLIFY_API_BASE/deploy?uuid=$COOLIFY_APP_UUID&force=true"
