@@ -28,6 +28,7 @@ Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
 | `Authentication__JwtBearer__Authority` | OIDC-Issuer, z. B. `https://login.microsoftonline.com/<tenant>/v2.0` oder `https://keycloak.example/realms/flowzer` |
 | `Authentication__JwtBearer__Audience` | erwartete Audience (Client-/App-Id der API) |
 | `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für lokale IdPs ohne TLS auf `false` |
+| `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
 Verhalten bei `JwtBearer`:
 
@@ -36,7 +37,7 @@ Verhalten bei `JwtBearer`:
 - Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
 - Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
 
-Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet. Ein Rollenmodell gibt es nicht; jede angemeldete Person sieht alle Aufgaben, Definitionen und die Diagnose.
+Das Blazor-Frontend meldet sich über den Abschnitt `Oidc` (`Authority`, `ClientId`, `Scopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen deshalb auch die Frontend-Werte gesetzt sein, sonst gilt die Oberfläche als technischer Benutzer angemeldet, während die API 401 antwortet. Ein fachliches Rollenmodell gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
 
 Für den Pilotbetrieb mit Identity Provider und Frontend-Anmeldung siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md).
 

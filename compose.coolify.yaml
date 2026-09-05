@@ -31,6 +31,7 @@ services:
       Authentication__Scheme: "${FLOWZER_AUTH_SCHEME:-JwtBearer}"
       Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
       Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
+      Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
       TimerScheduler__Enabled: "true"
       TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
       TZ: Europe/Berlin

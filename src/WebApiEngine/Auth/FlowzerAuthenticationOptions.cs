@@ -29,6 +29,13 @@ public sealed class FlowzerAuthenticationOptions
 
         /// <summary>Nur fuer lokale Identity Provider ohne TLS auf <c>false</c> setzen.</summary>
         public bool RequireHttpsMetadata { get; set; } = true;
+
+        /// <summary>
+        /// Optionale Pflichtrolle. Leer = jede authentifizierte Person. Gesetzt = das Token muss die
+        /// Rolle als Keycloak-Clientrolle unter <c>resource_access.&lt;Audience&gt;.roles</c> oder als
+        /// App-Rolle im Claim <c>roles</c> (Entra ID) tragen; sonst antwortet die API 403.
+        /// </summary>
+        public string RequiredRole { get; set; } = string.Empty;
     }
 
     public void Validate()
