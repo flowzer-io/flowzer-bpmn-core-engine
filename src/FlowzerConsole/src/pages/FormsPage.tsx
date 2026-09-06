@@ -116,7 +116,11 @@ export function FormsPage() {
       { formId: selectedId, formData: schema, version: nextVersion },
       {
         onSuccess: (saved) =>
-          toast.success(`Version v${saved.version.major}.${saved.version.minor} gespeichert`),
+          toast.success(
+            saved.version
+              ? `Version v${saved.version.major}.${saved.version.minor} gespeichert`
+              : 'Formular gespeichert',
+          ),
         onError: (error) =>
           toast.error('Speichern fehlgeschlagen', {
             description: error instanceof Error ? error.message : undefined,

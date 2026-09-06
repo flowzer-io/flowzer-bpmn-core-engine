@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const {
+  buildMessageStartUserTaskXml,
   buildPlainStartXml,
   createDefinitionMeta,
   deployDefinition,
@@ -77,6 +78,32 @@ async function seedFormTask(request) {
   return { name, formularName };
 }
 
+/**
+ * Legt einen deployten Workflow mit einer menschlichen Aufgabe samt Diagrammdaten an —
+ * ohne die kann bpmn-js nichts zeichnen und nichts angeklickt werden.
+ */
+async function seedModelerWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Antrag ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({ display: 'form', components: [] })
+  });
+
+  const name = `Modeler ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const xml = buildMessageStartUserTaskXml({
+    definitionId,
+    messageName: `Start_${marke}`,
+    formKey: formularName,
+    userTaskName: 'Antrag pruefen'
+  });
+  await deployDefinition(request, { xml });
+
+  const userTaskId = `Activity_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}_Review`;
+  return { name, definitionId, formularName, userTaskId };
+}
+
 test.describe('Konsole', () => {
   for (const [route, description, locate] of [
     ['/', 'Startseite', (page) => page.getByRole('button', { name: 'Prozess starten' })],
@@ -122,6 +149,64 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
+  });
+
+  // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des
+  // vollen Zeebe-Umfangs. Geprueft wird an der menschlichen Aufgabe, weil dort alle vier
+  // Abschnitte zusammenkommen — und weil das Formular aus dem Bestand vorbelegt sein muss.
+  test('Das Eigenschaften-Panel zeigt die Felder einer menschlichen Aufgabe', async ({ page, request }) => {
+    const { definitionId, formularName, userTaskId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.locator(`.djs-element[data-element-id="${userTaskId}"]`).click();
+
+    for (const abschnitt of ['Formular', 'Zuweisung', 'Frist', 'Zuordnungen']) {
+      await expect(
+        page.getByRole('heading', { name: abschnitt, exact: true }),
+        `Der Abschnitt „${abschnitt}" fehlt im Eigenschaften-Panel.`
+      ).toBeVisible();
+    }
+
+    await expect(page.getByRole('combobox', { name: 'Formular', exact: true })).toHaveValue(formularName);
+  });
+
+  // Testzweck: Die Markierung am Element sagt, dass an dieser Aufgabe ein Formular haengt.
+  // Ohne sie ist dem Diagramm nicht anzusehen, welche Aufgabe schon eine Eingabemaske hat.
+  test('Eine Aufgabe mit Formular ist im Diagramm markiert', async ({ page, request }) => {
+    const { definitionId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+
+    await expect(page.locator('.flowzer-form-badge')).toHaveCount(1);
+  });
+
+  // Testzweck: Ein Formular laesst sich im Workflow selbst anlegen und wird mit ihm
+  // gespeichert. Der Weg beruehrt beide neuen Teile — das eigene Panel schreibt
+  // `zeebe:userTaskForm` ins Diagramm, und die Uebersicht zeigt es als Formular des
+  // Workflows statt als eines aus dem Bestand.
+  test('Ein Formular laesst sich im Workflow selbst anlegen', async ({ page, request }) => {
+    const { definitionId, userTaskId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.locator(`.djs-element[data-element-id="${userTaskId}"]`).click();
+
+    await page.getByRole('tab', { name: 'In diesem Workflow' }).click();
+    await page.getByLabel('Formular im Workflow').selectOption({ label: 'Neues Formular anlegen …' });
+
+    const dialog = page.getByRole('dialog', { name: 'Formular in diesem Workflow' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Übernehmen' }).click();
+    await expect(dialog).toBeHidden();
+
+    // Die Aufgabe haengt jetzt an einem Formular des Workflows.
+    await expect(page.getByRole('button', { name: 'Felder bearbeiten' })).toBeVisible();
+
+    // Ohne Auswahl zeigt das Panel den ganzen Workflow — dort steht die Formularuebersicht.
+    await page.locator('.bpmn-surface .djs-container').click({ position: { x: 400, y: 520 } });
+    await expect(page.getByRole('heading', { name: 'Formulare in diesem Workflow' })).toBeVisible();
+    await expect(page.getByText('Im Workflow', { exact: true })).toBeVisible();
+    // Die Uebersicht verlinkt die Aufgabe, die das Formular benutzt.
+    await expect(page.getByRole('button', { name: 'Antrag pruefen', exact: true })).toBeVisible();
   });
 
   // Testzweck: Anlegen fragt zuerst den Namen und legt erst danach an. Vorher entstand

@@ -16,7 +16,9 @@ Erreicht ein Token einen Service-Task, entsteht ein Auftrag mit dem Typ aus `zee
 </bpmn:serviceTask>
 ```
 
-Ohne `retries` bekommt der Auftrag einen Versuch.
+Ohne `retries` bekommt der Auftrag einen Versuch. Zeebe erlaubt dort auch einen
+FEEL-Ausdruck; der lässt sich beim Einlesen des Modells nicht auflösen und zählt deshalb
+wie „ohne Angabe".
 
 ### Was im Auftrag steht
 

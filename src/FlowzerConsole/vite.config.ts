@@ -25,9 +25,6 @@ export default defineConfig({
       'bpmn-js/lib/Viewer',
       'bpmn-js/lib/NavigatedViewer',
       'bpmn-js/lib/Modeler',
-      'bpmn-js-properties-panel',
-      '@bpmn-io/properties-panel',
-      'camunda-bpmn-js-behaviors/lib/camunda-cloud',
       'diagram-js',
     ],
   },
@@ -51,7 +48,7 @@ export default defineConfig({
       output: {
         // bpmn-js und Form.io sind groß und werden nur auf einzelnen Routen gebraucht.
         manualChunks: {
-          bpmn: ['bpmn-js', 'bpmn-js-properties-panel', '@bpmn-io/properties-panel'],
+          bpmn: ['bpmn-js'],
           formio: ['@formio/js'],
         },
       },
