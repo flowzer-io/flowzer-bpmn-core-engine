@@ -269,6 +269,19 @@ export function useSaveFormMeta() {
   });
 }
 
+export function useDeleteForm() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (formId: string) => formsApi.deleteMeta(formId),
+    onSuccess: () => {
+      // Nicht nur die Liste: Aufgaben loesen ihr Formular ueber den Namen auf, die
+      // Aufgabenansicht muss ein geloeschtes also neu bewerten.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
+    },
+  });
+}
+
 /* --------------------------------------------------------------------- Betrieb */
 
 export function useDiagnostics(options?: QueryTuning<OperationsDiagnosticsDto>) {

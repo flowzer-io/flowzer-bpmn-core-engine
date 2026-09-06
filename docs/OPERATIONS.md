@@ -114,6 +114,14 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 `POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
 
+## Formulare löschen
+
+`DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
+
+Benutzt ein **deployter** Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — auch in bereits laufenden Instanzen. Ältere, nicht deployte Definitionsversionen blockieren nicht; sie lassen sich ohnehin nicht mehr starten.
+
+Ein unbekanntes Formular antwortet mit 404, damit ein Löschen ins Leere nicht als Erfolg durchgeht.
+
 ## Health-Signale
 
 Die Web-API stellt aktuell folgende Endpunkte bereit:

@@ -173,6 +173,26 @@ test.describe('Konsole', () => {
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
   });
 
+  // Testzweck: Ein Formular laesst sich aus der Oberflaeche entfernen. Bisher liess sich der
+  // Formularbestand nur befuellen — ein Testformular blieb fuer immer stehen.
+  test('Ein Formular laesst sich loeschen', async ({ page, request }) => {
+    const name = `Formular ${randomUUID().slice(0, 8)}`;
+    await saveForm(request, {
+      name,
+      schema: JSON.stringify({ display: 'form', components: [] })
+    });
+
+    await page.goto('/forms');
+    await page.getByRole('button', { name, exact: false }).first().click();
+
+    await page.getByRole('button', { name: `${name} löschen` }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
+
+    await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+  });
+
   // Testzweck: Ein Workflow laesst sich aus der Oberflaeche wieder entfernen — der
   // Katalog liess sich vorher nur befuellen, nicht aufraeumen.
   test('Ein Workflow laesst sich loeschen', async ({ page, request }) => {

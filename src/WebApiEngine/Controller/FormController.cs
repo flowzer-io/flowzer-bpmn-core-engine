@@ -107,6 +107,46 @@ public class FormController(
             return Ok(new ApiStatusResult(){Successful = true});
         }
 
+        /// <summary>
+        /// Entfernt ein Formular samt allen seinen Versionen.
+        ///
+        /// Benutzt ein deployter Workflow das Formular, bleibt es stehen: Ein Aufgabenformular
+        /// wird ueber seinen <em>Namen</em> aufgeloest, ein geloeschtes liesse jede Aufgabe
+        /// dieses Schrittes mit „No form named …" stehen — auch in bereits laufenden Instanzen.
+        /// Der Aufrufer bekommt die betroffenen Workflows genannt, statt vor einem
+        /// unerklaerlichen Fehlschlag zu stehen.
+        /// </summary>
+        [HttpDelete("meta/{formId:guid}")]
+        [Authorize(Policy = FlowzerPolicies.Modeler)]
+        public async Task<ActionResult<ApiStatusResult<FormMetaDataDto>>> DeleteFormMetadata(Guid formId)
+        {
+            // Bewusst ueber die Liste statt ueber GetFormMetaData: Was dort bei einem
+            // unbekannten Formular fliegt, haengt an der Ablage — die eine wirft
+            // FileNotFoundException, die andere etwas anderes. Ein 500 waere die falsche
+            // Antwort auf „gibt es nicht".
+            var metadata = (await storageSystem.FormStorage.GetFormMetadatas())
+                .FirstOrDefault(candidate => candidate.FormId == formId);
+            if (metadata is null)
+            {
+                return NotFound(new ApiStatusResult<FormMetaDataDto>(
+                    errorMessage: $"Es gibt kein Formular mit der Kennung {formId}."));
+            }
+
+            // Pruefen und Loeschen liegen in der Engine unter derselben Sperre wie das
+            // Deployen; hier auseinandergezogen koennte dazwischen deployt werden.
+            var benutztVon = await bpmnBusinessLogic.DeleteFormIfUnused(metadata.FormId, metadata.Name);
+            if (benutztVon.Count > 0)
+            {
+                return Conflict(new ApiStatusResult<FormMetaDataDto>(
+                    errorMessage: $"Das Formular \u201e{metadata.Name}\u201c wird von "
+                                  + $"{string.Join(", ", benutztVon)} benutzt. Erst dort ersetzen, dann loeschen."));
+            }
+
+            // Bewusst der geloeschte Eintrag: `new ApiStatusResult<string>(...)` traefe den
+            // Konstruktor fuer die Fehlermeldung und meldete den Erfolg als Fehlschlag.
+            return Ok(new ApiStatusResult<FormMetaDataDto>(metadata.ToDto()));
+        }
+
     #endregion
 
 

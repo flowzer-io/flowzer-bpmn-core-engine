@@ -849,4 +849,106 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     }
 
 
+
+    /// <summary>
+    /// Loescht ein Formular samt allen Versionen — aber nur, wenn kein deployter Workflow es
+    /// benutzt. Gibt die Namen der Workflows zurueck, die es benutzen; ist die Liste leer,
+    /// wurde geloescht.
+    ///
+    /// Laeuft unter derselben Sperre wie das Deployen. Auseinandergezogen koennte zwischen
+    /// Pruefung und Loeschen ein Workflow deployt werden, der genau dieses Formular benutzt —
+    /// und stuende danach ohne da.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> DeleteFormIfUnused(Guid formId, string formName)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var benutztVon = await FindDeployedWorkflowsUsingForm(storageSystem, formId, formName);
+            if (benutztVon.Count > 0)
+            {
+                return benutztVon;
+            }
+
+            await storageSystem.FormStorage.DeleteFormMetaData(formId);
+            storageSystem.CommitChanges();
+            return [];
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Nennt die deployten Workflows, deren Aufgaben dieses Formular benutzen.
+    ///
+    /// Verwiesen wird im BPMN entweder ueber den <em>Namen</em> des Formulars
+    /// (<c>formKey</c>, wahlweise mit angehaengter Version als <c>Name:1.0</c>) oder ueber
+    /// seine Kennung (<c>formId</c>). Beides zaehlt; beim Namen ohne Ruecksicht auf Gross-
+    /// und Kleinschreibung, genauso loest <see cref="UserTaskFormResolver"/> auf.
+    ///
+    /// Gesucht wird nur in der jeweils deployten Fassung: Eine aeltere Version, die niemand
+    /// mehr starten kann, soll das Loeschen nicht blockieren.
+    /// </summary>
+    private static async Task<List<string>> FindDeployedWorkflowsUsingForm(
+        ITransactionalStorage storageSystem,
+        Guid formId,
+        string formName)
+    {
+        var treffer = new List<string>();
+        foreach (var metaDefinition in await storageSystem.DefinitionStorage.GetAllMetaDefinitions())
+        {
+            var deployed = await storageSystem.DefinitionStorage.GetDeployedDefinition(metaDefinition.DefinitionId);
+            if (deployed is null)
+            {
+                continue;
+            }
+
+            Definitions modell;
+            try
+            {
+                modell = ModelParser.ParseModel(await storageSystem.DefinitionStorage.GetBinary(deployed.Id));
+            }
+            catch (Exception)
+            {
+                // Ein Modell, das sich nicht lesen laesst, kann das Formular auch nicht
+                // benutzen. Es soll das Loeschen nicht mit einem Fehler abbrechen.
+                continue;
+            }
+
+            if (modell.GetProcesses()
+                .SelectMany(prozess => prozess.FlowElements.OfType<UserTask>())
+                .Any(aufgabe => BenutztFormular(aufgabe.Implementation, formId, formName)))
+            {
+                treffer.Add(metaDefinition.Name ?? metaDefinition.DefinitionId);
+            }
+        }
+
+        return treffer;
+    }
+
+    /// <summary>Vergleicht einen Form-Key mit Name und Kennung; „Name:1.0" zaehlt mit.</summary>
+    private static bool BenutztFormular(string? formKey, Guid formId, string formName)
+    {
+        if (string.IsNullOrWhiteSpace(formKey))
+        {
+            return false;
+        }
+
+        var schluessel = formKey.Trim();
+
+        // Der Parser nimmt auch eine Kennung statt eines Namens an.
+        if (Guid.TryParse(schluessel, out var verwieseneKennung) && verwieseneKennung == formId)
+        {
+            return true;
+        }
+
+        var trennung = schluessel.LastIndexOf(':');
+        var name = trennung < 0 ? schluessel : schluessel[..trennung];
+        return string.Equals(name.Trim(), formName, StringComparison.OrdinalIgnoreCase);
+    }
+
 }

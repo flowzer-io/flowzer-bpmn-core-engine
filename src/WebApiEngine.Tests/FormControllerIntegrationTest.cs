@@ -154,6 +154,156 @@ public class FormControllerIntegrationTest
             metadata.Name == "Invoice");
     }
 
+    // Testzweck: Loeschen entfernt das Formular samt allen seinen Versionen. Blieben die
+    // Versionen liegen, waeren sie ueber /form/{id}/{version} weiter abrufbar, ohne dass sie
+    // noch irgendwo im Katalog auftauchen.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRemoveTheFormAndItsVersions()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Krankmeldung" });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(),
+            FormId = formId,
+            Version = new Model.Version(1, 0),
+            FormData = "{}"
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/form/meta/{formId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormMetaDataDto>>();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.Name.Should().Be("Krankmeldung");
+
+        storage.FormStorageSeed.FormMetadatas.Should().BeEmpty();
+        storage.FormStorageSeed.Forms.Should().BeEmpty();
+    }
+
+    // Testzweck: Ein Formular, das ein deployter Workflow benutzt, bleibt stehen. Der Form-Key
+    // im BPMN ist der Name des Formulars; waere es weg, liefe jede Aufgabe dieses Schrittes in
+    // „No form named …" — auch in bereits laufenden Instanzen.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenADeployedWorkflowUsesTheForm()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+
+        SeedDeployedWorkflowUsingForm(storage, "Freigabe");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/form/meta/{formId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormMetaDataDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("Urlaubsantrag");
+
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Der Vergleich laeuft ueber den Namen und achtet nicht auf Gross- und
+    // Kleinschreibung — genauso loest die Engine den Form-Key auf. Sonst liesse sich ein
+    // benutztes Formular loeschen, indem man es „freigabe" statt „Freigabe" nennt.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_RegardlessOfLetterCase()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "freigabe" });
+
+        SeedDeployedWorkflowUsingForm(storage, "Freigabe:1.0");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        (await client.DeleteAsync($"/form/meta/{formId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Ein Modell darf statt des Namens auch die Kennung des Formulars nennen —
+    // der Parser nimmt `formId` als Alternative zu `formKey`. Ohne diesen Fall liesse sich
+    // ein benutztes Formular loeschen, indem das Modell es ueber die Kennung anspricht.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenTheWorkflowReferencesTheFormById()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+
+        SeedDeployedWorkflowUsingForm(storage, formId.ToString());
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        (await client.DeleteAsync($"/form/meta/{formId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Ein Formular, das es nicht gibt, ist kein erfolgreiches Loeschen.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldReturnNotFound_ForAnUnknownForm()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/form/meta/{Guid.NewGuid()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormMetaDataDto>>();
+        payload!.Successful.Should().BeFalse();
+    }
+
+    /// <summary>Legt einen deployten Workflow ab, dessen einzige Aufgabe das Formular benutzt.</summary>
+    private static void SeedDeployedWorkflowUsingForm(TestStorage storage, string formKey)
+    {
+        var definitionId = Guid.NewGuid();
+        storage.DefinitionStorageSeed.Metas.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = "urlaub",
+            Name = "Urlaubsantrag"
+        });
+        storage.DefinitionStorageSeed.Deployed["urlaub"] = new BpmnDefinition
+        {
+            Id = definitionId,
+            DefinitionId = "urlaub",
+            Hash = "egal",
+            SavedByUser = Guid.NewGuid(),
+            IsActive = true,
+            Version = new Model.Version(1, 0)
+        };
+        storage.DefinitionStorageSeed.Binaries[definitionId] = $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              id="urlaub" targetNamespace="http://bpmn.io/schema/bpmn">
+              <bpmn:process id="Process_Urlaub" isExecutable="true">
+                <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+                <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task" />
+                <bpmn:userTask id="Task" name="Freigeben">
+                  <bpmn:extensionElements>
+                    <zeebe:formDefinition formKey="{formKey}" />
+                  </bpmn:extensionElements>
+                  <bpmn:incoming>F1</bpmn:incoming>
+                  <bpmn:outgoing>F2</bpmn:outgoing>
+                </bpmn:userTask>
+                <bpmn:sequenceFlow id="F2" sourceRef="Task" targetRef="End" />
+                <bpmn:endEvent id="End"><bpmn:incoming>F2</bpmn:incoming></bpmn:endEvent>
+              </bpmn:process>
+            </bpmn:definitions>
+            """;
+    }
+
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
@@ -193,7 +343,8 @@ public class FormControllerIntegrationTest
         }
 
         public TestFormStorage FormStorageSeed { get; } = formStorage;
-        public IDefinitionStorage DefinitionStorage { get; } = new NoOpDefinitionStorage();
+        public NoOpDefinitionStorage DefinitionStorageSeed { get; } = new();
+        public IDefinitionStorage DefinitionStorage => DefinitionStorageSeed;
         public IMessageSubscriptionStorage SubscriptionStorage { get; } = new NoOpMessageSubscriptionStorage();
         public IInstanceStorage InstanceStorage { get; } = new NoOpInstanceStorage();
         public IFormStorage FormStorage { get; } = formStorage;
@@ -291,7 +442,11 @@ public class FormControllerIntegrationTest
 
     private sealed class NoOpDefinitionStorage : IDefinitionStorage
     {
-        public Task<string> GetBinary(Guid guid) => throw new NotSupportedException();
+        public List<ExtendedBpmnMetaDefinition> Metas { get; } = [];
+        public Dictionary<string, BpmnDefinition> Deployed { get; } = [];
+        public Dictionary<Guid, string> Binaries { get; } = [];
+
+        public Task<string> GetBinary(Guid guid) => Task.FromResult(Binaries[guid]);
         public Task<Guid[]> GetAllBinaryDefinitions() => Task.FromResult(Array.Empty<Guid>());
         public Task<BpmnDefinition[]> GetAllDefinitions() => Task.FromResult(Array.Empty<BpmnDefinition>());
         public Task StoreDefinition(BpmnDefinition definition) => Task.CompletedTask;
@@ -299,8 +454,9 @@ public class FormControllerIntegrationTest
         public Task<Model.Version?> GetMaxVersionId(string modelId) => Task.FromResult<Model.Version?>(null);
         public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
-        public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => Task.FromResult<BpmnDefinition?>(null);
-        public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());
+        public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) =>
+            Task.FromResult(Deployed.GetValueOrDefault(definitionDefinitionId));
+        public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Metas.ToArray());
         public Task StoreMetaDefinition(BpmnMetaDefinition metaDefinition) => Task.CompletedTask;
         public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition) => Task.CompletedTask;
         public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id) => throw new NotSupportedException();
