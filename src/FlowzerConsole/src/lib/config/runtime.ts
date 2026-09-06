@@ -94,25 +94,45 @@ export function isAuthenticationConfigured(): boolean {
  * die API jeden Aufruf ablehnt — der schlechteste aller Zustände.
  */
 export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
+  let response: Response | null = null;
   try {
-    const response = await fetch(`${import.meta.env.BASE_URL}config.json`, { cache: 'no-store' });
-    if (response.ok) {
-      const raw = (await response.json()) as Partial<RuntimeConfig> & {
-        oidcScopes?: string[] | string;
-        roleNames?: Partial<RoleNames>;
-      };
-      current = {
-        apiBaseUrl: (raw.apiBaseUrl ?? FALLBACK.apiBaseUrl).replace(/\/+$/, ''),
-        accent: raw.accent === undefined ? FALLBACK.accent : toAccent(raw.accent),
-        oidcAuthority: (raw.oidcAuthority ?? FALLBACK.oidcAuthority).trim(),
-        oidcClientId: (raw.oidcClientId ?? FALLBACK.oidcClientId).trim(),
-        oidcAudience: (raw.oidcAudience ?? FALLBACK.oidcAudience).trim(),
-        oidcScopes: Array.isArray(raw.oidcScopes) ? raw.oidcScopes : splitScopes(raw.oidcScopes),
-        roleNames: { ...DEFAULT_ROLE_NAMES, ...(raw.roleNames ?? {}) },
-      };
-    }
+    response = await fetch(`${import.meta.env.BASE_URL}config.json`, { cache: 'no-store' });
   } catch {
     // Eine fehlende Datei ist der Normalfall im Entwicklungsbetrieb, kein Fehler.
+  }
+
+  // Der Statuscode allein sagt nicht, ob es die Datei gibt: Der Vite-Entwicklungsserver
+  // beantwortet jede unbekannte Adresse mit der Startseite — also 200 und text/html.
+  // Erst der Inhaltstyp unterscheidet "keine Konfiguration" von "hier ist eine".
+  if (response?.ok && isJson(response)) {
+    let raw: Partial<RuntimeConfig> & {
+      oidcScopes?: string[] | string;
+      roleNames?: Partial<RoleNames>;
+    };
+
+    try {
+      raw = await response.json();
+    } catch (cause) {
+      // Ab hier ist es ein Betriebsfehler und keine fehlende Datei: Der Server hat JSON
+      // angekuendigt, es ist aber keines. Still auf die Bauwerte zurueckzufallen hiesse,
+      // im Container mit der Entwicklungsadresse und ohne Anmeldung zu starten — und das
+      // faellt erst auf, wenn jemand vor einer leeren Oberflaeche sitzt.
+      throw new RuntimeConfigError(
+        `Die Datei config.json ist vorhanden, aber kein gültiges JSON: ${
+          cause instanceof Error ? cause.message : String(cause)
+        }`,
+      );
+    }
+
+    current = {
+      apiBaseUrl: (raw.apiBaseUrl ?? FALLBACK.apiBaseUrl).replace(/\/+$/, ''),
+      accent: raw.accent === undefined ? FALLBACK.accent : toAccent(raw.accent),
+      oidcAuthority: (raw.oidcAuthority ?? FALLBACK.oidcAuthority).trim(),
+      oidcClientId: (raw.oidcClientId ?? FALLBACK.oidcClientId).trim(),
+      oidcAudience: (raw.oidcAudience ?? FALLBACK.oidcAudience).trim(),
+      oidcScopes: Array.isArray(raw.oidcScopes) ? raw.oidcScopes : splitScopes(raw.oidcScopes),
+      roleNames: { ...DEFAULT_ROLE_NAMES, ...(raw.roleNames ?? {}) },
+    };
   }
 
   validate(current);
@@ -146,6 +166,11 @@ function validate(config: RuntimeConfig): void {
       );
     }
   }
+}
+
+/** Wahr, wenn die Antwort sich selbst als JSON ausweist. */
+function isJson(response: Response): boolean {
+  return (response.headers.get('content-type') ?? '').toLowerCase().includes('json');
 }
 
 function tryParse(value: string, base?: string): URL | null {

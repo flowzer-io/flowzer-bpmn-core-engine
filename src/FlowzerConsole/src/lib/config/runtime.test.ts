@@ -42,6 +42,43 @@ describe('loadRuntimeConfig', () => {
   });
 });
 
+describe('beschaedigte config.json', () => {
+  // Testzweck: Eine vorhandene, aber unlesbare Konfiguration ist ein Betriebsfehler. Fiele
+  // sie still auf die Bauwerte zurueck, startete der Container mit der Entwicklungsadresse
+  // und ohne Anmeldung — und das faellt erst auf, wenn jemand vor einer leeren Oberflaeche sitzt.
+  it('bricht ab, wenn die Datei da, aber kein gueltiges JSON ist', async () => {
+    globalThis.fetch = (async () =>
+      new Response('{ das ist kein json', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    await expect(loadRuntimeConfig()).rejects.toBeInstanceOf(RuntimeConfigError);
+  });
+
+  // Testzweck: Eine fehlende Datei bleibt der Normalfall im Entwicklungsbetrieb.
+  it('nimmt die Bauwerte, wenn es die Datei nicht gibt', async () => {
+    globalThis.fetch = (async () => {
+      throw new TypeError('Failed to fetch');
+    }) as typeof fetch;
+
+    await expect(loadRuntimeConfig()).resolves.toBeDefined();
+  });
+
+  // Testzweck: Der Vite-Entwicklungsserver beantwortet jede unbekannte Adresse mit der
+  // Startseite — also Status 200 und text/html. Das ist keine kaputte Konfiguration,
+  // sondern gar keine. Wird es verwechselt, startet die Konsole in der Entwicklung nicht mehr.
+  it('behandelt die Startseite des Entwicklungsservers als fehlende Datei', async () => {
+    globalThis.fetch = (async () =>
+      new Response('<!doctype html><html><body>Flowzer Console</body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })) as typeof fetch;
+
+    await expect(loadRuntimeConfig()).resolves.toBeDefined();
+  });
+});
+
 describe('Akzentfarbe', () => {
   // Testzweck: Die Akzentfarbe kommt aus der Bereitstellung, damit alle dieselbe sehen.
   it('uebernimmt eine bekannte Farbe aus der Konfiguration', async () => {
