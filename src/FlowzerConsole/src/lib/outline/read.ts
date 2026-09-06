@@ -264,6 +264,27 @@ function parseSequence(structure: Structure, start: string, stop: ReadonlySet<st
   return blocks;
 }
 
+/**
+ * Nur die Zweige einer Verzweigung tragen in der Gliederung Beschriftung und
+ * Bedingung. Steht beides an einem anderen Fluss, waere es beim Speichern weg —
+ * das gehoert benannt und nicht der allgemeinen Rueckuebersetzungsprobe ueberlassen.
+ */
+function describeLostFlowLabels(structure: Structure, graph: BpmnGraph): void {
+  for (const flow of graph.flows) {
+    if (!flow.name && !flow.condition) continue;
+
+    const source = structure.nodeById.get(flow.source);
+    const isBranch = source?.type === 'exclusiveGateway' && (structure.outgoing.get(flow.source) ?? []).length > 1;
+    if (isBranch) continue;
+
+    fail(
+      structure,
+      `Der Fluss ab „${source?.name ?? flow.source}" trägt eine Beschriftung oder Bedingung; die zeigt die Gliederung nur an Verzweigungen.`,
+      flow.id,
+    );
+  }
+}
+
 function describeUnreached(structure: Structure, graph: BpmnGraph): void {
   const missing = graph.nodes.filter((node) => node.type !== 'startEvent' && !structure.visited.has(node.id));
   for (const node of missing) {
@@ -286,6 +307,8 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
       document: {
         definitionsId: graph.definitionsId,
         targetNamespace: graph.targetNamespace,
+        exporter: graph.exporter,
+        exporterVersion: graph.exporterVersion,
         processId: graph.processId,
         processName: graph.processName,
         startId: 'StartEvent_1',
@@ -337,6 +360,7 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
 
   const blocks = parseSequence(structure, firstFlow.target, new Set());
   describeUnreached(structure, graph);
+  describeLostFlowLabels(structure, graph);
 
   const flowIds: Record<string, string> = {};
   for (const flow of graph.flows) flowIds[`${flow.source}->${flow.target}`] = flow.id;
@@ -345,6 +369,8 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
   const document: OutlineDocument = {
     definitionsId: graph.definitionsId,
     targetNamespace: graph.targetNamespace,
+    exporter: graph.exporter,
+    exporterVersion: graph.exporterVersion,
     processId: graph.processId,
     processName: graph.processName,
     startId: start.id,

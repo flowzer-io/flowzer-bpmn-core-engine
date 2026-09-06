@@ -53,6 +53,9 @@ export interface GraphFlow {
 export interface BpmnGraph {
   readonly definitionsId: string;
   readonly targetNamespace?: string;
+  /** Wer die Datei zuletzt geschrieben hat — wird unveraendert weitergereicht. */
+  readonly exporter?: string;
+  readonly exporterVersion?: string;
   readonly processId: string;
   readonly processName?: string;
   readonly nodes: readonly GraphNode[];
@@ -289,6 +292,8 @@ export function readGraph(xml: string): { graph?: BpmnGraph; issues: OutlineIssu
     graph: {
       definitionsId,
       targetNamespace: attribute(root, 'targetNamespace'),
+      exporter: attribute(root, 'exporter'),
+      exporterVersion: attribute(root, 'exporterVersion'),
       processId,
       processName: attribute(process, 'name'),
       nodes,
@@ -326,7 +331,14 @@ export function graphSignature(graph: BpmnGraph): string {
       condition: flow.condition ?? null,
     }));
 
-  return JSON.stringify({ processId: graph.processId, processName: graph.processName ?? null, nodes, flows });
+  return JSON.stringify({
+    processId: graph.processId,
+    processName: graph.processName ?? null,
+    exporter: graph.exporter ?? null,
+    exporterVersion: graph.exporterVersion ?? null,
+    nodes,
+    flows,
+  });
 }
 
 /**

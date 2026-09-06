@@ -105,29 +105,20 @@ export function RowActions({ block, document, onChange }: RowActionsProps) {
   return (
     <div className="flex flex-none items-center gap-0.5">
       {actions.map((action) => (
-        <span
+        <button
           key={action.icon}
-          role="button"
-          tabIndex={0}
+          type="button"
+          disabled={!action.enabled}
           aria-label={`${action.title}: ${blockLabel(block)}`}
-          aria-disabled={!action.enabled}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (action.enabled) onChange(action.run());
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' && event.key !== ' ') return;
-            event.preventDefault();
-            event.stopPropagation();
-            if (action.enabled) onChange(action.run());
-          }}
+          onClick={() => onChange(action.run())}
           className={cn(
-            'grid h-7 w-7 place-items-center rounded-md',
-            action.enabled ? 'text-muted hover:text-text hover:bg-surface-2 cursor-pointer' : 'text-faint opacity-40',
+            'grid h-7 w-7 place-items-center rounded-md border-none bg-transparent',
+            'text-muted hover:text-text hover:bg-surface-2 cursor-pointer',
+            'disabled:text-faint disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent',
           )}
         >
           <Icon name={action.icon} size={16} />
-        </span>
+        </button>
       ))}
     </div>
   );

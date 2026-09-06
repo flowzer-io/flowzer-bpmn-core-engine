@@ -90,6 +90,9 @@ export type OutlineBlock = OutlineStep | OutlineParallel | OutlineChoice | Outli
 export interface OutlineDocument {
   readonly definitionsId: string;
   readonly targetNamespace?: string;
+  /** Wer die Datei zuletzt geschrieben hat; bleibt beim Speichern stehen. */
+  readonly exporter?: string;
+  readonly exporterVersion?: string;
   readonly processId: string;
   readonly processName?: string;
   readonly startId: string;
