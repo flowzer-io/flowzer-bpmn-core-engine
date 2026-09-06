@@ -2,53 +2,51 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export const ACCENTS = ['iris', 'teal', 'emerald', 'amber', 'rose'] as const;
-export type Accent = (typeof ACCENTS)[number];
+import { getRuntimeConfig } from '@/lib/config/runtime';
 
 export type Theme = 'light' | 'dark' | 'system';
-export type Density = 'comfortable' | 'compact';
 export type SidebarMode = 'full' | 'rail';
 
 interface AppearanceState {
   theme: Theme;
-  accent: Accent;
-  density: Density;
   sidebar: SidebarMode;
-  /**
-   * Reduzierte Ansicht: nur die eigenen Aufgaben, ohne Navigation. Eine eigene Wahl
-   * für alle, die ausschließlich Aufgaben bearbeiten — nicht die Folge fehlender
-   * Rollen, denn Lesen darf jeder Zugelassene.
-   */
-  taskFocus: boolean;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
-  setAccent: (accent: Accent) => void;
-  setDensity: (density: Density) => void;
   toggleSidebar: () => void;
-  setTaskFocus: (taskFocus: boolean) => void;
 }
 
 /**
- * Darstellungseinstellungen. Sie werden lokal gespeichert und als data-Attribute
- * an <html> geschrieben — die Tokens in `tokens.css` reagieren darauf ohne Re-Render.
+ * Persönliche Darstellungseinstellungen.
+ *
+ * Bewusst nur zwei: Hell oder dunkel, und ob die Seitenleiste ausgeklappt ist. Beides
+ * ist eine Frage des Arbeitsplatzes und der Tageszeit. Die Akzentfarbe gehört nicht
+ * dazu — sie ist Teil des Erscheinungsbilds des Unternehmens und kommt deshalb aus der
+ * Bereitstellung (`config.json`), nicht aus einem Menü im Browser.
  */
 export const useAppearance = create<AppearanceState>()(
   persist(
     (set) => ({
       theme: 'system',
-      accent: 'iris',
-      density: 'comfortable',
       sidebar: 'full',
-      taskFocus: false,
       setTheme: (theme) => set({ theme }),
       toggleTheme: () =>
         set((state) => ({ theme: resolveTheme(state.theme) === 'dark' ? 'light' : 'dark' })),
-      setAccent: (accent) => set({ accent }),
-      setDensity: (density) => set({ density }),
       toggleSidebar: () => set((state) => ({ sidebar: state.sidebar === 'full' ? 'rail' : 'full' })),
-      setTaskFocus: (taskFocus) => set({ taskFocus }),
     }),
-    { name: 'flowzer-console-appearance' },
+    {
+      name: 'flowzer-console-appearance',
+      /*
+       * Version 1 raeumt auf: Bis dahin lagen Akzentfarbe, Dichte und Umfang der Ansicht
+       * mit im gespeicherten Zustand. Ohne diesen Schritt behielten alle, die die Konsole
+       * schon benutzt haben, die alten Felder als toten Ballast im Browser — und die
+       * Aussage "nur zwei Einstellungen" waere fuer sie schlicht falsch.
+       */
+      version: 1,
+      migrate: (persisted) => {
+        const { theme, sidebar } = (persisted ?? {}) as Partial<AppearanceState>;
+        return { theme: theme ?? 'system', sidebar: sidebar ?? 'full' } as AppearanceState;
+      },
+    },
   ),
 );
 
@@ -68,7 +66,9 @@ export function useResolvedTheme(): 'light' | 'dark' {
 
 /** Schreibt die Einstellungen als data-Attribute an das <html>-Element. */
 export function useApplyAppearance(): void {
-  const { theme, accent, density, sidebar } = useAppearance();
+  const { theme, sidebar } = useAppearance();
+  // Aus der Bereitstellung, nicht aus dem Zustand: Die Akzentfarbe ist für alle gleich.
+  const accent = getRuntimeConfig().accent;
 
   useEffect(() => {
     const root = document.documentElement;
@@ -76,7 +76,6 @@ export function useApplyAppearance(): void {
     const apply = () => {
       root.dataset.theme = resolveTheme(theme);
       root.dataset.accent = accent;
-      root.dataset.density = density;
       root.dataset.sidebar = sidebar;
     };
 
@@ -88,5 +87,5 @@ export function useApplyAppearance(): void {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
-  }, [theme, accent, density, sidebar]);
+  }, [theme, accent, sidebar]);
 }

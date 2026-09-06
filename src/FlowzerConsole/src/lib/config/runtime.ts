@@ -10,6 +10,13 @@
 export interface RuntimeConfig {
   /** Basisadresse der Flowzer-API, ohne abschließenden Schrägstrich. */
   apiBaseUrl: string;
+  /**
+   * Akzentfarbe der Oberfläche. Sie gehört zum Erscheinungsbild des Unternehmens und
+   * ist deshalb eine Einstellung der Bereitstellung, keine persönliche Vorliebe: Alle
+   * sehen dieselbe. Unbekannte Werte fallen still auf `iris` zurück — eine falsch
+   * geschriebene Farbe soll die Oberfläche nicht am Starten hindern.
+   */
+  accent: Accent;
   /** OIDC-Issuer, z. B. `https://auth.example/realms/MaassIT`. Leer = ohne Anmeldung. */
   oidcAuthority: string;
   oidcClientId: string;
@@ -30,6 +37,17 @@ export interface RuntimeConfig {
   roleNames: RoleNames;
 }
 
+export const ACCENTS = ['iris', 'teal', 'emerald', 'amber', 'rose'] as const;
+export type Accent = (typeof ACCENTS)[number];
+
+const DEFAULT_ACCENT: Accent = 'iris';
+
+function toAccent(value: unknown): Accent {
+  return typeof value === 'string' && (ACCENTS as readonly string[]).includes(value)
+    ? (value as Accent)
+    : DEFAULT_ACCENT;
+}
+
 export interface RoleNames {
   access: string;
   modeler: string;
@@ -48,6 +66,7 @@ export class RuntimeConfigError extends Error {}
 
 const FALLBACK: RuntimeConfig = {
   apiBaseUrl: (import.meta.env.VITE_FLOWZER_API_URL ?? '/api').replace(/\/+$/, ''),
+  accent: toAccent(import.meta.env.VITE_FLOWZER_ACCENT),
   oidcAuthority: (import.meta.env.VITE_FLOWZER_OIDC_AUTHORITY ?? '').trim(),
   oidcClientId: (import.meta.env.VITE_FLOWZER_OIDC_CLIENT_ID ?? '').trim(),
   oidcAudience: (import.meta.env.VITE_FLOWZER_OIDC_AUDIENCE ?? '').trim(),
@@ -84,6 +103,7 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
       };
       current = {
         apiBaseUrl: (raw.apiBaseUrl ?? FALLBACK.apiBaseUrl).replace(/\/+$/, ''),
+        accent: raw.accent === undefined ? FALLBACK.accent : toAccent(raw.accent),
         oidcAuthority: (raw.oidcAuthority ?? FALLBACK.oidcAuthority).trim(),
         oidcClientId: (raw.oidcClientId ?? FALLBACK.oidcClientId).trim(),
         oidcAudience: (raw.oidcAudience ?? FALLBACK.oidcAudience).trim(),
