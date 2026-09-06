@@ -32,6 +32,12 @@ function isGateway(node: BpmnFlowNode) {
  * Die Entwuerfe dazu liegen in Claude Design („Schrittleiste"). Bis das entschieden
  * ist, bleibt die Komponente stehen, aber ungenutzt — sie funktioniert.
  *
+ * Zwei Punkte sind mit dem Ueberspringen der Tore noch nicht geloest und muessen beim
+ * Wiedereinhaengen mitentschieden werden: `mainPath` waehlt an einer Verzweigung
+ * weiterhin einen konkreten Zweig, „Im Anschluss" stellt den daraus folgenden Schritt
+ * also wieder als sicher dar. Und „Schritt x von y" zaehlt die Tore mit, obwohl die
+ * Leiste sie ausdruecklich nicht als Schritte behandelt.
+ *
  * Zeigt, an welcher Stelle des Prozesses die Aufgabe steht.
  * Grundlage ist der Hauptpfad des BPMN-Modells (siehe `mainPath`).
  *

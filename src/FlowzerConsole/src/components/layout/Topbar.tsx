@@ -98,6 +98,9 @@ export function Topbar({ onOpenPalette, onOpenUserMenu }: TopbarProps) {
           type="button"
           onClick={onOpenUserMenu}
           title="Benutzermenü"
+          // Auf dem Telefon bleibt als sichtbarer Inhalt nur das Kuerzel stehen; ohne
+          // eigene Beschriftung meldeten Screenreader dann „CM, Schaltflaeche".
+          aria-label="Benutzermenü"
           className="bg-surface-2 border-border hover:border-border-strong flex cursor-pointer items-center gap-2 rounded-[var(--r-sm)] border py-1 pr-2 pl-1"
         >
           <span className="from-accent to-accent-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-accent-ink">
