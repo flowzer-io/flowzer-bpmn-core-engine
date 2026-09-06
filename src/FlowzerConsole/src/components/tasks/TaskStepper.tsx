@@ -17,6 +17,21 @@ function isGateway(node: BpmnFlowNode) {
 }
 
 /**
+ * NICHT EINGEHAENGT. Die Aufgabenseite zeigt diese Leiste zurzeit nicht.
+ *
+ * Zwei Fragen sind offen, und beide sind fachlich, nicht gestalterisch:
+ *
+ * Wer darf den Ablauf ueberhaupt sehen? Wie ein Antrag im Haus laeuft, wer ihn
+ * freigibt und was danach kommt, kann heikel sein. Ein Aussenstehender, der eine
+ * einzelne Aufgabe erledigt, muss den ganzen Prozess nicht kennen — sichtbar sein
+ * sollte das also je Aufgabe entscheidbar, nicht pauschal.
+ *
+ * Und der naechste Schritt steht oft gar nicht fest: Nach einem Tor haengt er vom
+ * Ergebnis ab. „Im Anschluss: …" behauptet dann eine Sicherheit, die es nicht gibt.
+ *
+ * Die Entwuerfe dazu liegen in Claude Design („Schrittleiste"). Bis das entschieden
+ * ist, bleibt die Komponente stehen, aber ungenutzt — sie funktioniert.
+ *
  * Zeigt, an welcher Stelle des Prozesses die Aufgabe steht.
  * Grundlage ist der Hauptpfad des BPMN-Modells (siehe `mainPath`).
  *

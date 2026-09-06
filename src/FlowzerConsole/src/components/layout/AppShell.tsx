@@ -5,6 +5,7 @@ import { seesFullConsole, useSession } from '@/stores/session';
 
 import { AccessDeniedNotice } from './AccessDeniedNotice';
 import { CommandPalette } from './CommandPalette';
+import { MobileTabBar } from './MobileTabBar';
 import { SignInGate } from './SignInGate';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -62,7 +63,13 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar onOpenUserMenu={() => setUserMenuOpen(true)} />
+      {/*
+        * Auf dem Telefon traegt die untere Reiterleiste die Navigation; die Seitenleiste
+        * haette dort kaum Platz und verdeckte den Inhalt.
+        */}
+      <div className="flex max-md:hidden">
+        <Sidebar onOpenUserMenu={() => setUserMenuOpen(true)} />
+      </div>
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
         <Topbar onOpenPalette={() => setPaletteOpen(true)} onOpenUserMenu={() => setUserMenuOpen(true)} />
@@ -73,12 +80,14 @@ export function AppShell() {
           * gegen einen Flex-Container nicht auf — die Zeichenflaeche wurde 0 Pixel hoch und
           * der Modeler schien gar nicht erst zu starten.
           */}
-        <main className="flex min-h-0 flex-1 flex-col overflow-auto">
+        {/* Unten Platz fuer die Reiterleiste, damit sie nichts verdeckt. */}
+        <main className="flex min-h-0 flex-1 flex-col overflow-auto pb-[calc(58px+env(safe-area-inset-bottom))] md:pb-0">
           <AccessDeniedNotice />
           <Outlet />
         </main>
       </div>
 
+      <MobileTabBar />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
     </div>

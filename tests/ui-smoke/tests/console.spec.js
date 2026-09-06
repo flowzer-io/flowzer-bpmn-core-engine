@@ -145,6 +145,29 @@ test.describe('Konsole', () => {
     await expect(page.getByRole('button', { name })).toBeVisible();
   });
 
+  // Testzweck: Auf Telefonbreite navigiert die untere Reiterleiste, die Seitenleiste ist
+  // weg, und die Aufgabenliste weicht der geoeffneten Aufgabe. Vorher war die Konsole dort
+  // gar nicht bedienbar: Die Seitenleiste nahm zwei Drittel der Breite, und Liste und
+  // Formular standen als Streifen nebeneinander.
+  test('Auf Telefonbreite fuehrt die untere Reiterleiste', async ({ page, request }) => {
+    await seedWorkflow(request);
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    await page.goto('/tasks');
+    const reiter = page.getByRole('navigation', { name: 'Hauptbereiche' });
+    await expect(reiter).toBeVisible();
+    await expect(page.locator('aside')).toBeHidden();
+
+    // Nichts darf seitlich aus dem Bild laufen.
+    const ueberlauf = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(ueberlauf, 'Die Seite laesst sich seitlich schieben.').toBeLessThanOrEqual(0);
+
+    await reiter.getByRole('link', { name: /Instanzen/ }).click();
+    await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+  });
+
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld
   // zeigt nichts an. Beides ging vorher schief: Die Regeln der Konsole griffen nur auf
   // `.form-check`, Form.io setzt bei einem Radio aber `.radio.form-check-inline` — die
