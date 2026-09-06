@@ -89,6 +89,14 @@ describe('readOutline — Urlaubsantrag', () => {
     expect(document).toBeDefined();
   });
 
+  it('sagt an, dass die erklärenden Kommentare beim Speichern verloren gehen', () => {
+    // Das Beispiel erklaert im XML, warum es so modelliert ist. Die Gliederung
+    // fuehrt diese Kommentare nicht mit — das ist die auffaelligste offene Kante
+    // des Prototyps und muss deshalb dastehen, nicht still passieren.
+    const hint = issues.find((issue) => issue.message.includes('Kommentare'));
+    expect(hint?.level).toBe('hinweis');
+  });
+
   it('bildet den Hauptablauf als Folge ab', () => {
     expect(document!.blocks.map((block) => block.kind)).toEqual(['step', 'parallel', 'choice', 'step', 'end']);
   });
