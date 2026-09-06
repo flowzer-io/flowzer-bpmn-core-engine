@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 
 /**
- * Grenze zwischen Telefon und allem Größeren. Deckt sich mit Tailwinds `md`, damit
- * dieselbe Zahl nicht an zwei Stellen mit unterschiedlichem Wert steht.
+ * Grenze zwischen Telefon und allem Größeren — dieselbe wie Tailwinds `md` bei 48rem.
+ *
+ * Bewusst `width < 48rem` und nicht `max-width: 767px`: Tailwind erzeugt für `max-md`
+ * genau diese Bedingung. Bei einer gebrochenen Fensterbreite wie 767,5&nbsp;px gingen
+ * die beiden sonst auseinander — CSS zeigte das Telefonlayout, der Haken meldete aber
+ * „nicht kompakt", die Aufgabenseite wählte die erste Aufgabe vor, und die Liste war
+ * weg, ohne dass man zurückkäme.
  */
-const COMPACT_QUERY = '(max-width: 767px)';
+const COMPACT_QUERY = '(width < 48rem)';
 
 /**
  * Sagt, ob die Oberfläche gerade auf Telefonbreite läuft.

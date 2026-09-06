@@ -2,6 +2,7 @@ import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { seesFullConsole, useSession } from '@/stores/session';
+import { useCompactLayout } from '@/lib/useCompactLayout';
 
 import { AccessDeniedNotice } from './AccessDeniedNotice';
 import { CommandPalette } from './CommandPalette';
@@ -25,6 +26,7 @@ export function AppShell() {
   const user = useSession((state) => state.user);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const compact = useCompactLayout();
 
   // Wer keinen Zugang hat, bekommt die reduzierte Ansicht: Die vollständige Konsole
   // zeigte dann nur eine Reihe abgelehnter Aufrufe.
@@ -87,7 +89,9 @@ export function AppShell() {
         </main>
       </div>
 
-      <MobileTabBar />
+      {/* Nur einhaengen, wenn sie auch gebraucht wird: Per CSS versteckt fragte sie
+          auch am Schreibtisch laufend die offenen Aufgaben ab. */}
+      {compact && <MobileTabBar />}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
     </div>
