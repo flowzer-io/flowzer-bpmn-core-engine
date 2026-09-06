@@ -1,3 +1,5 @@
+using System.Dynamic;
+using System.Text.Json.Serialization;
 namespace WebApiEngine.Shared;
 
 /// <summary>Ein Auftrag, wie ihn ein externer Worker sieht.</summary>
@@ -42,7 +44,15 @@ public class FetchJobsRequestDto
 public class CompleteJobRequestDto
 {
     public required string WorkerId { get; set; }
-    public Dictionary<string, object?>? Variables { get; set; }
+
+    /// <summary>
+    /// Das Ergebnis des Workers. Bewusst mit demselben Konverter wie beim User-Task und bei
+    /// der Nachricht: Ohne ihn stehen in den Werten <c>JsonElement</c>-Huellen statt Zeichen-
+    /// ketten und Zahlen. Die ueberleben die Ablage nicht — gespeichert wird nur noch
+    /// <c>{"ValueKind": 3}</c>, und jede spaetere Bedingung auf so einen Wert ist falsch.
+    /// </summary>
+    [JsonConverter(typeof(ExpandoObjectConverter))]
+    public ExpandoObject? Variables { get; set; }
 }
 
 public class FailJobRequestDto

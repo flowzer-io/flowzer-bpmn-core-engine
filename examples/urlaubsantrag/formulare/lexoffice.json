@@ -1,0 +1,12 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "checkbox", "key": "lexofficeEingetragen", "label": "In LexOffice eingetragen", "input": true,
+      "validate": { "required": true }
+    },
+    {
+      "type": "textfield", "key": "lexofficeReferenz", "label": "Vorgangsnummer in LexOffice", "input": true
+    }
+  ]
+}

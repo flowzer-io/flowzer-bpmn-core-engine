@@ -1,0 +1,16 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "radio", "key": "fachlichGenehmigt", "label": "Urlaub fachlich genehmigt?", "input": true,
+      "inline": true,
+      "description": "Passt der Zeitraum zur Auslastung des Teams?",
+      "values": [ { "label": "Ja", "value": "ja" }, { "label": "Nein", "value": "nein" } ],
+      "validate": { "required": true }
+    },
+    {
+      "type": "textarea", "key": "entscheidungKommentar", "label": "Begründung", "input": true, "rows": 3,
+      "description": "Bei einer Ablehnung erhält die antragstellende Person diesen Text."
+    }
+  ]
+}
