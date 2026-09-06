@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 
 import { Icon } from '@/components/ui/Icon';
+import { useUserTasks } from '@/lib/api/queries';
 import { cn, mix } from '@/lib/cn';
 import { useAppearance } from '@/stores/appearance';
 import { describeRole, useSession, useCan } from '@/stores/session';
@@ -19,6 +20,9 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
   const user = useSession((state) => state.user);
   const can = useCan();
   const navItems = visibleNavItems(can);
+  // Die Zahl ist der Grund, warum man hier hinklickt — ohne sie muesste man die Seite
+  // oeffnen, um zu sehen, ob ueberhaupt etwas offen ist.
+  const offeneAufgaben = useUserTasks().data?.length ?? 0;
 
   const expanded = sidebar === 'full';
   const currentKey = activeNavKey(pathname);
@@ -71,8 +75,25 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
               )}
               style={active ? { background: mix('--accent', 12) } : undefined}
             >
-              <Icon name={item.icon} size={21} />
-              {expanded && <span>{item.label}</span>}
+              <span className="relative flex-none">
+                <Icon name={item.icon} size={21} />
+                {item.key === 'tasks' && offeneAufgaben > 0 && !expanded && (
+                  <span
+                    className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full"
+                    style={{ background: 'var(--fail)' }}
+                    aria-hidden="true"
+                  />
+                )}
+              </span>
+              {expanded && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+              {expanded && item.key === 'tasks' && offeneAufgaben > 0 && (
+                <span
+                  className="grid h-[19px] min-w-[19px] flex-none place-items-center rounded-full px-1.5 text-[11px] font-bold text-white"
+                  style={{ background: 'var(--fail)' }}
+                >
+                  {offeneAufgaben}
+                </span>
+              )}
             </Link>
           );
         })}

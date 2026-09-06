@@ -14,6 +14,7 @@ describe('visibleNavItems', () => {
   it('zeigt Zugelassenen alle Bereiche ausser dem Betrieb', () => {
     const keys = visibleNavItems(only('access')).map((item) => item.key);
 
+    expect(keys).toContain('tasks');
     expect(keys).toContain('workflows');
     expect(keys).toContain('instances');
     expect(keys).toContain('forms');
@@ -24,6 +25,15 @@ describe('visibleNavItems', () => {
   // zu einer Ablehnung fuehrt, gehoert nicht in die Navigation.
   it('zeigt den Betrieb nur mit der Betriebsrolle', () => {
     expect(visibleNavItems(only('access', 'operator')).map((item) => item.key)).toContain('operations');
+  });
+
+  // Testzweck: Die eigenen Aufgaben stehen im Menue. Sie waren frueher nur ueber das
+  // Dashboard erreichbar — wer wusste, dass es sie gibt, fand sie; sonst nicht.
+  it('fuehrt die eigenen Aufgaben im Menue', () => {
+    const eintrag = NAV_ITEMS.find((item) => item.key === 'tasks');
+
+    expect(eintrag?.path).toBe('/tasks');
+    expect(eintrag?.requires, 'Aufgaben verlangen keine Rolle ausser dem Zugang.').toBeUndefined();
   });
 
   // Testzweck: Ohne jede Faehigkeit bleibt nichts uebrig, was eine Rolle verlangt.
