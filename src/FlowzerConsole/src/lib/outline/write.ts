@@ -11,6 +11,7 @@ import { structureSignature, type BpmnGraph, type GraphFlow, type GraphNode } fr
 import { layoutGraph, type DiagramLayout } from './layout';
 import {
   allBlocks,
+  blockLabel,
   type OutlineBlock,
   type OutlineChoice,
   type OutlineDocument,
@@ -101,7 +102,7 @@ function requireTarget(builder: Builder, block: OutlineBlock, next: string | und
   builder.issues.push({
     level: 'blocker',
     elementId: block.id,
-    message: 'Der Ablauf läuft nach diesem Block ins Leere — es fehlt ein Ende.',
+    message: `Nach „${blockLabel(block)}" läuft der Ablauf ins Leere — dort fehlt ein Ende.`,
   });
   return false;
 }

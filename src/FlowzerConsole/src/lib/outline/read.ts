@@ -45,7 +45,7 @@ function group(flows: readonly GraphFlow[], key: (flow: GraphFlow) => string): M
   return grouped;
 }
 
-/** Topologische Reihenfolge; leer, wenn der Graph einen Rücksprung enthält. */
+/** Topologische Reihenfolge. Knoten in einem Kreis fehlen darin. */
 function topologicalOrder(graph: BpmnGraph): Map<string, number> {
   const remaining = new Map(graph.nodes.map((node) => [node.id, 0]));
   for (const flow of graph.flows) remaining.set(flow.target, (remaining.get(flow.target) ?? 0) + 1);
@@ -64,7 +64,7 @@ function topologicalOrder(graph: BpmnGraph): Map<string, number> {
     }
   }
 
-  return order.size === graph.nodes.length ? order : new Map();
+  return order;
 }
 
 /** Alle von `from` aus erreichbaren Knoten. Knoten aus `stop` werden aufgenommen, aber nicht weiterverfolgt. */
@@ -323,12 +323,19 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
     };
   }
 
+  // Eine unvollstaendige Ordnung heisst: Diese Knoten haengen in einem Kreis.
+  // Sie zu benennen ist die brauchbarere Meldung als ein pauschales „irgendwo
+  // ist ein Ruecksprung" — gerade wenn der Kreis abseits des Hauptablaufs liegt.
   const order = topologicalOrder(graph);
-  if (order.size === 0) {
+  if (order.size !== graph.nodes.length) {
+    const caught = graph.nodes.filter((node) => !order.has(node.id)).map((node) => `„${node.name ?? node.id}"`);
     return {
       issues: [
         ...issues,
-        { level: 'blocker', message: 'Der Prozess enthält einen Rücksprung; die Gliederung stellt nur Abläufe ohne Schleifen dar.' },
+        {
+          level: 'blocker',
+          message: `${caught.join(', ')} liegen in einem Rücksprung; die Gliederung stellt nur Abläufe ohne Schleifen dar.`,
+        },
       ],
     };
   }
