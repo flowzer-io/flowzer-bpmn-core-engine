@@ -150,7 +150,7 @@ test.describe('Konsole', () => {
   // gar nicht bedienbar: Die Seitenleiste nahm zwei Drittel der Breite, und Liste und
   // Formular standen als Streifen nebeneinander.
   test('Auf Telefonbreite fuehrt die untere Reiterleiste', async ({ page, request }) => {
-    await seedWorkflow(request);
+    const { formularName } = await seedFormTask(request);
     await page.setViewportSize({ width: 375, height: 812 });
 
     await page.goto('/tasks');
@@ -164,8 +164,27 @@ test.describe('Konsole', () => {
     );
     expect(ueberlauf, 'Die Seite laesst sich seitlich schieben.').toBeLessThanOrEqual(0);
 
+    // Erst die Liste: Am grossen Schirm waere hier schon eine Aufgabe geoeffnet.
+    const liste = page.getByText('Zu erledigen');
+    await expect(liste, 'Auf dem Telefon faengt man bei der Liste an.').toBeVisible();
+    await expect(page.getByRole('button', { name: /Aufgabe abschliessen|Aufgabe abschließen/ })).toHaveCount(0);
+
+    // Aufgabe oeffnen: Die Liste weicht ihr, das Formular ist da.
+    await page.getByRole('button', { name: 'Freigeben', exact: false }).first().click();
+    await expect(page.getByText('Freigabe erteilt?')).toBeVisible();
+    await expect(liste, 'Die Liste steht noch neben der Aufgabe.').toBeHidden();
+
+    // Und wieder zurueck.
+    await page.getByRole('button', { name: 'Alle Aufgaben' }).click();
+    await expect(liste).toBeVisible();
+    await expect(page.getByText('Freigabe erteilt?')).toBeHidden();
+
     await reiter.getByRole('link', { name: /Instanzen/ }).click();
     await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+
+    // Der Name des geseedeten Formulars taucht sonst nirgends auf; er belegt nur, dass
+    // die geoeffnete Aufgabe wirklich die frisch angelegte war.
+    expect(formularName).toBeTruthy();
   });
 
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld

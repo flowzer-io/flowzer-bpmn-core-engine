@@ -31,7 +31,7 @@ export function MobileTabBar() {
     <nav
       aria-label="Hauptbereiche"
       className={cn(
-        'border-border bg-surface fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t md:hidden',
+        'border-border bg-surface fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t',
         // Auf Geräten mit Gestenleiste sitzt der Rand des Bildschirms unter der Leiste.
         'pb-[env(safe-area-inset-bottom)]',
       )}
