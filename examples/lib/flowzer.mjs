@@ -13,7 +13,7 @@ const DEV_USER_ID = 'd266f2b6-e96e-4d4a-9c20-c8e541394df0';
 export function createClient(baseUrl, token = process.env.FLOWZER_TOKEN ?? '') {
   const base = baseUrl.replace(/\/+$/, '');
 
-  async function call(path, { method = 'GET', body, rawBody, contentType, allow404 = false } = {}) {
+  async function call(path, { method = 'GET', body, rawBody, contentType } = {}) {
     const response = await fetch(`${base}${path}`, {
       method,
       headers: {
@@ -27,10 +27,6 @@ export function createClient(baseUrl, token = process.env.FLOWZER_TOKEN ?? '') {
       body: rawBody ?? (body ? JSON.stringify(body) : undefined),
     });
 
-    // Manche Endpunkte antworten mit 404 statt einer leeren Liste — etwa die Versionen
-    // eines Formulars, das zwar angelegt, aber noch nie gespeichert wurde.
-    if (allow404 && response.status === 404) return null;
-
     const text = await response.text();
     const payload = text ? JSON.parse(text) : null;
     if (!response.ok || payload?.successful === false) {
@@ -40,8 +36,12 @@ export function createClient(baseUrl, token = process.env.FLOWZER_TOKEN ?? '') {
   }
 
   /**
-   * Legt ein Formular an oder hängt eine neue Version an ein vorhandenes. Wiederholbar:
+   * Legt ein Formular an oder haengt eine neue Version an ein vorhandenes. Wiederholbar:
    * Vorhandenes bleibt stehen.
+   *
+   * Die Versionsnummer kommt von der Engine — sie zaehlt beim Speichern selbst hoch und
+   * ignoriert eine mitgeschickte Angabe. Deshalb wird hier keine berechnet, sondern die
+   * vergebene aus der Antwort gemeldet.
    */
   async function ensureForm(name, file) {
     const existing = ((await call('/form/meta'))?.result ?? []).find((meta) => meta.name === name);
@@ -51,26 +51,14 @@ export function createClient(baseUrl, token = process.env.FLOWZER_TOKEN ?? '') {
       await call(`/form/meta/${formId}`, { method: 'POST', body: { formId, name } });
     }
 
-    const versions = existing
-      ? ((await call(`/form/${formId}`, { allow404: true }))?.result ?? [])
-      : [];
-    // Raten waere hier gefaehrlich: Faellt eine fehlende Angabe still auf 0 zurueck,
-    // schreibt der naechste Aufruf eine Version, die es schon gibt.
-    const minors = versions.map((v) => v.version?.minor);
-    if (minors.some((minor) => typeof minor !== 'number')) {
-      throw new Error(
-        `Formular „${name}": Eine vorhandene Version hat keine Nummer. Bitte in der Konsole nachsehen.`,
-      );
-    }
-    const next =
-      versions.length === 0 ? { major: 1, minor: 0 } : { major: 1, minor: Math.max(...minors) + 1 };
-
-    await call('/form', {
+    const saved = await call('/form', {
       method: 'POST',
-      body: { formId, version: next, formData: readFileSync(file, 'utf8') },
+      body: { formId, formData: readFileSync(file, 'utf8') },
     });
 
-    console.log(`✓ Formular „${name}" v${next.major}.${next.minor}${existing ? '' : ' (neu angelegt)'}`);
+    const v = saved?.result?.version;
+    const version = v ? `v${v.major}.${v.minor}` : '(Version unbekannt)';
+    console.log(`✓ Formular „${name}" ${version}${existing ? '' : ' (neu angelegt)'}`);
     return formId;
   }
 

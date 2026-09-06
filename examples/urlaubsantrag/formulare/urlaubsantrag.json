@@ -55,7 +55,9 @@
               "format": "dd.MM.yyyy",
               "validate": {
                 "required": true
-              }
+              },
+              "allowInput": true,
+              "placeholder": "TT.MM.JJJJ"
             }
           ]
         },
@@ -72,7 +74,9 @@
               "validate": {
                 "required": true,
                 "custom": "valid = (!data.von || !input || new Date(input) >= new Date(data.von)) ? true : 'Der letzte Urlaubstag darf nicht vor dem ersten liegen.';"
-              }
+              },
+              "allowInput": true,
+              "placeholder": "TT.MM.JJJJ"
             }
           ]
         }
@@ -109,9 +113,12 @@
     {
       "type": "hidden",
       "key": "vorgang",
-      "label": "Vorgang",
+      "label": "",
       "input": true,
-      "calculateValue": "var d = function (w) { if (!w) { return ''; } var t = new Date(w); return isNaN(t) ? String(w) : t.toLocaleDateString('de-DE'); }; var arten = { erholung: 'Erholungsurlaub', sonder: 'Sonderurlaub', unbezahlt: 'Unbezahlter Urlaub' }; value = [ data.mitarbeiter, arten[data.art] || data.art, (data.von && data.bis) ? (d(data.von) + ' bis ' + d(data.bis)) : '', data.arbeitstage ? (data.arbeitstage + ' Arbeitstage') : '', data.vertretung ? ('Vertretung: ' + data.vertretung) : '' ].filter(function (teil) { return teil; }).join(' · ');"
+      "calculateValue": "var d = function (w) { if (!w) { return ''; } var t = new Date(w); if (isNaN(t)) { return String(w); } var p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(t.getDate()) + '.' + p(t.getMonth() + 1) + '.' + t.getFullYear(); }; var arten = { erholung: 'Erholungsurlaub', sonder: 'Sonderurlaub', unbezahlt: 'Unbezahlter Urlaub' }; value = [ data.mitarbeiter, arten[data.art] || data.art, (data.von && data.bis) ? (d(data.von) + ' bis ' + d(data.bis)) : '', data.arbeitstage ? (data.arbeitstage + ' Arbeitstage') : '', data.vertretung ? ('Vertretung: ' + data.vertretung) : '' ].filter(function (teil) { return teil; }).join(' · ');",
+      "hideLabel": true,
+      "tableView": false,
+      "clearOnHide": false
     }
   ]
 }
