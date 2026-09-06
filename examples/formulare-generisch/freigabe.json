@@ -1,0 +1,23 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "textarea", "key": "vorgang", "label": "Worum es geht", "input": true,
+      "disabled": true, "rows": 2, "tableView": false,
+      "description": "Kommt aus dem Vorgang und ist nicht änderbar."
+    },
+    {
+      "type": "radio", "key": "entscheidung", "label": "Freigabe erteilt?", "input": true,
+      "inline": true,
+      "values": [
+        { "label": "Freigegeben", "value": "freigegeben" },
+        { "label": "Abgelehnt", "value": "abgelehnt" }
+      ],
+      "validate": { "required": true }
+    },
+    {
+      "type": "textarea", "key": "begruendung", "label": "Begründung", "input": true, "rows": 3,
+      "description": "Bei einer Ablehnung bekommt die betroffene Person diesen Text."
+    }
+  ]
+}

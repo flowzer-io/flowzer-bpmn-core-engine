@@ -4,6 +4,7 @@ const {
   buildPlainStartXml,
   createDefinitionMeta,
   deployDefinition,
+  saveForm,
   startProcessInstance,
   randomUUID
 } = require('../support/flowzer-api');
@@ -25,6 +26,55 @@ async function seedWorkflow(request) {
   await deployDefinition(request, { xml });
   const instance = await startProcessInstance(request, { definitionId });
   return { name, definitionId, instance };
+}
+
+/**
+ * Legt einen Workflow mit genau einer Aufgabe an, deren Formular eine Auswahl und ein
+ * verstecktes Feld enthaelt — die beiden Bauteile, aus denen die wiederverwendbaren
+ * Formulare bestehen.
+ */
+async function seedFormTask(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Freigabe ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({
+      display: 'form',
+      components: [
+        { type: 'hidden', key: 'vorgang', label: '', hideLabel: true, input: true },
+        {
+          type: 'radio', key: 'entscheidung', label: 'Freigabe erteilt?', input: true, inline: true,
+          values: [
+            { label: 'Freigegeben', value: 'freigegeben' },
+            { label: 'Abgelehnt', value: 'abgelehnt' }
+          ]
+        }
+      ]
+    })
+  });
+
+  const name = `Formular ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const pid = `Process_${marke}`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="${pid}" isExecutable="true">
+    <bpmn:startEvent id="Start_${marke}"><bpmn:outgoing>F1_${marke}</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="F1_${marke}" sourceRef="Start_${marke}" targetRef="Task_${marke}" />
+    <bpmn:userTask id="Task_${marke}" name="Freigeben">
+      <bpmn:extensionElements><zeebe:formDefinition formKey="${formularName}" /></bpmn:extensionElements>
+      <bpmn:incoming>F1_${marke}</bpmn:incoming>
+      <bpmn:outgoing>F2_${marke}</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="F2_${marke}" sourceRef="Task_${marke}" targetRef="End_${marke}" />
+    <bpmn:endEvent id="End_${marke}"><bpmn:incoming>F2_${marke}</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+  await startProcessInstance(request, { definitionId });
+  return { name };
 }
 
 test.describe('Konsole', () => {
@@ -93,6 +143,34 @@ test.describe('Konsole', () => {
 
     // Nach dem Anlegen steht der eingegebene Name im Modeler.
     await expect(page.getByRole('button', { name })).toBeVisible();
+  });
+
+  // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld
+  // zeigt nichts an. Beides ging vorher schief: Die Regeln der Konsole griffen nur auf
+  // `.form-check`, Form.io setzt bei einem Radio aber `.radio.form-check-inline` — die
+  // Optionen standen ungestylt untereinander. Und ein Feld vom Typ `hidden` zeigte
+  // trotzdem seine Beschriftung.
+  test('Ein Aufgabenformular zeichnet Auswahl und verstecktes Feld richtig', async ({ page, request }) => {
+    await seedFormTask(request);
+
+    await page.goto('/tasks');
+    await expect(page.getByText('Freigabe erteilt?')).toBeVisible();
+
+    const optionen = page.locator('.formio-surface [role="radiogroup"] .form-check-input');
+    await expect(optionen).toHaveCount(2);
+
+    const erste = await optionen.nth(0).boundingBox();
+    const zweite = await optionen.nth(1).boundingBox();
+    expect(erste, 'Die erste Wahlmoeglichkeit wird nicht gezeichnet.').not.toBeNull();
+    expect(zweite, 'Die zweite Wahlmoeglichkeit wird nicht gezeichnet.').not.toBeNull();
+    expect(
+      zweite.x,
+      'Die Wahlmoeglichkeiten stehen untereinander, obwohl das Formular sie nebeneinander verlangt.'
+    ).toBeGreaterThan(erste.x);
+
+    const verstecktesFeld = page.locator('.formio-component-hidden');
+    await expect(verstecktesFeld).toHaveCount(1);
+    await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
   });
 
   // Testzweck: Ein Workflow laesst sich aus der Oberflaeche wieder entfernen — der
