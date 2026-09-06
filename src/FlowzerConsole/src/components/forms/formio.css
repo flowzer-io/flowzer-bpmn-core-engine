@@ -359,23 +359,58 @@
   padding: 0 10px;
 }
 
-.formio-surface :where(.form-check),
-.formio-dialog :where(.form-check) {
+/*
+ * Auswahlkaestchen und Radiogruppen. Form.io setzt hier je nach Bauart andere Klassen:
+ * Ein Radio bekommt `.radio.form-check-inline` um Eingabe und Beschriftung, eine Checkbox
+ * legt die Eingabe *in* die Beschriftung. Beides muss abgedeckt sein — sonst stehen die
+ * Kaestchen ungestylt untereinander, auch wenn das Formular `inline` verlangt.
+ */
+.formio-surface :where(.form-radio, .form-check-group)[role='radiogroup'],
+.formio-dialog :where(.form-radio, .form-check-group)[role='radiogroup'] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+}
+
+/* Ohne `inline` gehoert jede Wahlmoeglichkeit in eine eigene Zeile. */
+.formio-surface [role='radiogroup'] > :where(.radio, .form-check):not(.form-check-inline),
+.formio-dialog [role='radiogroup'] > :where(.radio, .form-check):not(.form-check-inline) {
+  flex: 0 0 100%;
+}
+
+.formio-surface :where(.form-check, .form-check-inline),
+.formio-dialog :where(.form-check, .form-check-inline) {
   align-items: center;
   display: flex;
   gap: 8px;
-  margin-bottom: 6px;
+  margin: 0;
+  min-height: 24px;
+  padding-left: 0;
 }
 
-.formio-surface .form-check label,
-.formio-dialog .form-check label {
+.formio-surface :where(.form-check, .form-check-inline) label,
+.formio-dialog :where(.form-check, .form-check-inline) label {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
   margin: 0;
 }
 
 .formio-surface .form-check-input,
 .formio-dialog .form-check-input {
   accent-color: var(--accent);
+  block-size: 16px;
+  cursor: pointer;
+  flex: none;
+  inline-size: 16px;
   margin: 0;
+}
+
+.formio-surface .form-check-input:focus-visible,
+.formio-dialog .form-check-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .formio-surface :where(.form-text, .formio-errors .error, .invalid-feedback),
