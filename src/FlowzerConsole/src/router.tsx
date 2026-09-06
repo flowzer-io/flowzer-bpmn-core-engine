@@ -139,7 +139,9 @@ function TasksRoute() {
   return (
     <TasksPage
       selectedTaskId={task}
-      onSelectTask={(taskId) => void navigate({ to: '/tasks', search: { task: taskId } })}
+      onSelectTask={(taskId) =>
+        void navigate({ to: '/tasks', search: taskId ? { task: taskId } : {} })
+      }
     />
   );
 }

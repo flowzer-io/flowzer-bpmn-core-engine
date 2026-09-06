@@ -74,6 +74,14 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
     /// ("Name:1.x"), wird als Fehler gemeldet, damit Tippfehler nicht still die neueste Version
     /// liefern.
     /// </summary>
+    /// <summary>
+    /// Der Formularname aus einem Form-Key — ohne eine angehaengte Version, aber mit einem
+    /// Doppelpunkt, der zum Namen gehoert („Pruefung: Detail"). Oeffentlich, damit die
+    /// Loeschpruefung dieselbe Regel benutzt: Zwei Auslegungen desselben Schluessels waeren
+    /// genau der Weg, ein benutztes Formular doch zu loeschen.
+    /// </summary>
+    public static string ExtractFormName(string formKey) => SplitFormKey(formKey).Name;
+
     private static (string Name, Model.Version? Version, string? Error) SplitFormKey(string formKey)
     {
         var separatorIndex = formKey.LastIndexOf(':');

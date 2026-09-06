@@ -32,7 +32,13 @@ export function Segmented<T extends string>({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className={cn('bg-surface-2 flex gap-[3px] rounded-[var(--r-sm)] p-[3px]', className)}
+      className={cn(
+        'bg-surface-2 flex gap-[3px] rounded-[var(--r-sm)] p-[3px]',
+        // Auf schmalen Schirmen passen vier Filter nicht nebeneinander; dann laesst
+        // sich die Reihe schieben, statt den letzten Eintrag abzuschneiden.
+        'max-w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        className,
+      )}
     >
       {options.map((option) => {
         const active = option.value === value;
@@ -44,7 +50,7 @@ export function Segmented<T extends string>({
             aria-selected={active}
             onClick={() => onChange(option.value)}
             className={cn(
-              'inline-flex cursor-pointer items-center gap-[7px] rounded-md border-none px-3 py-1.5',
+              'inline-flex flex-none cursor-pointer items-center gap-[7px] rounded-md border-none px-3 py-1.5',
               'text-[13px] font-semibold transition-colors duration-150',
               active ? 'bg-surface text-text shadow-card' : 'text-muted hover:text-text bg-transparent',
             )}

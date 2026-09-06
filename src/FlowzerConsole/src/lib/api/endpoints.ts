@@ -153,6 +153,10 @@ export const formsApi = {
   saveMeta: (formId: string, name: string) =>
     requestStatus(`/form/meta/${formId}`, { method: 'POST', body: { formId, name } }),
 
+  /** `DELETE /form/meta/{formId}` — loescht das Formular samt allen Versionen. */
+  deleteMeta: (formId: string) =>
+    requestStatus(`/form/meta/${encodeURIComponent(formId)}`, { method: 'DELETE' }),
+
   /** `GET /form/{formId}/latest` — neueste Version des Formulars. */
   getLatest: (formId: string, signal?: AbortSignal) =>
     requestStatusResult<FormDto>(`/form/${formId}/latest`, { signal }),

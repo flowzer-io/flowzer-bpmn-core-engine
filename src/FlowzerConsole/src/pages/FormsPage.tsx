@@ -5,13 +5,14 @@ import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuil
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
+import { ConfirmModal } from '@/components/ui/Modal';
 import { toneSurface } from '@/components/ui/Chip';
 import { SearchInput, TextInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, InlineSpinner, Skeleton } from '@/components/ui/States';
-import { useForm, useForms, useSaveForm, useSaveFormMeta } from '@/lib/api/queries';
+import { useDeleteForm, useForm, useForms, useSaveForm, useSaveFormMeta } from '@/lib/api/queries';
 import { cn } from '@/lib/cn';
 import { iconForLabel } from '@/lib/taskView';
 import { useCan } from '@/stores/session';
@@ -36,6 +37,8 @@ export function FormsPage() {
   const formsQuery = useForms();
   const saveForm = useSaveForm();
   const saveMeta = useSaveFormMeta();
+  const deleteForm = useDeleteForm();
+  const [pendingDelete, setPendingDelete] = useState<{ formId: string; name: string } | null>(null);
 
   const forms = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -252,6 +255,20 @@ export function FormsPage() {
                 </Button>
               )}
               <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} aria-label="Ansicht" />
+              {mayPublish && selected && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  icon="delete"
+                  title={`„${selected.name}" löschen`}
+                  className="w-[38px] px-0"
+                  onClick={() => setPendingDelete({ formId: selected.formId, name: selected.name })}
+                >
+                  {/* Der Name gehoert in die Beschriftung: Der Knopf steht neben einer
+                      Formularvorschau, die selbst keinen Namen traegt. */}
+                  <span className="sr-only">{selected.name} löschen</span>
+                </Button>
+              )}
             </div>
           </div>
 
@@ -284,6 +301,33 @@ export function FormsPage() {
           </div>
         </Card>
       </div>
+      <ConfirmModal
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null);
+        }}
+        destructive
+        busy={deleteForm.isPending}
+        title={`„${pendingDelete?.name ?? ''}" löschen?`}
+        description="Alle Versionen dieses Formulars werden entfernt. Das lässt sich nicht rückgängig machen. Benutzt ein deployter Workflow das Formular, verhindert das das Löschen."
+        confirmLabel="Endgültig löschen"
+        confirmIcon="delete"
+        onConfirm={() => {
+          const target = pendingDelete;
+          if (!target) return;
+          deleteForm.mutate(target.formId, {
+            onSuccess: () => {
+              setPendingDelete(null);
+              if (selectedId === target.formId) setSelectedId(null);
+              toast.success(`„${target.name}" gelöscht`);
+            },
+            onError: (error) =>
+              toast.error('Formular konnte nicht gelöscht werden', {
+                description: error instanceof Error ? error.message : undefined,
+              }),
+          });
+        }}
+      />
     </PageContainer>
   );
 }

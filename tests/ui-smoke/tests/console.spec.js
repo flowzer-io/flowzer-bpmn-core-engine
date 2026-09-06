@@ -74,7 +74,7 @@ async function seedFormTask(request) {
 </bpmn:definitions>`;
   await deployDefinition(request, { xml });
   await startProcessInstance(request, { definitionId });
-  return { name };
+  return { name, formularName };
 }
 
 test.describe('Konsole', () => {
@@ -145,6 +145,29 @@ test.describe('Konsole', () => {
     await expect(page.getByRole('button', { name })).toBeVisible();
   });
 
+  // Testzweck: Auf Telefonbreite navigiert die untere Reiterleiste, die Seitenleiste ist
+  // weg, und die Aufgabenliste weicht der geoeffneten Aufgabe. Vorher war die Konsole dort
+  // gar nicht bedienbar: Die Seitenleiste nahm zwei Drittel der Breite, und Liste und
+  // Formular standen als Streifen nebeneinander.
+  test('Auf Telefonbreite fuehrt die untere Reiterleiste', async ({ page, request }) => {
+    await seedWorkflow(request);
+    await page.setViewportSize({ width: 375, height: 812 });
+
+    await page.goto('/tasks');
+    const reiter = page.getByRole('navigation', { name: 'Hauptbereiche' });
+    await expect(reiter).toBeVisible();
+    await expect(page.locator('aside')).toBeHidden();
+
+    // Nichts darf seitlich aus dem Bild laufen.
+    const ueberlauf = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(ueberlauf, 'Die Seite laesst sich seitlich schieben.').toBeLessThanOrEqual(0);
+
+    await reiter.getByRole('link', { name: /Instanzen/ }).click();
+    await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+  });
+
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld
   // zeigt nichts an. Beides ging vorher schief: Die Regeln der Konsole griffen nur auf
   // `.form-check`, Form.io setzt bei einem Radio aber `.radio.form-check-inline` — die
@@ -171,6 +194,44 @@ test.describe('Konsole', () => {
     const verstecktesFeld = page.locator('.formio-component-hidden');
     await expect(verstecktesFeld).toHaveCount(1);
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
+  });
+
+  // Testzweck: Ein Formular, das ein deployter Workflow benutzt, laesst sich in der
+  // Oberflaeche nicht wegklicken — und die Person erfaehrt, warum. Der Schutz sitzt in der
+  // API; ohne diesen Weg bliebe ungeprueft, ob die Konsole die Begruendung ueberhaupt zeigt.
+  test('Ein benutztes Formular laesst sich nicht loeschen', async ({ page, request }) => {
+    const { formularName } = await seedFormTask(request);
+
+    await page.goto('/forms');
+    await page.getByRole('button', { name: formularName, exact: false }).first().click();
+
+    await page.getByRole('button', { name: `${formularName} löschen` }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
+
+    await expect(page.getByText(/wird von .* benutzt/)).toBeVisible();
+    await page.goto('/forms');
+    await expect(page.getByRole('button', { name: formularName, exact: false }).first()).toBeVisible();
+  });
+
+  // Testzweck: Ein Formular laesst sich aus der Oberflaeche entfernen. Bisher liess sich der
+  // Formularbestand nur befuellen — ein Testformular blieb fuer immer stehen.
+  test('Ein Formular laesst sich loeschen', async ({ page, request }) => {
+    const name = `Formular ${randomUUID().slice(0, 8)}`;
+    await saveForm(request, {
+      name,
+      schema: JSON.stringify({ display: 'form', components: [] })
+    });
+
+    await page.goto('/forms');
+    await page.getByRole('button', { name, exact: false }).first().click();
+
+    await page.getByRole('button', { name: `${name} löschen` }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
+
+    await expect(page.getByText(name, { exact: true })).toHaveCount(0);
   });
 
   // Testzweck: Ein Workflow laesst sich aus der Oberflaeche wieder entfernen — der
