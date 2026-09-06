@@ -1,0 +1,21 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "textarea", "key": "vorgang", "label": "Worum es geht", "input": true,
+      "disabled": true, "rows": 2, "tableView": false,
+      "description": "Kommt aus dem Vorgang und ist nicht änderbar."
+    },
+    {
+      "type": "checkbox", "key": "erledigt", "label": "Erledigt", "input": true,
+      "validate": { "required": true }
+    },
+    {
+      "type": "textfield", "key": "referenz", "label": "Vorgangsnummer im Zielsystem", "input": true,
+      "description": "Falls das andere System eine Nummer vergibt."
+    },
+    {
+      "type": "textarea", "key": "anmerkung", "label": "Anmerkung", "input": true, "rows": 2
+    }
+  ]
+}

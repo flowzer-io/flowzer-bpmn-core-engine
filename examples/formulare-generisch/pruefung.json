@@ -1,0 +1,23 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "textarea", "key": "vorgang", "label": "Worum es geht", "input": true,
+      "disabled": true, "rows": 2, "tableView": false,
+      "description": "Kommt aus dem Vorgang und ist nicht änderbar."
+    },
+    {
+      "type": "number", "key": "pruefwert", "label": "Ermittelter Wert", "input": true,
+      "description": "Was bei der Prüfung herausgekommen ist — etwa die Zahl verbleibender Tage."
+    },
+    {
+      "type": "radio", "key": "pruefungBestanden", "label": "Prüfung bestanden?", "input": true,
+      "inline": true,
+      "values": [ { "label": "Ja", "value": "ja" }, { "label": "Nein", "value": "nein" } ],
+      "validate": { "required": true }
+    },
+    {
+      "type": "textarea", "key": "pruefkommentar", "label": "Anmerkung", "input": true, "rows": 3
+    }
+  ]
+}

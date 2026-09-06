@@ -1,0 +1,17 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "textarea", "key": "vorgang", "label": "Worum es geht", "input": true,
+      "disabled": true, "rows": 3, "tableView": false,
+      "description": "Kommt aus dem Vorgang und ist nicht änderbar."
+    },
+    {
+      "type": "checkbox", "key": "kenntnisGenommen", "label": "Zur Kenntnis genommen", "input": true,
+      "validate": { "required": true }
+    },
+    {
+      "type": "textarea", "key": "kenntnisAnmerkung", "label": "Anmerkung", "input": true, "rows": 2
+    }
+  ]
+}

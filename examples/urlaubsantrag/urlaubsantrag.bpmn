@@ -29,9 +29,18 @@
 
     <bpmn:userTask id="Task_Urlaubstage" name="Urlaubstage prüfen">
       <bpmn:extensionElements>
-        <zeebe:formDefinition formKey="Urlaub – Restanspruch" />
+        <zeebe:formDefinition formKey="Prüfung" />
         <zeebe:assignmentDefinition candidateGroups="Lohnbuchhaltung" />
         <zeebe:taskSchedule dueDate="PT48H" />
+        <!-- Das Formular ist allgemein; die Zuordnung zu diesem Vorgang steht hier.
+             Eingang: was im Formular zu sehen ist. Ausgang: unter welchen Namen die
+             Antworten in den Prozess zurueckgehen. -->
+        <zeebe:ioMapping>
+          <zeebe:input source="=vorgang" target="vorgang" />
+          <zeebe:output source="=pruefungBestanden" target="tageAusreichend" />
+          <zeebe:output source="=pruefwert" target="resttage" />
+          <zeebe:output source="=pruefkommentar" target="lohnbuchhaltungKommentar" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Tage</bpmn:incoming>
       <bpmn:outgoing>Flow_Tage_Join</bpmn:outgoing>
@@ -39,9 +48,14 @@
 
     <bpmn:userTask id="Task_Fachlich" name="Urlaub fachlich entscheiden">
       <bpmn:extensionElements>
-        <zeebe:formDefinition formKey="Urlaub – Fachliche Entscheidung" />
+        <zeebe:formDefinition formKey="Freigabe" />
         <zeebe:assignmentDefinition candidateGroups="Vorgesetzte" />
         <zeebe:taskSchedule dueDate="PT48H" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=vorgang" target="vorgang" />
+          <zeebe:output source="=entscheidung" target="fachlicheEntscheidung" />
+          <zeebe:output source="=begruendung" target="fachlicheBegruendung" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Fachlich</bpmn:incoming>
       <bpmn:outgoing>Flow_Fachlich_Join</bpmn:outgoing>
@@ -52,6 +66,14 @@
     <bpmn:serviceTask id="Task_Vertretung" name="Vertretung prüfen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-vertretung-pruefen" />
+        <!-- Ohne diese Liste bekaeme der Worker alle Prozessvariablen, auch die Bemerkung
+             aus dem Antrag und die interne Benutzerkennung. Ein fremder Dienst bekommt,
+             was er braucht. -->
+        <zeebe:ioMapping>
+          <zeebe:input source="=vertretung" target="vertretung" />
+          <zeebe:input source="=von" target="von" />
+          <zeebe:input source="=bis" target="bis" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Vertretung</bpmn:incoming>
       <bpmn:outgoing>Flow_Vertretung_Join</bpmn:outgoing>
@@ -98,6 +120,10 @@
     <bpmn:serviceTask id="Task_Nachricht" name="Antragsteller benachrichtigen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-genehmigung-mitteilen" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
+          <zeebe:input source="=vorgang" target="vorgang" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Genehmigt_Nachricht</bpmn:incoming>
       <bpmn:outgoing>Flow_Nachricht_Join</bpmn:outgoing>
@@ -105,9 +131,15 @@
 
     <bpmn:userTask id="Task_LexOffice" name="Urlaub in LexOffice eintragen">
       <bpmn:extensionElements>
-        <zeebe:formDefinition formKey="Urlaub – Eintrag LexOffice" />
+        <zeebe:formDefinition formKey="Erledigung bestätigen" />
         <zeebe:assignmentDefinition candidateGroups="Lohnbuchhaltung" />
         <zeebe:taskSchedule dueDate="P3D" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=vorgang" target="vorgang" />
+          <zeebe:output source="=erledigt" target="lexofficeEingetragen" />
+          <zeebe:output source="=referenz" target="lexofficeReferenz" />
+          <zeebe:output source="=anmerkung" target="lexofficeAnmerkung" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Genehmigt_LexOffice</bpmn:incoming>
       <bpmn:outgoing>Flow_LexOffice_Join</bpmn:outgoing>
@@ -116,6 +148,12 @@
     <bpmn:serviceTask id="Task_TickyTask" name="Urlaub in TickyTask eintragen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-tickytask-eintragen" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
+          <zeebe:input source="=von" target="von" />
+          <zeebe:input source="=bis" target="bis" />
+          <zeebe:input source="=arbeitstage" target="arbeitstage" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Genehmigt_TickyTask</bpmn:incoming>
       <bpmn:outgoing>Flow_TickyTask_Join</bpmn:outgoing>
@@ -135,6 +173,14 @@
     <bpmn:serviceTask id="Task_Ablehnung" name="Ablehnung mitteilen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-ablehnung-mitteilen" />
+        <!-- Beide Kommentare stehen fest, weil alle drei Pruefungen zu Ende laufen,
+             bevor entschieden wird. -->
+        <zeebe:ioMapping>
+          <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
+          <zeebe:input source="=vorgang" target="vorgang" />
+          <zeebe:input source="=fachlicheBegruendung" target="fachlicheBegruendung" />
+          <zeebe:input source="=lohnbuchhaltungKommentar" target="lohnbuchhaltungKommentar" />
+        </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Tage_Nein</bpmn:incoming>
       <bpmn:incoming>Flow_Fachlich_Nein</bpmn:incoming>
@@ -162,7 +208,7 @@
     <bpmn:sequenceFlow id="Flow_Tage_Nein" name="nicht genug Tage" sourceRef="Gw_Tage" targetRef="Task_Ablehnung" />
 
     <bpmn:sequenceFlow id="Flow_Fachlich_Ja" name="ja" sourceRef="Gw_Fachlich" targetRef="Gw_Vertretung">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=fachlichGenehmigt = "ja"</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=fachlicheEntscheidung = "freigegeben"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Fachlich_Nein" name="abgelehnt" sourceRef="Gw_Fachlich" targetRef="Task_Ablehnung" />
 

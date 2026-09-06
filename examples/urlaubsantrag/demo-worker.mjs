@@ -13,6 +13,9 @@
  */
 const BASE_URL = (process.argv[2] ?? process.env.FLOWZER_API_URL ?? 'http://localhost:5182').replace(/\/+$/, '');
 const TOKEN = process.env.FLOWZER_TOKEN ?? '';
+// NUR FUER DIE ENTWICKLUNG: Ohne FLOWZER_TOKEN geht diese feste Kennung als
+// X-Flowzer-UserId mit. Eine abgesicherte Instanz ignoriert den Header und antwortet 401.
+// Ein echter Worker meldet sich mit einem Token der Worker-Rolle an.
 const USER_ID = 'd266f2b6-e96e-4d4a-9c20-c8e541394df0';
 const WORKER_ID = 'urlaub-demo-worker';
 

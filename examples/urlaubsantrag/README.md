@@ -49,15 +49,27 @@ echten Worker taugt er trotzdem; der Vertrag steht in
 
 ## Formulare
 
-| Formular (= Form-Key) | Wer füllt es aus | Was dabei herauskommt |
-| --- | --- | --- |
-| `Urlaubsantrag` | die antragstellende Person | `mitarbeiter`, `art`, `von`, `bis`, `arbeitstage`, `vertretung`, `bemerkung` |
-| `Urlaub – Restanspruch` | Lohnbuchhaltung | `resttage`, `tageAusreichend`, `lohnbuchhaltungKommentar` |
-| `Urlaub – Fachliche Entscheidung` | Vorgesetzte | `fachlichGenehmigt`, `entscheidungKommentar` |
-| `Urlaub – Eintrag LexOffice` | Lohnbuchhaltung | `lexofficeEingetragen`, `lexofficeReferenz` |
+Nur der Antrag hat ein eigenes Formular. Die drei anderen Aufgaben benutzen die
+[wiederverwendbaren Formulare](../formulare-generisch/README.md), die auch jeder andere
+Prozess benutzt.
+
+| Aufgabe | Formular (= Form-Key) | Wer | Landet im Prozess als |
+| --- | --- | --- | --- |
+| Urlaubsantrag stellen | `Urlaubsantrag` (eigenes) | antragstellende Person | `mitarbeiter`, `art`, `von`, `bis`, `arbeitstage`, `vertretung`, `bemerkung`, `vorgang` |
+| Urlaubstage prüfen | `Prüfung` | Lohnbuchhaltung | `tageAusreichend`, `resttage`, `lohnbuchhaltungKommentar` |
+| Urlaub fachlich entscheiden | `Freigabe` | Vorgesetzte | `fachlicheEntscheidung`, `fachlicheBegruendung` |
+| Urlaub in LexOffice eintragen | `Erledigung bestätigen` | Lohnbuchhaltung | `lexofficeEingetragen`, `lexofficeReferenz`, `lexofficeAnmerkung` |
+
+Die allgemeinen Formulare antworten mit allgemeinen Namen (`entscheidung`, `pruefwert`, …).
+Was das *hier* bedeutet, steht als `zeebe:ioMapping` am jeweiligen Task — deshalb die
+rechte Spalte. Ohne diese Zuordnung schrieben beide Entscheidungen in dieselbe Variable.
 
 Der Form-Key im BPMN ist der **Name** des Formulars. Namen müssen deshalb eindeutig sein;
 mit `Name:1.0` lässt sich eine feste Version binden.
+
+Das Antragsformular rechnet nebenbei ein verstecktes Feld `vorgang` aus — einen Satz wie
+„Christian Maaß · Erholungsurlaub · 05.10.2026 bis 16.10.2026 · 10 Arbeitstage · Vertretung:
+Melli". Die allgemeinen Formulare zeigen ihn oben an, damit klar ist, worüber entschieden wird.
 
 ## Service-Tasks
 
@@ -68,10 +80,11 @@ mit `Name:1.0` lässt sich eine feste Version binden.
 | `urlaub-ablehnung-mitteilen` | Nachricht mit dem Ablehnungsgrund | frei |
 | `urlaub-tickytask-eintragen` | Abwesenheit in TickyTask anlegen | frei, z. B. `tickytaskVorgang` |
 
-Der Auftrag trägt die Prozessvariablen, der Worker sieht also den Antrag mitsamt Zeitraum
-und Vertretung. Für eine echte Anbindung an ein Fremdsystem ist das mehr, als nötig ist:
-Mit `zeebe:ioMapping` am Service-Task bekommt der Worker genau die deklarierten Felder und
-sonst nichts — siehe [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
+Jeder Service-Task sagt am Modell, was sein Worker zu sehen bekommt — die
+Vertretungsprüfung etwa nur `vertretung`, `von` und `bis`. Ohne diese Angabe bekäme ein
+fremder Dienst alle Prozessvariablen, also auch die Bemerkung aus dem Antrag und die
+interne Benutzerkennung. Der Vertrag steht in
+[docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
 
 ## Zwei Entwurfsentscheidungen
 
