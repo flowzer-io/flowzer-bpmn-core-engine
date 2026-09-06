@@ -17,6 +17,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', icon: 'space_dashboard', path: '/' },
+  { key: 'tasks', label: 'Meine Aufgaben', icon: 'inbox', path: '/tasks' },
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
@@ -42,8 +43,6 @@ export const PAGE_TITLES: Record<string, string> = {
   instances: 'Instanzen',
   forms: 'Formulare',
   operations: 'Betrieb & Diagnose',
-  // `/tasks` hat bewusst keinen Navigationseintrag: Aufgaben erreicht man über
-  // das Dashboard. Der Titel wird in der Kopfzeile trotzdem gebraucht.
   tasks: 'Meine Aufgaben',
 };
 
