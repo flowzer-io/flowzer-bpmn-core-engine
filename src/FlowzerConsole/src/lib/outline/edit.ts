@@ -11,6 +11,7 @@ import {
   type OutlineChoice,
   type OutlineChoiceBranch,
   type OutlineDocument,
+  type OutlineEnd,
   type OutlineParallel,
   type OutlineStep,
   type TaskKind,
@@ -81,6 +82,11 @@ export function newStep(document: OutlineDocument, task: TaskKind): OutlineStep 
     inputs: [],
     outputs: [],
   };
+}
+
+/** Ein Ende-Ereignis. Ohne dieses koennte ein geloeschtes Ende nicht ersetzt werden. */
+export function newEnd(document: OutlineDocument): OutlineEnd {
+  return { kind: 'end', id: freeId(document, 'EndEvent'), name: 'Ende' };
 }
 
 export function newChoice(document: OutlineDocument): OutlineChoice {
@@ -160,12 +166,22 @@ export function moveBlock(document: OutlineDocument, id: string, direction: 'up'
   });
 }
 
-/** Kann der Block in dieser Richtung noch verschoben werden? */
+/**
+ * Kann der Block in dieser Richtung noch verschoben werden?
+ *
+ * Ein Ende bleibt, wo es ist, und nichts wandert daran vorbei: Sonst stuenden
+ * hinter dem Ende Schritte, die nie laufen — ein Zustand, den das Schreiben
+ * zwar meldet, in den die Bearbeitung aber gar nicht erst fuehren soll.
+ */
 export function canMove(document: OutlineDocument, id: string, direction: 'up' | 'down'): boolean {
   for (const sequence of sequencesOf(document.blocks)) {
     const index = sequence.findIndex((block) => block.id === id);
     if (index < 0) continue;
-    return direction === 'up' ? index > 0 : index < sequence.length - 1;
+    if (sequence[index]?.kind === 'end') return false;
+
+    if (direction === 'up') return index > 0;
+    const next = sequence[index + 1];
+    return next !== undefined && next.kind !== 'end';
   }
   return false;
 }

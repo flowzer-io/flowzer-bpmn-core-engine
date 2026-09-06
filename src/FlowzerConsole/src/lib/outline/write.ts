@@ -9,7 +9,14 @@
  */
 import { structureSignature, type BpmnGraph, type GraphFlow, type GraphNode } from './graph';
 import { layoutGraph, type DiagramLayout } from './layout';
-import { allBlocks, type OutlineBlock, type OutlineDocument, type OutlineIssue, type OutlineStep } from './model';
+import {
+  allBlocks,
+  type OutlineBlock,
+  type OutlineChoice,
+  type OutlineDocument,
+  type OutlineIssue,
+  type OutlineStep,
+} from './model';
 
 interface Builder {
   readonly document: OutlineDocument;
@@ -200,24 +207,51 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
 }
 
 /**
- * Die Engine weist ein Modell zurueck, dessen Aufgabe kein Formular beziehungsweise
- * keinen Diensttyp nennt. Das gehoert vor das Speichern und nicht in eine
- * Fehlermeldung der API — geprueft wird aber nur beim Schreiben, damit ein
- * vorhandenes Modell mit dieser Luecke trotzdem lesbar bleibt.
+ * Angaben, ohne die das Modell zwar aufgebaut werden kann, aber unbrauchbar
+ * waere: eine Aufgabe ohne Formular oder Diensttyp weist die Engine zurueck,
+ * ein Zweig ohne Bedingung und ohne Standardweg-Markierung waere ein Tor, das
+ * nicht entscheidet. Geprueft wird nur beim Schreiben — ein vorhandenes Modell
+ * mit dieser Luecke bleibt lesbar, damit man sie hier schliessen kann.
  */
-export function missingStepDetails(document: OutlineDocument): OutlineIssue[] {
+export function missingDetails(document: OutlineDocument): OutlineIssue[] {
   const issues: OutlineIssue[] = [];
 
   for (const block of allBlocks(document.blocks)) {
-    if (block.kind !== 'step') continue;
-    const name = block.name.trim() || block.id;
+    if (block.kind === 'step') issues.push(...missingStepDetails(block));
+    if (block.kind === 'choice') issues.push(...missingBranchConditions(block));
+  }
 
-    if (block.task === 'user' && !block.formKey?.trim() && !block.formId?.trim()) {
-      issues.push({ level: 'blocker', elementId: block.id, message: `„${name}" braucht ein Formular.` });
-    }
-    if (block.task === 'service' && !block.workerType?.trim()) {
-      issues.push({ level: 'blocker', elementId: block.id, message: `„${name}" braucht einen Typ des Dienstes.` });
-    }
+  return issues;
+}
+
+function missingStepDetails(step: OutlineStep): OutlineIssue[] {
+  const name = step.name.trim() || step.id;
+
+  if (step.task === 'user' && !step.formKey?.trim() && !step.formId?.trim()) {
+    return [{ level: 'blocker', elementId: step.id, message: `„${name}" braucht ein Formular.` }];
+  }
+  if (step.task === 'service' && !step.workerType?.trim()) {
+    return [{ level: 'blocker', elementId: step.id, message: `„${name}" braucht einen Typ des Dienstes.` }];
+  }
+  return [];
+}
+
+function missingBranchConditions(choice: OutlineChoice): OutlineIssue[] {
+  const name = choice.name?.trim() || choice.id;
+  const issues: OutlineIssue[] = [];
+
+  choice.branches.forEach((branch, index) => {
+    if (branch.isDefault || branch.condition?.trim()) return;
+    issues.push({
+      level: 'blocker',
+      elementId: choice.id,
+      message: `Zweig ${index + 1} von „${name}" hat weder eine Bedingung noch ist er der Standardweg.`,
+    });
+  });
+
+  const defaults = choice.branches.filter((branch) => branch.isDefault).length;
+  if (defaults > 1) {
+    issues.push({ level: 'blocker', elementId: choice.id, message: `„${name}" hat mehr als einen Standardweg.` });
   }
 
   return issues;
@@ -338,7 +372,7 @@ function diagramXml(graph: BpmnGraph, layout: DiagramLayout): string {
  */
 export function writeOutlineXml(document: OutlineDocument): { xml?: string; issues: OutlineIssue[] } {
   const { graph, issues } = buildGraph(document);
-  const missing = missingStepDetails(document);
+  const missing = missingDetails(document);
   if (!graph || missing.length > 0) return { issues: [...issues, ...missing] };
 
   const unchanged = document.sourceDiagram !== undefined && structureSignature(graph) === document.sourceStructure;

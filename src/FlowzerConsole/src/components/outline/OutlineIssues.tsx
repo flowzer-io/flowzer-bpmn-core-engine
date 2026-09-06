@@ -4,19 +4,33 @@ import type { OutlineIssue } from '@/lib/outline/model';
 
 interface OutlineIssuesProps {
   issues: readonly OutlineIssue[];
+  /** Steht die Gliederung daneben? Dann sind die Blocker Dinge, die man hier schließen kann. */
+  outlineShown: boolean;
   onOpenDiagram?: () => void;
 }
 
 /**
  * Die Meldungen sind der wichtigste Teil der Gliederung: Was sie nicht abbildet,
  * muss sichtbar werden, statt beim Speichern still verloren zu gehen.
+ *
+ * Zwei Faelle, die sich fuer den Nutzer grundverschieden anfuehlen: Entweder das
+ * Modell laesst sich gar nicht zerlegen — dann gibt es keine Gliederung, nur den
+ * Weg ins Diagramm. Oder die Gliederung steht, es fehlt aber eine Angabe, die
+ * genau hier nachgetragen werden kann.
  */
-export function OutlineIssues({ issues, onOpenDiagram }: OutlineIssuesProps) {
+export function OutlineIssues({ issues, outlineShown, onOpenDiagram }: OutlineIssuesProps) {
   if (issues.length === 0) return null;
 
   const blockers = issues.filter((issue) => issue.level === 'blocker');
   const notes = issues.filter((issue) => issue.level === 'hinweis');
   const tone = blockers.length > 0 ? 'fail' : 'wait';
+
+  const headline =
+    blockers.length === 0
+      ? 'Hinweis zum Speichern'
+      : outlineShown
+        ? 'Vor dem Speichern zu klären'
+        : 'Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden';
 
   return (
     <div
@@ -25,9 +39,7 @@ export function OutlineIssues({ issues, onOpenDiagram }: OutlineIssuesProps) {
     >
       <div className="flex items-center gap-2 text-[13.5px] font-semibold" style={{ color: `var(--${tone})` }}>
         <Icon name={blockers.length > 0 ? 'block' : 'info'} size={18} />
-        {blockers.length > 0
-          ? 'Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden'
-          : 'Hinweis zum Speichern'}
+        {headline}
       </div>
 
       <ul className="text-muted mt-2 flex list-disc flex-col gap-1 pl-5 text-[12.5px]">
@@ -41,7 +53,9 @@ export function OutlineIssues({ issues, onOpenDiagram }: OutlineIssuesProps) {
 
       {blockers.length > 0 && (
         <p className="text-muted mt-2.5 text-[12.5px]">
-          Die Gliederung zeigt ihn deshalb nicht an und speichert ihn nicht.{' '}
+          {outlineShown
+            ? 'Speichern und Deployen bleiben gesperrt, bis das erledigt ist. '
+            : 'Die Gliederung zeigt ihn deshalb nicht an und speichert ihn nicht. '}
           {onOpenDiagram && (
             <button
               type="button"

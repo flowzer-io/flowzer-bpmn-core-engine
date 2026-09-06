@@ -3,7 +3,7 @@ import { StepFields } from '@/components/outline/StepFields';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { FieldLabel, TextInput } from '@/components/ui/Field';
-import { insertAfter, insertBefore, newChoice, newParallel, newStep, renameBlock } from '@/lib/outline/edit';
+import { insertAfter, insertBefore, newChoice, newEnd, newParallel, newStep, renameBlock } from '@/lib/outline/edit';
 import { blockLabel, type OutlineBlock, type OutlineDocument } from '@/lib/outline/model';
 
 interface BlockEditorProps {
@@ -74,6 +74,7 @@ function InsertActions({ document, block, onChange }: InsertActionsProps) {
     { icon: 'settings', label: 'Dienstaufruf', create: () => newStep(document, 'service') },
     { icon: 'call_split', label: 'Verzweigung', create: () => newChoice(document) },
     { icon: 'add', label: 'Gleichzeitig', create: () => newParallel(document) },
+    { icon: 'stop_circle', label: 'Ende', create: () => newEnd(document) },
   ];
 
   return (

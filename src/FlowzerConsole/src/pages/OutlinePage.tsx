@@ -173,7 +173,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="min-w-0 flex-1 overflow-auto px-[22px] py-5">
             <div className="mx-auto flex max-w-[720px] flex-col gap-4">
-              <OutlineIssues issues={issues} onOpenDiagram={openDiagram} />
+              <OutlineIssues issues={issues} outlineShown={Boolean(draft)} onOpenDiagram={openDiagram} />
               {draft && (
                 <OutlineView
                   document={draft}

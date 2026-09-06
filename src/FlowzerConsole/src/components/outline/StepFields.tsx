@@ -38,12 +38,18 @@ export function StepFields({ document, step, onChange }: StepFieldsProps) {
       {step.task === 'user' ? (
         <>
           <div>
-            <FieldLabel>Formular</FieldLabel>
+            {/* Camunda bindet ein verknuepftes Formular ueber `formId`, ein
+                eingebettetes ueber `formKey`. Wer nur den Text aendert, soll
+                nicht ungewollt die Art der Bindung wechseln. */}
+            <FieldLabel>{step.formId === undefined ? 'Formular' : 'Formular (Kennung)'}</FieldLabel>
             <TextInput
               list="gliederung-formulare"
               value={step.formKey ?? step.formId ?? ''}
               placeholder="Name oder Kennung des Formulars"
-              onChange={(event) => set({ formKey: event.target.value || undefined, formId: undefined })}
+              onChange={(event) => {
+                const value = event.target.value || undefined;
+                set(step.formId === undefined ? { formKey: value } : { formId: value });
+              }}
             />
             <datalist id="gliederung-formulare">
               {(formsQuery.data ?? []).map((form) => (

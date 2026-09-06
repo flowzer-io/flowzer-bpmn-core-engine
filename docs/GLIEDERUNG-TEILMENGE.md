@@ -26,16 +26,29 @@ Das ist keine Absichtserklärung, sondern zweifach abgesichert:
 1. **Verstandene Bestandteile sind aufgezählt.** Der Leser kennt eine
    Positivliste von Elementen und Attributen. Alles, was nicht darauf steht —
    ein unbekanntes Element, ein unbekanntes Attribut, eine fremde
-   Erweiterung — wird als Meldung ausgegeben.
+   Erweiterung — wird als Meldung ausgegeben. Verglichen wird dabei der
+   **vollständige** Name samt Präfix und der Namensraum des Elements: `camunda:id`
+   ist nicht `id`, und ein `camunda:formDefinition` ist kein `zeebe:formDefinition`.
+   Steht ein Element mehrfach, von dem der Leser nur das erste auswertet,
+   ist auch das ein Blocker.
 2. **Rückübersetzungsprobe.** Nach dem Lesen wird die Gliederung sofort wieder
    nach BPMN geschrieben und der entstandene Graph mit dem Ausgangsgraphen
    verglichen (Knoten mit Typ, Name und Eigenschaften; Flüsse mit Quelle,
    Ziel, Name, Bedingung und Kennung). Weicht etwas ab, ist das ein Blocker,
    auch wenn die Positivliste zufrieden war.
 
-Solange eine Meldung der Stufe **Blocker** offen ist, zeigt die Oberfläche die
-Gliederung nur lesend und bietet weder Speichern noch Deployen an. Der Weg
-über das Diagramm bleibt offen.
+Ein Blocker führt zu einem von zwei Zuständen, die sich für den Nutzer
+grundverschieden anfühlen:
+
+- **Das Modell lässt sich nicht zerlegen.** Dann gibt es gar keine Gliederung:
+  Die Seite zeigt nur die Meldungen und den Weg ins Diagramm.
+- **Die Gliederung steht, eine Angabe fehlt** — etwa ein Formular an einer
+  Aufgabe oder eine Bedingung an einem Zweig. Dann ist die Liste sichtbar und
+  bearbeitbar, Speichern und Deployen sind gesperrt, bis die Lücke geschlossen
+  ist.
+
+Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
+über die der Nutzer Bescheid wissen soll.
 
 ## Abgedeckt
 
@@ -115,13 +128,27 @@ verboten; sie werden nur im Diagramm bearbeitet.
   lassen — etwa ein Fork, dessen Zweige sich nicht an einem gemeinsamen Join
   treffen, oder ein Sprung von einem Zweig in einen anderen
 
-## Pflichtangaben am Schritt
+## Pflichtangaben vor dem Speichern
 
-Die Engine weist ein Modell zurück, dessen `userTask` kein Formular oder dessen
-`serviceTask` keinen `zeebe:taskDefinition/@type` nennt. Die Gliederung prüft das
-vor dem Speichern und meldet es als Blocker, statt die Fehlermeldung der API
-abzuwarten. Ein vorhandenes Modell mit dieser Lücke bleibt trotzdem lesbar —
-sonst könnte man sie in der Gliederung gar nicht erst schließen.
+Diese Prüfungen laufen erst beim Schreiben, damit ein vorhandenes Modell mit
+einer solchen Lücke lesbar bleibt und man sie in der Gliederung schließen kann:
+
+- Ein `userTask` braucht ein Formular, ein `serviceTask` einen
+  `zeebe:taskDefinition/@type`. Ohne das weist die Engine das Modell zurück —
+  besser hier melden als in einer Fehlermeldung der API.
+- Jeder Ausgang eines exklusiven Tors braucht entweder eine Bedingung oder die
+  Markierung als Standardweg, und es gibt höchstens einen Standardweg. Ein
+  Ausgang ohne beides wäre ein Tor, das nicht entscheidet.
+
+## Was die Bearbeitung nicht zulässt
+
+Damit die Gliederung nicht in einen Zustand läuft, aus dem sie sich nicht mehr
+speichern lässt:
+
+- Ein Ende bleibt am Ende seiner Folge; nichts wandert daran vorbei.
+- Ein gelöschtes Ende lässt sich über „Ende" wieder einfügen.
+- Wer den Text eines Formularfelds ändert, wechselt nicht ungewollt zwischen
+  `formKey` und `formId` — die Art der Bindung bleibt, wie sie war.
 
 ## Anordnung im Diagramm
 
@@ -147,6 +174,12 @@ Die Gliederung kennt keine Koordinaten. Beim Schreiben gilt:
   erhalten, aber im Prototyp nicht bearbeitet.
 - Die Gliederung bearbeitet immer die neueste gespeicherte Version, genau wie
   der Modeler.
+- **Erklärende XML-Kommentare gehen beim Speichern verloren.** Die Gliederung
+  führt sie nicht mit. Sie werden beim Lesen gezählt und angesagt — im
+  `examples/urlaubsantrag/urlaubsantrag.bpmn` sind das mehrere Absätze, die
+  erklären, warum das Modell so aussieht. Wer sie behalten will, bearbeitet
+  dieses Modell im Diagramm. Das ist die auffälligste offene Kante des
+  Prototyps.
 - Unter 1024 Pixel Breite blendet die Seite die Bearbeitungsspalte aus: Der
   Ablauf lässt sich dort lesen, die Angaben eines Schritts aber nicht ändern.
   Lesen auf dem Telefon, Ändern am Schreibtisch — die mobile Bearbeitung ist
