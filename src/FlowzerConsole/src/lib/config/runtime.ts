@@ -101,7 +101,10 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     // Eine fehlende Datei ist der Normalfall im Entwicklungsbetrieb, kein Fehler.
   }
 
-  if (response?.ok) {
+  // Der Statuscode allein sagt nicht, ob es die Datei gibt: Der Vite-Entwicklungsserver
+  // beantwortet jede unbekannte Adresse mit der Startseite — also 200 und text/html.
+  // Erst der Inhaltstyp unterscheidet "keine Konfiguration" von "hier ist eine".
+  if (response?.ok && isJson(response)) {
     let raw: Partial<RuntimeConfig> & {
       oidcScopes?: string[] | string;
       roleNames?: Partial<RoleNames>;
@@ -110,9 +113,9 @@ export async function loadRuntimeConfig(): Promise<RuntimeConfig> {
     try {
       raw = await response.json();
     } catch (cause) {
-      // Bewusst nicht wie eine fehlende Datei behandelt: Die Datei ist da, der Betrieb
-      // wollte also konfigurieren. Still auf die Bauwerte zurueckzufallen hiesse, im
-      // Container mit der Entwicklungsadresse und ohne Anmeldung zu starten — und das
+      // Ab hier ist es ein Betriebsfehler und keine fehlende Datei: Der Server hat JSON
+      // angekuendigt, es ist aber keines. Still auf die Bauwerte zurueckzufallen hiesse,
+      // im Container mit der Entwicklungsadresse und ohne Anmeldung zu starten — und das
       // faellt erst auf, wenn jemand vor einer leeren Oberflaeche sitzt.
       throw new RuntimeConfigError(
         `Die Datei config.json ist vorhanden, aber kein gültiges JSON: ${
@@ -163,6 +166,11 @@ function validate(config: RuntimeConfig): void {
       );
     }
   }
+}
+
+/** Wahr, wenn die Antwort sich selbst als JSON ausweist. */
+function isJson(response: Response): boolean {
+  return (response.headers.get('content-type') ?? '').toLowerCase().includes('json');
 }
 
 function tryParse(value: string, base?: string): URL | null {
