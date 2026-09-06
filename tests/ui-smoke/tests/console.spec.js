@@ -77,6 +77,52 @@ async function seedFormTask(request) {
   return { name, formularName };
 }
 
+/**
+ * Ein Ablauf, den die Gliederung vollstaendig abbildet: ein Schritt mit Formular und ein
+ * Tor mit Bedingung und Standardweg.
+ */
+function buildOutlineXml({ definitionId, marke, formularName }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${marke}" isExecutable="true">
+    <bpmn:startEvent id="Start_${marke}" name="Antrag da" />
+    <bpmn:userTask id="Task_${marke}" name="Antrag pruefen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="${formularName}" />
+        <zeebe:assignmentDefinition candidateGroups="Vorgesetzte" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gw_${marke}" name="Genug Budget?" default="Nein_${marke}" />
+    <bpmn:endEvent id="Ja_${marke}" name="Freigegeben" />
+    <bpmn:endEvent id="Nein_End_${marke}" name="Abgelehnt" />
+    <bpmn:sequenceFlow id="F1_${marke}" sourceRef="Start_${marke}" targetRef="Task_${marke}" />
+    <bpmn:sequenceFlow id="F2_${marke}" sourceRef="Task_${marke}" targetRef="Gw_${marke}" />
+    <bpmn:sequenceFlow id="Ja_Flow_${marke}" name="ja" sourceRef="Gw_${marke}" targetRef="Ja_${marke}">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=entscheidung = "ja"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Nein_${marke}" name="sonst" sourceRef="Gw_${marke}" targetRef="Nein_End_${marke}" />
+  </bpmn:process>
+</bpmn:definitions>`;
+}
+
+/** Ein Ablauf mit einer Aufgabe, die die Gliederung nicht kennt: eine schlichte `bpmn:task`. */
+function buildUnsupportedXml({ definitionId, marke }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${marke}" isExecutable="true">
+    <bpmn:startEvent id="Start_${marke}" name="Start" />
+    <bpmn:task id="Task_${marke}" name="Irgendetwas" />
+    <bpmn:endEvent id="End_${marke}" name="Fertig" />
+    <bpmn:sequenceFlow id="F1_${marke}" sourceRef="Start_${marke}" targetRef="Task_${marke}" />
+    <bpmn:sequenceFlow id="F2_${marke}" sourceRef="Task_${marke}" targetRef="End_${marke}" />
+  </bpmn:process>
+</bpmn:definitions>`;
+}
+
 test.describe('Konsole', () => {
   for (const [route, description, locate] of [
     ['/', 'Startseite', (page) => page.getByRole('button', { name: 'Prozess starten' })],
@@ -249,5 +295,39 @@ test.describe('Konsole', () => {
     await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
 
     await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+  });
+
+  // Testzweck: Die Gliederung zeigt denselben Workflow als Liste statt als Diagramm —
+  // Schritt mit Formular, Tor mit Bedingung. Sie ist die zweite Oberflaeche neben dem
+  // Modeler und muss ohne bpmn-js zeichnen.
+  test('Die Gliederung zeigt den Ablauf als Liste', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const formularName = `Gliederung ${marke}`;
+    await saveForm(request, { name: formularName, schema: JSON.stringify({ display: 'form', components: [] }) });
+
+    const definitionId = await createDefinitionMeta(request, { name: `Gliederung ${marke}` });
+    await deployDefinition(request, { xml: buildOutlineXml({ definitionId, marke, formularName }) });
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}/gliederung`);
+
+    await expect(page.getByText('Antrag pruefen', { exact: true })).toBeVisible();
+    await expect(page.getByText('Genug Budget?', { exact: true })).toBeVisible();
+    await expect(page.getByText('=entscheidung = "ja"', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toBeEnabled();
+  });
+
+  // Testzweck: Der wichtigste Punkt der Gliederung. Ein Modell, das sie nicht vollstaendig
+  // abbildet, muss sichtbar gemeldet werden und darf nicht gespeichert werden koennen —
+  // sonst gingen die nicht dargestellten Teile beim Speichern still verloren.
+  test('Ein nicht abbildbarer Workflow sperrt das Speichern in der Gliederung', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const definitionId = await createDefinitionMeta(request, { name: `Unbekannt ${marke}` });
+    await deployDefinition(request, { xml: buildUnsupportedXml({ definitionId, marke }) });
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}/gliederung`);
+
+    await expect(page.getByText('Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden')).toBeVisible();
+    await expect(page.getByText('bpmn:task', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toBeDisabled();
   });
 });

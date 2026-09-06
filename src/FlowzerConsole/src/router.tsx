@@ -18,6 +18,7 @@ import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
 import { OperationsPage } from '@/pages/OperationsPage';
+import { OutlinePage } from '@/pages/OutlinePage';
 import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
 
@@ -82,6 +83,21 @@ const workflowDetailRoute = createRoute({
 function WorkflowDetailRoute() {
   const { definitionId } = useParams({ from: workflowDetailRoute.id });
   return <ModelerPage definitionId={decodeURIComponent(definitionId)} />;
+}
+
+/**
+ * Die Gliederung ist eine eigene Adresse neben dem Diagramm, keine Umschaltung
+ * darin: Beide Ansichten laden dasselbe Modell, arbeiten aber unterschiedlich.
+ */
+const workflowOutlineRoute = createRoute({
+  getParentRoute: () => workflowsRoute,
+  path: '$definitionId/gliederung',
+  component: WorkflowOutlineRoute,
+});
+
+function WorkflowOutlineRoute() {
+  const { definitionId } = useParams({ from: workflowOutlineRoute.id });
+  return <OutlinePage definitionId={decodeURIComponent(definitionId)} />;
 }
 
 const instancesRoute = createRoute({
@@ -171,7 +187,7 @@ const routeTree = rootRoute.addChildren([
   silentCallbackRoute,
   shellRoute.addChildren([
     dashboardRoute,
-    workflowsRoute.addChildren([workflowsIndexRoute, workflowDetailRoute]),
+    workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
     operationsRoute,
