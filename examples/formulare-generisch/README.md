@@ -54,10 +54,17 @@ Festwert da.
 zweite überschriebe die erste. Sind Ausgänge deklariert, geht *nur* das Deklarierte in den
 Prozess — `entscheidung` selbst landet nirgends.
 
-**Woher `vorgang` kommt.** Das erste Formular eines Prozesses baut den Satz zusammen; im
-Urlaubsantrag rechnet ihn ein verstecktes Feld aus Name, Zeitraum und Vertretung aus. Die
-Engine könnte das nicht: Zeichenketten zusammensetzen kann der einfache Ausdrucks-Handler
+**Woher `vorgang` kommt — und wann nicht.** Ein Prozess braucht einen Schritt, der den Satz
+erzeugt, bevor ein allgemeines Formular ihn anzeigen kann. Im Urlaubsantrag rechnet ihn ein
+verstecktes Feld des Antragsformulars aus Name, Zeitraum und Vertretung aus. Die Engine
+könnte das nicht selbst: Zeichenketten zusammensetzen kann der einfache Ausdrucks-Handler
 nicht, der in Produktion läuft.
+
+Daraus folgt eine Einschränkung: **Als allererste Aufgabe eines Prozesses taugen diese
+Formulare nicht.** Zu dem Zeitpunkt gibt es noch keine Prozessvariablen, das Feld „Worum es
+geht" bliebe leer, und die entscheidende Person stünde vor einem „Freigabe erteilt?" ohne
+Gegenstand. Der erste Schritt braucht ein eigenes Formular — so wie der Urlaubsantrag eines
+hat.
 
 **Die Beschriftungen bleiben allgemein.** „Ermittelter Wert" statt „Verbleibender
 Urlaubsanspruch". Wo das nicht genügt, ist ein eigenes Formular richtig — so wie der

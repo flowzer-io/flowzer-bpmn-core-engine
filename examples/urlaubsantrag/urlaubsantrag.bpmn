@@ -173,11 +173,17 @@
     <bpmn:serviceTask id="Task_Ablehnung" name="Ablehnung mitteilen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-ablehnung-mitteilen" />
-        <!-- Beide Kommentare stehen fest, weil alle drei Pruefungen zu Ende laufen,
-             bevor entschieden wird. -->
+        <!-- Alle drei Pruefungen laufen zu Ende, bevor entschieden wird — ihre
+             Ergebnisse stehen hier also fest. Der Worker bekommt sie mit und kann
+             daraus sagen, woran es lag. Ohne sie ginge auf dem Pfad „Vertretung im
+             Urlaub" eine Ablehnung ohne Grund hinaus: Die beiden Kommentarfelder
+             stammen von Pruefungen, die dort bestanden wurden. -->
         <zeebe:ioMapping>
           <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
           <zeebe:input source="=vorgang" target="vorgang" />
+          <zeebe:input source="=tageAusreichend" target="tageAusreichend" />
+          <zeebe:input source="=fachlicheEntscheidung" target="fachlicheEntscheidung" />
+          <zeebe:input source="=vertretungFrei" target="vertretungFrei" />
           <zeebe:input source="=fachlicheBegruendung" target="fachlicheBegruendung" />
           <zeebe:input source="=lohnbuchhaltungKommentar" target="lohnbuchhaltungKommentar" />
         </zeebe:ioMapping>

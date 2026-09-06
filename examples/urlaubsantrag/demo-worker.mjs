@@ -47,6 +47,20 @@ async function call(path, body) {
   return payload;
 }
 
+/** Sagt in einem Satz, woran der Antrag gescheitert ist. */
+function ablehnungsgrund(v) {
+  if (v?.tageAusreichend === 'nein') {
+    return v?.lohnbuchhaltungKommentar || 'Der Urlaubsanspruch reicht nicht aus.';
+  }
+  if (v?.fachlicheEntscheidung === 'abgelehnt') {
+    return v?.fachlicheBegruendung || 'Die Vorgesetzte hat den Zeitraum nicht freigegeben.';
+  }
+  if (v?.vertretungFrei === 'nein') {
+    return 'Die angegebene Vertretung hat im selben Zeitraum selbst genehmigten Urlaub.';
+  }
+  return 'Kein Grund angegeben.';
+}
+
 /**
  * Ergebnis je Auftragstyp. `variables` des Auftrags sind die Prozessvariablen —
  * hier also die Angaben aus dem Urlaubsantrag.
@@ -67,9 +81,13 @@ function handle(type, variables) {
       console.log(`  Nachricht an ${wer}: Urlaub genehmigt`);
       return { benachrichtigtAm: new Date().toISOString() };
 
-    case 'urlaub-ablehnung-mitteilen':
-      console.log(`  Nachricht an ${wer}: Antrag abgelehnt`);
-      return { benachrichtigtAm: new Date().toISOString() };
+    case 'urlaub-ablehnung-mitteilen': {
+      // Welche der drei Pruefungen gescheitert ist, steht im Auftrag. Eine Ablehnung
+      // ohne Grund waere fuer die antragstellende Person wertlos.
+      const grund = ablehnungsgrund(variables);
+      console.log(`  Nachricht an ${wer}: Antrag abgelehnt — ${grund}`);
+      return { benachrichtigtAm: new Date().toISOString(), ablehnungsgrund: grund };
+    }
 
     case 'urlaub-tickytask-eintragen':
       console.log(`  TickyTask-Eintrag für ${wer} angelegt`);
