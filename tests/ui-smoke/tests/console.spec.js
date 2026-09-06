@@ -74,7 +74,7 @@ async function seedFormTask(request) {
 </bpmn:definitions>`;
   await deployDefinition(request, { xml });
   await startProcessInstance(request, { definitionId });
-  return { name };
+  return { name, formularName };
 }
 
 test.describe('Konsole', () => {
@@ -171,6 +171,24 @@ test.describe('Konsole', () => {
     const verstecktesFeld = page.locator('.formio-component-hidden');
     await expect(verstecktesFeld).toHaveCount(1);
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
+  });
+
+  // Testzweck: Ein Formular, das ein deployter Workflow benutzt, laesst sich in der
+  // Oberflaeche nicht wegklicken — und die Person erfaehrt, warum. Der Schutz sitzt in der
+  // API; ohne diesen Weg bliebe ungeprueft, ob die Konsole die Begruendung ueberhaupt zeigt.
+  test('Ein benutztes Formular laesst sich nicht loeschen', async ({ page, request }) => {
+    const { formularName } = await seedFormTask(request);
+
+    await page.goto('/forms');
+    await page.getByRole('button', { name: formularName, exact: false }).first().click();
+
+    await page.getByRole('button', { name: `${formularName} löschen` }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
+
+    await expect(page.getByText(/wird von .* benutzt/)).toBeVisible();
+    await page.goto('/forms');
+    await expect(page.getByRole('button', { name: formularName, exact: false }).first()).toBeVisible();
   });
 
   // Testzweck: Ein Formular laesst sich aus der Oberflaeche entfernen. Bisher liess sich der

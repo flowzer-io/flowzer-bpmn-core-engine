@@ -1,3 +1,4 @@
+using BPMN.Common;
 using BPMN.HumanInteraction;
 using BPMN.Process;
 using BPMN.Flowzer.Events;
@@ -850,31 +851,42 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
 
 
+
+    /// <summary>Ergebnis eines Loeschversuchs an einem Formular.</summary>
+    /// <param name="Metadata">Das geloeschte Formular; <c>null</c>, wenn es keines gab.</param>
+    /// <param name="UsedBy">Workflows, die es benutzen. Nicht leer heisst: nichts geloescht.</param>
+    public sealed record FormDeletion(FormMetadata? Metadata, IReadOnlyList<string> UsedBy);
+
     /// <summary>
-    /// Loescht ein Formular samt allen Versionen — aber nur, wenn kein deployter Workflow es
-    /// benutzt. Gibt die Namen der Workflows zurueck, die es benutzen; ist die Liste leer,
-    /// wurde geloescht.
+    /// Loescht ein Formular samt allen Versionen — aber nur, wenn kein Workflow es braucht.
     ///
-    /// Laeuft unter derselben Sperre wie das Deployen. Auseinandergezogen koennte zwischen
-    /// Pruefung und Loeschen ein Workflow deployt werden, der genau dieses Formular benutzt —
-    /// und stuende danach ohne da.
+    /// Laeuft unter derselben Sperre wie das Deployen, und zwar vollstaendig: Auch der Name
+    /// wird hier drin gelesen. Ausserhalb gelesen liesse sich zwischendurch umbenennen und
+    /// ein Workflow auf den neuen Namen deployen — die Pruefung suchte dann nach dem alten.
     /// </summary>
-    public async Task<IReadOnlyList<string>> DeleteFormIfUnused(Guid formId, string formName)
+    public async Task<FormDeletion> DeleteFormIfUnused(Guid formId)
     {
         await _engineMutationLock.WaitAsync();
         try
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
-            var benutztVon = await FindDeployedWorkflowsUsingForm(storageSystem, formId, formName);
+            var metadata = (await storageSystem.FormStorage.GetFormMetadatas())
+                .FirstOrDefault(candidate => candidate.FormId == formId);
+            if (metadata is null)
+            {
+                return new FormDeletion(null, []);
+            }
+
+            var benutztVon = await FindWorkflowsUsingForm(storageSystem, formId, metadata.Name);
             if (benutztVon.Count > 0)
             {
-                return benutztVon;
+                return new FormDeletion(metadata, benutztVon);
             }
 
             await storageSystem.FormStorage.DeleteFormMetaData(formId);
             storageSystem.CommitChanges();
-            return [];
+            return new FormDeletion(metadata, []);
         }
         finally
         {
@@ -883,55 +895,100 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     }
 
     /// <summary>
-    /// Nennt die deployten Workflows, deren Aufgaben dieses Formular benutzen.
+    /// Nennt die Workflows, deren Aufgaben dieses Formular benutzen.
     ///
-    /// Verwiesen wird im BPMN entweder ueber den <em>Namen</em> des Formulars
-    /// (<c>formKey</c>, wahlweise mit angehaengter Version als <c>Name:1.0</c>) oder ueber
-    /// seine Kennung (<c>formId</c>). Beides zaehlt; beim Namen ohne Ruecksicht auf Gross-
-    /// und Kleinschreibung, genauso loest <see cref="UserTaskFormResolver"/> auf.
+    /// Geprueft wird zweierlei: die jeweils <em>deployte</em> Fassung jedes Katalogeintrags —
+    /// daraus entstehen kuenftige Instanzen — und die Fassungen, auf denen noch Instanzen
+    /// <em>laufen</em>. Letztere sind der Fall, den man leicht uebersieht: Wird eine Version
+    /// abgeloest, die das Formular benutzt, warten ihre Instanzen weiter auf die Aufgabe.
+    /// Ohne das Formular liefe die in „No form named …".
     ///
-    /// Gesucht wird nur in der jeweils deployten Fassung: Eine aeltere Version, die niemand
-    /// mehr starten kann, soll das Loeschen nicht blockieren.
+    /// Verwiesen wird im BPMN ueber den Namen des Formulars (<c>formKey</c>, wahlweise mit
+    /// angehaengter Version) oder ueber seine Kennung (<c>formId</c>). Beides zaehlt.
     /// </summary>
-    private static async Task<List<string>> FindDeployedWorkflowsUsingForm(
+    private static async Task<List<string>> FindWorkflowsUsingForm(
         ITransactionalStorage storageSystem,
         Guid formId,
         string formName)
     {
-        var treffer = new List<string>();
+        // Fassung -> Anzeigename. Mehrere Instanzen teilen sich eine Fassung; jede nur einmal
+        // lesen und parsen.
+        var zuPruefen = new Dictionary<Guid, string>();
+
         foreach (var metaDefinition in await storageSystem.DefinitionStorage.GetAllMetaDefinitions())
         {
             var deployed = await storageSystem.DefinitionStorage.GetDeployedDefinition(metaDefinition.DefinitionId);
-            if (deployed is null)
+            if (deployed is not null)
             {
-                continue;
-            }
-
-            Definitions modell;
-            try
-            {
-                modell = ModelParser.ParseModel(await storageSystem.DefinitionStorage.GetBinary(deployed.Id));
-            }
-            catch (Exception)
-            {
-                // Ein Modell, das sich nicht lesen laesst, kann das Formular auch nicht
-                // benutzen. Es soll das Loeschen nicht mit einem Fehler abbrechen.
-                continue;
-            }
-
-            if (modell.GetProcesses()
-                .SelectMany(prozess => prozess.FlowElements.OfType<UserTask>())
-                .Any(aufgabe => BenutztFormular(aufgabe.Implementation, formId, formName)))
-            {
-                treffer.Add(metaDefinition.Name ?? metaDefinition.DefinitionId);
+                zuPruefen[deployed.Id] = metaDefinition.Name ?? metaDefinition.DefinitionId;
             }
         }
 
-        return treffer;
+        foreach (var instanz in await storageSystem.InstanceStorage.GetAllActiveInstances())
+        {
+            zuPruefen.TryAdd(instanz.DefinitionId, instanz.metaDefinitionId);
+        }
+
+        var treffer = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (definitionId, anzeigename) in zuPruefen)
+        {
+            Definitions modell;
+            try
+            {
+                modell = ModelParser.ParseModel(await storageSystem.DefinitionStorage.GetBinary(definitionId));
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Fail-closed: Ein Modell, das sich nicht lesen laesst, koennte das Formular
+                // benutzen. Es zu ueberspringen hiesse, im Zweifel zu loeschen.
+                treffer.Add(anzeigename);
+                continue;
+            }
+
+            if (BenutztFormular(modell, formId, formName))
+            {
+                treffer.Add(anzeigename);
+            }
+        }
+
+        return [.. treffer];
     }
 
-    /// <summary>Vergleicht einen Form-Key mit Name und Kennung; „Name:1.0" zaehlt mit.</summary>
-    private static bool BenutztFormular(string? formKey, Guid formId, string formName)
+    /// <summary>Sucht in allen Prozessen einer Definition, auch in Subprozessen.</summary>
+    private static bool BenutztFormular(Definitions modell, Guid formId, string formName)
+    {
+        return modell.GetProcesses()
+            .SelectMany(AlleFlowElemente)
+            .OfType<UserTask>()
+            .Any(aufgabe => VerweistAufFormular(aufgabe.Implementation, formId, formName));
+    }
+
+    /// <summary>
+    /// Alle Flow-Elemente eines Behaelters, auch die in Subprozessen. Ohne den Abstieg blieben
+    /// Aufgaben in einem Subprozess unsichtbar — und ihr Formular loeschbar.
+    /// </summary>
+    private static IEnumerable<FlowElement> AlleFlowElemente(IFlowElementContainer behaelter)
+    {
+        foreach (var element in behaelter.FlowElements)
+        {
+            yield return element;
+
+            if (element is IFlowElementContainer verschachtelt)
+            {
+                foreach (var tieferliegend in AlleFlowElemente(verschachtelt))
+                {
+                    yield return tieferliegend;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Vergleicht einen Form-Key mit Name und Kennung eines Formulars. Der Name wird mit
+    /// derselben Regel herausgeloest wie beim Aufloesen zur Laufzeit — sonst koennte ein Name
+    /// mit Doppelpunkt hier anders zerlegt werden als dort.
+    /// </summary>
+    private static bool VerweistAufFormular(string? formKey, Guid formId, string formName)
     {
         if (string.IsNullOrWhiteSpace(formKey))
         {
@@ -946,9 +1003,10 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             return true;
         }
 
-        var trennung = schluessel.LastIndexOf(':');
-        var name = trennung < 0 ? schluessel : schluessel[..trennung];
-        return string.Equals(name.Trim(), formName, StringComparison.OrdinalIgnoreCase);
+        return string.Equals(
+            UserTaskFormResolver.ExtractFormName(schluessel),
+            formName,
+            StringComparison.OrdinalIgnoreCase);
     }
 
 }

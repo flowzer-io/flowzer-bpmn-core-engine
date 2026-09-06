@@ -273,7 +273,10 @@ export function useDeleteForm() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (formId: string) => formsApi.deleteMeta(formId),
-    onSuccess: () => {
+    onSuccess: (_data, formId) => {
+      // Die Detailabfrage des geloeschten Formulars wird nicht nur ungueltig, sie ist
+      // gegenstandslos — sonst bleibt sie als Leiche im Zwischenspeicher liegen.
+      queryClient.removeQueries({ queryKey: queryKeys.form(formId) });
       // Nicht nur die Liste: Aufgaben loesen ihr Formular ueber den Namen auf, die
       // Aufgabenansicht muss ein geloeschtes also neu bewerten.
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms });

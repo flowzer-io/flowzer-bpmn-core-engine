@@ -118,33 +118,31 @@ public class FormController(
         /// </summary>
         [HttpDelete("meta/{formId:guid}")]
         [Authorize(Policy = FlowzerPolicies.Modeler)]
+        [ProducesResponseType<ApiStatusResult<FormMetaDataDto>>(StatusCodes.Status200OK)]
+        [ProducesResponseType<ApiStatusResult<FormMetaDataDto>>(StatusCodes.Status404NotFound)]
+        [ProducesResponseType<ApiStatusResult<FormMetaDataDto>>(StatusCodes.Status409Conflict)]
         public async Task<ActionResult<ApiStatusResult<FormMetaDataDto>>> DeleteFormMetadata(Guid formId)
         {
-            // Bewusst ueber die Liste statt ueber GetFormMetaData: Was dort bei einem
-            // unbekannten Formular fliegt, haengt an der Ablage — die eine wirft
-            // FileNotFoundException, die andere etwas anderes. Ein 500 waere die falsche
-            // Antwort auf „gibt es nicht".
-            var metadata = (await storageSystem.FormStorage.GetFormMetadatas())
-                .FirstOrDefault(candidate => candidate.FormId == formId);
-            if (metadata is null)
+            // Suchen, pruefen und loeschen liegen in der Engine unter derselben Sperre wie das
+            // Deployen; hier auseinandergezogen koennte dazwischen deployt oder umbenannt werden.
+            var ergebnis = await bpmnBusinessLogic.DeleteFormIfUnused(formId);
+
+            if (ergebnis.Metadata is null)
             {
                 return NotFound(new ApiStatusResult<FormMetaDataDto>(
                     errorMessage: $"Es gibt kein Formular mit der Kennung {formId}."));
             }
 
-            // Pruefen und Loeschen liegen in der Engine unter derselben Sperre wie das
-            // Deployen; hier auseinandergezogen koennte dazwischen deployt werden.
-            var benutztVon = await bpmnBusinessLogic.DeleteFormIfUnused(metadata.FormId, metadata.Name);
-            if (benutztVon.Count > 0)
+            if (ergebnis.UsedBy.Count > 0)
             {
                 return Conflict(new ApiStatusResult<FormMetaDataDto>(
-                    errorMessage: $"Das Formular \u201e{metadata.Name}\u201c wird von "
-                                  + $"{string.Join(", ", benutztVon)} benutzt. Erst dort ersetzen, dann loeschen."));
+                    errorMessage: $"Das Formular \u201e{ergebnis.Metadata.Name}\u201c wird von "
+                                  + $"{string.Join(", ", ergebnis.UsedBy)} benutzt. Erst dort ersetzen, dann loeschen."));
             }
 
             // Bewusst der geloeschte Eintrag: `new ApiStatusResult<string>(...)` traefe den
             // Konstruktor fuer die Fehlermeldung und meldete den Erfolg als Fehlschlag.
-            return Ok(new ApiStatusResult<FormMetaDataDto>(metadata.ToDto()));
+            return Ok(new ApiStatusResult<FormMetaDataDto>(ergebnis.Metadata.ToDto()));
         }
 
     #endregion

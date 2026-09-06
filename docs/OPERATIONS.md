@@ -118,7 +118,14 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
-Benutzt ein **deployter** Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — auch in bereits laufenden Instanzen. Ältere, nicht deployte Definitionsversionen blockieren nicht; sie lassen sich ohnehin nicht mehr starten.
+Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …".
+
+Geprüft werden zwei Dinge, und beide zählen:
+
+- die **deployte** Fassung jedes Katalogeintrags — daraus entstehen künftige Instanzen;
+- jede Fassung, auf der noch eine Instanz **läuft**. Wird eine Version abgelöst, die das Formular benutzt, warten ihre Instanzen weiter auf die Aufgabe.
+
+Gesucht wird in allen Prozessen einer Definition, auch in Subprozessen. Ein Modell, das sich nicht lesen lässt, gilt als möglicher Benutzer und blockiert — im Zweifel zu löschen wäre die falsche Richtung.
 
 Ein unbekanntes Formular antwortet mit 404, damit ein Löschen ins Leere nicht als Erfolg durchgeht.
 

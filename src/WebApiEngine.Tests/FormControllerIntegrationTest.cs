@@ -194,6 +194,13 @@ public class FormControllerIntegrationTest
         var storage = TestStorage.Create();
         var formId = Guid.NewGuid();
         storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(),
+            FormId = formId,
+            Version = new Model.Version(1, 0),
+            FormData = "{}"
+        });
 
         SeedDeployedWorkflowUsingForm(storage, "Freigabe");
 
@@ -208,6 +215,7 @@ public class FormControllerIntegrationTest
         payload.ErrorMessage.Should().Contain("Urlaubsantrag");
 
         storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+        storage.FormStorageSeed.Forms.Should().ContainSingle("die Versionen bleiben mit stehen");
     }
 
     // Testzweck: Der Vergleich laeuft ueber den Namen und achtet nicht auf Gross- und
@@ -248,6 +256,104 @@ public class FormControllerIntegrationTest
         storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
     }
 
+    // Testzweck: Eine Aufgabe in einem Subprozess zaehlt genauso. Sie steht nicht in den
+    // Flow-Elementen des Prozesses; wer nur dort sucht, haelt das Formular fuer unbenutzt und
+    // loescht es — die Aufgabe im Subprozess laeuft danach in „No form named …".
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenTheFormIsUsedInsideASubProcess()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+
+        SeedDeployedWorkflowUsingForm(storage, "Freigabe", inSubProcess: true);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        (await client.DeleteAsync($"/form/meta/{formId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Auch eine Fassung, die nicht mehr deployt ist, zaehlt — solange Instanzen
+    // darauf laufen. Wird eine Version abgeloest, die das Formular benutzt, warten ihre
+    // Instanzen weiter auf die Aufgabe; ohne das Formular kommen sie nicht mehr weiter.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenARunningInstanceUsesAnOlderDefinition()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+
+        // Die alte Fassung benutzt das Formular, ist aber nicht mehr deployt.
+        var alteFassung = Guid.NewGuid();
+        storage.DefinitionStorageSeed.Binaries[alteFassung] = BuildWorkflowXml("Freigabe", inSubProcess: false);
+        storage.InstanceStorageSeed.Active.Add(new ProcessInstanceInfo
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "Urlaubsantrag",
+            DefinitionId = alteFassung,
+            ProcessId = "Process_Urlaub",
+            Tokens = [],
+            IsFinished = false,
+            State = ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 1,
+            ServiceSubscriptionCount = 0
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/form/meta/{formId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadFromJsonAsync<ApiStatusResult<FormMetaDataDto>>())!
+            .ErrorMessage.Should().Contain("Urlaubsantrag");
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Ein Doppelpunkt im Formularnamen ist keine Versionsangabe. Wer stur am
+    // letzten Doppelpunkt abschneidet, vergleicht „Pruefung" mit „Pruefung: Detail", findet
+    // keine Nutzung und loescht ein benutztes Formular.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenTheFormNameItselfContainsAColon()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Prüfung: Detail" });
+
+        SeedDeployedWorkflowUsingForm(storage, "Prüfung: Detail");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        (await client.DeleteAsync($"/form/meta/{formId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
+    // Testzweck: Ein Modell, das sich nicht lesen laesst, gilt als moeglicher Benutzer. Es zu
+    // ueberspringen hiesse, im Zweifel zu loeschen.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldRefuse_WhenADeployedModelCannotBeRead()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+
+        SeedDeployedWorkflowUsingForm(storage, "Freigabe");
+        // Dasselbe Modell, aber kaputt.
+        var kaputt = storage.DefinitionStorageSeed.Deployed["urlaub"].Id;
+        storage.DefinitionStorageSeed.Binaries[kaputt] = "<kein gueltiges bpmn";
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        (await client.DeleteAsync($"/form/meta/{formId}")).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
+    }
+
     // Testzweck: Ein Formular, das es nicht gibt, ist kein erfolgreiches Loeschen.
     [Test]
     public async Task DeleteFormMetadata_ShouldReturnNotFound_ForAnUnknownForm()
@@ -265,7 +371,7 @@ public class FormControllerIntegrationTest
     }
 
     /// <summary>Legt einen deployten Workflow ab, dessen einzige Aufgabe das Formular benutzt.</summary>
-    private static void SeedDeployedWorkflowUsingForm(TestStorage storage, string formKey)
+    private static void SeedDeployedWorkflowUsingForm(TestStorage storage, string formKey, bool inSubProcess = false)
     {
         var definitionId = Guid.NewGuid();
         storage.DefinitionStorageSeed.Metas.Add(new ExtendedBpmnMetaDefinition
@@ -282,14 +388,17 @@ public class FormControllerIntegrationTest
             IsActive = true,
             Version = new Model.Version(1, 0)
         };
-        storage.DefinitionStorageSeed.Binaries[definitionId] = $"""
-            <?xml version="1.0" encoding="UTF-8"?>
-            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
-                              id="urlaub" targetNamespace="http://bpmn.io/schema/bpmn">
-              <bpmn:process id="Process_Urlaub" isExecutable="true">
-                <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
-                <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task" />
+        storage.DefinitionStorageSeed.Binaries[definitionId] = BuildWorkflowXml(formKey, inSubProcess);
+    }
+
+    /// <summary>
+    /// Ein Modell mit einer Aufgabe, wahlweise direkt im Prozess oder in einem Subprozess.
+    /// Der Unterschied ist der Punkt: Eine Aufgabe im Subprozess steht nicht in den
+    /// Flow-Elementen des Prozesses.
+    /// </summary>
+    private static string BuildWorkflowXml(string formKey, bool inSubProcess)
+    {
+        var aufgabe = $"""
                 <bpmn:userTask id="Task" name="Freigeben">
                   <bpmn:extensionElements>
                     <zeebe:formDefinition formKey="{formKey}" />
@@ -299,6 +408,29 @@ public class FormControllerIntegrationTest
                 </bpmn:userTask>
                 <bpmn:sequenceFlow id="F2" sourceRef="Task" targetRef="End" />
                 <bpmn:endEvent id="End"><bpmn:incoming>F2</bpmn:incoming></bpmn:endEvent>
+        """;
+
+        var koerper = inSubProcess
+            ? $"""
+                <bpmn:subProcess id="Sub">
+                  <bpmn:startEvent id="SubStart"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+                  <bpmn:sequenceFlow id="F1" sourceRef="SubStart" targetRef="Task" />
+            {aufgabe}
+                </bpmn:subProcess>
+        """
+            : $"""
+                <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+                <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Task" />
+            {aufgabe}
+        """;
+
+        return $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              id="urlaub" targetNamespace="http://bpmn.io/schema/bpmn">
+              <bpmn:process id="Process_Urlaub" isExecutable="true">
+            {koerper}
               </bpmn:process>
             </bpmn:definitions>
             """;
@@ -346,7 +478,8 @@ public class FormControllerIntegrationTest
         public NoOpDefinitionStorage DefinitionStorageSeed { get; } = new();
         public IDefinitionStorage DefinitionStorage => DefinitionStorageSeed;
         public IMessageSubscriptionStorage SubscriptionStorage { get; } = new NoOpMessageSubscriptionStorage();
-        public IInstanceStorage InstanceStorage { get; } = new NoOpInstanceStorage();
+        public NoOpInstanceStorage InstanceStorageSeed { get; } = new();
+        public IInstanceStorage InstanceStorage => InstanceStorageSeed;
         public IFormStorage FormStorage { get; } = formStorage;
         public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
@@ -490,9 +623,11 @@ public class FormControllerIntegrationTest
 
     private sealed class NoOpInstanceStorage : IInstanceStorage
     {
+        public List<ProcessInstanceInfo> Active { get; } = [];
+
         public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId) => throw new NotSupportedException();
         public Task AddOrUpdateInstance(ProcessInstanceInfo processInstance) => Task.CompletedTask;
-        public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() => Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
-        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => Task.FromResult(Enumerable.Empty<ProcessInstanceInfo>());
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() => Task.FromResult(Active.AsEnumerable());
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => Task.FromResult(Active.AsEnumerable());
     }
 }
