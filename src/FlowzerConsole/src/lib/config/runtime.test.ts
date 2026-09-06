@@ -64,6 +64,19 @@ describe('beschaedigte config.json', () => {
 
     await expect(loadRuntimeConfig()).resolves.toBeDefined();
   });
+
+  // Testzweck: Der Vite-Entwicklungsserver beantwortet jede unbekannte Adresse mit der
+  // Startseite — also Status 200 und text/html. Das ist keine kaputte Konfiguration,
+  // sondern gar keine. Wird es verwechselt, startet die Konsole in der Entwicklung nicht mehr.
+  it('behandelt die Startseite des Entwicklungsservers als fehlende Datei', async () => {
+    globalThis.fetch = (async () =>
+      new Response('<!doctype html><html><body>Flowzer Console</body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      })) as typeof fetch;
+
+    await expect(loadRuntimeConfig()).resolves.toBeDefined();
+  });
 });
 
 describe('Akzentfarbe', () => {
