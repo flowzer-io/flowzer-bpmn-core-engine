@@ -64,18 +64,28 @@ export interface BpmnGraph {
   readonly diagramXml?: string;
 }
 
+const BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL';
+const ZEEBE_NS = 'http://camunda.org/schema/zeebe/1.0';
+
 interface ElementRule {
+  /** Namensraum, in dem das Element stehen muss. */
+  readonly namespace: string;
+  /** Erlaubte Attribute mit ihrem vollstaendigen Namen, also samt Praefix. */
   readonly attributes: readonly string[];
   readonly children: readonly string[];
+  /** Elemente, die hoechstens einmal vorkommen duerfen — sonst laese der Leser nur das erste. */
+  readonly single?: readonly string[];
 }
 
 /** Was die Gliederung versteht. Alles, was hier fehlt, ist ein Blocker. */
 const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
   definitions: {
+    namespace: BPMN_NS,
     attributes: ['id', 'targetNamespace', 'exporter', 'exporterVersion'],
     children: ['process', 'BPMNDiagram'],
   },
   process: {
+    namespace: BPMN_NS,
     attributes: ['id', 'name', 'isExecutable'],
     children: [
       'startEvent',
@@ -87,33 +97,52 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
       'sequenceFlow',
     ],
   },
-  startEvent: { attributes: ['id', 'name'], children: ['outgoing'] },
-  endEvent: { attributes: ['id', 'name'], children: ['incoming'] },
-  userTask: { attributes: ['id', 'name'], children: ['incoming', 'outgoing', 'extensionElements'] },
-  serviceTask: { attributes: ['id', 'name'], children: ['incoming', 'outgoing', 'extensionElements'] },
-  exclusiveGateway: { attributes: ['id', 'name', 'default'], children: ['incoming', 'outgoing'] },
-  parallelGateway: { attributes: ['id', 'name'], children: ['incoming', 'outgoing'] },
+  startEvent: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['outgoing'] },
+  endEvent: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['incoming'] },
+  userTask: {
+    namespace: BPMN_NS,
+    attributes: ['id', 'name'],
+    children: ['incoming', 'outgoing', 'extensionElements'],
+    single: ['extensionElements'],
+  },
+  serviceTask: {
+    namespace: BPMN_NS,
+    attributes: ['id', 'name'],
+    children: ['incoming', 'outgoing', 'extensionElements'],
+    single: ['extensionElements'],
+  },
+  exclusiveGateway: {
+    namespace: BPMN_NS,
+    attributes: ['id', 'name', 'default'],
+    children: ['incoming', 'outgoing'],
+  },
+  parallelGateway: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['incoming', 'outgoing'] },
   sequenceFlow: {
+    namespace: BPMN_NS,
     attributes: ['id', 'name', 'sourceRef', 'targetRef'],
     children: ['conditionExpression'],
+    single: ['conditionExpression'],
   },
-  conditionExpression: { attributes: ['type'], children: [] },
+  conditionExpression: { namespace: BPMN_NS, attributes: ['xsi:type'], children: [] },
   extensionElements: {
+    namespace: BPMN_NS,
     attributes: [],
     children: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
+    single: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
   },
-  formDefinition: { attributes: ['formKey', 'formId'], children: [] },
+  formDefinition: { namespace: ZEEBE_NS, attributes: ['formKey', 'formId'], children: [] },
   assignmentDefinition: {
+    namespace: ZEEBE_NS,
     attributes: ['assignee', 'candidateGroups', 'candidateUsers'],
     children: [],
   },
-  taskSchedule: { attributes: ['dueDate', 'followUpDate'], children: [] },
-  taskDefinition: { attributes: ['type', 'retries'], children: [] },
-  ioMapping: { attributes: [], children: ['input', 'output'] },
-  input: { attributes: ['source', 'target'], children: [] },
-  output: { attributes: ['source', 'target'], children: [] },
-  incoming: { attributes: [], children: [] },
-  outgoing: { attributes: [], children: [] },
+  taskSchedule: { namespace: ZEEBE_NS, attributes: ['dueDate', 'followUpDate'], children: [] },
+  taskDefinition: { namespace: ZEEBE_NS, attributes: ['type', 'retries'], children: [] },
+  ioMapping: { namespace: ZEEBE_NS, attributes: [], children: ['input', 'output'] },
+  input: { namespace: ZEEBE_NS, attributes: ['source', 'target'], children: [] },
+  output: { namespace: ZEEBE_NS, attributes: ['source', 'target'], children: [] },
+  incoming: { namespace: BPMN_NS, attributes: [], children: [] },
+  outgoing: { namespace: BPMN_NS, attributes: [], children: [] },
 };
 
 const NODE_TYPES: readonly GraphNodeType[] = [
@@ -149,9 +178,12 @@ function checkAgainstRules(element: Element, issues: OutlineIssue[]): void {
   const rule = ELEMENT_RULES[element.localName];
   if (!rule) return;
 
+  // Attribute werden ueber ihren vollstaendigen Namen geprueft. Nur den lokalen
+  // Namen zu vergleichen liesse `camunda:id` als `id` durchgehen — es waere
+  // beim Schreiben weg, und die Rueckuebersetzungsprobe saehe es nie.
   for (const attr of Array.from(element.attributes)) {
     if (attr.name === 'xmlns' || attr.name.startsWith('xmlns:')) continue;
-    if (rule.attributes.includes(attr.localName)) continue;
+    if (rule.attributes.includes(attr.name)) continue;
     issues.push({
       level: 'blocker',
       elementId: attribute(element, 'id'),
@@ -159,17 +191,50 @@ function checkAgainstRules(element: Element, issues: OutlineIssue[]): void {
     });
   }
 
+  const seen = new Map<string, number>();
+
   for (const child of Array.from(element.children)) {
-    if (rule.children.includes(child.localName)) {
-      checkAgainstRules(child, issues);
+    const known = rule.children.includes(child.localName);
+    const childRule = ELEMENT_RULES[child.localName];
+    const rightNamespace = child.localName === 'BPMNDiagram' || child.namespaceURI === childRule?.namespace;
+
+    if (!known || !rightNamespace) {
+      issues.push({
+        level: 'blocker',
+        elementId: attribute(child, 'id') ?? attribute(element, 'id'),
+        message: `<${child.nodeName}> bildet die Gliederung nicht ab — dieser Workflow bleibt dem Diagramm vorbehalten.`,
+      });
       continue;
     }
-    issues.push({
-      level: 'blocker',
-      elementId: attribute(child, 'id') ?? attribute(element, 'id'),
-      message: `<${child.nodeName}> bildet die Gliederung nicht ab — dieser Workflow bleibt dem Diagramm vorbehalten.`,
-    });
+
+    // Der Leser nimmt von jeder Erweiterung nur die erste. Gaebe es eine zweite,
+    // stuende sie auf der Positivliste, kaeme aber nie in den Graphen.
+    const count = (seen.get(child.localName) ?? 0) + 1;
+    seen.set(child.localName, count);
+    if (count === 2 && rule.single?.includes(child.localName)) {
+      issues.push({
+        level: 'blocker',
+        elementId: attribute(element, 'id'),
+        message: `<${child.nodeName}> steht mehrfach an <${element.nodeName}>; die Gliederung kennt nur eines davon.`,
+      });
+    }
+
+    checkAgainstRules(child, issues);
   }
+}
+
+/**
+ * Erklaerende Kommentare im Prozess gehen beim Schreiben verloren — die
+ * Gliederung fuehrt sie nicht mit. Das ist kein Verlust an Ausfuehrungslogik,
+ * aber einer an Wissen, und deshalb wird es angesagt statt verschwiegen.
+ */
+function countComments(element: Element): number {
+  let found = 0;
+  for (const node of Array.from(element.childNodes)) {
+    if (node.nodeType === 8 /* Node.COMMENT_NODE */) found++;
+    else if (node.nodeType === 1) found += countComments(node as Element);
+  }
+  return found;
 }
 
 function readIoMappings(task: Element, kind: 'input' | 'output'): IoMapping[] {
@@ -280,6 +345,15 @@ export function readGraph(xml: string): { graph?: BpmnGraph; issues: OutlineIssu
 
   if (attribute(process, 'isExecutable') !== 'true') {
     issues.push({ level: 'blocker', elementId: processId, message: 'Der Prozess ist nicht ausführbar markiert.' });
+  }
+
+  const comments = countComments(process);
+  if (comments > 0) {
+    issues.push({
+      level: 'hinweis',
+      elementId: processId,
+      message: `Das Modell enthält ${comments} erklärende Kommentare. Beim Speichern aus der Gliederung gehen sie verloren.`,
+    });
   }
 
   const nodes = readNodes(process, issues);

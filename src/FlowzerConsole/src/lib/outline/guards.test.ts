@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { addBranch, canMove, insertAfter, moveBlock, newChoice, newStep, removeBlock, updateStep } from './edit';
+import {
+  addBranch,
+  canMove,
+  insertAfter,
+  moveBlock,
+  newChoice,
+  newEnd,
+  newStep,
+  removeBlock,
+  updateBranch,
+  updateStep,
+} from './edit';
 import { layoutGraph } from './layout';
 import { buildGraph, writeOutlineXml } from './write';
 import { readOutline } from './read';
@@ -132,6 +143,58 @@ describe('Angaben, die sonst verschwinden würden', () => {
   });
 });
 
+// Testzweck: Die Positivliste darf sich nicht auf den lokalen Namen verlassen.
+// Ein fremdes Praefix oder ein zweites Vorkommen desselben Elements kaeme sonst
+// durch und fehlte beim Speichern — genau das, was die Gliederung zusagt zu
+// verhindern.
+describe('Blinde Flecken der Positivliste', () => {
+  it('meldet ein erlaubtes Attribut unter fremdem Präfix', () => {
+    const xml = process(`    <bpmn:userTask id="Task_1" name="Prüfen" camunda:id="anders"
+      xmlns:camunda="http://camunda.org/schema/1.0/bpmn" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
+    expect(messages(xml).join(' ')).toContain('camunda:id');
+  });
+
+  it('meldet ein erlaubtes Element aus einem fremden Namensraum', () => {
+    const xml = process(`    <bpmn:userTask id="Task_1" name="Prüfen">
+      <bpmn:extensionElements xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
+        <camunda:formDefinition formKey="Prüfung" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
+    expect(messages(xml).join(' ')).toContain('camunda:formDefinition');
+  });
+
+  it('meldet ein zweites Vorkommen, von dem der Leser nur das erste sähe', () => {
+    const xml = process(`    <bpmn:userTask id="Task_1" name="Prüfen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="Prüfung" />
+        <zeebe:formDefinition formKey="Zweites" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
+    expect(messages(xml).join(' ')).toContain('steht mehrfach');
+  });
+
+  it('sagt Kommentare an, sperrt aber nicht — sie tragen keine Ausführungslogik', () => {
+    const xml = MIT_FORMULAR.replace('<bpmn:endEvent id="End_1"', '<!-- warum das so ist --><bpmn:endEvent id="End_1"');
+    const { document, issues } = readOutline(xml);
+
+    expect(hasBlocker(issues)).toBe(false);
+    expect(document).toBeDefined();
+    expect(issues.map((issue) => issue.message).join(' ')).toContain('Kommentare');
+  });
+});
+
 // Testzweck: Ein exklusives Tor mit eigener Zusammenfuehrung ist die zweite
 // Grundform neben der Prüfkette und muss unveraendert zurueckgeschrieben werden.
 describe('Verzweigung mit eigener Zusammenführung', () => {
@@ -220,6 +283,32 @@ describe('Bearbeiten', () => {
     expect(hasBlocker(written.issues)).toBe(false);
     // Alle drei leeren Zweige zeigen auf das Ende, das der Verzweigung folgt.
     expect(written.graph!.flows.filter((flow) => flow.source === choice.id && flow.target === 'End_1')).toHaveLength(3);
+  });
+
+  it('sperrt einen Zweig ohne Bedingung und ohne Standardweg', () => {
+    const document = readOutline(MIT_FORMULAR).document!;
+    const choice = newChoice(document);
+    const changed = addBranch(insertAfter(document, 'Task_1', choice), choice.id);
+
+    const { xml, issues } = writeOutlineXml(changed);
+    expect(xml).toBeUndefined();
+    expect(issues.map((issue) => issue.message).join(' ')).toContain('weder eine Bedingung noch');
+
+    const ergaenzt = updateBranch(changed, choice.id, 2, { condition: '=fall = "c"' });
+    expect(writeOutlineXml(ergaenzt).xml).toBeDefined();
+  });
+
+  it('lässt kein Verschieben über das Ende hinaus und ein gelöschtes Ende wieder anlegen', () => {
+    const document = readOutline(MIT_FORMULAR).document!;
+
+    expect(canMove(document, 'End_1', 'up')).toBe(false);
+    expect(canMove(document, 'Task_1', 'down')).toBe(false);
+
+    const ohneEnde = removeBlock(document, 'End_1');
+    expect(writeOutlineXml(ohneEnde).xml).toBeUndefined();
+
+    const wieder = insertAfter(ohneEnde, 'Task_1', newEnd(ohneEnde));
+    expect(writeOutlineXml(wieder).xml).toBeDefined();
   });
 });
 

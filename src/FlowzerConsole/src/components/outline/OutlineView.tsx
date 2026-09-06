@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { Meta, Rail, RowActions } from '@/components/outline/OutlineRow';
 import { toneSurface } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
@@ -123,7 +125,7 @@ function BlockRow({ block, continuation, context }: BlockRowProps) {
   );
 }
 
-function BranchFrame({ children }: { children: React.ReactNode }) {
+function BranchFrame({ children }: { children: ReactNode }) {
   return <div className="border-border-strong mt-1 ml-[5px] border-l-2 border-dashed pl-4">{children}</div>;
 }
 
