@@ -24,7 +24,13 @@ import {
 
 type Filter = InstanceBucket | 'all';
 
-const GRID = 'grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_150px_104px_116px]';
+/**
+ * Die Tabellenspalten gelten erst ab `md`. Auf einem Telefon blieben von fuenf festen
+ * Spalten Streifen von wenigen Zentimetern uebrig — die Ueberschriften ueberlagerten
+ * sich gegenseitig und vom Workflownamen war nichts mehr zu lesen. Dort wird aus der
+ * Zeile eine Karte: Name und Schritt je eine eigene Zeile, der Rest laeuft darunter um.
+ */
+const GRID = 'md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_150px_104px_116px]';
 
 export function InstancesPage() {
   const navigate = useNavigate();
@@ -76,14 +82,14 @@ export function InstancesPage() {
         description={`Laufende und abgeschlossene Prozesse — Ansicht: ${filter === 'all' ? 'Alle' : BUCKET_LABEL[filter]}`}
       />
 
-      <div className="mb-4 flex items-center gap-3.5">
+      <div className="mb-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-3.5">
         <Segmented
           options={filterOptions}
           value={filter}
           onChange={setFilter}
           aria-label="Instanzen filtern"
         />
-        <span className="flex-1" />
+        <span className="hidden flex-1 sm:block" />
         <SearchInput
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -94,7 +100,7 @@ export function InstancesPage() {
 
       <Card>
         <div
-          className={`bg-surface-2 text-muted grid ${GRID} items-center gap-4 px-[18px] py-2.5 font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase`}
+          className={`bg-surface-2 text-muted grid max-md:hidden ${GRID} items-center gap-4 px-[18px] py-2.5 font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase`}
         >
           <div>Workflow</div>
           <div>Aktueller Schritt</div>
@@ -141,14 +147,14 @@ export function InstancesPage() {
               key={instance.instanceId}
               type="button"
               onClick={() => void navigate({ to: `/instances/${instance.instanceId}` })}
-              className={`border-border hover:bg-inset text-text grid w-full ${GRID} cursor-pointer items-center gap-4 border-t border-x-0 border-b-0 bg-transparent px-[18px] py-3.5 text-left`}
+              className={`border-border hover:bg-inset text-text flex w-full flex-wrap items-center gap-x-3 gap-y-2 md:grid ${GRID} cursor-pointer md:items-center md:gap-4 border-t border-x-0 border-b-0 bg-transparent px-[18px] py-3.5 text-left`}
             >
-              <div className="min-w-0">
+              <div className="w-full min-w-0 md:w-auto">
                 <div className="truncate text-[14.5px] font-semibold">{instance.relatedDefinitionName}</div>
                 <div className="text-faint mt-0.5 font-mono text-xs">#{shortId(instance.instanceId)}</div>
               </div>
 
-              <div className="min-w-0">
+              <div className="w-full min-w-0 md:w-auto">
                 <div className="text-muted mb-1.5 truncate text-[13px]">
                   {bucket === 'done' ? 'Abgeschlossen' : stepName}
                 </div>

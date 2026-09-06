@@ -126,9 +126,13 @@ export function WorkflowsPage() {
             : `${definitions.length} Prozessdefinition${definitions.length === 1 ? '' : 'en'} · ${totalActive} laufende Instanz${totalActive === 1 ? '' : 'en'}`
         }
         actions={
+          // Anlegen fuehrt in den Modeler. Der ist auf einem Telefon nicht zu bedienen,
+          // also wird er dort erst gar nicht angeboten — Workflows sind unterwegs zum
+          // Nachschlagen da.
           <Button
             variant="primary"
             icon="add"
+            className="max-md:hidden"
             disabled={!mayPublish}
             title={mayPublish ? undefined : 'Neue Workflows anzulegen ist der Rolle fuer das Modellieren vorbehalten.'}
             onClick={() => setCreating(true)}

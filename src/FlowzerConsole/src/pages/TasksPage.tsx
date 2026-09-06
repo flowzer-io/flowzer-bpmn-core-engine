@@ -1,24 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { TaskStepper } from '@/components/tasks/TaskStepper';
 import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Chip, toneSurface } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner, LoadingRows } from '@/components/ui/States';
-import { useCompleteUserTask, useDefinitionXml, useUserTaskForm, useUserTasks } from '@/lib/api/queries';
+import { useCompleteUserTask, useUserTaskForm, useUserTasks } from '@/lib/api/queries';
 import type { ProcessVariables } from '@/lib/api/types';
-import { parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
+import { useCompactLayout } from '@/lib/useCompactLayout';
 import { formatTimestamp } from '@/lib/format';
 import { PRIORITY_TONE, sortTasks, taskIcon, toTaskView } from '@/lib/taskView';
 
 interface TasksPageProps {
   /** Vorausgewählte Aufgabe (z. B. aus dem Dashboard oder der Befehlspalette). */
   selectedTaskId?: string;
-  onSelectTask?: (taskId: string) => void;
+  /** `null` schliesst die Aufgabe wieder — auf dem Telefon der Weg zurueck zur Liste. */
+  onSelectTask?: (taskId: string | null) => void;
   /** Im Sachbearbeiter-Modus füllt die Seite den kompletten Bildschirm. */
   variant?: 'console' | 'worker';
 }
@@ -46,18 +46,20 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
     );
   }, [tasksQuery.data, deferred]);
 
-  const activeId = selectedTaskId ?? fallbackSelection ?? views[0]?.id;
-  const active = views.find((view) => view.id === activeId) ?? views[0];
+  // Am grossen Schirm ist die erste Aufgabe gleich geoeffnet — die Liste steht ja
+  // daneben. Auf dem Telefon verdeckte dieselbe Vorauswahl die Liste; dort faengt man
+  // bei der Liste an und oeffnet selbst.
+  const compact = useCompactLayout();
+  const activeId = selectedTaskId ?? fallbackSelection ?? (compact ? undefined : views[0]?.id);
+  const active = views.find((view) => view.id === activeId) ?? (compact ? undefined : views[0]);
 
-  const select = (taskId: string) => {
+  const select = (taskId: string | null) => {
     setFormData({});
     if (onSelectTask) onSelectTask(taskId);
     else setFallbackSelection(taskId);
   };
 
   const formQuery = useUserTaskForm(active?.id);
-  const xmlQuery = useDefinitionXml(active?.task.definitionId);
-  const model = useMemo(() => parseBpmn(xmlQuery.data), [xmlQuery.data]);
 
   async function handleComplete() {
     if (!active) return;
@@ -100,10 +102,23 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
 
   return (
     <div className={cn('flex min-h-0 flex-1', variant === 'console' && 'h-full')}>
+      {/*
+        * Auf dem Telefon ist immer nur eine der beiden Spalten zu sehen: erst die Liste,
+        * nach der Auswahl die Aufgabe. Nebeneinander blieben von jeder Spalte ein paar
+        * Zentimeter uebrig, in denen weder die Liste lesbar noch das Formular ausfuellbar
+        * waere. Ab `md` stehen sie wieder nebeneinander.
+        */}
       <div
         className={cn(
           'border-border bg-surface flex min-h-0 flex-none flex-col border-r',
+          // Grundbreite ist die Spaltenbreite; erst auf dem Telefon nimmt die Liste die
+          // ganze Breite. Andersherum (`w-full` plus `md:w-[320px]`) gewinnt in diesem
+          // Tailwind-Aufbau die Grundklasse — die Liste war dann auch am Schreibtisch
+          // bildschirmbreit.
           listWidth,
+          'max-md:w-full',
+          // Auf dem Telefon weicht die Liste der geoeffneten Aufgabe.
+          active && 'max-md:hidden',
         )}
       >
         <div className="flex-none px-[18px] pt-[18px] pb-2.5">
@@ -169,7 +184,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
         </div>
       </div>
 
-      <div className="bg-bg min-w-0 flex-1 overflow-auto">
+      <div className={cn('bg-bg min-w-0 flex-1 overflow-auto', !active && 'max-md:hidden')}>
         {!active ? (
           <div className="grid h-full place-items-center p-10 text-center">
             <div>
@@ -189,7 +204,15 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
             </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-[768px] px-10 pt-8 pb-16">
+          <div className="mx-auto max-w-[768px] px-5 pt-5 pb-16 md:px-10 md:pt-8">
+            <button
+              type="button"
+              onClick={() => select(null)}
+              className="text-muted hover:text-accent -ml-2 mb-3 flex items-center gap-1.5 rounded-[var(--r-sm)] px-2 py-1.5 text-[13.5px] font-semibold md:hidden"
+            >
+              <Icon name="arrow_back" size={19} />
+              Alle Aufgaben
+            </button>
             <div className="flex items-start gap-4">
               <span
                 className="text-accent grid h-[46px] w-[46px] flex-none place-items-center rounded-xl"
@@ -224,14 +247,6 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                 </div>
               </div>
             </div>
-
-            {model.nodes.length > 0 && (
-              <TaskStepper
-                className="mt-5"
-                model={model}
-                currentNodeId={active.task.token.currentFlowNodeId}
-              />
-            )}
 
             <div className="bg-surface border-border shadow-card mt-[22px] overflow-hidden rounded-[var(--r-lg)] border">
               <div className="border-border bg-surface-2 flex items-center gap-2.5 border-b px-6 py-3.5">
