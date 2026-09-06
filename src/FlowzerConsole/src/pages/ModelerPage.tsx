@@ -208,6 +208,15 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
 
         <span className="flex-1" />
 
+        <Button
+          size="sm"
+          icon="format_list_bulleted"
+          title="Denselben Workflow als Gliederung lesen und bearbeiten"
+          onClick={() => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}/gliederung` })}
+        >
+          Gliederung
+        </Button>
+
         {latestQuery.data && (
           <span className="text-faint hidden font-mono text-[11.5px] xl:inline">
             gespeichert {formatRelative(latestQuery.data.savedOn)}

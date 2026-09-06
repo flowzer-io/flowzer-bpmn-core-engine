@@ -104,6 +104,24 @@ die Design-Tokens der Konsole angeglichen, und beides ist leicht zu übersehen:
   Komponente für sich, entschied die Ladereihenfolge der Module, welches zuletzt steht —
   und der Editor zog sein Blatt erst beim Öffnen nach, also nach unseren Anpassungen.
 
+## Gliederung neben dem Diagramm
+
+Ein Workflow lässt sich auf zwei Wegen bearbeiten:
+
+- `/workflows/<id>` — das Diagramm (bpmn-js). Kann alles, was BPMN kann.
+- `/workflows/<id>/gliederung` — die **Gliederung**: der Ablauf als senkrechte Liste,
+  parallele Blöcke und Zweige eingerückt, Formular, Zuständigkeit und Frist direkt am
+  Schritt. Für Fachleute, die einen Workflow lesen und nachjustieren, statt ihn zu zeichnen.
+
+Die Gliederung deckt bewusst nur einen Ausschnitt von BPMN ab. Sie speichert nur, was sie
+vollständig abbildet; alles andere meldet sie und verweist aufs Diagramm. Welcher Ausschnitt
+das ist und wie das abgesichert wird, steht in
+[docs/GLIEDERUNG-TEILMENGE.md](../../docs/GLIEDERUNG-TEILMENGE.md). Der Code liegt in
+`src/lib/outline/` (Lesen, Schreiben, Anordnung, Bearbeiten) und
+`src/components/outline/` (Darstellung).
+
+Status: **Prototyp** zum Ausprobieren, keine fertige Funktion.
+
 ## Volle Höhe
 
 Seiten, die den Rest des Fensters füllen (Modellierer, Instanzansicht), hängen sich als
