@@ -41,6 +41,14 @@
   --fail: #df516a;
   --wait: #cf8a1f;
 
+  /*
+   * Umriss der BPMN-Formen. bpmn-js zeichnet sie im Original schwarz, und dabei bleibt
+   * es im hellen Thema: Ein Diagramm lebt von seinen Kanten, ein zurueckgenommenes Grau
+   * laesst die Formen im Hintergrund verschwinden. Im dunklen Thema waere Schwarz auf
+   * dunklem Grund unsichtbar — dort ein helles Grau mit demselben Kontrastgefuehl.
+   */
+  --bpmn-stroke: #000000;
+
   --r-sm: 9px;
   --r: 12px;
   --r-lg: 16px;
@@ -74,6 +82,8 @@
   --done: #33b56c;
   --fail: #f0687c;
   --wait: #e5a53c;
+
+  --bpmn-stroke: #c9c7d2;
 
   color-scheme: dark;
 }
