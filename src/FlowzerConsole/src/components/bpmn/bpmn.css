@@ -17,18 +17,19 @@
 /* --- Grundfarben: Formen, Kanten, Beschriftungen --------------------------- */
 
 .bpmn-surface .djs-visual > :where(rect, circle, polygon, path, polyline) {
-  stroke: var(--border-strong) !important;
+  stroke: var(--bpmn-stroke) !important;
 }
 
 .bpmn-surface .djs-visual > :where(rect, circle, polygon) {
   fill: var(--surface) !important;
 }
 
-/* Pfeilspitzen und ausgefüllte Ereignis-Symbole. */
+/* Pfeilspitzen und ausgefüllte Ereignis-Symbole gehören zur Kontur und tragen deshalb
+ * dieselbe Farbe wie die Umrisse. */
 .bpmn-surface .djs-visual > path[fill='black'],
 .bpmn-surface marker path {
-  fill: var(--border-strong) !important;
-  stroke: var(--border-strong) !important;
+  fill: var(--bpmn-stroke) !important;
+  stroke: var(--bpmn-stroke) !important;
 }
 
 .bpmn-surface .djs-visual text,
