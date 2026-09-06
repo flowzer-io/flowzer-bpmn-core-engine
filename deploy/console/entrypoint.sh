@@ -16,6 +16,9 @@ OIDC_CLIENT_ID="${FLOWZER_OIDC_CLIENT_ID:-}"
 # Rollen fremder Clients mitgelesen.
 OIDC_AUDIENCE="${FLOWZER_OIDC_AUDIENCE:-}"
 OIDC_SCOPES="${FLOWZER_OIDC_SCOPES:-}"
+# Akzentfarbe der Oberflaeche, damit sie zum Erscheinungsbild des Unternehmens passt.
+# Erlaubt: iris, teal, emerald, amber, rose. Ein unbekannter Wert faellt auf iris zurueck.
+ACCENT="${FLOWZER_ACCENT:-iris}"
 # Namen der Rollen, wie der Betrieb sie vergeben hat. Die API wertet sie ebenfalls
 # konfigurierbar aus; beide Seiten muessen dieselben Namen kennen.
 ROLE_ACCESS="${FLOWZER_ROLE_ACCESS:-access}"
@@ -38,6 +41,7 @@ done
 cat > "$TARGET" <<EOF
 {
   "apiBaseUrl": "$(json_escape "$API_BASE_URL")",
+  "accent": "$(json_escape "$ACCENT")",
   "oidcAuthority": "$(json_escape "$OIDC_AUTHORITY")",
   "oidcClientId": "$(json_escape "$OIDC_CLIENT_ID")",
   "oidcAudience": "$(json_escape "$OIDC_AUDIENCE")",

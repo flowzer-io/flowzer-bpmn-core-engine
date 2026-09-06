@@ -3,26 +3,13 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { cn, mix } from '@/lib/cn';
-import { ACCENTS, useAppearance, type Accent, type Density } from '@/stores/appearance';
+import { useAppearance } from '@/stores/appearance';
 import { useSession } from '@/stores/session';
 
 interface UserMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const ACCENT_LABELS: Record<Accent, string> = {
-  iris: 'Iris',
-  teal: 'Petrol',
-  emerald: 'Smaragd',
-  amber: 'Bernstein',
-  rose: 'Rosé',
-};
-
-const DENSITIES: { value: Density; label: string }[] = [
-  { value: 'comfortable', label: 'Komfortabel' },
-  { value: 'compact', label: 'Kompakt' },
-];
 
 const ROLE_LABELS: Record<string, string> = {
   access: 'Zugang',
@@ -32,15 +19,18 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 /**
- * Benutzer- und Darstellungsmenü. Zeigt die angemeldete Person mit den Rollen aus
- * ihrem Token; sie bestimmen, was die Konsole anbietet und was die API zulässt.
+ * Benutzermenü: die angemeldete Person mit den Rollen aus ihrem Token, die Wahl
+ * zwischen heller und dunkler Ansicht, und das Abmelden.
+ *
+ * Bewusst nicht mehr: Akzentfarbe, Dichte und Umfang der Ansicht. Die Akzentfarbe
+ * gehört zum Erscheinungsbild des Unternehmens und wird bei der Bereitstellung gesetzt
+ * (`FLOWZER_ACCENT`), nicht je Browser. Dichte und Umfang waren Schalter aus dem
+ * Entwurf, für die es im Betrieb keinen Anlass gibt.
  */
 export function UserMenu({ open, onOpenChange }: UserMenuProps) {
   const user = useSession((state) => state.user);
   const signOut = useSession((state) => state.signOut);
-  const { accent, setAccent, density, setDensity, theme, setTheme } = useAppearance();
-  const taskFocus = useAppearance((state) => state.taskFocus);
-  const setTaskFocus = useAppearance((state) => state.setTaskFocus);
+  const { theme, setTheme } = useAppearance();
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -73,76 +63,7 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
             {(user?.roles.size ?? 0) === 0 && <Chip tone="wait">Keine Rolle zugewiesen</Chip>}
           </div>
 
-          <div className="border-border space-y-3.5 border-t px-4 py-3.5">
-            <div>
-              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Akzent</div>
-              <div className="flex gap-2">
-                {ACCENTS.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    title={ACCENT_LABELS[option]}
-                    aria-label={`Akzentfarbe ${ACCENT_LABELS[option]}`}
-                    aria-pressed={accent === option}
-                    onClick={() => setAccent(option)}
-                    data-accent={option}
-                    className={cn(
-                      'h-6 w-6 cursor-pointer rounded-full border-2 transition-transform',
-                      accent === option ? 'border-text scale-110' : 'border-transparent',
-                    )}
-                    style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-2))' }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Dichte</div>
-              <div className="flex gap-2">
-                {DENSITIES.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setDensity(option.value)}
-                    className={cn(
-                      'flex-1 cursor-pointer rounded-[var(--r-sm)] border px-2 py-1.5 text-[12.5px] font-semibold',
-                      density === option.value
-                        ? 'border-accent text-accent'
-                        : 'border-border text-muted hover:border-border-strong',
-                    )}
-                    style={density === option.value ? { background: mix('--accent', 10) } : undefined}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Umfang</div>
-              <div className="flex gap-2">
-                {[
-                  { value: false, label: 'Volle Konsole' },
-                  { value: true, label: 'Nur Aufgaben' },
-                ].map((option) => (
-                  <button
-                    key={String(option.value)}
-                    type="button"
-                    onClick={() => setTaskFocus(option.value)}
-                    className={cn(
-                      'flex-1 cursor-pointer rounded-[var(--r-sm)] border px-2 py-1.5 text-[12.5px] font-semibold',
-                      taskFocus === option.value
-                        ? 'border-accent text-accent'
-                        : 'border-border text-muted hover:border-border-strong',
-                    )}
-                    style={taskFocus === option.value ? { background: mix('--accent', 10) } : undefined}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+          <div className="border-border border-t px-4 py-3.5">
             <div>
               <div className="text-faint mb-2 font-mono text-[10.5px] tracking-[0.1em] uppercase">Darstellung</div>
               <div className="flex gap-2">

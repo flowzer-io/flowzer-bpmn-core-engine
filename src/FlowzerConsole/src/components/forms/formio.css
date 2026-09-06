@@ -613,3 +613,105 @@
 .formio-dialog .ace_editor .ace_comment {
   color: var(--faint);
 }
+
+/* ------------------------------------------------------------ Auswahl-Widgets */
+
+/*
+ * Form.io bringt fuer Mehrfachauswahl und Schlagworte Choices.js mit. Dessen Stilblatt
+ * ist fest hell (`#f9f9f9`); im dunklen Thema stand die Eingabeflaeche als weisser Block
+ * im Dialog. Die eigenen Regeln von Choices sind teils zweistufig, deshalb hier ebenfalls.
+ */
+.formio-surface .choices__inner,
+.formio-dialog .choices__inner {
+  background: var(--inset);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+  font-size: 13.5px;
+  min-height: 40px;
+  padding: 5px 7px 2px;
+}
+
+.formio-surface .choices.is-focused .choices__inner,
+.formio-dialog .choices.is-focused .choices__inner,
+.formio-surface .choices.is-open .choices__inner,
+.formio-dialog .choices.is-open .choices__inner {
+  border-color: var(--accent);
+}
+
+.formio-surface .choices__list--dropdown,
+.formio-dialog .choices__list--dropdown,
+.formio-surface .choices__list[aria-expanded],
+.formio-dialog .choices__list[aria-expanded] {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text);
+}
+
+.formio-surface .choices__list--dropdown .choices__item--selectable.is-highlighted,
+.formio-dialog .choices__list--dropdown .choices__item--selectable.is-highlighted,
+.formio-surface .choices__list[aria-expanded] .choices__item--selectable.is-highlighted,
+.formio-dialog .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+  background: var(--surface-2);
+}
+
+/* Die einzelnen gewaehlten Werte in der Mehrfachauswahl. */
+.formio-surface .choices__list--multiple .choices__item,
+.formio-dialog .choices__list--multiple .choices__item {
+  background: var(--accent);
+  border-color: transparent;
+  border-radius: 6px;
+  color: var(--accent-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.formio-surface .choices__input,
+.formio-dialog .choices__input {
+  background: transparent;
+  color: var(--text);
+}
+
+/*
+ * Die naechsten drei Regeln bauen absichtlich die Vendor-Selektoren nach. Choices.js ist
+ * dort dreistufig (`.choices[data-type*=select-one] .choices__input`); eine zweistufige
+ * Regel verlaere den Wettstreit, und das Suchfeld der Einfachauswahl bliebe weiss.
+ */
+.formio-surface .choices[data-type*='select-one'] .choices__input,
+.formio-dialog .choices[data-type*='select-one'] .choices__input {
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.formio-surface .choices.is-disabled .choices__inner,
+.formio-dialog .choices.is-disabled .choices__inner,
+.formio-surface .choices.is-disabled .choices__input,
+.formio-dialog .choices.is-disabled .choices__input {
+  background-color: var(--surface-2);
+  color: var(--faint);
+}
+
+/* Das Dreieck der Einfachauswahl ist eine Rahmenfarbe, kein Zeichen. */
+.formio-surface .choices[data-type*='select-one']::after,
+.formio-dialog .choices[data-type*='select-one']::after {
+  border-color: var(--muted) transparent transparent transparent;
+}
+
+.formio-surface .choices[data-type*='select-one'].is-open::after,
+.formio-dialog .choices[data-type*='select-one'].is-open::after {
+  border-color: transparent transparent var(--muted) transparent;
+}
+
+.formio-surface .choices__placeholder,
+.formio-dialog .choices__placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.formio-surface .choices__heading,
+.formio-dialog .choices__heading {
+  border-bottom-color: var(--border);
+  color: var(--muted);
+}

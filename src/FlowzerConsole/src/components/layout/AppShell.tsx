@@ -1,7 +1,6 @@
 import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
-import { useAppearance } from '@/stores/appearance';
 import { seesFullConsole, useSession } from '@/stores/session';
 
 import { AccessDeniedNotice } from './AccessDeniedNotice';
@@ -26,10 +25,9 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  const taskFocus = useAppearance((state) => state.taskFocus);
-  // Die reduzierte Ansicht ist eine Wahl. Wer keinen Zugang hat, bekommt sie ebenfalls:
-  // Die vollständige Konsole zeigte dann nur eine Reihe abgelehnter Aufrufe.
-  const fullConsole = seesFullConsole(user) && !taskFocus;
+  // Wer keinen Zugang hat, bekommt die reduzierte Ansicht: Die vollständige Konsole
+  // zeigte dann nur eine Reihe abgelehnter Aufrufe.
+  const fullConsole = seesFullConsole(user);
 
   useEffect(() => {
     if (!fullConsole) return;
