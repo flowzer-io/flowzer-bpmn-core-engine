@@ -20,10 +20,8 @@ interface OutlineViewProps {
   onChange: (next: OutlineDocument) => void;
 }
 
-/** Alles, was die verschachtelten Zeilen brauchen — als ein Prop statt sechs. */
-interface RenderContext extends Omit<OutlineViewProps, 'document'> {
-  document: OutlineDocument;
-}
+/** Alles, was die verschachtelten Zeilen brauchen — als ein Prop statt fünf. */
+type RenderContext = OutlineViewProps;
 
 /**
  * Der Workflow als senkrechte Gliederung: Schritte untereinander, parallele
@@ -93,24 +91,28 @@ function BlockRow({ block, continuation, context }: BlockRowProps) {
     <div className="grid grid-cols-[26px_1fr] items-start gap-3">
       <Rail block={block} />
       <div className="min-w-0 pb-4">
-        <button
-          type="button"
-          onClick={() => context.onSelect(block.id)}
+        {/* Auswahl und Zeilenaktionen stehen nebeneinander, nicht ineinander:
+            Schaltflaechen in einer Schaltflaeche sind ungueltiges HTML und fuer
+            Vorleseprogramme nicht bedienbar. */}
+        <div
           className={cn(
-            'w-full cursor-pointer rounded-[var(--r-sm)] border px-3 py-2 text-left transition-colors',
-            selected ? 'border-accent bg-surface' : 'border-transparent hover:bg-surface-2',
+            'flex items-start gap-2 rounded-[var(--r-sm)] border px-3 py-2 transition-colors',
+            selected ? 'border-accent bg-surface' : 'hover:bg-surface-2 border-transparent',
           )}
         >
-          <div className="flex items-start gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[14.5px] font-semibold">{blockLabel(block)}</div>
-              <Meta block={block} />
-            </div>
-            {context.editable && (
-              <RowActions block={block} document={context.document} onChange={context.onChange} />
-            )}
-          </div>
-        </button>
+          <button
+            type="button"
+            aria-pressed={selected}
+            onClick={() => context.onSelect(block.id)}
+            className="min-w-0 flex-1 cursor-pointer border-none bg-transparent p-0 text-left"
+          >
+            <div className="truncate text-[14.5px] font-semibold">{blockLabel(block)}</div>
+            <Meta block={block} />
+          </button>
+          {context.editable && (
+            <RowActions block={block} document={context.document} onChange={context.onChange} />
+          )}
+        </div>
 
         {block.kind === 'parallel' && <ParallelBranches block={block} context={context} />}
         {block.kind === 'choice' && (

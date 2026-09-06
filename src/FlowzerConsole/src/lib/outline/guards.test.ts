@@ -19,6 +19,13 @@ ${body}
 </bpmn:definitions>`;
 }
 
+const MIT_FORMULAR = process(`    <bpmn:userTask id="Task_1" name="Prüfen">
+      <bpmn:extensionElements><zeebe:formDefinition formKey="Prüfung" /></bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_1" name="Fertig" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
 const LINEAR = process(`    <bpmn:userTask id="Task_1" name="Prüfen" />
     <bpmn:endEvent id="End_1" name="Fertig" />
     <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
@@ -100,6 +107,31 @@ describe('Nicht abbildbare Konstrukte', () => {
   });
 });
 
+// Testzweck: Zwei Angaben, die sonst still verloren gingen — die Kennung des
+// schreibenden Werkzeugs und eine Beschriftung an einem Fluss ausserhalb einer
+// Verzweigung.
+describe('Angaben, die sonst verschwinden würden', () => {
+  it('reicht exporter und exporterVersion unverändert weiter', () => {
+    const xml = MIT_FORMULAR.replace(
+      'id="Definitions_1"',
+      'id="Definitions_1" exporter="Camunda Modeler" exporterVersion="5.31.0"',
+    );
+    const { document, issues } = readOutline(xml);
+
+    expect(hasBlocker(issues)).toBe(false);
+    expect(writeOutlineXml(document!).xml).toContain('exporter="Camunda Modeler"');
+  });
+
+  it('meldet eine Beschriftung an einem Fluss, der kein Zweig ist', () => {
+    const xml = MIT_FORMULAR.replace(
+      '<bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />',
+      '<bpmn:sequenceFlow id="Flow_2" name="fertig" sourceRef="Task_1" targetRef="End_1" />',
+    );
+
+    expect(messages(xml).join(' ')).toContain('Beschriftung oder Bedingung');
+  });
+});
+
 // Testzweck: Ein exklusives Tor mit eigener Zusammenfuehrung ist die zweite
 // Grundform neben der Prüfkette und muss unveraendert zurueckgeschrieben werden.
 describe('Verzweigung mit eigener Zusammenführung', () => {
@@ -158,6 +190,20 @@ describe('Bearbeiten', () => {
     const removed = removeBlock(moved, 'Task_1');
     expect(removed.blocks.map((block) => block.id)).toEqual([second, 'End_1']);
     expect(hasBlocker(buildGraph(removed).issues)).toBe(false);
+  });
+
+  it('erzeugt aus einer bearbeiteten Gliederung wieder ein lesbares Modell', () => {
+    const document = readOutline(MIT_FORMULAR).document!;
+    const step = { ...newStep(document, 'user'), formKey: 'Freigabe' };
+    const choice = newChoice(document);
+    const changed = insertAfter(insertAfter(document, 'Task_1', step), step.id, choice);
+
+    const { xml, issues } = writeOutlineXml(changed);
+    expect(hasBlocker(issues)).toBe(false);
+
+    const again = readOutline(xml!);
+    expect(hasBlocker(again.issues)).toBe(false);
+    expect(again.document!.blocks.map((block) => block.id)).toEqual(['Task_1', step.id, choice.id, 'End_1']);
   });
 
   it('ändert die Angaben eines Schritts', () => {

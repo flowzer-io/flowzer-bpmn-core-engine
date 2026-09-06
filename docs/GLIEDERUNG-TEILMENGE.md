@@ -43,10 +43,10 @@ Gliederung nur lesend und bietet weder Speichern noch Deployen an. Der Weg
 
 | Konstrukt | Bedingung |
 |---|---|
-| `bpmn:definitions` | genau ein `bpmn:process` mit `isExecutable="true"` |
+| `bpmn:definitions` | genau ein `bpmn:process` mit `isExecutable="true"`; `exporter` und `exporterVersion` bleiben unverändert stehen |
 | `bpmn:startEvent` | genau eines, ohne Ereignisdefinition |
 | `bpmn:endEvent` | beliebig viele, ohne Ereignisdefinition |
-| `bpmn:sequenceFlow` | mit `name` und `conditionExpression` |
+| `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
 | `bpmndi:BPMNDiagram` | wird gelesen, aber nicht ausgewertet (siehe „Anordnung") |
 
 ### Schritte
@@ -147,6 +147,10 @@ Die Gliederung kennt keine Koordinaten. Beim Schreiben gilt:
   erhalten, aber im Prototyp nicht bearbeitet.
 - Die Gliederung bearbeitet immer die neueste gespeicherte Version, genau wie
   der Modeler.
+- Unter 1024 Pixel Breite blendet die Seite die Bearbeitungsspalte aus: Der
+  Ablauf lässt sich dort lesen, die Angaben eines Schritts aber nicht ändern.
+  Lesen auf dem Telefon, Ändern am Schreibtisch — die mobile Bearbeitung ist
+  ein eigener Schritt.
 
 ## Wo der Code steht
 

@@ -161,14 +161,16 @@ function emitBlock(builder: Builder, block: OutlineBlock, next: string | undefin
 
 /** Erzeugt Knoten und Fluesse aus der Gliederung. */
 export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issues: OutlineIssue[] } {
-  const builder: Builder = {
-    document,
-    nodes: [],
-    flows: [],
-    issues: [],
-    usedIds: new Set<string>(),
-    counter: 0,
-  };
+  // Die Knotenkennungen stehen von Anfang an in `usedIds`: Sonst koennte eine
+  // erzeugte Flusskennung auf den Namen eines Knotens fallen.
+  const usedIds = new Set<string>([document.startId]);
+  for (const block of allBlocks(document.blocks)) {
+    usedIds.add(block.id);
+    if (block.kind === 'parallel') usedIds.add(block.joinId);
+    if (block.kind === 'choice' && block.joinId) usedIds.add(block.joinId);
+  }
+
+  const builder: Builder = { document, nodes: [], flows: [], issues: [], usedIds, counter: 0 };
 
   const entry = emitSequence(builder, document.blocks, undefined);
   builder.nodes.push({ id: document.startId, type: 'startEvent', name: document.startName?.trim() || undefined });
@@ -186,6 +188,8 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
     graph: {
       definitionsId: document.definitionsId,
       targetNamespace: document.targetNamespace,
+      exporter: document.exporter,
+      exporterVersion: document.exporterVersion,
       processId: document.processId,
       processName: document.processName,
       nodes: builder.nodes,
@@ -360,7 +364,12 @@ export function writeOutlineXml(document: OutlineDocument): { xml?: string; issu
     '                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"',
     '                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"',
     '                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"',
-    `                 ${attributes({ id: graph.definitionsId, targetNamespace: graph.targetNamespace ?? 'http://bpmn.io/schema/bpmn' })}>`,
+    `                 ${attributes({
+      id: graph.definitionsId,
+      targetNamespace: graph.targetNamespace ?? 'http://bpmn.io/schema/bpmn',
+      exporter: graph.exporter,
+      exporterVersion: graph.exporterVersion,
+    })}>`,
     `  <bpmn:process${attributes({ id: graph.processId, name: graph.processName })} isExecutable="true">`,
     ...nodes.map((node) => nodeXml(node, graph)),
     ...graph.flows.map(flowXml),

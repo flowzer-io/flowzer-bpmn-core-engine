@@ -60,6 +60,15 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
 
   // Sobald eine Gliederung vorliegt, zaehlen die Meldungen des Schreibwegs: Sie
   // beschreiben genau das, was beim Speichern herauskaeme.
+  // Wie im Modeller: ungespeicherte Aenderungen sollen beim Verlassen des Tabs
+  // nicht still verloren gehen.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
   const written = useMemo(() => (draft ? writeOutlineXml(draft) : undefined), [draft]);
   const issues = draft ? (written?.issues ?? []) : source.issues;
   const canSave = mayPublish && Boolean(written?.xml) && !hasBlocker(issues);
