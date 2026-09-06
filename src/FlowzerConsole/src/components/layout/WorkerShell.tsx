@@ -4,7 +4,7 @@ import { TasksPage } from '@/pages/TasksPage';
 import { Icon } from '@/components/ui/Icon';
 import { useUserTasks } from '@/lib/api/queries';
 import { useAppearance, useResolvedTheme } from '@/stores/appearance';
-import { seesFullConsole, useSession } from '@/stores/session';
+import { useSession } from '@/stores/session';
 
 import { LogoMark, LogoWordmark } from './Logo';
 
@@ -14,18 +14,16 @@ interface WorkerShellProps {
 }
 
 /**
- * Reduzierte Oberfläche für Sachbearbeitende: nur die eigene Aufgabenliste,
- * keine Navigation, keine Betriebsdaten.
+ * Reduzierte Oberfläche für alle ohne Zugangsrolle: nur die eigene Aufgabenliste,
+ * keine Navigation, keine Betriebsdaten. Sie ist keine Wahl mehr, sondern die Folge
+ * fehlender Berechtigung — die vollständige Konsole zeigte sonst nur eine Reihe
+ * abgelehnter Aufrufe.
  */
 export function WorkerShell({ onOpenUserMenu, children }: WorkerShellProps) {
   const user = useSession((state) => state.user);
   const toggleTheme = useAppearance((state) => state.toggleTheme);
   const theme = useResolvedTheme();
   const tasksQuery = useUserTasks();
-  const taskFocus = useAppearance((state) => state.taskFocus);
-  const setTaskFocus = useAppearance((state) => state.setTaskFocus);
-  // Wer die reduzierte Ansicht selbst gewaehlt hat, soll ohne Umweg zurueckkommen.
-  const mayLeaveFocus = taskFocus && seesFullConsole(user);
 
   const openCount = tasksQuery.data?.length ?? 0;
 
@@ -67,17 +65,6 @@ export function WorkerShell({ onOpenUserMenu, children }: WorkerShellProps) {
           <Icon name="unfold_more" size={18} className="text-muted" />
         </button>
 
-        {mayLeaveFocus && (
-          <button
-            type="button"
-            title="Zur vollständigen Konsole"
-            onClick={() => setTaskFocus(false)}
-            className="bg-surface-2 border-border hover:border-border-strong text-muted hover:text-text ml-2 flex cursor-pointer items-center gap-1.5 rounded-[var(--r-sm)] border px-2 py-1.5 text-[12.5px] font-semibold"
-          >
-            <Icon name="space_dashboard" size={17} />
-            Konsole
-          </button>
-        )}
       </header>
 
       <div className="flex min-h-0 flex-1">

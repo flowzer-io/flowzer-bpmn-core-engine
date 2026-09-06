@@ -68,6 +68,9 @@ services:
     environment:
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
+      # Akzentfarbe fuer das Erscheinungsbild des Unternehmens: iris, teal, emerald,
+      # amber oder rose. Gilt fuer alle; es gibt keine persoenliche Einstellung dafuer.
+      FLOWZER_ACCENT: "${FLOWZER_ACCENT:-iris}"
       FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
       FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_CONSOLE_OIDC_CLIENT_ID:-${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}}"
       # Unter dieser Audience stehen die Clientrollen im Token; sie entspricht der

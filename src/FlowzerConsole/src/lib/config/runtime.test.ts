@@ -42,6 +42,36 @@ describe('loadRuntimeConfig', () => {
   });
 });
 
+describe('Akzentfarbe', () => {
+  // Testzweck: Die Akzentfarbe kommt aus der Bereitstellung, damit alle dieselbe sehen.
+  it('uebernimmt eine bekannte Farbe aus der Konfiguration', async () => {
+    withConfig({ apiBaseUrl: '/', oidcAuthority: '', oidcClientId: '', accent: 'emerald' });
+
+    const config = await loadRuntimeConfig();
+
+    expect(config.accent).toBe('emerald');
+  });
+
+  // Testzweck: Ein Tippfehler in der Farbe darf die Oberflaeche nicht am Starten hindern —
+  // anders als bei der Anmeldung ist hier nichts unsicher, nur unschoen.
+  it('faellt bei unbekannter Farbe still auf iris zurueck', async () => {
+    withConfig({ apiBaseUrl: '/', oidcAuthority: '', oidcClientId: '', accent: 'knallpink' });
+
+    const config = await loadRuntimeConfig();
+
+    expect(config.accent).toBe('iris');
+  });
+
+  // Testzweck: Ohne Angabe bleibt es beim Standard; die Konfiguration muss nicht vollstaendig sein.
+  it('nimmt iris, wenn nichts gesetzt ist', async () => {
+    withConfig({ apiBaseUrl: '/', oidcAuthority: '', oidcClientId: '' });
+
+    const config = await loadRuntimeConfig();
+
+    expect(config.accent).toBe('iris');
+  });
+});
+
 describe('Herkunft der API-Adresse', () => {
   // Testzweck: //fremde.example beginnt mit einem Schraegstrich, ist aber protokollrelativ
   // und landet bei einem fremden Origin. Das Zugangstoken ginge dorthin.

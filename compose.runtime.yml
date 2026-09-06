@@ -27,6 +27,7 @@ services:
     environment:
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
+      FLOWZER_ACCENT: ${FLOWZER_ACCENT:-iris}
       # Diese Werte sind Pflicht: Das ausgelieferte Buendel ist ein Produktionsbuendel und
       # zeigt ohne Identity Provider nur die Anmeldeseite. Der technische Benutzer greift
       # ausschliesslich im Entwicklungsserver (npm run dev), nicht hier.

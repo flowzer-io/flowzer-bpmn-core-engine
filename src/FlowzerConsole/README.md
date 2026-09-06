@@ -47,7 +47,7 @@ Die vollständige Konsole steht jedem Zugelassenen offen: Definitionen, Instanze
 | Speichern und Deployen im Modellierer, neue Workflows und Formulare anlegen | `modeler` |
 | Der Bereich Betrieb mit Diagnose und Timern | `operator` |
 
-Die reduzierte Aufgabenansicht bleibt erhalten, aber als eigene Wahl im Benutzermenü unter „Umfang“. Sie ist keine Folge fehlender Rollen mehr; das war strenger als die API und verbarg Ansichten, die dem Zugang offenstanden.
+Wer die Zugangsrolle nicht hat, bekommt die reduzierte Aufgabenansicht — die vollständige Konsole zeigte dann nur eine Reihe abgelehnter Aufrufe.
 
 Die Anzeige richtet sich nach den Rollen, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
 
@@ -63,27 +63,46 @@ Ein gebautes Bündel ist unveränderlich; die Adressen dürfen deshalb nicht bei
 | `FLOWZER_OIDC_CLIENT_ID` | Client-Id der Konsole |
 | `FLOWZER_OIDC_AUDIENCE` | Audience der API im Token; unter ihr stehen die Clientrollen |
 | `FLOWZER_OIDC_SCOPES` | zusätzliche Scopes über `openid profile email` hinaus |
+| `FLOWZER_ACCENT` | Akzentfarbe: `iris`, `teal`, `emerald`, `amber` oder `rose` |
 
 Heißen die Rollen im Identity Provider anders als `access`, `modeler`, `operator` und `worker`, gehören die abweichenden Namen unter `roleNames` in die `config.json`. Die API wertet sie ebenfalls konfigurierbar aus; beide Seiten müssen dieselben Namen kennen.
 
 Im Entwicklungsbetrieb ohne `config.json` greifen die `VITE_`-Werte aus `.env`.
+
+## Darstellung
+
+Im Benutzermenü steht genau eine Einstellung: hell, dunkel oder wie das Betriebssystem.
+Das ist eine Frage des Arbeitsplatzes und der Tageszeit.
+
+Die **Akzentfarbe** steht bewusst nicht dort. Sie gehört zum Erscheinungsbild des
+Unternehmens, gilt deshalb für alle gleich und wird bei der Bereitstellung über
+`FLOWZER_ACCENT` gesetzt. Ein unbekannter Wert fällt still auf `iris` zurück: Ein
+Tippfehler in der Farbe darf die Oberfläche nicht am Starten hindern.
+
+Dichte und Umfang der Ansicht waren Schalter aus dem Entwurf und sind entfallen.
 
 ## Fremde Oberflächen im Bündel
 
 Zwei Bibliotheken bringen eine eigene, fest verdrahtete Optik mit. Beide sind deshalb an
 die Design-Tokens der Konsole angeglichen, und beides ist leicht zu übersehen:
 
-- **bpmn-js und das Eigenschaftenpanel** (`src/components/bpmn/bpmn.css`). Das Panel
-  deklariert seine Farben auf `.bio-properties-panel` selbst; Überschreibungen müssen
-  deshalb auf demselben Element stehen, nicht auf dem Rahmen darum. Die Regeln für
-  Palette und Kontextmenü kommen bewusst ohne `:where()` aus, weil die eigenen Regeln von
-  diagram-js zweistufig sind.
+- **bpmn-js und das Eigenschaftenpanel** (`src/components/bpmn/bpmn.css`). Beide
+  Bibliotheken sind über Custom Properties thembar, deklarieren sie aber auf
+  `.djs-parent`, `.bjs-container` beziehungsweise `.bio-properties-panel` **selbst** —
+  Überschreibungen müssen deshalb auf denselben Elementen stehen, nicht auf dem Rahmen
+  darum. Zwei Graustufen dienen dort als Fläche und nicht als Text; sie sind einzeln
+  herausgezogen, sonst stünde heller Text auf hellgrauem Grund.
 - **Form.io** (`src/components/forms/formio.css`). Form.io setzt Bootstrap-5-Vorlagen und
   Bootstrap-Symbole voraus. Bootstrap global einzubinden würde Tailwind überschreiben,
   deshalb sind nur die tatsächlich verwendeten Bausteine nachgezogen — begrenzt auf
   `.formio-surface` **und** `.formio-dialog`. Der Eigenschaftendialog des Editors hängt am
   `<body>`, also außerhalb jeder Seitenfläche; Regeln nur unter `.formio-surface`
-  erreichen ihn nicht.
+  erreichen ihn nicht. Beim Auswahl-Widget (Choices.js) sind einige Vendor-Selektoren
+  dreistufig; die Überschreibungen bauen sie nach, sonst verlieren sie.
+
+  Alle Blätter kommen aus `formioStyles.ts` in fester Reihenfolge. Importierte jede
+  Komponente für sich, entschied die Ladereihenfolge der Module, welches zuletzt steht —
+  und der Editor zog sein Blatt erst beim Öffnen nach, also nach unseren Anpassungen.
 
 ## Volle Höhe
 

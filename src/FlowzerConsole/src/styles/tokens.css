@@ -2,9 +2,12 @@
  * Design-Tokens der Flowzer Console.
  *
  * Übernommen aus dem Design "Flowzer Console". Die Tokens bleiben bewusst als
- * CSS-Custom-Properties erhalten, damit Theme, Akzentfarbe, Dichte und
- * Sidebar-Modus zur Laufzeit über data-Attribute am <html>-Element umgeschaltet
- * werden können — ohne Re-Render und ohne Klassen-Neuberechnung.
+ * CSS-Custom-Properties erhalten, damit Theme, Akzentfarbe und Sidebar-Modus zur
+ * Laufzeit über data-Attribute am <html>-Element umgeschaltet werden können — ohne
+ * Re-Render und ohne Klassen-Neuberechnung.
+ *
+ * Die Akzentfarbe ist dabei keine persönliche Einstellung: Sie kommt aus der
+ * Laufzeitkonfiguration und gilt für alle gleich.
  */
 
 :root {
@@ -99,12 +102,6 @@
   --accent: #e1436a;
   --accent-ink: #fff;
   --accent-2: #f07f98;
-}
-
-[data-density='compact'] {
-  --pad: 14px;
-  --row-h: 46px;
-  --gap: 10px;
 }
 
 [data-sidebar='rail'] {
