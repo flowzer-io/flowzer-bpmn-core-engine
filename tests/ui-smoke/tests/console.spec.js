@@ -145,8 +145,6 @@ test.describe('Konsole', () => {
     await expect(page.getByRole('button', { name })).toBeVisible();
   });
 
-  // Testzweck: Ein Workflow laesst sich aus der Oberflaeche wieder entfernen — der
-  // Katalog liess sich vorher nur befuellen, nicht aufraeumen.
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld
   // zeigt nichts an. Beides ging vorher schief: Die Regeln der Konsole griffen nur auf
   // `.form-check`, Form.io setzt bei einem Radio aber `.radio.form-check-inline` — die
@@ -175,6 +173,8 @@ test.describe('Konsole', () => {
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
   });
 
+  // Testzweck: Ein Workflow laesst sich aus der Oberflaeche wieder entfernen — der
+  // Katalog liess sich vorher nur befuellen, nicht aufraeumen.
   test('Ein Workflow laesst sich loeschen', async ({ page, request }) => {
     const name = `Loeschen ${randomUUID().slice(0, 8)}`;
     await createDefinitionMeta(request, { name });
