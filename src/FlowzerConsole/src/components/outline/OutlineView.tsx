@@ -133,7 +133,9 @@ function ParallelBranches({ block, context }: { block: OutlineParallel; context:
   return (
     <BranchFrame>
       {block.branches.map((branch, index) => (
-        <div key={branch.flowId ?? index} className="pt-2">
+        // Die Einrueckung zeigt die Verschachtelung nur mit den Augen; die
+        // benannte Gruppe sagt einem Vorleseprogramm dasselbe.
+        <div key={branch.flowId ?? index} role="group" aria-label={`Zweig ${index + 1} von ${blockLabel(block)}`} className="pt-2">
           <div className="text-faint font-mono text-[10.5px] tracking-[0.12em] uppercase">Zweig {index + 1}</div>
           <Sequence blocks={branch.blocks} fallthrough="" context={context} />
           {branch.blocks.length === 0 && <EmptyBranch block={block} index={index} context={context} />}
@@ -153,7 +155,12 @@ function ChoiceBranches({ block, continuation, context }: ChoiceBranchesProps) {
   return (
     <BranchFrame>
       {block.branches.map((branch, index) => (
-        <div key={branch.flowId ?? index} className="pt-2">
+        <div
+          key={branch.flowId ?? index}
+          role="group"
+          aria-label={`${blockLabel(block)}: ${branchLabel(branch)}`}
+          className="pt-2"
+        >
           <div className="mb-1 flex flex-wrap items-baseline gap-2">
             <span
               className="rounded-full px-2 py-0.5 text-[11.5px] font-semibold"

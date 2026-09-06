@@ -80,6 +80,23 @@ describe('Nicht abbildbare Konstrukte', () => {
     expect(messages(xml).join(' ')).toContain('camunda:formRef');
   });
 
+  it('benennt die Schritte, die in einem Rücksprung hängen', () => {
+    // Auch ein Kreis abseits des Hauptablaufs soll sagen, wo er liegt.
+    const xml = process(`    <bpmn:userTask id="Task_1" />
+    <bpmn:userTask id="Task_lose_a" name="Kreis A" />
+    <bpmn:userTask id="Task_lose_b" name="Kreis B" />
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />
+    <bpmn:sequenceFlow id="Flow_3" sourceRef="Task_lose_a" targetRef="Task_lose_b" />
+    <bpmn:sequenceFlow id="Flow_4" sourceRef="Task_lose_b" targetRef="Task_lose_a" />`);
+
+    const meldung = messages(xml).join(' ');
+    expect(meldung).toContain('Kreis A');
+    expect(meldung).toContain('Kreis B');
+    expect(meldung).toContain('Rücksprung');
+  });
+
   it('meldet einen Rücksprung', () => {
     const xml = process(`    <bpmn:userTask id="Task_1" />
     <bpmn:userTask id="Task_2" />

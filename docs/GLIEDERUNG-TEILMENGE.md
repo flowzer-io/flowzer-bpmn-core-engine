@@ -57,6 +57,7 @@ Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 | Konstrukt | Bedingung |
 |---|---|
 | `bpmn:definitions` | genau ein `bpmn:process` mit `isExecutable="true"`; `exporter` und `exporterVersion` bleiben unverändert stehen |
+| `bpmn:process/@name` | bleibt unverändert stehen. Die Gliederung bearbeitet ihn nicht — der Name, den die Konsole zeigt und umbenennt, ist der des Katalogeintrags, nicht dieser |
 | `bpmn:startEvent` | genau eines, ohne Ereignisdefinition |
 | `bpmn:endEvent` | beliebig viele, ohne Ereignisdefinition |
 | `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
