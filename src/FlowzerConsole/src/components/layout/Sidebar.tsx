@@ -88,7 +88,7 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
             !expanded && 'justify-center px-0',
           )}
         >
-          <span className="from-accent to-accent-2 grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-bold tracking-[0.02em] text-white">
+          <span className="from-accent to-accent-2 grid h-[34px] w-[34px] shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-bold tracking-[0.02em] text-accent-ink">
             {user?.initials ?? '?'}
           </span>
           {expanded && (

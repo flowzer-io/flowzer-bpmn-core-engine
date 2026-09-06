@@ -58,13 +58,12 @@ export function WorkerShell({ onOpenUserMenu, children }: WorkerShellProps) {
           title="Benutzermenü"
           className="bg-surface-2 border-border hover:border-border-strong flex cursor-pointer items-center gap-2 rounded-[var(--r-sm)] border py-1 pr-2 pl-1"
         >
-          <span className="from-accent to-accent-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-white">
+          <span className="from-accent to-accent-2 grid h-7 w-7 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-accent-ink">
             {user?.initials ?? '?'}
           </span>
           <span className="text-[13px] font-semibold whitespace-nowrap">{user?.name ?? 'Unbekannt'}</span>
           <Icon name="unfold_more" size={18} className="text-muted" />
         </button>
-
       </header>
 
       <div className="flex min-h-0 flex-1">

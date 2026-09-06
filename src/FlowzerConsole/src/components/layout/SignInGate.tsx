@@ -20,7 +20,7 @@ export function SignInGate({ status }: { status: 'unknown' | 'anonymous' | 'sign
   return (
     <div className="grid h-screen place-items-center px-6">
       <div className="bg-surface border-border shadow-pop w-full max-w-[420px] rounded-[var(--r-lg)] border p-8 text-center">
-        <span className="from-accent to-accent-2 mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br text-white">
+        <span className="from-accent to-accent-2 mx-auto mb-5 grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br text-accent-ink">
           <Icon name="account_circle" size={30} />
         </span>
         <h1 className="mb-2 text-[20px] font-semibold">Flowzer Console</h1>

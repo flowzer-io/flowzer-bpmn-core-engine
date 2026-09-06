@@ -45,7 +45,7 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
           </Dialog.Title>
 
           <div className="flex items-center gap-3 px-4 pb-3">
-            <span className="from-accent to-accent-2 grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-bold text-white">
+            <span className="from-accent to-accent-2 grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full bg-gradient-to-br text-[13px] font-bold text-accent-ink">
               {user?.initials ?? '?'}
             </span>
             <span className="min-w-0 flex-1">
