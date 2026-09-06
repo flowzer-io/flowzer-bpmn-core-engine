@@ -4,8 +4,19 @@ import { persist } from 'zustand/middleware';
 
 import { getRuntimeConfig } from '@/lib/config/runtime';
 
-export type Theme = 'light' | 'dark' | 'system';
-export type SidebarMode = 'full' | 'rail';
+const THEMES = ['light', 'dark', 'system'] as const;
+const SIDEBAR_MODES = ['full', 'rail'] as const;
+
+export type Theme = (typeof THEMES)[number];
+export type SidebarMode = (typeof SIDEBAR_MODES)[number];
+
+function isTheme(value: unknown): value is Theme {
+  return typeof value === 'string' && (THEMES as readonly string[]).includes(value);
+}
+
+function isSidebarMode(value: unknown): value is SidebarMode {
+  return typeof value === 'string' && (SIDEBAR_MODES as readonly string[]).includes(value);
+}
 
 interface AppearanceState {
   theme: Theme;
@@ -43,8 +54,14 @@ export const useAppearance = create<AppearanceState>()(
        */
       version: 1,
       migrate: (persisted) => {
-        const { theme, sidebar } = (persisted ?? {}) as Partial<AppearanceState>;
-        return { theme: theme ?? 'system', sidebar: sidebar ?? 'full' } as AppearanceState;
+        // Geprueft statt blind uebernommen: Was im Browser liegt, kann alt, von Hand
+        // veraendert oder beschaedigt sein. Ein unbekannter Wert wuerde als data-Attribut
+        // landen, zu dem es keine Tokens gibt — die Oberflaeche stuende ohne Farben da.
+        const { theme, sidebar } = (persisted ?? {}) as Record<string, unknown>;
+        return {
+          theme: isTheme(theme) ? theme : 'system',
+          sidebar: isSidebarMode(sidebar) ? sidebar : 'full',
+        } as AppearanceState;
       },
     },
   ),
