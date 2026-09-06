@@ -260,9 +260,15 @@ Zusätzlich zur Dev-Compose-Variante gibt es jetzt auch eine runtime-nahe Contai
 
 Der Runtime-Gateway-Stack ist anschließend standardmäßig unter [http://localhost:5288](http://localhost:5288) erreichbar.
 
-## Beispiel
+## Beispiele
 
-Ein kleines Nutzungsbeispiel liegt in [`/examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).
+Ein kleines Nutzungsbeispiel der Engine-Bibliothek liegt in
+[`/examples/SimpleEngineExample.cs`](examples/SimpleEngineExample.cs).
+
+Ein vollstaendiger Prozess ueber die API — Formulare, parallele Zweige, menschliche
+Entscheidungen und Service-Tasks — liegt in
+[`/examples/urlaubsantrag/`](examples/urlaubsantrag/README.md). Er laesst sich mit einem
+Befehl einspielen und mit dem mitgelieferten Demo-Worker durchspielen.
 
 ## Lizenz
 

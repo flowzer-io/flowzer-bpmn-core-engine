@@ -230,6 +230,15 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             await storageSystem.ServiceTaskStorage.RemoveJob(obsolete.Id);
         }
 
+        // Die Prozessvariablen liegen am Prozess-Token, nicht am Token des Service-Tasks.
+        // Ohne sie bekaeme der Worker einen leeren Auftrag und wuesste nicht, worueber er
+        // entscheiden soll — eine Vertretungspruefung ohne den Namen der Vertretung.
+        // Erst hier ermittelt, weil MasterToken genau ein Wurzel-Token verlangt: Ein Prozess
+        // ganz ohne wartende Service-Tasks soll daran nicht scheitern.
+        var processVariables = new Lazy<Variables?>(() => catchHandler is InstanceEngine engine
+            ? engine.MasterToken.Variables
+            : null);
+
         foreach (var token in activeTokens)
         {
             if (existing.Any(job => job.Token.Id == token.Id))
@@ -251,9 +260,22 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 // Ein Modell ohne Angabe bekommt einen Versuch; sonst waere der Auftrag von
                 // Anfang an unbearbeitbar.
                 Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
-                Variables = token.Variables
+                Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
         }
+    }
+
+    /// <summary>
+    /// Bestimmt, was ein externer Worker im Auftrag zu sehen bekommt.
+    ///
+    /// Deklariert der Service-Task Eingaben (<c>zeebe:ioMapping</c>), stehen genau diese im
+    /// Token — dann bekommt der Worker genau sie und sonst nichts. Das ist der Weg, einem
+    /// fremden Dienst nur das Noetige zu geben. Ohne Deklaration bekommt er die
+    /// Prozessvariablen; ohne sie wuesste er nicht, worueber er entscheiden soll.
+    /// </summary>
+    private static Variables? SelectJobVariables(Variables? processVariables, Variables? tokenVariables)
+    {
+        return tokenVariables ?? processVariables;
     }
 
     private async Task SaveCatchMessages(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId,

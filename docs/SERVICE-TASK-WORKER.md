@@ -6,7 +6,7 @@ Die Engine führt Service-Tasks nicht selbst aus. Sie hätte dafür Netzwerkzugr
 
 ## Wie ein Auftrag entsteht
 
-Erreicht ein Token einen Service-Task, entsteht ein Auftrag mit dem Typ aus `zeebe:taskDefinition/@type`. Der Auftrag trägt Prozess, Instanz, Token und die Eingabewerte des Tokens. Er verschwindet, sobald er zurückgemeldet wurde oder sein Token nicht mehr wartet.
+Erreicht ein Token einen Service-Task, entsteht ein Auftrag mit dem Typ aus `zeebe:taskDefinition/@type`. Der Auftrag trägt Prozess, Instanz, Token und die Werte, mit denen der Worker arbeiten soll. Er verschwindet, sobald er zurückgemeldet wurde oder sein Token nicht mehr wartet.
 
 ```xml
 <bpmn:serviceTask id="ServiceTask_1" name="Zahlung auslösen">
@@ -17,6 +17,31 @@ Erreicht ein Token einen Service-Task, entsteht ein Auftrag mit dem Typ aus `zee
 ```
 
 Ohne `retries` bekommt der Auftrag einen Versuch.
+
+### Was im Auftrag steht
+
+Ohne weitere Angabe bekommt der Worker **alle Prozessvariablen**. Das ist bequem und für
+den Anfang richtig — es heißt aber auch, dass der Dienst, der nur eine Abwesenheit in ein
+Fremdsystem einträgt, den ganzen Vorgang mitliest, Freitextfelder eingeschlossen.
+
+Deklariert der Task Eingaben, bekommt der Worker genau diese und sonst nichts:
+
+```xml
+<bpmn:serviceTask id="ServiceTask_1" name="Vertretung prüfen">
+  <bpmn:extensionElements>
+    <zeebe:taskDefinition type="urlaub-vertretung-pruefen" />
+    <zeebe:ioMapping>
+      <zeebe:input source="=vertretung" target="nameDerVertretung" />
+      <zeebe:input source="=von" target="von" />
+      <zeebe:input source="=bis" target="bis" />
+    </zeebe:ioMapping>
+  </bpmn:extensionElements>
+</bpmn:serviceTask>
+```
+
+`source` ist ein Ausdruck und braucht das führende `=`; ohne das steht der Name selbst als
+Festwert im Auftrag. Für Anbindungen an Fremdsysteme ist die Deklaration der bessere Weg:
+Sie ist am Modell ablesbar und begrenzt, was das Haus verlässt.
 
 ## Abholen und zurückmelden
 

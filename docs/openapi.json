@@ -1826,9 +1826,7 @@
           },
           "variables": {
             "type": "object",
-            "additionalProperties": {
-              "nullable": true
-            },
+            "additionalProperties": {},
             "nullable": true
           }
         },

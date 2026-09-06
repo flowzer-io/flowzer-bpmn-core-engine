@@ -46,9 +46,14 @@ public class FeelinExpressionHandler : DefaultExpressionHandler
         
         expression = expression.Substring(1);
         expression = JsonQuote(expression);
-        _jsEngine.AddHostObject("vars", obj);
+        // Wie in GetValue: Ohne Variablen wird ein leerer Satz uebergeben, statt null an V8
+        // durchzureichen.
+        _jsEngine.AddHostObject("vars", obj ?? new Variables());
         var fullScript = $"""libfeelin.unaryTest("{expression}", vars)""";
-        var resultValue = _jsEngine.Evaluate(fullScript).ToString();
+        // Laesst sich der Ausdruck nicht auswerten, liefert V8 undefined. Das ist kein
+        // Grund, die Instanz zu beenden: Eine Bedingung, die nicht wahr ist, ist falsch.
+        // Zuvor lief hier .ToString() auf null und riss den ganzen Prozess mit.
+        var resultValue = _jsEngine.Evaluate(fullScript)?.ToString();
         return string.Compare( resultValue, "true", StringComparison.InvariantCultureIgnoreCase) == 0;
     }
 }

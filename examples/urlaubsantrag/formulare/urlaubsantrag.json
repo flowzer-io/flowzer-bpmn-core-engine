@@ -1,0 +1,124 @@
+{
+  "display": "form",
+  "components": [
+    {
+      "type": "textfield",
+      "key": "mitarbeiter",
+      "label": "Name",
+      "input": true,
+      "description": "Für wen wird der Urlaub beantragt?",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "type": "select",
+      "key": "art",
+      "label": "Art des Urlaubs",
+      "input": true,
+      "defaultValue": "erholung",
+      "data": {
+        "values": [
+          {
+            "label": "Erholungsurlaub",
+            "value": "erholung"
+          },
+          {
+            "label": "Sonderurlaub",
+            "value": "sonder"
+          },
+          {
+            "label": "Unbezahlter Urlaub",
+            "value": "unbezahlt"
+          }
+        ]
+      },
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "type": "columns",
+      "key": "zeitraum",
+      "label": "Zeitraum",
+      "input": false,
+      "columns": [
+        {
+          "width": 6,
+          "components": [
+            {
+              "type": "datetime",
+              "key": "von",
+              "label": "Erster Urlaubstag",
+              "input": true,
+              "enableTime": false,
+              "format": "dd.MM.yyyy",
+              "validate": {
+                "required": true
+              },
+              "allowInput": true,
+              "placeholder": "TT.MM.JJJJ"
+            }
+          ]
+        },
+        {
+          "width": 6,
+          "components": [
+            {
+              "type": "datetime",
+              "key": "bis",
+              "label": "Letzter Urlaubstag",
+              "input": true,
+              "enableTime": false,
+              "format": "dd.MM.yyyy",
+              "validate": {
+                "required": true,
+                "custom": "valid = (!data.von || !input || new Date(input) >= new Date(data.von)) ? true : 'Der letzte Urlaubstag darf nicht vor dem ersten liegen.';"
+              },
+              "allowInput": true,
+              "placeholder": "TT.MM.JJJJ"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "number",
+      "key": "arbeitstage",
+      "label": "Beantragte Arbeitstage",
+      "input": true,
+      "description": "Ohne Wochenenden und Feiertage.",
+      "validate": {
+        "required": true,
+        "min": 1
+      }
+    },
+    {
+      "type": "textfield",
+      "key": "vertretung",
+      "label": "Vertretung",
+      "input": true,
+      "description": "Wer übernimmt in dieser Zeit? Wird automatisch gegen bereits genehmigte Urlaube geprüft.",
+      "validate": {
+        "required": true
+      }
+    },
+    {
+      "type": "textarea",
+      "key": "bemerkung",
+      "label": "Bemerkung",
+      "input": true,
+      "rows": 3
+    },
+    {
+      "type": "hidden",
+      "key": "vorgang",
+      "label": "",
+      "input": true,
+      "calculateValue": "var d = function (w) { if (!w) { return ''; } var t = new Date(w); if (isNaN(t)) { return String(w); } var p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(t.getDate()) + '.' + p(t.getMonth() + 1) + '.' + t.getFullYear(); }; var arten = { erholung: 'Erholungsurlaub', sonder: 'Sonderurlaub', unbezahlt: 'Unbezahlter Urlaub' }; value = [ data.mitarbeiter, arten[data.art] || data.art, (data.von && data.bis) ? (d(data.von) + ' bis ' + d(data.bis)) : '', data.arbeitstage ? (data.arbeitstage + ' Arbeitstage') : '', data.vertretung ? ('Vertretung: ' + data.vertretung) : '' ].filter(function (teil) { return teil; }).join(' · ');",
+      "hideLabel": true,
+      "tableView": false,
+      "clearOnHide": false
+    }
+  ]
+}

@@ -56,9 +56,7 @@ public class JobController(
     public async Task<ActionResult<ApiStatusResult>> CompleteJob(Guid jobId, [FromBody] CompleteJobRequestDto request)
     {
         var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("completing service tasks");
-        var variables = request.Variables is null ? null : ToVariables(request.Variables);
-
-        return Translate(await jobService.Complete(jobId, userId, request.WorkerId, variables));
+        return Translate(await jobService.Complete(jobId, userId, request.WorkerId, request.Variables));
     }
 
     [HttpPost("{jobId:guid}/fail")]
@@ -173,16 +171,4 @@ public class JobController(
         LastAttemptAt = webhook.LastAttemptAt,
         LastError = webhook.LastError
     };
-
-    private static Variables ToVariables(Dictionary<string, object?> source)
-    {
-        var variables = new Variables();
-        var writable = (IDictionary<string, object?>)variables;
-        foreach (var entry in source)
-        {
-            writable[entry.Key] = entry.Value;
-        }
-
-        return variables;
-    }
 }
