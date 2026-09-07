@@ -175,12 +175,14 @@
     <bpmn:serviceTask id="Task_Ablehnung" name="Ablehnung mitteilen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-ablehnung-mitteilen" />
-        <!-- Hier ist genau eine der drei Pruefungen fertig — die, die „nein" gesagt hat.
-             Die beiden anderen laufen noch, ihre Variablen gibt es also noch nicht.
-             Die Liste bleibt trotzdem stehen: Ein fehlender Eingang ist kein Fehler, er
-             kommt leer an. Der Worker sucht sich die Pruefung heraus, die tatsaechlich
-             „nein" gesagt hat, und nennt ihren Grund. Ohne diese Liste bekaeme ein
-             fremder Dienst alle Prozessvariablen, auch die Bemerkung aus dem Antrag. -->
+        <!-- Hier liegt ein Schnappschuss der Entscheidungen, die bis zu diesem Moment
+             gefallen sind: mindestens die, die „nein" gesagt hat — andere koennen schon
+             fertig sein („ja" oder, im seltenen Fall, ein zweites „nein"), die uebrigen
+             laufen noch, ihre Variablen gibt es also noch nicht. Die Liste bleibt trotzdem
+             stehen: Ein fehlender Eingang ist kein Fehler, er kommt leer an. Der Worker
+             sucht sich die Pruefung heraus, die „nein" gesagt hat, und nennt ihren Grund.
+             Ohne diese Liste bekaeme ein fremder Dienst alle Prozessvariablen, auch die
+             Bemerkung aus dem Antrag. -->
         <zeebe:ioMapping>
           <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
           <zeebe:input source="=vorgang" target="vorgang" />
