@@ -7,7 +7,13 @@ import { cn } from '@/lib/cn';
 
 import type { IoMapping } from '../bpmnEditor';
 
-/** Ein Abschnitt des Eigenschaften-Panels. */
+/**
+ * Ein Abschnitt des Eigenschaften-Panels.
+ *
+ * Der Abschnitt traegt seine Ueberschrift als Namen: Mehrere Abschnitte haben ein Feld
+ * „Name" — am Element, an der Nachricht, am Signal. Ohne den Bereichsnamen waeren sie fuer
+ * ein Vorlesewerkzeug nicht zu unterscheiden.
+ */
 export function Section({
   icon,
   title,
@@ -19,11 +25,15 @@ export function Section({
   hint?: ReactNode;
   children: ReactNode;
 }) {
+  const headingId = useId();
+
   return (
-    <section className="border-border border-b px-4 py-4 last:border-b-0">
+    <section aria-labelledby={headingId} className="border-border border-b px-4 py-4 last:border-b-0">
       <div className="mb-3 flex items-center gap-2">
         <Icon name={icon} size={16} className="text-accent" />
-        <h3 className="font-display text-text m-0 text-[13px] font-semibold">{title}</h3>
+        <h3 id={headingId} className="font-display text-text m-0 text-[13px] font-semibold">
+          {title}
+        </h3>
       </div>
       {hint && <p className="text-muted mt-0 mb-3 text-[12px] leading-normal">{hint}</p>}
       <div className="flex flex-col gap-3.5">{children}</div>
@@ -126,6 +136,38 @@ export function Notice({ tone = 'muted', children }: { tone?: 'muted' | 'warn'; 
     >
       {children}
     </p>
+  );
+}
+
+interface CheckRowProps {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  hint?: ReactNode;
+}
+
+/** Ein Ja/Nein-Schalter — für die Ja/Nein-Attribute des BPMN. */
+export function CheckRow({ label, checked, onChange, disabled, hint }: CheckRowProps) {
+  const fieldId = useId();
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <input
+          id={fieldId}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          className="accent-accent h-[15px] w-[15px] cursor-pointer disabled:cursor-not-allowed"
+        />
+        <label htmlFor={fieldId} className="text-text cursor-pointer text-[13px]">
+          {label}
+        </label>
+      </div>
+      {hint && <p className="text-faint mt-1 ml-[23px] text-[11.5px] leading-normal">{hint}</p>}
+    </div>
   );
 }
 

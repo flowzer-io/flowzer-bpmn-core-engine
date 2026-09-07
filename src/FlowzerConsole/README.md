@@ -83,22 +83,37 @@ Dichte und Umfang der Ansicht waren Schalter aus dem Entwurf und sind entfallen.
 
 ## Eigenschaften-Panel des Modellierers
 
-Das Panel neben dem Diagramm ist ein eigenes React-Panel
-(`src/components/bpmn/properties/`) und nicht das mitgelieferte
-`bpmn-js-properties-panel`. Es zeigt nur, was diese Engine auswertet, und benennt es in
-Flowzers Begriffen: Name, Formular, Zuweisung, Frist, Zuordnungen, bei Service-Tasks
-Auftragstyp und Wiederholungen, an Toren die Bedingungen der ausgehenden Flüsse.
+Das Panel neben dem Diagramm ist ein eigenes React-Panel und nicht das mitgelieferte
+`bpmn-js-properties-panel`. Es zeigt, was diese Engine auswertet, und benennt es in Flowzers
+Begriffen: Name, Formular, Zuweisung, Frist, Zuordnungen, Auftragstyp und Wiederholungen,
+Zeitangabe, Nachricht samt Korrelationsschlüssel, Signal, aufgerufener Prozess, Skript,
+Mehrfachausführung und an Toren die Bedingungen der ausgehenden Flüsse.
 
-Alles, was ins BPMN geschrieben wird, geht durch `src/components/bpmn/bpmnEditor.ts` —
-die einzige Datei, die Moddle-Elemente und `extensionElements` kennt.
+Vier Dateien, vier Aufgaben:
 
-**Was das Panel nicht kann.** Es deckt den Ausschnitt ab, den Flowzer selbst braucht. Timer,
-Nachrichten samt Korrelationsschlüssel, Signale, aufgerufene Prozesse, Skript-Ausdrücke und
-Mehrfachausführung wertet die Engine aus, das Panel bearbeitet sie aber nicht — es sagt das
-an dem betroffenen Element ausdrücklich. Solche Diagramme lassen sich hier zeichnen und
-speichern; die genannten Angaben kommen aus dem Camunda Modeler oder aus dem XML. Auch die
-Zeichenfläche selbst bleibt ohne Modelliererrolle bedienbar: Nur Speichern und Deployen sind
-gesperrt, das Panel ist schreibgeschützt.
+| Datei | Aufgabe |
+|---|---|
+| `bpmn/moddle.ts` | Typen und Lesehilfen für das BPMN-Objektmodell, ohne Seiteneffekte |
+| `bpmn/elementProperties.ts` | Liest ein Element in die flachen Werte des Panels |
+| `bpmn/bpmnEditor.ts` | Schreibt ins Modell — die einzige Datei, die das tut |
+| `bpmn/properties/*` | Die Oberfläche: Abschnitte, Felder, der Formulareditor |
+
+Die Schreiber nehmen **Teiländerungen** und mischen sie mit dem Modellstand. Das ist kein
+Komfort: Ein Textfeld schreibt erst beim Verlassen. Klickt jemand aus einem Feld heraus direkt
+auf einen Schalter derselben Gruppe, laufen beide Schreiber nacheinander — der zweite mit den
+Werten aus dem Bild *vor* dem ersten. Gäbe er die ganze Gruppe mit, machte er die eben
+getippte Eingabe wieder zunichte.
+
+**Der Umfang folgt `src/core-engine/ModelParser.cs`.** Was der Parser liest, gehört ins
+Panel; was das Panel anbietet, muss der Parser lesen. Ein Feld ohne Wirkung ist derselbe
+Fehler wie eine Angabe, die sich nur im XML setzen lässt. Beide Seiten haben Tests
+(`elementProperties.test.ts` liest, `bpmnEditor.test.ts` schreibt gegen ein Modeler-Doppel).
+
+Nicht im Panel und bewusst nicht: die Wahl der Elementart selbst — ob ein Ereignis
+unterbrechend ist, ob eine Mehrfachausführung sequenziell läuft, welcher Ereignistyp
+vorliegt. Das entscheidet in bpmn-js das Kontextmenü am Element, und zwei Bedienwege für
+dieselbe Sache wären ein Widerspruch. Ohne Modelliererrolle ist das Panel schreibgeschützt,
+Speichern und Deployen sind ausgeblendet; die Zeichenfläche selbst bleibt bedienbar.
 
 Zwei Dinge sind bewusst so und leicht wieder kaputtzumachen:
 

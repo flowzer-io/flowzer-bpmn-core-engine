@@ -104,6 +104,48 @@ async function seedModelerWorkflow(request) {
   return { name, definitionId, formularName, userTaskId };
 }
 
+/**
+ * Legt einen Workflow mit einem Timer-Ereignis und einer Nachricht an — die beiden Angaben,
+ * die die Engine auswertet und die vorher nur im Camunda Modeler einzustellen waren.
+ */
+async function seedEventWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const name = `Ereignisse ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const s = definitionId.replace(/[^A-Za-z0-9_]/g, '_');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Msg_${s}" name="Antrag ${marke}" />
+  <bpmn:process id="Process_${s}" isExecutable="true">
+    <bpmn:startEvent id="Start_${s}" name="Antrag kommt">
+      <bpmn:outgoing>F1_${s}</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MED_${s}" messageRef="Msg_${s}" />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Timer_${s}" name="Warten">
+      <bpmn:incoming>F1_${s}</bpmn:incoming><bpmn:outgoing>F2_${s}</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TED_${s}"><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_${s}"><bpmn:incoming>F2_${s}</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1_${s}" sourceRef="Start_${s}" targetRef="Timer_${s}" />
+    <bpmn:sequenceFlow id="F2_${s}" sourceRef="Timer_${s}" targetRef="End_${s}" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D_${s}"><bpmndi:BPMNPlane id="P_${s}" bpmnElement="Process_${s}">
+    <bpmndi:BPMNShape id="Start_${s}_di" bpmnElement="Start_${s}"><dc:Bounds x="160" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Timer_${s}_di" bpmnElement="Timer_${s}"><dc:Bounds x="280" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_${s}_di" bpmnElement="End_${s}"><dc:Bounds x="400" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="F1_${s}_di" bpmnElement="F1_${s}"><di:waypoint x="196" y="120" /><di:waypoint x="280" y="120" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="F2_${s}_di" bpmnElement="F2_${s}"><di:waypoint x="316" y="120" /><di:waypoint x="400" y="120" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+  return { name, definitionId, timerId: `Timer_${s}`, startId: `Start_${s}`, nachrichtenname: `Antrag ${marke}` };
+}
+
 test.describe('Konsole', () => {
   for (const [route, description, locate] of [
     ['/', 'Startseite', (page) => page.getByRole('button', { name: 'Prozess starten' })],
@@ -207,6 +249,47 @@ test.describe('Konsole', () => {
     await expect(page.getByText('Im Workflow', { exact: true })).toBeVisible();
     // Die Uebersicht verlinkt die Aufgabe, die das Formular benutzt.
     await expect(page.getByRole('button', { name: 'Antrag pruefen', exact: true })).toBeVisible();
+  });
+
+  // Testzweck: Timer und Nachricht wertet die Engine aus, und beide lassen sich hier
+  // einstellen. Ohne diese Felder waere der Modellierer fuer solche Workflows unbrauchbar —
+  // sie liessen sich zeichnen, aber nicht vollstaendig belegen.
+  test('Das Panel stellt Zeitangabe und Nachricht ein', async ({ page, request }) => {
+    const { definitionId, timerId, startId, nachrichtenname } = await seedEventWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+
+    await page.locator(`.djs-element[data-element-id="${timerId}"]`).click();
+    const zeitangabe = page.getByRole('region', { name: 'Zeitangabe' });
+    await expect(zeitangabe.getByRole('textbox', { name: 'Wert' })).toHaveValue('PT1H');
+
+    // Die Art bestimmt, was im Feld stehen darf; der Wechsel darf die Angabe nicht verlieren.
+    await zeitangabe.getByRole('tab', { name: 'Zyklus' }).click();
+    const wert = zeitangabe.getByRole('textbox', { name: 'Wert' });
+    await wert.fill('R3/PT2H');
+    await wert.press('Enter');
+
+    // Mehrere Abschnitte haben ein Feld „Name"; der Bereichsname macht sie unterscheidbar.
+    await page.locator(`.djs-element[data-element-id="${startId}"]`).click();
+    const nachricht = page.getByRole('region', { name: 'Nachricht' });
+    await expect(nachricht.getByRole('textbox', { name: 'Name' })).toHaveValue(nachrichtenname);
+
+    const schluessel = nachricht.getByRole('textbox', { name: 'Korrelationsschlüssel' });
+    await schluessel.fill('=antragsnummer');
+    await schluessel.press('Enter');
+
+    // Erst das Speichern beweist, dass die Engine das Ergebnis auch liest.
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.getByText(/^Version v\d+\.\d+ gespeichert$/)).toBeVisible();
+
+    // Und erst das erneute Laden beweist, dass die alte Zeitangabe wirklich weg ist: Stuenden
+    // Dauer und Zyklus beide im XML, naehme die Engine die Dauer — und das Speichern waere
+    // trotzdem gruen.
+    await page.reload();
+    await page.locator(`.djs-element[data-element-id="${timerId}"]`).click();
+    const nachDemLaden = page.getByRole('region', { name: 'Zeitangabe' });
+    await expect(nachDemLaden.getByRole('tab', { name: 'Zyklus' })).toHaveAttribute('aria-selected', 'true');
+    await expect(nachDemLaden.getByRole('textbox', { name: 'Wert' })).toHaveValue('R3/PT2H');
   });
 
   // Testzweck: Anlegen fragt zuerst den Namen und legt erst danach an. Vorher entstand

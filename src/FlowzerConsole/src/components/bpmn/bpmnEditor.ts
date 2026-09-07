@@ -1,187 +1,64 @@
 /**
  * Schmale Schicht zwischen bpmn-js und dem Eigenschaften-Panel der Konsole.
  *
- * Nur diese Datei kennt Moddle-Elemente, `extensionElements` und die Befehle von bpmn-js.
- * Das Panel arbeitet ausschließlich mit den flachen Werten aus {@link ElementProperties} —
- * so bleibt die Oberfläche von der Modellbibliothek getrennt und die Begriffe der Konsole
- * (Formular, Zuweisung, Frist) haben genau eine Stelle, an der sie ins BPMN übersetzt werden.
+ * Nur diese Datei schreibt ins BPMN-Objektmodell. Das Panel arbeitet ausschließlich mit den
+ * flachen Werten aus {@link ElementProperties} — so bleibt die Oberfläche von der
+ * Modellbibliothek getrennt und die Begriffe der Konsole (Formular, Zuweisung, Frist) haben
+ * genau eine Stelle, an der sie ins BPMN übersetzt werden.
+ *
+ * Der Umfang folgt dem, was `src/core-engine/ModelParser.cs` liest. Kommt dort eine
+ * Eigenschaft dazu, gehört sie auch hierher — sonst lässt sich modellieren, was nicht läuft.
+ *
+ * Die Schreiber nehmen **Teiländerungen** und mischen sie mit dem aktuellen Modellstand. Das
+ * ist kein Komfort, sondern nötig: Ein Textfeld schreibt erst beim Verlassen. Klickt jemand
+ * aus einem Feld heraus direkt auf einen Schalter derselben Gruppe, laufen beide Schreiber
+ * nacheinander — der zweite mit den Werten aus dem Bild *vor* dem ersten. Gäbe er die ganze
+ * Gruppe mit, machte er die eben getippte Eingabe wieder zunichte.
  */
 
-/** Ein Moddle-Element (BPMN-Objektmodell von bpmn-js). Die Felder sind bewusst offen. */
-interface ModdleElement {
-  $type: string;
-  $parent?: ModdleElement;
-  [key: string]: unknown;
-}
+import {
+  calledProcessOf,
+  messageHolder,
+  multiInstanceOf,
+  readElementProperties,
+  timerOf,
+  type Assignment,
+  type EmbeddedForm,
+  type CalledProcess,
+  type ElementProperties,
+  type IoMapping,
+  type MultiInstance,
+  type Schedule,
+  type ScriptDefinition,
+  type TimerDefinition,
+  type MessageReference,
+  type UserTaskReference,
+} from './elementProperties';
+import {
+  enclosing,
+  eventDefinition,
+  expressionBody,
+  extension,
+  extensionValues,
+  text,
+  type BpmnFactoryLike,
+  type DiagramElement,
+  type ElementRegistryLike,
+  type ModdleElement,
+  type ModelingLike,
+} from './moddle';
 
-/** Ein Element auf der Zeichenfläche. */
-export interface DiagramElement {
-  id: string;
-  type: string;
-  businessObject: ModdleElement;
-  source?: DiagramElement;
-  target?: DiagramElement;
-  outgoing?: DiagramElement[];
-}
-
-interface ElementRegistryLike {
-  get: (id: string) => DiagramElement | undefined;
-  filter: (predicate: (element: DiagramElement) => boolean) => DiagramElement[];
-}
-
-interface ModelingLike {
-  updateProperties: (element: DiagramElement, properties: Record<string, unknown>) => void;
-  updateModdleProperties: (
-    element: DiagramElement,
-    moddleElement: ModdleElement,
-    properties: Record<string, unknown>,
-  ) => void;
-}
-
-interface BpmnFactoryLike {
-  create: (type: string, properties?: Record<string, unknown>) => ModdleElement;
-}
+export type { DiagramElement } from './moddle';
+export * from './elementProperties';
 
 interface ModelerLike {
   get: <T>(name: string) => T;
-}
-
-/** Die Elementgruppen, für die das Panel eigene Abschnitte zeigt. */
-export type ElementKind = 'userTask' | 'serviceTask' | 'gateway' | 'sequenceFlow' | 'process' | 'other';
-
-export interface IoMapping {
-  source: string;
-  target: string;
-}
-
-/** Ein ausgehender Fluss eines Tores — mit seiner Bedingung. */
-export interface OutgoingFlow {
-  id: string;
-  name: string;
-  targetLabel: string;
-  condition: string;
-  isDefault: boolean;
 }
 
 /** Ein Prozess samt dem Diagrammelement, über das bpmn-js die Änderung verbucht. */
 interface ProcessScope {
   element: DiagramElement;
   businessObject: ModdleElement;
-}
-
-/** Ein Formular, das im Workflow selbst liegt (`zeebe:userTaskForm`). */
-export interface EmbeddedForm {
-  id: string;
-  schema: string;
-}
-
-/** Eine menschliche Aufgabe des Diagramms samt ihrem Formularverweis. */
-export interface UserTaskReference {
-  id: string;
-  name: string;
-  formKey: string | null;
-}
-
-/** Alle Werte eines ausgewählten Elements, die das Panel anzeigt. */
-export interface ElementProperties {
-  id: string;
-  type: string;
-  kind: ElementKind;
-  name: string;
-
-  /** Menschliche Aufgabe. */
-  formKey: string | null;
-  /**
-   * Ein Formularverweis in `zeebe:externalReference`. Die Engine liest ihn nicht; er entsteht
-   * in Camundas neuer User-Task-Semantik und stand früher auch in Diagrammen aus dieser
-   * Konsole. Das Panel zeigt ihn, damit die Aufgabe nicht grundlos leer aussieht.
-   */
-  externalFormReference: string;
-  assignee: string;
-  candidateGroups: string;
-  candidateUsers: string;
-  dueDate: string;
-  followUpDate: string;
-
-  /** Auftrag an einen externen Worker (Service-Task). */
-  jobType: string;
-  retries: string;
-
-  /** Zuordnungen zwischen Prozess- und Aufgabendaten. */
-  inputs: IoMapping[];
-  outputs: IoMapping[];
-
-  /** Sequenzfluss. */
-  condition: string;
-  isDefaultFlow: boolean;
-  /** Nur an Toren und Aktivitäten wertet die Engine eine Bedingung aus. */
-  conditionApplies: boolean;
-
-  /** Tor: die ausgehenden Flüsse mit ihren Bedingungen. */
-  outgoing: OutgoingFlow[];
-
-  /**
-   * Eigenschaften, die die Engine an diesem Element auswertet, die das Panel aber nicht
-   * bearbeitet. Sie zu verschweigen wäre der Fehler: Das Element sähe fertig aus.
-   */
-  uncovered: string[];
-}
-
-export interface Assignment {
-  assignee: string;
-  candidateGroups: string;
-  candidateUsers: string;
-}
-
-export interface Schedule {
-  dueDate: string;
-  followUpDate: string;
-}
-
-const CONDITIONAL_SOURCES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway', 'bpmn:Activity'];
-const GATEWAY_TYPES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway'];
-
-/**
- * Was die Engine liest, das Panel aber nicht anbietet. Die Liste ist bewusst hier und nicht
- * in der Oberfläche: Sie gehört zu dem, was der Parser auswertet, und muss mit ihm wachsen.
- */
-const UNCOVERED_PROPERTIES: { applies: (businessObject: ModdleElement) => boolean; label: string }[] = [
-  {
-    applies: (businessObject) => hasEventDefinition(businessObject, 'bpmn:TimerEventDefinition'),
-    label: 'Zeitangabe des Timers (Dauer, Zeitpunkt oder Zyklus)',
-  },
-  {
-    applies: (businessObject) =>
-      hasEventDefinition(businessObject, 'bpmn:MessageEventDefinition') ||
-      Boolean(businessObject.messageRef),
-    label: 'Nachricht und Korrelationsschlüssel',
-  },
-  {
-    applies: (businessObject) => hasEventDefinition(businessObject, 'bpmn:SignalEventDefinition'),
-    label: 'Signal',
-  },
-  {
-    applies: (businessObject) => businessObject.$type === 'bpmn:CallActivity',
-    label: 'aufgerufener Prozess',
-  },
-  {
-    applies: (businessObject) => businessObject.$type === 'bpmn:ScriptTask',
-    label: 'Ausdruck des Skripts',
-  },
-  {
-    applies: (businessObject) => Boolean(businessObject.loopCharacteristics),
-    label: 'Mehrfachausführung',
-  },
-];
-
-function hasEventDefinition(businessObject: ModdleElement, type: string): boolean {
-  const definitions = (businessObject.eventDefinitions as ModdleElement[] | undefined) ?? [];
-  return definitions.some((definition) => definition.$type === type);
-}
-
-function uncoveredProperties(businessObject: ModdleElement | undefined): string[] {
-  if (!businessObject) return [];
-  return UNCOVERED_PROPERTIES.filter((entry) => entry.applies(businessObject)).map((entry) => entry.label);
 }
 
 /**
@@ -230,12 +107,8 @@ export function createBpmnEditor(modeler: ModelerLike) {
     const element = registry().get(elementId);
     if (!element) return null;
 
-    let candidate: ModdleElement | undefined = element.businessObject;
-    while (candidate && candidate.$type !== 'bpmn:Process') {
-      candidate = candidate.$parent;
-    }
-
-    return candidate ? { element, businessObject: candidate } : null;
+    const businessObject = enclosing(element.businessObject, 'bpmn:Process');
+    return businessObject ? { element, businessObject } : null;
   }
 
   /** Der Prozess, in dem ein bestimmtes eingebettetes Formular schon liegt. */
@@ -249,52 +122,39 @@ export function createBpmnEditor(modeler: ModelerLike) {
     );
   }
 
-  function extensionValues(businessObject: ModdleElement | undefined): ModdleElement[] {
-    const container = businessObject?.extensionElements as ModdleElement | undefined;
-    return (container?.values as ModdleElement[] | undefined) ?? [];
-  }
-
-  function extension(businessObject: ModdleElement | undefined, type: string): ModdleElement | undefined {
-    return extensionValues(businessObject).find((value) => value.$type === type);
-  }
-
-  function text(moddleElement: ModdleElement | undefined, attribute: string): string {
-    const value = moddleElement?.[attribute];
-    return typeof value === 'string' ? value : '';
-  }
-
-  /** Legt `bpmn:extensionElements` an, falls das Element noch keine hat. */
-  function ensureExtensionElements(element: DiagramElement): ModdleElement {
-    const businessObject = element.businessObject;
-    const existing = businessObject.extensionElements as ModdleElement | undefined;
+  /** Legt `bpmn:extensionElements` an, falls der Träger noch keine hat. */
+  function ensureExtensionElements(element: DiagramElement, owner: ModdleElement): ModdleElement {
+    const existing = owner.extensionElements as ModdleElement | undefined;
     if (existing) return existing;
 
     const created = factory().create('bpmn:ExtensionElements', { values: [] });
-    created.$parent = businessObject;
-    modeling().updateModdleProperties(element, businessObject, { extensionElements: created });
+    created.$parent = owner;
+    modeling().updateModdleProperties(element, owner, { extensionElements: created });
     return created;
   }
 
   /**
-   * Setzt genau eine Erweiterung eines Typs. `null` entfernt sie — leere Attribute stehen zu
-   * lassen wäre kein Nichts, sondern ein leerer Wert, den die Engine wieder auswerten müsste.
+   * Setzt genau eine Erweiterung eines Typs an einem Träger. `null` entfernt sie — leere
+   * Attribute stehen zu lassen wäre kein Nichts, sondern ein leerer Wert, den die Engine
+   * wieder auswerten müsste.
    */
   function writeExtension(
     element: DiagramElement,
+    owner: ModdleElement,
     type: string,
     properties: Record<string, unknown> | null,
   ): void {
-    const existing = extension(element.businessObject, type);
+    const existing = extension(owner, type);
 
     if (properties === null) {
       if (!existing) return;
-      const container = element.businessObject.extensionElements as ModdleElement;
+      const container = owner.extensionElements as ModdleElement;
       const values = (container.values as ModdleElement[]).filter((value) => value !== existing);
       modeling().updateModdleProperties(element, container, { values });
 
       // Ein leeres `<bpmn:extensionElements />` bleibt sonst als Rest im Diagramm stehen.
       if (values.length === 0) {
-        modeling().updateModdleProperties(element, element.businessObject, { extensionElements: undefined });
+        modeling().updateModdleProperties(element, owner, { extensionElements: undefined });
       }
       return;
     }
@@ -304,7 +164,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
       return;
     }
 
-    const container = ensureExtensionElements(element);
+    const container = ensureExtensionElements(element, owner);
     const created = factory().create(type, properties);
     created.$parent = container;
     modeling().updateModdleProperties(element, container, {
@@ -312,49 +172,39 @@ export function createBpmnEditor(modeler: ModelerLike) {
     });
   }
 
-  function kindOf(element: DiagramElement): ElementKind {
-    const type = element.businessObject?.$type ?? element.type;
-    if (type === 'bpmn:UserTask') return 'userTask';
-    if (type === 'bpmn:ServiceTask') return 'serviceTask';
-    if (GATEWAY_TYPES.includes(type)) return 'gateway';
-    if (type === 'bpmn:SequenceFlow') return 'sequenceFlow';
-    if (type === 'bpmn:Process' || type === 'bpmn:Participant' || type === 'bpmn:Collaboration') return 'process';
-    return 'other';
-  }
-
   function conditionOf(element: DiagramElement): string {
-    const expression = element.businessObject?.conditionExpression as ModdleElement | undefined;
-    return text(expression, 'body');
+    return expressionBody(element.businessObject, 'conditionExpression');
   }
 
-  function label(element: DiagramElement | undefined): string {
-    if (!element) return '—';
-    return text(element.businessObject, 'name').trim() || element.id;
+  /** Ein `bpmn:FormalExpression` unterhalb eines Trägers. */
+  function formalExpression(body: string, owner: ModdleElement): ModdleElement {
+    const created = factory().create('bpmn:FormalExpression', { body });
+    created.$parent = owner;
+    return created;
   }
 
-  function outgoingFlows(element: DiagramElement): OutgoingFlow[] {
-    return (element.outgoing ?? []).map((flow) => ({
-      id: flow.id,
-      name: text(flow.businessObject, 'name'),
-      targetLabel: label(flow.target),
-      condition: conditionOf(flow),
-      isDefault: element.businessObject.default === flow.businessObject,
-    }));
-  }
+  /**
+   * Legt ein Wurzelelement an, auf das ein Ereignis verweist — eine Nachricht oder ein Signal.
+   * Beide leben nicht am Element, sondern neben den Prozessen im Dokument.
+   */
+  function createRootReference(
+    element: DiagramElement,
+    holder: ModdleElement,
+    referenceProperty: 'messageRef' | 'signalRef',
+    type: string,
+    name: string,
+  ): ModdleElement | null {
+    const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
+    if (!definitions) return null;
 
-  function ioMappings(element: DiagramElement, parameter: 'inputParameters' | 'outputParameters'): IoMapping[] {
-    const mapping = extension(element.businessObject, 'zeebe:IoMapping');
-    const entries = (mapping?.[parameter] as ModdleElement[] | undefined) ?? [];
-    return entries.map((entry) => ({ source: text(entry, 'source'), target: text(entry, 'target') }));
-  }
+    const rootElements = (definitions.rootElements as ModdleElement[] | undefined) ?? [];
+    // Die Kennung vergibt die Factory: Sie zieht sie aus dem Kennungsregister des Dokuments
+    // und belegt sie dort. Eine selbst gewuerfelte koennte mit einer anderen kollidieren.
+    const created = factory().create(type, { name });
+    created.$parent = definitions;
 
-  function ensureProcessExtensionElements(scope: ProcessScope): ModdleElement {
-    const existing = scope.businessObject.extensionElements as ModdleElement | undefined;
-    if (existing) return existing;
-
-    const created = factory().create('bpmn:ExtensionElements', { values: [] });
-    created.$parent = scope.businessObject;
-    modeling().updateModdleProperties(scope.element, scope.businessObject, { extensionElements: created });
+    modeling().updateModdleProperties(element, definitions, { rootElements: [...rootElements, created] });
+    modeling().updateModdleProperties(element, holder, { [referenceProperty]: created });
     return created;
   }
 
@@ -362,44 +212,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
     /** Liest alle Werte, die das Panel für ein Element anzeigt. */
     read(elementId: string): ElementProperties | null {
       const element = registry().get(elementId);
-      if (!element) return null;
-
-      const businessObject = element.businessObject;
-      const formDefinition = extension(businessObject, 'zeebe:FormDefinition');
-      const assignment = extension(businessObject, 'zeebe:AssignmentDefinition');
-      const schedule = extension(businessObject, 'zeebe:TaskSchedule');
-      const taskDefinition = extension(businessObject, 'zeebe:TaskDefinition');
-      const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
-
-      return {
-        id: element.id,
-        type: businessObject?.$type ?? element.type,
-        kind: kindOf(element),
-        name: text(businessObject, 'name'),
-
-        formKey: formKey.length > 0 ? formKey : null,
-        externalFormReference: text(formDefinition, 'externalReference'),
-        assignee: text(assignment, 'assignee'),
-        candidateGroups: text(assignment, 'candidateGroups'),
-        candidateUsers: text(assignment, 'candidateUsers'),
-        dueDate: text(schedule, 'dueDate'),
-        followUpDate: text(schedule, 'followUpDate'),
-
-        jobType: text(taskDefinition, 'type'),
-        retries: text(taskDefinition, 'retries'),
-
-        inputs: ioMappings(element, 'inputParameters'),
-        outputs: ioMappings(element, 'outputParameters'),
-
-        condition: conditionOf(element),
-        isDefaultFlow: element.source?.businessObject.default === businessObject,
-        conditionApplies:
-          kindOf(element) === 'sequenceFlow' &&
-          CONDITIONAL_SOURCES.some((type) => isTypeOrSubtype(element.source, type)),
-
-        outgoing: outgoingFlows(element),
-        uncovered: uncoveredProperties(businessObject),
-      };
+      return element ? readElementProperties(element) : null;
     },
 
     setName(elementId: string, name: string): void {
@@ -415,61 +228,63 @@ export function createBpmnEditor(modeler: ModelerLike) {
 
       const trimmed = formKey?.trim();
       if (!trimmed) {
-        writeExtension(element, 'zeebe:FormDefinition', null);
+        writeExtension(element, element.businessObject, 'zeebe:FormDefinition', null);
         return;
       }
 
-      // `formId` und `formKey` bedeuten dasselbe Ziel; stünden beide da, entschiede die
-      // Lesereihenfolge der Engine, welches Formular gilt. Deshalb wird die Gegenseite
-      // ausdrücklich geleert.
-      writeExtension(element, 'zeebe:FormDefinition', {
+      // `formId`, `externalReference` und `formKey` bedeuten dasselbe Ziel; stünden mehrere da,
+      // entschiede die Lesereihenfolge der Engine, welches Formular gilt.
+      writeExtension(element, element.businessObject, 'zeebe:FormDefinition', {
         formKey: trimmed,
         formId: undefined,
         externalReference: undefined,
       });
     },
 
-    setAssignment(elementId: string, assignment: Assignment): void {
+    setAssignment(elementId: string, patch: Partial<Assignment>): void {
       const element = registry().get(elementId);
       if (!element) return;
 
+      const current = extension(element.businessObject, 'zeebe:AssignmentDefinition');
       const values = {
-        assignee: blankToUndefined(assignment.assignee),
-        candidateGroups: blankToUndefined(assignment.candidateGroups),
-        candidateUsers: blankToUndefined(assignment.candidateUsers),
+        assignee: merge(patch.assignee, text(current, 'assignee')),
+        candidateGroups: merge(patch.candidateGroups, text(current, 'candidateGroups')),
+        candidateUsers: merge(patch.candidateUsers, text(current, 'candidateUsers')),
       };
       const isEmpty = Object.values(values).every((value) => value === undefined);
-      writeExtension(element, 'zeebe:AssignmentDefinition', isEmpty ? null : values);
+      writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', isEmpty ? null : values);
     },
 
-    setSchedule(elementId: string, schedule: Schedule): void {
+    setSchedule(elementId: string, patch: Partial<Schedule>): void {
       const element = registry().get(elementId);
       if (!element) return;
 
+      const current = extension(element.businessObject, 'zeebe:TaskSchedule');
       const values = {
-        dueDate: blankToUndefined(schedule.dueDate),
-        followUpDate: blankToUndefined(schedule.followUpDate),
+        dueDate: merge(patch.dueDate, text(current, 'dueDate')),
+        followUpDate: merge(patch.followUpDate, text(current, 'followUpDate')),
       };
       const isEmpty = Object.values(values).every((value) => value === undefined);
-      writeExtension(element, 'zeebe:TaskSchedule', isEmpty ? null : values);
+      writeExtension(element, element.businessObject, 'zeebe:TaskSchedule', isEmpty ? null : values);
     },
 
-    setJob(elementId: string, jobType: string, retries: string): void {
+    setJob(elementId: string, patch: { type?: string; retries?: string }): void {
       const element = registry().get(elementId);
       if (!element) return;
 
-      const type = blankToUndefined(jobType);
-      const attempts = blankToUndefined(retries);
+      const current = extension(element.businessObject, 'zeebe:TaskDefinition');
+      const type = merge(patch.type, text(current, 'type'));
+      const attempts = merge(patch.retries, text(current, 'retries'));
 
       // Ein `type=""` waere kein fehlender Auftragstyp, sondern ein leerer: Der Workflow liesse
       // sich speichern, und zur Laufzeit fände kein Worker den Schritt. Ohne Angabe wird das
       // Attribut deshalb weggelassen — dann meldet schon das Speichern den fehlenden Typ.
       if (type === undefined && attempts === undefined) {
-        writeExtension(element, 'zeebe:TaskDefinition', null);
+        writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
         return;
       }
 
-      writeExtension(element, 'zeebe:TaskDefinition', { type, retries: attempts });
+      writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', { type, retries: attempts });
     },
 
     /** Schreibt Ein- und Ausgangszuordnungen als ein `zeebe:ioMapping`. */
@@ -484,11 +299,11 @@ export function createBpmnEditor(modeler: ModelerLike) {
       const keptOutputs = outputs.filter(usable);
 
       if (keptInputs.length === 0 && keptOutputs.length === 0) {
-        writeExtension(element, 'zeebe:IoMapping', null);
+        writeExtension(element, element.businessObject, 'zeebe:IoMapping', null);
         return;
       }
 
-      const container = ensureExtensionElements(element);
+      const container = ensureExtensionElements(element, element.businessObject);
       let mapping = extension(element.businessObject, 'zeebe:IoMapping');
 
       if (!mapping) {
@@ -535,9 +350,9 @@ export function createBpmnEditor(modeler: ModelerLike) {
         return;
       }
 
-      const expression = factory().create('bpmn:FormalExpression', { body });
-      expression.$parent = flow.businessObject;
-      modeling().updateProperties(flow, { conditionExpression: expression });
+      modeling().updateProperties(flow, {
+        conditionExpression: formalExpression(body, flow.businessObject),
+      });
     },
 
     /** Legt fest, welcher ausgehende Fluss greift, wenn keine Bedingung zutrifft. */
@@ -559,6 +374,155 @@ export function createBpmnEditor(modeler: ModelerLike) {
       }
 
       modeling().updateProperties(element, { default: flow.businessObject });
+    },
+
+    /**
+     * Setzt die Zeitangabe eines Timers. Die beiden anderen Arten werden dabei entfernt: Stehen
+     * mehrere im Diagramm, entscheidet die Lesereihenfolge der Engine, welche gilt.
+     */
+    setTimer(elementId: string, patch: Partial<TimerDefinition>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const definition = eventDefinition(element.businessObject, 'bpmn:TimerEventDefinition');
+      if (!definition) return;
+
+      const current = timerOf(element.businessObject);
+      const kind = patch.kind ?? current?.kind ?? 'duration';
+      const body = (patch.expression ?? current?.expression ?? '').trim();
+      const value = body.length > 0 ? formalExpression(body, definition) : undefined;
+
+      modeling().updateModdleProperties(element, definition, {
+        timeDuration: kind === 'duration' ? value : undefined,
+        timeDate: kind === 'date' ? value : undefined,
+        timeCycle: kind === 'cycle' ? value : undefined,
+      });
+    },
+
+    /**
+     * Setzt Name und Korrelationsschlüssel der Nachricht. Die Nachricht selbst ist ein
+     * Wurzelelement des Dokuments; fehlt sie noch, entsteht sie hier.
+     */
+    setMessage(elementId: string, patch: Partial<MessageReference>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const holder = messageHolder(element.businessObject);
+      if (!holder) return;
+
+      let message = holder.messageRef as ModdleElement | undefined;
+      const name = (patch.name ?? text(message, 'name')).trim();
+
+      if (message) {
+        modeling().updateModdleProperties(element, message, { name });
+      } else {
+        message = createRootReference(element, holder, 'messageRef', 'bpmn:Message', name) ?? undefined;
+        if (!message) return;
+      }
+
+      const key = merge(patch.correlationKey, text(extension(message, 'zeebe:Subscription'), 'correlationKey'));
+      writeExtension(element, message, 'zeebe:Subscription', key === undefined ? null : { correlationKey: key });
+    },
+
+    /** Setzt den Namen des Signals. Auch das Signal ist ein Wurzelelement des Dokuments. */
+    setSignal(elementId: string, name: string): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const definition = eventDefinition(element.businessObject, 'bpmn:SignalEventDefinition');
+      if (!definition) return;
+
+      const trimmedName = name.trim();
+      const signal = definition.signalRef as ModdleElement | undefined;
+
+      if (signal) {
+        modeling().updateModdleProperties(element, signal, { name: trimmedName });
+        return;
+      }
+
+      createRootReference(element, definition, 'signalRef', 'bpmn:Signal', trimmedName);
+    },
+
+    setCalledProcess(elementId: string, patch: Partial<CalledProcess>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const current = calledProcessOf(element.businessObject);
+      const processId = merge(patch.processId, current?.processId ?? '');
+
+      // Der Parser liest `processId` als Pflichtangabe. Eine Erweiterung ohne sie liesse den
+      // Aufruf am Server in einen Nullverweis laufen — ein 500 statt einer Meldung. Ohne
+      // Kennung steht die Erweiterung deshalb gar nicht erst da.
+      if (processId === undefined) {
+        writeExtension(element, element.businessObject, 'zeebe:CalledElement', null);
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'zeebe:CalledElement', {
+        processId,
+        propagateAllChildVariables:
+          patch.propagateAllChildVariables ?? current?.propagateAllChildVariables ?? true,
+        propagateAllParentVariables:
+          patch.propagateAllParentVariables ?? current?.propagateAllParentVariables ?? true,
+      });
+    },
+
+    /**
+     * Legt fest, ob eine Skript-Aufgabe als FEEL-Ausdruck in der Engine läuft oder als Auftrag
+     * an einen Worker geht. Beides zugleich gäbe es im Modell nicht: Die Engine nimmt das
+     * Skript, sobald eines da ist.
+     */
+    setScriptMode(elementId: string, mode: 'script' | 'job'): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      if (mode === 'script') {
+        writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
+        if (!extension(element.businessObject, 'zeebe:Script')) {
+          writeExtension(element, element.businessObject, 'zeebe:Script', {});
+        }
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'zeebe:Script', null);
+    },
+
+    setScript(elementId: string, patch: Partial<ScriptDefinition>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const current = extension(element.businessObject, 'zeebe:Script');
+      writeExtension(element, element.businessObject, 'zeebe:Script', {
+        expression: merge(patch.expression, text(current, 'expression')),
+        resultVariable: merge(patch.resultVariable, text(current, 'resultVariable')),
+      });
+    },
+
+    /**
+     * Schreibt die Angaben zur Mehrfachausführung. Ob sie sequenziell oder parallel läuft,
+     * bestimmt die Elementart im Diagramm und nicht dieses Panel.
+     */
+    setMultiInstance(elementId: string, patch: Partial<Omit<MultiInstance, 'isSequential'>>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const loop = element.businessObject.loopCharacteristics as ModdleElement | undefined;
+      if (loop?.$type !== 'bpmn:MultiInstanceLoopCharacteristics') return;
+
+      const current = multiInstanceOf(element.businessObject)!;
+      const condition = (patch.completionCondition ?? current.completionCondition).trim();
+      modeling().updateModdleProperties(element, loop, {
+        completionCondition: condition.length > 0 ? formalExpression(condition, loop) : undefined,
+      });
+
+      const zeebeValues = {
+        inputCollection: merge(patch.inputCollection, current.inputCollection),
+        inputElement: merge(patch.inputElement, current.inputElement),
+        outputCollection: merge(patch.outputCollection, current.outputCollection),
+        outputElement: merge(patch.outputElement, current.outputElement),
+      };
+      const isEmpty = Object.values(zeebeValues).every((value) => value === undefined);
+      writeExtension(element, loop, 'zeebe:LoopCharacteristics', isEmpty ? null : zeebeValues);
     },
 
     /** Alle menschlichen Aufgaben des Diagramms — für Übersicht und Markierung. */
@@ -605,7 +569,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
       const scope = (contextElementId ? processOf(contextElementId) : null) ?? processes()[0];
       if (!scope) return;
 
-      const container = ensureProcessExtensionElements(scope);
+      const container = ensureExtensionElements(scope.element, scope.businessObject);
       const created = factory().create('zeebe:UserTaskForm', { id: formId, body: schema });
       created.$parent = container;
       modeling().updateModdleProperties(scope.element, container, {
@@ -624,26 +588,15 @@ export function createBpmnEditor(modeler: ModelerLike) {
       modeling().updateModdleProperties(scope.element, container, { values });
     },
   };
-
 }
 
 export type BpmnEditor = ReturnType<typeof createBpmnEditor>;
 
-function blankToUndefined(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
 /**
- * Prüft den Typ eines Elements einschließlich seiner Oberklassen. `bpmn:Activity` ist keine
- * eigene Elementart, sondern die Oberklasse von Aufgaben und Teilprozessen — ohne diese
- * Prüfung bekäme ein Fluss aus einer Aufgabe heraus kein Bedingungsfeld.
+ * Der Wert, der geschrieben wird: der neue, wenn einer kam, sonst der bisherige. Leer heisst
+ * „Attribut weglassen" — ein leerer Text waere im BPMN eine Angabe und kein Nichts.
  */
-function isTypeOrSubtype(element: DiagramElement | undefined, type: string): boolean {
-  if (!element) return false;
-  const descriptor = element.businessObject?.$instanceOf;
-  if (typeof descriptor === 'function') {
-    return (descriptor as (type: string) => boolean).call(element.businessObject, type);
-  }
-  return element.businessObject?.$type === type;
+function merge(patched: string | undefined, current: string): string | undefined {
+  const value = (patched ?? current).trim();
+  return value.length > 0 ? value : undefined;
 }
