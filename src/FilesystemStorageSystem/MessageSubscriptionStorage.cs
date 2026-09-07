@@ -57,7 +57,9 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         DefinitionIdRules.EnsureValid(messageSubscription.RelatedDefinitionId);
 
         var randomIdOrInstanceId = messageSubscription.ProcessInstanceId ?? Guid.NewGuid();
-        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"message_{messageSubscription.RelatedDefinitionId}_{randomIdOrInstanceId}.json");
+        // Path.GetFileName: siehe InstanceStorage.AddOrUpdateInstance.
+        var fullFileName = Path.Combine(_messageSubscriptionsPath,
+            Path.GetFileName($"message_{messageSubscription.RelatedDefinitionId}_{randomIdOrInstanceId}.json"));
         var data = JsonConvert.SerializeObject(messageSubscription, _newtonSoftDefaultSettings);
         return StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
@@ -100,7 +102,9 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         DefinitionIdRules.EnsureValid(signalSubscription.RelatedDefinitionId);
 
         var fileIdentifier = signalSubscription.ProcessInstanceId ?? Guid.NewGuid();
-        var fullFileName = Path.Combine(_messageSubscriptionsPath, $"signal_{signalSubscription.RelatedDefinitionId}_{fileIdentifier}.json");
+        // Path.GetFileName: siehe InstanceStorage.AddOrUpdateInstance.
+        var fullFileName = Path.Combine(_messageSubscriptionsPath,
+            Path.GetFileName($"signal_{signalSubscription.RelatedDefinitionId}_{fileIdentifier}.json"));
         var data = JsonConvert.SerializeObject(signalSubscription, _newtonSoftDefaultSettings);
         StorageFile.WriteAllTextAtomic(fullFileName, data);
     }
