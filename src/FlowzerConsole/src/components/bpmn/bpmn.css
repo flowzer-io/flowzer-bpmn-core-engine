@@ -190,3 +190,17 @@
   pointer-events: none;
   width: 18px;
 }
+
+/* --- Ansicht ohne Modelliererrolle ---------------------------------------- */
+
+/*
+ * Die Sperre selbst sitzt im Modeler (`READ_ONLY_MODULE` in readOnly.ts): Ohne Regeln
+ * laesst sich nichts verschieben, anlegen oder loeschen, und ohne Anbieter entsteht die
+ * Palette gar nicht erst. Hier verschwinden nur die Griffe an den Kanten, die diagram-js
+ * unabhaengig von den Regeln zeichnet und die sonst zum Ziehen einluden, obwohl nichts
+ * passiert. Die Palettenregel steht als zweite Sicherung daneben.
+ */
+.bpmn-read-only .djs-bendpoints,
+.bpmn-read-only .djs-palette {
+  display: none;
+}

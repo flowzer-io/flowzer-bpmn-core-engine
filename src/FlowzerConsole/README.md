@@ -49,6 +49,8 @@ Die vollständige Konsole steht jedem Zugelassenen offen: Definitionen, Instanze
 
 Wer die Zugangsrolle nicht hat, bekommt die reduzierte Aufgabenansicht — die vollständige Konsole zeigte dann nur eine Reihe abgelehnter Aufrufe.
 
+Der Modellierer wird ohne `modeler` zur Ansicht: Das Diagramm lässt sich betrachten, zoomen und auswählen, aber nicht ändern — keine Palette, kein Kontextpad, kein Verschieben oder Löschen. Das Eigenschaften-Panel zeigt weiterhin alle Werte, nimmt aber keine an. Sonst entstünden Änderungen, die niemand speichern kann, und die Seite warnte beim Verlassen davor.
+
 Die Anzeige richtet sich nach den Rollen, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
 
 ## Konfiguration zur Laufzeit
