@@ -13,7 +13,10 @@ namespace WebApiEngine.BusinessLogic;
 /// Der Form-Key stammt aus <c>zeebe:formDefinition/@formKey</c> und meint eines von zwei Dingen:
 /// <list type="bullet">
 /// <item>ein Formular aus dem Bestand — als <c>Formularname</c> (dann gilt die neueste Version)
-/// oder <c>Formularname:1.0</c> (dann gilt genau diese Version);</item>
+/// oder <c>Formularname:1.0</c> (dann gilt genau diese Version). Statt des Namens darf auch die
+/// Kennung des Formulars stehen (<c>Guid</c> bzw. <c>Guid:1.0</c>): Der Modeler legt sie als
+/// <c>formId</c> ab, und der Parser nimmt sie als Form-Key an — ohne diesen Weg wäre ein so
+/// modelliertes Formular hier unauffindbar;</item>
 /// <item>ein Formular, das im Workflow selbst liegt — als
 /// <c>camunda-forms:bpmn:Kennung</c> (siehe <see cref="FlowzerUserTaskForm"/>).</item>
 /// </list>
@@ -118,13 +121,22 @@ public sealed class FormKeyResolver(IStorageSystem storageSystem)
             return Result.Failure(versionError);
         }
 
-        var metadata = (await storageSystem.FormStorage.GetFormMetadatas())
-            .Where(candidate => string.Equals(candidate.Name, formName, StringComparison.OrdinalIgnoreCase))
+        // Eine Kennung ist eindeutig, ein Name muss es sein: Deshalb wird nach Kennung gesucht,
+        // sobald der Schluessel als Guid lesbar ist, und nur sonst nach Namen.
+        var allMetadata = await storageSystem.FormStorage.GetFormMetadatas();
+        var searchesById = Guid.TryParse(formName, out var formId);
+
+        var metadata = (searchesById
+                ? allMetadata.Where(candidate => candidate.FormId == formId)
+                : allMetadata.Where(candidate =>
+                    string.Equals(candidate.Name, formName, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
         if (metadata.Length == 0)
         {
-            return Result.Failure($"No form named \"{formName}\" was found.");
+            return Result.Failure(searchesById
+                ? $"No form with the id \"{formName}\" was found."
+                : $"No form named \"{formName}\" was found.");
         }
 
         if (metadata.Length > 1)

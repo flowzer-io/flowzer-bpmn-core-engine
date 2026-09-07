@@ -76,6 +76,66 @@ public class StartFormIntegrationTest
         payload!.Result!.FormData.Should().Be("{\"version\":\"1.0\"}");
     }
 
+    // Testzweck: Ein Form-Key darf die Kennung des Bestandsformulars nennen. Der Modeler legt
+    // sie als `formId` ab; wird sie nur als Name gesucht, antwortet der Abruf 400, obwohl das
+    // Formular existiert.
+    [Test]
+    public async Task GetStartForm_ShouldReturnTheForm_WhenTheFormKeyIsItsId()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
+        SeedWorkflow(storage, startFormKey: formId.ToString());
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.FormData.Should().Be("{\"version\":\"1.1\"}");
+    }
+
+    // Testzweck: Auch hinter einer Kennung darf eine Version stehen — sonst hinge die
+    // Bedeutung des Suffix daran, ob der Modeler Name oder Kennung geschrieben hat.
+    [Test]
+    public async Task GetStartForm_ShouldReturnThePinnedVersion_WhenTheFormKeyIsAnIdWithVersion()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
+        SeedWorkflow(storage, startFormKey: $"{formId}:1.0");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Result!.FormData.Should().Be("{\"version\":\"1.0\"}");
+    }
+
+    // Testzweck: Eine Kennung, zu der es kein Formular gibt, wird als fachlicher Fehler
+    // gemeldet und nicht als leeres Formular.
+    [Test]
+    public async Task GetStartForm_ShouldReturnBadRequest_ForAnUnknownFormId()
+    {
+        var unbekannt = Guid.NewGuid();
+        var storage = TestStorage.Create();
+        SeedWorkflow(storage, startFormKey: unbekannt.ToString());
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain(unbekannt.ToString());
+    }
+
     // Testzweck: Ein im Workflow eingebettetes Formular kommt aus dem Diagramm der deployten
     // Version — es steht in keinem Bestand und wäre sonst unerreichbar.
     [Test]
@@ -258,7 +318,9 @@ public class StartFormIntegrationTest
         return source is not null && source.TryGetValue(name, out var value) ? value?.ToString() : null;
     }
 
-    private static void SeedStoredForm(TestStorage storage, string name, params (string Version, string Data)[] versions)
+    /// <summary>Legt ein Bestandsformular an und liefert dessen Kennung — der Form-Key darf sie
+    /// statt des Namens nennen.</summary>
+    private static Guid SeedStoredForm(TestStorage storage, string name, params (string Version, string Data)[] versions)
     {
         var formId = Guid.NewGuid();
         storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = name });
@@ -272,6 +334,8 @@ public class StartFormIntegrationTest
                 FormData = data
             });
         }
+
+        return formId;
     }
 
     private static void SeedWorkflow(
