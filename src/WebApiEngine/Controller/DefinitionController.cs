@@ -20,27 +20,57 @@ public class DefinitionController(
     IStorageSystem storageSystem,
     DefinitionBusinessLogic definitionBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
+    FolderBusinessLogic folderBusinessLogic,
     FormKeyResolver formKeyResolver) : FlowzerControllerBase
 {
-    
+    /// <summary>
+    /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
+    /// allen Stellen: Wer sie einmal verstanden hat, versteht sie ueberall.
+    /// </summary>
+    private const string MissingFolderPermission =
+        "Fuer diesen Ordner fehlt Ihnen die Bearbeitungsberechtigung.";
+
+    private const string MissingRootPermission =
+        "Workflows ausserhalb eines Ordners zu aendern ist der Rolle fuers Modellieren vorbehalten.";
+
     [HttpPost]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!permissions.MayEditAnywhere)
+        {
+            return ForbiddenCapability<BpmnDefinitionDto>(MissingRootPermission);
+        }
+
         var rawContent = await GetRawContent();
+        if (await DenyIfFolderIsForbidden<BpmnDefinitionDto>(rawContent, permissions) is { } denied)
+        {
+            return denied;
+        }
+
         var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid);
         return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
     }
     
     [HttpPost("deploy")]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!permissions.MayEditAnywhere)
+        {
+            return ForbiddenCapability<BpmnDefinitionDto>(MissingRootPermission);
+        }
+
         BpmnDefinition? definition = null;
 
         try
         {
             var rawContent = await GetRawContent();
+            if (await DenyIfFolderIsForbidden<BpmnDefinitionDto>(rawContent, permissions) is { } denied)
+            {
+                return denied;
+            }
+
             definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
             await bpmnBusinessLogic.DeployDefinition(definition);
             return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
@@ -142,14 +172,26 @@ public class DefinitionController(
     /// unbenannter Entwurf entsteht, den danach niemand zuordnen kann.
     /// </summary>
     [HttpPost("new")]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
-    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> NewDefinition([FromQuery] string? name)
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> NewDefinition(
+        [FromQuery] string? name,
+        [FromQuery] Guid? folderId)
     {
         var trimmedName = name?.Trim();
         if (trimmedName is { Length: > MaxDefinitionNameLength })
         {
             return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
                 $"Der Name darf höchstens {MaxDefinitionNameLength} Zeichen lang sein."));
+        }
+
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!FolderBusinessLogic.IsKnownTarget(folderId, permissions.Folders))
+        {
+            return NotFound(new ApiStatusResult<BpmnMetaDefinitionDto>($"Es gibt keinen Ordner mit der Kennung {folderId}."));
+        }
+
+        if (!permissions.MayEditIn(folderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(folderId is null ? MissingRootPermission : MissingFolderPermission);
         }
 
         var definitionId = "definition_" + Guid.NewGuid();
@@ -172,7 +214,8 @@ public class DefinitionController(
         var metaDefinition = new BpmnMetaDefinition
         {
             DefinitionId = definitionId,
-            Name = string.IsNullOrWhiteSpace(trimmedName) ? "Neuer Workflow" : trimmedName
+            Name = string.IsNullOrWhiteSpace(trimmedName) ? "Neuer Workflow" : trimmedName,
+            FolderId = folderId
         };
 
         try
@@ -247,22 +290,96 @@ public class DefinitionController(
     
 
     [HttpPost("meta")]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!FolderBusinessLogic.IsKnownTarget(dto.FolderId, permissions.Folders))
+        {
+            return NotFound(new ApiStatusResult<BpmnMetaDefinitionDto>($"Es gibt keinen Ordner mit der Kennung {dto.FolderId}."));
+        }
+
+        if (!permissions.MayEditIn(dto.FolderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(dto.FolderId is null ? MissingRootPermission : MissingFolderPermission);
+        }
+
         var definition = dto.ToModel();
         await storageSystem.DefinitionStorage.StoreMetaDefinition(definition);
         return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(definition.ToDto()));
     }
-    
-    
+
+
+    /// <summary>
+    /// Aendert Name und Beschreibung eines Katalogeintrags.
+    ///
+    /// Der Ordner bleibt dabei, wie er ist — auch wenn die Anfrage einen anderen nennt.
+    /// Verschieben ist eine eigene Handlung mit einer eigenen Pruefung (siehe
+    /// <see cref="MoveDefinition"/>): Sie braucht die Berechtigung an zwei Ordnern, nicht an
+    /// einem, und darf nicht als Nebenwirkung eines Umbenennens passieren.
+    /// </summary>
     [HttpPut("meta")]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
     {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        var folderId = await folderBusinessLogic.GetFolderOfDefinitionAsync(dto.DefinitionId);
+        if (!permissions.MayEditIn(folderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(folderId is null ? MissingRootPermission : MissingFolderPermission);
+        }
+
         var definition = dto.ToModel();
+        definition.FolderId = folderId;
         await storageSystem.DefinitionStorage.UpdateMetaDefinition(definition);
         return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(definition.ToDto()));
+    }
+
+    /// <summary>
+    /// Verschiebt einen Workflow in einen anderen Ordner; <c>folderId</c> ohne Wert bedeutet
+    /// oberste Ebene.
+    ///
+    /// Geprueft wird an beiden Enden: Wer den Workflow herausnimmt, muss im Herkunftsordner
+    /// bearbeiten duerfen, und wer ihn ablegt, im Zielordner. Nur das Ziel zu pruefen erlaubte
+    /// es, fremde Workflows in den eigenen Ordner zu holen; nur die Herkunft zu pruefen erlaubte
+    /// das Gegenteil.
+    /// </summary>
+    [HttpPut("meta/{id}/folder")]
+    public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MoveDefinition(
+        [FromRoute] string id,
+        [FromQuery] Guid? folderId)
+    {
+        BpmnMetaDefinition metaDefinition;
+        try
+        {
+            metaDefinition = await storageSystem.DefinitionStorage.GetMetaDefinitionById(id);
+        }
+        catch (DefinitionStorageNotFoundException)
+        {
+            return NotFound(new ApiStatusResult<BpmnMetaDefinitionDto>($"Es gibt keinen Workflow mit der Kennung {id}."));
+        }
+
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!FolderBusinessLogic.IsKnownTarget(folderId, permissions.Folders))
+        {
+            return NotFound(new ApiStatusResult<BpmnMetaDefinitionDto>($"Es gibt keinen Ordner mit der Kennung {folderId}."));
+        }
+
+        if (!permissions.MayEditIn(metaDefinition.FolderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(metaDefinition.FolderId is null
+                ? MissingRootPermission
+                : "Fuer den Ordner, in dem der Workflow liegt, fehlt Ihnen die Bearbeitungsberechtigung.");
+        }
+
+        if (!permissions.MayEditIn(folderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(folderId is null
+                ? MissingRootPermission
+                : "Fuer den Zielordner fehlt Ihnen die Bearbeitungsberechtigung.");
+        }
+
+        metaDefinition.FolderId = folderId;
+        await storageSystem.DefinitionStorage.UpdateMetaDefinition(metaDefinition);
+        return Ok(new ApiStatusResult<BpmnMetaDefinitionDto>(metaDefinition.ToDto()));
     }
 
     /// <summary>
@@ -278,9 +395,17 @@ public class DefinitionController(
     /// ohne abrufbares Diagramm. Der Aufruf ist nicht rueckgaengig zu machen.
     /// </summary>
     [HttpDelete("meta/{id}")]
-    [Authorize(Policy = FlowzerPolicies.Modeler)]
     public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaDelete([FromRoute] string id)
     {
+        // Rechte zuerst und anhand des gespeicherten Ordners: Ohne Berechtigung darf der Aufruf
+        // nicht einmal verraten, ob es diesen Workflow gibt.
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        var folderId = await folderBusinessLogic.GetFolderOfDefinitionAsync(id);
+        if (!permissions.MayEditIn(folderId))
+        {
+            return ForbiddenCapability<BpmnMetaDefinitionDto>(folderId is null ? MissingRootPermission : MissingFolderPermission);
+        }
+
         BpmnMetaDefinition metaDefinition;
         try
         {
@@ -313,6 +438,26 @@ public class DefinitionController(
 
     /// <summary>Grenze fuer den Namen einer Definition — verhindert unbrauchbar lange Katalogeintraege.</summary>
     private const int MaxDefinitionNameLength = 200;
+
+    /// <summary>
+    /// Lehnt einen Definitionsupload ab, wenn der Workflow in einem Ordner liegt, fuer den die
+    /// Berechtigung fehlt. Liefert <c>null</c>, wenn nichts entgegensteht.
+    /// </summary>
+    private async Task<ActionResult<ApiStatusResult<T>>?> DenyIfFolderIsForbidden<T>(
+        string rawContent,
+        FolderPermissions permissions)
+    {
+        var definitionId = DefinitionBusinessLogic.TryReadDefinitionId(rawContent);
+        if (definitionId is null)
+        {
+            return null;
+        }
+
+        var folderId = await folderBusinessLogic.GetFolderOfDefinitionAsync(definitionId);
+        return permissions.MayEditIn(folderId)
+            ? null
+            : ForbiddenCapability<T>(folderId is null ? MissingRootPermission : MissingFolderPermission);
+    }
 
     /// <summary>
     /// Entfernt eine Version, deren zugehoeriger Schritt fehlgeschlagen ist. Ohne das bliebe

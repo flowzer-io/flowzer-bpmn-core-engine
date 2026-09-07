@@ -98,6 +98,8 @@ public class TimerControllerIntegrationTest
         public TestTimerSubscriptionStorage SubscriptionStorageSeed { get; } = new();
 
         public IDefinitionStorage DefinitionStorage { get; } = new NoOpDefinitionStorage();
+
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage => SubscriptionStorageSeed;
         public IInstanceStorage InstanceStorage { get; } = new NoOpInstanceStorage();
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();

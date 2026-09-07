@@ -124,6 +124,12 @@ Die Konsole meldet sich über die zur Laufzeit geladene `config.json` (Authority
 
 Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
 
+## Ordner und Fachverantwortung
+
+Workflows lassen sich in einen Ordnerbaum mit beliebig tiefen Unterordnern einsortieren. An jedem Ordner hängt die Zuständigkeit für alles, was darin liegt: **Bearbeiten** (`editor`) darf die Workflows des Ordners anlegen, ändern, veröffentlichen und löschen; die **Fachverantwortung** (`steward`) darf zusätzlich Unterordner anlegen und die Zuständigkeit selbst weiterreichen. Zuweisungen gelten für alle Unterordner mit und nennen Personen oder Gruppen des Identity Providers.
+
+Damit lässt sich ein Ausschnitt des Katalogs an die Menschen übergeben, die ihn fachlich verantworten, ohne ihnen die globale Rolle fürs Modellieren zu geben. Die oberste Ebene bleibt dieser Rolle vorbehalten, Lesen und Starten stehen weiterhin allen Zugelassenen offen. Regeln und Fehlerbilder in [docs/OPERATIONS.md](docs/OPERATIONS.md#ordner-und-delegation).
+
 ## Ablage
 
 Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_ROOT`. Für den Betrieb steht eine PostgreSQL-Ablage mit echten Transaktionen bereit (`Storage:Provider=PostgreSql`, Migrationen per `dotnet WebApiEngine.dll --migrate`). Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#ablage-dateisystem-oder-postgresql).
@@ -153,7 +159,7 @@ Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_
 Die sinnvolle Reihenfolge ist aktuell:
 
 1. **Pilot starten** nach [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md): Identity Provider registrieren, `.env` füllen, Stack hinter dem Reverse Proxy betreiben
-2. **Rollen und Zuweisungen** für Aufgaben, Definitionen und Diagnose
+2. **Rollen und Zuweisungen** für Aufgaben und Diagnose — für Definitionen liegt die Zuständigkeit inzwischen an den Ordnern
 3. **PostgreSQL-Persistenz** hinter `IStorageSystem`
 4. **Fehler-, Eskalations- und Kompensationssemantik** in der Engine
 

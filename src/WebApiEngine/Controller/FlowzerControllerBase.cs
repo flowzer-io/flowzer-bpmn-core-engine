@@ -1,9 +1,24 @@
 using System.Text;
+using WebApiEngine.Auth;
+using WebApiEngine.Shared;
 
 namespace WebApiEngine.Controller;
 
 public class FlowzerControllerBase: ControllerBase
 {
+    /// <summary>
+    /// Ablehnung einer einzelnen Handlung, wenn die Berechtigung nicht an einer Anwendungsrolle
+    /// haengt, sondern an den Daten — etwa an der Zustaendigkeit fuer einen Ordner. Setzt
+    /// denselben Antwortheader wie die Ablehnung durch die Autorisierungsschicht, damit die
+    /// Oberflaeche beide Faelle gleich behandeln kann und die Ablehnung nicht als kompletter
+    /// Zugangsverlust erscheint.
+    /// </summary>
+    protected ActionResult<ApiStatusResult<T>> ForbiddenCapability<T>(string message)
+    {
+        Response.Headers[FlowzerPolicies.AccessDeniedHeader] = FlowzerPolicies.DeniedCapability;
+        return StatusCode(StatusCodes.Status403Forbidden, new ApiStatusResult<T>(message));
+    }
+
     /// <summary>
     /// Obergrenze fuer hochgeladene BPMN-Definitionen. Ein Definitionsupload ist Text im
     /// Kilobyte-Bereich; alles darueber ist ein Fehler oder Missbrauch und wird als 413 abgelehnt,

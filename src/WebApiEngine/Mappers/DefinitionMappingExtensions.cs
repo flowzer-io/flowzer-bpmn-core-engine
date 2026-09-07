@@ -35,7 +35,8 @@ public static class DefinitionMappingExtensions
         {
             DefinitionId = definition.DefinitionId,
             Name = definition.Name,
-            Description = definition.Description
+            Description = definition.Description,
+            FolderId = definition.FolderId
         };
     }
 
@@ -48,6 +49,7 @@ public static class DefinitionMappingExtensions
             DefinitionId = definition.DefinitionId,
             Name = definition.Name,
             Description = definition.Description,
+            FolderId = definition.FolderId,
             LatestVersion = definition.LatestVersion?.ToDto(),
             LatestVersionDateTime = definition.LatestVersionDateTime,
             DeployedId = definition.DeployedId,
@@ -64,7 +66,8 @@ public static class DefinitionMappingExtensions
         {
             DefinitionId = definitionDto.DefinitionId,
             Name = definitionDto.Name,
-            Description = definitionDto.Description
+            Description = definitionDto.Description,
+            FolderId = definitionDto.FolderId
         };
     }
 

@@ -18,6 +18,9 @@ import type {
   TokenDto,
   UserTaskResultDto,
   VersionDto,
+  WorkflowFolderDto,
+  WorkflowFolderRequestDto,
+  FolderAssignmentDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -53,12 +56,23 @@ export const definitionsApi = {
   /**
    * `POST /definition/new` — erzeugt eine leere Definition inklusive Katalogeintrag.
    * Der Name wird mitgegeben: Die Oberflaeche fragt ihn, bevor sie anlegt.
+   * `folderId` ohne Wert legt auf oberster Ebene an.
    */
-  create: (name: string) =>
+  create: (name: string, folderId?: string | null) =>
     requestStatusResult<BpmnMetaDefinitionDto>('/definition/new', {
       method: 'POST',
-      query: { name },
+      query: { name, folderId: folderId ?? undefined },
     }),
+
+  /**
+   * `PUT /definition/meta/{id}/folder` — verschiebt einen Workflow.
+   * Ohne `folderId` landet er auf der obersten Ebene.
+   */
+  moveToFolder: (definitionId: string, folderId: string | null) =>
+    requestStatusResult<BpmnMetaDefinitionDto>(
+      `/definition/meta/${encodeURIComponent(definitionId)}/folder`,
+      { method: 'PUT', query: { folderId: folderId ?? undefined } },
+    ),
 
   /** `DELETE /definition/meta/{id}` — loescht Katalogeintrag, alle Versionen und deren XML. */
   deleteMeta: (definitionId: string) =>
@@ -105,6 +119,35 @@ export const definitionsApi = {
     );
     return normalizeInstance(instance);
   },
+};
+
+/** Ordner des Workflow-Katalogs und die Zuständigkeiten daran. */
+export const foldersApi = {
+  /** `GET /folder` — der ganze Baum als flache Liste, inklusive der eigenen Rechte. */
+  list: async (signal?: AbortSignal) =>
+    (await requestStatusResult<WorkflowFolderDto[]>('/folder', { signal })) ?? [],
+
+  /** `POST /folder` */
+  create: (folder: WorkflowFolderRequestDto) =>
+    requestStatusResult<WorkflowFolderDto>('/folder', { method: 'POST', body: folder }),
+
+  /** `PUT /folder/{id}` — benennt um und verschiebt. */
+  update: (id: string, folder: WorkflowFolderRequestDto) =>
+    requestStatusResult<WorkflowFolderDto>(`/folder/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: folder,
+    }),
+
+  /** `DELETE /folder/{id}` — nur für leere Ordner. */
+  remove: (id: string) =>
+    requestStatus(`/folder/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+
+  /** `PUT /folder/{id}/assignments` — setzt die Zuweisungen vollständig neu. */
+  updateAssignments: (id: string, assignments: FolderAssignmentDto[]) =>
+    requestStatusResult<WorkflowFolderDto>(`/folder/${encodeURIComponent(id)}/assignments`, {
+      method: 'PUT',
+      body: { assignments },
+    }),
 };
 
 // Alle Instanz-Endpunkte antworten in `ApiStatusResult<T>`.

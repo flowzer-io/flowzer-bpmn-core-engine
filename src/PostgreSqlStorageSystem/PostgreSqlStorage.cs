@@ -15,6 +15,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     {
         _session = new PostgreSqlSession(dataSource, schema, transactional: false);
         DefinitionStorage = new PostgreSqlDefinitionStorage(_session);
+        FolderStorage = new PostgreSqlFolderStorage(_session);
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
@@ -22,6 +23,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
+    public IFolderStorage FolderStorage { get; }
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
@@ -42,6 +44,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     {
         _session = new PostgreSqlSession(dataSource, schema, transactional: true);
         DefinitionStorage = new PostgreSqlDefinitionStorage(_session);
+        FolderStorage = new PostgreSqlFolderStorage(_session);
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
@@ -49,6 +52,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
+    public IFolderStorage FolderStorage { get; }
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
