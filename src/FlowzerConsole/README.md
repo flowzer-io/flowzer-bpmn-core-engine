@@ -1,9 +1,9 @@
 # Flowzer Console
 
 Die Oberfläche der Flowzer-BPMN-Engine: React, TypeScript, Vite. Sie enthält den
-BPMN-Modellierer (bpmn-js mit Camunda-8-Eigenschaftenpanel), den Formulareditor (Form.io),
-die Instanz- und Aufgabenansichten sowie den Betriebsbereich. Die frühere Blazor-Oberfläche
-ist entfernt; diese hier ist die einzige.
+BPMN-Modellierer (bpmn-js mit einem eigenen Eigenschaften-Panel), den Formulareditor
+(Form.io), die Instanz- und Aufgabenansichten sowie den Betriebsbereich. Die frühere
+Blazor-Oberfläche ist entfernt; diese hier ist die einzige.
 
 ## Entwickeln
 
@@ -81,17 +81,61 @@ Tippfehler in der Farbe darf die Oberfläche nicht am Starten hindern.
 
 Dichte und Umfang der Ansicht waren Schalter aus dem Entwurf und sind entfallen.
 
+## Eigenschaften-Panel des Modellierers
+
+Das Panel neben dem Diagramm ist ein eigenes React-Panel und nicht das mitgelieferte
+`bpmn-js-properties-panel`. Es zeigt, was diese Engine auswertet, und benennt es in Flowzers
+Begriffen: Name, Formular, Zuweisung, Frist, Zuordnungen, Auftragstyp und Wiederholungen,
+Zeitangabe, Nachricht samt Korrelationsschlüssel, Signal, aufgerufener Prozess, Skript,
+Mehrfachausführung und an Toren die Bedingungen der ausgehenden Flüsse.
+
+Vier Dateien, vier Aufgaben:
+
+| Datei | Aufgabe |
+|---|---|
+| `bpmn/moddle.ts` | Typen und Lesehilfen für das BPMN-Objektmodell, ohne Seiteneffekte |
+| `bpmn/elementProperties.ts` | Liest ein Element in die flachen Werte des Panels |
+| `bpmn/bpmnEditor.ts` | Schreibt ins Modell — die einzige Datei, die das tut |
+| `bpmn/properties/*` | Die Oberfläche: Abschnitte, Felder, der Formulareditor |
+
+Die Schreiber nehmen **Teiländerungen** und mischen sie mit dem Modellstand. Das ist kein
+Komfort: Ein Textfeld schreibt erst beim Verlassen. Klickt jemand aus einem Feld heraus direkt
+auf einen Schalter derselben Gruppe, laufen beide Schreiber nacheinander — der zweite mit den
+Werten aus dem Bild *vor* dem ersten. Gäbe er die ganze Gruppe mit, machte er die eben
+getippte Eingabe wieder zunichte.
+
+**Der Umfang folgt `src/core-engine/ModelParser.cs`.** Was der Parser liest, gehört ins
+Panel; was das Panel anbietet, muss der Parser lesen. Ein Feld ohne Wirkung ist derselbe
+Fehler wie eine Angabe, die sich nur im XML setzen lässt. Beide Seiten haben Tests
+(`elementProperties.test.ts` liest, `bpmnEditor.test.ts` schreibt gegen ein Modeler-Doppel).
+
+Nicht im Panel und bewusst nicht: die Wahl der Elementart selbst — ob ein Ereignis
+unterbrechend ist, ob eine Mehrfachausführung sequenziell läuft, welcher Ereignistyp
+vorliegt. Das entscheidet in bpmn-js das Kontextmenü am Element, und zwei Bedienwege für
+dieselbe Sache wären ein Widerspruch. Ohne Modelliererrolle ist das Panel schreibgeschützt,
+Speichern und Deployen sind ausgeblendet; die Zeichenfläche selbst bleibt bedienbar.
+
+Zwei Dinge sind bewusst so und leicht wieder kaputtzumachen:
+
+- **`camunda-bpmn-js-behaviors` läuft nicht mit.** Das Modul setzt Camundas 8.5-Semantik
+  durch: Jede neu gezeichnete menschliche Aufgabe bekäme ein `zeebe:userTask`, und ihr
+  Form-Key wanderte danach nach `zeebe:externalReference` — ein Attribut, das der Parser
+  dieser Engine nicht liest. Ein so modellierter Workflow ließe sich nicht mehr speichern.
+- **Das Formular im Workflow wird auf einer eigenen Vollbildfläche bearbeitet**
+  (`properties/EmbeddedFormDialog.tsx`), nicht im Dialog aus `ui/Modal`. Form.io hängt
+  seinen Eigenschaftendialog ans `<body>` (siehe unten); für Radix ist ein Klick darin ein
+  Klick nach außen, und der umgebende Dialog schloss sich beim ersten Feldklick.
+
 ## Fremde Oberflächen im Bündel
 
 Zwei Bibliotheken bringen eine eigene, fest verdrahtete Optik mit. Beide sind deshalb an
 die Design-Tokens der Konsole angeglichen, und beides ist leicht zu übersehen:
 
-- **bpmn-js und das Eigenschaftenpanel** (`src/components/bpmn/bpmn.css`). Beide
-  Bibliotheken sind über Custom Properties thembar, deklarieren sie aber auf
-  `.djs-parent`, `.bjs-container` beziehungsweise `.bio-properties-panel` **selbst** —
-  Überschreibungen müssen deshalb auf denselben Elementen stehen, nicht auf dem Rahmen
-  darum. Zwei Graustufen dienen dort als Fläche und nicht als Text; sie sind einzeln
-  herausgezogen, sonst stünde heller Text auf hellgrauem Grund.
+- **bpmn-js** (`src/components/bpmn/bpmn.css`). Die Bibliothek ist über Custom Properties
+  thembar, deklariert sie aber auf `.djs-parent` beziehungsweise `.bjs-container`
+  **selbst** — Überschreibungen müssen deshalb auf denselben Elementen stehen, nicht auf
+  dem Rahmen darum. Zwei Graustufen dienen dort als Fläche und nicht als Text; sie sind
+  einzeln herausgezogen, sonst stünde heller Text auf hellgrauem Grund.
 - **Form.io** (`src/components/forms/formio.css`). Form.io setzt Bootstrap-5-Vorlagen und
   Bootstrap-Symbole voraus. Bootstrap global einzubinden würde Tailwind überschreiben,
   deshalb sind nur die tatsächlich verwendeten Bausteine nachgezogen — begrenzt auf

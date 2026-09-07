@@ -77,14 +77,17 @@ public class UserTaskController(
         }
 
         var formKey = (subscription.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
-        var resolved = await userTaskFormResolver.ResolveAsync(formKey);
+
+        // Die Version des Workflows entscheidet mit: Ein im Workflow eingebettetes Formular steht
+        // in genau diesem Diagramm, nicht im Formularbestand.
+        var resolved = await userTaskFormResolver.ResolveAsync(formKey, subscription.DefinitionId);
 
         if (resolved.Form is null)
         {
             return BadRequest(new ApiStatusResult<FormDto>(resolved.ErrorMessage));
         }
 
-        return Ok(new ApiStatusResult<FormDto>(resolved.Form.ToDto()));
+        return Ok(new ApiStatusResult<FormDto>(resolved.Form));
     }
 
     [HttpPost]

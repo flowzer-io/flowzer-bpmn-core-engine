@@ -68,6 +68,8 @@ Unter anderem bereits umgesetzt:
 - September 2026: `GET /usertask/{id}/form`, Zeitstempel und Form-Key in den API-Verträgen, 422 für Modellfehler
 - September 2026: Standardfluss an exklusiven Gateways funktioniert
 - September 2026: Docker/Compose auf .NET 10, NuGet-Audit als Restore-Gate, SDK-Band festgepinnt
+- September 2026: Formulare können im Workflow selbst liegen (`zeebe:userTaskForm`); der Modellierer hat ein eigenes Eigenschaften-Panel statt des Camunda-Panels
+- September 2026: `zeebe:taskDefinition/@retries` wird eingelesen — vorher bekam jeder Auftrag einen Versuch, obwohl das Diagramm etwas anderes sagte
 
 ## Was weiterhin bremst
 

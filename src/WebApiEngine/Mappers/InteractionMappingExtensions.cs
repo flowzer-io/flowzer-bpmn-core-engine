@@ -137,8 +137,9 @@ public static class InteractionMappingExtensions
         return new Form
         {
             Id = formDto.Id ?? Guid.Empty,
-            FormId = formDto.FormId,
-            Version = formDto.Version.ToModel(),
+            FormId = formDto.FormId ?? Guid.Empty,
+            // Ohne Versionsangabe gilt die erste: So legt die Konsole ein neues Formular an.
+            Version = (formDto.Version ?? new VersionDto { Major = 0, Minor = 1 }).ToModel(),
             FormData = formDto.FormData
         };
     }

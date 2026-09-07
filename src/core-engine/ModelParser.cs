@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Xml.Linq;
 using BPMN.Foundation;
 using core_engine.Exceptions;
@@ -90,10 +91,49 @@ public static class ModelParser
                 Name = xmlProcessNode.Attribute("name")?.Value,
                 IsExecutable = true,
                 FlowElements = GetFlowElements(rootElements, xmlProcessNode),
+                FlowzerUserTaskForms = ParseUserTaskForms(xmlProcessNode),
                 DefinitionsId = definitionsId,
             }));
 
         return processes;
+    }
+
+    /// <summary>
+    /// Liest nur die eingebetteten Formulare eines BPMN-Dokuments, ohne das ganze Modell zu
+    /// bauen. Fuer den Formularabruf zur Laufzeit ist das der richtige Schnitt: Ein Fehler an
+    /// einer ganz anderen Stelle des Modells darf nicht verhindern, dass eine wartende Aufgabe
+    /// ihr Formular bekommt. Die Regel, was als Formular zaehlt, bleibt dieselbe wie beim
+    /// vollstaendigen Parsen.
+    /// </summary>
+    public static FlowzerList<FlowzerUserTaskForm> ParseUserTaskForms(string xml)
+    {
+        var root = XDocument.Parse(xml).Root;
+
+        return root is null
+            ? []
+            : root.Elements()
+                .Where(node => node.Name.LocalName.Equals("process", StringComparison.InvariantCultureIgnoreCase))
+                .SelectMany(ParseUserTaskForms)
+                .ToFlowzerList();
+    }
+
+    /// <summary>
+    /// Liest die Formulare, die der Workflow selbst mitbringt. Sie stehen als
+    /// <c>zeebe:userTaskForm</c> direkt in den <c>extensionElements</c> des Prozesses — bewusst
+    /// nur dort: Ein gleichnamiges Element an einer Aufgabe waere kein Prozessformular, und ein
+    /// Form-Key duerfte nicht darauf zeigen.
+    /// </summary>
+    private static FlowzerList<FlowzerUserTaskForm> ParseUserTaskForms(XElement xmlProcessNode)
+    {
+        return xmlProcessNode.Elements()
+            .Where(element => element.Name.LocalName == "extensionElements")
+            .Elements()
+            .Where(element => element.Name.LocalName == "userTaskForm")
+            .Select(element => new FlowzerUserTaskForm(
+                element.Attribute("id")?.Value?.Trim() ?? "",
+                element.Value))
+            .Where(form => form.Id.Length > 0)
+            .ToFlowzerList();
     }
 
     private static FlowzerList<FlowElement> GetFlowElements(List<IRootElement> rootElements, XElement xmlProcessNode)
@@ -432,6 +472,9 @@ public static class ModelParser
     private static ServiceTask HandleServiceTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
         FlowzerList<FlowzerIoMapping>? outputMappings)
     {
+        var taskDefinition = xmlFlowNode.Descendants()
+            .FirstOrDefault(e => e.Name.LocalName == "taskDefinition");
+
         return new ServiceTask
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
@@ -440,15 +483,28 @@ public static class ModelParser
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
             Implementation =
                 xmlFlowNode.Attribute("Implementation")?.Value
-                ?? xmlFlowNode.Descendants()
-                    .FirstOrDefault(e => e.Name.LocalName == "taskDefinition")
-                    ?.Attribute("type")?.Value
+                ?? taskDefinition?.Attribute("type")?.Value
                 ?? throw new ModelValidationException(
                     $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
+            FlowzerRetries = ParseRetries(taskDefinition),
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
             LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
         };
+    }
+
+    /// <summary>
+    /// Die Wiederholungen aus <c>zeebe:taskDefinition/@retries</c>. Zeebe erlaubt dort auch einen
+    /// FEEL-Ausdruck; der laesst sich beim Parsen nicht aufloesen, deshalb bleibt es dann beim
+    /// Standardwert 0 — die Auftragsvergabe setzt darauf ihren eigenen Vorgabewert.
+    /// </summary>
+    private static int ParseRetries(XElement? taskDefinition)
+    {
+        var retries = taskDefinition?.Attribute("retries")?.Value;
+
+        return int.TryParse(retries, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0
+            ? parsed
+            : 0;
     }
 
     private static LoopCharacteristics? ParseLoopCharacteristics(XElement xmlFlowNode)

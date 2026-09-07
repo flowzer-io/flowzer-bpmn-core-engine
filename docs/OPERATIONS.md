@@ -114,11 +114,31 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 `POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
 
+## Formulare im Workflow
+
+Ein Aufgabenformular kann aus zwei Quellen kommen. Der Form-Key
+(`zeebe:formDefinition/@formKey`) sagt, aus welcher:
+
+| Form-Key | Herkunft |
+|---|---|
+| `Urlaubsantrag` bzw. `Urlaubsantrag:1.0` | Formularbestand — geteilt über Workflows hinweg, eigene Versionen |
+| `camunda-forms:bpmn:Form_…` | im Workflow selbst, als `zeebe:userTaskForm` in den `extensionElements` des Prozesses |
+
+Ein Formular im Workflow ist mit ihm versioniert: Eine neue Workflow-Version bringt ihr
+eigenes Formular mit, laufende Instanzen behalten das ihre. `GET /usertask/{id}/form`
+liest es aus dem Diagramm genau der Version, an der die Aufgabe hängt, und antwortet ohne
+`formId` — es steht in keinem Bestand. Zeigt der Schlüssel auf eine Kennung, die der
+Workflow nicht enthält, ist das ein Modellierungsfehler und kommt als 400 mit der
+gesuchten Kennung zurück.
+
+Das Präfix ist bewusst Camundas: Ein im Camunda Modeler erstelltes Diagramm mit
+eingebettetem Formular läuft ohne Umbau.
+
 ## Formulare löschen
 
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
-Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …".
+Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …". Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.
 
 Geprüft werden zwei Dinge, und beide zählen:
 
