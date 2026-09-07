@@ -336,6 +336,18 @@ Der runtime-nahe Stack nutzt bewusst einen separaten Pfad:
 
 Damit bleiben lokale Dev-Daten und runtime-nahe Containerdaten getrennt.
 
+### Zulässige Katalog-Kennungen
+
+Die Kennung eines Workflows (`definitionId`) wird in der Dateiablage Teil von Dateinamen. Sie
+darf deshalb nicht leer sein, nicht `.` oder `..` lauten, kein `/`, `\` und keine Steuerzeichen
+enthalten und höchstens 200 Zeichen lang sein. Alles andere bleibt erlaubt — vorhandene
+Kataloge mit Leerzeichen oder Umlauten in der Kennung bleiben lesbar.
+
+Geprüft wird an jedem Eingang: `POST /definition/meta` und `PUT /definition/meta` nehmen die
+Kennung aus dem Rumpf, `POST /definition` und `POST /definition/deploy` aus dem hochgeladenen
+BPMN-XML (`definitions/@id`). Eine unzulässige Kennung wird mit **400** und der Meldung
+`"…" is not a valid definition id. …` abgelehnt; gespeichert wird nichts.
+
 ## Logs und Diagnose
 
 ### Request- und Scheduler-Diagnose

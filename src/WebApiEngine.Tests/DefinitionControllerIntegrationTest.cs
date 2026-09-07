@@ -303,6 +303,148 @@ public class DefinitionControllerIntegrationTest
         payload!.Successful.Should().BeFalse();
     }
 
+    // Testzweck: Prüft, dass ein Katalogeintrag mit Pfadanteilen in der Kennung abgelehnt wird und
+    // nichts gespeichert bleibt — die Kennung wird im Dateisystem-Storage zum Dateinamen.
+    [TestCase("../x")]
+    [TestCase("a/b")]
+    [TestCase("a\\b")]
+    [TestCase("..")]
+    [TestCase("   ")]
+    public async Task MetaPost_ShouldRejectDefinitionIdWithPathCharacters(string definitionId)
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/definition/meta",
+            new { definitionId, name = "Katalogeintrag" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("is not a valid definition id");
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass auch das Ändern eines Katalogeintrags eine Kennung mit Pfadanteilen
+    // ablehnt — sonst ließe sich die Prüfung beim Anlegen mit einem PUT umgehen.
+    [TestCase("../x")]
+    [TestCase("a/b")]
+    public async Task MetaPut_ShouldRejectDefinitionIdWithPathCharacters(string definitionId)
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            "/definition/meta",
+            new { definitionId, name = "Katalogeintrag" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("is not a valid definition id");
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass die heute üblichen Kennungen weiterhin angenommen werden — die Prüfung
+    // darf vorhandene Kataloge und die Beispiele nicht brechen.
+    [TestCase("flowzer-urlaubsantrag")]
+    [TestCase("Definitions_0abc")]
+    [TestCase("Process_1")]
+    [TestCase("definition_3f2504e0-4f89-11d3-9a0c-0305e82c3301")]
+    public async Task MetaPost_ShouldAcceptEstablishedDefinitionIds(string definitionId)
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync(
+            "/definition/meta",
+            new { definitionId, name = "Katalogeintrag" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnMetaDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        storage.DefinitionStorageSeed.MetaDefinitions.Should().ContainSingle()
+            .Which.DefinitionId.Should().Be(definitionId);
+    }
+
+    // Testzweck: Prüft, dass eine Kennung mit Pfadanteilen auch aus dem hochgeladenen BPMN-XML
+    // abgelehnt wird und keine Version anlegt.
+    [Test]
+    public async Task UploadDefinition_ShouldRejectDefinitionIdWithPathCharactersFromXml()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(
+            "/definition",
+            new StringContent(CreateXmlWithCatalogId("../x"), Encoding.UTF8, "text/plain"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("is not a valid definition id");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+        storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass auch der Deploy eine Kennung mit Pfadanteilen ablehnt, bevor eine
+    // Version entsteht.
+    [Test]
+    public async Task DeployDefinition_ShouldRejectDefinitionIdWithPathCharactersFromXml()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(CreateXmlWithCatalogId("../x"), Encoding.UTF8, "text/plain"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("is not a valid definition id");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+        storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass ein Upload mit einer üblichen Kennung weiterhin durchgeht — die
+    // Prüfung darf den Normalfall nicht treffen.
+    [Test]
+    public async Task UploadDefinition_ShouldAcceptEstablishedDefinitionIdFromXml()
+    {
+        var storage = TestStorage.Create();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsync(
+            "/definition",
+            new StringContent(CreateXmlWithCatalogId("flowzer-urlaubsantrag"), Encoding.UTF8, "text/plain"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>();
+        payload.Should().NotBeNull();
+        payload!.Successful.Should().BeTrue();
+        storage.DefinitionStorageSeed.Definitions.Should().ContainSingle()
+            .Which.DefinitionId.Should().Be("flowzer-urlaubsantrag");
+    }
+
     private static ProcessInstanceInfo CreateInstanceInfo(Guid instanceId, string metaDefinitionId, bool finished) =>
         new()
         {
@@ -674,6 +816,40 @@ public class DefinitionControllerIntegrationTest
                         <di:waypoint x="215" y="117" />
                         <di:waypoint x="332" y="117" />
                       </bpmndi:BPMNEdge>
+                    </bpmndi:BPMNPlane>
+                  </bpmndi:BPMNDiagram>
+                </bpmn:definitions>
+                """;
+    }
+
+    /// <summary>
+    /// Ein Diagramm, dessen Katalog-Kennung frei waehlbar ist, waehrend die Prozesskennung gueltig
+    /// bleibt — sonst pruefte ein Test mit unbrauchbarer Kennung zwei Dinge auf einmal.
+    /// </summary>
+    private static string CreateXmlWithCatalogId(string definitionId)
+    {
+        return $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                                  id="{definitionId}"
+                                  targetNamespace="http://bpmn.io/schema/bpmn">
+                  <bpmn:process id="Process_1" isExecutable="true">
+                    <bpmn:startEvent id="StartEvent_1">
+                      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+                    </bpmn:startEvent>
+                    <bpmn:endEvent id="EndEvent_1">
+                      <bpmn:incoming>Flow_1</bpmn:incoming>
+                    </bpmn:endEvent>
+                    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="EndEvent_1" />
+                  </bpmn:process>
+                  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+                    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+                      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+                        <dc:Bounds x="179" y="99" width="36" height="36" />
+                      </bpmndi:BPMNShape>
                     </bpmndi:BPMNPlane>
                   </bpmndi:BPMNDiagram>
                 </bpmn:definitions>
