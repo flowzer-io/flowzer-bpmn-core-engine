@@ -359,3 +359,80 @@ describe('saveEmbeddedForm', () => {
     expect(extensionOf(process, 'zeebe:UserTaskForm')!.body).toBe('neu');
   });
 });
+
+// Testzweck: Das Startformular wird genauso geschrieben wie das einer Aufgabe. Landete es an
+// anderer Stelle, läse der Parser es nicht — und der Workflow startete ohne Formular.
+describe('setFormKey am Startereignis', () => {
+  it('schreibt den Form-Key in die zeebe:formDefinition des Startereignisses', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:StartEvent' });
+
+    editor.setFormKey('Element_1', 'Urlaubsantrag');
+
+    expect(extensionOf(businessObject, 'zeebe:FormDefinition')!.formKey).toBe('Urlaubsantrag');
+  });
+
+  it('entfernt den Verweis wieder', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:StartEvent',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:FormDefinition', formKey: 'Urlaubsantrag' }],
+      } as ModdleElement,
+    });
+
+    editor.setFormKey('Element_1', null);
+
+    expect(businessObject.extensionElements).toBeUndefined();
+  });
+});
+
+// Testzweck: Übersicht und Diagrammmarkierung sollen jedes Formular des Workflows zeigen —
+// auch das am Startereignis. Sonst fiele ein ins Leere zeigender Startformular-Verweis erst
+// beim Startversuch auf.
+describe('listFormOwners', () => {
+  it('führt Aufgaben und Startereignisse mit ihrem Formular', () => {
+    const definitions = { $type: 'bpmn:Definitions', rootElements: [] as ModdleElement[] } as ModdleElement;
+    const process = { $type: 'bpmn:Process', id: 'Process_1', $parent: definitions } as ModdleElement;
+    const formDefinition = (formKey: string) =>
+      ({
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:FormDefinition', formKey }],
+      }) as ModdleElement;
+
+    const editor = createModelerDouble([
+      shape({ $type: 'bpmn:Process', id: 'Process_1', $parent: definitions }, 'Process_1'),
+      shape(
+        { $type: 'bpmn:StartEvent', name: 'Antrag stellen', $parent: process, extensionElements: formDefinition('Antrag') },
+        'StartEvent_1',
+      ),
+      shape(
+        { $type: 'bpmn:UserTask', name: 'Freigeben', $parent: process, extensionElements: formDefinition('Freigabe') },
+        'Task_1',
+      ),
+      shape({ $type: 'bpmn:EndEvent', $parent: process }, 'End_1'),
+    ]);
+
+    expect(editor.listFormOwners()).toEqual([
+      { id: 'StartEvent_1', name: 'Antrag stellen', kind: 'startEvent', formKey: 'Antrag' },
+      { id: 'Task_1', name: 'Freigeben', kind: 'userTask', formKey: 'Freigabe' },
+    ]);
+  });
+
+  it('lässt ein Startereignis mit Zeitdefinition weg', () => {
+    const editor = createModelerDouble([
+      shape(
+        {
+          $type: 'bpmn:StartEvent',
+          eventDefinitions: [{ $type: 'bpmn:TimerEventDefinition' } as ModdleElement],
+          extensionElements: {
+            $type: 'bpmn:ExtensionElements',
+            values: [{ $type: 'zeebe:FormDefinition', formKey: 'Antrag' }],
+          } as ModdleElement,
+        },
+        'StartEvent_Timer',
+      ),
+    ]);
+
+    expect(editor.listFormOwners()).toEqual([]);
+  });
+});

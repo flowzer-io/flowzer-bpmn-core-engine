@@ -258,3 +258,47 @@ describe('readElementProperties für weitere Elemente', () => {
     expect(properties.supportsOutputMappings).toBe(true);
   });
 });
+
+// Testzweck: Ein Startformular am reinen Startereignis muss das Panel als solches erkennen.
+// Ohne `startFormApplies` böte es das Formular auch dort an, wo die Engine es nicht liest —
+// an einem Timer-, Nachrichten- oder Signalstart füllt es niemand aus.
+describe('readElementProperties für ein Startereignis', () => {
+  it('liest den Form-Key und meldet das Startformular als zutreffend', () => {
+    const startEvent = element({
+      $type: 'bpmn:StartEvent',
+      name: 'Antrag stellen',
+      extensionElements: extensions({
+        $type: 'zeebe:FormDefinition',
+        formKey: 'Urlaubsantrag',
+      } as ModdleElement),
+    });
+
+    const properties = readElementProperties(startEvent);
+
+    expect(properties.kind).toBe('startEvent');
+    expect(properties.formKey).toBe('Urlaubsantrag');
+    expect(properties.startFormApplies).toBe(true);
+  });
+
+  it('meldet das Startformular an einem Zeitstart als nicht zutreffend', () => {
+    const timerStart = element({
+      $type: 'bpmn:StartEvent',
+      eventDefinitions: [{ $type: 'bpmn:TimerEventDefinition' } as ModdleElement],
+      extensionElements: extensions({
+        $type: 'zeebe:FormDefinition',
+        formKey: 'Urlaubsantrag',
+      } as ModdleElement),
+    });
+
+    const properties = readElementProperties(timerStart);
+
+    expect(properties.kind).toBe('startEvent');
+    expect(properties.startFormApplies).toBe(false);
+  });
+
+  it('meldet an einer Aufgabe kein Startformular', () => {
+    const properties = readElementProperties(element({ $type: 'bpmn:UserTask' }));
+
+    expect(properties.startFormApplies).toBe(false);
+  });
+});

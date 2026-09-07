@@ -21,6 +21,7 @@ import {
   messageHolder,
   multiInstanceOf,
   readElementProperties,
+  startFormAppliesTo,
   timerOf,
   type Assignment,
   type EmbeddedForm,
@@ -32,7 +33,7 @@ import {
   type ScriptDefinition,
   type TimerDefinition,
   type MessageReference,
-  type UserTaskReference,
+  type FormOwner,
 } from './elementProperties';
 import {
   enclosing,
@@ -221,7 +222,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
       modeling().updateProperties(element, { name: name.trim() });
     },
 
-    /** Setzt den Formularverweis der Aufgabe; `null` entfernt ihn. */
+    /** Setzt den Formularverweis einer Aufgabe oder des Startereignisses; `null` entfernt ihn. */
     setFormKey(elementId: string, formKey: string | null): void {
       const element = registry().get(elementId);
       if (!element) return;
@@ -525,19 +526,29 @@ export function createBpmnEditor(modeler: ModelerLike) {
       writeExtension(element, loop, 'zeebe:LoopCharacteristics', isEmpty ? null : zeebeValues);
     },
 
-    /** Alle menschlichen Aufgaben des Diagramms — für Übersicht und Markierung. */
-    listUserTasks(): UserTaskReference[] {
+    /**
+     * Alle Elemente des Diagramms, die auf ein Formular zeigen — für die Übersicht und die
+     * Markierung im Diagramm.
+     *
+     * Menschliche Aufgaben stehen immer darin, auch ohne Formular: Dort ist ein fehlender
+     * Verweis ein Mangel. Ein Startereignis steht nur darin, wenn es ein Startformular trägt —
+     * ohne eines startet der Workflow direkt, und das ist der Normalfall. Startereignisse mit
+     * Zeit-, Nachrichten- oder Signaldefinition bleiben aussen vor: Dort liest die Engine
+     * keinen Form-Key.
+     */
+    listFormOwners(): FormOwner[] {
       return registry()
-        .filter((element) => element.businessObject?.$type === 'bpmn:UserTask')
-        .map((element) => {
-          const formDefinition = extension(element.businessObject, 'zeebe:FormDefinition');
-          const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
-          return {
-            id: element.id,
-            name: text(element.businessObject, 'name').trim() || element.id,
-            formKey: formKey.length > 0 ? formKey : null,
-          };
-        });
+        .filter((element) => {
+          const type = element.businessObject?.$type;
+          if (type === 'bpmn:UserTask') return true;
+          return startFormAppliesTo(element.businessObject) && formKeyOf(element.businessObject) !== null;
+        })
+        .map((element) => ({
+          id: element.id,
+          name: text(element.businessObject, 'name').trim() || element.id,
+          kind: element.businessObject.$type === 'bpmn:UserTask' ? ('userTask' as const) : ('startEvent' as const),
+          formKey: formKeyOf(element.businessObject),
+        }));
     },
 
     /** Die Formulare, die der Workflow selbst mitbringt — über alle Prozesse des Diagramms. */
@@ -591,6 +602,13 @@ export function createBpmnEditor(modeler: ModelerLike) {
 }
 
 export type BpmnEditor = ReturnType<typeof createBpmnEditor>;
+
+/** Der Formularverweis eines Elements — dieselbe Lesereihenfolge wie im Parser. */
+function formKeyOf(businessObject: ModdleElement): string | null {
+  const formDefinition = extension(businessObject, 'zeebe:FormDefinition');
+  const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
+  return formKey.length > 0 ? formKey : null;
+}
 
 /**
  * Der Wert, der geschrieben wird: der neue, wenn einer kam, sonst der bisherige. Leer heisst

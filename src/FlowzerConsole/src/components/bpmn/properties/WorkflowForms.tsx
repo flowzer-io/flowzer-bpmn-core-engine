@@ -3,21 +3,22 @@ import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { describeFormKey, parseFormKey } from '@/lib/formKey';
 
-import type { EmbeddedForm, UserTaskReference } from '../bpmnEditor';
+import type { EmbeddedForm, FormOwner } from '../bpmnEditor';
 import { Notice, Section } from './PropertyFields';
 
-/** Ein Formular, wie es im Workflow vorkommt — mit den Aufgaben, die es benutzen. */
+/** Ein Formular, wie es im Workflow vorkommt — mit den Elementen, die es benutzen. */
 interface FormUsage {
   key: string;
   label: string;
   origin: 'embedded' | 'stored';
   /** Das Formular ist zwar verwiesen, aber weder im Workflow noch im Bestand auffindbar. */
   missing: boolean;
-  tasks: UserTaskReference[];
+  owners: FormOwner[];
 }
 
 interface WorkflowFormsProps {
-  userTasks: UserTaskReference[];
+  /** Aufgaben und Startereignis, die auf ein Formular zeigen. */
+  formOwners: FormOwner[];
   embeddedForms: EmbeddedForm[];
   /** Namen der Formulare im Bestand — für die Prüfung, ob ein Verweis ins Leere zeigt. */
   storedFormNames: string[];
@@ -36,7 +37,7 @@ interface WorkflowFormsProps {
  * fehlt, fällt sonst niemandem vor dem Deploy auf.
  */
 export function WorkflowForms({
-  userTasks,
+  formOwners,
   embeddedForms,
   storedFormNames,
   onSelectTask,
@@ -44,12 +45,16 @@ export function WorkflowForms({
   onRemoveEmbeddedForm,
   readOnly,
 }: WorkflowFormsProps) {
-  const usages = collectUsages(userTasks, embeddedForms, storedFormNames);
-  const withoutForm = userTasks.filter((task) => parseFormKey(task.formKey).kind === 'none');
+  const usages = collectUsages(formOwners, embeddedForms, storedFormNames);
+  // Nur Aufgaben: Am Startereignis ist „kein Formular" der Normalfall, kein Mangel.
+  const withoutForm = formOwners.filter(
+    (owner) => owner.kind === 'userTask' && parseFormKey(owner.formKey).kind === 'none',
+  );
+  const userTaskCount = formOwners.filter((owner) => owner.kind === 'userTask').length;
   const unusedForms = embeddedForms.filter(
     (form) =>
-      !userTasks.some((task) => {
-        const reference = parseFormKey(task.formKey);
+      !formOwners.some((owner) => {
+        const reference = parseFormKey(owner.formKey);
         return reference.kind === 'embedded' && reference.formId === form.id;
       }),
   );
@@ -59,9 +64,9 @@ export function WorkflowForms({
       icon="description"
       title="Formulare in diesem Workflow"
       hint={
-        userTasks.length === 0
-          ? 'Der Workflow hat noch keine menschliche Aufgabe.'
-          : 'Jede menschliche Aufgabe zeigt über ihren Form-Key auf ein Formular.'
+        formOwners.length === 0
+          ? 'Der Workflow benutzt noch kein Formular.'
+          : 'Jede menschliche Aufgabe zeigt über ihren Form-Key auf ein Formular; das Startereignis kann zusätzlich ein Startformular tragen.'
       }
     >
       {usages.map((usage) => (
@@ -96,15 +101,17 @@ export function WorkflowForms({
           </div>
 
           <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0">
-            {usage.tasks.map((task) => (
-              <li key={task.id}>
+            {usage.owners.map((owner) => (
+              <li key={owner.id}>
                 <button
                   type="button"
-                  onClick={() => onSelectTask(task.id)}
+                  onClick={() => onSelectTask(owner.id)}
                   className="text-muted hover:text-accent flex w-full cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-left text-[12px]"
                 >
-                  <Icon name="person" size={13} className="flex-none" />
-                  <span className="truncate">{task.name}</span>
+                  <Icon name={owner.kind === 'startEvent' ? 'play_circle' : 'person'} size={13} className="flex-none" />
+                  <span className="truncate">
+                    {owner.kind === 'startEvent' ? `Startformular: ${owner.name}` : owner.name}
+                  </span>
                 </button>
               </li>
             ))}
@@ -112,7 +119,7 @@ export function WorkflowForms({
         </div>
       ))}
 
-      {usages.length === 0 && userTasks.length > 0 && (
+      {usages.length === 0 && userTaskCount > 0 && (
         <Notice tone="warn">Keine der Aufgaben verweist bisher auf ein Formular.</Notice>
       )}
 
@@ -126,7 +133,7 @@ export function WorkflowForms({
       {unusedForms.length > 0 && (
         <div>
           <p className="text-muted m-0 mb-1.5 text-[12px]">
-            Im Workflow gespeichert, aber von keiner Aufgabe benutzt:
+            Im Workflow gespeichert, aber nirgends benutzt:
           </p>
           <div className="flex flex-col gap-1.5">
             {unusedForms.map((form) => (
@@ -161,25 +168,25 @@ export function WorkflowForms({
   );
 }
 
-/** Fasst die Aufgaben nach dem Formular zusammen, auf das sie zeigen. */
+/** Fasst die Aufgaben und das Startereignis nach dem Formular zusammen, auf das sie zeigen. */
 function collectUsages(
-  userTasks: UserTaskReference[],
+  formOwners: FormOwner[],
   embeddedForms: EmbeddedForm[],
   storedFormNames: string[],
 ): FormUsage[] {
   const byKey = new Map<string, FormUsage>();
 
-  for (const task of userTasks) {
-    const reference = parseFormKey(task.formKey);
+  for (const owner of formOwners) {
+    const reference = parseFormKey(owner.formKey);
     if (reference.kind === 'none') continue;
 
     // Gespeicherte Formulare werden ueber den ganzen Schluessel gruppiert: „Urlaubsantrag"
     // und „Urlaubsantrag:1.0" sind zwei verschiedene Ziele, auch wenn der Name derselbe ist.
-    const key = reference.kind === 'embedded' ? reference.formId : (task.formKey ?? '').trim();
+    const key = reference.kind === 'embedded' ? reference.formId : (owner.formKey ?? '').trim();
     const existing = byKey.get(key);
 
     if (existing) {
-      existing.tasks.push(task);
+      existing.owners.push(owner);
       continue;
     }
 
@@ -190,10 +197,10 @@ function collectUsages(
 
     byKey.set(key, {
       key,
-      label: describeFormKey(task.formKey),
+      label: describeFormKey(owner.formKey),
       origin: reference.kind,
       missing,
-      tasks: [task],
+      owners: [owner],
     });
   }
 

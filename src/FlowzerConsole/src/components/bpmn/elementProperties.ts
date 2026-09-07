@@ -20,7 +20,14 @@ import {
 } from './moddle';
 
 /** Die Elementgruppen, für die das Panel eigene Abschnitte zeigt. */
-export type ElementKind = 'userTask' | 'serviceTask' | 'gateway' | 'sequenceFlow' | 'process' | 'other';
+export type ElementKind =
+  | 'userTask'
+  | 'serviceTask'
+  | 'startEvent'
+  | 'gateway'
+  | 'sequenceFlow'
+  | 'process'
+  | 'other';
 
 export interface IoMapping {
   source: string;
@@ -42,10 +49,15 @@ export interface EmbeddedForm {
   schema: string;
 }
 
-/** Eine menschliche Aufgabe des Diagramms samt ihrem Formularverweis. */
-export interface UserTaskReference {
+/**
+ * Ein Element des Diagramms, das auf ein Formular zeigt: eine menschliche Aufgabe oder das
+ * Startereignis mit dem Startformular. Beide stehen in derselben Liste, damit die Übersicht
+ * und die Markierung im Diagramm alle Formulare eines Workflows zeigen.
+ */
+export interface FormOwner {
   id: string;
   name: string;
+  kind: 'userTask' | 'startEvent';
   formKey: string | null;
 }
 
@@ -104,8 +116,14 @@ export interface ElementProperties {
   kind: ElementKind;
   name: string;
 
-  /** Menschliche Aufgabe. */
+  /** Menschliche Aufgabe oder Startereignis. */
   formKey: string | null;
+  /**
+   * Ob an diesem Element ein Startformular gilt — also am reinen Startereignis ohne Timer-,
+   * Nachrichten- oder Signaldefinition. Nur dort liest die Engine den Form-Key; an einem
+   * Zeitstart gäbe es niemanden, der das Formular ausfüllt.
+   */
+  startFormApplies: boolean;
   /**
    * Ein Formularverweis in `zeebe:externalReference`. Die Engine liest ihn nicht; er entsteht
    * in Camundas neuer User-Task-Semantik und stand früher auch in Diagrammen aus dieser
@@ -182,6 +200,7 @@ function kindOf(element: DiagramElement): ElementKind {
   const type = element.businessObject?.$type ?? element.type;
   if (type === 'bpmn:UserTask') return 'userTask';
   if (type === 'bpmn:ServiceTask') return 'serviceTask';
+  if (type === 'bpmn:StartEvent') return 'startEvent';
   if (GATEWAY_TYPES.includes(type)) return 'gateway';
   if (type === 'bpmn:SequenceFlow') return 'sequenceFlow';
   if (type === 'bpmn:Process' || type === 'bpmn:Participant' || type === 'bpmn:Collaboration') return 'process';
@@ -312,6 +331,16 @@ function needsJobType(businessObject: ModdleElement): boolean {
 }
 
 /**
+ * Ob an diesem Element ein Startformular gilt: am Startereignis ohne Ereignisdefinition.
+ * Genau diese Bedingung wertet der Parser aus (`ModelParser.HandleStartEvent`).
+ */
+export function startFormAppliesTo(businessObject: ModdleElement): boolean {
+  if (businessObject?.$type !== 'bpmn:StartEvent') return false;
+  const definitions = (businessObject.eventDefinitions as ModdleElement[] | undefined) ?? [];
+  return definitions.length === 0;
+}
+
+/**
  * Prüft den Typ eines Elements einschließlich seiner Oberklassen. `bpmn:Activity` ist keine
  * eigene Elementart, sondern die Oberklasse von Aufgaben und Teilprozessen — ohne diese
  * Prüfung bekäme ein Fluss aus einer Aufgabe heraus kein Bedingungsfeld.
@@ -346,6 +375,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     name: text(businessObject, 'name'),
 
     formKey: formKey.length > 0 ? formKey : null,
+    startFormApplies: startFormAppliesTo(businessObject),
     externalFormReference: text(formDefinition, 'externalReference'),
     assignee: text(assignment, 'assignee'),
     candidateGroups: text(assignment, 'candidateGroups'),

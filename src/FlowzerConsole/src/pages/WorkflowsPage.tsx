@@ -13,12 +13,13 @@ import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, Skeleton } from '@/components/ui/States';
 import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
+import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useCreateDefinition,
   useDefinitions,
   useDeleteDefinition,
   useInstances,
-  useStartInstance,
 } from '@/lib/api/queries';
 import type { ExtendedBpmnMetaDefinitionDto, VersionDto } from '@/lib/api/types';
 import { instanceBucket } from '@/lib/api/normalize';
@@ -75,7 +76,7 @@ export function WorkflowsPage() {
   const instancesQuery = useInstances();
   const createDefinition = useCreateDefinition();
   const deleteDefinition = useDeleteDefinition();
-  const startInstance = useStartInstance();
+  const startWorkflow = useStartWorkflow();
 
   const [creating, setCreating] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
@@ -240,22 +241,14 @@ export function WorkflowsPage() {
                     size="sm"
                     icon="rocket_launch"
                     className="flex-1"
-                    disabled={!canStart || startInstance.isPending}
+                    disabled={!canStart}
+                    loading={startWorkflow.isBusy(definition.definitionId)}
                     title={canStart ? undefined : 'Der Workflow muss zuerst deployt werden.'}
                     onClick={(event) => {
                       event.stopPropagation();
-                      startInstance.mutate(definition.definitionId, {
-                        onSuccess: (instance) =>
-                          toast.success(`„${definition.name}" gestartet`, {
-                            action: {
-                              label: 'Öffnen',
-                              onClick: () => void navigate({ to: `/instances/${instance.instanceId}` }),
-                            },
-                          }),
-                        onError: (error) =>
-                          toast.error('Start fehlgeschlagen', {
-                            description: error instanceof Error ? error.message : undefined,
-                          }),
+                      void startWorkflow.start({
+                        definitionId: definition.definitionId,
+                        name: definition.name,
                       });
                     }}
                   >
@@ -295,6 +288,8 @@ export function WorkflowsPage() {
           );
         })}
       </div>
+
+      <StartWorkflowDialog {...startWorkflow.dialog} />
 
       <NewWorkflowDialog
         open={creating}
