@@ -1,10 +1,12 @@
 using BPMN.Common;
 using BPMN.HumanInteraction;
 using BPMN.Process;
+using BPMN.Flowzer;
 using BPMN.Flowzer.Events;
 using BPMN.Events;
 using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
+using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
 using Variables = System.Dynamic.ExpandoObject;
@@ -568,7 +570,37 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         }
     }
 
-    public async Task<ProcessInstanceInfo> StartProcessInstance(string relatedDefinitionId, string? processId = null)
+    /// <summary>Der deployte Prozess eines Workflows samt der Version, aus der er stammt.</summary>
+    /// <param name="Definition">Die deployte Version — die Kennung, unter der ihr Diagramm liegt.</param>
+    /// <param name="Process">Der Prozess, der von Hand gestartet werden kann.</param>
+    public sealed record DirectStartProcess(BpmnDefinition Definition, Process Process);
+
+    /// <summary>
+    /// Der Form-Key des Startformulars eines Workflows samt der Version, in der er steht.
+    /// <see cref="FormKey"/> ist <c>null</c>, wenn der Workflow ohne Eingabe startet.
+    /// </summary>
+    public sealed record StartFormReference(Guid DefinitionId, string? FormKey);
+
+    /// <summary>
+    /// Das Startformular eines Workflows — oder <c>null</c> als Form-Key, wenn er keines hat.
+    ///
+    /// Bewusst derselbe Weg wie beim Start (Katalog, deployte Version, Prozessauflösung): Was
+    /// die Konsole hier zu sehen bekommt, muss zu dem passen, was der Start gleich erwartet.
+    /// </summary>
+    public async Task<StartFormReference> GetStartFormReference(string relatedDefinitionId, string? processId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
+
+        using var storageSystem = storageProvider.GetTransactionalStorage();
+        var directStart = await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+
+        return new StartFormReference(directStart.Definition.Id, RequireStartFormKey(directStart.Process));
+    }
+
+    public async Task<ProcessInstanceInfo> StartProcessInstance(
+        string relatedDefinitionId,
+        Variables? variables = null,
+        string? processId = null)
     {
         await _engineMutationLock.WaitAsync();
         try
@@ -576,27 +608,22 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
+            var (deployedDefinition, process) =
+                await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
 
-            // Der Katalogeintrag entscheidet, ob es den Workflow gibt. Ohne diese Pruefung liesse
-            // sich eine Version starten, die nach dem Loeschen des Workflows noch liegt — etwa
-            // weil ein paralleles Speichern sie erst danach geschrieben hat.
-            var metaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
-            if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != relatedDefinitionId))
+            // Traegt der Workflow ein Startformular, sind seine Werte Teil des Starts. Geprueft
+            // wird nur, ob ueberhaupt eine Antwort kam — die Pflichtfelder pruefen wir bewusst
+            // nicht: Form.io kennt bedingt sichtbare Felder (`conditional`), die der Server nicht
+            // auswertet; er wuerde damit gueltige Eingaben der Konsole ablehnen. Die
+            // Pflichtfelder prueft der Renderer, bevor er absendet.
+            if (RequireStartFormKey(process) is not null && variables is null)
             {
                 throw new InvalidOperationException(
-                    $"No workflow \"{relatedDefinitionId}\" exists in the catalog.");
+                    $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
             }
 
-            var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
-                ?? throw new InvalidOperationException(
-                    $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
-
-            var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
-            var model = ModelParser.ParseModel(xmlData);
-            var process = ResolveDirectStartProcess(model, deployedDefinition, processId);
-
             var processEngine = new ProcessEngine(process);
-            var instance = processEngine.StartProcess();
+            var instance = processEngine.StartProcess(variables);
             var processInstanceInfo = CreateProcessInstanceInfo(
                 deployedDefinition.Id,
                 relatedDefinitionId,
@@ -620,6 +647,53 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         {
             _engineMutationLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Sucht den von Hand startbaren Prozess eines Workflows: Katalogeintrag, deployte Version,
+    /// Modell, Prozess. Start und Startformular-Abruf teilen sich den Weg, damit beide dieselbe
+    /// Version und denselben Prozess sehen.
+    /// </summary>
+    private static async Task<DirectStartProcess> ResolveDirectStart(
+        ITransactionalStorage storageSystem,
+        string relatedDefinitionId,
+        string? processId)
+    {
+        // Der Katalogeintrag entscheidet, ob es den Workflow gibt. Ohne diese Pruefung liesse
+        // sich eine Version starten, die nach dem Loeschen des Workflows noch liegt — etwa
+        // weil ein paralleles Speichern sie erst danach geschrieben hat.
+        var metaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
+        if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != relatedDefinitionId))
+        {
+            throw new DefinitionStorageNotFoundException(
+                $"No workflow \"{relatedDefinitionId}\" exists in the catalog.");
+        }
+
+        var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
+            ?? throw new InvalidOperationException(
+                $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
+
+        var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
+        var model = ModelParser.ParseModel(xmlData);
+
+        return new DirectStartProcess(
+            deployedDefinition,
+            ResolveDirectStartProcess(model, deployedDefinition, processId));
+    }
+
+    /// <summary>
+    /// Der Form-Key des Startformulars, oder <c>null</c>, wenn der Prozess keines hat. Ist er
+    /// nicht eindeutig, ist das ein fachlicher Fehler und kein stiller Zufallstreffer.
+    /// </summary>
+    private static string? RequireStartFormKey(Process process)
+    {
+        var startForm = FlowzerStartForm.FormKeyOf(process);
+        if (startForm.ErrorMessage is not null)
+        {
+            throw new InvalidOperationException(startForm.ErrorMessage);
+        }
+
+        return startForm.FormKey;
     }
 
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
@@ -954,13 +1028,28 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         return [.. treffer];
     }
 
-    /// <summary>Sucht in allen Prozessen einer Definition, auch in Subprozessen.</summary>
+    /// <summary>
+    /// Sucht in allen Prozessen einer Definition, auch in Subprozessen. Neben den menschlichen
+    /// Aufgaben zaehlt das Startformular am Startereignis mit: Waere es geloescht, liesse sich
+    /// der Workflow nicht mehr starten, obwohl keine Aufgabe auf das Formular zeigt.
+    ///
+    /// Startereignisse zaehlen nur unmittelbar im Prozess — dieselbe Grenze wie in
+    /// <see cref="FlowzerStartForm"/>. Ein Startereignis im Subprozess startet den Subprozess
+    /// und nie den Workflow; sein Form-Key bliebe wirkungslos und sperrte das Formular
+    /// dauerhaft gegen das Loeschen.
+    /// </summary>
     private static bool BenutztFormular(Definitions modell, Guid formId, string formName)
     {
-        return modell.GetProcesses()
-            .SelectMany(AlleFlowElemente)
-            .OfType<UserTask>()
-            .Any(aufgabe => VerweistAufFormular(aufgabe.Implementation, formId, formName));
+        var prozesse = modell.GetProcesses().ToArray();
+
+        return prozesse
+                   .SelectMany(AlleFlowElemente)
+                   .OfType<UserTask>()
+                   .Any(aufgabe => VerweistAufFormular(aufgabe.Implementation, formId, formName))
+               || prozesse
+                   .SelectMany(prozess => prozess.FlowElements)
+                   .OfType<StartEvent>()
+                   .Any(start => VerweistAufFormular(start.FlowzerFormKey, formId, formName));
     }
 
     /// <summary>
@@ -1004,7 +1093,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         }
 
         return string.Equals(
-            UserTaskFormResolver.ExtractFormName(schluessel),
+            FormKeyResolver.ExtractFormName(schluessel),
             formName,
             StringComparison.OrdinalIgnoreCase);
     }

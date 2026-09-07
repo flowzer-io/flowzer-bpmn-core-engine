@@ -12,6 +12,7 @@ import { describeFormKey } from '@/lib/formKey';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
 import { BpmnProperties } from './properties/BpmnProperties';
+import { READ_ONLY_MODULE } from './readOnly';
 
 export interface BpmnModelerHandle {
   /** Liefert das aktuelle Diagramm als formatiertes BPMN-XML. */
@@ -30,7 +31,11 @@ interface BpmnModelerProps {
   onChange?: () => void;
   onZoomChange?: (zoom: number) => void;
   className?: string;
-  /** Ohne Modelliererrolle bleibt das Panel lesbar, aber unveränderlich. */
+  /**
+   * Ohne Modelliererrolle bleibt alles lesbar, aber unveränderlich: keine Palette, kein
+   * Kontextpad, kein Verschieben oder Löschen — und ein Panel, das seine Werte zeigt,
+   * ohne sie anzunehmen.
+   */
   readOnly?: boolean;
 }
 
@@ -147,6 +152,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       const ModelerCtor = Modeler as unknown as new (options: Record<string, unknown>) => ModelerLike;
       const modeler = new ModelerCtor({
         container,
+        additionalModules: readOnly ? [READ_ONLY_MODULE] : [],
         moddleExtensions: { zeebe: zeebeModdle },
       });
 
@@ -200,7 +206,10 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       setEditor(null);
       setReady(false);
     };
-  }, []);
+    // Ob geschrieben werden darf, entscheidet sich beim Bau des Modelers: Ein einmal
+    // geladenes Modul lässt sich nicht mehr abwählen. Wechselt die Rolle, entsteht der
+    // Modeler deshalb neu — der Import darunter läuft danach von selbst wieder an.
+  }, [readOnly]);
 
   useEffect(() => {
     const modeler = modelerRef.current;
@@ -242,12 +251,12 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
     const overlays = modeler.get<OverlaysLike>('overlays');
     overlays.remove({ type: FORM_OVERLAY_TYPE });
 
-    for (const task of editor.listUserTasks()) {
-      if (!task.formKey) continue;
+    for (const owner of editor.listFormOwners()) {
+      if (!owner.formKey) continue;
       try {
-        overlays.add(task.id, FORM_OVERLAY_TYPE, {
+        overlays.add(owner.id, FORM_OVERLAY_TYPE, {
           position: { top: 2, right: 2 },
-          html: formBadge(task.formKey),
+          html: formBadge(owner.formKey, owner.kind === 'startEvent'),
         });
       } catch {
         // Ein Element, das zwischen Lesen und Zeichnen verschwunden ist, darf die
@@ -257,7 +266,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
   }, [ready, editor, revision]);
 
   return (
-    <div className={cn('flex min-h-0 flex-1', className)}>
+    <div className={cn('flex min-h-0 flex-1', readOnly && 'bpmn-read-only', className)}>
       <div className="canvas-grid bpmn-surface relative min-h-[420px] min-w-0 flex-1">
         <div ref={canvasRef} className="h-full w-full" />
         {!ready && !error && (
@@ -306,10 +315,10 @@ function fitViewport(modeler: ModelerLike, notify: ((zoom: number) => void) | un
 }
 
 /** Die Markierung am Element: dasselbe Symbol, das die Konsole für Formulare benutzt. */
-function formBadge(formKey: string): HTMLElement {
+function formBadge(formKey: string, isStartForm: boolean): HTMLElement {
   const badge = document.createElement('div');
   badge.className = 'flowzer-form-badge';
-  badge.title = `Formular: ${describeFormKey(formKey)}`;
+  badge.title = `${isStartForm ? 'Startformular' : 'Formular'}: ${describeFormKey(formKey)}`;
 
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('viewBox', '0 -960 960 960');

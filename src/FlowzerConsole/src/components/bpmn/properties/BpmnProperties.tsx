@@ -59,7 +59,7 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
 
   const properties = editor && selectedId ? editor.read(selectedId) : null;
   const embeddedForms = editor?.listEmbeddedForms() ?? [];
-  const userTasks = editor?.listUserTasks() ?? [];
+  const formOwners = editor?.listFormOwners() ?? [];
   const storedFormNames = (formsQuery.data ?? []).map((form) => form.name);
   const editingForm = embeddedForms.find((form) => form.id === editingFormId);
   const section = properties ? { properties, editor, readOnly } : null;
@@ -75,7 +75,7 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
         <>
           <PanelHeader icon="account_tree" title="Workflow" subtitle="Kein Element ausgewählt" />
           <WorkflowForms
-            userTasks={userTasks}
+            formOwners={formOwners}
             embeddedForms={embeddedForms}
             storedFormNames={storedFormNames}
             onSelectTask={onSelect}
@@ -101,9 +101,10 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
 
           <GeneralSection {...section} />
 
-          {properties.kind === 'userTask' && (
+          {(properties.kind === 'userTask' || properties.startFormApplies) && (
             <FormSection
               {...section}
+              variant={properties.kind === 'userTask' ? 'userTask' : 'startEvent'}
               storedFormNames={storedFormNames}
               embeddedForms={embeddedForms.map((form) => form.id)}
               source={

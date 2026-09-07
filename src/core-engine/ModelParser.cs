@@ -605,7 +605,7 @@ public static class ModelParser
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
-            Implementation = GetUserTaskImplementation(xmlFlowNode, formDefinition),
+            Implementation = GetUserTaskImplementation(xmlFlowNode, ReadFormKey(formDefinition)),
             FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
             FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
@@ -631,14 +631,24 @@ public static class ModelParser
             : null;
     }
 
-    private static string GetUserTaskImplementation(XElement xmlFlowNode, XElement? formDefinition)
+    /// <summary>
+    /// Der Formularverweis aus einem <c>zeebe:formDefinition</c>. <c>formId</c> gilt als Ersatz
+    /// fuer <c>formKey</c>; ein leerer Wert heisst „kein Formular". Gemeinsam fuer User-Task und
+    /// Startereignis, damit dasselbe Diagramm nicht je Elementart anders gelesen wird.
+    /// </summary>
+    private static string? ReadFormKey(XElement? formDefinition)
     {
-        var implementation = formDefinition?.Attribute("formKey")?.Value
-                             ?? formDefinition?.Attribute("formId")?.Value;
+        var formKey = formDefinition?.Attribute("formKey")?.Value
+                      ?? formDefinition?.Attribute("formId")?.Value;
 
-        if (!string.IsNullOrWhiteSpace(implementation))
+        return string.IsNullOrWhiteSpace(formKey) ? null : formKey.Trim();
+    }
+
+    private static string GetUserTaskImplementation(XElement xmlFlowNode, string? formKey)
+    {
+        if (formKey is not null)
         {
-            return implementation;
+            return formKey;
         }
 
         throw new FlowzerModelParseException(
@@ -699,11 +709,18 @@ public static class ModelParser
 
         else
         {
+            // Nur am reinen Startereignis: Ein Startformular fuellt aus, wer den Workflow von
+            // Hand startet. An einem Timer-, Nachrichten- oder Signalstart wird ein
+            // formDefinition bewusst still uebergangen statt als Modellfehler gemeldet —
+            // bpmn-js behaelt die extensionElements beim Wechsel des Ereignistyps, und ein
+            // Diagramm soll dadurch nicht unspeicherbar werden.
             returnEvent = new StartEvent
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                OutputMappings = outputMappings
+                OutputMappings = outputMappings,
+                FlowzerFormKey = ReadFormKey(xmlFlowNode.Descendants()
+                    .FirstOrDefault(element => element.Name.LocalName == "formDefinition"))
             };
         }
 

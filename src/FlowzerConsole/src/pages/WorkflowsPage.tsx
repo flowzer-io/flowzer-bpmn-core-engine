@@ -17,6 +17,8 @@ import { FolderDialog } from '@/components/workflows/FolderDialog';
 import { FolderTree, WORKFLOW_DRAG_TYPE } from '@/components/workflows/FolderTree';
 import { MoveWorkflowDialog } from '@/components/workflows/MoveWorkflowDialog';
 import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
+import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useCreateDefinition,
   useCreateFolder,
@@ -26,7 +28,6 @@ import {
   useFolders,
   useInstances,
   useMoveDefinition,
-  useStartInstance,
   useUpdateFolder,
   useUpdateFolderAssignments,
 } from '@/lib/api/queries';
@@ -93,7 +94,7 @@ export function WorkflowsPage() {
   const createDefinition = useCreateDefinition();
   const deleteDefinition = useDeleteDefinition();
   const moveDefinition = useMoveDefinition();
-  const startInstance = useStartInstance();
+  const startWorkflow = useStartWorkflow();
   const createFolder = useCreateFolder();
   const updateFolder = useUpdateFolder();
   const deleteFolder = useDeleteFolder();
@@ -444,22 +445,14 @@ export function WorkflowsPage() {
                         size="sm"
                         icon="rocket_launch"
                         className="flex-1"
-                        disabled={!canStart || startInstance.isPending}
+                        disabled={!canStart}
+                        loading={startWorkflow.isBusy(definition.definitionId)}
                         title={canStart ? undefined : 'Der Workflow muss zuerst deployt werden.'}
                         onClick={(event) => {
                           event.stopPropagation();
-                          startInstance.mutate(definition.definitionId, {
-                            onSuccess: (instance) =>
-                              toast.success(`„${definition.name}" gestartet`, {
-                                action: {
-                                  label: 'Öffnen',
-                                  onClick: () => void navigate({ to: `/instances/${instance.instanceId}` }),
-                                },
-                              }),
-                            onError: (error) =>
-                              toast.error('Start fehlgeschlagen', {
-                                description: error instanceof Error ? error.message : undefined,
-                              }),
+                          void startWorkflow.start({
+                            definitionId: definition.definitionId,
+                            name: definition.name,
                           });
                         }}
                       >
@@ -515,6 +508,8 @@ export function WorkflowsPage() {
           </div>
         </div>
       </div>
+
+      <StartWorkflowDialog {...startWorkflow.dialog} />
 
       <NewWorkflowDialog
         open={creating}

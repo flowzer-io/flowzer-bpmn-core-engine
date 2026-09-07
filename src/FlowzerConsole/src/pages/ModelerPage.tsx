@@ -8,6 +8,8 @@ import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
+import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useDefinitionXml,
   useDefinitions,
@@ -15,7 +17,6 @@ import {
   useDeployDefinition,
   useLatestDefinition,
   useSaveDefinition,
-  useStartInstance,
   useUpdateDefinitionMeta,
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
@@ -29,6 +30,10 @@ interface ModelerPageProps {
 /**
  * Modellierungsseite eines Workflows: bpmn-js mit dem Eigenschaften-Panel der Konsole,
  * plus Speichern (neue Version) und Deployen (Version aktivieren).
+ *
+ * Ohne Modelliererrolle wird daraus eine Ansicht: Das Diagramm ist gesperrt, das Panel
+ * zeigt seine Werte, nimmt aber keine an. Sonst entstünden Änderungen, die sich nicht
+ * speichern lassen — und beim Verlassen der Seite eine Warnung davor.
  */
 export function ModelerPage({ definitionId }: ModelerPageProps) {
   const navigate = useNavigate();
@@ -44,7 +49,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
   // Was die API ablehnen wuerde, bietet die Oberflaeche gar nicht erst an.
   const mayPublish = useCan()('modeler');
   const updateMeta = useUpdateDefinitionMeta();
-  const startInstance = useStartInstance();
+  const startWorkflow = useStartWorkflow();
   const deleteDefinition = useDeleteDefinition();
 
   const [dirty, setDirty] = useState(false);
@@ -173,7 +178,11 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
         </Button>
 
         <div className="flex min-w-0 items-center gap-2.5">
-          {renaming ? (
+          {!mayPublish ? (
+            // Umbenennen geht über `PUT /definition/meta` — auch das verlangt die
+            // Modelliererrolle. Als Schaltfläche führte der Name nur in eine Ablehnung.
+            <span className="font-display truncate text-[16.5px] font-semibold">{name}</span>
+          ) : renaming ? (
             <input
               autoFocus
               defaultValue={name}
@@ -250,45 +259,36 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           </button>
         </div>
 
-        <Button
-          size="sm"
-          icon="undo"
-          title="Rückgängig"
-          className="w-[34px] px-0"
-          onClick={() => modelerRef.current?.undo()}
-        >
-          <span className="sr-only">Rückgängig</span>
-        </Button>
-        <Button
-          size="sm"
-          icon="redo"
-          title="Wiederherstellen"
-          className="w-[34px] px-0"
-          onClick={() => modelerRef.current?.redo()}
-        >
-          <span className="sr-only">Wiederherstellen</span>
-        </Button>
+        {/* Ohne Modelliererrolle gibt es nichts zurückzunehmen: Das Diagramm ist gesperrt. */}
+        {mayPublish && (
+          <>
+            <Button
+              size="sm"
+              icon="undo"
+              title="Rückgängig"
+              className="w-[34px] px-0"
+              onClick={() => modelerRef.current?.undo()}
+            >
+              <span className="sr-only">Rückgängig</span>
+            </Button>
+            <Button
+              size="sm"
+              icon="redo"
+              title="Wiederherstellen"
+              className="w-[34px] px-0"
+              onClick={() => modelerRef.current?.redo()}
+            >
+              <span className="sr-only">Wiederherstellen</span>
+            </Button>
+          </>
+        )}
 
         {definition?.deployedId && (
           <Button
             size="sm"
             icon="rocket_launch"
-            loading={startInstance.isPending}
-            onClick={() =>
-              startInstance.mutate(definitionId, {
-                onSuccess: (instance) =>
-                  toast.success('Instanz gestartet', {
-                    action: {
-                      label: 'Öffnen',
-                      onClick: () => void navigate({ to: `/instances/${instance.instanceId}` }),
-                    },
-                  }),
-                onError: (error) =>
-                  toast.error('Start fehlgeschlagen', {
-                    description: error instanceof Error ? error.message : undefined,
-                  }),
-              })
-            }
+            loading={startWorkflow.isBusy(definitionId)}
+            onClick={() => void startWorkflow.start({ definitionId, name })}
           >
             Starten
           </Button>
@@ -347,6 +347,8 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           onZoomChange={setZoom}
         />
       )}
+
+      <StartWorkflowDialog {...startWorkflow.dialog} />
 
       <ConfirmModal
         open={confirmDelete}

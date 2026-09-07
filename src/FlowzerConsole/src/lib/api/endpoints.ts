@@ -1,4 +1,4 @@
-import { request, requestStatus, requestStatusResult } from './client';
+import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
 import { normalizeInstance } from './normalize';
 import type {
   BpmnDefinitionDto,
@@ -96,11 +96,26 @@ export const definitionsApi = {
       query: { previousGuid },
     }),
 
-  /** `POST /definition/meta/{id}/instance` — startet eine Instanz. */
-  startInstance: async (definitionId: string) => {
+  /**
+   * `GET /definition/meta/{id}/start-form` — das Formular, das ausfuellt, wer den Workflow
+   * startet. `null` heisst: Der Workflow startet ohne Eingabe (die API antwortet mit 204).
+   */
+  getStartForm: (definitionId: string, signal?: AbortSignal) =>
+    requestOptionalStatusResult<FormDto>(
+      `/definition/meta/${encodeURIComponent(definitionId)}/start-form`,
+      { signal },
+    ),
+
+  /**
+   * `POST /definition/meta/{id}/instance` — startet eine Instanz.
+   *
+   * Ohne `variables` geht der Aufruf wie bisher ohne Rumpf hinaus; ein Workflow mit
+   * Startformular braucht sie, ein leeres Objekt eingeschlossen.
+   */
+  startInstance: async (definitionId: string, variables?: ProcessVariables) => {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(
       `/definition/meta/${encodeURIComponent(definitionId)}/instance`,
-      { method: 'POST' },
+      variables === undefined ? { method: 'POST' } : { method: 'POST', body: { variables } },
     );
     return normalizeInstance(instance);
   },

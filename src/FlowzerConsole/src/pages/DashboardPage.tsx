@@ -1,6 +1,5 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState, SectionLabel } from '@/components/ui/Card';
@@ -11,7 +10,9 @@ import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, LoadingRows } from '@/components/ui/States';
 import { TaskGroupHeading, TaskRow } from '@/components/tasks/TaskRow';
 import { useActivityFeed } from '@/lib/activity';
-import { useDefinitions, useDiagnostics, useStartInstance, useUserTasks } from '@/lib/api/queries';
+import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
+import { useDefinitions, useDiagnostics, useUserTasks } from '@/lib/api/queries';
 import { formatNumber, formatTodayLabel, greetingForNow } from '@/lib/format';
 import { groupByDue, groupByWorkflow, sortTasks, toTaskView, type DueBucket } from '@/lib/taskView';
 import { useSession } from '@/stores/session';
@@ -32,7 +33,7 @@ export function DashboardPage() {
   const diagnosticsQuery = useDiagnostics();
   const definitionsQuery = useDefinitions();
   const activity = useActivityFeed();
-  const startInstance = useStartInstance();
+  const startWorkflow = useStartWorkflow();
 
   const taskViews = useMemo(
     () => sortTasks((tasksQuery.data ?? []).map((task) => toTaskView(task))),
@@ -221,23 +222,13 @@ export function DashboardPage() {
                   <button
                     key={definition.definitionId}
                     type="button"
-                    disabled={startInstance.isPending}
-                    onClick={() => {
-                      startInstance.mutate(definition.definitionId, {
-                        onSuccess: (instance) => {
-                          toast.success(`„${definition.name}" gestartet`, {
-                            action: {
-                              label: 'Öffnen',
-                              onClick: () => void navigate({ to: `/instances/${instance.instanceId}` }),
-                            },
-                          });
-                        },
-                        onError: (error) =>
-                          toast.error(`„${definition.name}" konnte nicht gestartet werden`, {
-                            description: error instanceof Error ? error.message : undefined,
-                          }),
-                      });
-                    }}
+                    disabled={startWorkflow.isBusy(definition.definitionId)}
+                    onClick={() =>
+                      void startWorkflow.start({
+                        definitionId: definition.definitionId,
+                        name: definition.name,
+                      })
+                    }
                     className="bg-surface border-border hover:border-accent text-text flex cursor-pointer items-center gap-2.5 rounded-[var(--r-sm)] border px-3 py-2.5 text-left text-[13.5px] font-medium disabled:opacity-60"
                   >
                     <Icon name="rocket_launch" size={18} className="text-accent" />
@@ -249,6 +240,8 @@ export function DashboardPage() {
           </Card>
         </aside>
       </div>
+
+      <StartWorkflowDialog {...startWorkflow.dialog} />
     </PageContainer>
   );
 }

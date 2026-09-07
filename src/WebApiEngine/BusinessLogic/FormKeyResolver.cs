@@ -7,12 +7,16 @@ using WebApiEngine.Shared;
 namespace WebApiEngine.BusinessLogic;
 
 /// <summary>
-/// Löst den Form-Key eines User-Tasks auf ein konkretes Formular auf.
+/// Löst einen Form-Key auf ein konkretes Formular auf — den einer menschlichen Aufgabe ebenso
+/// wie den des Startformulars am Startereignis.
 ///
 /// Der Form-Key stammt aus <c>zeebe:formDefinition/@formKey</c> und meint eines von zwei Dingen:
 /// <list type="bullet">
 /// <item>ein Formular aus dem Bestand — als <c>Formularname</c> (dann gilt die neueste Version)
-/// oder <c>Formularname:1.0</c> (dann gilt genau diese Version);</item>
+/// oder <c>Formularname:1.0</c> (dann gilt genau diese Version). Statt des Namens darf auch die
+/// Kennung des Formulars stehen (<c>Guid</c> bzw. <c>Guid:1.0</c>): Der Modeler legt sie als
+/// <c>formId</c> ab, und der Parser nimmt sie als Form-Key an — ohne diesen Weg wäre ein so
+/// modelliertes Formular hier unauffindbar;</item>
 /// <item>ein Formular, das im Workflow selbst liegt — als
 /// <c>camunda-forms:bpmn:Kennung</c> (siehe <see cref="FlowzerUserTaskForm"/>).</item>
 /// </list>
@@ -20,7 +24,7 @@ namespace WebApiEngine.BusinessLogic;
 /// Die Auflösung lag bisher im Blazor-Client und benötigte dort drei API-Aufrufe.
 /// Als Teil der API gehört sie hierher: die Regel ist fachlich, nicht darstellend.
 /// </summary>
-public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
+public sealed class FormKeyResolver(IStorageSystem storageSystem)
 {
     public sealed record Result(FormDto? Form, string? ErrorMessage)
     {
@@ -38,13 +42,15 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
 
     /// <param name="formKey">Der Form-Key aus dem Modell.</param>
     /// <param name="definitionId">
-    /// Die Version des Workflows, an der die Aufgabe hängt. Nur darüber ist ein eingebettetes
+    /// Die Version des Workflows, zu der der Schlüssel gehört. Nur darüber ist ein eingebettetes
     /// Formular erreichbar: Es steht im Diagramm, nicht in der Ablage der Formulare.
     /// </param>
     public async Task<Result> ResolveAsync(string? formKey, Guid definitionId)
     {
         if (string.IsNullOrWhiteSpace(formKey))
         {
+            // Nur ueber User-Tasks erreichbar: Ein Startereignis ohne Formular wird gar nicht
+            // erst aufgeloest, sondern gilt als „kein Startformular".
             return Result.Failure(
                 "The user task has no form key. Set 'formKey' in the BPMN task properties.");
         }
@@ -115,13 +121,22 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
             return Result.Failure(versionError);
         }
 
-        var metadata = (await storageSystem.FormStorage.GetFormMetadatas())
-            .Where(candidate => string.Equals(candidate.Name, formName, StringComparison.OrdinalIgnoreCase))
+        // Eine Kennung ist eindeutig, ein Name muss es sein: Deshalb wird nach Kennung gesucht,
+        // sobald der Schluessel als Guid lesbar ist, und nur sonst nach Namen.
+        var allMetadata = await storageSystem.FormStorage.GetFormMetadatas();
+        var searchesById = Guid.TryParse(formName, out var formId);
+
+        var metadata = (searchesById
+                ? allMetadata.Where(candidate => candidate.FormId == formId)
+                : allMetadata.Where(candidate =>
+                    string.Equals(candidate.Name, formName, StringComparison.OrdinalIgnoreCase)))
             .ToArray();
 
         if (metadata.Length == 0)
         {
-            return Result.Failure($"No form named \"{formName}\" was found.");
+            return Result.Failure(searchesById
+                ? $"No form with the id \"{formName}\" was found."
+                : $"No form named \"{formName}\" was found.");
         }
 
         if (metadata.Length > 1)

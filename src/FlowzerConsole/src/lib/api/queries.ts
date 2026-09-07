@@ -17,6 +17,7 @@ import type {
   FormMetaDataDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
+  ProcessVariables,
   TimerSubscriptionDto,
   UserTaskResultDto,
   VersionDto,
@@ -28,6 +29,7 @@ export const queryKeys = {
   definitionMeta: () => [...queryKeys.definitions, 'meta'] as const,
   definitionLatest: (definitionId: string) => [...queryKeys.definitions, 'latest', definitionId] as const,
   definitionXml: (versionGuid: string) => [...queryKeys.definitions, 'xml', versionGuid] as const,
+  definitionStartForm: (definitionId: string) => [...queryKeys.definitions, 'start-form', definitionId] as const,
 
   folders: ['folders'] as const,
   folderList: () => [...queryKeys.folders, 'list'] as const,
@@ -164,7 +166,8 @@ export function useDeleteDefinition() {
 export function useStartInstance() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (definitionId: string) => definitionsApi.startInstance(definitionId),
+    mutationFn: ({ definitionId, variables }: { definitionId: string; variables?: ProcessVariables }) =>
+      definitionsApi.startInstance(definitionId, variables),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
       void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });

@@ -7,7 +7,7 @@
  * - **In diesem Workflow:** `camunda-forms:bpmn:Kennung` — das Formular liegt als
  *   `zeebe:userTaskForm` im Diagramm selbst und ist damit mit dem Workflow versioniert.
  *
- * Dieselbe Aufteilung nimmt die Engine vor (`UserTaskFormResolver`); die Schreibweise ist
+ * Dieselbe Aufteilung nimmt die Engine vor (`FormKeyResolver`); die Schreibweise ist
  * bewusst Camundas, damit ein im Camunda Modeler erstellter Workflow ohne Umbau läuft.
  */
 

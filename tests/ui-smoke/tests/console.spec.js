@@ -30,6 +30,57 @@ async function seedWorkflow(request) {
 }
 
 /**
+ * Laesst die Konsole ohne Modelliererrolle laufen.
+ *
+ * Der Entwicklungsbenutzer traegt fest `access`, `modeler`, `operator` und `worker`. Welche
+ * Rollennamen dahinter zaehlen, steht aber in `config.json` — der Betrieb vergibt sie im
+ * Identity Provider. Verlangt die Konfiguration fuers Modellieren einen Namen, den niemand
+ * traegt, sieht die Oberflaeche einen Zugelassenen ohne Modelliererrolle. Das ist genau der
+ * Fall, um den es hier geht, und er braucht keinen laufenden Identity Provider.
+ */
+async function ohneModelliererrolle(page) {
+  await page.route('**/config.json', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ apiBaseUrl: '/api', roleNames: { modeler: 'rolle-die-niemand-hat' } })
+    })
+  );
+}
+
+/** Die Form im Diagramm — `data-element-id` und `transform` setzt diagram-js selbst. */
+function shapeOf(page, elementId) {
+  return page.locator(`.bpmn-surface .djs-shape[data-element-id="${elementId}"]`);
+}
+
+/**
+ * Zieht eine Form mit der Maus. bpmn-js beginnt das Verschieben erst nach einer Schwelle
+ * und braucht Zwischenschritte — ein einzelner Sprung von A nach B loest gar nichts aus.
+ */
+async function ziehe(page, locator, dx, dy) {
+  const box = await locator.boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + dx / 2, y + dy / 2, { steps: 5 });
+  await page.mouse.move(x + dx, y + dy, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** Oeffnet den Modeler eines Workflows und wartet, bis die Form im Diagramm steht. */
+async function oeffneModeler(page, definitionId) {
+  const startEventId = `StartEvent_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}`;
+
+  await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+  const startEvent = shapeOf(page, startEventId);
+  await expect(startEvent).toBeVisible();
+
+  return startEvent;
+}
+
+/**
  * Legt einen Workflow mit genau einer Aufgabe an, deren Formular eine Auswahl und ein
  * verstecktes Feld enthaelt — die beiden Bauteile, aus denen die wiederverwendbaren
  * Formulare bestehen.
@@ -102,6 +153,63 @@ async function seedModelerWorkflow(request) {
 
   const userTaskId = `Activity_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}_Review`;
   return { name, definitionId, formularName, userTaskId };
+}
+
+/**
+ * Legt einen deployten Workflow an, dessen Startereignis ein Startformular traegt. Wer ihn
+ * startet, muss das Formular zuerst ausfuellen.
+ */
+async function seedStartFormWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Antragsdaten ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({
+      display: 'form',
+      components: [{ type: 'textfield', key: 'antragsteller', label: 'Antragsteller', input: true }]
+    })
+  });
+
+  const name = `Startformular ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const s = definitionId.replace(/[^A-Za-z0-9_]/g, '_');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${s}" isExecutable="true">
+    <bpmn:startEvent id="Start_${s}" name="Antrag stellen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="${formularName}" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>F1_${s}</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="F1_${s}" sourceRef="Start_${s}" targetRef="End_${s}" />
+    <bpmn:endEvent id="End_${s}" name="Fertig">
+      <bpmn:incoming>F1_${s}</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D_${s}">
+    <bpmndi:BPMNPlane id="P_${s}" bpmnElement="Process_${s}">
+      <bpmndi:BPMNShape id="Start_${s}_di" bpmnElement="Start_${s}">
+        <dc:Bounds x="173" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_${s}_di" bpmnElement="End_${s}">
+        <dc:Bounds x="332" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F1_${s}_di" bpmnElement="F1_${s}">
+        <di:waypoint x="209" y="120" />
+        <di:waypoint x="332" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+
+  return { name, definitionId, formularName };
 }
 
 /**
@@ -338,6 +446,74 @@ test.describe('Konsole', () => {
     await expect(nachDemLaden.getByRole('textbox', { name: 'Wert' })).toHaveValue('R3/PT2H');
   });
 
+  // Testzweck: Die Gegenprobe zur Sperre unten. Mit Modelliererrolle bleibt der Modeler ein
+  // Modeler — Kontextpad, Verschieben und der Hinweis auf ungespeicherte Aenderungen
+  // funktionieren. Ohne diesen Test koennte die Sperre alles lahmlegen und die Pruefung
+  // darunter trotzdem gruen sein.
+  test('Mit Modelliererrolle laesst sich das Diagramm bearbeiten', async ({ page, request }) => {
+    const { definitionId } = await seedWorkflow(request);
+    const startEvent = await oeffneModeler(page, definitionId);
+    const vorher = await startEvent.getAttribute('transform');
+
+    await startEvent.click();
+    await expect(page.locator('.djs-context-pad')).toBeVisible();
+
+    await ziehe(page, startEvent, 90, 70);
+
+    await expect(startEvent).not.toHaveAttribute('transform', vorher);
+    await expect(page.getByText('Ungespeicherte Änderungen')).toBeVisible();
+  });
+
+  // Testzweck: Ohne Modelliererrolle ist die Zeichenflaeche eine Ansicht. Vorher liessen
+  // sich Elemente anlegen, verschieben und loeschen, obwohl Speichern und Deployen gar
+  // nicht angeboten wurden: Die Seite warnte beim Verlassen vor Aenderungen, die niemand
+  // mehr loswurde.
+  test('Ohne Modelliererrolle bleibt das Diagramm eine Ansicht', async ({ page, request }) => {
+    const { definitionId } = await seedWorkflow(request);
+    await ohneModelliererrolle(page);
+
+    const startEvent = await oeffneModeler(page, definitionId);
+    const vorher = await startEvent.getAttribute('transform');
+
+    await expect(page.getByText('Nur Ansicht')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Deployen' })).toHaveCount(0);
+
+    // Keine Palette: Ohne Anbieter zeichnet diagram-js sie gar nicht erst.
+    await expect(page.locator('.djs-palette')).toHaveCount(0);
+
+    // Auswaehlen bleibt erlaubt — dafuer ist das Eigenschaften-Panel da —, das Kontextpad
+    // mit Anhaengen, Verbinden und Loeschen geht dabei aber nicht auf.
+    await startEvent.click();
+    await expect(page.locator('.djs-context-pad')).toHaveCount(0);
+
+    await ziehe(page, startEvent, 90, 70);
+
+    // `transform` steht in Diagrammkoordinaten: Ein Verschieben der Zeichenflaeche
+    // veraenderte den Wert nicht, ein Verschieben des Elements schon.
+    await expect(startEvent).toHaveAttribute('transform', vorher);
+    await expect(page.getByText('Ungespeicherte Änderungen')).toHaveCount(0);
+  });
+
+  // Testzweck: Die Sperre nimmt der Zeichenflaeche das Bearbeiten, dem Panel aber nicht den
+  // Inhalt. Auswaehlen muss weiter gehen, sonst waere die Ansicht eine Blackbox: Das Panel
+  // zeigt nur, was gerade gewaehlt ist.
+  test('Ohne Modelliererrolle bleiben die Eigenschaften lesbar', async ({ page, request }) => {
+    const { definitionId } = await seedWorkflow(request);
+    await ohneModelliererrolle(page);
+
+    const startEvent = await oeffneModeler(page, definitionId);
+    await startEvent.click();
+
+    const nameFeld = page
+      .getByRole('region', { name: 'Allgemein' })
+      .getByRole('textbox', { name: 'Name', exact: true });
+    await expect(nameFeld).toHaveValue('Start');
+    await expect(nameFeld, 'Das Eigenschaften-Panel nimmt weiterhin Eingaben an.').toBeDisabled();
+
+    await expect(page.getByText('Ungespeicherte Änderungen')).toHaveCount(0);
+  });
+
   // Testzweck: Anlegen fragt zuerst den Namen und legt erst danach an. Vorher entstand
   // sofort ein Eintrag „New Definition"; ein Abbruch liess ihn im Katalog zurueck.
   test('Neuer Workflow fragt zuerst nach dem Namen', async ({ page }) => {
@@ -408,6 +584,21 @@ test.describe('Konsole', () => {
     const verstecktesFeld = page.locator('.formio-component-hidden');
     await expect(verstecktesFeld).toHaveCount(1);
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
+  });
+
+  // Testzweck: Traegt der Workflow ein Startformular, wird es vor dem Start ausgefuellt.
+  // Ohne diesen Weg bliebe ungeprueft, ob die Konsole das Formular ueberhaupt anfordert —
+  // sie startete dann sofort, und die API lehnte den Start ohne Werte ab.
+  test('Ein Workflow mit Startformular fragt vor dem Start seine Werte ab', async ({ page, request }) => {
+    const { definitionId, name } = await seedStartFormWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.getByRole('button', { name: 'Starten', exact: true }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: `\u201E${name}" starten` })).toBeVisible();
+    await expect(dialog.getByText('Antragsteller')).toBeVisible();
   });
 
   // Testzweck: Ein Formular, das ein deployter Workflow benutzt, laesst sich in der
