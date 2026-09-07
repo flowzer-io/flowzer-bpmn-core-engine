@@ -41,7 +41,10 @@ export function InstancesPage() {
   const instances = useMemo(() => instancesQuery.data ?? [], [instancesQuery.data]);
 
   // Die BPMN-Modelle liefern Schrittnamen und Gesamtzahl für den Fortschritt.
-  const models = useDefinitionModels(useMemo(() => instances.map((i) => i.definitionId), [instances]));
+  const models = useDefinitionModels(useMemo(
+    () => instances.filter((instance) => instance.canInspect === true).map((instance) => instance.definitionId),
+    [instances],
+  ));
 
   const counts = useMemo(() => {
     const result = { all: instances.length, active: 0, done: 0, error: 0 };
@@ -120,7 +123,7 @@ export function InstancesPage() {
             className="border-border border-t"
             icon="filter_alt_off"
             title={
-              instances.length === 0 ? 'Es läuft noch keine Instanz' : 'Keine Instanzen in dieser Ansicht'
+              instances.length === 0 ? 'Keine sichtbaren Vorgänge' : 'Keine Instanzen in dieser Ansicht'
             }
             description={
               instances.length === 0
@@ -138,7 +141,7 @@ export function InstancesPage() {
           const token = currentToken(instance);
           const badges = waitingBadges(instance);
 
-          const stepName = model
+          const stepName = instance.canInspect === false ? 'Vorgangsübersicht' : model
             ? nodeLabel(model, token?.currentFlowNodeId)
             : (token?.currentFlowElement?.Name ?? token?.currentFlowNodeId ?? '—');
 
@@ -168,7 +171,7 @@ export function InstancesPage() {
                     title={
                       progress.total > 0
                         ? `${progress.visited} von ${progress.total} Elementen durchlaufen`
-                        : 'Fortschritt unbekannt — Modell nicht geladen'
+                        : instance.canInspect === false ? 'Datensparsame Vorgangsübersicht' : 'Fortschritt unbekannt — Modell nicht geladen'
                     }
                   />
                 </div>

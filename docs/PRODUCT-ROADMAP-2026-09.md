@@ -40,6 +40,11 @@ und die geschützte Akteurzuordnung. Offene Checkboxen bezeichnen noch nicht
 abgenommene Ergebnisse; weder dieser Slice noch vorhandene Grundlagen schließen
 die gesamte M0- oder Produktabnahme.
 
+**Folgeslice:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
+aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
+Aufgaben-Leseprojektion ersetzt noch keine immutable Formularbindung oder
+serverseitige Submission-Validierung.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [ ] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle

@@ -95,6 +95,8 @@ export interface TokenDto {
 
 /** Entspricht `ProcessInstanceInfoDto`. */
 export interface ProcessInstanceInfoDto {
+  /** Ohne explizite Freigabe nur datensparsame Übersicht, keine Token-Diagnose. */
+  canInspect?: boolean;
   instanceId: string;
   definitionId: string;
   relatedDefinitionId: string;

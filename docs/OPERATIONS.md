@@ -542,6 +542,18 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 
 ## Bewusst noch offen
 
+### Instanzdaten und Rollen
+
+`Roles:Operator` muss für produktive Installationen explizit auf eine eng vergebene
+Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist im bestehenden Vertrag permissiv.
+Die neuen Instanzansichten in PR #179 liefern ohne diese Rolle nur eine Übersicht
+für den authentifizierten Initiator oder einen aktuell berechtigten Bearbeiter.
+Technische Subscription-Routen und Tokenscopes bleiben der Diagnose vorbehalten.
+Historische `variables.UserId`-Werte werden nicht als Besitznachweis übernommen.
+Siehe [Instanzrechte](INSTANCE-ACCESS.md), insbesondere Grenzen der Formularprojektion.
+
+### Noch fehlende Betriebspakete
+
 Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus

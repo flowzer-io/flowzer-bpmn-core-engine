@@ -12,8 +12,10 @@ namespace WebApiEngine.Controller;
 public class InstanceController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
-    ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
+    ICurrentUserContextAccessor currentUserContextAccessor,
+    InstanceAccessService instanceAccess) : FlowzerControllerBase
 {
+    private const string MissingInstance = "The process instance was not found.";
     /// <summary>
     /// Bricht eine laufende Instanz ab. Beendete Instanzen antworten mit 409, unbekannte mit 404.
     /// </summary>
@@ -39,8 +41,7 @@ public class InstanceController(
     [HttpGet]
     public async Task<ActionResult<ApiStatusResult<List<ProcessInstanceInfoDto>>>> GetAllInstances()
     {
-        var instances = await storageSystem.InstanceStorage.GetAllInstances();
-        var mappedInstances = await instances.ToDtosAsync(storageSystem.DefinitionStorage);
+        var mappedInstances = await instanceAccess.GetAllAsync();
         return Ok(new ApiStatusResult<List<ProcessInstanceInfoDto>>(mappedInstances));
     }
 
@@ -49,14 +50,15 @@ public class InstanceController(
     [HttpGet("{instanceId}")]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> GetInstanceById(Guid instanceId)
     {
-        var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
-        var mappedInstance = await instance.ToDtoAsync(storageSystem.DefinitionStorage);
+        var mappedInstance = await instanceAccess.GetAsync(instanceId);
+        if (mappedInstance is null) return NotFound(new ApiStatusResult<ProcessInstanceInfoDto>(MissingInstance));
         return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mappedInstance));
     }
     
     [HttpGet("{instanceId}/subscription/messages")]
     public async Task<ActionResult<ApiStatusResult<MessageSubscriptionDto[]>>> GetMessageSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<MessageSubscriptionDto[]>(MissingInstance));
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetMessageSubscription(instanceId);
         var result = messageSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
@@ -65,6 +67,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/signals")]
     public async Task<ActionResult<ApiStatusResult<SignalSubscriptionDto[]>>> GetSignalSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<SignalSubscriptionDto[]>(MissingInstance));
         var signalSubscriptions = await storageSystem.SubscriptionStorage.GetSignalSubscriptions(instanceId);
         var result = signalSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<SignalSubscriptionDto[]>(result));
@@ -73,6 +76,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/timers")]
     public async Task<ActionResult<ApiStatusResult<TimerSubscriptionDto[]>>> GetTimerSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TimerSubscriptionDto[]>(MissingInstance));
         var timerSubscriptions = await storageSystem.SubscriptionStorage.GetTimerSubscriptions(instanceId);
         var result = timerSubscriptions
             .OrderBy(subscription => subscription.DueAt)
@@ -84,6 +88,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/services")]
     public async Task<ActionResult<ApiStatusResult<TokenDto[]>>> GetServiceSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var result = instance.Tokens
             .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
@@ -96,6 +101,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/userTasks")]
     public async Task<ActionResult<ApiStatusResult<TokenDto[]>>> GetUserTasksSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasks(instanceId);
         var result = messageSubscriptions.Select(x => x.Token.ToDto()).ToArray();
         return Ok(new ApiStatusResult<TokenDto[]>(result));

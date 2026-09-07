@@ -12,6 +12,7 @@ public class UserTaskController(
     IStorageSystem storageSystem,
     UserTaskCompletionService completionService,
     FormKeyResolver formKeyResolver,
+    UserTaskViewService taskView,
     IAuthorizationService authorizationService,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
@@ -28,17 +29,18 @@ public class UserTaskController(
         var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
         var seeAll = await HasOperatorRole();
 
-        var dtos = userTaskSubscriptions
+        var visible = userTaskSubscriptions
             .Select(subscription =>
             {
                 UserTaskAssignment.EnsureAssignmentFromModel(subscription);
                 return subscription;
             })
-            .Where(subscription => UserTaskAssignment.IsVisibleTo(subscription, identity, seeAll))
-            .Select(subscription => subscription.ToDto())
-            .ToArray();
+            .Where(subscription => UserTaskAssignment.IsVisibleTo(subscription, identity, seeAll));
+        // Sequenziell: Der Storage-Vertrag garantiert keine parallel nutzbare DB-Connection.
+        var dtos = new List<ExtendedUserTaskSubscriptionDto>();
+        foreach (var task in visible) dtos.Add(await taskView.ProjectAsync(task, seeAll));
 
-        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
+        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos.ToArray()));
     }
 
     private async Task<bool> HasOperatorRole() =>

@@ -175,13 +175,16 @@ public class PostgreSqlStorageIntegrationTest
     }
 
     // Testzweck: Instanzen inklusive polymorpher Token-Elemente ueberleben den Weg durch die
-    // Datenbank; unbekannte Ids sind FileNotFound (404 am API-Rand).
+    // Datenbank, einschließlich issuergebundener Herkunft; historische Instanzen bleiben
+    // ohne erfundenen Initiator. Unbekannte Ids sind FileNotFound (404 am API-Rand).
     [Test]
     public async Task InstanceStorage_ShouldRoundTripTokensAndFilterActiveInstances()
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var active = CreateInstance(finished: false);
         var finished = CreateInstance(finished: true);
+        var initiator = new AuthenticatedSubject("https://issuer.test/realms/flowzer", "subject");
+        active.Tokens.Single(token => token.ParentTokenId is null).Initiator = initiator;
         await storage.InstanceStorage.AddOrUpdateInstance(active);
         await storage.InstanceStorage.AddOrUpdateInstance(finished);
 
@@ -189,6 +192,9 @@ public class PostgreSqlStorageIntegrationTest
         loaded.Tokens.Should().HaveCount(2);
         loaded.Tokens.Select(token => token.CurrentBaseElement).Should().ContainItemsAssignableTo<Process>();
         loaded.Tokens.Should().Contain(token => token.CurrentFlowNode is UserTask);
+        loaded.Tokens.Single(token => token.ParentTokenId is null).Initiator.Should().Be(initiator);
+        (await storage.InstanceStorage.GetProcessInstance(finished.InstanceId))
+            .Tokens.Single(token => token.ParentTokenId is null).Initiator.Should().BeNull();
         (await storage.InstanceStorage.GetAllActiveInstances()).Select(i => i.InstanceId).Should().Equal(active.InstanceId);
         (await storage.InstanceStorage.GetAllInstances()).Should().HaveCount(2);
         await storage.InstanceStorage.Invoking(s => s.GetProcessInstance(Guid.NewGuid())).Should().ThrowAsync<FileNotFoundException>();

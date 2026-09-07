@@ -555,7 +555,8 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
     public async Task<ProcessInstanceInfo> StartProcessInstance(
         string relatedDefinitionId,
         Variables? variables = null,
-        string? processId = null)
+        string? processId = null,
+        AuthenticatedSubject? initiator = null)
     {
         await _engineMutationLock.WaitAsync();
         try
@@ -579,6 +580,9 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
 
             var processEngine = new ProcessEngine(process);
             var instance = processEngine.StartProcess(variables);
+            // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
+            // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
+            instance.MasterToken.Initiator = initiator;
             var processInstanceInfo = CreateProcessInstanceInfo(
                 deployedDefinition.Id,
                 relatedDefinitionId,

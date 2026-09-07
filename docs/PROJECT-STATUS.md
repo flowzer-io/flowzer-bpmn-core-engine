@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0-Teilpaket in PR #177.
+**Stand:** 8. September 2026; Basis `212705a`, M0-Teilpakete in PR #177 und #179.
 
 ## Einordnung
 
@@ -33,15 +33,25 @@ innerhalb des bestehenden serialisierten Storage-Zyklus. Fremde, fehlende oder
 inkonsistente Aufgaben liefern einheitlich `404`. Der authentifizierte Akteur wird
 separat am Token gespeichert; Formulardaten können ihn nicht ersetzen.
 
-Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere objektbezogene
-Instanzprojektionen, serverseitige Formularvalidierung, Idempotenzschlüssel und BFF.
+## Instanz-Datenschutz – PR #179 (aufbauend auf #177)
+
+HTTP-Starts speichern den vertrauenswürdigen Initiator als `(Issuer, Subject)`.
+Antragsteller und aktuell berechtigte Aufgabenbearbeiter sehen eine Vorgangsübersicht,
+Operatoren die Diagnose. Listen, Details, Startantwort und alle technischen
+Subscription-Routen verwenden diese Rechte. Bloße Modellierungsrechte gewähren
+keinen Instanzzugriff. Aufgabenlisten geben nur deklarierte Formularwerte statt
+vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fordert
+ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
+
+Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere serverseitige
+Formularvalidierung, unveränderliche externe Formularbindungen, Idempotenzschlüssel und BFF.
 Wiederholter Abschluss liefert derzeit `404`, keine idempotente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
 API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
 
 ## Verbleibende Risiken und Reihenfolge
 
-1. **M0:** Instanzdatenrechte und verbindliche Formularprüfung zuerst, danach BFF
+1. **M0:** Formularbindung und verbindliche Formularprüfung zuerst, danach BFF
    mit CSRF-Schutz und persistente Idempotenz. Rollen ausdrücklich konfigurieren;
    leere Fähigkeitsrollen bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,

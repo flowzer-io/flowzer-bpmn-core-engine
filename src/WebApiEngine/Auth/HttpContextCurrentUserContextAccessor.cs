@@ -28,7 +28,10 @@ public sealed class HttpContextCurrentUserContextAccessor(
                              ?? TryResolveClaim(user, "oid", "claim:oid");
         if (claimBasedUser is not null)
         {
-            return claimBasedUser with { Names = CollectNames(user), Groups = CollectGroups(user) };
+            return claimBasedUser with
+            {
+                Names = CollectNames(user), Groups = CollectGroups(user), Identity = ResolveIdentity(user)
+            };
         }
 
         // Der technische Header ist nur ein Ersatz fuer fehlende Authentifizierung. Ist der
@@ -38,10 +41,25 @@ public sealed class HttpContextCurrentUserContextAccessor(
         var headerValue = httpContext?.Request.Headers[UserIdHeaderName].FirstOrDefault();
         if (hostEnvironment.IsDevelopment() && !isAuthenticated && Guid.TryParse(headerValue, out var headerUserId))
         {
-            return new CurrentUserContext(headerUserId, "header:x-flowzer-userid", false);
+            return new CurrentUserContext(headerUserId, "header:x-flowzer-userid", false)
+            {
+                Identity = new Model.AuthenticatedSubject("urn:flowzer:development", headerUserId.ToString()),
+                Names = [headerUserId.ToString()]
+            };
         }
 
         return new CurrentUserContext(FallbackUserId, "fallback:system-user", true);
+    }
+
+    private static Model.AuthenticatedSubject? ResolveIdentity(ClaimsPrincipal? user)
+    {
+        if (user?.Identity?.IsAuthenticated != true) return null;
+        var issuer = user.FindFirstValue("iss");
+        // OIDC-Subject ist auch bei Providern mit zusätzlichem GUID-oid maßgeblich.
+        var subject = user.FindFirstValue("sub") ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        return string.IsNullOrWhiteSpace(issuer) || string.IsNullOrWhiteSpace(subject)
+            ? null
+            : new Model.AuthenticatedSubject(issuer, subject);
     }
 
     /// <summary>

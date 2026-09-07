@@ -11,6 +11,9 @@ public sealed record CurrentUserContext(
     string Source,
     bool IsFallback)
 {
+    /// <summary>Issuer und Subject aus dem authentifizierten Kontext, niemals aus Formulardaten.</summary>
+    public Model.AuthenticatedSubject? Identity { get; init; }
+
     /// <summary>
     /// Alle Kennungen der Person: technische Id, Benutzername, E-Mail. Welche davon im Token
     /// steht, entscheidet der Identity Provider; die Zuweisungspruefung akzeptiert jede.

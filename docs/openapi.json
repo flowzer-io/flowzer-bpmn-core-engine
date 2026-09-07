@@ -3305,6 +3305,9 @@
             },
             "nullable": true
           },
+          "canInspect": {
+            "type": "boolean"
+          },
           "startedAt": {
             "type": "string",
             "format": "date-time",

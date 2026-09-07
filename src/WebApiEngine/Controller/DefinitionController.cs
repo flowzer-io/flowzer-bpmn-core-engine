@@ -21,7 +21,8 @@ public class DefinitionController(
     DefinitionBusinessLogic definitionBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
     FolderBusinessLogic folderBusinessLogic,
-    FormKeyResolver formKeyResolver) : FlowzerControllerBase
+    FormKeyResolver formKeyResolver,
+    InstanceAccessService instanceAccess) : FlowzerControllerBase
 {
     /// <summary>
     /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
@@ -101,8 +102,10 @@ public class DefinitionController(
     {
         try
         {
-            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables);
-            var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage);
+            var (currentUser, canInspect) = await instanceAccess.GetPermissionsAsync();
+            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables,
+                initiator: currentUser.Identity);
+            var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
         catch (UnauthorizedAccessException)

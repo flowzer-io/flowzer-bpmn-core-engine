@@ -42,15 +42,23 @@ Startantworten unterliegen derselben Projektion wie spätere Detailabrufe.
 
 Aufgabenlisten dürfen nicht über `Token.CurrentFlowElement`, `Variables` oder
 `OutputData` den gesamten Prozesskontext umgehen. Ohne Betriebsrecht werden nur
-im veröffentlichten Formular deklarierte Eingabefelder als Ausgangswerte geliefert;
+im zur Aufgabe aufgelösten Formular deklarierte Eingabefelder als Ausgangswerte geliefert;
 fehlende/ungültige Formularauflösung liefert keine Variablen. Eigene Formularrechte
 und serverseitige Submission-Validierung sind der anschließende M0/M2-Slice.
+
+Die Leseprojektion unterstützt skalare Felder, explizite skalare Mehrfachwerte,
+Layoutgruppen und verschachtelte Container. Beliebige Objekte, unbekannte Feldtypen,
+Skripte und nicht deklarierte Unterfelder öffnen keinen vollständigen Variablenscope.
+Weitere Feldtypen benötigen einen ausdrücklichen Datenvertrag.
 
 ## Grenzen
 
 - Leere konfigurierte Fähigkeitsrollen bleiben gemäß bestehendem Vertrag permissiv.
   `Roles:Operator` deshalb in produktiven Installationen ausdrücklich konfigurieren.
 - Verzeichnisabgleich, Claims/Delegation und gemeinsame Formularverträge folgen separat.
+- Externe Formulare ohne Versionsangabe werden bisher dynamisch aufgelöst. Die
+  unveränderliche Deployment-Bindung folgt unmittelbar als eigener Slice; bis dahin
+  sind Formularänderungen noch keine von Modellierungsrechten getrennte Datenfreigabe.
 - Kein Mehrprozess-/Rollbackversprechen für die dateibasierte Ablage.
 - Externe Reviews sind im aktuellen autonomen Mandat ausdrücklich ausgesetzt;
   TDD, Selbstprüfung und CI bleiben Pflicht.
