@@ -348,6 +348,30 @@
   display: flex;
 }
 
+/*
+ * Steht ein Datumsfeld in einem Dialog, haengt sein Kalender direkt neben dem Eingabefeld
+ * statt am <body> — siehe dialogCalendarWidget.ts. flatpickr legt dafuer eine Huelle um das
+ * Feld. In der Eingabegruppe neben dem Kalendersymbol ist die Huelle ein Flex-Element und
+ * schrumpfte sonst auf ihre Inhaltsbreite.
+ */
+.formio-surface .flatpickr-wrapper,
+.formio-dialog .flatpickr-wrapper {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/*
+ * Ohne Einblendung. flatpickr schiebt den Kalender beim Aufklappen 20 px von oben herein;
+ * waehrenddessen steht er nicht dort, wo er hingehoert, und das Sichtbarscrollen im Dialog
+ * rechnete mit der falschen Stelle. Die Auswahl muss die Klassen von flatpickr uebertreffen:
+ * dessen Stilblatt wird zur Laufzeit nachgeladen und steht damit hinter diesem hier.
+ */
+.formio-surface .flatpickr-calendar.static.animate.open,
+.formio-dialog .flatpickr-calendar.static.animate.open {
+  animation: none;
+}
+
 .formio-surface .input-group-text,
 .formio-dialog .input-group-text {
   align-items: center;

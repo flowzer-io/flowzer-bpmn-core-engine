@@ -155,6 +155,17 @@ Die Pflichtfelder prüft bewusst nur die Konsole: Form.io kennt bedingt sichtbar
 Der Server prüft deshalb nur, ob überhaupt ein `variables`-Objekt kam; ein leeres zählt als
 Antwort.
 
+Datumsfelder brauchen im Dialog eine Sonderbehandlung
+(`components/forms/dialogCalendarWidget.ts`). Form.io baut sie mit flatpickr, und flatpickr
+hängt seinen Kalender ans `<body>` — außerhalb des Dialogs. Dort sperrt der modale Dialog
+aber die Zeigereingaben (`pointer-events: none` am Body) und hält den Tastaturfokus fest:
+Der Klick auf einen Tag traf das Overlay, galt flatpickr als Klick nach außen und klappte
+den Kalender wieder zu. Von Hand tippen ging, auswählen nicht. Der Renderer tauscht deshalb
+einmalig das Kalender-Widget in Form.ios Registry gegen eine Unterklasse, die den Kalender
+innerhalb eines Dialogs neben sein Eingabefeld hängt (flatpickrs `static`) und ihn beim
+Aufklappen in die Bildlauffläche des Dialogs scrollt. Außerhalb eines Dialogs — auf der
+Aufgabenseite — bleibt alles unverändert.
+
 ## Fremde Oberflächen im Bündel
 
 Zwei Bibliotheken bringen eine eigene, fest verdrahtete Optik mit. Beide sind deshalb an
