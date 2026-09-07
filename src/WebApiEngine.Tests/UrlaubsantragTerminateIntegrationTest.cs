@@ -86,6 +86,125 @@ public class UrlaubsantragTerminateIntegrationTest
         (await context.FetchJobs(client, "urlaub-vertretung-pruefen")).Should().BeEmpty();
     }
 
+    // Testzweck: Die Ablehnung bekommt einen Schnappschuss aller bis dahin gefallenen
+    // Entscheidungen — nicht nur die des „nein"-Zweigs. Ist die fachliche Entscheidung schon
+    // mit „ja" durch, steht sie im Auftrag mit drin; der Worker muss die abgelehnte Pruefung
+    // daraus heraussuchen und darf sich nicht auf „genau eine Entscheidung" verlassen.
+    [Test]
+    public async Task RejectingAfterAnotherCheckPassed_ShouldHandBothDecisionsToTheRejectionJob()
+    {
+        using var context = new UrlaubsantragContext();
+        using var client = context.CreateClient();
+        await context.SeedExample(client);
+
+        var instanceId = await context.StartInstance(client);
+        var openTasks = await context.OpenUserTasks(client, instanceId);
+
+        await context.CompleteUserTask(
+            client,
+            openTasks.Single(task => task.Name == "Urlaub fachlich entscheiden"),
+            new Dictionary<string, object?>
+            {
+                ["entscheidung"] = "freigegeben",
+                ["begruendung"] = "Zeitraum passt."
+            });
+
+        await context.CompleteUserTask(
+            client,
+            openTasks.Single(task => task.Name == "Urlaubstage prüfen"),
+            new Dictionary<string, object?>
+            {
+                ["pruefungBestanden"] = "nein",
+                ["pruefwert"] = "3",
+                ["pruefkommentar"] = "Nur noch 3 Resttage im Konto."
+            });
+
+        var ablehnung = (await context.FetchJobs(client, "urlaub-ablehnung-mitteilen"))
+            .Should().ContainSingle().Subject;
+
+        ablehnung.Variables["tageAusreichend"]?.ToString().Should().Be("nein");
+        ablehnung.Variables["fachlicheEntscheidung"]?.ToString().Should().Be("freigegeben");
+
+        await context.CompleteJob(client, ablehnung.Id, new Dictionary<string, object?>
+        {
+            ["ablehnungsgrund"] = "Nur noch 3 Resttage im Konto."
+        });
+
+        (await context.GetInstance(client, instanceId)).State.Should().Be(ProcessInstanceStateDto.Terminated);
+        (await context.FetchJobs(client, "urlaub-vertretung-pruefen")).Should().BeEmpty();
+    }
+
+    // Testzweck: Auch das fachliche Tor fuehrt bei „nein" in den Abbruch — ein Fehler in
+    // dessen „nein"-Kante oder Bedingung bliebe sonst unentdeckt, weil der erste Test nur
+    // ueber die Urlaubstage ablehnt.
+    [Test]
+    public async Task RejectingTheBusinessDecision_ShouldTerminateTheInstance()
+    {
+        using var context = new UrlaubsantragContext();
+        using var client = context.CreateClient();
+        await context.SeedExample(client);
+
+        var instanceId = await context.StartInstance(client);
+        var openTasks = await context.OpenUserTasks(client, instanceId);
+
+        await context.CompleteUserTask(
+            client,
+            openTasks.Single(task => task.Name == "Urlaub fachlich entscheiden"),
+            new Dictionary<string, object?>
+            {
+                ["entscheidung"] = "abgelehnt",
+                ["begruendung"] = "Im Oktober ist Inventur."
+            });
+
+        var ablehnung = (await context.FetchJobs(client, "urlaub-ablehnung-mitteilen"))
+            .Should().ContainSingle().Subject;
+        ablehnung.Variables["fachlicheEntscheidung"]?.ToString().Should().Be("abgelehnt");
+        ablehnung.Variables["fachlicheBegruendung"]?.ToString().Should().Be("Im Oktober ist Inventur.");
+
+        await context.CompleteJob(client, ablehnung.Id, new Dictionary<string, object?>
+        {
+            ["ablehnungsgrund"] = "Im Oktober ist Inventur."
+        });
+
+        (await context.GetInstance(client, instanceId)).State.Should().Be(ProcessInstanceStateDto.Terminated);
+        (await context.OpenUserTasks(client, instanceId)).Should().BeEmpty();
+        (await context.FetchJobs(client, "urlaub-vertretung-pruefen")).Should().BeEmpty();
+    }
+
+    // Testzweck: Die Vertretungspruefung ist ein Service-Task; ihr „nein" kommt vom Worker.
+    // Auch dieser Weg muss in den Abbruch fuehren und die beiden Aufgaben fuer Menschen
+    // schliessen.
+    [Test]
+    public async Task RejectingTheSubstituteCheck_ShouldTerminateTheInstance()
+    {
+        using var context = new UrlaubsantragContext();
+        using var client = context.CreateClient();
+        await context.SeedExample(client);
+
+        var instanceId = await context.StartInstance(client);
+        (await context.OpenUserTasks(client, instanceId)).Should().HaveCount(2);
+
+        var vertretung = (await context.FetchJobs(client, "urlaub-vertretung-pruefen"))
+            .Should().ContainSingle().Subject;
+        await context.CompleteJob(client, vertretung.Id, new Dictionary<string, object?>
+        {
+            ["vertretungFrei"] = "nein"
+        });
+
+        var ablehnung = (await context.FetchJobs(client, "urlaub-ablehnung-mitteilen"))
+            .Should().ContainSingle().Subject;
+        ablehnung.Variables["vertretungFrei"]?.ToString().Should().Be("nein");
+
+        await context.CompleteJob(client, ablehnung.Id, new Dictionary<string, object?>
+        {
+            ["ablehnungsgrund"] = "Die Vertretung ist im Zeitraum selbst im Urlaub."
+        });
+
+        (await context.GetInstance(client, instanceId)).State.Should().Be(ProcessInstanceStateDto.Terminated);
+        (await context.OpenUserTasks(client, instanceId)).Should().BeEmpty();
+        (await context.AllJobs(client, instanceId)).Should().BeEmpty();
+    }
+
     // Testzweck: Sagen alle drei Prüfungen „ja", läuft der Vorgang normal weiter. Sonst wäre
     // nicht belegt, dass der Abbruch nur am „nein" hängt und nicht am Umbau der Zweige.
     [Test]

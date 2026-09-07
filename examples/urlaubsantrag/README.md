@@ -121,12 +121,14 @@ fremder Dienst alle Prozessvariablen, also auch die Bemerkung aus dem Antrag und
 interne Benutzerkennung. Der Vertrag steht in
 [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
 
-Bei „Ablehnung mitteilen" stehen dort auch die drei Entscheidungen — obwohl zu diesem
-Zeitpunkt nur **eine** davon gefallen ist. Das ist Absicht: Ein Eingang, dessen Variable
-es noch nicht gibt, ist für die Engine kein Fehler, er kommt leer an. Wie „leer" beim
-Worker ankommt, hängt am Ausdrucks-Handler — mit FEEL als `null`, mit dem einfachen
-Handler als der Name der Variablen selbst. Der Demo-Worker behandelt beides als „nicht
-gesetzt" und sucht sich die Prüfung heraus, die tatsächlich „nein" gesagt hat.
+Bei „Ablehnung mitteilen" stehen dort auch die drei Entscheidungen — als Schnappschuss
+dessen, was bis zu diesem Moment gefallen ist. Sicher dabei ist die Prüfung, die „nein"
+gesagt hat; andere können schon fertig sein (mit „ja" oder, im seltenen Fall, einem
+zweiten „nein"), die übrigen laufen noch. Ein Eingang, dessen Variable es noch nicht
+gibt, ist für die Engine kein Fehler, er kommt leer an. Wie „leer" beim Worker ankommt,
+hängt am Ausdrucks-Handler — mit FEEL als `null`, mit dem einfachen Handler als der Name
+der Variablen selbst. Der Demo-Worker behandelt beides als „nicht gesetzt" und sucht
+sich die Prüfung heraus, die „nein" gesagt hat.
 
 ## Zwei Entwurfsentscheidungen
 

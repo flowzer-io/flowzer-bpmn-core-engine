@@ -95,10 +95,10 @@ function handle(type, variables) {
       return { benachrichtigtAm: new Date().toISOString() };
 
     case 'urlaub-ablehnung-mitteilen': {
-      // Welche der drei Pruefungen gescheitert ist, steht im Auftrag — und nur sie: Die
-      // beiden anderen Zweige laufen noch, wenn dieser Auftrag entsteht, und werden vom
-      // abbrechenden Ende beendet. Eine Ablehnung ohne Grund waere fuer die
-      // antragstellende Person wertlos.
+      // Der Auftrag traegt die Entscheidungen, die bis zu seinem Entstehen gefallen sind:
+      // sicher die gescheiterte, moeglicherweise auch schon ein „ja" eines anderen Zweigs.
+      // Was noch laeuft, fehlt und wird vom abbrechenden Ende beendet. Eine Ablehnung
+      // ohne Grund waere fuer die antragstellende Person wertlos.
       const grund = ablehnungsgrund(variables);
       console.log(`  Nachricht an ${wer}: Antrag abgelehnt — ${grund}`);
       return { benachrichtigtAm: new Date().toISOString(), ablehnungsgrund: grund };
