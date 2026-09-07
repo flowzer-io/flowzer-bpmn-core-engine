@@ -33,6 +33,10 @@ export function StartWorkflowDialog({
   const formRef = useRef<FormRendererHandle>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Die Pruefung des Formulars ist asynchron. `busy` kommt erst mit dem naechsten Rendern —
+  // ein zweiter Klick in dieser Luecke saehe es noch auf false. Der Ref greift sofort.
+  const submitting = useRef(false);
+
   // Der Dialog bleibt zwischen zwei Starts eingehaengt. Ohne diesen Schritt stuende beim
   // naechsten Oeffnen noch die Meldung des letzten Versuchs da — fuer einen anderen Workflow.
   useEffect(() => {
@@ -40,23 +44,30 @@ export function StartWorkflowDialog({
   }, [open]);
 
   async function submit() {
-    if (busy) return;
+    if (busy || submitting.current) return;
+    submitting.current = true;
 
-    const renderer = formRef.current;
-    if (!renderer) {
-      // Der Renderer meldet sich erst, wenn Form.io geladen und das Schema lesbar ist. Ohne
-      // ihn zu starten hiesse, den Workflow ohne die Werte loszuschicken, die er braucht.
-      setError('Das Startformular ist noch nicht bereit.');
-      return;
+    try {
+      const renderer = formRef.current;
+      if (!renderer) {
+        // Der Renderer meldet sich erst, wenn Form.io geladen und das Schema lesbar ist. Ohne
+        // ihn zu starten hiesse, den Workflow ohne die Werte loszuschicken, die er braucht.
+        setError('Das Startformular ist noch nicht bereit.');
+        return;
+      }
+
+      if (!(await renderer.validate())) {
+        setError('Bitte fülle alle Pflichtfelder aus.');
+        return;
+      }
+
+      setError(null);
+      onStart(renderer.getData());
+    } finally {
+      // Ab hier haelt der Startablauf selbst die Verriegelung — er verweigert einen zweiten
+      // Start desselben Workflows, solange der erste laeuft.
+      submitting.current = false;
     }
-
-    if (!(await renderer.validate())) {
-      setError('Bitte fülle alle Pflichtfelder aus.');
-      return;
-    }
-
-    setError(null);
-    onStart(renderer.getData());
   }
 
   return (
