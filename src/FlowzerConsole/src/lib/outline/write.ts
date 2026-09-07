@@ -7,7 +7,13 @@
  * beibehalten, damit ein Speichern ohne Strukturaenderung das vorhandene
  * Diagramm unveraendert weiterreichen kann.
  */
-import { structureSignature, type BpmnGraph, type GraphFlow, type GraphNode } from './graph';
+import {
+  structureSignature,
+  type BpmnGraph,
+  type GraphFlow,
+  type GraphNode,
+  type StartFormProperties,
+} from './graph';
 import { layoutGraph, type DiagramLayout } from './layout';
 import {
   allBlocks,
@@ -75,6 +81,18 @@ function taskNode(step: OutlineStep): GraphNode {
       outputs: step.outputs,
     },
   };
+}
+
+/**
+ * Das Startformular ist freiwillig. Ohne Wert entsteht am Startereignis gar
+ * kein `extensionElements` — ein leeres waere ein Unterschied zum gelesenen
+ * Modell, und die Rueckuebersetzungsprobe saehe ihn.
+ */
+function startFormOf(document: OutlineDocument): StartFormProperties | undefined {
+  const formKey = document.startFormKey?.trim() || undefined;
+  const formId = document.startFormId?.trim() || undefined;
+  if (!formKey && !formId) return undefined;
+  return { formKey, formId };
 }
 
 /**
@@ -181,7 +199,12 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
   const builder: Builder = { document, nodes: [], flows: [], issues: [], usedIds, counter: 0 };
 
   const entry = emitSequence(builder, document.blocks, undefined);
-  builder.nodes.push({ id: document.startId, type: 'startEvent', name: document.startName?.trim() || undefined });
+  builder.nodes.push({
+    id: document.startId,
+    type: 'startEvent',
+    name: document.startName?.trim() || undefined,
+    startForm: startFormOf(document),
+  });
   if (entry) addFlow(builder, document.startId, entry);
   else builder.issues.push({ level: 'blocker', message: 'Der Ablauf enthält keinen ersten Schritt.' });
 
@@ -274,12 +297,16 @@ function attributes(entries: Readonly<Record<string, string | undefined>>): stri
 
 function extensionXml(node: GraphNode, indent: string): string {
   const task = node.task;
-  if (!task) return '';
-
   const lines: string[] = [];
-  if (task.formKey || task.formId) {
-    lines.push(`${indent}  <zeebe:formDefinition${attributes({ formKey: task.formKey, formId: task.formId })} />`);
+
+  // Am Startereignis steht das Startformular, an einer Aufgabe ihres — dasselbe
+  // Element, dieselbe Schreibweise.
+  const form = node.startForm ?? task;
+  if (form && (form.formKey || form.formId)) {
+    lines.push(`${indent}  <zeebe:formDefinition${attributes({ formKey: form.formKey, formId: form.formId })} />`);
   }
+  if (!task) return wrapExtensions(lines, indent);
+
   if (task.assignee || task.candidateGroups || task.candidateUsers) {
     lines.push(
       `${indent}  <zeebe:assignmentDefinition${attributes({
@@ -306,6 +333,10 @@ function extensionXml(node: GraphNode, indent: string): string {
     lines.push(`${indent}  </zeebe:ioMapping>`);
   }
 
+  return wrapExtensions(lines, indent);
+}
+
+function wrapExtensions(lines: readonly string[], indent: string): string {
   if (lines.length === 0) return '';
   return [`${indent}  <bpmn:extensionElements>`, ...lines.map((line) => `  ${line}`), `${indent}  </bpmn:extensionElements>`].join('\n');
 }

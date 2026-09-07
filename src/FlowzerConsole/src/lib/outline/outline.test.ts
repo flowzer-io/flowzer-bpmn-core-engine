@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { updateStep } from './edit';
+import { setStartFormKey, updateStep } from './edit';
 import { readOutline } from './read';
 import { writeOutlineXml } from './write';
 import { hasBlocker, type OutlineChoice, type OutlineParallel, type OutlineStep } from './model';
@@ -97,12 +97,21 @@ describe('readOutline — Urlaubsantrag', () => {
     expect(hint?.level).toBe('hinweis');
   });
 
+  it('liest das freiwillige Startformular am Startereignis', () => {
+    // Der Antrag wird beim Starten ausgefuellt; ohne diese Angabe stuende der
+    // Vorgang ohne seine ersten Variablen da.
+    expect(document!.startFormKey).toBe('Urlaubsantrag');
+    expect(document!.startFormId).toBeUndefined();
+  });
+
   it('bildet den Hauptablauf als Folge ab', () => {
-    expect(document!.blocks.map((block) => block.kind)).toEqual(['step', 'parallel', 'choice', 'step', 'end']);
+    // Der Antrag selbst ist kein Schritt mehr: Er wird beim Starten ueber das
+    // Startformular ausgefuellt, und der Ablauf beginnt mit den Pruefungen.
+    expect(document!.blocks.map((block) => block.kind)).toEqual(['parallel', 'choice', 'step', 'end']);
   });
 
   it('zeigt die drei gleichzeitigen Prüfungen als einen Block', () => {
-    const parallel = document!.blocks[1]! as OutlineParallel;
+    const parallel = document!.blocks[0]! as OutlineParallel;
     expect(parallel.id).toBe('Gw_Fork_Pruefung');
     expect(parallel.joinId).toBe('Gw_Join_Pruefung');
     expect(parallel.branches.map((branch) => (branch.blocks[0] as OutlineStep | undefined)?.name)).toEqual([
@@ -113,7 +122,7 @@ describe('readOutline — Urlaubsantrag', () => {
   });
 
   it('schachtelt die drei Tore und führt leere Zweige auf den gemeinsamen Abschluss', () => {
-    const tage = document!.blocks[2]! as OutlineChoice;
+    const tage = document!.blocks[1]! as OutlineChoice;
     expect(tage.id).toBe('Gw_Tage');
     expect(tage.branches.map((branch) => branch.label)).toEqual(['ja', 'nicht genug Tage']);
     expect(tage.branches[0]!.condition).toBe('=tageAusreichend = "ja"');
@@ -144,6 +153,35 @@ describe('Rückübersetzung', () => {
     expect(JSON.stringify(second.document!.blocks)).toBe(JSON.stringify(first.document!.blocks));
   });
 
+  it('behält das Startformular am Startereignis', () => {
+    const { document } = readOutline(URLAUBSANTRAG);
+    const { xml } = writeOutlineXml(document!);
+
+    expect(xml).toContain('<zeebe:formDefinition formKey="Urlaubsantrag" />');
+    expect(readOutline(xml!).document!.startFormKey).toBe('Urlaubsantrag');
+  });
+
+  it('schreibt ohne Startformular keine extensionElements an den Start', () => {
+    // Das Startformular ist freiwillig. Ein leeres `extensionElements` waere ein
+    // Unterschied zum gelesenen Modell — und damit ein Blocker beim naechsten Lesen.
+    const { document } = readOutline(MINIMAL);
+    expect(document!.startFormKey).toBeUndefined();
+
+    const { xml } = writeOutlineXml(document!);
+    const startEvent = xml!.slice(xml!.indexOf('<bpmn:startEvent'), xml!.indexOf('</bpmn:startEvent>'));
+    expect(startEvent).not.toContain('extensionElements');
+    expect(hasBlocker(readOutline(xml!).issues)).toBe(false);
+  });
+
+  it('behält das Diagramm, wenn nur das Startformular gewechselt wird', () => {
+    const { document } = readOutline(URLAUBSANTRAG);
+    const { xml, issues } = writeOutlineXml(setStartFormKey(document!, 'Urlaubsantrag kurz'));
+
+    expect(xml).toContain('formKey="Urlaubsantrag kurz"');
+    expect(xml).toContain('x="1550" y="302"');
+    expect(issues.some((issue) => issue.message.includes('neu berechnet'))).toBe(false);
+  });
+
   it('behält das vorhandene Diagramm, solange sich die Struktur nicht ändert', () => {
     const { document } = readOutline(URLAUBSANTRAG);
     const { xml, issues } = writeOutlineXml(document!);
@@ -164,7 +202,7 @@ describe('Rückübersetzung', () => {
 
   it('berechnet die Anordnung neu, sobald sich die Struktur ändert', () => {
     const { document } = readOutline(URLAUBSANTRAG);
-    const shortened = { ...document!, blocks: document!.blocks.slice(2) };
+    const shortened = { ...document!, blocks: document!.blocks.slice(1) };
     const { issues } = writeOutlineXml(shortened);
 
     expect(issues.some((issue) => issue.message.includes('neu berechnet'))).toBe(true);

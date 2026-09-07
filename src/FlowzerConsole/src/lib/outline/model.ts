@@ -106,6 +106,14 @@ export interface OutlineDocument {
   readonly processName?: string;
   readonly startId: string;
   readonly startName?: string;
+  /**
+   * Das Startformular am reinen Startereignis (`zeebe:formDefinition/@formKey`).
+   * Freiwillig: Steht es da, fuellt es beim Starten die Variablen des Vorgangs;
+   * fehlt es, beginnt der Ablauf ohne Eingabe.
+   */
+  readonly startFormKey?: string;
+  /** Wie `startFormKey`, falls das Modell die Bindung ueber `formId` schreibt. */
+  readonly startFormId?: string;
   readonly blocks: readonly OutlineBlock[];
   /**
    * Formulare, die der Workflow selbst mitbringt (`zeebe:userTaskForm`). Die

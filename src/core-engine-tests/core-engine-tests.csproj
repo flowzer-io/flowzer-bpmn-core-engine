@@ -33,6 +33,12 @@
         <None Update="embeddings\**\*.*">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        <!-- Die Beispiel-BPMN wird im Original geprueft, damit das Beispiel nicht
+             unbemerkt von der Doku abweicht. -->
+        <None Include="..\..\examples\urlaubsantrag\urlaubsantrag.bpmn"
+              Link="examples\urlaubsantrag.bpmn">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

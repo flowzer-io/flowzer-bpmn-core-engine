@@ -290,8 +290,18 @@ public class DefinitionController(
     
 
     [HttpPost("meta")]
+    [ProducesResponseType<ApiStatusResult<BpmnMetaDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<BpmnMetaDefinitionDto>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPost([FromBody] BpmnMetaDefinitionDto dto)
     {
+        // Die Kennung wird in der Dateiablage zum Dateinamen; sie darf den Ablageordner nicht
+        // verlassen. Siehe DefinitionIdRules.
+        if (!DefinitionIdRules.IsValid(dto.DefinitionId))
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
+        }
+
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!FolderBusinessLogic.IsKnownTarget(dto.FolderId, permissions.Folders))
         {
@@ -318,8 +328,17 @@ public class DefinitionController(
     /// einem, und darf nicht als Nebenwirkung eines Umbenennens passieren.
     /// </summary>
     [HttpPut("meta")]
+    [ProducesResponseType<ApiStatusResult<BpmnMetaDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<BpmnMetaDefinitionDto>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiStatusResult<BpmnMetaDefinitionDto>>> MetaPut([FromBody] BpmnMetaDefinitionDto dto)
     {
+        // Dieselbe Pruefung wie beim Anlegen: Sonst liesse sie sich mit einem PUT umgehen.
+        if (!DefinitionIdRules.IsValid(dto.DefinitionId))
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
+        }
+
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         var folderId = await folderBusinessLogic.GetFolderOfDefinitionAsync(dto.DefinitionId);
         if (!permissions.MayEditIn(folderId))

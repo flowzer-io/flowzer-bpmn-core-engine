@@ -4,7 +4,7 @@ Ein vollständiger Prozess mit allem, was Flowzer kann: Formulare, parallele Zwe
 menschliche Entscheidungen, automatische Prüfungen und Anbindungen an andere Systeme.
 
 ```
-Antrag stellen
+Urlaubsantrag stellen   ◀ Startformular
       │
       ├─ Urlaubstage prüfen        (Lohnbuchhaltung, Formular)
       ├─ Fachlich entscheiden      (Vorgesetzte, Formular)
@@ -31,10 +31,40 @@ Gegen eine abgesicherte Instanz zusätzlich ein Zugangstoken mit der Modellierer
 FLOWZER_TOKEN=<access-token> node examples/urlaubsantrag/import.mjs https://flowzer.example
 ```
 
-Das Skript legt vier Formulare, den Katalogeintrag und die erste deployte Version an. Es
+Das Skript legt fünf Formulare (vier wiederverwendbare und den Urlaubsantrag), den Katalogeintrag und die erste deployte Version an. Es
 ist wiederholbar: Vorhandenes bleibt stehen, es kommt nur eine neue Version dazu.
 
 ## Ausprobieren
+
+Der Antrag wird **beim Start** ausgefüllt: In der Konsole öffnet „Starten" das Formular
+`Urlaubsantrag`, und die Eingaben werden die Startvariablen des Vorgangs. Einen eigenen
+ersten Schritt gibt es dafür nicht mehr.
+
+Von außen geht dasselbe über die API. `GET /definition/meta/flowzer-urlaubsantrag/start-form`
+liefert das Formular, gestartet wird mit den ausgefüllten Werten:
+
+```bash
+curl -X POST http://localhost:5182/definition/meta/flowzer-urlaubsantrag/instance \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "variables": {
+          "mitarbeiter": "Christian Maaß",
+          "art": "erholung",
+          "von": "2026-10-05",
+          "bis": "2026-10-16",
+          "arbeitstage": 10,
+          "vertretung": "Melli",
+          "bemerkung": "",
+          "vorgang": "Christian Maaß · Erholungsurlaub · 05.10.2026 bis 16.10.2026 · 10 Arbeitstage · Vertretung: Melli"
+        }
+      }'
+```
+
+Weil der Workflow ein Startformular trägt, verlangt die API das `variables`-Objekt; ohne
+Rumpf antwortet sie mit 400. Das versteckte Feld `vorgang` rechnet sonst das Formular aus —
+wer von außen startet, setzt es selbst. Die Pflichtfelder prüft der Server nicht, das tut der
+Renderer der Konsole (siehe [docs/OPERATIONS.md](../../docs/OPERATIONS.md), Abschnitt
+„Workflow starten").
 
 Die drei Service-Tasks brauchen Worker. Zum Durchspielen genügt der mitgelieferte:
 
@@ -49,13 +79,14 @@ echten Worker taugt er trotzdem; der Vertrag steht in
 
 ## Formulare
 
-Nur der Antrag hat ein eigenes Formular. Die drei anderen Aufgaben benutzen die
+Nur der Antrag hat ein eigenes Formular; es hängt als **Startformular** am Startereignis. Die
+drei Aufgaben im Ablauf benutzen die
 [wiederverwendbaren Formulare](../formulare-generisch/README.md), die auch jeder andere
 Prozess benutzt.
 
 | Aufgabe | Formular (= Form-Key) | Wer | Landet im Prozess als |
 | --- | --- | --- | --- |
-| Urlaubsantrag stellen | `Urlaubsantrag` (eigenes) | antragstellende Person | `mitarbeiter`, `art`, `von`, `bis`, `arbeitstage`, `vertretung`, `bemerkung`, `vorgang` |
+| Start des Workflows (Startformular) | `Urlaubsantrag` (eigenes) | antragstellende Person | `mitarbeiter`, `art`, `von`, `bis`, `arbeitstage`, `vertretung`, `bemerkung`, `vorgang` |
 | Urlaubstage prüfen | `Prüfung` | Lohnbuchhaltung | `tageAusreichend`, `resttage`, `lohnbuchhaltungKommentar` |
 | Urlaub fachlich entscheiden | `Freigabe` | Vorgesetzte | `fachlicheEntscheidung`, `fachlicheBegruendung` |
 | Urlaub in LexOffice eintragen | `Erledigung bestätigen` | Lohnbuchhaltung | `lexofficeEingetragen`, `lexofficeReferenz`, `lexofficeAnmerkung` |
@@ -100,9 +131,9 @@ Liste, die niemand mehr braucht.
 
 ## Was für den echten Einsatz noch fehlt
 
-- **Wer ist die antragstellende Person?** Der erste Task ist niemandem zugewiesen, also für
-  alle Zugelassenen sichtbar. Sauberer wäre, die startende Person festzuhalten und den Task
-  ihr zuzuweisen — dafür müsste der Instanzstart den Benutzer in eine Variable schreiben.
+- **Wer ist die antragstellende Person?** Sie trägt ihren Namen im Startformular selbst ein.
+  Verlässlicher wäre, die startende Person beim Instanzstart in eine Variable zu schreiben —
+  dann stünde sie fest, statt getippt zu werden.
 - **Die Gruppennamen** `Lohnbuchhaltung` und `Vorgesetzte` müssen im Identity Provider als
   Gruppen existieren, sonst sieht niemand die Aufgaben.
 - **Die drei Worker** sind zu schreiben. Der Demo-Worker zeigt den Ablauf, nicht die Fachlichkeit.

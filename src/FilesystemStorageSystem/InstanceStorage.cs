@@ -37,7 +37,14 @@ public class InstanceStorage : IInstanceStorage
 
     public async Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo)
     {
-        var fullFileName = Path.Combine(_instancesPath, $"instance_{processInstanceInfo.metaDefinitionId}_{processInstanceInfo.InstanceId}.json");
+        // Letzter Riegel vor dem Dateinamen: Die API prueft die Kennung an jedem Eingang, ein
+        // Katalog aus aelteren Zeiten kann aber eine ungeprueft uebernommene Kennung enthalten.
+        DefinitionIdRules.EnsureValid(processInstanceInfo.metaDefinitionId);
+
+        // Path.GetFileName ist der Schnitt, den auch die statische Analyse als Bereinigung
+        // erkennt: Was hier ankommt, ist nach der Pruefung ohnehin ein reiner Dateiname.
+        var fullFileName = Path.Combine(_instancesPath,
+            Path.GetFileName($"instance_{processInstanceInfo.metaDefinitionId}_{processInstanceInfo.InstanceId}.json"));
         var data = JsonConvert.SerializeObject(processInstanceInfo, _newtonSoftDefaultSettings);
         await StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }

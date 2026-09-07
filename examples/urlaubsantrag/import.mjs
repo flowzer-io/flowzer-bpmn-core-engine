@@ -26,8 +26,8 @@ async function main() {
   const client = createClient(baseUrl);
   console.log(`Flowzer-API: ${client.base}`);
 
-  // Drei der vier Aufgaben benutzen die allgemeinen Formulare; nur der Antrag selbst
-  // braucht ein eigenes.
+  // Die drei Aufgaben im Ablauf benutzen die allgemeinen Formulare; nur der Antrag
+  // braucht ein eigenes — er haengt als Startformular am Startereignis.
   await ensureGenericForms(client);
   await client.ensureForm('Urlaubsantrag', resolve(here, 'formulare/urlaubsantrag.json'));
 
@@ -39,7 +39,8 @@ async function main() {
         definitionId: DEFINITION_ID,
         name: 'Urlaubsantrag',
         description:
-          'Antrag stellen, parallel Urlaubstage, fachliche Entscheidung und Vertretung prüfen, ' +
+          'Antrag über das Startformular stellen, parallel Urlaubstage, fachliche Entscheidung ' +
+          'und Vertretung prüfen, ' +
           'danach benachrichtigen, in LexOffice und in TickyTask eintragen.',
       },
     });

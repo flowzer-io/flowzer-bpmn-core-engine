@@ -220,15 +220,21 @@ public class DefinitionStorage : IDefinitionStorage
     /// Die Kennung einer Definition kommt aus der Adresse eines HTTP-Aufrufs und wird hier zu
     /// einem Dateinamen. Ein Trennzeichen oder ein ".." darin zeigte auf eine Datei ausserhalb
     /// des Ordners — beim Loeschen waere das eine fremde Datei.
+    ///
+    /// Die fachliche Regel steht in <see cref="DefinitionIdRules"/> und gilt schon an den
+    /// Eingaengen der API; hier bleibt sie als letzter Riegel unmittelbar vor dem Dateinamen
+    /// stehen, denn ein Katalog aus aelteren Zeiten kann eine ungeprueft uebernommene Kennung
+    /// enthalten. Dazu kommt, was dieses Betriebssystem in Dateinamen zusaetzlich verbietet.
     /// </summary>
     private static string EnsureUsableAsFileName(string definitionId)
     {
-        if (string.IsNullOrWhiteSpace(definitionId)
-            || definitionId is "." or ".."
-            || definitionId.AsSpan().IndexOfAny(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) >= 0
-            || definitionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        DefinitionIdRules.EnsureValid(definitionId);
+
+        if (definitionId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            throw new ArgumentException($"\"{definitionId}\" ist keine gueltige Kennung einer Definition.", nameof(definitionId));
+            throw new ArgumentException(
+                $"\"{definitionId}\" contains characters this file system does not allow in a file name.",
+                nameof(definitionId));
         }
 
         return definitionId;
