@@ -103,8 +103,7 @@ Ein Zweig einer Verzweigung hat genau zwei mögliche Ausgänge:
   übergeordneten Folge zu Ende ist.
 
 Damit lässt sich die verbreitete Prüfkette abbilden, bei der mehrere Tore
-hintereinander auf denselben gemeinsamen Abschluss zeigen — genau die Form des
-Urlaubsantrags:
+hintereinander auf denselben gemeinsamen Abschluss zeigen:
 
 ```
 Wenn „Genug Urlaubstage?"
@@ -121,6 +120,22 @@ Ende „Antrag abgelehnt"
 Der leere Zweig ist im BPMN ein direkter Fluss vom Tor auf den gemeinsamen
 Schritt. Die Gliederung zeigt ihn als „weiter mit …", ohne den Schritt zu
 verdoppeln.
+
+### Das Beispiel „Urlaubsantrag" liegt seit dem Abbruch außerhalb
+
+`examples/urlaubsantrag/urlaubsantrag.bpmn` war lange der Vorzeigefall dieser
+Teilmenge. Seit sein Ablehnungsweg auf einem **abbrechenden Endereignis** endet,
+liegt er außerhalb: `bpmn:terminateEventDefinition` steht nicht auf der
+Positivliste, und die drei „nein"-Kanten verlassen den Parallelblock, statt sich
+am Join wieder zu treffen. Beides ist am Modell gewollt — sagt eine Prüfung nein,
+sollen die beiden anderen sofort aufhören —, und die Gliederung wird dafür
+**nicht** erweitert. Sie lehnt das Modell mit der Meldung ab, die das Element
+benennt; bearbeitet wird es im Diagramm.
+
+Die Gliederungstests messen sich weiterhin an dieser Form, aber an einer Kopie
+des Stands davor:
+`src/FlowzerConsole/src/lib/outline/fixtures/urlaubsantrag-gliederung.bpmn`. Dass
+das echte Beispiel abgelehnt wird, ist ein eigener Test in `outline.test.ts`.
 
 ## Nicht abgedeckt — wird gemeldet
 
@@ -197,11 +212,10 @@ Die Gliederung kennt keine Koordinaten. Beim Schreiben gilt:
 - Die Gliederung bearbeitet immer die neueste gespeicherte Version, genau wie
   der Modeler.
 - **Erklärende XML-Kommentare gehen beim Speichern verloren.** Die Gliederung
-  führt sie nicht mit. Sie werden beim Lesen gezählt und angesagt — im
-  `examples/urlaubsantrag/urlaubsantrag.bpmn` sind das mehrere Absätze, die
-  erklären, warum das Modell so aussieht. Wer sie behalten will, bearbeitet
-  dieses Modell im Diagramm. Das ist die auffälligste offene Kante des
-  Prototyps.
+  führt sie nicht mit. Sie werden beim Lesen gezählt und angesagt — in einem
+  gut kommentierten Modell sind das schnell mehrere Absätze, die erklären, warum
+  es so aussieht. Wer sie behalten will, bearbeitet das Modell im Diagramm. Das
+  ist die auffälligste offene Kante des Prototyps.
 - Unter 1024 Pixel Breite blendet die Seite die Bearbeitungsspalte aus: Der
   Ablauf lässt sich dort lesen, die Angaben eines Schritts aber nicht ändern.
   Lesen auf dem Telefon, Ändern am Schreibtisch — die mobile Bearbeitung ist
