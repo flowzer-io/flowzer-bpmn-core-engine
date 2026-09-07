@@ -19,6 +19,12 @@ public class DefinitionBusinessLogic(
         using var storageSystem = storageProvider.GetTransactionalStorage();
         var model = ModelParser.ParseModel(rawContent);
 
+        // Die Kennung stammt aus dem hochgeladenen XML (definitions/@id) und wird in der
+        // Dateiablage zum Dateinamen. Vor jedem Schreiben pruefen, sonst legt schon der Upload
+        // eine Version unter einem Pfad ausserhalb der Ablage an. Die ArgumentException wird
+        // von der Fehlerbehandlung der API zu einer 400 im gewohnten Umschlag.
+        DefinitionIdRules.EnsureValid(model.Id, "definitions/@id");
+
         // Auth zuerst: Ohne aufgelösten Benutzer bleibt die Antwort 401,
         // unabhängig davon, ob die Meta-Definition existiert.
         var currentUser = currentUserContextAccessor.GetCurrentUser();
