@@ -6,18 +6,22 @@ menschliche Entscheidungen, automatische Prüfungen und Anbindungen an andere Sy
 ```
 Urlaubsantrag stellen   ◀ Startformular
       │
-      ├─ Urlaubstage prüfen        (Lohnbuchhaltung, Formular)
-      ├─ Fachlich entscheiden      (Vorgesetzte, Formular)
-      └─ Vertretung prüfen         (Service-Task)
-      │
-   alle drei ok?  ──nein──▶  Ablehnung mitteilen ──▶ Antrag abgelehnt
-      │ ja
-      ├─ Antragsteller benachrichtigen   (Service-Task)
-      ├─ Urlaub in LexOffice eintragen   (Lohnbuchhaltung, Formular)
-      └─ Urlaub in TickyTask eintragen   (Service-Task)
-      │
-   Urlaub genehmigt
+      ├─ Urlaubstage prüfen    (Lohnbuchhaltung, Formular) ─▶ genug Tage?    ──nein──┐
+      ├─ Fachlich entscheiden  (Vorgesetzte, Formular)     ─▶ freigegeben?   ──nein──┤
+      └─ Vertretung prüfen     (Service-Task)              ─▶ Vertretung da? ──nein──┤
+      │ alle drei ja                                                                 │
+      ├─ Antragsteller benachrichtigen   (Service-Task)                              ▼
+      ├─ Urlaub in LexOffice eintragen   (Lohnbuchhaltung, Formular)      Ablehnung mitteilen
+      └─ Urlaub in TickyTask eintragen   (Service-Task)                              │
+      │                                                                              ▼
+   Urlaub genehmigt                                                       Antrag abgelehnt ⊗
 ```
+
+Jede Prüfung entscheidet in ihrem eigenen Zweig, gleich nachdem sie fertig ist. Sagt eine
+„nein", geht der Antrag sofort zur Ablehnung, und das abbrechende Ende (⊗) beendet den
+ganzen Vorgang: Die beiden anderen Prüfungen werden beendet, ihre offenen Aufgaben
+verschwinden aus den Aufgabenlisten. Niemand arbeitet noch an einem Antrag, der schon
+abgelehnt ist.
 
 ## Einspielen
 
@@ -117,6 +121,13 @@ fremder Dienst alle Prozessvariablen, also auch die Bemerkung aus dem Antrag und
 interne Benutzerkennung. Der Vertrag steht in
 [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
 
+Bei „Ablehnung mitteilen" stehen dort auch die drei Entscheidungen — obwohl zu diesem
+Zeitpunkt nur **eine** davon gefallen ist. Das ist Absicht: Ein Eingang, dessen Variable
+es noch nicht gibt, ist für die Engine kein Fehler, er kommt leer an. Wie „leer" beim
+Worker ankommt, hängt am Ausdrucks-Handler — mit FEEL als `null`, mit dem einfachen
+Handler als der Name der Variablen selbst. Der Demo-Worker behandelt beides als „nicht
+gesetzt" und sucht sich die Prüfung heraus, die tatsächlich „nein" gesagt hat.
+
 ## Zwei Entwurfsentscheidungen
 
 **Drei einzelne Tore statt einer zusammengesetzten Bedingung.** Die Engine wertet
@@ -124,10 +135,41 @@ Bedingungen je nach Umgebung mit FEEL oder mit dem einfachen Handler aus; letzte
 nur einen Vergleich je Ausdruck, ein `und` gäbe es dort nicht. Drei Tore laufen in beiden
 Fällen. Nebeneffekt: Der Ablehnungsgrund ist am Diagramm ablesbar.
 
-**Alle drei Prüfungen laufen immer zu Ende.** Das parallele Tor sammelt erst alle drei
-Zweige ein, danach wird entschieden. Eine frühe Ablehnung würde die beiden anderen Zweige
-mit hängenden Tokens zurücklassen — und die Lohnbuchhaltung hätte eine Aufgabe in der
-Liste, die niemand mehr braucht.
+**Jede Prüfung entscheidet in ihrem eigenen Zweig, und ein „nein" beendet den Vorgang.**
+Jedes Tor steht direkt hinter seiner Aufgabe, nicht hinter dem parallelen Tor. Der
+„nein"-Weg führt zu „Ablehnung mitteilen" und von dort auf ein **abbrechendes Ende**
+(`bpmn:terminateEventDefinition`). Das beendet nicht nur seinen Zweig, sondern den ganzen
+Vorgang: Die beiden anderen Prüfungen hören auf, ihre offenen Aufgaben verschwinden aus
+den Aufgabenlisten. Ohne den Abbruch bliebe eine Aufgabe in der Liste der
+Lohnbuchhaltung stehen, die niemand mehr braucht.
+
+## Bekannte Grenze: „Ablehnung mitteilen" kann zweimal laufen
+
+Das abbrechende Ende liegt **hinter** „Ablehnung mitteilen", nicht davor — die Nachricht
+soll ja noch hinausgehen. Zwischen dem „nein" und dem Ende liegt also ein Service-Task,
+und solange dessen Worker nicht geantwortet hat, läuft der Vorgang weiter: Die beiden
+anderen Prüfungen bleiben in diesem Fenster offen.
+
+Sagen zwei Prüfungen in diesem Fenster „nein", laufen beide „nein"-Wege los. Dann läuft
+„Ablehnung mitteilen" zweimal, und die antragstellende Person bekommt zwei Nachrichten.
+Der Abbruch beendet den Vorgang, sobald das Ende tatsächlich erreicht ist — er verhindert
+nicht, dass in der Zwischenzeit ein zweiter Weg angestoßen wurde.
+
+Der Fall ist nicht theoretisch: Zwei Menschen können ihre Aufgabe im selben Moment
+abschließen, und die Vertretungsprüfung antwortet ohnehin von selbst. Wen das stört, macht
+den Worker `urlaub-ablehnung-mitteilen` unempfindlich gegen Wiederholung — er merkt sich
+je Vorgang, dass er schon benachrichtigt hat. Das ist die übliche Antwort für Worker: Ein
+Auftrag kann sich auch aus anderen Gründen wiederholen, etwa wenn die Sperre abläuft
+(siehe [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md)).
+
+## Die Gliederungsansicht zeigt dieses Beispiel nicht
+
+Seit dem abbrechenden Ende liegt der Urlaubsantrag außerhalb der Teilmenge, die die
+[Gliederungsansicht](../../docs/GLIEDERUNG-TEILMENGE.md) abbildet: Ein
+`terminateEventDefinition` steht nicht auf ihrer Positivliste, und die „nein"-Kanten
+verlassen den parallelen Block, statt sich am Join wieder zu treffen. Die Gliederung lehnt
+das Modell mit einer Meldung ab; bearbeitet wird es im Diagramm. Das ist gewollt — die
+Gliederung wird dafür nicht erweitert.
 
 ## Was für den echten Einsatz noch fehlt
 

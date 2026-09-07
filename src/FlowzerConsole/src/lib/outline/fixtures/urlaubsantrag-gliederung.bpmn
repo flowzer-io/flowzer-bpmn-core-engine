@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kopie des Beispiels „Urlaubsantrag" im Stand vor dem abbrechenden Endereignis.
+
+  Warum eine Kopie: Die Gliederungsansicht deckt bewusst nur eine Teilmenge von BPMN ab
+  (siehe docs/GLIEDERUNG-TEILMENGE.md). Seit das echte Beispiel unter
+  examples/urlaubsantrag/urlaubsantrag.bpmn bei einer abgelehnten Prüfung sofort abbricht,
+  liegt es außerhalb dieser Teilmenge: Es trägt ein abbrechendes Endereignis, und die
+  Zweige des Parallelblocks verlassen den Block über die „nein"-Kanten. Die Gliederung
+  wird dafür nicht erweitert.
+
+  Diese Datei hält den letzten Stand fest, der in der Teilmenge liegt, damit die
+  Gliederungstests weiterhin an einem realistischen, mehrzweigigen Beispiel prüfen.
+  Sie ist eine Testvorlage und wird nicht deployt — Änderungen am echten Beispiel
+  gehören nicht hierher.
+-->
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
@@ -40,7 +55,7 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Tage</bpmn:incoming>
-      <bpmn:outgoing>Flow_Urlaubstage_Tor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Tage_Join</bpmn:outgoing>
     </bpmn:userTask>
 
     <bpmn:userTask id="Task_Fachlich" name="Urlaub fachlich entscheiden">
@@ -55,7 +70,7 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Fachlich</bpmn:incoming>
-      <bpmn:outgoing>Flow_Fachlich_Tor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Fachlich_Join</bpmn:outgoing>
     </bpmn:userTask>
 
     <!-- Ein Nachschlagen in vorhandenen Daten, keine Entscheidung: deshalb ein
@@ -73,47 +88,42 @@
         </zeebe:ioMapping>
       </bpmn:extensionElements>
       <bpmn:incoming>Flow_Fork_Vertretung</bpmn:incoming>
-      <bpmn:outgoing>Flow_Vertretung_Tor</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Vertretung_Join</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!--
-      Jede Pruefung entscheidet in ihrem eigenen Zweig, direkt hinter der Aufgabe.
-      Sagt eine „nein", laeuft sie sofort zur Ablehnung; die beiden anderen Zweige
-      werden vom abbrechenden Ende beendet, ihre offenen Aufgaben verschwinden.
+    <bpmn:parallelGateway id="Gw_Join_Pruefung" name="alle geprüft">
+      <bpmn:incoming>Flow_Tage_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Fachlich_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Vertretung_Join</bpmn:incoming>
+      <bpmn:outgoing>Flow_Join_Tage</bpmn:outgoing>
+    </bpmn:parallelGateway>
 
+    <!--
       Drei einzelne Tore statt einer zusammengesetzten Bedingung: Die Engine wertet
       Bedingungen in dieser Umgebung mit dem einfachen Ausdrucks-Handler aus, der nur
       einen Vergleich je Ausdruck kennt — ein "und" gäbe es dort nicht. Nebeneffekt:
       Der Ablehnungsgrund ist am Diagramm ablesbar.
     -->
     <bpmn:exclusiveGateway id="Gw_Tage" name="Genug Urlaubstage?" default="Flow_Tage_Nein">
-      <bpmn:incoming>Flow_Urlaubstage_Tor</bpmn:incoming>
+      <bpmn:incoming>Flow_Join_Tage</bpmn:incoming>
       <bpmn:outgoing>Flow_Tage_Ja</bpmn:outgoing>
       <bpmn:outgoing>Flow_Tage_Nein</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:exclusiveGateway id="Gw_Fachlich" name="Fachlich genehmigt?" default="Flow_Fachlich_Nein">
-      <bpmn:incoming>Flow_Fachlich_Tor</bpmn:incoming>
+      <bpmn:incoming>Flow_Tage_Ja</bpmn:incoming>
       <bpmn:outgoing>Flow_Fachlich_Ja</bpmn:outgoing>
       <bpmn:outgoing>Flow_Fachlich_Nein</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
     <bpmn:exclusiveGateway id="Gw_Vertretung" name="Vertretung frei?" default="Flow_Vertretung_Nein">
-      <bpmn:incoming>Flow_Vertretung_Tor</bpmn:incoming>
+      <bpmn:incoming>Flow_Fachlich_Ja</bpmn:incoming>
       <bpmn:outgoing>Flow_Vertretung_Ja</bpmn:outgoing>
       <bpmn:outgoing>Flow_Vertretung_Nein</bpmn:outgoing>
     </bpmn:exclusiveGateway>
 
-    <!-- Nur wenn alle drei Tore „ja" gesagt haben, kommen hier drei Tokens an. -->
-    <bpmn:parallelGateway id="Gw_Join_Pruefung" name="alle geprüft">
-      <bpmn:incoming>Flow_Tage_Ja</bpmn:incoming>
-      <bpmn:incoming>Flow_Fachlich_Ja</bpmn:incoming>
-      <bpmn:incoming>Flow_Vertretung_Ja</bpmn:incoming>
-      <bpmn:outgoing>Flow_Join_Fork</bpmn:outgoing>
-    </bpmn:parallelGateway>
-
     <bpmn:parallelGateway id="Gw_Fork_Genehmigt" name="genehmigt">
-      <bpmn:incoming>Flow_Join_Fork</bpmn:incoming>
+      <bpmn:incoming>Flow_Vertretung_Ja</bpmn:incoming>
       <bpmn:outgoing>Flow_Genehmigt_Nachricht</bpmn:outgoing>
       <bpmn:outgoing>Flow_Genehmigt_LexOffice</bpmn:outgoing>
       <bpmn:outgoing>Flow_Genehmigt_TickyTask</bpmn:outgoing>
@@ -175,12 +185,11 @@
     <bpmn:serviceTask id="Task_Ablehnung" name="Ablehnung mitteilen">
       <bpmn:extensionElements>
         <zeebe:taskDefinition type="urlaub-ablehnung-mitteilen" />
-        <!-- Hier ist genau eine der drei Pruefungen fertig — die, die „nein" gesagt hat.
-             Die beiden anderen laufen noch, ihre Variablen gibt es also noch nicht.
-             Die Liste bleibt trotzdem stehen: Ein fehlender Eingang ist kein Fehler, er
-             kommt leer an. Der Worker sucht sich die Pruefung heraus, die tatsaechlich
-             „nein" gesagt hat, und nennt ihren Grund. Ohne diese Liste bekaeme ein
-             fremder Dienst alle Prozessvariablen, auch die Bemerkung aus dem Antrag. -->
+        <!-- Alle drei Pruefungen laufen zu Ende, bevor entschieden wird — ihre
+             Ergebnisse stehen hier also fest. Der Worker bekommt sie mit und kann
+             daraus sagen, woran es lag. Ohne sie ginge auf dem Pfad „Vertretung im
+             Urlaub" eine Ablehnung ohne Grund hinaus: Die beiden Kommentarfelder
+             stammen von Pruefungen, die dort bestanden wurden. -->
         <zeebe:ioMapping>
           <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
           <zeebe:input source="=vorgang" target="vorgang" />
@@ -197,40 +206,33 @@
       <bpmn:outgoing>Flow_Ablehnung_Ende</bpmn:outgoing>
     </bpmn:serviceTask>
 
-    <!-- Ein abbrechendes Ende: Es beendet nicht nur seinen eigenen Zweig, sondern den
-         ganzen Vorgang. Die beiden Pruefungen, die noch laufen, hoeren damit auf, und
-         ihre offenen Aufgaben verschwinden aus den Aufgabenlisten — niemand arbeitet
-         noch an einem Antrag, der schon abgelehnt ist. -->
     <bpmn:endEvent id="End_Abgelehnt" name="Antrag abgelehnt">
       <bpmn:incoming>Flow_Ablehnung_Ende</bpmn:incoming>
-      <bpmn:terminateEventDefinition id="Terminate_Abgelehnt" />
     </bpmn:endEvent>
 
     <bpmn:sequenceFlow id="Flow_Start_Fork" sourceRef="Start_Antrag" targetRef="Gw_Fork_Pruefung" />
     <bpmn:sequenceFlow id="Flow_Fork_Tage" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Urlaubstage" />
     <bpmn:sequenceFlow id="Flow_Fork_Fachlich" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Fachlich" />
     <bpmn:sequenceFlow id="Flow_Fork_Vertretung" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Vertretung" />
+    <bpmn:sequenceFlow id="Flow_Tage_Join" sourceRef="Task_Urlaubstage" targetRef="Gw_Join_Pruefung" />
+    <bpmn:sequenceFlow id="Flow_Fachlich_Join" sourceRef="Task_Fachlich" targetRef="Gw_Join_Pruefung" />
+    <bpmn:sequenceFlow id="Flow_Vertretung_Join" sourceRef="Task_Vertretung" targetRef="Gw_Join_Pruefung" />
+    <bpmn:sequenceFlow id="Flow_Join_Tage" sourceRef="Gw_Join_Pruefung" targetRef="Gw_Tage" />
 
-    <bpmn:sequenceFlow id="Flow_Urlaubstage_Tor" sourceRef="Task_Urlaubstage" targetRef="Gw_Tage" />
-    <bpmn:sequenceFlow id="Flow_Fachlich_Tor" sourceRef="Task_Fachlich" targetRef="Gw_Fachlich" />
-    <bpmn:sequenceFlow id="Flow_Vertretung_Tor" sourceRef="Task_Vertretung" targetRef="Gw_Vertretung" />
-
-    <bpmn:sequenceFlow id="Flow_Tage_Ja" name="ja" sourceRef="Gw_Tage" targetRef="Gw_Join_Pruefung">
+    <bpmn:sequenceFlow id="Flow_Tage_Ja" name="ja" sourceRef="Gw_Tage" targetRef="Gw_Fachlich">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=tageAusreichend = "ja"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Tage_Nein" name="nicht genug Tage" sourceRef="Gw_Tage" targetRef="Task_Ablehnung" />
 
-    <bpmn:sequenceFlow id="Flow_Fachlich_Ja" name="ja" sourceRef="Gw_Fachlich" targetRef="Gw_Join_Pruefung">
+    <bpmn:sequenceFlow id="Flow_Fachlich_Ja" name="ja" sourceRef="Gw_Fachlich" targetRef="Gw_Vertretung">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=fachlicheEntscheidung = "freigegeben"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Fachlich_Nein" name="abgelehnt" sourceRef="Gw_Fachlich" targetRef="Task_Ablehnung" />
 
-    <bpmn:sequenceFlow id="Flow_Vertretung_Ja" name="ja" sourceRef="Gw_Vertretung" targetRef="Gw_Join_Pruefung">
+    <bpmn:sequenceFlow id="Flow_Vertretung_Ja" name="ja" sourceRef="Gw_Vertretung" targetRef="Gw_Fork_Genehmigt">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=vertretungFrei = "ja"</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_Vertretung_Nein" name="Vertretung im Urlaub" sourceRef="Gw_Vertretung" targetRef="Task_Ablehnung" />
-
-    <bpmn:sequenceFlow id="Flow_Join_Fork" sourceRef="Gw_Join_Pruefung" targetRef="Gw_Fork_Genehmigt" />
 
     <bpmn:sequenceFlow id="Flow_Genehmigt_Nachricht" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_Nachricht" />
     <bpmn:sequenceFlow id="Flow_Genehmigt_LexOffice" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_LexOffice" />
@@ -264,50 +266,48 @@
         <dc:Bounds x="520" y="420" width="140" height="80" />
       </bpmndi:BPMNShape>
 
-      <!-- Jedes Tor steht in seinem Zweig, direkt hinter der zugehoerigen Aufgabe. -->
-      <bpmndi:BPMNShape id="Shape_Gw_Tage" bpmnElement="Gw_Tage" isMarkerVisible="true">
-        <dc:Bounds x="700" y="155" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="683" y="115" width="85" height="27" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Gw_Fachlich" bpmnElement="Gw_Fachlich" isMarkerVisible="true">
-        <dc:Bounds x="760" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="743" y="255" width="85" height="27" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Gw_Vertretung" bpmnElement="Gw_Vertretung" isMarkerVisible="true">
-        <dc:Bounds x="820" y="435" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="806" y="395" width="79" height="27" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Shape_Gw_Join_Pruefung" bpmnElement="Gw_Join_Pruefung">
+        <dc:Bounds x="720" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="710" y="265" width="71" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNShape id="Shape_Gw_Join_Pruefung" bpmnElement="Gw_Join_Pruefung">
-        <dc:Bounds x="920" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="910" y="265" width="71" height="14" /></bpmndi:BPMNLabel>
+      <bpmndi:BPMNShape id="Shape_Gw_Tage" bpmnElement="Gw_Tage" isMarkerVisible="true">
+        <dc:Bounds x="800" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="783" y="255" width="85" height="27" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gw_Fachlich" bpmnElement="Gw_Fachlich" isMarkerVisible="true">
+        <dc:Bounds x="920" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="903" y="255" width="85" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gw_Vertretung" bpmnElement="Gw_Vertretung" isMarkerVisible="true">
+        <dc:Bounds x="1040" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1026" y="255" width="79" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
       <bpmndi:BPMNShape id="Shape_Gw_Fork_Genehmigt" bpmnElement="Gw_Fork_Genehmigt">
-        <dc:Bounds x="1010" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1005" y="265" width="61" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1160" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1155" y="265" width="61" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Shape_Task_Nachricht" bpmnElement="Task_Nachricht">
-        <dc:Bounds x="1110" y="140" width="140" height="80" />
+        <dc:Bounds x="1260" y="140" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Task_LexOffice" bpmnElement="Task_LexOffice">
-        <dc:Bounds x="1110" y="280" width="140" height="80" />
+        <dc:Bounds x="1260" y="280" width="140" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Task_TickyTask" bpmnElement="Task_TickyTask">
-        <dc:Bounds x="1110" y="420" width="140" height="80" />
+        <dc:Bounds x="1260" y="420" width="140" height="80" />
       </bpmndi:BPMNShape>
 
       <bpmndi:BPMNShape id="Shape_Gw_Join_Genehmigt" bpmnElement="Gw_Join_Genehmigt">
-        <dc:Bounds x="1310" y="295" width="50" height="50" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1297" y="265" width="77" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1460" y="295" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1447" y="265" width="77" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_End_Genehmigt" bpmnElement="End_Genehmigt">
-        <dc:Bounds x="1400" y="302" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="1376" y="345" width="85" height="14" /></bpmndi:BPMNLabel>
+        <dc:Bounds x="1550" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1526" y="345" width="85" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <!-- Der Ablehnungspfad liegt unter allen drei Zweigen: Jedes „nein" faellt aus
-           seinem Zweig nach unten heraus. -->
       <bpmndi:BPMNShape id="Shape_Task_Ablehnung" bpmnElement="Task_Ablehnung">
         <dc:Bounds x="940" y="580" width="140" height="80" />
       </bpmndi:BPMNShape>
@@ -328,69 +328,64 @@
       <bpmndi:BPMNEdge id="Edge_Flow_Fork_Vertretung" bpmnElement="Flow_Fork_Vertretung">
         <di:waypoint x="445" y="345" /><di:waypoint x="445" y="460" /><di:waypoint x="520" y="460" />
       </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_Flow_Urlaubstage_Tor" bpmnElement="Flow_Urlaubstage_Tor">
-        <di:waypoint x="660" y="180" /><di:waypoint x="700" y="180" />
+      <bpmndi:BPMNEdge id="Edge_Flow_Tage_Join" bpmnElement="Flow_Tage_Join">
+        <di:waypoint x="660" y="180" /><di:waypoint x="745" y="180" /><di:waypoint x="745" y="295" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Fachlich_Tor" bpmnElement="Flow_Fachlich_Tor">
-        <di:waypoint x="660" y="320" /><di:waypoint x="760" y="320" />
+      <bpmndi:BPMNEdge id="Edge_Flow_Fachlich_Join" bpmnElement="Flow_Fachlich_Join">
+        <di:waypoint x="660" y="320" /><di:waypoint x="720" y="320" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Vertretung_Tor" bpmnElement="Flow_Vertretung_Tor">
-        <di:waypoint x="660" y="460" /><di:waypoint x="820" y="460" />
+      <bpmndi:BPMNEdge id="Edge_Flow_Vertretung_Join" bpmnElement="Flow_Vertretung_Join">
+        <di:waypoint x="660" y="460" /><di:waypoint x="745" y="460" /><di:waypoint x="745" y="345" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Join_Tage" bpmnElement="Flow_Join_Tage">
+        <di:waypoint x="770" y="320" /><di:waypoint x="800" y="320" />
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="Edge_Flow_Tage_Ja" bpmnElement="Flow_Tage_Ja">
-        <di:waypoint x="750" y="180" /><di:waypoint x="945" y="180" /><di:waypoint x="945" y="295" />
-        <bpmndi:BPMNLabel><dc:Bounds x="760" y="162" width="14" height="14" /></bpmndi:BPMNLabel>
+        <di:waypoint x="850" y="320" /><di:waypoint x="920" y="320" />
+        <bpmndi:BPMNLabel><dc:Bounds x="878" y="302" width="14" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Tage_Nein" bpmnElement="Flow_Tage_Nein">
+        <di:waypoint x="825" y="345" /><di:waypoint x="825" y="620" /><di:waypoint x="940" y="620" />
+        <bpmndi:BPMNLabel><dc:Bounds x="774" y="470" width="102" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Fachlich_Ja" bpmnElement="Flow_Fachlich_Ja">
-        <di:waypoint x="810" y="320" /><di:waypoint x="920" y="320" />
-        <bpmndi:BPMNLabel><dc:Bounds x="845" y="302" width="14" height="14" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Vertretung_Ja" bpmnElement="Flow_Vertretung_Ja">
-        <di:waypoint x="870" y="460" /><di:waypoint x="945" y="460" /><di:waypoint x="945" y="345" />
-        <bpmndi:BPMNLabel><dc:Bounds x="880" y="442" width="14" height="14" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-
-      <!-- Die drei „nein"-Kanten laufen ineinander geschachtelt nach unten, damit sie
-           sich nicht kreuzen: der linke Zweig aussen, der rechte innen. -->
-      <bpmndi:BPMNEdge id="Edge_Flow_Tage_Nein" bpmnElement="Flow_Tage_Nein">
-        <di:waypoint x="725" y="205" /><di:waypoint x="725" y="640" /><di:waypoint x="940" y="640" />
-        <bpmndi:BPMNLabel><dc:Bounds x="731" y="380" width="102" height="14" /></bpmndi:BPMNLabel>
+        <di:waypoint x="970" y="320" /><di:waypoint x="1040" y="320" />
+        <bpmndi:BPMNLabel><dc:Bounds x="998" y="302" width="14" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Fachlich_Nein" bpmnElement="Flow_Fachlich_Nein">
-        <di:waypoint x="785" y="345" /><di:waypoint x="785" y="620" /><di:waypoint x="940" y="620" />
-        <bpmndi:BPMNLabel><dc:Bounds x="791" y="500" width="59" height="14" /></bpmndi:BPMNLabel>
+        <di:waypoint x="945" y="345" /><di:waypoint x="945" y="580" />
+        <bpmndi:BPMNLabel><dc:Bounds x="951" y="450" width="59" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Vertretung_Ja" bpmnElement="Flow_Vertretung_Ja">
+        <di:waypoint x="1090" y="320" /><di:waypoint x="1160" y="320" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1118" y="302" width="14" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Vertretung_Nein" bpmnElement="Flow_Vertretung_Nein">
-        <di:waypoint x="845" y="485" /><di:waypoint x="845" y="600" /><di:waypoint x="940" y="600" />
-        <bpmndi:BPMNLabel><dc:Bounds x="851" y="530" width="113" height="14" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNEdge>
-
-      <bpmndi:BPMNEdge id="Edge_Flow_Join_Fork" bpmnElement="Flow_Join_Fork">
-        <di:waypoint x="970" y="320" /><di:waypoint x="1010" y="320" />
+        <di:waypoint x="1065" y="345" /><di:waypoint x="1065" y="580" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1071" y="450" width="113" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
 
       <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_Nachricht" bpmnElement="Flow_Genehmigt_Nachricht">
-        <di:waypoint x="1035" y="295" /><di:waypoint x="1035" y="180" /><di:waypoint x="1110" y="180" />
+        <di:waypoint x="1185" y="295" /><di:waypoint x="1185" y="180" /><di:waypoint x="1260" y="180" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_LexOffice" bpmnElement="Flow_Genehmigt_LexOffice">
-        <di:waypoint x="1060" y="320" /><di:waypoint x="1110" y="320" />
+        <di:waypoint x="1210" y="320" /><di:waypoint x="1260" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_TickyTask" bpmnElement="Flow_Genehmigt_TickyTask">
-        <di:waypoint x="1035" y="345" /><di:waypoint x="1035" y="460" /><di:waypoint x="1110" y="460" />
+        <di:waypoint x="1185" y="345" /><di:waypoint x="1185" y="460" /><di:waypoint x="1260" y="460" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Nachricht_Join" bpmnElement="Flow_Nachricht_Join">
-        <di:waypoint x="1250" y="180" /><di:waypoint x="1335" y="180" /><di:waypoint x="1335" y="295" />
+        <di:waypoint x="1400" y="180" /><di:waypoint x="1485" y="180" /><di:waypoint x="1485" y="295" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_LexOffice_Join" bpmnElement="Flow_LexOffice_Join">
-        <di:waypoint x="1250" y="320" /><di:waypoint x="1310" y="320" />
+        <di:waypoint x="1400" y="320" /><di:waypoint x="1460" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_TickyTask_Join" bpmnElement="Flow_TickyTask_Join">
-        <di:waypoint x="1250" y="460" /><di:waypoint x="1335" y="460" /><di:waypoint x="1335" y="345" />
+        <di:waypoint x="1400" y="460" /><di:waypoint x="1485" y="460" /><di:waypoint x="1485" y="345" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Join_Ende" bpmnElement="Flow_Join_Ende">
-        <di:waypoint x="1360" y="320" /><di:waypoint x="1400" y="320" />
+        <di:waypoint x="1510" y="320" /><di:waypoint x="1550" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Ablehnung_Ende" bpmnElement="Flow_Ablehnung_Ende">
         <di:waypoint x="1080" y="620" /><di:waypoint x="1160" y="620" />

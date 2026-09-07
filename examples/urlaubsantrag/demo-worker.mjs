@@ -47,15 +47,28 @@ async function call(path, body) {
   return payload;
 }
 
+/**
+ * Liest eine Variable, die es geben kann, aber nicht geben muss.
+ *
+ * Bei der Ablehnung ist nur die Pruefung fertig, die „nein" gesagt hat — die Variablen
+ * der beiden anderen fehlen. Ein fehlender Eingang ist fuer die Engine kein Fehler, er
+ * kommt aber je nach Ausdrucks-Handler unterschiedlich an: mit FEEL als null, mit dem
+ * einfachen Handler als der Name der Variablen selbst. Beides heisst hier „nicht gesetzt".
+ */
+function feld(variables, name) {
+  const wert = variables?.[name];
+  return wert == null || wert === name ? undefined : wert;
+}
+
 /** Sagt in einem Satz, woran der Antrag gescheitert ist. */
 function ablehnungsgrund(v) {
-  if (v?.tageAusreichend === 'nein') {
-    return v?.lohnbuchhaltungKommentar || 'Der Urlaubsanspruch reicht nicht aus.';
+  if (feld(v, 'tageAusreichend') === 'nein') {
+    return feld(v, 'lohnbuchhaltungKommentar') || 'Der Urlaubsanspruch reicht nicht aus.';
   }
-  if (v?.fachlicheEntscheidung === 'abgelehnt') {
-    return v?.fachlicheBegruendung || 'Die Vorgesetzte hat den Zeitraum nicht freigegeben.';
+  if (feld(v, 'fachlicheEntscheidung') === 'abgelehnt') {
+    return feld(v, 'fachlicheBegruendung') || 'Die Vorgesetzte hat den Zeitraum nicht freigegeben.';
   }
-  if (v?.vertretungFrei === 'nein') {
+  if (feld(v, 'vertretungFrei') === 'nein') {
     return 'Die angegebene Vertretung hat im selben Zeitraum selbst genehmigten Urlaub.';
   }
   return 'Kein Grund angegeben.';
@@ -82,8 +95,10 @@ function handle(type, variables) {
       return { benachrichtigtAm: new Date().toISOString() };
 
     case 'urlaub-ablehnung-mitteilen': {
-      // Welche der drei Pruefungen gescheitert ist, steht im Auftrag. Eine Ablehnung
-      // ohne Grund waere fuer die antragstellende Person wertlos.
+      // Welche der drei Pruefungen gescheitert ist, steht im Auftrag — und nur sie: Die
+      // beiden anderen Zweige laufen noch, wenn dieser Auftrag entsteht, und werden vom
+      // abbrechenden Ende beendet. Eine Ablehnung ohne Grund waere fuer die
+      // antragstellende Person wertlos.
       const grund = ablehnungsgrund(variables);
       console.log(`  Nachricht an ${wer}: Antrag abgelehnt — ${grund}`);
       return { benachrichtigtAm: new Date().toISOString(), ablehnungsgrund: grund };
