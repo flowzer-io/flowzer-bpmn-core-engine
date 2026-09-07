@@ -11,7 +11,7 @@ namespace WebApiEngine.Controller;
 public class UserTaskController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
-    UserTaskFormResolver userTaskFormResolver,
+    FormKeyResolver formKeyResolver,
     IAuthorizationService authorizationService,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
@@ -80,7 +80,7 @@ public class UserTaskController(
 
         // Die Version des Workflows entscheidet mit: Ein im Workflow eingebettetes Formular steht
         // in genau diesem Diagramm, nicht im Formularbestand.
-        var resolved = await userTaskFormResolver.ResolveAsync(formKey, subscription.DefinitionId);
+        var resolved = await formKeyResolver.ResolveAsync(formKey, subscription.DefinitionId);
 
         if (resolved.Form is null)
         {

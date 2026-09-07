@@ -9,7 +9,7 @@ import {
 } from './formKey';
 
 // Testzweck: Der Form-Key ist der Vertrag zwischen Modeler und Engine. Wird er hier anders
-// gelesen als im UserTaskFormResolver, zeigt die Konsole ein anderes Formular an als die
+// gelesen als im FormKeyResolver, zeigt die Konsole ein anderes Formular an als die
 // Aufgabe später bekommt.
 describe('parseFormKey', () => {
   it('erkennt ein Formular aus dem Bestand ohne Version', () => {

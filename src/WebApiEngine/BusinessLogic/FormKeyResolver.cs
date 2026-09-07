@@ -7,7 +7,8 @@ using WebApiEngine.Shared;
 namespace WebApiEngine.BusinessLogic;
 
 /// <summary>
-/// Löst den Form-Key eines User-Tasks auf ein konkretes Formular auf.
+/// Löst einen Form-Key auf ein konkretes Formular auf — den einer menschlichen Aufgabe ebenso
+/// wie den des Startformulars am Startereignis.
 ///
 /// Der Form-Key stammt aus <c>zeebe:formDefinition/@formKey</c> und meint eines von zwei Dingen:
 /// <list type="bullet">
@@ -20,7 +21,7 @@ namespace WebApiEngine.BusinessLogic;
 /// Die Auflösung lag bisher im Blazor-Client und benötigte dort drei API-Aufrufe.
 /// Als Teil der API gehört sie hierher: die Regel ist fachlich, nicht darstellend.
 /// </summary>
-public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
+public sealed class FormKeyResolver(IStorageSystem storageSystem)
 {
     public sealed record Result(FormDto? Form, string? ErrorMessage)
     {
@@ -38,13 +39,15 @@ public sealed class UserTaskFormResolver(IStorageSystem storageSystem)
 
     /// <param name="formKey">Der Form-Key aus dem Modell.</param>
     /// <param name="definitionId">
-    /// Die Version des Workflows, an der die Aufgabe hängt. Nur darüber ist ein eingebettetes
+    /// Die Version des Workflows, zu der der Schlüssel gehört. Nur darüber ist ein eingebettetes
     /// Formular erreichbar: Es steht im Diagramm, nicht in der Ablage der Formulare.
     /// </param>
     public async Task<Result> ResolveAsync(string? formKey, Guid definitionId)
     {
         if (string.IsNullOrWhiteSpace(formKey))
         {
+            // Nur ueber User-Tasks erreichbar: Ein Startereignis ohne Formular wird gar nicht
+            // erst aufgeloest, sondern gilt als „kein Startformular".
             return Result.Failure(
                 "The user task has no form key. Set 'formKey' in the BPMN task properties.");
         }
