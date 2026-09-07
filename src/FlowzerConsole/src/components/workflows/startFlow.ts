@@ -69,6 +69,9 @@ export interface StartFlow {
 export function createStartFlow<TInstance>(ports: StartFlowPorts<TInstance>): StartFlow {
   const busy = new Set<string>();
   const starting = new Set<string>();
+  // Workflows, deren Dialog geschlossen wurde, während ihr Start noch lief. Die Sperre fällt
+  // erst, wenn der Start zurück ist — vorher liesse ein Klick denselben Workflow doppelt laufen.
+  const closedWhileStarting = new Set<string>();
 
   function publish() {
     ports.onStateChange({ busy: new Set(busy), starting: new Set(starting) });
@@ -100,12 +103,16 @@ export function createStartFlow<TInstance>(ports: StartFlowPorts<TInstance>): St
     try {
       const instance = await ports.startInstance(workflow, variables);
       starting.delete(definitionId);
+      closedWhileStarting.delete(definitionId);
       busy.delete(definitionId);
       publish();
       ports.onStarted(workflow, instance);
     } catch (error) {
       starting.delete(definitionId);
-      if (releasesOnFailure) busy.delete(definitionId);
+      // Ohne offenen Dialog gibt es keinen zweiten Versuch mit denselben Eingaben — dann ist
+      // der Workflow nach dem Fehlschlag wieder frei.
+      const dialogClosed = closedWhileStarting.delete(definitionId);
+      if (releasesOnFailure || dialogClosed) busy.delete(definitionId);
       publish();
       // Jeder Start meldet sich selbst. Über die Rückgabe der Mutation und nicht über deren
       // Callbacks: Ein zweiter Start derselben Mutation löst den Beobachter des ersten ab,
@@ -147,6 +154,10 @@ export function createStartFlow<TInstance>(ports: StartFlowPorts<TInstance>): St
     },
 
     cancel(definitionId) {
+      if (starting.has(definitionId)) {
+        closedWhileStarting.add(definitionId);
+        return;
+      }
       release(definitionId);
     },
   };

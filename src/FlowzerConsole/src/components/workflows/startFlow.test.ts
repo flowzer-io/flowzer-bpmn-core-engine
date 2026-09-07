@@ -214,6 +214,31 @@ describe('createStartFlow', () => {
     expect(ports.onStarted).toHaveBeenCalledExactlyOnceWith(urlaub, 'instanz-urlaub');
   });
 
+  it('hält die Sperre, wenn der Dialog während des laufenden Starts geschlossen wird', async () => {
+    const start = deferred<string>();
+    const { flow, ports, state } = setup({
+      loadStartForm: vi.fn<StartFlowPorts<string>['loadStartForm']>().mockResolvedValue(withForm),
+      startInstance: vi.fn<StartFlowPorts<string>['startInstance']>(() => start.promise),
+    });
+
+    await flow.start(urlaub);
+    const laufend = flow.submit(urlaub, { tage: 3 });
+
+    // Escape oder Klick daneben schliesst den Dialog — der Start läuft trotzdem weiter, und ein
+    // Klick auf den Startknopf dahinter darf keinen zweiten auslösen.
+    flow.cancel('urlaub');
+    expect(state.current.busy.has('urlaub')).toBe(true);
+    await flow.start(urlaub);
+    expect(ports.loadStartForm).toHaveBeenCalledTimes(1);
+
+    start.reject(new Error('Start abgelehnt'));
+    await laufend;
+
+    // Ohne Dialog gibt es keinen zweiten Versuch: Der Workflow ist nach dem Fehlschlag frei.
+    expect(ports.onFailed).toHaveBeenCalledExactlyOnceWith(urlaub, 'start', expect.any(Error));
+    expect(state.current.busy.has('urlaub')).toBe(false);
+  });
+
   it('zeigt den laufenden Start an, solange er läuft — daran hängt der Ladezustand des Dialogs', async () => {
     const start = deferred<string>();
     const { flow, state } = setup({
