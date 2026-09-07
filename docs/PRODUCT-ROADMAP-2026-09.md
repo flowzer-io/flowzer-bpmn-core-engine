@@ -7,6 +7,15 @@ Umsetzungsstand fest. Eine Checkbox wird erst nach belegter Implementierung und
 Verifikation geschlossen. Vorhandene Grundlagen sind kein Nachweis für ein ganzes
 Paket. `docs/ROADMAP.md` verweist auf diesen führenden Plan.
 
+## Aktuelles Arbeitsmandat
+
+Am 8. September 2026 hat Christian die autonome Fortsetzung beauftragt und für
+sie vorerst auf externe Reviews verzichtet. Diese befristete Ausnahme betrifft
+nur Reviews, nicht Test-/Build-/Vertragsprüfungen oder Produktionsfreigaben.
+Sie wird in den jeweiligen PRs ausgewiesen; die zentralen Regeln bleiben ansonsten
+unverändert. Es erfolgen keine direkten Writes auf `main`/`release` und kein
+Produktivdeployment durch dieses Mandat.
+
 ## Ziel und Grenzen
 
 - Flowzer bleibt ein eigenständig installierbares Produkt unter MPL-2.0.
