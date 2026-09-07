@@ -8,20 +8,17 @@
                   id="flowzer-urlaubsantrag" targetNamespace="http://bpmn.io/schema/bpmn">
   <bpmn:process id="Process_Urlaubsantrag" name="Urlaubsantrag" isExecutable="true">
 
-    <bpmn:startEvent id="Start_Antrag" name="Urlaub geplant">
-      <bpmn:outgoing>Flow_Start_Antrag</bpmn:outgoing>
-    </bpmn:startEvent>
-
-    <bpmn:userTask id="Task_Antrag" name="Urlaubsantrag stellen">
+    <!-- Der Antrag wird beim Start ausgefuellt: Das Formular am reinen Startereignis
+         liefert die Startvariablen des Vorgangs. -->
+    <bpmn:startEvent id="Start_Antrag" name="Urlaubsantrag stellen">
       <bpmn:extensionElements>
         <zeebe:formDefinition formKey="Urlaubsantrag" />
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Start_Antrag</bpmn:incoming>
-      <bpmn:outgoing>Flow_Antrag_Fork</bpmn:outgoing>
-    </bpmn:userTask>
+      <bpmn:outgoing>Flow_Start_Fork</bpmn:outgoing>
+    </bpmn:startEvent>
 
     <bpmn:parallelGateway id="Gw_Fork_Pruefung" name="Prüfungen">
-      <bpmn:incoming>Flow_Antrag_Fork</bpmn:incoming>
+      <bpmn:incoming>Flow_Start_Fork</bpmn:incoming>
       <bpmn:outgoing>Flow_Fork_Tage</bpmn:outgoing>
       <bpmn:outgoing>Flow_Fork_Fachlich</bpmn:outgoing>
       <bpmn:outgoing>Flow_Fork_Vertretung</bpmn:outgoing>
@@ -198,8 +195,7 @@
       <bpmn:incoming>Flow_Ablehnung_Ende</bpmn:incoming>
     </bpmn:endEvent>
 
-    <bpmn:sequenceFlow id="Flow_Start_Antrag" sourceRef="Start_Antrag" targetRef="Task_Antrag" />
-    <bpmn:sequenceFlow id="Flow_Antrag_Fork" sourceRef="Task_Antrag" targetRef="Gw_Fork_Pruefung" />
+    <bpmn:sequenceFlow id="Flow_Start_Fork" sourceRef="Start_Antrag" targetRef="Gw_Fork_Pruefung" />
     <bpmn:sequenceFlow id="Flow_Fork_Tage" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Urlaubstage" />
     <bpmn:sequenceFlow id="Flow_Fork_Fachlich" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Fachlich" />
     <bpmn:sequenceFlow id="Flow_Fork_Vertretung" sourceRef="Gw_Fork_Pruefung" targetRef="Task_Vertretung" />
@@ -237,11 +233,8 @@
     <bpmndi:BPMNPlane id="BPMNPlane_Urlaubsantrag" bpmnElement="Process_Urlaubsantrag">
 
       <bpmndi:BPMNShape id="Shape_Start_Antrag" bpmnElement="Start_Antrag">
-        <dc:Bounds x="160" y="302" width="36" height="36" />
-        <bpmndi:BPMNLabel><dc:Bounds x="143" y="345" width="71" height="14" /></bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_Antrag" bpmnElement="Task_Antrag">
-        <dc:Bounds x="250" y="280" width="120" height="80" />
+        <dc:Bounds x="330" y="302" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="293" y="345" width="110" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Shape_Gw_Fork_Pruefung" bpmnElement="Gw_Fork_Pruefung">
         <dc:Bounds x="420" y="295" width="50" height="50" />
@@ -308,11 +301,8 @@
         <bpmndi:BPMNLabel><dc:Bounds x="1136" y="645" width="85" height="14" /></bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
 
-      <bpmndi:BPMNEdge id="Edge_Flow_Start_Antrag" bpmnElement="Flow_Start_Antrag">
-        <di:waypoint x="196" y="320" /><di:waypoint x="250" y="320" />
-      </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Antrag_Fork" bpmnElement="Flow_Antrag_Fork">
-        <di:waypoint x="370" y="320" /><di:waypoint x="420" y="320" />
+      <bpmndi:BPMNEdge id="Edge_Flow_Start_Fork" bpmnElement="Flow_Start_Fork">
+        <di:waypoint x="366" y="320" /><di:waypoint x="420" y="320" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Fork_Tage" bpmnElement="Flow_Fork_Tage">
         <di:waypoint x="445" y="295" /><di:waypoint x="445" y="180" /><di:waypoint x="520" y="180" />

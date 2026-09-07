@@ -528,4 +528,22 @@ public class ModelParserTest
 
         signalStart.FlowzerFormKey.Should().BeNull();
     }
+
+    // Testzweck: Prueft, dass das Beispiel „Urlaubsantrag" seinen Antrag ueber ein
+    // Startformular stellt. Der frueher dafuer zustaendige User-Task „Urlaubsantrag stellen"
+    // darf nicht wieder auftauchen, sonst waere der Antrag zweimal auszufuellen.
+    [Test]
+    public async Task ParseModel_ShouldReadTheStartFormOfTheUrlaubsantragExample()
+    {
+        await using var file = File.OpenRead(Path.Combine("examples", "urlaubsantrag.bpmn"));
+        var process = (await ModelParser.ParseModel(file)).GetProcesses().Single();
+
+        using (new AssertionScope())
+        {
+            process.FlowElements.OfType<StartEvent>().Should().ContainSingle()
+                .Which.FlowzerFormKey.Should().Be("Urlaubsantrag");
+            process.FlowElements.OfType<UserTask>()
+                .Should().NotContain(task => task.Name == "Urlaubsantrag stellen");
+        }
+    }
 }

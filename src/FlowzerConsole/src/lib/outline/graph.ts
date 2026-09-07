@@ -32,6 +32,16 @@ export interface TaskProperties {
   readonly outputs: readonly IoMapping[];
 }
 
+/**
+ * Das Startformular am reinen Startereignis. Es ist freiwillig: Steht es da,
+ * fuellt es beim Starten die Variablen des Vorgangs; fehlt es, beginnt der
+ * Ablauf ohne Eingabe.
+ */
+export interface StartFormProperties {
+  readonly formKey?: string;
+  readonly formId?: string;
+}
+
 export interface GraphNode {
   readonly id: string;
   readonly type: GraphNodeType;
@@ -40,6 +50,8 @@ export interface GraphNode {
   readonly defaultFlowId?: string;
   /** Nur Aufgaben. */
   readonly task?: TaskProperties;
+  /** Nur das Startereignis: das freiwillige Startformular. */
+  readonly startForm?: StartFormProperties;
 }
 
 export interface GraphFlow {
@@ -113,7 +125,13 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
       'sequenceFlow',
     ],
   },
-  startEvent: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['outgoing'] },
+  startEvent: {
+    namespace: BPMN_NS,
+    attributes: ['id', 'name'],
+    childRules: { extensionElements: 'startExtensionElements' },
+    single: ['extensionElements'],
+    children: ['extensionElements', 'outgoing'],
+  },
   endEvent: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['incoming'] },
   userTask: {
     namespace: BPMN_NS,
@@ -144,6 +162,15 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
   // den `extensionElements` des Prozesses; an einer Aufgabe waere dasselbe
   // Element etwas anderes und wuerde beim Schreiben verschwinden.
   processExtensionElements: { namespace: BPMN_NS, attributes: [], children: ['userTaskForm'] },
+  // Am Startereignis steht ausschliesslich das Startformular. Alles andere —
+  // eine Zuweisung, eine Frist, eine Zuordnung — hat dort keine Wirkung und
+  // ginge beim Schreiben verloren; deshalb eine eigene, engere Regel.
+  startExtensionElements: {
+    namespace: BPMN_NS,
+    attributes: [],
+    children: ['formDefinition'],
+    single: ['formDefinition'],
+  },
   userTaskForm: { namespace: ZEEBE_NS, attributes: ['id'], children: [] },
   extensionElements: {
     namespace: BPMN_NS,
@@ -291,6 +318,17 @@ function readTaskProperties(task: Element): TaskProperties {
   };
 }
 
+/** Das Startformular, falls das Startereignis eines mitbringt. */
+function readStartForm(start: Element): StartFormProperties | undefined {
+  const extensions = firstChild(start, 'extensionElements');
+  const form = extensions && firstChild(extensions, 'formDefinition');
+  if (!form) return undefined;
+
+  const formKey = attribute(form, 'formKey');
+  const formId = attribute(form, 'formId');
+  return formKey || formId ? { formKey, formId } : undefined;
+}
+
 function readEmbeddedForms(process: Element): EmbeddedForm[] {
   const extensions = firstChild(process, 'extensionElements');
   if (!extensions) return [];
@@ -319,6 +357,7 @@ function readNodes(process: Element, issues: OutlineIssue[]): GraphNode[] {
       name: attribute(element, 'name'),
       defaultFlowId: attribute(element, 'default'),
       task: type === 'userTask' || type === 'serviceTask' ? readTaskProperties(element) : undefined,
+      startForm: type === 'startEvent' ? readStartForm(element) : undefined,
     });
   }
 
@@ -425,6 +464,7 @@ export function graphSignature(graph: BpmnGraph): string {
       name: node.name ?? null,
       defaultFlowId: node.defaultFlowId ?? null,
       task: node.task ? normalizeTask(node.task) : null,
+      startForm: node.startForm ? normalizeStartForm(node.startForm) : null,
     }));
 
   const flows = [...graph.flows]
@@ -468,6 +508,10 @@ export function structureSignature(graph: BpmnGraph): string {
     .map((flow) => `${flow.id}:${flow.source}>${flow.target}`);
 
   return JSON.stringify({ processId: graph.processId, nodes, flows });
+}
+
+function normalizeStartForm(form: StartFormProperties) {
+  return { formKey: form.formKey ?? null, formId: form.formId ?? null };
 }
 
 function normalizeTask(task: TaskProperties) {

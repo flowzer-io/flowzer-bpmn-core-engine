@@ -58,11 +58,25 @@ Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 |---|---|
 | `bpmn:definitions` | genau ein `bpmn:process` mit `isExecutable="true"`; `exporter` und `exporterVersion` bleiben unverändert stehen |
 | `bpmn:process/@name` | bleibt unverändert stehen. Die Gliederung bearbeitet ihn nicht — der Name, den die Konsole zeigt und umbenennt, ist der des Katalogeintrags, nicht dieser |
-| `bpmn:startEvent` | genau eines, ohne Ereignisdefinition |
+| `bpmn:startEvent` | genau eines, ohne Ereignisdefinition; dazu freiwillig ein Startformular in `bpmn:extensionElements/zeebe:formDefinition` mit `@formKey` oder `@formId` — dort und sonst nichts |
 | `bpmn:endEvent` | beliebig viele, ohne Ereignisdefinition |
 | `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
 | `bpmn:process/bpmn:extensionElements/zeebe:userTaskForm` | Formulare, die der Workflow selbst mitbringt. Sie werden unverändert weitergereicht und im Diagramm bearbeitet, nicht in der Gliederung — ein Verweis darauf ist eine Kennung, kein Name |
 | `bpmndi:BPMNDiagram` | wird gelesen, aber nicht ausgewertet (siehe „Anordnung") |
+
+### Startformular
+
+Am reinen Startereignis darf ein `zeebe:formDefinition` stehen. Es ist
+**freiwillig**: Steht es da, füllt es beim Starten des Vorgangs dessen erste
+Variablen; fehlt es, beginnt der Ablauf ohne Eingabe. Die Gliederung zeigt es in
+der Kopfzeile über dem ersten Schritt und bearbeitet es mit demselben Feld wie
+das Formular einer Aufgabe — ein Name aus dem Bestand oder, bei einem Formular
+im Workflow selbst, dessen unveränderliche Kennung.
+
+Die `extensionElements` des Startereignisses tragen ausschließlich dieses eine
+Element. Eine Zuweisung, eine Frist oder eine Zuordnung hätte dort keine
+Wirkung; sie wird deshalb gemeldet und nicht still übernommen. Ein Wechsel des
+Form-Keys ändert die Struktur nicht — die Anordnung im Diagramm bleibt erhalten.
 
 ### Schritte
 
@@ -137,7 +151,9 @@ einer solchen Lücke lesbar bleibt und man sie in der Gliederung schließen kann
 
 - Ein `userTask` braucht ein Formular, ein `serviceTask` einen
   `zeebe:taskDefinition/@type`. Ohne das weist die Engine das Modell zurück —
-  besser hier melden als in einer Fehlermeldung der API.
+  besser hier melden als in einer Fehlermeldung der API. Das Startformular
+  gehört ausdrücklich **nicht** dazu: Ein Workflow ohne Eingabe beim Starten ist
+  ein gültiger Workflow.
 - Jeder Ausgang eines exklusiven Tors braucht entweder eine Bedingung oder die
   Markierung als Standardweg, und es gibt höchstens einen Standardweg. Ein
   Ausgang ohne beides wäre ein Tor, das nicht entscheidet.

@@ -199,6 +199,19 @@ export function updateStep(document: OutlineDocument, id: string, patch: Partial
   return mapBlock(document, id, (block) => (block.kind === 'step' ? { ...block, ...patch } : block));
 }
 
+/**
+ * Das Startformular am Startereignis. Es ist freiwillig: `undefined` heisst,
+ * dass der Vorgang wie bisher ohne Eingabe startet.
+ */
+export function setStartFormKey(document: OutlineDocument, formKey: string | undefined): OutlineDocument {
+  return { ...document, startFormKey: formKey };
+}
+
+/** Wie `setStartFormKey`, wenn das Modell die Bindung ueber `formId` schreibt. */
+export function setStartFormId(document: OutlineDocument, formId: string | undefined): OutlineDocument {
+  return { ...document, startFormId: formId };
+}
+
 export function renameBlock(document: OutlineDocument, id: string, name: string): OutlineDocument {
   return mapBlock(document, id, (block) => {
     switch (block.kind) {

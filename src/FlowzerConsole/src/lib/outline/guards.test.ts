@@ -253,6 +253,42 @@ describe('Formulare im Workflow', () => {
   });
 });
 
+// Testzweck: Am reinen Startereignis darf ausschliesslich das Startformular
+// stehen. Alles andere haette dort keine Wirkung und ginge beim Schreiben
+// verloren — es muss deshalb gemeldet werden, nicht still durchgehen.
+describe('Startformular am Startereignis', () => {
+  function withStart(inner: string): string {
+    return MIT_FORMULAR.replace(
+      '<bpmn:startEvent id="Start_1" />',
+      `<bpmn:startEvent id="Start_1">${inner}</bpmn:startEvent>`,
+    );
+  }
+
+  it('liest das Startformular und schreibt es unverändert zurück', () => {
+    const xml = withStart('<bpmn:extensionElements><zeebe:formDefinition formKey="Antrag" /></bpmn:extensionElements>');
+    const { document, issues } = readOutline(xml);
+
+    expect(hasBlocker(issues)).toBe(false);
+    expect(document!.startFormKey).toBe('Antrag');
+    expect(writeOutlineXml(document!).xml).toContain('<zeebe:formDefinition formKey="Antrag" />');
+  });
+
+  it('meldet ein fremdes Kind in den extensionElements des Starts', () => {
+    const xml = withStart('<bpmn:extensionElements><zeebe:taskSchedule dueDate="PT48H" /></bpmn:extensionElements>');
+
+    expect(messages(xml).join(' ')).toContain('zeebe:taskSchedule');
+  });
+
+  it('meldet ein zweites Startformular, von dem der Leser nur das erste sähe', () => {
+    const xml = withStart(`<bpmn:extensionElements>
+        <zeebe:formDefinition formKey="Antrag" />
+        <zeebe:formDefinition formKey="Zweites" />
+      </bpmn:extensionElements>`);
+
+    expect(messages(xml).join(' ')).toContain('steht mehrfach');
+  });
+});
+
 // Testzweck: Ein exklusives Tor mit eigener Zusammenfuehrung ist die zweite
 // Grundform neben der Prüfkette und muss unveraendert zurueckgeschrieben werden.
 describe('Verzweigung mit eigener Zusammenführung', () => {

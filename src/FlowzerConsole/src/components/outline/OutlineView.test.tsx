@@ -11,7 +11,11 @@ const XML = `<?xml version="1.0" encoding="UTF-8"?>
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_1">
   <bpmn:process id="Process_1" isExecutable="true">
-    <bpmn:startEvent id="Start_1" name="Urlaub geplant" />
+    <bpmn:startEvent id="Start_1" name="Urlaub geplant">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="Antrag erfassen" />
+      </bpmn:extensionElements>
+    </bpmn:startEvent>
     <bpmn:userTask id="Task_Antrag" name="Urlaubsantrag stellen">
       <bpmn:extensionElements>
         <zeebe:formDefinition formKey="Urlaubsantrag" />
@@ -65,6 +69,14 @@ describe('OutlineView', () => {
     expect(screen.getByText('Vorgesetzte')).toBeInTheDocument();
     expect(screen.getByText('PT48H')).toBeInTheDocument();
     expect(screen.getByText('urlaub-ablehnung-mitteilen')).toBeInTheDocument();
+  });
+
+  it('zeigt das Startformular am Start und lässt es ändern', () => {
+    show();
+
+    const field = screen.getByLabelText('Startformular');
+    expect(field).toHaveValue('Antrag erfassen');
+    expect(field).toBeEnabled();
   });
 
   it('zeigt die Verzweigung mit Beschriftung und Bedingung', () => {
