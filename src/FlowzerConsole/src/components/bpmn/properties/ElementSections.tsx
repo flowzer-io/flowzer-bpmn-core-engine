@@ -89,10 +89,15 @@ interface FormSectionProps extends SectionProps {
   source: 'stored' | 'embedded';
   onSourceChange: (source: 'stored' | 'embedded') => void;
   onEditEmbeddedForm: (formId: string) => void;
+  /**
+   * Am Startereignis meint der Abschnitt das Startformular. Fachlich ist das etwas anderes als
+   * das Formular einer Aufgabe: Es ist freiwillig, und ohne eines startet der Workflow direkt.
+   */
+  variant?: 'userTask' | 'startEvent';
 }
 
 /**
- * Der Formularverweis einer menschlichen Aufgabe.
+ * Der Formularverweis einer menschlichen Aufgabe oder das Startformular am Startereignis.
  *
  * Beide Herkünfte stehen gleichberechtigt nebeneinander: ein Formular aus dem Bestand, das
  * mehrere Workflows teilen, oder eines im Workflow selbst, das mit ihm versioniert wird.
@@ -106,7 +111,9 @@ export function FormSection({
   source,
   onSourceChange,
   onEditEmbeddedForm,
+  variant = 'userTask',
 }: FormSectionProps) {
+  const isStartForm = variant === 'startEvent';
   const reference = parseFormKey(properties.formKey);
   const selectedName = reference.kind === 'stored' ? reference.name : '';
   const selectedEmbeddedId = reference.kind === 'embedded' ? reference.formId : '';
@@ -128,7 +135,15 @@ export function FormSection({
   }
 
   return (
-    <Section icon="description" title="Formular">
+    <Section
+      icon="description"
+      title={isStartForm ? 'Startformular' : 'Formular'}
+      hint={
+        isStartForm
+          ? 'Wer den Workflow startet, füllt dieses Formular aus. Ohne Formular startet der Workflow direkt.'
+          : undefined
+      }
+    >
       <Segmented
         options={FORM_SOURCE_OPTIONS}
         value={source}
@@ -220,7 +235,8 @@ export function FormSection({
         </Notice>
       )}
 
-      {reference.kind === 'none' && properties.externalFormReference.length === 0 && (
+      {/* Am Startereignis ist „kein Formular" der Normalfall und deshalb keine Warnung wert. */}
+      {reference.kind === 'none' && properties.externalFormReference.length === 0 && !isStartForm && (
         <Notice tone="warn">
           Ohne Formular lässt sich der Workflow nicht speichern — jede menschliche Aufgabe braucht eines.
         </Notice>

@@ -8,6 +8,8 @@ import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
+import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useDefinitionXml,
   useDefinitions,
@@ -15,7 +17,6 @@ import {
   useDeployDefinition,
   useLatestDefinition,
   useSaveDefinition,
-  useStartInstance,
   useUpdateDefinitionMeta,
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
@@ -48,7 +49,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
   // Was die API ablehnen wuerde, bietet die Oberflaeche gar nicht erst an.
   const mayPublish = useCan()('modeler');
   const updateMeta = useUpdateDefinitionMeta();
-  const startInstance = useStartInstance();
+  const startWorkflow = useStartWorkflow();
   const deleteDefinition = useDeleteDefinition();
 
   const [dirty, setDirty] = useState(false);
@@ -286,22 +287,8 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           <Button
             size="sm"
             icon="rocket_launch"
-            loading={startInstance.isPending}
-            onClick={() =>
-              startInstance.mutate(definitionId, {
-                onSuccess: (instance) =>
-                  toast.success('Instanz gestartet', {
-                    action: {
-                      label: 'Öffnen',
-                      onClick: () => void navigate({ to: `/instances/${instance.instanceId}` }),
-                    },
-                  }),
-                onError: (error) =>
-                  toast.error('Start fehlgeschlagen', {
-                    description: error instanceof Error ? error.message : undefined,
-                  }),
-              })
-            }
+            loading={startWorkflow.isBusy(definitionId)}
+            onClick={() => void startWorkflow.start({ definitionId, name })}
           >
             Starten
           </Button>
@@ -360,6 +347,8 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
           onZoomChange={setZoom}
         />
       )}
+
+      <StartWorkflowDialog {...startWorkflow.dialog} />
 
       <ConfirmModal
         open={confirmDelete}

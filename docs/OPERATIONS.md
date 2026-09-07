@@ -114,10 +114,46 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 `POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
 
+## Workflow starten
+
+`POST /definition/meta/{definitionId}/instance` startet eine Instanz. Der Rumpf ist optional:
+
+```json
+{ "variables": { "antragsteller": "Christian" } }
+```
+
+Ohne Rumpf startet der Workflow wie bisher ohne Angaben. Trägt sein reines Startereignis ein
+Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API das
+`variables`-Objekt und antwortet sonst mit 400 und
+`The workflow "…" requires its start form. Send the form data as "variables".` Ein leeres
+Objekt `{}` gilt als Antwort und wird angenommen.
+
+Die **Pflichtfelder des Formulars prüft der Server nicht.** Form.io kennt bedingt sichtbare
+Felder (`conditional`), die der Server nicht auswertet — er würde damit gültige Eingaben der
+Oberfläche ablehnen. Diese Prüfung sitzt im Renderer der Konsole.
+
+`GET /definition/meta/{definitionId}/start-form` liefert das Startformular als
+`ApiStatusResult<FormDto>` — aufgelöst über die Kennung der deployten Version, damit auch ein
+im Diagramm eingebettetes Formular gefunden wird. Ohne Startformular antwortet der Endpunkt
+mit **204 No Content**; ein unbekannter Workflow mit 404, ein Workflow ohne deployte Version
+oder mit einem nicht auflösbaren Form-Key mit 400.
+
+Ein Startformular gilt nur am **reinen** Startereignis unmittelbar im Prozess. An einem
+Timer-, Nachrichten- oder Signalstart wird ein `formDefinition` still übergangen: bpmn-js
+behält die `extensionElements`, wenn man den Ereignistyp wechselt, und ein Modell soll dadurch
+nicht unspeicherbar werden. Das Startereignis eines Subprozesses zählt ebenfalls nicht — es
+startet den Subprozess und nie den Workflow. Der Start über `/message` bleibt unberührt.
+
+Genau ein Startereignis eines Prozesses darf ein Formular tragen; bei mehreren wird der Start
+abgelehnt, statt eines davon zu raten.
+
+Der Rumpf wird auch bei einem Workflow **ohne** Startformular übernommen — so lässt sich ein
+Workflow von außen mit Startvariablen anstoßen, ohne dass er dafür ein Formular braucht.
+
 ## Formulare im Workflow
 
-Ein Aufgabenformular kann aus zwei Quellen kommen. Der Form-Key
-(`zeebe:formDefinition/@formKey`) sagt, aus welcher:
+Ein Formular kann aus zwei Quellen kommen. Der Form-Key
+(`zeebe:formDefinition/@formKey`) sagt, aus welcher — am User-Task wie am Startereignis:
 
 | Form-Key | Herkunft |
 |---|---|
@@ -126,6 +162,7 @@ Ein Aufgabenformular kann aus zwei Quellen kommen. Der Form-Key
 
 Ein Formular im Workflow ist mit ihm versioniert: Eine neue Workflow-Version bringt ihr
 eigenes Formular mit, laufende Instanzen behalten das ihre. `GET /usertask/{id}/form`
+(und für das Startformular `GET /definition/meta/{id}/start-form`)
 liest es aus dem Diagramm genau der Version, an der die Aufgabe hängt, und antwortet ohne
 `formId` — es steht in keinem Bestand. Zeigt der Schlüssel auf eine Kennung, die der
 Workflow nicht enthält, ist das ein Modellierungsfehler und kommt als 400 mit der
@@ -138,7 +175,7 @@ eingebettetem Formular läuft ohne Umbau.
 
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
-Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Aufgabenformular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …". Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.
+Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Formular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — und ein Startformular nähme dem Workflow den Start. Gezählt werden deshalb sowohl die menschlichen Aufgaben als auch die Startereignisse. Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.
 
 Geprüft werden zwei Dinge, und beide zählen:
 

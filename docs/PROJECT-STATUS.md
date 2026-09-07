@@ -70,6 +70,7 @@ Unter anderem bereits umgesetzt:
 - September 2026: Docker/Compose auf .NET 10, NuGet-Audit als Restore-Gate, SDK-Band festgepinnt
 - September 2026: Formulare können im Workflow selbst liegen (`zeebe:userTaskForm`); der Modellierer hat ein eigenes Eigenschaften-Panel statt des Camunda-Panels
 - September 2026: `zeebe:taskDefinition/@retries` wird eingelesen — vorher bekam jeder Auftrag einen Versuch, obwohl das Diagramm etwas anderes sagte
+- September 2026: Startformular am Startereignis — `GET /definition/meta/{id}/start-form` liefert es, `POST …/instance` nimmt die ausgefüllten Werte als `variables` entgegen, und die Konsole fragt sie vor dem Start ab
 
 ## Was weiterhin bremst
 

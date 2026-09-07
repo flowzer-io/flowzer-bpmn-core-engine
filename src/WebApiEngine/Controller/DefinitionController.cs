@@ -3,6 +3,7 @@ using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
 
@@ -17,7 +18,9 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class DefinitionController(
     IStorageSystem storageSystem,
-    DefinitionBusinessLogic definitionBusinessLogic, BpmnBusinessLogic bpmnBusinessLogic) : FlowzerControllerBase
+    DefinitionBusinessLogic definitionBusinessLogic,
+    BpmnBusinessLogic bpmnBusinessLogic,
+    FormKeyResolver formKeyResolver) : FlowzerControllerBase
 {
     
     [HttpPost]
@@ -54,12 +57,21 @@ public class DefinitionController(
         }
     }
 
+    /// <summary>
+    /// Startet eine Instanz. Der Rumpf ist optional: Ein Workflow ohne Startformular startet wie
+    /// bisher ohne Angaben, ein Workflow mit Startformular bekommt dessen Werte als
+    /// <c>variables</c>.
+    /// </summary>
     [HttpPost("meta/{id}/instance")]
-    public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance([FromRoute] string id)
+    [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance(
+        [FromRoute] string id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body)
     {
         try
         {
-            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id);
+            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables);
             var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
@@ -71,6 +83,53 @@ public class DefinitionController(
         {
             return BadRequest(new ApiStatusResult<ProcessInstanceInfoDto>(exception.Message));
         }
+    }
+
+    /// <summary>
+    /// Liefert das Formular, das ausfuellt, wer diesen Workflow startet.
+    ///
+    /// Ein Workflow ohne Startformular antwortet mit 204: Die Oberflaeche soll daran erkennen,
+    /// dass sie sofort starten kann, statt einen leeren Dialog zu zeigen.
+    /// </summary>
+    [HttpGet("meta/{id}/start-form")]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> GetStartForm([FromRoute] string id)
+    {
+        BpmnBusinessLogic.StartFormReference startForm;
+        try
+        {
+            startForm = await bpmnBusinessLogic.GetStartFormReference(id);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            throw;
+        }
+        catch (DefinitionStorageNotFoundException exception)
+        {
+            return NotFound(new ApiStatusResult<FormDto>(exception.Message));
+        }
+        catch (Exception exception)
+        {
+            return BadRequest(new ApiStatusResult<FormDto>(exception.Message));
+        }
+
+        if (startForm.FormKey is null)
+        {
+            return NoContent();
+        }
+
+        // Mit der Kennung der deployten Version, damit auch ein im Diagramm eingebettetes
+        // Formular gefunden wird — es steht in keinem Formularbestand.
+        var resolved = await formKeyResolver.ResolveAsync(startForm.FormKey, startForm.DefinitionId);
+        if (resolved.Form is null)
+        {
+            return BadRequest(new ApiStatusResult<FormDto>(resolved.ErrorMessage));
+        }
+
+        return Ok(new ApiStatusResult<FormDto>(resolved.Form));
     }
 
 

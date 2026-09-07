@@ -251,12 +251,12 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
     const overlays = modeler.get<OverlaysLike>('overlays');
     overlays.remove({ type: FORM_OVERLAY_TYPE });
 
-    for (const task of editor.listUserTasks()) {
-      if (!task.formKey) continue;
+    for (const owner of editor.listFormOwners()) {
+      if (!owner.formKey) continue;
       try {
-        overlays.add(task.id, FORM_OVERLAY_TYPE, {
+        overlays.add(owner.id, FORM_OVERLAY_TYPE, {
           position: { top: 2, right: 2 },
-          html: formBadge(task.formKey),
+          html: formBadge(owner.formKey, owner.kind === 'startEvent'),
         });
       } catch {
         // Ein Element, das zwischen Lesen und Zeichnen verschwunden ist, darf die
@@ -315,10 +315,10 @@ function fitViewport(modeler: ModelerLike, notify: ((zoom: number) => void) | un
 }
 
 /** Die Markierung am Element: dasselbe Symbol, das die Konsole für Formulare benutzt. */
-function formBadge(formKey: string): HTMLElement {
+function formBadge(formKey: string, isStartForm: boolean): HTMLElement {
   const badge = document.createElement('div');
   badge.className = 'flowzer-form-badge';
-  badge.title = `Formular: ${describeFormKey(formKey)}`;
+  badge.title = `${isStartForm ? 'Startformular' : 'Formular'}: ${describeFormKey(formKey)}`;
 
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('viewBox', '0 -960 960 960');

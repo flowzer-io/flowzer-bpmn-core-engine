@@ -205,8 +205,26 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
  * entpackt das Ergebnis. Ein `successful: false` wird wie ein HTTP-Fehler behandelt.
  */
 export async function requestStatusResult<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const envelope = await request<ApiStatusResult<T>>(path, options);
+  return unwrapStatusResult(await request<ApiStatusResult<T>>(path, options), path);
+}
 
+/**
+ * Wie `requestStatusResult`, laesst aber eine leere Antwort zu und gibt dafuer `null` zurueck.
+ *
+ * Fuer Endpunkte, bei denen „es gibt nichts" eine gueltige Auskunft ist und kein Fehler — das
+ * Startformular eines Workflows etwa antwortet mit 204, wenn der Workflow ohne Eingabe startet.
+ */
+export async function requestOptionalStatusResult<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<T | null> {
+  const envelope = await request<ApiStatusResult<T> | null>(path, options);
+  if (envelope === null) return null;
+
+  return unwrapStatusResult(envelope, path);
+}
+
+function unwrapStatusResult<T>(envelope: ApiStatusResult<T>, path: string): T {
   if (!envelope || typeof envelope !== 'object') {
     throw new ApiError('Unerwartete Antwort der Flowzer-API.', { status: 200, url: path, body: envelope });
   }

@@ -156,6 +156,63 @@ async function seedModelerWorkflow(request) {
 }
 
 /**
+ * Legt einen deployten Workflow an, dessen Startereignis ein Startformular traegt. Wer ihn
+ * startet, muss das Formular zuerst ausfuellen.
+ */
+async function seedStartFormWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Antragsdaten ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({
+      display: 'form',
+      components: [{ type: 'textfield', key: 'antragsteller', label: 'Antragsteller', input: true }]
+    })
+  });
+
+  const name = `Startformular ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const s = definitionId.replace(/[^A-Za-z0-9_]/g, '_');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${s}" isExecutable="true">
+    <bpmn:startEvent id="Start_${s}" name="Antrag stellen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="${formularName}" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>F1_${s}</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sequenceFlow id="F1_${s}" sourceRef="Start_${s}" targetRef="End_${s}" />
+    <bpmn:endEvent id="End_${s}" name="Fertig">
+      <bpmn:incoming>F1_${s}</bpmn:incoming>
+    </bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D_${s}">
+    <bpmndi:BPMNPlane id="P_${s}" bpmnElement="Process_${s}">
+      <bpmndi:BPMNShape id="Start_${s}_di" bpmnElement="Start_${s}">
+        <dc:Bounds x="173" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_${s}_di" bpmnElement="End_${s}">
+        <dc:Bounds x="332" y="102" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F1_${s}_di" bpmnElement="F1_${s}">
+        <di:waypoint x="209" y="120" />
+        <di:waypoint x="332" y="120" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+
+  return { name, definitionId, formularName };
+}
+
+/**
  * Legt einen Workflow mit einem Timer-Ereignis und einer Nachricht an — die beiden Angaben,
  * die die Engine auswertet und die vorher nur im Camunda Modeler einzustellen waren.
  */
@@ -527,6 +584,21 @@ test.describe('Konsole', () => {
     const verstecktesFeld = page.locator('.formio-component-hidden');
     await expect(verstecktesFeld).toHaveCount(1);
     await expect(verstecktesFeld, 'Das versteckte Feld zeigt Text an.').toHaveText('');
+  });
+
+  // Testzweck: Traegt der Workflow ein Startformular, wird es vor dem Start ausgefuellt.
+  // Ohne diesen Weg bliebe ungeprueft, ob die Konsole das Formular ueberhaupt anfordert —
+  // sie startete dann sofort, und die API lehnte den Start ohne Werte ab.
+  test('Ein Workflow mit Startformular fragt vor dem Start seine Werte ab', async ({ page, request }) => {
+    const { definitionId, name } = await seedStartFormWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.getByRole('button', { name: 'Starten', exact: true }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: `\u201E${name}" starten` })).toBeVisible();
+    await expect(dialog.getByText('Antragsteller')).toBeVisible();
   });
 
   // Testzweck: Ein Formular, das ein deployter Workflow benutzt, laesst sich in der
