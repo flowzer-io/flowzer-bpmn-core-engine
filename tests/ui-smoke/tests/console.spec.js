@@ -156,6 +156,64 @@ async function seedModelerWorkflow(request) {
 }
 
 /**
+ * Legt einen Workflow mit einer Aufgabe an, deren Eigenschaftenleiste laenger als das
+ * Fenster wird: Formular, Zuweisung, Frist und sechs Zuordnungen.
+ */
+async function seedTaskWithLongPanel(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Lang ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({ display: 'form', components: [] })
+  });
+
+  const definitionId = await createDefinitionMeta(request, { name: `Lange Leiste ${marke}` });
+  const s = definitionId.replace(/[^A-Za-z0-9_]/g, '_');
+  const taskId = `Task_${s}`;
+  const outputs = Array.from({ length: 6 }, (_, i) =>
+    `<zeebe:output source="=wert${i + 1}" target="ziel${i + 1}" />`).join('\n          ');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${s}" isExecutable="true">
+    <bpmn:startEvent id="Start_${s}"><bpmn:outgoing>F1_${s}</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="F1_${s}" sourceRef="Start_${s}" targetRef="${taskId}" />
+    <bpmn:userTask id="${taskId}" name="Pruefen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="${formularName}" />
+        <zeebe:assignmentDefinition candidateGroups="Pruefer" />
+        <zeebe:taskSchedule dueDate="PT48H" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=vorgang" target="vorgang" />
+          ${outputs}
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F1_${s}</bpmn:incoming>
+      <bpmn:outgoing>F2_${s}</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="F2_${s}" sourceRef="${taskId}" targetRef="End_${s}" />
+    <bpmn:endEvent id="End_${s}"><bpmn:incoming>F2_${s}</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D_${s}">
+    <bpmndi:BPMNPlane id="P_${s}" bpmnElement="Process_${s}">
+      <bpmndi:BPMNShape id="Start_${s}_di" bpmnElement="Start_${s}"><dc:Bounds x="160" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="${taskId}_di" bpmnElement="${taskId}"><dc:Bounds x="250" y="78" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_${s}_di" bpmnElement="End_${s}"><dc:Bounds x="430" y="100" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="F1_${s}_di" bpmnElement="F1_${s}"><di:waypoint x="196" y="118" /><di:waypoint x="250" y="118" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="F2_${s}_di" bpmnElement="F2_${s}"><di:waypoint x="370" y="118" /><di:waypoint x="430" y="118" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+
+  return { definitionId, taskId };
+}
+
+/**
  * Legt einen deployten Workflow an, dessen Startereignis ein Startformular traegt. Wer ihn
  * startet, muss das Formular zuerst ausfuellen.
  *
@@ -378,6 +436,27 @@ function buildUnsupportedXml({ definitionId, marke }) {
 }
 
 test.describe('Konsole', () => {
+
+  // Testzweck: Die Seite selbst darf nicht scrollen, wenn die Eigenschaftenleiste des
+  // Modelers laenger als das Fenster ist. Die versteckten Beschriftungen ihrer Knoepfe sind
+  // absolut positioniert und verlaengerten das Dokument um die Ueberlaenge der Leiste — die
+  // ganze Konsole liess sich nach unten schieben, in Safari wie in Chromium.
+  test('Die Seite bleibt bei einer langen Eigenschaftenleiste unscrollbar', async ({ page, request }) => {
+    const { definitionId, taskId } = await seedTaskWithLongPanel(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await expect(shapeOf(page, taskId)).toBeVisible();
+    await shapeOf(page, taskId).click();
+    await expect(page.getByRole('button', { name: 'Zuordnung 6 entfernen' })).toBeAttached();
+
+    const masse = await page.evaluate(() => ({
+      leiste: document.querySelector('.bpmn-surface')?.parentElement?.lastElementChild?.scrollHeight ?? 0,
+      dokument: document.documentElement.scrollHeight,
+      fenster: window.innerHeight
+    }));
+    expect(masse.leiste, 'Die Leiste muss laenger als das Fenster sein, sonst prueft der Test nichts.').toBeGreaterThan(masse.fenster);
+    expect(masse.dokument, 'Das Dokument ist hoeher als das Fenster.').toBe(masse.fenster);
+  });
   for (const [route, description, locate] of [
     ['/', 'Startseite', (page) => page.getByRole('button', { name: 'Prozess starten' })],
     ['/workflows', 'Workflows', (page) => page.getByRole('heading', { name: 'Workflows', level: 1 })],
