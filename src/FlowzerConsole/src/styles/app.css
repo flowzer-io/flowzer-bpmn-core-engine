@@ -95,6 +95,19 @@
     height: 100%;
   }
 
+  /*
+   * Ein nur fuer Vorleseprogramme sichtbarer Text (`sr-only`) ist absolut positioniert.
+   * Ohne positionierten Vorfahren bezieht er sich auf das Dokument und steht dann an
+   * seiner Stelle im Fluss — bei einem Knopf weit unten in einer scrollenden Seitenleiste
+   * also unterhalb des Fensters. Das Dokument wurde dadurch hoeher als der Viewport, und
+   * die ganze Seite liess sich um genau diese Spanne nach unten schieben (Safari wie
+   * Chromium). Der Traeger des Textes wird deshalb zum Bezugsrahmen; `:where` haelt die
+   * Spezifitaet unter jeder Utility, damit ein `fixed` oder `sticky` am Traeger gewinnt.
+   */
+  :where(:has(> .sr-only)) {
+    position: relative;
+  }
+
   body {
     margin: 0;
     background: var(--bg);
