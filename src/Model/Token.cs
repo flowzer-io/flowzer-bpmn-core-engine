@@ -38,6 +38,12 @@ public class Token
     public Variables? Variables { get; set; }
     public Variables? OutputData { get; set; }
 
+    /// <summary>
+    /// Serverseitig ermittelter Akteur des Aufgabenabschlusses, unabhängig von Formulardaten.
+    /// Null bei alten Tokens oder internen Abschlüssen ohne Benutzer-/Workeridentität.
+    /// </summary>
+    public Guid? CompletedByUserId { get; set; }
+
     public Guid? ParentTokenId { get; init; }
 
     public override string ToString()

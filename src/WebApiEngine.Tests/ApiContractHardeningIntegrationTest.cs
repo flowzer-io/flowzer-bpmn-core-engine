@@ -58,8 +58,9 @@ public class ApiContractHardeningIntegrationTest
     // Bedingung und ohne Standardfluss) ist kein Serverdefekt. Er muss als 422 mit lesbarer
     // Meldung ankommen, damit Modellierende ihn in der Oberflaeche diagnostizieren koennen,
     // statt als maskierter 500 "unexpected server error".
-    [Test]
-    public async Task UserTaskCompletion_ShouldReturnUnprocessableEntity_WhenModelFailsAtRuntime()
+    [TestCase("/usertask")]
+    [TestCase("/form/result")]
+    public async Task UserTaskCompletion_ShouldReturnUnprocessableEntity_WhenModelFailsAtRuntime(string route)
     {
         var storage = new TestStorage();
         var instanceId = Guid.NewGuid();
@@ -79,11 +80,23 @@ public class ApiContractHardeningIntegrationTest
             UserTaskSubscriptionCount = 1,
             ServiceSubscriptionCount = 0
         });
+        // Ein Laufzeitfehler wird erst nach erfolgreicher Autorisierung erreicht. Die
+        // Fixture braucht daher dieselbe Subscription wie eine tatsächlich gestartete Instanz.
+        storage.UserTaskSubscriptions.Add(new ExtendedUserTaskSubscription
+        {
+            Id = Guid.NewGuid(),
+            Name = "Review",
+            ProcessInstanceId = instanceId,
+            DefinitionId = definitionId,
+            MetaDefinitionId = "broken-gateway",
+            ProcessId = "Process_BrokenGateway",
+            Token = userTaskToken
+        });
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
 
-        var response = await client.PostAsJsonAsync("/usertask", new UserTaskResultDto
+        var response = await client.PostAsJsonAsync(route, new UserTaskResultDto
         {
             FlowNodeId = "UserTask_Review",
             TokenId = userTaskToken.Id,

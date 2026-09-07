@@ -5,7 +5,7 @@
 Dieses Dokument hält die freigegebene Weiterentwicklung und ihren tatsächlichen
 Umsetzungsstand fest. Eine Checkbox wird erst nach belegter Implementierung und
 Verifikation geschlossen. Vorhandene Grundlagen sind kein Nachweis für ein ganzes
-Paket. `docs/ROADMAP.md` verweist künftig auf diesen führenden Plan.
+Paket. `docs/ROADMAP.md` verweist auf diesen führenden Plan.
 
 ## Ziel und Grenzen
 
@@ -26,6 +26,11 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
+**Aktiver Slice:** #176 / PR #177 implementiert den gemeinsamen Aufgabenabschluss
+und die geschützte Akteurzuordnung. Offene Checkboxen bezeichnen noch nicht
+abgenommene Ergebnisse; weder dieser Slice noch vorhandene Grundlagen schließen
+die gesamte M0- oder Produktabnahme.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [ ] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -40,8 +45,9 @@ automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist no
   in `sessionStorage`, Bearer-Vertrag für externe Konsumenten bleibt bestehen.
 - [ ] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
   erzeugt einen Konflikt statt einen weiteren Vorgang.
-- [ ] Bestandsissues #93–#96 und #98 bereinigen und Teilpakete verknüpfen;
-  Mobil-PR #153 auf bereits enthaltene Änderungen prüfen, nicht duplizieren.
+- [x] Bestandsissues #93–#96 und #98 bereinigt und #176 / PR #177 verknüpft;
+  Mobil-PR #153 gegen `main` auf Überschneidungen geprüft, nicht dupliziert.
+  Sein Review/Sync/Merge bleibt ein gesonderter Vorgang; hier wurde nichts daraus übernommen.
 
 **Abnahme:** Kein alternativer Abschlussweg umgeht die Rechte; Wiederholungen
 erzeugen keine weiteren Starts oder Abschlüsse.
@@ -63,6 +69,17 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 - [ ] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
   Benutzer expandieren. Server leitet erlaubte Werte aus der Formularversion ab.
 - [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden.
+- [ ] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
+  freien Textmodus. Vor der Eingabe explizit „Bekannter Benutzer / bekannte Gruppe“
+  oder „Text-String“ wählen. Verzeichniswahl speichert eine typisierte stabile
+  Referenz; Text bleibt ein explizit als solcher markierter Wert und wird nicht
+  automatisch anhand von Anzeigename/E-Mail einer Verzeichnisidentität zugeordnet.
+  Bestehende Textzuweisungen ohne automatische Konvertierung erhalten. Auflösen und
+  Berechtigungsprüfung bleiben serverseitig; Verzeichnisbeschränkungen nicht durch
+  einen vom Aufrufer gewählten Modus umgehen. Der Modus gehört ins veröffentlichte
+  Modell, nicht in den Abschluss-Request. Gruppen bleiben Kandidatengruppen bzw.
+  Gruppenreferenzen und werden nicht zum behaupteten individuellen Bearbeiter.
+  Modellierer zeigen Modus und eventuelle Mehrdeutigkeit verständlich an.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
@@ -166,6 +183,9 @@ und Abschluss bleiben identisch.
 
 - [ ] Lokale Call Activities, Boundary Errors und erforderliche Eskalationen.
 - [ ] Inclusive Gateway, Parallel-/Multi-Instance- und Timer-Recovery-Tests.
+- [ ] Legacy-Abweichung zwischen `Token.ProcessInstanceId` und persistierter
+  `InstanceId` bereinigen; laufende Instanzen vorwärtskompatibel migrieren. Bis dahin
+  Aufgaben über die tatsächliche Mitgliedschaft in geladenen Instanz-Tokens prüfen.
 - [ ] Explizites, am Deployment gespeichertes Expression-Profil, kein stiller
   Semantikwechsel durch V8-Fallback.
 - [ ] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
@@ -186,6 +206,11 @@ vollständige Kompensation und echtes Mehrmandanten-Hosting bleiben separate Str
 
 ## Verträge, Migration und Fertigkriterien
 
+- Task-Zuweisungen erhalten einen diskriminierten Vertrag für stabile Referenzen
+  und explizite Textwerte. Legacy-Text wird beim Laden als Text behandelt; Änderungen
+  am Modus erfordern eine berechtigte Modelländerung/Veröffentlichung. Tests für
+  beide Modi, unveränderte Legacy-Roundtrips, gleichnamige Einträge und manipulierte
+  Moduswechsel gehören zum M1-/M3-Abnahmepaket.
 - Versionierte OpenAPI-Verträge und generierte Clients; Problem Details für neue
   Fehlerverträge, kompatible Adapter statt abruptem Bruch vorhandener Endpunkte.
 - Append-only-Historie mit Akteur, Zeitpunkt, Korrelation und datensparsamen Änderungen.

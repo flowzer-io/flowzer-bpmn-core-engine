@@ -11,7 +11,7 @@ public class FormController(
     IStorageSystem storageSystem,
     FormBusinessLogic formBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
-    ICurrentUserContextAccessor currentUserContextAccessor): ControllerBase
+    UserTaskCompletionService completionService): ControllerBase
 {
 
     [HttpPost()]
@@ -152,15 +152,20 @@ public class FormController(
 
         
     [HttpPost("result")]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(void), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<ApiStatusResult>> HandleUserFormData(UserTaskResultDto formMetadataDto)
     {
         try
         {
             var data = formMetadataDto.ToModel();
-            var currentUser = currentUserContextAccessor.GetCurrentUser();
-            var userId = currentUser.RequireResolvedUserId("submitting form results");
-            await bpmnBusinessLogic.HandleUserTask(data, userId);
-            return Ok(new ApiStatusResult() {Successful = true});
+            var outcome = await completionService.CompleteAsync(data);
+            return outcome == UserTaskCompletionOutcome.Completed
+                ? Ok(new ApiStatusResult { Successful = true })
+                : NotFound(new ApiStatusResult("The user task was not found."));
         }
         catch (ArgumentException e)
         {

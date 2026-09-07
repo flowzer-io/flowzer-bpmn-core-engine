@@ -22,6 +22,7 @@ public static class RuntimeMappingExtensions
             OutputData = token.OutputData,
             PreviousTokenId = token.PreviousToken?.Id,
             ParentTokenId = token.ParentTokenId,
+            CompletedByUserId = token.CompletedByUserId,
             StartTime = token.StartTime,
             LastStateChangeTime = token.LastStateChangeTime
         };

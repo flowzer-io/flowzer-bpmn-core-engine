@@ -1,6 +1,6 @@
 # Betriebs- und Deployment-Basis
 
-**Stand:** 5. September 2026
+**Stand:** 8. September 2026 (Aufgabenabschluss aktualisiert)
 
 Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `main`: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade.
 
@@ -99,7 +99,38 @@ Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die 
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
-Ein fachliches Berechtigungsmodell innerhalb einer Aufgabe gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Was jemand *ändern* darf, richtet sich zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+Feldbezogene Rechte innerhalb einer Aufgabe und objektbezogene Instanzprojektionen fehlen noch. Aufgaben sind anhand der Zuweisung gefiltert; Diagnose verlangt die konfigurierte Operator-Fähigkeit. Instanzdaten sind dagegen noch nicht nach Antragsteller/Bearbeiter eingeschränkt. Was jemand am Katalog *ändern* darf, richtet sich zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+
+### Sicherer Aufgabenabschluss (M0-Teilpaket)
+
+`POST /usertask` und der kompatible Altpfad `POST /form/result` verwenden denselben
+`UserTaskCompletionService`. Der Body bleibt unverändert: `processInstanceId`,
+`tokenId`, `flowNodeId` und optionale `data`. Akteur und Operator-Fähigkeit kommen
+ausschließlich aus dem serverseitig geprüften Request-Kontext.
+
+Im bestehenden Engine-Mutationszyklus werden Subscription, aktives menschliches
+Token, Instanz-/Definitionsbindung und Zuweisung erneut geprüft. Fehlende,
+mehrdeutige, bereits abgeschlossene und fremde Aufgaben liefern denselben `404`-
+Umschlag (`successful: false`); fehlende Anmeldung liefert `401`. Eine fehlende
+Subscription ist auch für Operatoren keine Erlaubnis. Die bestehende Operator-
+Ausnahme sowie unzugewiesene, für alle Zugelassenen offene Aufgaben bleiben erhalten.
+**In Produktionskonfigurationen `Roles:Operator` ausdrücklich setzen:** Ein leerer
+Rollenname gewährt die Fähigkeit nach dem bisherigen Konfigurationsvertrag allen
+Zugelassenen, also auch den Zugriff auf fremd zugewiesene Aufgaben.
+
+`TokenDto.completedByUserId` und das persistierte Token enthalten den Akteur
+getrennt von Formulardaten. `data.UserId` wird als Kompatibilitätswert mit dem
+verifizierten Akteur überschrieben. Historische Tokens ohne diese neue Eigenschaft
+bleiben lesbar (`null`/nicht vorhanden); historische Formulardaten werden **nicht**
+nachträglich als verifizierter Akteur übernommen. Es ist keine Schemaänderung an
+bestehenden JSON-Token-Dokumenten erforderlich.
+
+Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
+eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
+ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel,
+Instanzdatenrechte, serverseitige Formularregeln und eine append-only Audit-Historie
+sind weitere M0/M2/M6-Pakete. Wiederholter Abschluss wird momentan mit `404`
+abgelehnt, nicht als gespeicherte identische Erfolgsantwort wiederholt.
 
 ### Ordner und Delegation
 

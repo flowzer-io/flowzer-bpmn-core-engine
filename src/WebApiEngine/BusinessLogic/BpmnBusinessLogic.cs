@@ -13,7 +13,7 @@ using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
 
-public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
+public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
 {
     // Die dateibasierte Ablage kennt weder Transaktionen noch Sperren. Parallele HTTP-Requests
     // und der Timer-Scheduler wuerden sonst gleichzeitig Instanz- und Subscription-Dateien
@@ -479,51 +479,6 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
             instance.HandleTaskResult(activeToken.Id, result, userId);
             await storageSystem.ServiceTaskStorage.RemoveJob(job.Id);
-            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-            storageSystem.CommitChanges();
-
-            return instance;
-        }
-        finally
-        {
-            _engineMutationLock.Release();
-        }
-    }
-
-    public async Task<InstanceEngine> HandleUserTask(UserTaskResult userTaskResult, Guid userId)
-    {
-        await _engineMutationLock.WaitAsync();
-        try
-        {
-            using var storageSystem = storageProvider.GetTransactionalStorage();
-
-            if (userTaskResult.ProcessInstanceId == null)
-            {
-                throw new ArgumentException("User task results require a ProcessInstanceId.", nameof(userTaskResult.ProcessInstanceId));
-            }
-
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
-            var instance = new InstanceEngine(processInstance.Tokens);
-            instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
-
-            var activeUserTaskToken = instance.GetActiveUserTasks()
-                .SingleOrDefault(token => token.Id == userTaskResult.TokenId);
-
-            if (activeUserTaskToken == null)
-            {
-                throw new ArgumentException(
-                    $"The user task token \"{userTaskResult.TokenId}\" is not active for process instance \"{userTaskResult.ProcessInstanceId}\".",
-                    nameof(userTaskResult.TokenId));
-            }
-
-            if (!string.Equals(activeUserTaskToken.CurrentFlowNode?.Id, userTaskResult.FlowNodeId, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"The user task token \"{userTaskResult.TokenId}\" does not belong to flow node \"{userTaskResult.FlowNodeId}\".",
-                    nameof(userTaskResult.FlowNodeId));
-            }
-
-            instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
             storageSystem.CommitChanges();
 

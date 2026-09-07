@@ -1,3 +1,4 @@
+using WebApiEngine.Auth;
 using BPMN.Common;
 using BPMN.HumanInteraction;
 using BPMN.Process;
@@ -346,7 +347,7 @@ public class PostgreSqlStorageIntegrationTest
         await Task.WhenAll(instances.Select(instance => Task.Run(async () =>
         {
             var token = instance.Tokens.Single(candidate => candidate.CurrentFlowNode is UserTask && candidate.State == FlowNodeState.Active);
-            await businessLogic.HandleUserTask(new UserTaskResult { ProcessInstanceId = instance.InstanceId, TokenId = token.Id, FlowNodeId = "UserTask_Review" }, Guid.NewGuid());
+            await businessLogic.CompleteUserTaskAsync(new UserTaskResult { ProcessInstanceId = instance.InstanceId, TokenId = token.Id, FlowNodeId = "UserTask_Review" }, new CurrentUserContext(Guid.NewGuid(), "test", false));
         })));
 
         var reader = new PostgreSqlStorage(_dataSource!, Schema);

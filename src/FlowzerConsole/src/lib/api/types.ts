@@ -89,6 +89,8 @@ export interface TokenDto {
   startTime?: string | null;
   /** Ergänzt durch die Console-API: letzter Statuswechsel (UTC). */
   lastStateChangeTime?: string | null;
+  /** Serverseitig verifizierter Abschlussakteur, unabhängig von Formulardaten. */
+  completedByUserId?: string | null;
 }
 
 /** Entspricht `ProcessInstanceInfoDto`. */
