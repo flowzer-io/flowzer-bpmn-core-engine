@@ -38,7 +38,7 @@ npm --prefix src/FlowzerConsole run build
 
 Bitte berücksichtige diese Baustellen bei deiner Arbeit:
 
-- Auf `next` gibt es eine GitHub-Actions-CI für Restore, Build, Test, die Konsole und die UI-Smokes.
+- Auf `main` und `release` gibt es eine GitHub-Actions-CI für Restore, Build, Test, die Konsole und die UI-Smokes.
 - Zwei Tests sind aktuell noch temporär quarantiniert: `ParallelTaskTest` und `SequentialTest`.
 - Für Test-/CI-Umgebungen ohne native V8-Abhängigkeit gibt es jetzt einen abgesicherten Fallback-Pfad; die vollständige FEEL-/V8-Story bleibt trotzdem ein Architekturthema.
 - Einige Doku- und Architektur-Aussagen im Altbestand waren optimistischer als der tatsächliche Reifegrad.

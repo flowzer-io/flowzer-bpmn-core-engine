@@ -34,19 +34,19 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 
 ## Git-Write-Regel für dieses Repository
 
-- Auf Arbeits- und Integrationszweigen dürfen agentische Werkzeuge in diesem Repository **ohne weitere Rückfrage committen und pushen**.
-- Diese Freigabe gilt insbesondere für Branches wie `codex/*`, `next` und vergleichbare Nicht-Release-Zweige.
+- Auf Arbeitszweigen dürfen agentische Werkzeuge in diesem Repository **ohne weitere Rückfrage committen und pushen**.
+- Diese Freigabe gilt für Branches wie `claude/*`, `codex/*` und vergleichbare Topic-Zweige.
 - **Nicht** darunter fallen direkte Git-Write-Aktionen auf:
   - `main`
   - `release`
   - `release/*`
 - Solche Writes auf `main`, `release` oder `release/*` bleiben weiterhin nur mit expliziter Freigabe erlaubt.
-- Solange nichts anderes gefordert ist, sollen PRs und Merges weiterhin **nach `next`** gehen.
+- Es gibt genau zwei langlebige Branches: `main` ist der Entwicklungsstand, `release` das ausgerollte Paket. PRs gehen **nach `main`**; `release` wird ausschließlich per PR aus `main` befüllt, und jeder Push auf `release` ist ein Produktivrelease (`release.yml`).
 
 ## Bekannte Fallstricke
 
 1. **Tests noch nicht vollständig stabil**
-   Auf `next` laufen Restore, Build und CI inzwischen reproduzierbar. Trotzdem bleibt die Engine-Testbasis ein aktiver Arbeitsvorrat; vor allem Multi-Instance-, Error- und Timer-Pfade sollten weiterhin kritisch geprüft werden.
+   Auf `main` laufen Restore, Build und CI inzwischen reproduzierbar. Trotzdem bleibt die Engine-Testbasis ein aktiver Arbeitsvorrat; vor allem Multi-Instance-, Error- und Timer-Pfade sollten weiterhin kritisch geprüft werden.
 
 2. **V8-/Expression-Thema nicht abgeschlossen**
    Die Default-Expression-Logik hängt weiterhin an `ClearScript/V8`. Für Tests und CI gibt es jetzt einen robusteren Fallback-Pfad, die langfristige FEEL-/V8-Strategie bleibt aber offen.

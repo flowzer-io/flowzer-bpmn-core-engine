@@ -49,19 +49,19 @@ Wenn Architektur, Setup oder bekannte Einschränkungen verändert werden, sollen
 
 ### 5. Git-Write-Regel im Repository
 
-- Auf Arbeits- und Integrationszweigen dieses Repositories darf GitHub Copilot bzw. ein agentischer Workflow **ohne weitere Rückfrage committen und pushen**.
-- Diese Freigabe gilt für Branches wie `codex/*`, `next` und vergleichbare Nicht-Release-Zweige.
+- Auf Arbeitszweigen dieses Repositories darf GitHub Copilot bzw. ein agentischer Workflow **ohne weitere Rückfrage committen und pushen**.
+- Diese Freigabe gilt für Branches wie `claude/*`, `codex/*` und vergleichbare Topic-Zweige.
 - **Nicht** erlaubt ohne explizite Freigabe bleiben direkte Git-Write-Aktionen auf:
   - `main`
   - `release`
   - `release/*`
-- Solange nichts anderes verlangt wird, sollen PRs weiterhin **nach `next`** erstellt werden.
+- PRs gehen **nach `main`** (Entwicklungsstand); `release` ist das ausgerollte Paket und wird nur per PR aus `main` befüllt.
 
 ## Bekannte Fallstricke
 
 ### Build, Tests und CI
 
-- Auf `next` laufen Restore, Build und eine erste CI inzwischen reproduzierbar.
+- Auf `main` laufen Restore, Build und CI inzwischen reproduzierbar.
 - Die bisher quarantänisierten Multi-Instance-Tests laufen inzwischen wieder regulär im CI-Pfad.
 - Änderungen an Build-/SDK-/Testthemen bitte nicht stillschweigend einbauen, sondern sauber begründen und mit Doku flankieren.
 

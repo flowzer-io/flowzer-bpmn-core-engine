@@ -23,7 +23,7 @@ Kurz gesagt: **Die Richtung stimmt.** Die Engine ist nicht „tot“, aber sie b
 Die bisherige Dokumentation klang teilweise deutlich reifer als der aktuelle Stand der Codebasis. Realistischer formuliert:
 
 - Es gibt bereits eine **brauchbare Kernarchitektur**.
-- Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `next`**.
+- Es gibt **fachlich wertvolle Tests, BPMN-Beispiele und eine grüne CI-Basis auf `main`**.
 - Zentrale Produktpfade wie Demo, UI-Smokes, API-Fehlerverträge und ein erster Timer-Kernpfad sind inzwischen vorhanden.
 - Timer-Subscriptions werden jetzt auch in Storage/Web-API persistiert, über einen kleinen Scheduler-Polling-Pfad verarbeitet und können wiederkehrende Start-Timer inklusive Restwiederholungen abbilden.
 - Geschützte API-Pfade verlangen inzwischen einen **aufgelösten Benutzerkontext**, statt stillschweigend über einen System-Fallback weiterzulaufen.
@@ -92,7 +92,7 @@ technischen Benutzer an, damit sich alle Seiten lokal ohne Anmeldung prüfen las
 Diese Punkte sollte man kennen, bevor man loslegt:
 
 1. **Kernpfade sind stabil, aber noch nicht vollständig aufgeräumt**
-   Build, CI sowie Kern-, Web-API-, Konsolen- und UI-Smoke-Pfade laufen auf `next` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
+   Build, CI sowie Kern-, Web-API-, Konsolen- und UI-Smoke-Pfade laufen auf `main` reproduzierbar grün. Die wichtigsten offenen Lücken liegen inzwischen eher in fachlichen Runtime- und Betriebsfragen als in der nackten Build-Stabilität.
 
 2. **Expression-/V8-Thema nicht abgeschlossen**
    Test- und CI-Umgebungen laufen inzwischen auch ohne native V8-Abhängigkeit stabiler. Die vollständige FEEL-/V8-Strategie der Engine ist fachlich aber weiterhin ein eigener Architekturstrang.
@@ -136,7 +136,7 @@ Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_
 
 ## Release und Deployment
 
-Der Workflow `release.yml` baut bei jedem Push auf `main` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+`main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
 
 ## Dokumentation
 

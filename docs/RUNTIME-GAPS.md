@@ -2,7 +2,7 @@
 
 **Stand:** 5. September 2026
 
-Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `next` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
+Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
 
 ## In diesem Strang bereits geschlossen
 

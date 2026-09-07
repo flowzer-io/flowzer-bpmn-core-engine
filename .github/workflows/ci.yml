@@ -3,12 +3,12 @@ name: CI
 on:
   pull_request:
     branches:
-      - next
       - main
+      - release
   push:
     branches:
-      - next
       - main
+      - release
   workflow_dispatch:
 
 permissions:
