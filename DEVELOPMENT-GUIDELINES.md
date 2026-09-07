@@ -189,7 +189,7 @@ public class ServiceTask : Task
 ### Test-Struktur (empfohlen)
 
 - **Jeder Test bekommt direkt oberhalb von `[Test]` einen kurzen Kommentar im Format `// Testzweck: ...`, der den Zweck des Tests erklärt.**
-- Vor PRs nach `next` sollte lokal zusätzlich `python3 scripts/ci/check_test_purpose_comments.py` laufen; derselbe Guard läuft auch im GitHub-CI-Pfad.
+- Vor PRs nach `main` sollte lokal zusätzlich `python3 scripts/ci/check_test_purpose_comments.py` laufen; derselbe Guard läuft auch im GitHub-CI-Pfad.
 
 ```csharp
 [TestFixture]
@@ -394,11 +394,9 @@ refactor(activities): Vereinfachung der Task-Hierarchie
 
 ### Branch-Strategy
 
-- `main`: Produktions-bereiter Code
-- `develop`: Integration-Branch für Features
-- `feature/`: Feature-spezifische Branches
-- `hotfix/`: Kritische Bugfixes für Production
-- `release/`: Release-Vorbereitung
+- `main`: Entwicklungsstand; Ziel aller Pull Requests
+- `release`: das ausgerollte Paket; wird nur per PR aus `main` befüllt, jeder Push löst das Deployment aus
+- Topic-Branches (`claude/*`, `codex/*`, `feature/*`, `hotfix/*`): Arbeitszweige, die per PR nach `main` gehen
 
 ## Code Review Checklist
 

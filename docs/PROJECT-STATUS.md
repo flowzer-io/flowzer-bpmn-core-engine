@@ -17,14 +17,14 @@ Meine ehrliche Einschätzung auf dem heutigen Stand:
 | Produktreife | mittel, Pilot mit Identity Provider möglich |
 | Wiederbelebungschance | sehr gut |
 
-Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbeitsfähig**, `next` ist als Integrationsbranch etabliert und die größten Basisprobleme wurden bereits systematisch angegangen.
+Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbeitsfähig**, das Branch-Modell ist auf `main` (Entwicklungsstand) und `release` (ausgerolltes Paket) reduziert, und die größten Basisprobleme wurden bereits systematisch angegangen.
 
 ## Was inzwischen erreicht wurde
 
 ### 1. Arbeitsmodell und Projektorganisation
 
-- `next` dient als langlebiger Integrationsbranch
-- größere Themen werden über eigene Topic-Branches und PRs nach `next` umgesetzt
+- `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein PR von `main` nach `release`
+- größere Themen werden über eigene Topic-Branches und PRs nach `main` umgesetzt
 - die Dokumentation im Repository wurde auf einen realistischeren Stand gebracht
 - offene Frontend-Arbeit wurde in kleinere GitHub-Issues zerlegt, damit keine unklaren Sammelthemen mehr dominieren
 
@@ -128,4 +128,4 @@ Die sinnvolle Reihenfolge ist aus heutiger Sicht:
 
 ## Gesamturteil
 
-Flowzer BPMN Core Engine ist aktuell **kein gescheitertes Projekt**, sondern ein wieder belebtes Projekt mit belastbarer Basis. Der kritische Unterschied ist, dass jetzt nicht mehr an einer diffusen Vision gearbeitet wird, sondern in klaren, testbaren und reviewbaren Arbeitspaketen auf `next`.
+Flowzer BPMN Core Engine ist aktuell **kein gescheitertes Projekt**, sondern ein wieder belebtes Projekt mit belastbarer Basis. Der kritische Unterschied ist, dass jetzt nicht mehr an einer diffusen Vision gearbeitet wird, sondern in klaren, testbaren und reviewbaren Arbeitspaketen auf `main`.
