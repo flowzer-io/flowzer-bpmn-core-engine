@@ -61,6 +61,7 @@ Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 | `bpmn:startEvent` | genau eines, ohne Ereignisdefinition |
 | `bpmn:endEvent` | beliebig viele, ohne Ereignisdefinition |
 | `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
+| `bpmn:process/bpmn:extensionElements/zeebe:userTaskForm` | Formulare, die der Workflow selbst mitbringt. Sie werden unverändert weitergereicht und im Diagramm bearbeitet, nicht in der Gliederung — ein Verweis darauf ist eine Kennung, kein Name |
 | `bpmndi:BPMNDiagram` | wird gelesen, aber nicht ausgewertet (siehe „Anordnung") |
 
 ### Schritte
@@ -150,6 +151,10 @@ speichern lässt:
 - Ein gelöschtes Ende lässt sich über „Ende" wieder einfügen.
 - Wer den Text eines Formularfelds ändert, wechselt nicht ungewollt zwischen
   `formKey` und `formId` — die Art der Bindung bleibt, wie sie war.
+- Zeigt eine Aufgabe auf ein Formular im Workflow
+  (`camunda-forms:bpmn:<Kennung>`), ist das Feld nicht überschreibbar. Der
+  Verweis ist eine Kennung; wer sie überschreibt, kappt die Verbindung, ohne
+  es zu merken.
 
 ## Anordnung im Diagramm
 

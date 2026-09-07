@@ -212,6 +212,47 @@ describe('Blinde Flecken der Positivliste', () => {
   });
 });
 
+// Testzweck: Formulare, die der Workflow selbst mitbringt, stehen in den
+// extensionElements des Prozesses. Ohne sie waere jeder Workflow mit einem
+// eingebetteten Formular in der Gliederung gar nicht darstellbar — und ein
+// stiller Verlust waere schlimmer als das.
+describe('Formulare im Workflow', () => {
+  const xml = process(`    <bpmn:extensionElements>
+      <zeebe:userTaskForm id="Form_1">{"components":[]}</zeebe:userTaskForm>
+    </bpmn:extensionElements>
+    <bpmn:userTask id="Task_1" name="Prüfen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="camunda-forms:bpmn:Form_1" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
+  it('liest sie und schreibt sie unverändert zurück', () => {
+    const { document, issues } = readOutline(xml);
+    expect(hasBlocker(issues)).toBe(false);
+    expect(document!.embeddedForms).toEqual([{ id: 'Form_1', schema: '{"components":[]}' }]);
+
+    const geschrieben = writeOutlineXml(document!).xml!;
+    expect(geschrieben).toContain('<zeebe:userTaskForm id="Form_1">');
+    expect(readOutline(geschrieben).document!.embeddedForms).toEqual(document!.embeddedForms);
+  });
+
+  it('meldet ein `userTaskForm` an einer Aufgabe — dort ist es kein Prozessformular', () => {
+    const falsch = process(`    <bpmn:userTask id="Task_1" name="Prüfen">
+      <bpmn:extensionElements>
+        <zeebe:userTaskForm id="Form_1">{}</zeebe:userTaskForm>
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />`);
+
+    expect(messages(falsch).join(' ')).toContain('userTaskForm');
+  });
+});
+
 // Testzweck: Ein exklusives Tor mit eigener Zusammenfuehrung ist die zweite
 // Grundform neben der Prüfkette und muss unveraendert zurueckgeschrieben werden.
 describe('Verzweigung mit eigener Zusammenführung', () => {

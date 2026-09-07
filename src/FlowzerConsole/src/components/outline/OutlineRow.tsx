@@ -1,6 +1,7 @@
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
+import { describeFormKey } from '@/lib/formKey';
 import { canMove, moveBlock, removeBlock } from '@/lib/outline/edit';
 import {
   blockLabel,
@@ -50,7 +51,7 @@ export function Meta({ block }: { block: OutlineBlock }) {
     <div className="text-muted mt-1 flex flex-wrap items-center gap-1.5 text-[12px]">
       {block.task === 'user' ? (
         <>
-          <Chip tone="accent">{block.formKey ?? block.formId ?? 'ohne Formular'}</Chip>
+          <Chip tone="accent">{block.formId ?? describeFormKey(block.formKey)}</Chip>
           <span>{describeAssignment(block)}</span>
           {block.dueDate && (
             <Chip tone="wait">

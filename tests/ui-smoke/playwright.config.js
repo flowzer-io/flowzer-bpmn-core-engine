@@ -39,7 +39,12 @@ if (!process.env.PLAYWRIGHT_SKIP_WEBSERVERS)
 
 const sharedWebServerEnvironment = {
   ...process.env,
-  FLOWZER_STORAGE_ROOT: managedStorageRoot
+  FLOWZER_STORAGE_ROOT: managedStorageRoot,
+  // Die Drosselung (300 Anfragen je Minute) ist ein Schutz fuer den Betrieb und in
+  // ApiLimitsIntegrationTest.cs abgedeckt. Im Smoke laufen alle Tests nacheinander
+  // gegen dieselbe Instanz und die Konsole laedt Live-Daten nach; die Suite lief
+  // deshalb mit wachsender Testzahl in ein 429 statt in einen echten Befund.
+  RateLimiting__Enabled: 'false'
 };
 
 module.exports = defineConfig({

@@ -2,6 +2,7 @@ import { FieldLabel, TextInput } from '@/components/ui/Field';
 import { Segmented } from '@/components/ui/Segmented';
 import { useForms } from '@/lib/api/queries';
 import { updateStep } from '@/lib/outline/edit';
+import { parseFormKey } from '@/lib/formKey';
 import type { OutlineDocument, OutlineStep, TaskKind } from '@/lib/outline/model';
 
 interface StepFieldsProps {
@@ -22,6 +23,7 @@ const TASK_OPTIONS = [
 export function StepFields({ document, step, onChange }: StepFieldsProps) {
   const formsQuery = useForms();
   const set = (patch: Partial<OutlineStep>) => onChange(updateStep(document, step.id, patch));
+  const form = parseFormKey(step.formKey);
 
   return (
     <div className="flex flex-col gap-4">
@@ -37,7 +39,7 @@ export function StepFields({ document, step, onChange }: StepFieldsProps) {
 
       {step.task === 'user' ? (
         <>
-          <div>
+          {form.kind === 'embedded' ? <EmbeddedForm formId={form.formId} /> : <div>
             {/* Camunda bindet ein verknuepftes Formular ueber `formId`, ein
                 eingebettetes ueber `formKey`. Wer nur den Text aendert, soll
                 nicht ungewollt die Art der Bindung wechseln. */}
@@ -56,7 +58,7 @@ export function StepFields({ document, step, onChange }: StepFieldsProps) {
                 <option key={form.formId} value={form.name} />
               ))}
             </datalist>
-          </div>
+          </div>}
 
           <div>
             <FieldLabel>Zuständige Gruppen</FieldLabel>
@@ -100,6 +102,25 @@ export function StepFields({ document, step, onChange }: StepFieldsProps) {
       )}
 
       <Mappings step={step} />
+    </div>
+  );
+}
+
+/**
+ * Ein Formular, das im Workflow selbst liegt. Es bleibt hier unangetastet: Der
+ * Verweis ist eine Kennung, kein Name — wer sie ueberschreibt, kappt die
+ * Verbindung, ohne es zu merken. Bearbeitet wird es im Diagramm.
+ */
+function EmbeddedForm({ formId }: { formId: string }) {
+  return (
+    <div>
+      <FieldLabel>Formular im Workflow</FieldLabel>
+      <div className="border-border bg-surface-2 rounded-[var(--r-sm)] border border-dashed px-3 py-2.5 font-mono text-[12.5px]">
+        {formId}
+      </div>
+      <p className="text-muted mt-1.5 text-[12px]">
+        Dieses Formular ist Teil des Workflows und mit ihm versioniert. Es wird im Diagramm bearbeitet.
+      </p>
     </div>
   );
 }

@@ -202,6 +202,7 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
       processName: document.processName,
       nodes: builder.nodes,
       flows: builder.flows,
+      embeddedForms: document.embeddedForms,
     },
     issues: builder.issues,
   };
@@ -324,6 +325,22 @@ function nodeXml(node: GraphNode, graph: BpmnGraph): string {
   return [`${indent}<${tag}${own}>`, ...children, `${indent}</${tag}>`].join('\n');
 }
 
+/**
+ * Die Formulare, die der Workflow selbst mitbringt, stehen als erstes im Prozess —
+ * genau dort sucht der Parser sie, und nur dort gelten sie als Prozessformulare.
+ */
+function embeddedFormsXml(graph: BpmnGraph): string[] {
+  if (graph.embeddedForms.length === 0) return [];
+
+  return [
+    '    <bpmn:extensionElements>',
+    ...graph.embeddedForms.map(
+      (form) => `      <zeebe:userTaskForm${attributes({ id: form.id })}>${escape(form.schema)}</zeebe:userTaskForm>`,
+    ),
+    '    </bpmn:extensionElements>',
+  ];
+}
+
 function flowXml(flow: GraphFlow): string {
   const indent = '    ';
   const own = attributes({ id: flow.id, name: flow.name, sourceRef: flow.source, targetRef: flow.target });
@@ -406,6 +423,7 @@ export function writeOutlineXml(document: OutlineDocument): { xml?: string; issu
       exporterVersion: graph.exporterVersion,
     })}>`,
     `  <bpmn:process${attributes({ id: graph.processId, name: graph.processName })} isExecutable="true">`,
+    ...embeddedFormsXml(graph),
     ...nodes.map((node) => nodeXml(node, graph)),
     ...graph.flows.map(flowXml),
     '  </bpmn:process>',

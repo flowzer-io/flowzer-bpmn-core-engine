@@ -50,6 +50,12 @@ export interface GraphFlow {
   readonly condition?: string;
 }
 
+/** Ein Formular, das im Workflow selbst liegt (`zeebe:userTaskForm` am Prozess). */
+export interface EmbeddedForm {
+  readonly id: string;
+  readonly schema: string;
+}
+
 export interface BpmnGraph {
   readonly definitionsId: string;
   readonly targetNamespace?: string;
@@ -60,6 +66,8 @@ export interface BpmnGraph {
   readonly processName?: string;
   readonly nodes: readonly GraphNode[];
   readonly flows: readonly GraphFlow[];
+  /** Formulare im Workflow selbst. Die Gliederung zeigt sie, bearbeitet sie aber nicht. */
+  readonly embeddedForms: readonly EmbeddedForm[];
   /** Das Diagramm der Vorlage, unveraendert serialisiert. */
   readonly diagramXml?: string;
 }
@@ -70,6 +78,11 @@ const ZEEBE_NS = 'http://camunda.org/schema/zeebe/1.0';
 interface ElementRule {
   /** Namensraum, in dem das Element stehen muss. */
   readonly namespace: string;
+  /**
+   * Kinder, deren Regel unter einem anderen Schluessel steht. Die
+   * `extensionElements` des Prozesses tragen anderes als die einer Aufgabe.
+   */
+  readonly childRules?: Readonly<Record<string, string>>;
   /** Erlaubte Attribute mit ihrem vollstaendigen Namen, also samt Praefix. */
   readonly attributes: readonly string[];
   readonly children: readonly string[];
@@ -87,7 +100,10 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
   process: {
     namespace: BPMN_NS,
     attributes: ['id', 'name', 'isExecutable'],
+    childRules: { extensionElements: 'processExtensionElements' },
+    single: ['extensionElements'],
     children: [
+      'extensionElements',
       'startEvent',
       'endEvent',
       'userTask',
@@ -124,6 +140,11 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
     single: ['conditionExpression'],
   },
   conditionExpression: { namespace: BPMN_NS, attributes: ['xsi:type'], children: [] },
+  // Formulare, die der Workflow selbst mitbringt. Sie stehen ausschliesslich in
+  // den `extensionElements` des Prozesses; an einer Aufgabe waere dasselbe
+  // Element etwas anderes und wuerde beim Schreiben verschwinden.
+  processExtensionElements: { namespace: BPMN_NS, attributes: [], children: ['userTaskForm'] },
+  userTaskForm: { namespace: ZEEBE_NS, attributes: ['id'], children: [] },
   extensionElements: {
     namespace: BPMN_NS,
     attributes: [],
@@ -172,10 +193,10 @@ function firstChild(element: Element, localName: string): Element | undefined {
  * wird uebersprungen: Es wird unveraendert weitergereicht oder neu berechnet,
  * seine Attribute muessen die Gliederung also nicht interessieren.
  */
-function checkAgainstRules(element: Element, issues: OutlineIssue[]): void {
+function checkAgainstRules(element: Element, issues: OutlineIssue[], ruleName = element.localName): void {
   if (element.localName === 'BPMNDiagram') return;
 
-  const rule = ELEMENT_RULES[element.localName];
+  const rule = ELEMENT_RULES[ruleName];
   if (!rule) return;
 
   // Attribute werden ueber ihren vollstaendigen Namen geprueft. Nur den lokalen
@@ -195,7 +216,8 @@ function checkAgainstRules(element: Element, issues: OutlineIssue[]): void {
 
   for (const child of Array.from(element.children)) {
     const known = rule.children.includes(child.localName);
-    const childRule = ELEMENT_RULES[child.localName];
+    const childRuleName = rule.childRules?.[child.localName] ?? child.localName;
+    const childRule = ELEMENT_RULES[childRuleName];
     const rightNamespace = child.localName === 'BPMNDiagram' || child.namespaceURI === childRule?.namespace;
 
     if (!known || !rightNamespace) {
@@ -219,7 +241,7 @@ function checkAgainstRules(element: Element, issues: OutlineIssue[]): void {
       });
     }
 
-    checkAgainstRules(child, issues);
+    checkAgainstRules(child, issues, childRuleName);
   }
 }
 
@@ -267,6 +289,15 @@ function readTaskProperties(task: Element): TaskProperties {
     inputs: readIoMappings(task, 'input'),
     outputs: readIoMappings(task, 'output'),
   };
+}
+
+function readEmbeddedForms(process: Element): EmbeddedForm[] {
+  const extensions = firstChild(process, 'extensionElements');
+  if (!extensions) return [];
+
+  return children(extensions, 'userTaskForm')
+    .map((form) => ({ id: form.getAttribute('id')?.trim() ?? '', schema: form.textContent ?? '' }))
+    .filter((form) => form.id.length > 0);
 }
 
 function readNodes(process: Element, issues: OutlineIssue[]): GraphNode[] {
@@ -372,6 +403,7 @@ export function readGraph(xml: string): { graph?: BpmnGraph; issues: OutlineIssu
       processName: attribute(process, 'name'),
       nodes,
       flows,
+      embeddedForms: readEmbeddedForms(process),
       diagramXml: diagram ? new XMLSerializer().serializeToString(diagram) : undefined,
     },
     issues,
@@ -405,6 +437,10 @@ export function graphSignature(graph: BpmnGraph): string {
       condition: flow.condition ?? null,
     }));
 
+  const forms = [...graph.embeddedForms]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((form) => [form.id, form.schema]);
+
   return JSON.stringify({
     processId: graph.processId,
     processName: graph.processName ?? null,
@@ -412,6 +448,7 @@ export function graphSignature(graph: BpmnGraph): string {
     exporterVersion: graph.exporterVersion ?? null,
     nodes,
     flows,
+    forms,
   });
 }
 

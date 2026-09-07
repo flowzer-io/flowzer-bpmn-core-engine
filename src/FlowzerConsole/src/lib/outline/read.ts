@@ -314,6 +314,7 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
         startId: 'StartEvent_1',
         startName: 'Start',
         blocks: [{ kind: 'end', id: 'EndEvent_1', name: 'Ende' }],
+        embeddedForms: [],
         flowIds: {},
       },
       issues: [
@@ -383,6 +384,7 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
     startId: start.id,
     startName: start.name,
     blocks,
+    embeddedForms: graph.embeddedForms,
     flowIds,
     sourceDiagram: graph.diagramXml,
     sourceStructure: structureSignature(graph),

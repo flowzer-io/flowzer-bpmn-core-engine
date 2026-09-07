@@ -6,6 +6,15 @@
  * mit allem anderen passiert, steht in `docs/GLIEDERUNG-TEILMENGE.md`.
  */
 
+/**
+ * Ein Formular, das im Workflow selbst liegt. Der Form-Key zeigt mit einem
+ * Praefix darauf; zerlegt wird er in `@/lib/formKey`.
+ */
+export interface EmbeddedForm {
+  readonly id: string;
+  readonly schema: string;
+}
+
 /** Ein Schritt ist entweder eine Aufgabe fuer Menschen oder ein Aufruf an einen Dienst. */
 export type TaskKind = 'user' | 'service';
 
@@ -98,6 +107,11 @@ export interface OutlineDocument {
   readonly startId: string;
   readonly startName?: string;
   readonly blocks: readonly OutlineBlock[];
+  /**
+   * Formulare, die der Workflow selbst mitbringt (`zeebe:userTaskForm`). Die
+   * Gliederung reicht sie unveraendert weiter; bearbeitet werden sie im Diagramm.
+   */
+  readonly embeddedForms: readonly EmbeddedForm[];
   /**
    * Kennungen der vorhandenen Sequenzfluesse, abgelegt unter „Quelle->Ziel".
    * Ohne sie bekaeme jeder Speichervorgang neue Flusskennungen, und das
