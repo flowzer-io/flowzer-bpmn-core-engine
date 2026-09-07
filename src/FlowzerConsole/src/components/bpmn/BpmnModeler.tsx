@@ -12,6 +12,7 @@ import { describeFormKey } from '@/lib/formKey';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
 import { BpmnProperties } from './properties/BpmnProperties';
+import { READ_ONLY_MODULE } from './readOnly';
 
 export interface BpmnModelerHandle {
   /** Liefert das aktuelle Diagramm als formatiertes BPMN-XML. */
@@ -30,7 +31,11 @@ interface BpmnModelerProps {
   onChange?: () => void;
   onZoomChange?: (zoom: number) => void;
   className?: string;
-  /** Ohne Modelliererrolle bleibt das Panel lesbar, aber unveränderlich. */
+  /**
+   * Ohne Modelliererrolle bleibt alles lesbar, aber unveränderlich: keine Palette, kein
+   * Kontextpad, kein Verschieben oder Löschen — und ein Panel, das seine Werte zeigt,
+   * ohne sie anzunehmen.
+   */
   readOnly?: boolean;
 }
 
@@ -147,6 +152,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       const ModelerCtor = Modeler as unknown as new (options: Record<string, unknown>) => ModelerLike;
       const modeler = new ModelerCtor({
         container,
+        additionalModules: readOnly ? [READ_ONLY_MODULE] : [],
         moddleExtensions: { zeebe: zeebeModdle },
       });
 
@@ -200,7 +206,10 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       setEditor(null);
       setReady(false);
     };
-  }, []);
+    // Ob geschrieben werden darf, entscheidet sich beim Bau des Modelers: Ein einmal
+    // geladenes Modul lässt sich nicht mehr abwählen. Wechselt die Rolle, entsteht der
+    // Modeler deshalb neu — der Import darunter läuft danach von selbst wieder an.
+  }, [readOnly]);
 
   useEffect(() => {
     const modeler = modelerRef.current;
@@ -257,7 +266,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
   }, [ready, editor, revision]);
 
   return (
-    <div className={cn('flex min-h-0 flex-1', className)}>
+    <div className={cn('flex min-h-0 flex-1', readOnly && 'bpmn-read-only', className)}>
       <div className="canvas-grid bpmn-surface relative min-h-[420px] min-w-0 flex-1">
         <div ref={canvasRef} className="h-full w-full" />
         {!ready && !error && (
