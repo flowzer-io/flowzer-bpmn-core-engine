@@ -91,6 +91,15 @@ Begriffen: Name, Formular, Zuweisung, Frist, Zuordnungen, Auftragstyp und Wieder
 Zeitangabe, Nachricht samt Korrelationsschlüssel, Signal, aufgerufener Prozess, Skript,
 Mehrfachausführung und an Toren die Bedingungen der ausgehenden Flüsse.
 
+Denselben Formularabschnitt trägt das **reine Startereignis** — dort meint er das
+*Startformular*, das ausfüllt, wer den Workflow startet. Es ist freiwillig: Ohne Formular
+startet der Workflow direkt, und deshalb warnt das Panel dort nicht vor einem fehlenden
+Verweis (an einer menschlichen Aufgabe tut es das weiterhin). An einem Start mit Zeit-,
+Nachrichten- oder Signaldefinition wird der Abschnitt nicht gezeigt: Dort gäbe es niemanden,
+der ausfüllt, und der Parser liest den Schlüssel folgerichtig nicht. Die Übersicht
+„Formulare in diesem Workflow" und die Markierung im Diagramm führen das Startformular mit
+(`bpmnEditor.listFormOwners()`).
+
 Vier Dateien, vier Aufgaben:
 
 | Datei | Aufgabe |
@@ -127,6 +136,23 @@ Zwei Dinge sind bewusst so und leicht wieder kaputtzumachen:
   (`properties/EmbeddedFormDialog.tsx`), nicht im Dialog aus `ui/Modal`. Form.io hängt
   seinen Eigenschaftendialog ans `<body>` (siehe unten); für Radix ist ein Klick darin ein
   Klick nach außen, und der umgebende Dialog schloss sich beim ersten Feldklick.
+
+## Einen Workflow starten
+
+Gestartet wird an drei Stellen — auf der Workflow-Karte, im Schnellstart des Dashboards und
+im Modellierer. Alle drei benutzen `components/workflows/useStartWorkflow.ts` und rendern
+`StartWorkflowDialog` genau einmal; vorher stand die Toast-Logik dreimal da.
+
+Der Ablauf: Der Knopf holt zuerst `GET /definition/meta/{id}/start-form`. Antwortet die API
+mit **204**, hat der Workflow kein Startformular und die Instanz startet sofort — der
+frühere Weg, unverändert. Kommt ein Formular, öffnet sich der Dialog; „Starten" prüft dort
+die Pflichtfelder über den Form.io-Renderer und schickt die Eingaben als `variables` an
+`POST /definition/meta/{id}/instance`.
+
+Die Pflichtfelder prüft bewusst nur die Konsole: Form.io kennt bedingt sichtbare Felder
+(`conditional`), die der Server nicht auswertet — er würde damit gültige Eingaben ablehnen.
+Der Server prüft deshalb nur, ob überhaupt ein `variables`-Objekt kam; ein leeres zählt als
+Antwort.
 
 ## Fremde Oberflächen im Bündel
 
