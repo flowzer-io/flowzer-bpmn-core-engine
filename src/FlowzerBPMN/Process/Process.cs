@@ -26,4 +26,10 @@ public record Process : IFlowElementContainer, ICallableElement
 
     public string? FlowzerProcessHash { get; init; }
     public required string DefinitionsId { get; init; }
+
+    /// <summary>
+    /// Die Formulare, die dieser Workflow selbst mitbringt. Sie liegen am Prozess und nicht an
+    /// der einzelnen Aufgabe, weil mehrere Aufgaben dasselbe Formular benutzen duerfen.
+    /// </summary>
+    public FlowzerList<FlowzerUserTaskForm> FlowzerUserTaskForms { get; init; } = [];
 }

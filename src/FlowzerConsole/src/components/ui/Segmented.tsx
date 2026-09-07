@@ -13,6 +13,8 @@ interface SegmentedProps<T extends string> {
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  /** Sperrt die Auswahl — für Umschalter, die etwas schreiben. */
+  disabled?: boolean;
   className?: string;
   'aria-label'?: string;
 }
@@ -25,6 +27,7 @@ export function Segmented<T extends string>({
   options,
   value,
   onChange,
+  disabled = false,
   className,
   'aria-label': ariaLabel,
 }: SegmentedProps<T>) {
@@ -48,10 +51,12 @@ export function Segmented<T extends string>({
             type="button"
             role="tab"
             aria-selected={active}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
               'inline-flex flex-none cursor-pointer items-center gap-[7px] rounded-md border-none px-3 py-1.5',
               'text-[13px] font-semibold transition-colors duration-150',
+              'disabled:cursor-not-allowed disabled:opacity-55',
               active ? 'bg-surface text-text shadow-card' : 'text-muted hover:text-text bg-transparent',
             )}
           >

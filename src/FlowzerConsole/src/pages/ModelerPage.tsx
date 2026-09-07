@@ -27,7 +27,7 @@ interface ModelerPageProps {
 }
 
 /**
- * Modellierungsseite eines Workflows: bpmn-js mit Camunda-8-Eigenschaften-Panel,
+ * Modellierungsseite eines Workflows: bpmn-js mit dem Eigenschaften-Panel der Konsole,
  * plus Speichern (neue Version) und Deployen (Version aktivieren).
  */
 export function ModelerPage({ definitionId }: ModelerPageProps) {
@@ -333,6 +333,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
         <BpmnModeler
           ref={modelerRef}
           xml={xmlQuery.data}
+          readOnly={!mayPublish}
           onChange={() => setDirty(true)}
           onZoomChange={setZoom}
         />
