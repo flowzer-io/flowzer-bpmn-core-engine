@@ -127,6 +127,7 @@ public class ServiceTaskWebhookTest
         private sealed class Wrapper(IServiceTaskStorage serviceTaskStorage) : ITransactionalStorage
         {
             public IDefinitionStorage DefinitionStorage => throw new NotSupportedException();
+            public IFolderStorage FolderStorage => throw new NotSupportedException();
             public IMessageSubscriptionStorage SubscriptionStorage => throw new NotSupportedException();
             public IInstanceStorage InstanceStorage => throw new NotSupportedException();
             public IFormStorage FormStorage => throw new NotSupportedException();

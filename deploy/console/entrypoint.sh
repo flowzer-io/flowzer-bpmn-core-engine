@@ -103,7 +103,7 @@ server {
   # und die OpenAPI-Beschreibung nennt die Pfade mit grossem Anfangsbuchstaben
   # (/Definition/meta). Ein daraus erzeugter Client traefe eine Regel mit ~ nicht und bekaeme
   # die Startseite der Oberflaeche mit Status 200 statt der Antwort der API.
-  location ~* ^/(health|definition|instance|job|message|usertask|form|timer)(/|\$) {
+  location ~* ^/(health|definition|folder|instance|job|message|usertask|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 

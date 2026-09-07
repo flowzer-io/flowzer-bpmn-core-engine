@@ -6,7 +6,12 @@ public class BpmnMetaDefinition
     public required string DefinitionId { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
-    
+
+    /// <summary>
+    /// Ordner, in dem dieser Workflow liegt; <c>null</c> heisst oberste Ebene. Bestehende
+    /// Katalogeintraege tragen das Feld nicht und landen deshalb dort — kein Umzug noetig.
+    /// </summary>
+    public Guid? FolderId { get; set; }
 }
 
 public class ExtendedBpmnMetaDefinition: BpmnMetaDefinition

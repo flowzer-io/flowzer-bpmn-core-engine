@@ -642,6 +642,8 @@ public class ApiContractHardeningIntegrationTest
         public List<UserTaskSubscription> AddedUserTaskSubscriptions { get; } = [];
 
         public IDefinitionStorage DefinitionStorage => new TestDefinitionStorage(this);
+
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage => new TestSubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new TestInstanceStorage(this);
         public IFormStorage FormStorage => new TestFormStorage(this);

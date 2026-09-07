@@ -127,6 +127,60 @@ export interface BpmnMetaDefinitionDto {
   definitionId: string;
   name: string;
   description?: string | null;
+  /**
+   * Ordner des Workflows; `null` heißt oberste Ebene. Beim Anlegen wählt der Wert den
+   * Ordner, beim Ändern der Metadaten wird er ignoriert — verschoben wird über
+   * `PUT /definition/meta/{id}/folder`.
+   */
+  folderId?: string | null;
+}
+
+/** Art einer Ordnerzuweisung. Entspricht den Zeichenketten aus `FolderMappingExtensions`. */
+export const FOLDER_SUBJECT_KINDS = ['user', 'group'] as const;
+export type FolderSubjectKind = (typeof FOLDER_SUBJECT_KINDS)[number];
+
+/**
+ * Die beiden Rollen eines Ordners. `editor` darf die Workflows darin ändern,
+ * `steward` — die Fachverantwortung — zusätzlich Unterordner anlegen und delegieren.
+ */
+export const FOLDER_ROLES = ['editor', 'steward'] as const;
+export type FolderRole = (typeof FOLDER_ROLES)[number];
+
+/** Entspricht `FolderAssignmentDto`. */
+export interface FolderAssignmentDto {
+  subjectKind: FolderSubjectKind;
+  subject: string;
+  role: FolderRole;
+  displayName?: string | null;
+}
+
+/** Entspricht `InheritedFolderAssignmentDto` — eine Zuweisung aus einem übergeordneten Ordner. */
+export interface InheritedFolderAssignmentDto extends FolderAssignmentDto {
+  inheritedFromId: string;
+  inheritedFromName: string;
+}
+
+/** Entspricht `WorkflowFolderDto`. */
+export interface WorkflowFolderDto {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  description?: string | null;
+  createdOn: string;
+  assignments: FolderAssignmentDto[];
+  inheritedAssignments: InheritedFolderAssignmentDto[];
+  /** Darf die angemeldete Person hier Workflows anlegen und ändern? */
+  mayEdit: boolean;
+  /** Darf sie hier Unterordner anlegen und Zuständigkeiten pflegen? */
+  mayDelegate: boolean;
+  workflowCount: number;
+}
+
+/** Rumpf für `POST /folder` und `PUT /folder/{id}`. */
+export interface WorkflowFolderRequestDto {
+  name: string;
+  parentId?: string | null;
+  description?: string | null;
 }
 
 /** Entspricht `ExtendedBpmnMetaDefinitionDto`. */

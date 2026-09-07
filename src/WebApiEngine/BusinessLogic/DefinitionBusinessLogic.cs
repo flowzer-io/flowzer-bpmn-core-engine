@@ -72,6 +72,25 @@ public class DefinitionBusinessLogic(
         return definition;
     }
 
+    /// <summary>
+    /// Liest die Kennung der Definition aus dem BPMN-XML, ohne bei ungueltigem Inhalt zu werfen.
+    ///
+    /// Gebraucht wird sie fuer die Rechtepruefung: Erst die Kennung sagt, in welchem Ordner der
+    /// Workflow liegt. Ist das XML unbrauchbar, ist das kein Rechteproblem — dann meldet der
+    /// eigentliche Speicherpfad den Fehler, und zwar mit seiner Begruendung.
+    /// </summary>
+    public static string? TryReadDefinitionId(string rawContent)
+    {
+        try
+        {
+            return ModelParser.ParseModel(rawContent).Id;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static string ComputeStableHash(string rawContent)
     {
         var contentBytes = Encoding.UTF8.GetBytes(rawContent);

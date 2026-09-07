@@ -447,6 +447,7 @@ public class StartFormIntegrationTest
         public TestFormStorage FormStorageSeed { get; } = formStorage;
         public SeedDefinitionStorage DefinitionStorageSeed { get; } = new();
         public IDefinitionStorage DefinitionStorage => DefinitionStorageSeed;
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage { get; } = new NoOpMessageSubscriptionStorage();
         public CollectingInstanceStorage InstanceStorageSeed { get; } = new();
         public IInstanceStorage InstanceStorage => InstanceStorageSeed;

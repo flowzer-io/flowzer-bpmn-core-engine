@@ -84,7 +84,22 @@ public static class UserTaskAssignment
             return true;
         }
 
-        return subscription.CandidateGroups.Any(candidate => identity.Groups.Any(group => IsSameGroup(candidate, group)));
+        return MatchesAnyGroup(subscription.CandidateGroups, identity.Groups);
+    }
+
+    /// <summary>
+    /// Trifft eine der genannten Kennungen auf eine der Kennungen der Person zu? Auch die
+    /// Ordnerzuweisungen nennen Personen so, wie ein Modell es tut — deshalb oeffentlich.
+    /// </summary>
+    public static bool MatchesAnyName(IEnumerable<string> modelValues, IEnumerable<string> identityValues) =>
+        MatchesAny(modelValues, identityValues);
+
+    /// <summary>Trifft eine der genannten Gruppen auf eine Gruppe der Person zu?</summary>
+    public static bool MatchesAnyGroup(IEnumerable<string> modelValues, IEnumerable<string> identityGroups)
+    {
+        var groups = identityGroups.ToArray();
+        return modelValues.Any(candidate => !string.IsNullOrWhiteSpace(candidate)
+                                            && groups.Any(group => IsSameGroup(candidate, group)));
     }
 
     private static bool MatchesAny(IEnumerable<string> modelValues, IEnumerable<string> identityValues)

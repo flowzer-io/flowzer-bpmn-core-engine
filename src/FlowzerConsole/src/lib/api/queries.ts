@@ -5,9 +5,12 @@ import {
   type UseQueryOptions,
 } from '@tanstack/react-query';
 
-import { definitionsApi, formsApi, instancesApi, operationsApi, userTasksApi } from './endpoints';
+import { definitionsApi, foldersApi, formsApi, instancesApi, operationsApi, userTasksApi } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
+  FolderAssignmentDto,
+  WorkflowFolderDto,
+  WorkflowFolderRequestDto,
   ExtendedBpmnMetaDefinitionDto,
   ExtendedUserTaskSubscriptionDto,
   FormDto,
@@ -27,6 +30,9 @@ export const queryKeys = {
   definitionLatest: (definitionId: string) => [...queryKeys.definitions, 'latest', definitionId] as const,
   definitionXml: (versionGuid: string) => [...queryKeys.definitions, 'xml', versionGuid] as const,
   definitionStartForm: (definitionId: string) => [...queryKeys.definitions, 'start-form', definitionId] as const,
+
+  folders: ['folders'] as const,
+  folderList: () => [...queryKeys.folders, 'list'] as const,
 
   instances: ['instances'] as const,
   instanceList: () => [...queryKeys.instances, 'list'] as const,
@@ -119,9 +125,25 @@ export function useUpdateDefinitionMeta() {
 export function useCreateDefinition() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (name: string) => definitionsApi.create(name),
+    mutationFn: ({ name, folderId }: { name: string; folderId: string | null }) =>
+      definitionsApi.create(name, folderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+      // Der Ordner zaehlt seine Workflows mit; ohne das bliebe die Zahl im Baum stehen.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+/** Verschiebt einen Workflow in einen anderen Ordner; `null` ist die oberste Ebene. */
+export function useMoveDefinition() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ definitionId, folderId }: { definitionId: string; folderId: string | null }) =>
+      definitionsApi.moveToFolder(definitionId, folderId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
     },
   });
 }
@@ -135,6 +157,8 @@ export function useDeleteDefinition() {
       // Instanz- und Betriebsansichten, die ihren Namen aufloesen.
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitions });
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
+      // Der Ordner zaehlt seine Workflows mit.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
     },
   });
 }
@@ -147,6 +171,63 @@ export function useStartInstance() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
       void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
+    },
+  });
+}
+
+/* ---------------------------------------------------------------------- Ordner */
+
+export function useFolders(options?: QueryTuning<WorkflowFolderDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.folderList(),
+    queryFn: ({ signal }) => foldersApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useCreateFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (folder: WorkflowFolderRequestDto) => foldersApi.create(folder),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+export function useUpdateFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, folder }: { id: string; folder: WorkflowFolderRequestDto }) =>
+      foldersApi.update(id, folder),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+export function useDeleteFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => foldersApi.remove(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+/**
+ * Setzt die Zuweisungen eines Ordners neu. Danach koennen sich die eigenen Rechte
+ * geaendert haben — auch die an den Unterordnern —, deshalb wird der ganze Baum neu geladen.
+ */
+export function useUpdateFolderAssignments() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, assignments }: { id: string; assignments: FolderAssignmentDto[] }) =>
+      foldersApi.updateAssignments(id, assignments),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
     },
   });
 }
