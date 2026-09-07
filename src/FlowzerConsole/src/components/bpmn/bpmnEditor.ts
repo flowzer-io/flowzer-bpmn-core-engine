@@ -539,6 +539,11 @@ export function createBpmnEditor(modeler: ModelerLike) {
     listFormOwners(): FormOwner[] {
       return registry()
         .filter((element) => {
+          // bpmn-js fuehrt die Beschriftung eines benannten Ereignisses als eigenes Element mit
+          // demselben Objekt. Ohne diesen Ausschluss stuende jedes benannte Startereignis
+          // zweimal in der Liste — und traege zwei Markierungen im Diagramm.
+          if (element.labelTarget) return false;
+
           const type = element.businessObject?.$type;
           if (type === 'bpmn:UserTask') return true;
           return startFormAppliesTo(element.businessObject) && formKeyOf(element.businessObject) !== null;

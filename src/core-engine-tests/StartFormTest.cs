@@ -80,7 +80,7 @@ public class StartFormTest
     // des Prozesses gilt. Nur der Direktstart fragt Eingaben ab; ein Zeitstart hat niemanden,
     // der sie ausfüllen könnte.
     [Test]
-    public void FormKeyOf_ShouldIgnoreStartEventsWithAnEventDefinition()
+    public void FormKeyOf_ShouldIgnoreStartEventsWaitingForATimer()
     {
         var process = ParseProcess(StartEventsXml("""
                                                     <bpmn:startEvent id="StartEvent_Timer">
@@ -138,6 +138,25 @@ public class StartFormTest
         var instance = Helper.CreateProcessEngine(process).StartProcess((System.Dynamic.ExpandoObject)startData);
 
         ((string?)instance.MasterToken.Variables!.GetValue("Mitarbeiter")).Should().Be("Christian");
+    }
+
+    // Testzweck: Prueft, dass ein Startereignis im Subprozess kein Startformular des Prozesses
+    // ist. Es startet den Subprozess, nicht den Workflow — ein Formular dort fuellte niemand aus.
+    [Test]
+    public void FormKeyOf_ShouldIgnoreStartEventsInsideASubProcess()
+    {
+        var process = ParseProcess(StartEventsXml("""
+                                                    <bpmn:startEvent id="StartEvent_1" />
+                                                    <bpmn:subProcess id="SubProcess_1">
+                                                      <bpmn:startEvent id="SubStart_1">
+                                                        <bpmn:extensionElements>
+                                                          <zeebe:formDefinition formKey="Urlaubsantrag" />
+                                                        </bpmn:extensionElements>
+                                                      </bpmn:startEvent>
+                                                    </bpmn:subProcess>
+                                                  """));
+
+        FlowzerStartForm.FormKeyOf(process).FormKey.Should().BeNull();
     }
 
     private static Process ParseProcess(string xml) => ModelParser.ParseModel(xml).GetProcesses().Single();

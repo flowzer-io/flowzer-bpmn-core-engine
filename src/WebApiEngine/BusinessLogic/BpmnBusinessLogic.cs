@@ -1032,15 +1032,22 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     /// Sucht in allen Prozessen einer Definition, auch in Subprozessen. Neben den menschlichen
     /// Aufgaben zaehlt das Startformular am Startereignis mit: Waere es geloescht, liesse sich
     /// der Workflow nicht mehr starten, obwohl keine Aufgabe auf das Formular zeigt.
+    ///
+    /// Startereignisse zaehlen nur unmittelbar im Prozess — dieselbe Grenze wie in
+    /// <see cref="FlowzerStartForm"/>. Ein Startereignis im Subprozess startet den Subprozess
+    /// und nie den Workflow; sein Form-Key bliebe wirkungslos und sperrte das Formular
+    /// dauerhaft gegen das Loeschen.
     /// </summary>
     private static bool BenutztFormular(Definitions modell, Guid formId, string formName)
     {
-        var flowElemente = modell.GetProcesses().SelectMany(AlleFlowElemente).ToArray();
+        var prozesse = modell.GetProcesses().ToArray();
 
-        return flowElemente
+        return prozesse
+                   .SelectMany(AlleFlowElemente)
                    .OfType<UserTask>()
                    .Any(aufgabe => VerweistAufFormular(aufgabe.Implementation, formId, formName))
-               || flowElemente
+               || prozesse
+                   .SelectMany(prozess => prozess.FlowElements)
                    .OfType<StartEvent>()
                    .Any(start => VerweistAufFormular(start.FlowzerFormKey, formId, formName));
     }

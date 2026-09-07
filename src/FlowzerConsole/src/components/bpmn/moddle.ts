@@ -21,6 +21,12 @@ export interface DiagramElement {
   source?: DiagramElement;
   target?: DiagramElement;
   outgoing?: DiagramElement[];
+  /**
+   * Gesetzt, wenn dieses Element die Beschriftung eines anderen ist. bpmn-js fuehrt die
+   * Beschriftung eines benannten Ereignisses als eigenes Element mit demselben `businessObject`
+   * — wer ueber die Elementliste sucht, findet dasselbe Element sonst zweimal.
+   */
+  labelTarget?: DiagramElement;
 }
 
 export interface ElementRegistryLike {

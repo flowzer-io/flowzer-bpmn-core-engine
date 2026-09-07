@@ -400,6 +400,66 @@ public class FormControllerIntegrationTest
         storage.FormStorageSeed.FormMetadatas.Should().ContainSingle();
     }
 
+    // Testzweck: Ein Startereignis im Subprozess ist kein Startformular des Workflows — die
+    // Engine liest seinen Form-Key nie. Wuerde es mitzaehlen, sperrte ein wirkungsloser
+    // Verweis das Formular dauerhaft gegen das Loeschen.
+    [Test]
+    public async Task DeleteFormMetadata_ShouldAllow_WhenOnlyAStartEventInsideASubProcessReferencesTheForm()
+    {
+        var storage = TestStorage.Create();
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Antrag" });
+
+        SeedDeployedWorkflowWithSubProcessStartForm(storage, "Antrag");
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.DeleteAsync($"/form/meta/{formId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.FormStorageSeed.FormMetadatas.Should().BeEmpty();
+    }
+
+    /// <summary>Ein deployter Workflow, dessen Subprozess-Startereignis das Formular nennt.</summary>
+    private static void SeedDeployedWorkflowWithSubProcessStartForm(TestStorage storage, string formKey)
+    {
+        var definitionId = Guid.NewGuid();
+        storage.DefinitionStorageSeed.Metas.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = "urlaub",
+            Name = "Urlaubsantrag"
+        });
+        storage.DefinitionStorageSeed.Deployed["urlaub"] = new BpmnDefinition
+        {
+            Id = definitionId,
+            DefinitionId = "urlaub",
+            Hash = "egal",
+            SavedByUser = Guid.NewGuid(),
+            IsActive = true,
+            Version = new Model.Version(1, 0)
+        };
+        storage.DefinitionStorageSeed.Binaries[definitionId] = $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              id="urlaub" targetNamespace="http://bpmn.io/schema/bpmn">
+              <bpmn:process id="Process_Urlaub" isExecutable="true">
+                <bpmn:startEvent id="Start"><bpmn:outgoing>F1</bpmn:outgoing></bpmn:startEvent>
+                <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Sub" />
+                <bpmn:subProcess id="Sub">
+                  <bpmn:incoming>F1</bpmn:incoming>
+                  <bpmn:startEvent id="SubStart">
+                    <bpmn:extensionElements>
+                      <zeebe:formDefinition formKey="{formKey}" />
+                    </bpmn:extensionElements>
+                  </bpmn:startEvent>
+                </bpmn:subProcess>
+              </bpmn:process>
+            </bpmn:definitions>
+            """;
+    }
+
     /// <summary>Legt einen deployten Workflow ab, dessen Startereignis das Formular benutzt.</summary>
     private static void SeedDeployedWorkflowWithStartForm(TestStorage storage, string formKey)
     {

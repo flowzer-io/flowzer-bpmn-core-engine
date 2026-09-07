@@ -48,7 +48,11 @@ export function useStartWorkflow() {
       { definitionId: workflow.definitionId, variables },
       {
         onSuccess: (instance) => {
-          setPending(null);
+          // Nur den eigenen Dialog schliessen: Startet nebenher ein Workflow ohne Formular,
+          // duerfte dessen Erfolg dem offenen Formular nicht die Eingaben nehmen.
+          setPending((current) =>
+            current?.workflow.definitionId === workflow.definitionId ? null : current,
+          );
           toast.success(`„${workflow.name}" gestartet`, {
             action: {
               label: 'Öffnen',
@@ -65,16 +69,18 @@ export function useStartWorkflow() {
   }
 
   async function start(workflow: StartableWorkflow) {
-    if (loadingId !== null) return;
+    // Nur den doppelten Klick auf denselben Workflow abfangen — ein anderer darf nebenher
+    // starten, sonst verschluckte die Oberfläche den Klick ohne jede Rückmeldung.
+    if (loadingId === workflow.definitionId) return;
 
     setLoadingId(workflow.definitionId);
     try {
-      // Über den Query-Cache statt eines eigenen Abrufs: Das Startformular ändert sich nur mit
-      // einem neuen Deploy, und ein zweiter Klick soll es nicht erneut laden.
+      // Bewusst ohne `staleTime`: Ein Bestandsformular kann sich zwischen zwei Starts geändert
+      // haben, und ausgefüllt werden soll die Fassung, die der Start gleich erwartet. Über den
+      // Query-Cache läuft der Abruf trotzdem, damit gleichzeitige Klicks sich zusammenlegen.
       const startForm = await queryClient.fetchQuery({
         queryKey: queryKeys.definitionStartForm(workflow.definitionId),
         queryFn: ({ signal }) => definitionsApi.getStartForm(workflow.definitionId, signal),
-        staleTime: 5 * 60_000,
       });
 
       const step = startStepFor(startForm);
@@ -108,7 +114,10 @@ export function useStartWorkflow() {
       },
       workflowName: pending?.workflow.name ?? '',
       schema: pending?.schema,
-      busy: startInstance.isPending,
+      busy:
+        pending !== null &&
+        startInstance.isPending &&
+        startInstance.variables?.definitionId === pending.workflow.definitionId,
       onStart: (variables: ProcessVariables) => {
         if (pending) run(pending.workflow, variables);
       },

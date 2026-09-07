@@ -263,36 +263,57 @@ describe('readElementProperties für weitere Elemente', () => {
 // Ohne `startFormApplies` böte es das Formular auch dort an, wo die Engine es nicht liest —
 // an einem Timer-, Nachrichten- oder Signalstart füllt es niemand aus.
 describe('readElementProperties für ein Startereignis', () => {
-  it('liest den Form-Key und meldet das Startformular als zutreffend', () => {
-    const startEvent = element({
+  const process = { $type: 'bpmn:Process' } as ModdleElement;
+
+  /** Ein Startereignis mit Formular — wahlweise mit Ereignisdefinition und Behälter. */
+  function startEvent(eventDefinitions?: ModdleElement[], parent: ModdleElement = process) {
+    return element({
       $type: 'bpmn:StartEvent',
       name: 'Antrag stellen',
+      $parent: parent,
+      ...(eventDefinitions ? { eventDefinitions } : {}),
       extensionElements: extensions({
         $type: 'zeebe:FormDefinition',
         formKey: 'Urlaubsantrag',
       } as ModdleElement),
     });
+  }
 
-    const properties = readElementProperties(startEvent);
+  it('liest den Form-Key und meldet das Startformular als zutreffend', () => {
+    const properties = readElementProperties(startEvent());
 
     expect(properties.kind).toBe('startEvent');
     expect(properties.formKey).toBe('Urlaubsantrag');
     expect(properties.startFormApplies).toBe(true);
   });
 
-  it('meldet das Startformular an einem Zeitstart als nicht zutreffend', () => {
-    const timerStart = element({
-      $type: 'bpmn:StartEvent',
-      eventDefinitions: [{ $type: 'bpmn:TimerEventDefinition' } as ModdleElement],
-      extensionElements: extensions({
-        $type: 'zeebe:FormDefinition',
-        formKey: 'Urlaubsantrag',
-      } as ModdleElement),
-    });
-
-    const properties = readElementProperties(timerStart);
+  it.each([
+    ['bpmn:TimerEventDefinition'],
+    ['bpmn:MessageEventDefinition'],
+    ['bpmn:SignalEventDefinition'],
+  ])('meldet das Startformular an einem %s-Start als nicht zutreffend', (type) => {
+    const properties = readElementProperties(startEvent([{ $type: type } as ModdleElement]));
 
     expect(properties.kind).toBe('startEvent');
+    expect(properties.startFormApplies).toBe(false);
+  });
+
+  // Der Parser behandelt nur Zeit, Nachricht und Signal gesondert; alles andere landet in
+  // seinem gewöhnlichen Zweig und bekommt sehr wohl einen Form-Key. Wäre das Panel hier
+  // strenger, stünde ein Schlüssel im Diagramm, den niemand mehr sehen oder entfernen kann.
+  it('meldet das Startformular an einem bedingten Start als zutreffend', () => {
+    const properties = readElementProperties(
+      startEvent([{ $type: 'bpmn:ConditionalEventDefinition' } as ModdleElement]),
+    );
+
+    expect(properties.startFormApplies).toBe(true);
+  });
+
+  it('meldet am Startereignis eines Subprozesses kein Startformular', () => {
+    const properties = readElementProperties(
+      startEvent(undefined, { $type: 'bpmn:SubProcess' } as ModdleElement),
+    );
+
     expect(properties.startFormApplies).toBe(false);
   });
 

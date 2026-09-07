@@ -96,7 +96,8 @@ Denselben Formularabschnitt trägt das **reine Startereignis** — dort meint er
 startet der Workflow direkt, und deshalb warnt das Panel dort nicht vor einem fehlenden
 Verweis (an einer menschlichen Aufgabe tut es das weiterhin). An einem Start mit Zeit-,
 Nachrichten- oder Signaldefinition wird der Abschnitt nicht gezeigt: Dort gäbe es niemanden,
-der ausfüllt, und der Parser liest den Schlüssel folgerichtig nicht. Die Übersicht
+der ausfüllt, und der Parser liest den Schlüssel folgerichtig nicht. Ebenso wenig am
+Startereignis eines Subprozesses — das startet den Subprozess, nicht den Workflow. Die Übersicht
 „Formulare in diesem Workflow" und die Markierung im Diagramm führen das Startformular mit
 (`bpmnEditor.listFormOwners()`).
 

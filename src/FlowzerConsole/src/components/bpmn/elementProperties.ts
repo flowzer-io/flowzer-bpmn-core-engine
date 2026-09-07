@@ -331,13 +331,32 @@ function needsJobType(businessObject: ModdleElement): boolean {
 }
 
 /**
- * Ob an diesem Element ein Startformular gilt: am Startereignis ohne Ereignisdefinition.
- * Genau diese Bedingung wertet der Parser aus (`ModelParser.HandleStartEvent`).
+ * Ereignisdefinitionen, bei denen der Parser ein `formDefinition` am Startereignis übergeht:
+ * Ein Zeit-, Nachrichten- oder Signalstart läuft ohne jemanden, der etwas ausfüllen könnte.
+ * Alle übrigen Definitionen liest `ModelParser.HandleStartEvent` als gewöhnlichen Start —
+ * dort gilt der Form-Key also sehr wohl.
+ */
+const AUTOMATIC_START_DEFINITIONS = [
+  'bpmn:TimerEventDefinition',
+  'bpmn:MessageEventDefinition',
+  'bpmn:SignalEventDefinition',
+];
+
+/**
+ * Ob an diesem Element ein Startformular gilt. Dieselbe Bedingung wertet die Engine aus:
+ * ein Startereignis unmittelbar im Prozess (`ModelParser.HandleStartEvent` für den Form-Key,
+ * `FlowzerStartForm.FormKeyOf` für die Zuordnung zum Prozess), das nicht auf Zeit, Nachricht
+ * oder Signal wartet.
+ *
+ * Das Startereignis eines Subprozesses zählt nicht: Es startet den Subprozess, nicht den
+ * Workflow — ein Formular dort füllte niemand aus.
  */
 export function startFormAppliesTo(businessObject: ModdleElement): boolean {
   if (businessObject?.$type !== 'bpmn:StartEvent') return false;
+  if ((businessObject.$parent as ModdleElement | undefined)?.$type !== 'bpmn:Process') return false;
+
   const definitions = (businessObject.eventDefinitions as ModdleElement[] | undefined) ?? [];
-  return definitions.length === 0;
+  return !definitions.some((definition) => AUTOMATIC_START_DEFINITIONS.includes(definition.$type));
 }
 
 /**

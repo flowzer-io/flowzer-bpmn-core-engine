@@ -138,10 +138,17 @@ im Diagramm eingebettetes Formular gefunden wird. Ohne Startformular antwortet d
 mit **204 No Content**; ein unbekannter Workflow mit 404, ein Workflow ohne deployte Version
 oder mit einem nicht auflösbaren Form-Key mit 400.
 
-Ein Startformular gilt nur am **reinen** Startereignis. An einem Timer-, Nachrichten- oder
-Signalstart wird ein `formDefinition` still übergangen: bpmn-js behält die
-`extensionElements`, wenn man den Ereignistyp wechselt, und ein Modell soll dadurch nicht
-unspeicherbar werden. Der Start über `/message` bleibt unberührt.
+Ein Startformular gilt nur am **reinen** Startereignis unmittelbar im Prozess. An einem
+Timer-, Nachrichten- oder Signalstart wird ein `formDefinition` still übergangen: bpmn-js
+behält die `extensionElements`, wenn man den Ereignistyp wechselt, und ein Modell soll dadurch
+nicht unspeicherbar werden. Das Startereignis eines Subprozesses zählt ebenfalls nicht — es
+startet den Subprozess und nie den Workflow. Der Start über `/message` bleibt unberührt.
+
+Genau ein Startereignis eines Prozesses darf ein Formular tragen; bei mehreren wird der Start
+abgelehnt, statt eines davon zu raten.
+
+Der Rumpf wird auch bei einem Workflow **ohne** Startformular übernommen — so lässt sich ein
+Workflow von außen mit Startvariablen anstoßen, ohne dass er dafür ein Formular braucht.
 
 ## Formulare im Workflow
 

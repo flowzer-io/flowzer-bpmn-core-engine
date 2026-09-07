@@ -419,10 +419,12 @@ describe('listFormOwners', () => {
   });
 
   it('lässt ein Startereignis mit Zeitdefinition weg', () => {
+    const process = { $type: 'bpmn:Process', id: 'Process_1' } as ModdleElement;
     const editor = createModelerDouble([
       shape(
         {
           $type: 'bpmn:StartEvent',
+          $parent: process,
           eventDefinitions: [{ $type: 'bpmn:TimerEventDefinition' } as ModdleElement],
           extensionElements: {
             $type: 'bpmn:ExtensionElements',
@@ -434,5 +436,29 @@ describe('listFormOwners', () => {
     ]);
 
     expect(editor.listFormOwners()).toEqual([]);
+  });
+
+  // bpmn-js fuehrt die Beschriftung eines benannten Ereignisses als eigenes Element mit
+  // demselben businessObject. Ohne den Ausschluss stuende das Startformular zweimal in der
+  // Uebersicht — und das Diagramm truege zwei Markierungen.
+  it('zählt die Beschriftung eines Startereignisses nicht als zweiten Träger', () => {
+    const process = { $type: 'bpmn:Process', id: 'Process_1' } as ModdleElement;
+    const businessObject = {
+      $type: 'bpmn:StartEvent',
+      name: 'Antrag stellen',
+      $parent: process,
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:FormDefinition', formKey: 'Antrag' }],
+      } as ModdleElement,
+    } as ModdleElement;
+
+    const startShape = shape(businessObject as Partial<ModdleElement> & { $type: string }, 'StartEvent_1');
+    const labelShape = {
+      ...shape(businessObject as Partial<ModdleElement> & { $type: string }, 'StartEvent_1_label'),
+      labelTarget: startShape,
+    };
+
+    expect(createModelerDouble([startShape, labelShape]).listFormOwners()).toHaveLength(1);
   });
 });
