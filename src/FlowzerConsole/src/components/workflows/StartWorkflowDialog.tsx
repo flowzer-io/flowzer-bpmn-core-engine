@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
@@ -32,6 +32,12 @@ export function StartWorkflowDialog({
 }: StartWorkflowDialogProps) {
   const formRef = useRef<FormRendererHandle>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Der Dialog bleibt zwischen zwei Starts eingehaengt. Ohne diesen Schritt stuende beim
+  // naechsten Oeffnen noch die Meldung des letzten Versuchs da — fuer einen anderen Workflow.
+  useEffect(() => {
+    if (open) setError(null);
+  }, [open]);
 
   async function submit() {
     if (busy) return;
