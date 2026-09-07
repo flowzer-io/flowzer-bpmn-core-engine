@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 
+import { FormKeyField } from '@/components/outline/FormKeyField';
 import { Meta, Rail, RowActions } from '@/components/outline/OutlineRow';
 import { toneSurface } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
-import { insertIntoBranch, newStep } from '@/lib/outline/edit';
+import { insertIntoBranch, newStep, setStartFormId, setStartFormKey } from '@/lib/outline/edit';
 import {
   blockLabel,
   branchLabel,
@@ -45,10 +46,36 @@ export function OutlineView({ document, selectedId, editable, onSelect, onChange
         <div className="pb-4">
           <div className="text-[14px] font-semibold">{document.startName?.trim() || 'Start'}</div>
           <div className="text-muted text-[12px]">Der Ablauf beginnt hier.</div>
+          <StartForm context={context} />
         </div>
       </div>
 
       <Sequence blocks={document.blocks} fallthrough="" context={context} />
+    </div>
+  );
+}
+
+/**
+ * Das Startformular am Startereignis: Wer den Vorgang startet, fuellt es aus,
+ * und seine Antworten sind die ersten Variablen des Vorgangs. Es ist
+ * freiwillig — ohne Formular beginnt der Ablauf wie bisher ohne Eingabe.
+ */
+function StartForm({ context }: { context: RenderContext }) {
+  const { document, editable, onChange } = context;
+  if (!editable && !document.startFormKey && !document.startFormId) return null;
+
+  return (
+    <div className="mt-3 max-w-[360px]">
+      <FormKeyField
+        label="Startformular"
+        formKey={document.startFormKey}
+        formId={document.startFormId}
+        disabled={!editable}
+        hint="Freiwillig. Ohne Formular beginnt der Ablauf ohne Eingabe."
+        onChange={(value, binding) =>
+          onChange(binding === 'formKey' ? setStartFormKey(document, value) : setStartFormId(document, value))
+        }
+      />
     </div>
   );
 }
