@@ -25,6 +25,24 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- Das Beispiel „Urlaubsantrag" wird im Original durchgespielt, damit der Abbruch bei
+             einer abgelehnten Pruefung nicht nur an einem Testmodell haengt. Die Formulare
+             kommen mit: Ihre Namen sind die Form-Keys im Modell. -->
+        <None Include="..\..\examples\urlaubsantrag\urlaubsantrag.bpmn"
+              Link="examples\urlaubsantrag.bpmn">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\examples\urlaubsantrag\formulare\urlaubsantrag.json"
+              Link="examples\formulare\urlaubsantrag.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\examples\formulare-generisch\*.json"
+              Link="examples\formulare\%(Filename)%(Extension)">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\FilesystemStorageSystem\FilesystemStorageSystem.csproj" />
         <ProjectReference Include="..\WebApiEngine\WebApiEngine.csproj" />
         <ProjectReference Include="..\PostgreSqlStorageSystem\PostgreSqlStorageSystem.csproj" />

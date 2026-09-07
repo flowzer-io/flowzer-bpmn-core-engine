@@ -3,6 +3,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 // Alle Stilblätter in fester Reihenfolge; siehe formioStyles.ts.
 import './formioStyles';
 
+import { registerDialogCalendarWidget } from './dialogCalendarWidget';
+
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
 import type { ProcessVariables } from '@/lib/api/types';
@@ -95,7 +97,9 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
       setStatus('loading');
 
       try {
-        const { Formio } = await import('@formio/js');
+        const { Formio, Widgets } = await import('@formio/js');
+        // Muss vor dem ersten Formular stehen: Form.io liest das Widget beim Aufbau.
+        registerDialogCalendarWidget(Widgets);
         if (disposed) return;
 
         const form = (await Formio.createForm(container, parsed.value, {

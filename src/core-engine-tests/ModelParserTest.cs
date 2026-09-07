@@ -546,4 +546,23 @@ public class ModelParserTest
                 .Should().NotContain(task => task.Name == "Urlaubsantrag stellen");
         }
     }
+
+    // Testzweck: Prueft, dass das Beispiel „Urlaubsantrag" genau ein abbrechendes Ende
+    // traegt. Ohne es liefen die beiden anderen Pruefungen nach einer Ablehnung weiter und
+    // haetten offene Aufgaben in den Listen stehen; ein zweites abbrechendes Ende waere ein
+    // Versehen, denn der genehmigte Weg soll ganz normal zu Ende laufen.
+    [Test]
+    public async Task ParseModel_ShouldReadExactlyOneTerminateEndEventOfTheUrlaubsantragExample()
+    {
+        await using var file = File.OpenRead(Path.Combine("examples", "urlaubsantrag.bpmn"));
+        var process = (await ModelParser.ParseModel(file)).GetProcesses().Single();
+
+        using (new AssertionScope())
+        {
+            process.FlowElements.OfType<FlowzerTerminateEvent>().Should().ContainSingle()
+                .Which.Name.Should().Be("Antrag abgelehnt");
+            process.FlowElements.OfType<EndEvent>().Where(end => end.Name == "Urlaub genehmigt")
+                .Should().ContainSingle().Which.Should().NotBeOfType<FlowzerTerminateEvent>();
+        }
+    }
 }

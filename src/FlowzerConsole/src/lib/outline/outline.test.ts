@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -19,7 +20,20 @@ function repositoryFile(relative: string): string {
   return readFileSync(resolve(directory, relative), 'utf8');
 }
 
-const URLAUBSANTRAG = repositoryFile('examples/urlaubsantrag/urlaubsantrag.bpmn');
+/**
+ * Der Urlaubsantrag als Gliederungsvorlage — eine Kopie des Beispiels aus der Zeit vor
+ * dem abbrechenden Endereignis. Das echte Beispiel liegt seitdem ausserhalb der
+ * Teilmenge (siehe docs/GLIEDERUNG-TEILMENGE.md und den Test weiter unten); die
+ * Gliederung wird dafuer nicht erweitert. Die Kopie haelt den Stand fest, an dem sich
+ * Lesen, Zerlegen und Rueckuebersetzen an einem echten, mehrzweigigen Modell messen.
+ */
+const URLAUBSANTRAG = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/urlaubsantrag-gliederung.bpmn'),
+  'utf8',
+);
+
+/** Das echte Beispiel — es muss abgelehnt werden, nicht gelesen. */
+const URLAUBSANTRAG_ECHT = repositoryFile('examples/urlaubsantrag/urlaubsantrag.bpmn');
 
 const MINIMAL = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
@@ -78,9 +92,27 @@ describe('readOutline — einfacher Ablauf', () => {
   });
 });
 
+// Testzweck: Das echte Beispiel bricht seit dem abbrechenden Endereignis den ganzen
+// Vorgang ab und liegt damit ausserhalb der Teilmenge. Die Gliederung muss es mit
+// einer Meldung ablehnen, die das Element benennt — und dabei nicht abstuerzen.
+describe('readOutline — echtes Beispiel ausserhalb der Teilmenge', () => {
+  it('lehnt den Urlaubsantrag mit einer klaren Meldung ab', () => {
+    const { document, issues } = readOutline(URLAUBSANTRAG_ECHT);
+
+    expect(hasBlocker(issues)).toBe(true);
+    // Ohne Zerlegung gibt es keine Gliederung — die Seite zeigt nur die Meldung.
+    expect(document).toBeUndefined();
+
+    const blocker = issues.find((issue) => issue.level === 'blocker');
+    expect(blocker?.message).toContain('terminateEventDefinition');
+    expect(blocker?.message).toContain('dem Diagramm vorbehalten');
+  });
+});
+
 // Testzweck: Der Urlaubsantrag ist der Testfall aus der Praxis — parallele Bloecke,
 // drei Tore hintereinander, ein gemeinsamer Ablehnungsweg. Er muss vollstaendig
-// lesbar sein, sonst taugt die Gliederung nicht.
+// lesbar sein, sonst taugt die Gliederung nicht. Geprueft wird die Vorlage unter
+// fixtures/, nicht das echte Beispiel — siehe die Erklaerung oben.
 describe('readOutline — Urlaubsantrag', () => {
   const { document, issues } = readOutline(URLAUBSANTRAG);
 
