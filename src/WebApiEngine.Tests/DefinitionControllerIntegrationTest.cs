@@ -393,6 +393,8 @@ public class DefinitionControllerIntegrationTest
         public TestInstanceStorage InstanceStorageSeed { get; }
 
         public IDefinitionStorage DefinitionStorage => _definitionStorage;
+
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage => _subscriptionStorage;
         public IInstanceStorage InstanceStorage => _instanceStorage;
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();

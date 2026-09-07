@@ -14,6 +14,7 @@ public class Storage : IStorageSystem
         _storageRoot = ResolveStorageRoot();
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
+        FolderStorage = new FolderStorage(this);
         InstanceStorage = new InstanceStorage(this);
         FormStorage = new FormStorage(this);
         ServiceTaskStorage = new ServiceTaskStorage(this);
@@ -24,6 +25,7 @@ public class Storage : IStorageSystem
     public IFormStorage FormStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
+    public IFolderStorage FolderStorage { get; }
 
     public JsonSerializerSettings NewtonSoftDefaultSettings =>
         new()

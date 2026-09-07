@@ -10,6 +10,9 @@ public interface IStorageSystem
     ///  + Definition
     /// </summary>
     IDefinitionStorage DefinitionStorage { get; }
+
+    /// <summary>Ordner des Workflow-Katalogs samt der Zuweisungen, die an ihnen haengen.</summary>
+    IFolderStorage FolderStorage { get; }
     
     IMessageSubscriptionStorage SubscriptionStorage { get; }
     

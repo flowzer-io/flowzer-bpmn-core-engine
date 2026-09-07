@@ -477,6 +477,7 @@ public class FormControllerIntegrationTest
         public TestFormStorage FormStorageSeed { get; } = formStorage;
         public NoOpDefinitionStorage DefinitionStorageSeed { get; } = new();
         public IDefinitionStorage DefinitionStorage => DefinitionStorageSeed;
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage { get; } = new NoOpMessageSubscriptionStorage();
         public NoOpInstanceStorage InstanceStorageSeed { get; } = new();
         public IInstanceStorage InstanceStorage => InstanceStorageSeed;

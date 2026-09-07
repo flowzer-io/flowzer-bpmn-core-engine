@@ -84,11 +84,12 @@ Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. De
 
 ### Rollen und Zuweisungen
 
-Drei Ebenen, die unabhängig voneinander wirken:
+Vier Ebenen, die unabhängig voneinander wirken:
 
 1. **Zugang** (`RequiredRole`): Wer Flowzer überhaupt benutzen darf. Ohne die Rolle antwortet jeder Fachendpunkt 403.
 2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`): Wer veröffentlichen und wer den Betrieb einsehen darf. Endpunkte mit einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
-3. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
+3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
+4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 
 Die Aufgabenliste wertet `zeebe:assignmentDefinition` aus: `assignee`, `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer genannten Gruppe gehört; wer die Operator-Rolle trägt, sieht alle.
 
@@ -98,7 +99,29 @@ Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die 
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
-Ein fachliches Berechtigungsmodell innerhalb einer Aufgabe gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+Ein fachliches Berechtigungsmodell innerhalb einer Aufgabe gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Was jemand *ändern* darf, richtet sich zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+
+### Ordner und Delegation
+
+Workflows liegen in einem Ordnerbaum (`/folder`, Feld `folderId` am Katalogeintrag). An jedem Ordner hängt die Zuständigkeit für alles, was darin liegt:
+
+| Rolle am Ordner | Darf |
+|---|---|
+| `editor` — Bearbeiten | Workflows im Ordner anlegen, ändern, veröffentlichen, löschen und in einen anderen Ordner verschieben, für den dieselbe Person ebenfalls berechtigt ist |
+| `steward` — Fachverantwortung | alles davon, zusätzlich Unterordner anlegen, den Ordner umbenennen und verschieben sowie die Zuweisungen des Ordners pflegen |
+
+Regeln, die im Betrieb zählen:
+
+- **Vererbung nach unten.** Eine Zuweisung gilt für ihren Ordner und für alle Unterordner. Nach unten kann sie nur stärker werden, nie schwächer — sonst ließe sich ein geerbtes Recht durch einen Unterordner aushebeln.
+- **Die oberste Ebene bleibt der Rolle fürs Modellieren vorbehalten.** Sie gehört niemandem im Besonderen; wer nur einen Ordner verantwortet, soll nicht nebenbei neue Wurzeln anlegen können.
+- **Die Rolle `Roles:Modeler` gilt weiterhin überall.** Ist kein Rollenname konfiguriert, ist sie für alle Zugelassenen erfüllt — dann ändert sich gegenüber der bisherigen Installation nichts, und alle Ordner stehen allen offen.
+- **Lesen und Starten bleiben offen.** Ordner schränken die Sicht auf den Katalog nicht ein und verhindern auch keinen Instanzstart; sie regeln ausschließlich das Ändern.
+- **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
+- **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
+
+Zuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen (`subjectKind: "group"`) mit denselben Kennungen wie die Zuweisung im Modell — dieselbe Auswertung von `preferred_username`, `email` und `groups`, dieselbe Behandlung von Keycloak-Gruppenpfaden.
+
+Bestehende Katalogeinträge tragen kein `folderId` und liegen damit auf der obersten Ebene; ein Umzug ist nicht nötig.
 
 Für den Pilotbetrieb mit Identity Provider und Frontend-Anmeldung siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md).
 

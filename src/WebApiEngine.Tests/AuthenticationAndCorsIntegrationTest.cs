@@ -354,6 +354,8 @@ public class AuthenticationAndCorsIntegrationTest
         public Guid? LastRequestedUserTaskUserId { get; set; }
 
         public IDefinitionStorage DefinitionStorage => new EmptyDefinitionStorage();
+
+        public IFolderStorage FolderStorage { get; } = new InMemoryFolderStorage();
         public IMessageSubscriptionStorage SubscriptionStorage => new EmptySubscriptionStorage(this);
         public IInstanceStorage InstanceStorage => new EmptyInstanceStorage();
         public IFormStorage FormStorage => new EmptyFormStorage();

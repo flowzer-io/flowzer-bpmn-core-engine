@@ -65,7 +65,10 @@ public class PostgreSqlStorageIntegrationTest
         command.CommandText = string.Join(";", new[]
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
-            "message_subscriptions", "signal_subscriptions", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata"
+            "message_subscriptions", "signal_subscriptions", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
+            // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
+            // Fremdschluessel steht bewusst auf RESTRICT.
+            "workflow_folders"
         }.Select(table => $"DELETE FROM {Schema}.{table}"));
         await command.ExecuteNonQueryAsync();
     }
@@ -124,6 +127,50 @@ public class PostgreSqlStorageIntegrationTest
 
         await storage.DefinitionStorage.UpdateMetaDefinition(new BpmnMetaDefinition { DefinitionId = "catalog-1", Name = "Renamed" });
         (await storage.DefinitionStorage.GetMetaDefinitionById("catalog-1")).Name.Should().Be("Renamed");
+    }
+
+    // Testzweck: Ordner samt ihrer Zuweisungen ueberleben den Weg durch die Datenbank, und
+    // die Fehlerbilder entsprechen der Dateiablage. Die Zuweisungen liegen im JSON-Rumpf —
+    // ginge dabei die Rolle verloren, waere die Delegation stillschweigend wirkungslos.
+    [Test]
+    public async Task FolderStorage_ShouldMirrorFilesystemContract()
+    {
+        var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var finanzen = new WorkflowFolder
+        {
+            Id = Guid.NewGuid(),
+            Name = "Finanzen",
+            CreatedOn = DateTime.UtcNow,
+            Assignments =
+            [
+                new FolderAssignment { SubjectKind = FolderSubjectKind.Group, Subject = "/abteilungen/einkauf", Role = FolderRole.Steward },
+                new FolderAssignment { SubjectKind = FolderSubjectKind.User, Subject = "anna", Role = FolderRole.Editor, DisplayName = "Anna Weber" }
+            ]
+        };
+        var beschaffung = new WorkflowFolder { Id = Guid.NewGuid(), Name = "Beschaffung", ParentId = finanzen.Id };
+
+        await storage.FolderStorage.StoreFolder(finanzen);
+        await storage.FolderStorage.StoreFolder(beschaffung);
+
+        var gelesen = (await storage.FolderStorage.GetFolder(finanzen.Id))!;
+        gelesen.Assignments.Should().HaveCount(2);
+        gelesen.Assignments.Single(assignment => assignment.SubjectKind == FolderSubjectKind.Group)
+            .Role.Should().Be(FolderRole.Steward);
+        (await storage.FolderStorage.GetAllFolders()).Select(folder => folder.Name)
+            .Should().Equal("Beschaffung", "Finanzen");
+        (await storage.FolderStorage.GetFolder(Guid.NewGuid())).Should().BeNull();
+
+        await storage.FolderStorage.Invoking(s => s.StoreFolder(finanzen)).Should().ThrowAsync<DefinitionStorageConflictException>();
+        await storage.FolderStorage.Invoking(s => s.UpdateFolder(new WorkflowFolder { Id = Guid.NewGuid(), Name = "Weg" }))
+            .Should().ThrowAsync<DefinitionStorageNotFoundException>();
+        await storage.FolderStorage.Invoking(s => s.DeleteFolder(Guid.NewGuid())).Should().ThrowAsync<DefinitionStorageNotFoundException>();
+
+        beschaffung.Name = "Beschaffung neu";
+        await storage.FolderStorage.UpdateFolder(beschaffung);
+        (await storage.FolderStorage.GetFolder(beschaffung.Id))!.Name.Should().Be("Beschaffung neu");
+
+        await storage.FolderStorage.DeleteFolder(beschaffung.Id);
+        (await storage.FolderStorage.GetAllFolders()).Should().ContainSingle();
     }
 
     // Testzweck: Instanzen inklusive polymorpher Token-Elemente ueberleben den Weg durch die
