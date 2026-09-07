@@ -4,18 +4,36 @@ import { cn } from '@/lib/cn';
 
 import { Icon } from './Icon';
 
-/** Feldbeschriftung im Eigenschaften-Panel: klein, gesperrt, monospaced. */
-export function FieldLabel({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={cn(
-        'text-muted mb-1.5 font-mono text-[10.5px] font-medium tracking-[0.06em] uppercase',
-        className,
-      )}
-    >
-      {children}
-    </div>
+/**
+ * Feldbeschriftung im Eigenschaften-Panel: klein, gesperrt, monospaced.
+ *
+ * Mit `htmlFor` wird daraus eine echte Beschriftung, die auf ihr Feld zeigt — ohne sie
+ * bleibt ein Eingabefeld fuer Vorlesewerkzeuge namenlos. Ohne `htmlFor` beschriftet sie
+ * eine Gruppe und bleibt deshalb ein neutrales Element.
+ */
+export function FieldLabel({
+  children,
+  className,
+  htmlFor,
+}: {
+  children: ReactNode;
+  className?: string;
+  htmlFor?: string;
+}) {
+  const style = cn(
+    'text-muted mb-1.5 block font-mono text-[10.5px] font-medium tracking-[0.06em] uppercase',
+    className,
   );
+
+  if (htmlFor) {
+    return (
+      <label htmlFor={htmlFor} className={style}>
+        {children}
+      </label>
+    );
+  }
+
+  return <div className={style}>{children}</div>;
 }
 
 export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(

@@ -14,6 +14,11 @@ export interface FormBuilderHandle {
 interface FormBuilderProps {
   schema: string | undefined;
   onChange?: () => void;
+  /**
+   * Meldet, ob der Editor sein Schema herausgeben kann. Erst dann darf eine Oberflaeche
+   * das Speichern anbieten — vorher waere der Knopf eine Zusage, die ins Leere geht.
+   */
+  onReadyChange?: (ready: boolean) => void;
   className?: string;
 }
 
@@ -34,16 +39,18 @@ const EMPTY_SCHEMA = { display: 'form', components: [] };
  * verlustbehaftete Zwischenrepräsentation.
  */
 export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(function FormBuilder(
-  { schema, onChange, className },
+  { schema, onChange, onReadyChange, className },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
   const builderRef = useRef<BuilderInstance | null>(null);
   const onChangeRef = useRef(onChange);
+  const onReadyChangeRef = useRef(onReadyChange);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   onChangeRef.current = onChange;
+  onReadyChangeRef.current = onReadyChange;
 
   useImperativeHandle(
     ref,
@@ -99,6 +106,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
 
         setStatus('ready');
         setError(null);
+        onReadyChangeRef.current?.(true);
       } catch (cause) {
         if (disposed) return;
         setStatus('error');
@@ -110,6 +118,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
 
     return () => {
       disposed = true;
+      onReadyChangeRef.current?.(false);
       builderRef.current?.destroy();
       builderRef.current = null;
     };

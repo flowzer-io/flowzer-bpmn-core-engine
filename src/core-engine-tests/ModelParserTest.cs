@@ -217,6 +217,115 @@ public class ModelParserTest
             .WithMessage("User task 'Activity_UserTask'*");
     }
 
+    // Testzweck: Prüft, dass ein im Workflow eingebettetes Formular (zeebe:userTaskForm in den
+    // extensionElements des Prozesses) als Teil des Modells gelesen wird und der User-Task über
+    // Camundas Form-Key-Präfix darauf verweist.
+    [Test]
+    public void ParseModel_ShouldReadEmbeddedUserTaskForm_WhenProcessCarriesUserTaskForm()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_EmbeddedForm">
+                             <bpmn:process id="Process_EmbeddedForm" isExecutable="true">
+                               <bpmn:extensionElements>
+                                 <zeebe:userTaskForm id="UserTaskForm_Urlaub">{"display":"form","components":[]}</zeebe:userTaskForm>
+                               </bpmn:extensionElements>
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="camunda-forms:bpmn:UserTaskForm_Urlaub" />
+                                 </bpmn:extensionElements>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        var userTask = process.FlowElements.OfType<UserTask>().Should().ContainSingle().Subject;
+
+        using (new AssertionScope())
+        {
+            userTask.Implementation.Should().Be("camunda-forms:bpmn:UserTaskForm_Urlaub");
+            var form = process.FlowzerUserTaskForms.Should().ContainSingle().Subject;
+            form.Id.Should().Be("UserTaskForm_Urlaub");
+            form.Schema.Should().Be("""{"display":"form","components":[]}""");
+        }
+    }
+
+    // Testzweck: Prüft, dass nur die Formulare des Prozesses selbst gelesen werden. Ein
+    // gleichnamiges Element in einem Flow-Element darf nicht als Prozessformular gelten,
+    // sonst verwiese ein Form-Key auf ein Formular, das gar nicht zum Prozess gehört.
+    [Test]
+    public void ParseModel_ShouldIgnoreUserTaskForm_WhenItIsNotDirectlyOnTheProcess()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_MisplacedForm">
+                             <bpmn:process id="Process_MisplacedForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="camunda-forms:bpmn:UserTaskForm_Falsch" />
+                                   <zeebe:userTaskForm id="UserTaskForm_Falsch">{}</zeebe:userTaskForm>
+                                 </bpmn:extensionElements>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+
+        process.FlowzerUserTaskForms.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass die Wiederholungen eines Service-Tasks (zeebe:taskDefinition/@retries)
+    // ins Modell übernommen werden. Ohne sie liefe jeder Auftrag mit dem Standardwert, egal was
+    // im Diagramm steht.
+    [Test]
+    public void ParseModel_ShouldReadServiceTaskRetries()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_Retries">
+                             <bpmn:process id="Process_Retries" isExecutable="true">
+                               <bpmn:serviceTask id="Activity_MitWiederholungen">
+                                 <bpmn:extensionElements>
+                                   <zeebe:taskDefinition type="rechnung-pruefen" retries="5" />
+                                 </bpmn:extensionElements>
+                               </bpmn:serviceTask>
+                               <bpmn:serviceTask id="Activity_OhneAngabe">
+                                 <bpmn:extensionElements>
+                                   <zeebe:taskDefinition type="rechnung-buchen" />
+                                 </bpmn:extensionElements>
+                               </bpmn:serviceTask>
+                               <bpmn:serviceTask id="Activity_MitAusdruck">
+                                 <bpmn:extensionElements>
+                                   <zeebe:taskDefinition type="rechnung-melden" retries="=versuche" />
+                                 </bpmn:extensionElements>
+                               </bpmn:serviceTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var serviceTasks = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<ServiceTask>().ToDictionary(task => task.Id);
+
+        using (new AssertionScope())
+        {
+            serviceTasks["Activity_MitWiederholungen"].FlowzerRetries.Should().Be(5);
+            serviceTasks["Activity_OhneAngabe"].FlowzerRetries.Should().Be(0);
+            // Ein FEEL-Ausdruck lässt sich ohne Prozessdaten nicht auflösen; der Standardwert
+            // ist ehrlicher als eine erfundene Zahl.
+            serviceTasks["Activity_MitAusdruck"].FlowzerRetries.Should().Be(0);
+        }
+    }
+
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)
         where T : FlowElement
     {

@@ -147,8 +147,13 @@ export interface FormMetaDataDto {
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
 export interface FormDto {
   id?: string | null;
-  formId: string;
-  version: VersionDto;
+  /**
+   * Kennung im Formularbestand. Fehlt bei einem Formular, das im Workflow selbst liegt:
+   * Es hat keinen Eintrag im Bestand und keine eigene Version.
+   */
+  formId?: string | null;
+  /** Fehlt bei einem Formular aus dem Workflow — es ist mit dem Workflow versioniert. */
+  version?: VersionDto | null;
   formData?: string | null;
 }
 
