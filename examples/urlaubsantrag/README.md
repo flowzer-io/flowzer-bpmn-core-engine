@@ -31,7 +31,7 @@ Gegen eine abgesicherte Instanz zusätzlich ein Zugangstoken mit der Modellierer
 FLOWZER_TOKEN=<access-token> node examples/urlaubsantrag/import.mjs https://flowzer.example
 ```
 
-Das Skript legt vier Formulare, den Katalogeintrag und die erste deployte Version an. Es
+Das Skript legt fünf Formulare (vier wiederverwendbare und den Urlaubsantrag), den Katalogeintrag und die erste deployte Version an. Es
 ist wiederholbar: Vorhandenes bleibt stehen, es kommt nur eine neue Version dazu.
 
 ## Ausprobieren
