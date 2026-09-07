@@ -339,4 +339,136 @@ public class ModelParserTest
                 $"{typeof(T).Name}.Name");
         if (count is null && id is null && name is null) Assert.Fail("No assertion specified");
     }
+
+    // Testzweck: Prüft, dass der Parser den Form-Key eines Startformulars am reinen
+    // Startereignis liest. Ohne ihn wüsste die API nicht, welches Formular vor dem Start
+    // auszufüllen ist.
+    [Test]
+    public void ParseModel_ShouldReadStartFormKey_WhenPlainStartEventCarriesFormDefinition()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_StartForm">
+                             <bpmn:process id="Process_StartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="Urlaubsantrag" />
+                                 </bpmn:extensionElements>
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var startEvent = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<StartEvent>().Should().ContainSingle().Subject;
+
+        startEvent.FlowzerFormKey.Should().Be("Urlaubsantrag");
+    }
+
+    // Testzweck: Prüft, dass ein Startereignis ohne formDefinition keinen Form-Key trägt.
+    // Ein Workflow ohne Startformular soll wie bisher ohne Eingabe starten.
+    [Test]
+    public void ParseModel_ShouldLeaveStartFormKeyNull_WhenStartEventHasNoFormDefinition()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_NoStartForm">
+                             <bpmn:process id="Process_NoStartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var startEvent = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<StartEvent>().Should().ContainSingle().Subject;
+
+        startEvent.FlowzerFormKey.Should().BeNull();
+    }
+
+    // Testzweck: Prüft, dass auch am Startereignis formId als Ersatz für formKey gilt —
+    // dieselbe Lesereihenfolge wie am User-Task, sonst zeigte dasselbe Diagramm je nach
+    // Elementart auf ein anderes Formular.
+    [Test]
+    public void ParseModel_ShouldUseFormId_WhenStartEventHasNoFormKey()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_StartFormId">
+                             <bpmn:process id="Process_StartFormId" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formId="Form_Antrag" />
+                                 </bpmn:extensionElements>
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var startEvent = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<StartEvent>().Should().ContainSingle().Subject;
+
+        startEvent.FlowzerFormKey.Should().Be("Form_Antrag");
+    }
+
+    // Testzweck: Prüft, dass ein leerer Form-Key wie „kein Formular" gilt. Ein Leerraum wäre
+    // sonst ein Verweis, den niemand auflösen kann, und der Start bräche ohne Grund ab.
+    [Test]
+    public void ParseModel_ShouldLeaveStartFormKeyNull_WhenFormKeyIsBlank()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_BlankStartForm">
+                             <bpmn:process id="Process_BlankStartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="   " />
+                                 </bpmn:extensionElements>
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var startEvent = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<StartEvent>().Should().ContainSingle().Subject;
+
+        startEvent.FlowzerFormKey.Should().BeNull();
+    }
+
+    // Testzweck: Prüft, dass ein formDefinition an einem Timer-Startereignis stillschweigend
+    // ignoriert wird. bpmn-js behält die extensionElements beim Wechsel des Ereignistyps —
+    // ein Modellfehler daraus zu machen, machte solche Diagramme unspeicherbar.
+    [Test]
+    public void ParseModel_ShouldIgnoreFormDefinition_OnTimerStartEvent()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_TimerStartForm">
+                             <bpmn:process id="Process_TimerStartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="Urlaubsantrag" />
+                                 </bpmn:extensionElements>
+                                 <bpmn:timerEventDefinition id="Timer_1">
+                                   <bpmn:timeDuration>PT5S</bpmn:timeDuration>
+                                 </bpmn:timerEventDefinition>
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        var timerStart = process.FlowElements.OfType<FlowzerTimerStartEvent>().Should().ContainSingle().Subject;
+
+        timerStart.FlowzerFormKey.Should().BeNull();
+    }
 }
