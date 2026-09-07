@@ -7,7 +7,7 @@ name: Release
 on:
   push:
     branches:
-      - main
+      - release
     tags:
       - 'v*'
   workflow_dispatch:
@@ -96,8 +96,8 @@ jobs:
   deploy:
     name: Coolify-Deployment (Maass IT)
     needs: images
-    # Produktion folgt ausschliesslich main; Tags und manuelle Laeufe anderer Branches bauen nur Images.
-    if: github.ref == 'refs/heads/main'
+    # Produktion folgt ausschliesslich release; Tags und manuelle Laeufe anderer Branches bauen nur Images.
+    if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: maassit-production
