@@ -383,6 +383,8 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
     processName: graph.processName,
     startId: start.id,
     startName: start.name,
+    startFormKey: start.startForm?.formKey,
+    startFormId: start.startForm?.formId,
     blocks,
     embeddedForms: graph.embeddedForms,
     flowIds,
