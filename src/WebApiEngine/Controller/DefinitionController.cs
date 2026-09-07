@@ -63,6 +63,8 @@ public class DefinitionController(
     /// <c>variables</c>.
     /// </summary>
     [HttpPost("meta/{id}/instance")]
+    [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance(
         [FromRoute] string id,
         [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body)
@@ -90,6 +92,10 @@ public class DefinitionController(
     /// dass sie sofort starten kann, statt einen leeren Dialog zu zeigen.
     /// </summary>
     [HttpGet("meta/{id}/start-form")]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiStatusResult<FormDto>>> GetStartForm([FromRoute] string id)
     {
         BpmnBusinessLogic.StartFormReference startForm;
