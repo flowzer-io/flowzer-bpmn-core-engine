@@ -158,15 +158,21 @@ async function seedModelerWorkflow(request) {
 /**
  * Legt einen deployten Workflow an, dessen Startereignis ein Startformular traegt. Wer ihn
  * startet, muss das Formular zuerst ausfuellen.
+ *
+ * `components` erlaubt ein anderes Startformular als das voreingestellte Textfeld — etwa
+ * eines mit Datumsfeld, das im Dialog einen Kalender aufklappt.
  */
-async function seedStartFormWorkflow(request) {
+async function seedStartFormWorkflow(
+  request,
+  components = [{ type: 'textfield', key: 'antragsteller', label: 'Antragsteller', input: true }]
+) {
   const marke = randomUUID().slice(0, 8);
   const formularName = `Antragsdaten ${marke}`;
   await saveForm(request, {
     name: formularName,
     schema: JSON.stringify({
       display: 'form',
-      components: [{ type: 'textfield', key: 'antragsteller', label: 'Antragsteller', input: true }]
+      components
     })
   });
 
@@ -210,6 +216,77 @@ async function seedStartFormWorkflow(request) {
   await deployDefinition(request, { xml });
 
   return { name, definitionId, formularName };
+}
+
+/** Beschriftung des Datumsfeldes — ueber sie findet der Test die Eingabe wieder. */
+const DATUMSFELD = 'Erster Urlaubstag';
+
+/**
+ * Ein Datumsfeld wie im Urlaubsantrag — Form.io haengt daran einen flatpickr-Kalender.
+ *
+ * Die Kalendereinstellungen (`component.widget`) baut Form.io selbst aus diesen Angaben; ein
+ * eigener `widget`-Block im Schema waere wirkungslos. `showMeridian: false` stellt die Uhr
+ * auf 24 Stunden — sonst haengt an der Stunde noch eine AM/PM-Schaltflaeche.
+ */
+function datumsfeld({ mitUhrzeit }) {
+  return {
+    type: 'datetime',
+    key: 'von',
+    label: DATUMSFELD,
+    input: true,
+    enableDate: true,
+    enableTime: mitUhrzeit,
+    timePicker: { showMeridian: false },
+    format: mitUhrzeit ? 'dd.MM.yyyy HH:mm' : 'dd.MM.yyyy',
+    allowInput: true
+  };
+}
+
+/** Oeffnet den Startdialog eines Workflows und gibt ihn zurueck. */
+async function oeffneStartdialog(page, definitionId) {
+  await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+  await page.getByRole('button', { name: 'Starten', exact: true }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/**
+ * Das sichtbare Eingabefeld des Datumsfelds. flatpickr legt ueber das eigentliche Feld ein
+ * zweites zur Anzeige (`altInput`) und versteckt das erste — nur das zweite ist bedienbar,
+ * und nur es traegt die Beschriftung.
+ */
+function datumseingabe(dialog) {
+  return dialog.getByRole('textbox', { name: DATUMSFELD });
+}
+
+/**
+ * Klappt den Kalender des Feldes auf und waehlt einen Tag des laufenden Monats.
+ *
+ * Der Griff wird wiederholt, bis er durchgeht: Form.io laedt flatpickr nach und die
+ * Entwicklungsfassung baut das Formular wegen React StrictMode zweimal auf — der Kalender
+ * des ersten Anlaufs verschwindet dabei mitsamt seinen Tagen wieder. Der Kalender wird
+ * bewusst auf der ganzen Seite gesucht, nicht im Dialog: Ohne Zutun haengt flatpickr ihn
+ * ans <body>, und genau das soll der Test bemerken.
+ */
+async function waehleTagImKalender(dialog, feld) {
+  const kalender = dialog.page().locator('.flatpickr-calendar.open');
+
+  await expect(async () => {
+    if ((await kalender.count()) === 0) {
+      await feld.click({ timeout: 2000 });
+    }
+
+    await expect(kalender, 'Der Kalender klappt nicht auf.').toBeVisible({ timeout: 2000 });
+    // Die Randtage gehoeren zum Nachbarmonat und wuerden den Monat umblaettern.
+    await kalender
+      .locator('.flatpickr-day:not(.prevMonthDay):not(.nextMonthDay):not(.flatpickr-disabled)')
+      .nth(9)
+      .click({ timeout: 2000 });
+  }).toPass({ timeout: 25_000 });
+
+  return kalender;
 }
 
 /**
@@ -599,6 +676,46 @@ test.describe('Konsole', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('heading', { name: `\u201E${name}" starten` })).toBeVisible();
     await expect(dialog.getByText('Antragsteller')).toBeVisible();
+  });
+
+  // Testzweck: Ein Datumsfeld im Startdialog laesst sich ueber den Kalender ausfuellen.
+  // Der Kalender haengt sonst am <body>, den der modale Dialog fuer Zeigereingaben sperrt:
+  // Der Klick auf einen Tag traf das Overlay, galt flatpickr als Klick nach draussen und
+  // schloss den Kalender wieder. Von Hand tippen ging, auswaehlen nicht.
+  test('Ein Datumsfeld im Startdialog laesst sich ueber den Kalender ausfuellen', async ({ page, request }) => {
+    const { definitionId } = await seedStartFormWorkflow(request, [datumsfeld({ mitUhrzeit: false })]);
+
+    const dialog = await oeffneStartdialog(page, definitionId);
+    const feld = datumseingabe(dialog);
+
+    await waehleTagImKalender(dialog, feld);
+
+    await expect(feld, 'Der angeklickte Tag steht nicht im Eingabefeld.').not.toHaveValue('');
+    await expect(dialog, 'Der Klick in den Kalender hat den Startdialog geschlossen.').toBeVisible();
+  });
+
+  // Testzweck: Auch die Uhrzeit laesst sich im Startdialog stellen. Sie sitzt in eigenen
+  // Zahlenfeldern unten im Kalender — sie braucht neben dem Zeigerklick auch den Fokus,
+  // den die Fokusfalle des Dialogs ausserhalb seines Inhalts nicht zulaesst.
+  test('Ein Datumsfeld mit Uhrzeit laesst sich im Startdialog stellen', async ({ page, request }) => {
+    const { definitionId } = await seedStartFormWorkflow(request, [datumsfeld({ mitUhrzeit: true })]);
+
+    const dialog = await oeffneStartdialog(page, definitionId);
+    const feld = datumseingabe(dialog);
+
+    const kalender = await waehleTagImKalender(dialog, feld);
+    const mitDatum = await feld.inputValue();
+
+    // Auch hier gilt der Neuaufbau aus waehleTagImKalender: erst wiederholen, dann urteilen.
+    await expect(async () => {
+      await kalender.locator('.numInputWrapper:has(input.flatpickr-hour) .arrowUp').click({ timeout: 2000 });
+      await expect(
+        feld,
+        'Die Stundenschaltflaeche im Kalender aendert die Uhrzeit nicht.'
+      ).not.toHaveValue(mitDatum, { timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+
+    await expect(dialog, 'Der Klick in den Kalender hat den Startdialog geschlossen.').toBeVisible();
   });
 
   // Testzweck: Ein Formular, das ein deployter Workflow benutzt, laesst sich in der
