@@ -7,6 +7,8 @@ import './bpmn.css';
 
 import { cn } from '@/lib/cn';
 
+import { type Box, fitViewport } from './fitViewport';
+
 /** Darstellungszustand eines BPMN-Elements im Instanzverlauf. */
 export type NodeMarker = 'completed' | 'active' | 'failed';
 
@@ -22,10 +24,13 @@ interface BpmnViewerProps {
   interactive?: boolean;
   /** Nach dem Import auf die Zeichenfläche einpassen. */
   fit?: boolean;
+  /** Freier Rand in Pixeln, der beim Einpassen um das Diagramm bleibt. */
+  fitPadding?: number;
 }
 
 interface CanvasLike {
   zoom: (mode: string | number, center?: unknown) => void;
+  viewbox: (box?: Box) => { inner: Box; outer: { width: number; height: number } };
   addMarker: (elementId: string, marker: string) => void;
   removeMarker: (elementId: string, marker: string) => void;
 }
@@ -63,6 +68,7 @@ export function BpmnViewer({
   className,
   interactive = true,
   fit = true,
+  fitPadding = 16,
 }: BpmnViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ViewerLike | null>(null);
@@ -113,7 +119,7 @@ export function BpmnViewer({
         }
 
         viewerRef.current = viewer;
-        if (fit) viewer.get<CanvasLike>('canvas').zoom('fit-viewport');
+        if (fit) fitViewport(viewer.get<CanvasLike>('canvas'), fitPadding);
         setImported(true);
       } catch (cause) {
         viewer?.destroy();
@@ -131,7 +137,25 @@ export function BpmnViewer({
       if (viewerRef.current === viewer) viewerRef.current = null;
       setImported(false);
     };
-  }, [xml, interactive, fit]);
+  }, [xml, interactive, fit, fitPadding]);
+
+  // Das Einpassen rechnet mit der Größe der Zeichenfläche. Ändert sie sich — etwa
+  // weil die Karte im Raster breiter wird —, bliebe das Diagramm sonst an der
+  // alten Position hängen und rutschte aus der Mitte. Nur in der nicht bedienbaren
+  // Ansicht: Wo gezoomt und geschoben werden darf, würde ein Neu-Einpassen die
+  // Sicht des Betrachters wegwerfen.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!imported || !fit || interactive || !container) return;
+
+    const observer = new ResizeObserver(() => {
+      const viewer = viewerRef.current;
+      if (viewer) fitViewport(viewer.get<CanvasLike>('canvas'), fitPadding);
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [imported, fit, interactive, fitPadding]);
 
   // Markierungen und Token-Punkte werden nach dem Import gesetzt und bei
   // Änderungen aktualisiert, ohne das Diagramm neu zu importieren.
