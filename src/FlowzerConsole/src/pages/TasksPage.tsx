@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner, LoadingRows } from '@/components/ui/States';
 import { useCompleteUserTask, useUserTaskForm, useUserTasks } from '@/lib/api/queries';
+import { describeFormKey } from '@/lib/formKey';
 import type { ProcessVariables } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { useCompactLayout } from '@/lib/useCompactLayout';
@@ -253,7 +254,11 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                 <Icon name="assignment" size={18} className="text-accent" />
                 <span className="text-sm font-semibold">Formular ausfüllen</span>
                 {active.formKey && (
-                  <span className="text-faint ml-auto font-mono text-[11.5px]">{active.formKey}</span>
+                  // Ein Formular aus dem Workflow traegt dort eine technische Kennung; sie mit
+                  // Praefix anzuzeigen sagte niemandem etwas.
+                  <span className="text-faint ml-auto font-mono text-[11.5px]">
+                    {describeFormKey(active.formKey)}
+                  </span>
                 )}
               </div>
 

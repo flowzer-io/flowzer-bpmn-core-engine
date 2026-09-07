@@ -354,11 +354,155 @@ public class ApiContractHardeningIntegrationTest
         dto.FollowUpDate.Should().Be("2026-09-28T10:00:00Z");
     }
 
+    // Testzweck: Ein Formular, das im Workflow selbst liegt (zeebe:userTaskForm), muss aus der
+    // Definition kommen und nicht aus dem Formularbestand. Ohne diesen Weg braeuchte jeder
+    // Workflow mit eigenem Formular zusaetzlich einen gleichnamigen Eintrag im Bestand.
+    [Test]
+    public async Task GetUserTaskForm_ShouldReturnEmbeddedForm_WhenFormKeyPointsIntoTheWorkflow()
+    {
+        var storage = new TestStorage();
+        var definitionId = Guid.NewGuid();
+        storage.Binaries[definitionId] = WorkflowWithEmbeddedForm("UserTaskForm_Urlaub", EmbeddedSchema);
+        var subscription = AddUserTaskSubscription(
+            storage,
+            formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
+            definitionId: definitionId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/usertask/{subscription.Id}/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Successful.Should().BeTrue();
+        payload.Result!.FormData.Should().Be(EmbeddedSchema);
+        // Ein eingebettetes Formular steht in keinem Bestand — es hat deshalb keine Kennung,
+        // unter der es sich einzeln laden liesse.
+        payload.Result.FormId.Should().BeNull();
+        payload.Result.Id.Should().BeNull();
+    }
+
+    // Testzweck: Zeigt ein Form-Key auf ein eingebettetes Formular, das der Workflow nicht
+    // enthaelt, ist das ein Modellierungsfehler. Er muss die gesuchte Kennung nennen, statt
+    // als Suche im Formularbestand zu enden und ueber einen Namen zu klagen, den niemand
+    // vergeben hat.
+    [Test]
+    public async Task GetUserTaskForm_ShouldReturnBadRequest_WhenEmbeddedFormIsMissingInTheWorkflow()
+    {
+        var storage = new TestStorage();
+        var definitionId = Guid.NewGuid();
+        storage.Binaries[definitionId] = WorkflowWithEmbeddedForm("UserTaskForm_Vorhanden", EmbeddedSchema);
+        var subscription = AddUserTaskSubscription(
+            storage,
+            formKey: "camunda-forms:bpmn:UserTaskForm_Fehlt",
+            definitionId: definitionId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/usertask/{subscription.Id}/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("UserTaskForm_Fehlt");
+    }
+
+    // Testzweck: Fehlt das Diagramm zur Definition, ist das kein Serverdefekt, sondern eine
+    // Aufgabe, deren Formular nicht mehr auffindbar ist. Ohne diesen Pfad quittierte eine
+    // aufgeraeumte Ablage den Formularabruf mit einem 500.
+    [Test]
+    public async Task GetUserTaskForm_ShouldReturnBadRequest_WhenTheWorkflowDiagramIsGone()
+    {
+        var storage = new TestStorage();
+        var subscription = AddUserTaskSubscription(
+            storage,
+            formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
+            definitionId: Guid.NewGuid());
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/usertask/{subscription.Id}/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Successful.Should().BeFalse();
+        payload.ErrorMessage.Should().Contain("UserTaskForm_Urlaub");
+    }
+
+    // Testzweck: Ein Modellfehler an einer anderen Stelle des Diagramms darf einer wartenden
+    // Aufgabe nicht ihr Formular nehmen. Wuerde der Formularabruf das ganze Modell bauen, quittierte
+    // ein Service-Task ohne Auftragstyp den Aufruf mit 422 oder 500 statt mit dem Formular.
+    [Test]
+    public async Task GetUserTaskForm_ShouldReturnEmbeddedForm_EvenWhenAnotherElementIsInvalid()
+    {
+        var storage = new TestStorage();
+        var definitionId = Guid.NewGuid();
+        storage.Binaries[definitionId] = """
+                                         <?xml version="1.0" encoding="UTF-8"?>
+                                         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                           xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                                           id="Definitions_Broken">
+                                           <bpmn:process id="Process_Review" isExecutable="true">
+                                             <bpmn:extensionElements>
+                                               <zeebe:userTaskForm id="UserTaskForm_Urlaub">{"display":"form","components":[]}</zeebe:userTaskForm>
+                                             </bpmn:extensionElements>
+                                             <bpmn:serviceTask id="ServiceTask_OhneTyp" name="Kaputt" />
+                                             <bpmn:userTask id="UserTask_Review" name="Review">
+                                               <bpmn:extensionElements>
+                                                 <zeebe:formDefinition formKey="camunda-forms:bpmn:UserTaskForm_Urlaub" />
+                                               </bpmn:extensionElements>
+                                             </bpmn:userTask>
+                                           </bpmn:process>
+                                         </bpmn:definitions>
+                                         """;
+        var subscription = AddUserTaskSubscription(
+            storage,
+            formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
+            definitionId: definitionId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync($"/usertask/{subscription.Id}/form");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Result!.FormData.Should().Be("""{"display":"form","components":[]}""");
+        // Ein Formular aus dem Workflow traegt keine eigene Version; eine erfundene 0.0 waere
+        // eine Angabe, die es nicht gibt.
+        payload.Result.Version.Should().BeNull();
+    }
+
+    private const string EmbeddedSchema = """{"display":"form","components":[{"type":"textfield","key":"grund"}]}""";
+
+    private static string WorkflowWithEmbeddedForm(string formId, string schema) =>
+        $"""
+         <?xml version="1.0" encoding="UTF-8"?>
+         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                           xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                           id="Definitions_Embedded">
+           <bpmn:process id="Process_Review" isExecutable="true">
+             <bpmn:extensionElements>
+               <zeebe:userTaskForm id="{formId}">{schema}</zeebe:userTaskForm>
+             </bpmn:extensionElements>
+             <bpmn:userTask id="UserTask_Review" name="Review">
+               <bpmn:extensionElements>
+                 <zeebe:formDefinition formKey="camunda-forms:bpmn:{formId}" />
+               </bpmn:extensionElements>
+             </bpmn:userTask>
+           </bpmn:process>
+         </bpmn:definitions>
+         """;
+
     private static ExtendedUserTaskSubscription AddUserTaskSubscription(
         TestStorage storage,
         string formKey,
         string? dueDate = null,
-        string? followUpDate = null)
+        string? followUpDate = null,
+        Guid? definitionId = null)
     {
         var instanceId = Guid.NewGuid();
         var subscription = new ExtendedUserTaskSubscription
@@ -381,7 +525,7 @@ public class ApiContractHardeningIntegrationTest
             },
             ProcessInstanceId = instanceId,
             MetaDefinitionId = "review-process",
-            DefinitionId = Guid.NewGuid(),
+            DefinitionId = definitionId ?? Guid.NewGuid(),
             ProcessId = "Process_Review",
             DefinitionMetaName = "Review Process",
             DefinitionVersion = new Model.Version(1, 0)

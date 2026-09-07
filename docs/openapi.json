@@ -2498,9 +2498,6 @@
         "additionalProperties": false
       },
       "FormDto": {
-        "required": [
-          "formId"
-        ],
         "type": "object",
         "properties": {
           "id": {
@@ -2510,7 +2507,8 @@
           },
           "formId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "nullable": true
           },
           "version": {
             "$ref": "#/components/schemas/VersionDto"

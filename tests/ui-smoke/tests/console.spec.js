@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const {
+  buildMessageStartUserTaskXml,
   buildPlainStartXml,
   createDefinitionMeta,
   deployDefinition,
@@ -77,6 +78,120 @@ async function seedFormTask(request) {
   return { name, formularName };
 }
 
+/**
+ * Legt einen deployten Workflow mit einer menschlichen Aufgabe samt Diagrammdaten an —
+ * ohne die kann bpmn-js nichts zeichnen und nichts angeklickt werden.
+ */
+async function seedModelerWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const formularName = `Antrag ${marke}`;
+  await saveForm(request, {
+    name: formularName,
+    schema: JSON.stringify({ display: 'form', components: [] })
+  });
+
+  const name = `Modeler ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const xml = buildMessageStartUserTaskXml({
+    definitionId,
+    messageName: `Start_${marke}`,
+    formKey: formularName,
+    userTaskName: 'Antrag pruefen'
+  });
+  await deployDefinition(request, { xml });
+
+  const userTaskId = `Activity_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}_Review`;
+  return { name, definitionId, formularName, userTaskId };
+}
+
+/**
+ * Legt einen Workflow mit einem Timer-Ereignis und einer Nachricht an — die beiden Angaben,
+ * die die Engine auswertet und die vorher nur im Camunda Modeler einzustellen waren.
+ */
+async function seedEventWorkflow(request) {
+  const marke = randomUUID().slice(0, 8);
+  const name = `Ereignisse ${marke}`;
+  const definitionId = await createDefinitionMeta(request, { name });
+  const s = definitionId.replace(/[^A-Za-z0-9_]/g, '_');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Msg_${s}" name="Antrag ${marke}" />
+  <bpmn:process id="Process_${s}" isExecutable="true">
+    <bpmn:startEvent id="Start_${s}" name="Antrag kommt">
+      <bpmn:outgoing>F1_${s}</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MED_${s}" messageRef="Msg_${s}" />
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="Timer_${s}" name="Warten">
+      <bpmn:incoming>F1_${s}</bpmn:incoming><bpmn:outgoing>F2_${s}</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TED_${s}"><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_${s}"><bpmn:incoming>F2_${s}</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="F1_${s}" sourceRef="Start_${s}" targetRef="Timer_${s}" />
+    <bpmn:sequenceFlow id="F2_${s}" sourceRef="Timer_${s}" targetRef="End_${s}" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="D_${s}"><bpmndi:BPMNPlane id="P_${s}" bpmnElement="Process_${s}">
+    <bpmndi:BPMNShape id="Start_${s}_di" bpmnElement="Start_${s}"><dc:Bounds x="160" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="Timer_${s}_di" bpmnElement="Timer_${s}"><dc:Bounds x="280" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNShape id="End_${s}_di" bpmnElement="End_${s}"><dc:Bounds x="400" y="102" width="36" height="36" /></bpmndi:BPMNShape>
+    <bpmndi:BPMNEdge id="F1_${s}_di" bpmnElement="F1_${s}"><di:waypoint x="196" y="120" /><di:waypoint x="280" y="120" /></bpmndi:BPMNEdge>
+    <bpmndi:BPMNEdge id="F2_${s}_di" bpmnElement="F2_${s}"><di:waypoint x="316" y="120" /><di:waypoint x="400" y="120" /></bpmndi:BPMNEdge>
+  </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+</bpmn:definitions>`;
+  await deployDefinition(request, { xml });
+  return { name, definitionId, timerId: `Timer_${s}`, startId: `Start_${s}`, nachrichtenname: `Antrag ${marke}` };
+}
+
+/**
+ * Ein Ablauf, den die Gliederung vollstaendig abbildet: ein Schritt mit Formular und ein
+ * Tor mit Bedingung und Standardweg.
+ */
+function buildOutlineXml({ definitionId, marke, formularName }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${marke}" isExecutable="true">
+    <bpmn:startEvent id="Start_${marke}" name="Antrag da" />
+    <bpmn:userTask id="Task_${marke}" name="Antrag pruefen">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="${formularName}" />
+        <zeebe:assignmentDefinition candidateGroups="Vorgesetzte" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gw_${marke}" name="Genug Budget?" default="Nein_${marke}" />
+    <bpmn:endEvent id="Ja_${marke}" name="Freigegeben" />
+    <bpmn:endEvent id="Nein_End_${marke}" name="Abgelehnt" />
+    <bpmn:sequenceFlow id="F1_${marke}" sourceRef="Start_${marke}" targetRef="Task_${marke}" />
+    <bpmn:sequenceFlow id="F2_${marke}" sourceRef="Task_${marke}" targetRef="Gw_${marke}" />
+    <bpmn:sequenceFlow id="Ja_Flow_${marke}" name="ja" sourceRef="Gw_${marke}" targetRef="Ja_${marke}">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=entscheidung = "ja"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Nein_${marke}" name="sonst" sourceRef="Gw_${marke}" targetRef="Nein_End_${marke}" />
+  </bpmn:process>
+</bpmn:definitions>`;
+}
+
+/** Ein Ablauf mit einer Aufgabe, die die Gliederung nicht kennt: eine schlichte `bpmn:task`. */
+function buildUnsupportedXml({ definitionId, marke }) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_${marke}" isExecutable="true">
+    <bpmn:startEvent id="Start_${marke}" name="Start" />
+    <bpmn:task id="Task_${marke}" name="Irgendetwas" />
+    <bpmn:endEvent id="End_${marke}" name="Fertig" />
+    <bpmn:sequenceFlow id="F1_${marke}" sourceRef="Start_${marke}" targetRef="Task_${marke}" />
+    <bpmn:sequenceFlow id="F2_${marke}" sourceRef="Task_${marke}" targetRef="End_${marke}" />
+  </bpmn:process>
+</bpmn:definitions>`;
+}
+
 test.describe('Konsole', () => {
   for (const [route, description, locate] of [
     ['/', 'Startseite', (page) => page.getByRole('button', { name: 'Prozess starten' })],
@@ -122,6 +237,105 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
+  });
+
+  // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des
+  // vollen Zeebe-Umfangs. Geprueft wird an der menschlichen Aufgabe, weil dort alle vier
+  // Abschnitte zusammenkommen — und weil das Formular aus dem Bestand vorbelegt sein muss.
+  test('Das Eigenschaften-Panel zeigt die Felder einer menschlichen Aufgabe', async ({ page, request }) => {
+    const { definitionId, formularName, userTaskId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.locator(`.djs-element[data-element-id="${userTaskId}"]`).click();
+
+    for (const abschnitt of ['Formular', 'Zuweisung', 'Frist', 'Zuordnungen']) {
+      await expect(
+        page.getByRole('heading', { name: abschnitt, exact: true }),
+        `Der Abschnitt „${abschnitt}" fehlt im Eigenschaften-Panel.`
+      ).toBeVisible();
+    }
+
+    await expect(page.getByRole('combobox', { name: 'Formular', exact: true })).toHaveValue(formularName);
+  });
+
+  // Testzweck: Die Markierung am Element sagt, dass an dieser Aufgabe ein Formular haengt.
+  // Ohne sie ist dem Diagramm nicht anzusehen, welche Aufgabe schon eine Eingabemaske hat.
+  test('Eine Aufgabe mit Formular ist im Diagramm markiert', async ({ page, request }) => {
+    const { definitionId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+
+    await expect(page.locator('.flowzer-form-badge')).toHaveCount(1);
+  });
+
+  // Testzweck: Ein Formular laesst sich im Workflow selbst anlegen und wird mit ihm
+  // gespeichert. Der Weg beruehrt beide neuen Teile — das eigene Panel schreibt
+  // `zeebe:userTaskForm` ins Diagramm, und die Uebersicht zeigt es als Formular des
+  // Workflows statt als eines aus dem Bestand.
+  test('Ein Formular laesst sich im Workflow selbst anlegen', async ({ page, request }) => {
+    const { definitionId, userTaskId } = await seedModelerWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await page.locator(`.djs-element[data-element-id="${userTaskId}"]`).click();
+
+    await page.getByRole('tab', { name: 'In diesem Workflow' }).click();
+    await page.getByLabel('Formular im Workflow').selectOption({ label: 'Neues Formular anlegen …' });
+
+    const dialog = page.getByRole('dialog', { name: 'Formular in diesem Workflow' });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Übernehmen' }).click();
+    await expect(dialog).toBeHidden();
+
+    // Die Aufgabe haengt jetzt an einem Formular des Workflows.
+    await expect(page.getByRole('button', { name: 'Felder bearbeiten' })).toBeVisible();
+
+    // Ohne Auswahl zeigt das Panel den ganzen Workflow — dort steht die Formularuebersicht.
+    await page.locator('.bpmn-surface .djs-container').click({ position: { x: 400, y: 520 } });
+    await expect(page.getByRole('heading', { name: 'Formulare in diesem Workflow' })).toBeVisible();
+    await expect(page.getByText('Im Workflow', { exact: true })).toBeVisible();
+    // Die Uebersicht verlinkt die Aufgabe, die das Formular benutzt.
+    await expect(page.getByRole('button', { name: 'Antrag pruefen', exact: true })).toBeVisible();
+  });
+
+  // Testzweck: Timer und Nachricht wertet die Engine aus, und beide lassen sich hier
+  // einstellen. Ohne diese Felder waere der Modellierer fuer solche Workflows unbrauchbar —
+  // sie liessen sich zeichnen, aber nicht vollstaendig belegen.
+  test('Das Panel stellt Zeitangabe und Nachricht ein', async ({ page, request }) => {
+    const { definitionId, timerId, startId, nachrichtenname } = await seedEventWorkflow(request);
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+
+    await page.locator(`.djs-element[data-element-id="${timerId}"]`).click();
+    const zeitangabe = page.getByRole('region', { name: 'Zeitangabe' });
+    await expect(zeitangabe.getByRole('textbox', { name: 'Wert' })).toHaveValue('PT1H');
+
+    // Die Art bestimmt, was im Feld stehen darf; der Wechsel darf die Angabe nicht verlieren.
+    await zeitangabe.getByRole('tab', { name: 'Zyklus' }).click();
+    const wert = zeitangabe.getByRole('textbox', { name: 'Wert' });
+    await wert.fill('R3/PT2H');
+    await wert.press('Enter');
+
+    // Mehrere Abschnitte haben ein Feld „Name"; der Bereichsname macht sie unterscheidbar.
+    await page.locator(`.djs-element[data-element-id="${startId}"]`).click();
+    const nachricht = page.getByRole('region', { name: 'Nachricht' });
+    await expect(nachricht.getByRole('textbox', { name: 'Name' })).toHaveValue(nachrichtenname);
+
+    const schluessel = nachricht.getByRole('textbox', { name: 'Korrelationsschlüssel' });
+    await schluessel.fill('=antragsnummer');
+    await schluessel.press('Enter');
+
+    // Erst das Speichern beweist, dass die Engine das Ergebnis auch liest.
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.getByText(/^Version v\d+\.\d+ gespeichert$/)).toBeVisible();
+
+    // Und erst das erneute Laden beweist, dass die alte Zeitangabe wirklich weg ist: Stuenden
+    // Dauer und Zyklus beide im XML, naehme die Engine die Dauer — und das Speichern waere
+    // trotzdem gruen.
+    await page.reload();
+    await page.locator(`.djs-element[data-element-id="${timerId}"]`).click();
+    const nachDemLaden = page.getByRole('region', { name: 'Zeitangabe' });
+    await expect(nachDemLaden.getByRole('tab', { name: 'Zyklus' })).toHaveAttribute('aria-selected', 'true');
+    await expect(nachDemLaden.getByRole('textbox', { name: 'Wert' })).toHaveValue('R3/PT2H');
   });
 
   // Testzweck: Anlegen fragt zuerst den Namen und legt erst danach an. Vorher entstand
@@ -249,5 +463,39 @@ test.describe('Konsole', () => {
     await dialog.getByRole('button', { name: 'Endgültig löschen' }).click();
 
     await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+  });
+
+  // Testzweck: Die Gliederung zeigt denselben Workflow als Liste statt als Diagramm —
+  // Schritt mit Formular, Tor mit Bedingung. Sie ist die zweite Oberflaeche neben dem
+  // Modeler und muss ohne bpmn-js zeichnen.
+  test('Die Gliederung zeigt den Ablauf als Liste', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const formularName = `Gliederung ${marke}`;
+    await saveForm(request, { name: formularName, schema: JSON.stringify({ display: 'form', components: [] }) });
+
+    const definitionId = await createDefinitionMeta(request, { name: `Gliederung ${marke}` });
+    await deployDefinition(request, { xml: buildOutlineXml({ definitionId, marke, formularName }) });
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}/gliederung`);
+
+    await expect(page.getByText('Antrag pruefen', { exact: true })).toBeVisible();
+    await expect(page.getByText('Genug Budget?', { exact: true })).toBeVisible();
+    await expect(page.getByText('=entscheidung = "ja"', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toBeEnabled();
+  });
+
+  // Testzweck: Der wichtigste Punkt der Gliederung. Ein Modell, das sie nicht vollstaendig
+  // abbildet, muss sichtbar gemeldet werden und darf nicht gespeichert werden koennen —
+  // sonst gingen die nicht dargestellten Teile beim Speichern still verloren.
+  test('Ein nicht abbildbarer Workflow sperrt das Speichern in der Gliederung', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const definitionId = await createDefinitionMeta(request, { name: `Unbekannt ${marke}` });
+    await deployDefinition(request, { xml: buildUnsupportedXml({ definitionId, marke }) });
+
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}/gliederung`);
+
+    await expect(page.getByText('Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden')).toBeVisible();
+    await expect(page.getByText('bpmn:task', { exact: false })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toBeDisabled();
   });
 });

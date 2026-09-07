@@ -27,7 +27,7 @@ interface ModelerPageProps {
 }
 
 /**
- * Modellierungsseite eines Workflows: bpmn-js mit Camunda-8-Eigenschaften-Panel,
+ * Modellierungsseite eines Workflows: bpmn-js mit dem Eigenschaften-Panel der Konsole,
  * plus Speichern (neue Version) und Deployen (Version aktivieren).
  */
 export function ModelerPage({ definitionId }: ModelerPageProps) {
@@ -208,6 +208,15 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
 
         <span className="flex-1" />
 
+        <Button
+          size="sm"
+          icon="format_list_bulleted"
+          title="Denselben Workflow als Gliederung lesen und bearbeiten"
+          onClick={() => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}/gliederung` })}
+        >
+          Gliederung
+        </Button>
+
         {latestQuery.data && (
           <span className="text-faint hidden font-mono text-[11.5px] xl:inline">
             gespeichert {formatRelative(latestQuery.data.savedOn)}
@@ -333,6 +342,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
         <BpmnModeler
           ref={modelerRef}
           xml={xmlQuery.data}
+          readOnly={!mayPublish}
           onChange={() => setDirty(true)}
           onZoomChange={setZoom}
         />
