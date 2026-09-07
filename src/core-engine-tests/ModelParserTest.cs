@@ -471,4 +471,61 @@ public class ModelParserTest
 
         timerStart.FlowzerFormKey.Should().BeNull();
     }
+
+    // Testzweck: Prüft, dass ein formDefinition an einem Nachrichten-Startereignis
+    // stillschweigend ignoriert wird. Eine eintreffende Nachricht startet den Workflow ohne
+    // Zutun — es gäbe niemanden, der das Formular ausfüllen könnte.
+    [Test]
+    public void ParseModel_ShouldIgnoreFormDefinition_OnMessageStartEvent()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_MessageStartForm">
+                             <bpmn:message id="Message_1" name="OrderCreated" />
+                             <bpmn:process id="Process_MessageStartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="message-start-form" />
+                                 </bpmn:extensionElements>
+                                 <bpmn:messageEventDefinition id="MessageEventDefinition_1" messageRef="Message_1" />
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        var messageStart = process.FlowElements.OfType<FlowzerMessageStartEvent>().Should().ContainSingle().Subject;
+
+        messageStart.FlowzerFormKey.Should().BeNull();
+    }
+
+    // Testzweck: Prüft, dass ein formDefinition an einem Signal-Startereignis stillschweigend
+    // ignoriert wird — dieselbe Begründung wie beim Nachrichtenstart.
+    [Test]
+    public void ParseModel_ShouldIgnoreFormDefinition_OnSignalStartEvent()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                                             id="Definitions_SignalStartForm">
+                             <bpmn:signal id="Signal_1" name="InventoryRefresh" />
+                             <bpmn:process id="Process_SignalStartForm" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1">
+                                 <bpmn:extensionElements>
+                                   <zeebe:formDefinition formKey="signal-start-form" />
+                                 </bpmn:extensionElements>
+                                 <bpmn:signalEventDefinition id="SignalEventDefinition_1" signalRef="Signal_1" />
+                               </bpmn:startEvent>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var process = ModelParser.ParseModel(xml).GetProcesses().Single();
+        var signalStart = process.FlowElements.OfType<FlowzerSignalStartEvent>().Should().ContainSingle().Subject;
+
+        signalStart.FlowzerFormKey.Should().BeNull();
+    }
 }
