@@ -10,7 +10,7 @@ namespace WebApiEngine.Controller;
 /// Gibt keine allgemeine Personenliste frei, sondern sucht nur im Kontext eines Workflows,
 /// den die aufrufende Person tatsächlich modellieren darf.
 /// </summary>
-[ApiController, Route("identity-directory/workflows/{definitionId}/subjects")]
+[ApiController, Route("identity-directory")]
 public sealed class IdentityDirectorySubjectController(
     IStorageSystem storageSystem,
     FolderBusinessLogic folderBusinessLogic,
@@ -19,7 +19,7 @@ public sealed class IdentityDirectorySubjectController(
     private const string HiddenResourceTitle = "Identity directory search unavailable";
     private const string HiddenResourceDetail = "The workflow or directory search is not available.";
 
-    [HttpGet]
+    [HttpGet("workflows/{definitionId}/subjects")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
