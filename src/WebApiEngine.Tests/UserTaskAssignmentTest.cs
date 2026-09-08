@@ -2,6 +2,7 @@ using BPMN.Common;
 using BPMN.HumanInteraction;
 using FluentAssertions;
 using Model;
+using StorageSystem;
 using WebApiEngine.Auth;
 
 namespace WebApiEngine.Tests;
@@ -136,6 +137,97 @@ public class UserTaskAssignmentTest
         UserTaskAssignment.IsVisibleTo(task, Identity("anna"), seeAll: false).Should().BeFalse();
     }
 
+    // Testzweck: Eine stabile Benutzerreferenz berechtigt ausschließlich die im aktiven
+    // Snapshot über exakt denselben Issuer und Subject aufgelöste Person.
+    [Test]
+    public void DirectoryAssignee_ShouldMatchExactAuthenticatedSubject()
+    {
+        var (snapshot, annaId, _, _) = Directory();
+        var task = CreateDirectoryTask(assigneeUserId: annaId);
+
+        UserTaskAssignment.IsVisibleTo(task, CurrentUser("issuer-a", "anna-subject"), snapshot, seeAll: false)
+            .Should().BeTrue();
+        UserTaskAssignment.IsVisibleTo(task, CurrentUser("issuer-b", "anna-subject"), snapshot, seeAll: false)
+            .Should().BeFalse();
+    }
+
+    // Testzweck: Gleiche Anzeigenamen, E-Mails oder Claim-Gruppen dürfen im Directory-Modus
+    // niemals auf den Legacy-Textmatcher zurückfallen.
+    [Test]
+    public void DirectoryAssignment_ShouldNotFallBackToNamesOrClaimGroups()
+    {
+        var (snapshot, annaId, _, financeId) = Directory();
+        var task = CreateDirectoryTask(assigneeUserId: annaId, candidateGroupIds: [financeId]);
+        var impostor = CurrentUser("issuer-a", "impostor-subject") with
+        {
+            Names = ["Anna", "anna@example.test"],
+            Groups = ["/finance"]
+        };
+
+        UserTaskAssignment.IsVisibleTo(task, impostor, snapshot, seeAll: false).Should().BeFalse();
+    }
+
+    // Testzweck: Kandidatenbenutzer und Kandidatengruppen werden über lokale IDs und eine
+    // aktuelle direkte Mitgliedschaft ausgewertet; eine Gruppenreferenz bleibt dabei Gruppe.
+    [Test]
+    public void DirectoryCandidates_ShouldUseStableUserAndMembershipIds()
+    {
+        var (snapshot, _, bertId, financeId) = Directory();
+        var byUser = CreateDirectoryTask(candidateUserIds: [bertId]);
+        var byGroup = CreateDirectoryTask(candidateGroupIds: [financeId]);
+
+        UserTaskAssignment.IsVisibleTo(byUser, CurrentUser("issuer-a", "bert-subject"), snapshot, seeAll: false)
+            .Should().BeTrue();
+        UserTaskAssignment.IsVisibleTo(byGroup, CurrentUser("issuer-a", "bert-subject"), snapshot, seeAll: false)
+            .Should().BeTrue();
+        byGroup.DirectoryCandidateUserIds.Should().BeEmpty();
+    }
+
+    // Testzweck: Ein fehlender Snapshot, eine fehlende Authentifizierungsidentität oder ein
+    // inzwischen deaktivierter Benutzer schließt den Zugriff; nur der Operator darf retten.
+    [Test]
+    public void DirectoryAssignment_ShouldFailClosedForUnavailableIdentityState()
+    {
+        var (snapshot, annaId, _, _) = Directory();
+        var task = CreateDirectoryTask(assigneeUserId: annaId);
+        var user = CurrentUser("issuer-a", "anna-subject");
+        snapshot.Users.Single(entry => entry.Id == annaId).IsActive = false;
+
+        UserTaskAssignment.IsVisibleTo(task, user, null, seeAll: false).Should().BeFalse();
+        UserTaskAssignment.IsVisibleTo(task, user with { Identity = null }, snapshot, seeAll: false).Should().BeFalse();
+        UserTaskAssignment.IsVisibleTo(task, user, snapshot, seeAll: false).Should().BeFalse();
+        UserTaskAssignment.IsVisibleTo(task, user, null, seeAll: true).Should().BeTrue();
+    }
+
+    // Testzweck: Eine historisch ohne neue Subscription-Felder gespeicherte Directory-Aufgabe
+    // zieht genau die stabilen Modellreferenzen nach und nicht etwa die Textzuweisung.
+    [Test]
+    public void EnsureAssignmentFromModel_ShouldRestoreDirectoryContract()
+    {
+        var assigneeId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var userTask = new UserTask
+        {
+            Id = "UserTask_1", Name = "Freigabe", Implementation = "Formular",
+            FlowzerAssignmentMode = UserTaskAssignmentMode.Directory,
+            FlowzerDirectoryAssigneeUserId = assigneeId,
+            FlowzerDirectoryCandidateGroupIds = [groupId]
+        };
+        var task = CreateTask();
+        task.Token = new Token
+        {
+            ProcessInstanceId = Guid.NewGuid(), CurrentBaseElement = userTask,
+            ActiveBoundaryEvents = [], State = FlowNodeState.Active
+        };
+
+        UserTaskAssignment.EnsureAssignmentFromModel(task);
+
+        task.AssignmentMode.Should().Be(UserTaskAssignmentMode.Directory);
+        task.DirectoryAssigneeUserId.Should().Be(assigneeId);
+        task.DirectoryCandidateGroupIds.Should().Equal(groupId);
+        task.Assignee.Should().BeNull();
+    }
+
     private static UserTaskIdentity Identity(params string[] names) => new(names, []);
 
     private static UserTaskIdentity Identity(string name, IReadOnlyCollection<string> groups) => new([name], groups);
@@ -157,5 +249,58 @@ public class UserTaskAssignmentTest
             CandidateUsers = UserTaskAssignment.SplitList(candidateUsers),
             CandidateGroups = UserTaskAssignment.SplitList(candidateGroups)
         };
+    }
+
+    private static ExtendedUserTaskSubscription CreateDirectoryTask(
+        Guid? assigneeUserId = null,
+        IReadOnlyCollection<Guid>? candidateUserIds = null,
+        IReadOnlyCollection<Guid>? candidateGroupIds = null)
+    {
+        var task = CreateTask();
+        task.AssignmentMode = UserTaskAssignmentMode.Directory;
+        task.DirectoryAssigneeUserId = assigneeUserId;
+        task.DirectoryCandidateUserIds = candidateUserIds?.ToList() ?? [];
+        task.DirectoryCandidateGroupIds = candidateGroupIds?.ToList() ?? [];
+        return task;
+    }
+
+    private static CurrentUserContext CurrentUser(string issuer, string subject) =>
+        new(Guid.NewGuid(), "test", false)
+        {
+            Identity = new AuthenticatedSubject(issuer, subject), Names = ["irrelevant"], Groups = ["/irrelevant"]
+        };
+
+    private static (DirectorySnapshot Snapshot, Guid AnnaId, Guid BertId, Guid FinanceId) Directory()
+    {
+        var annaId = Guid.NewGuid();
+        var bertId = Guid.NewGuid();
+        var financeId = Guid.NewGuid();
+        var snapshot = new DirectorySnapshot
+        {
+            GenerationId = Guid.NewGuid(), Issuer = "issuer-a", CompletedAtUtc = DateTime.UtcNow,
+            Users =
+            [
+                new DirectoryUser
+                {
+                    Id = annaId, SourceKind = DirectorySourceKind.Keycloak, Issuer = "issuer-a",
+                    Subject = "anna-subject", DisplayName = "Anna", IsActive = true
+                },
+                new DirectoryUser
+                {
+                    Id = bertId, SourceKind = DirectorySourceKind.Keycloak, Issuer = "issuer-a",
+                    Subject = "bert-subject", DisplayName = "Bert", IsActive = true
+                }
+            ],
+            Groups =
+            [
+                new DirectoryGroup
+                {
+                    Id = financeId, SourceKind = DirectorySourceKind.Keycloak, Issuer = "issuer-a",
+                    ExternalId = "finance", Name = "Finance", Path = "/finance", IsActive = true
+                }
+            ],
+            Memberships = [new DirectoryMembership { UserId = bertId, GroupId = financeId }]
+        };
+        return (snapshot, annaId, bertId, financeId);
     }
 }

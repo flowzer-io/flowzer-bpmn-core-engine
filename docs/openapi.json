@@ -3233,6 +3233,27 @@
             },
             "nullable": true
           },
+          "assignmentMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "directoryAssignee": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "directoryCandidateUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          },
+          "directoryCandidateGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          },
           "definitionMetaName": {
             "type": "string",
             "nullable": true

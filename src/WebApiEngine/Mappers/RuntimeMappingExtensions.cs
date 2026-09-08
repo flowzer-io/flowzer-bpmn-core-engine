@@ -1,4 +1,5 @@
 using Flowzer.Shared;
+using WebApiEngine.Auth;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Mappers;
@@ -31,6 +32,7 @@ public static class RuntimeMappingExtensions
     public static UserTaskSubscriptionDto ToDto(this UserTaskSubscription subscription)
     {
         ArgumentNullException.ThrowIfNull(subscription);
+        UserTaskAssignment.EnsureAssignmentFromModel(subscription);
 
         return new UserTaskSubscriptionDto
         {
@@ -43,6 +45,10 @@ public static class RuntimeMappingExtensions
             Assignee = subscription.Assignee,
             CandidateUsers = [.. subscription.CandidateUsers],
             CandidateGroups = [.. subscription.CandidateGroups],
+            AssignmentMode = AssignmentMode(subscription),
+            DirectoryAssignee = UserSubject(subscription.DirectoryAssigneeUserId),
+            DirectoryCandidateUsers = subscription.DirectoryCandidateUserIds.Select(id => UserSubject(id)).ToList(),
+            DirectoryCandidateGroups = subscription.DirectoryCandidateGroupIds.Select(GroupSubject).ToList(),
             ProcessInstanceId = subscription.ProcessInstanceId,
             DefinitionId = subscription.DefinitionId,
             ProcessId = subscription.ProcessId
@@ -52,6 +58,7 @@ public static class RuntimeMappingExtensions
     public static ExtendedUserTaskSubscriptionDto ToDto(this ExtendedUserTaskSubscription subscription, bool includeTokenContext = true)
     {
         ArgumentNullException.ThrowIfNull(subscription);
+        UserTaskAssignment.EnsureAssignmentFromModel(subscription);
 
         // Der Form-Key und die Termine stehen nur am BPMN-Modellelement. Sie werden
         // hier flach in das DTO gehoben, damit Clients sie nicht aus dem dynamischen
@@ -69,6 +76,10 @@ public static class RuntimeMappingExtensions
             Assignee = subscription.Assignee,
             CandidateUsers = [.. subscription.CandidateUsers],
             CandidateGroups = [.. subscription.CandidateGroups],
+            AssignmentMode = AssignmentMode(subscription),
+            DirectoryAssignee = UserSubject(subscription.DirectoryAssigneeUserId),
+            DirectoryCandidateUsers = subscription.DirectoryCandidateUserIds.Select(id => UserSubject(id)).ToList(),
+            DirectoryCandidateGroups = subscription.DirectoryCandidateGroupIds.Select(GroupSubject).ToList(),
             ProcessInstanceId = subscription.ProcessInstanceId,
             DefinitionId = subscription.DefinitionId,
             ProcessId = subscription.ProcessId,
@@ -80,4 +91,19 @@ public static class RuntimeMappingExtensions
             Priority = userTask?.FlowzerPriority
         };
     }
+
+    private static string AssignmentMode(UserTaskSubscription subscription) =>
+        subscription.AssignmentMode == BPMN.HumanInteraction.UserTaskAssignmentMode.Directory
+            ? "directory"
+            : "text";
+
+    private static SubjectRefDto? UserSubject(Guid? id) => id.HasValue
+        ? new SubjectRefDto { Kind = "user", Id = id.Value }
+        : null;
+
+    private static SubjectRefDto UserSubject(Guid id) =>
+        new() { Kind = "user", Id = id };
+
+    private static SubjectRefDto GroupSubject(Guid id) =>
+        new() { Kind = "group", Id = id };
 }

@@ -10,6 +10,7 @@ using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
 using WebApiEngine.Idempotency;
+using WebApiEngine.IdentityDirectory;
 using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
@@ -54,6 +55,21 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
             var model =  ModelParser.ParseModel(xmlData);
+            var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
+            DirectorySnapshot? directorySnapshot = null;
+            if (userTasks.Any(task => task.FlowzerAssignmentMode == UserTaskAssignmentMode.Directory))
+            {
+                try
+                {
+                    directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot();
+                }
+                catch (NotSupportedException)
+                {
+                    // Der Validator liefert den stabilen fachlichen Fehlervertrag auch für
+                    // ältere Storage-Adapter ohne Verzeichnisunterstützung.
+                }
+            }
+            DirectoryTaskAssignmentValidator.Validate(userTasks, directorySnapshot);
 
             // Nur neue Versionen dürfen auflösen. Ein alter Aufrufer kann eine bereits
             // gebundene Version nicht durch einen fehlenden/stalen Snapshot neu binden.

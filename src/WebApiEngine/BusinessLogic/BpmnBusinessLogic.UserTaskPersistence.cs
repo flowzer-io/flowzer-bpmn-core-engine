@@ -40,9 +40,20 @@ public partial class BpmnBusinessLogic
                 task = new UserTaskSubscription
                 {
                     Id = Guid.NewGuid(), Token = token, Name = model.Name,
-                    Assignee = string.IsNullOrWhiteSpace(model.FlowzerAssignee) ? null : model.FlowzerAssignee.Trim(),
-                    CandidateUsers = UserTaskAssignment.SplitList(model.FlowzerCandidateUsers),
-                    CandidateGroups = UserTaskAssignment.SplitList(model.FlowzerCandidateGroups),
+                    AssignmentMode = model.FlowzerAssignmentMode,
+                    Assignee = model.FlowzerAssignmentMode == UserTaskAssignmentMode.Text
+                        && !string.IsNullOrWhiteSpace(model.FlowzerAssignee)
+                            ? model.FlowzerAssignee.Trim()
+                            : null,
+                    CandidateUsers = model.FlowzerAssignmentMode == UserTaskAssignmentMode.Text
+                        ? UserTaskAssignment.SplitList(model.FlowzerCandidateUsers)
+                        : [],
+                    CandidateGroups = model.FlowzerAssignmentMode == UserTaskAssignmentMode.Text
+                        ? UserTaskAssignment.SplitList(model.FlowzerCandidateGroups)
+                        : [],
+                    DirectoryAssigneeUserId = model.FlowzerDirectoryAssigneeUserId,
+                    DirectoryCandidateUserIds = [.. model.FlowzerDirectoryCandidateUserIds],
+                    DirectoryCandidateGroupIds = [.. model.FlowzerDirectoryCandidateGroupIds],
                     ProcessInstanceId = processInstanceId, DefinitionId = definitionId,
                     MetaDefinitionId = metaDefinitionId, ProcessId = processId
                 };

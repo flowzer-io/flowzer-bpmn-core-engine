@@ -34,4 +34,13 @@ public partial class PostgreSqlStorageIntegrationTest
     {
         await StableUserTaskScenarios.CorruptAsync(new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema), duplicate);
     }
+
+    // Testzweck: Auch PostgreSQL bewahrt stabile Directory-Referenzen und Task-ID über
+    // Fortschritt sowie neue Storage-/Engine-Sessions ohne gesonderte Spaltenmigration.
+    [Test]
+    public async Task DirectoryAssignment_ShouldSurviveProgressAndRestartOnPostgreSql()
+    {
+        await StableUserTaskScenarios.DirectoryProgressAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
+    }
 }

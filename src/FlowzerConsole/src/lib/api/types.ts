@@ -217,6 +217,12 @@ export interface FormDto {
 }
 
 /** Entspricht `UserTaskSubscriptionDto`. */
+export interface SubjectRefDto {
+  kind: 'user' | 'group';
+  id: string;
+}
+
+/** Entspricht `UserTaskSubscriptionDto`. */
 export interface UserTaskSubscriptionDto {
   id: string;
   name: string;
@@ -224,6 +230,14 @@ export interface UserTaskSubscriptionDto {
   userCandidates: string[];
   userGroups: string[];
   currenAssignedUser?: string | null;
+  /** Legacy-Freitextfelder; im Directory-Modus leer. */
+  assignee?: string | null;
+  candidateUsers: string[];
+  candidateGroups: string[];
+  assignmentMode: 'text' | 'directory';
+  directoryAssignee?: SubjectRefDto | null;
+  directoryCandidateUsers: SubjectRefDto[];
+  directoryCandidateGroups: SubjectRefDto[];
   processInstanceId?: string | null;
   definitionId: string;
   processId: string;

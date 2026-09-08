@@ -82,15 +82,21 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         return client;
     }
 
-    internal async Task<UserTaskSubscription> StartAsync(string assignment, ExpandoObject? variables = null)
+    internal async Task<UserTaskSubscription> StartAsync(
+        string assignment,
+        ExpandoObject? variables = null,
+        string? assignmentExtensionXml = null)
     {
-        var definition = await DeployAsync(assignment);
+        var definition = await DeployAsync(assignment, assignmentExtensionXml: assignmentExtensionXml);
         var engine = Services.GetRequiredService<BpmnBusinessLogic>();
         var instance = await engine.StartProcessInstance(definition.DefinitionId, variables);
         return (await Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
     }
 
-    internal async Task<BpmnDefinition> DeployAsync(string assignment, string? startFormKey = null)
+    internal async Task<BpmnDefinition> DeployAsync(
+        string assignment,
+        string? startFormKey = null,
+        string? assignmentExtensionXml = null)
     {
         await FormTestSeed.StoreAsync(Storage, "Approval");
         var definition = new BpmnDefinition
@@ -102,16 +108,20 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             { DefinitionId = definition.DefinitionId, Name = "Review" });
         await Storage.DefinitionStorage.StoreDefinition(definition);
         var startForm = startFormKey is null ? "" : $"<bpmn:extensionElements><zeebe:formDefinition formKey=\"{startFormKey}\" /></bpmn:extensionElements>";
+        var assignmentElement = assignmentExtensionXml
+                                ?? $"<zeebe:assignmentDefinition {assignment} />";
         await Storage.DefinitionStorage.StoreBinary(definition.Id, $$"""
             <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
-                xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_Completion" targetNamespace="test">
+                xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                id="Definitions_Completion" targetNamespace="test">
               <bpmn:process id="Process_Completion" isExecutable="true">
                 <bpmn:startEvent id="Start">{{startForm}}<bpmn:outgoing>ToReview</bpmn:outgoing></bpmn:startEvent>
                 <bpmn:sequenceFlow id="ToReview" sourceRef="Start" targetRef="Review" />
                 <bpmn:userTask id="Review" name="Review">
                   <bpmn:extensionElements>
                     <zeebe:formDefinition formKey="Approval" />
-                    <zeebe:assignmentDefinition {{assignment}} />
+                    {{assignmentElement}}
                   </bpmn:extensionElements>
                   <bpmn:incoming>ToReview</bpmn:incoming><bpmn:outgoing>ToEnd</bpmn:outgoing>
                 </bpmn:userTask>

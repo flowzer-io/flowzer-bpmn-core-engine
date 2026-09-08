@@ -22,12 +22,15 @@ public class UserTaskController(
     {
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var userId = currentUser.RequireResolvedUserId("reading user tasks");
-        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId);
+        var userTaskSubscriptions = (await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId)).ToArray();
 
         // Die Ablage kennt nur die technische Id; die Zuweisungen im Modell nennen Namen und
         // Gruppen. Gefiltert wird deshalb hier, wo der vollstaendige Benutzerkontext vorliegt.
-        var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
         var seeAll = await HasOperatorRole();
+        var directorySnapshot = seeAll
+            ? null
+            : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+                storageSystem.IdentityDirectoryStorage, userTaskSubscriptions);
 
         var visible = userTaskSubscriptions
             .Select(subscription =>
@@ -35,7 +38,8 @@ public class UserTaskController(
                 UserTaskAssignment.EnsureAssignmentFromModel(subscription);
                 return subscription;
             })
-            .Where(subscription => UserTaskAssignment.IsVisibleTo(subscription, identity, seeAll));
+            .Where(subscription => UserTaskAssignment.IsVisibleTo(
+                subscription, currentUser, directorySnapshot, seeAll));
         // Sequenziell: Der Storage-Vertrag garantiert keine parallel nutzbare DB-Connection.
         var dtos = new List<ExtendedUserTaskSubscriptionDto>();
         foreach (var task in visible) dtos.Add(await taskView.ProjectAsync(task, seeAll));
@@ -62,13 +66,14 @@ public class UserTaskController(
 
         // Eine Aufgabe, die dieser Person nicht zusteht, wird wie eine unbekannte behandelt;
         // ein eigener Fehlercode wuerde ihre Existenz verraten.
-        if (subscription is not null)
-        {
-            UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-        }
+        var seeAll = await HasOperatorRole();
+        var directorySnapshot = subscription is null || seeAll
+            ? null
+            : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+                storageSystem.IdentityDirectoryStorage, [subscription]);
 
         if (subscription is not null
-            && !UserTaskAssignment.IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), await HasOperatorRole()))
+            && !UserTaskAssignment.IsVisibleTo(subscription, currentUser, directorySnapshot, seeAll))
         {
             subscription = null;
         }

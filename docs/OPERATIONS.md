@@ -139,6 +139,8 @@ aktive Identitäten. Die lokale ID bleibt über Synchronisationen stabil; Anzeig
 Detail sind keine Berechtigungskennungen. Eine spätere Speicherung oder Veröffentlichung
 muss die Referenz erneut gegen den dann aktiven Snapshot und dieselbe Serverpolicy prüfen.
 Der vorhandene Freitextvertrag von `zeebe:assignmentDefinition` bleibt davon unverändert.
+Für neue Aufgaben kann das Modell zusätzlich den ausdrücklich getrennten Directory-Modus
+verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
 
 Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
 auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
@@ -212,11 +214,51 @@ Vier Ebenen, die unabhängig voneinander wirken:
 3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
 4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 
-Die Aufgabenliste wertet `zeebe:assignmentDefinition` aus: `assignee`, `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer genannten Gruppe gehört; wer die Operator-Rolle trägt, sieht alle.
+User Tasks besitzen zwei ausdrücklich getrennte Zuweisungsmodi:
 
-Für den Abgleich zählt jede Kennung, die im Token steht: `preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit `/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt keine Rolle, ein Teiltreffer zählt nicht.
+- **Text (kompatibler Standard):** `zeebe:assignmentDefinition` mit `assignee`,
+  `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle
+  Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer
+  genannten Gruppe gehört.
+- **Directory:** eine versionierte Flowzer-Erweiterung mit stabilen lokalen UUIDs. Der direkte
+  Bearbeiter und Benutzerkandidaten sind Benutzerreferenzen, Kandidatengruppen bleiben
+  Gruppenreferenzen:
 
-Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig.
+  ```xml
+  <flowzer:taskAssignment mode="directory"
+      assigneeId="10000000-0000-0000-0000-000000000001"
+      candidateUserIds="10000000-0000-0000-0000-000000000002"
+      candidateGroupIds="20000000-0000-0000-0000-000000000001" />
+  ```
+
+  Das Definitions-Element muss dafür den Namespace
+  `xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"` deklarieren. Directory- und
+  Zeebe-Textwerte dürfen an derselben Aufgabe nicht gemischt werden. Beim Deployment werden
+  alle Referenzen erneut gegen den aktiven Snapshot, ihre Art und ihren Aktivstatus geprüft.
+
+Wer die Operator-Rolle trägt, sieht in beiden Modi alle Aufgaben.
+
+Nur im Textmodus zählt für den Abgleich jede Kennung, die im Token steht:
+`preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus
+dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell
+genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit
+`/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt
+keine Rolle, ein Teiltreffer zählt nicht.
+
+Im Directory-Modus gilt dieser Namensabgleich ausdrücklich **nicht**. Der Server ordnet die
+angemeldete Person ausschließlich über das exakte `(Issuer, Subject)` einem aktiven lokalen
+Benutzer zu und prüft dessen stabile ID beziehungsweise aktuelle direkte Mitgliedschaften.
+Anzeigename, E-Mail, der technische Flowzer-Benutzerwert und Gruppen-Claims sind kein
+Fallback. Fehlt der aktive Snapshot oder wurde die Identität deaktiviert, antworten Liste,
+Formular, Abschluss und Vorgangsübersicht für normale Benutzer geschlossen wie bei einer
+unbekannten Ressource. Laufende Aufgaben behalten ihre gespeicherten Referenzen; aktuelle
+Mitgliedschaften und Aktivstatus entscheiden weiterhin über den Zugriff.
+
+Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die
+Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token
+nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig. Ein fehlender
+`flowzer:taskAssignment` bedeutet immer Textmodus und löst keine automatische Migration
+anhand gleichlautender Verzeichniseinträge aus.
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
@@ -280,7 +322,11 @@ Regeln, die im Betrieb zählen:
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
 
-Zuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen (`subjectKind: "group"`) mit denselben Kennungen wie die Zuweisung im Modell — dieselbe Auswertung von `preferred_username`, `email` und `groups`, dieselbe Behandlung von Keycloak-Gruppenpfaden.
+Ordnerzuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen
+(`subjectKind: "group"`) derzeit weiterhin mit den bisherigen Textkennungen und derselben
+Auswertung von `preferred_username`, `email` und `groups`. Ihre Umstellung auf die typisierten
+Directory-Referenzen ist ein eigener M1-Slice; sie darf nicht still anhand eines Anzeigenamens
+erfolgen.
 
 Bestehende Katalogeinträge tragen kein `folderId` und liegen damit auf der obersten Ebene; ein Umzug ist nicht nötig.
 

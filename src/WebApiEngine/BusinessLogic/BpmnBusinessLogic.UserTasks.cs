@@ -61,8 +61,12 @@ public partial class BpmnBusinessLogic
             }
 
             UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-            var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
-            if (!UserTaskAssignment.IsVisibleTo(subscription, identity, canOperateAllTasks))
+            var directorySnapshot = canOperateAllTasks
+                ? null
+                : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+                    storage.IdentityDirectoryStorage, [subscription]);
+            if (!UserTaskAssignment.IsVisibleTo(
+                    subscription, currentUser, directorySnapshot, canOperateAllTasks))
             {
                 return await NotFound();
             }

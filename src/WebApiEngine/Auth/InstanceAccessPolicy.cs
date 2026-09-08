@@ -11,7 +11,7 @@ namespace WebApiEngine.Auth;
 public static class InstanceAccessPolicy
 {
     public static bool CanReadOverview(ProcessInstanceInfo instance, CurrentUserContext currentUser,
-        IEnumerable<UserTaskSubscription> tasks, bool canInspect)
+        IEnumerable<UserTaskSubscription> tasks, DirectorySnapshot? directorySnapshot, bool canInspect)
     {
         if (canInspect) return true;
         var masters = instance.Tokens.Where(token => token.ParentTokenId is null).Take(2).ToArray();
@@ -22,14 +22,17 @@ public static class InstanceAccessPolicy
         }
 
         if (instance.IsFinished) return false;
-        var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
-        return tasks.Any(task => IsCurrentTask(instance, task) && IsAssigned(task, identity));
+        return tasks.Any(task => IsCurrentTask(instance, task)
+                                 && IsAssigned(task, currentUser, directorySnapshot));
     }
 
-    private static bool IsAssigned(UserTaskSubscription task, UserTaskIdentity identity)
+    private static bool IsAssigned(
+        UserTaskSubscription task,
+        CurrentUserContext currentUser,
+        DirectorySnapshot? directorySnapshot)
     {
         UserTaskAssignment.EnsureAssignmentFromModel(task);
-        return UserTaskAssignment.IsVisibleTo(task, identity, seeAll: false);
+        return UserTaskAssignment.IsVisibleTo(task, currentUser, directorySnapshot, seeAll: false);
     }
 
     private static bool IsCurrentTask(ProcessInstanceInfo instance, UserTaskSubscription task) =>

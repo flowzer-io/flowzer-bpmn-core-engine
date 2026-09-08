@@ -90,6 +90,14 @@ Modellierungsberechtigung; fremde und unbekannte Kontexte liefern identisch `404
 Nur aktive Einträge werden neu angeboten. Dies ist noch kein Formularfeld und ändert
 die bestehende Freitext-Zuweisung nicht.
 
+**Expliziter Aufgabenmodus:** #194 implementiert den serverseitigen Vertrag für `text`
+und `directory` durchgängig von der BPMN-Erweiterung über Parser und Deployment bis zur
+persistierten Subscription und Autorisierung. Der Directory-Modus prüft ausschließlich
+stabile Benutzer-/Gruppen-IDs, exaktes `(Issuer, Subject)` und aktuelle Mitgliedschaften;
+ein Namensfallback ist ausgeschlossen. Legacy-Modelle bleiben Text. Die grafische
+Modellerauswahl folgt als eigener UI-Slice und ist damit noch nicht als vollständig geliefert
+markiert.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -144,6 +152,8 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Modell, nicht in den Abschluss-Request. Gruppen bleiben Kandidatengruppen bzw.
   Gruppenreferenzen und werden nicht zum behaupteten individuellen Bearbeiter.
   Modellierer zeigen Modus und eventuelle Mehrdeutigkeit verständlich an.
+  Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194
+  umgesetzt; die Auswahloberfläche im Modeler folgt separat.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
