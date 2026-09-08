@@ -249,7 +249,7 @@ public class UrlaubsantragTerminateIntegrationTest
         (await context.OpenUserTasks(client, instanceId)).Select(task => task.Name)
             .Should().BeEquivalentTo("Urlaub in LexOffice eintragen");
         (await context.AllJobs(client, instanceId)).Select(job => job.Type)
-            .Should().BeEquivalentTo("urlaub-genehmigung-mitteilen", "urlaub-tickytask-eintragen");
+            .Should().BeEquivalentTo("urlaub-genehmigung-mitteilen", "urlaub-fachsystem-eintragen");
     }
 
     /// <summary>

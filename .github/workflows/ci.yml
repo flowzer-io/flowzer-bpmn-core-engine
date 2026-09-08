@@ -158,6 +158,46 @@ jobs:
         working-directory: src/FlowzerConsole
         run: npm audit --audit-level=high
 
+  typescript_sdk:
+    name: Headless TypeScript SDK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: packages/flowzer-sdk/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        working-directory: packages/flowzer-sdk
+        run: npm ci
+
+      - name: OpenAPI-Typen neu erzeugen und Drift ausschließen
+        working-directory: packages/flowzer-sdk
+        run: |
+          npm run generate:openapi
+          git diff --exit-code -- src/schema.generated.ts
+
+      - name: Hostneutralität prüfen
+        run: python3 scripts/ci/check_host_neutrality.py
+
+      - name: SDK prüfen und bauen
+        working-directory: packages/flowzer-sdk
+        run: npm run check
+
+      - name: Veröffentlichbares Paket prüfen
+        working-directory: packages/flowzer-sdk
+        run: npm pack --dry-run
+
+      - name: Bekannte Schwachstellen der Abhängigkeiten prüfen
+        working-directory: packages/flowzer-sdk
+        run: npm audit --audit-level=high
+
   console_smoke:
     name: UI-Smoke-Tests der Konsole
     runs-on: ubuntu-latest

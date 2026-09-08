@@ -62,5 +62,5 @@ Dieser Slice enthält noch keine Fristen, Wiedervorlagen, Erinnerungen, Benachri
 Kommentare oder automatische Rechtevertretung. Die getrennte Umsetzung von Fristen und
 Benachrichtigungen steht in [Human-Task-Fristen und Benachrichtigungen](HUMAN-TASK-DEADLINES.md).
 Ein öffentlicher Historien-Endpunkt folgt
-erst mit der objektberechtigten Vorgangshistorie. TickyTask soll später denselben API-Vertrag
-über das headless SDK verwenden und erhält keinen direkten Datenbankzugriff.
+erst mit der objektberechtigten Vorgangshistorie. Host-Anwendungen sollen denselben API-Vertrag
+über das Headless-SDK verwenden und erhalten keinen direkten Datenbankzugriff.

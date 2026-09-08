@@ -68,7 +68,7 @@ abschließenden Astra-/High-Gesamtreview.
 ## Bewahrte Produktentscheidungen
 
 - Flowzer bleibt eigenständig, modular und unter MPL-2.0; kein Rewrite und keine
-  TickyTask-Abhängigkeit. Erste Kundenstufe mit getrennter Installation.
+  Abhängigkeit von einer konsumierenden Fachanwendung. Erste Kundenstufe mit getrennter Installation.
 - Bei Task-Zuweisungen bleibt **Text ausdrücklich erhalten**. Die spätere Auswahl
   „Bekannter Benutzer / bekannte Gruppe“ oder „Text-String“ ist in Roadmap und
   Auth-Epic verbindlich ergänzt. Kein stilles Umwandeln gleichnamiger Texte in IDs.

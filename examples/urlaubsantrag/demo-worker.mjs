@@ -4,7 +4,7 @@
  *   node examples/urlaubsantrag/demo-worker.mjs [http://localhost:5182]
  *
  * Er ersetzt keine Anbindung: Die Vertretungsprüfung schaut nur in die laufenden
- * Instanzen dieses Prozesses, benachrichtigt wird auf der Konsole, und TickyTask
+ * Instanzen dieses Prozesses, benachrichtigt wird auf der Konsole, und das Fachsystem
  * bekommt eine erfundene Vorgangsnummer. Er zeigt, wie der Ablauf durchläuft, und
  * dient als Vorlage für die echten Worker — der Vertrag steht in
  * docs/SERVICE-TASK-WORKER.md.
@@ -23,7 +23,7 @@ const TYPES = [
   'urlaub-vertretung-pruefen',
   'urlaub-genehmigung-mitteilen',
   'urlaub-ablehnung-mitteilen',
-  'urlaub-tickytask-eintragen',
+  'urlaub-fachsystem-eintragen',
 ];
 
 function headers() {
@@ -104,9 +104,9 @@ function handle(type, variables) {
       return { benachrichtigtAm: new Date().toISOString(), ablehnungsgrund: grund };
     }
 
-    case 'urlaub-tickytask-eintragen':
-      console.log(`  TickyTask-Eintrag für ${wer} angelegt`);
-      return { tickytaskVorgang: `TT-${Math.floor(Math.random() * 90000 + 10000)}` };
+    case 'urlaub-fachsystem-eintragen':
+      console.log(`  Eintrag im Fachsystem für ${wer} angelegt`);
+      return { fachsystemVorgang: `FS-${Math.floor(Math.random() * 90000 + 10000)}` };
 
     default:
       return {};

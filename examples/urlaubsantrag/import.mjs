@@ -41,7 +41,7 @@ async function main() {
         description:
           'Antrag über das Startformular stellen, parallel Urlaubstage, fachliche Entscheidung ' +
           'und Vertretung prüfen, ' +
-          'danach benachrichtigen, in LexOffice und in TickyTask eintragen.',
+          'danach benachrichtigen, in LexOffice und in einem Fachsystem eintragen.',
       },
     });
     console.log('✓ Katalogeintrag „Urlaubsantrag" angelegt');

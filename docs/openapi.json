@@ -3530,6 +3530,56 @@
         }
       }
     },
+    "/UserTask/{userTaskId}": {
+      "get": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/UserTask/{userTaskId}/form": {
       "get": {
         "tags": [
@@ -4708,6 +4758,22 @@
           },
           "workState": {
             "$ref": "#/components/schemas/UserTaskWorkStateDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtendedUserTaskSubscriptionDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDto"
           }
         },
         "additionalProperties": false

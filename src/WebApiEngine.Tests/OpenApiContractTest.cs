@@ -148,6 +148,20 @@ public class OpenApiContractTest
         statusSchema.TryGetProperty("clientSecret", out _).Should().BeFalse();
     }
 
+    // Testzweck: Der hostneutrale Task-Deep-Link bleibt als datensparsamer Umschlag
+    // beschrieben und verbirgt fremde wie unbekannte Aufgaben mit Problem Details.
+    [Test]
+    public async Task UserTaskDetailEndpoint_ShouldExposeTheEmbeddingContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var detail = GetOperation(
+            document.RootElement.GetProperty("paths"), "/UserTask/{userTaskId}", "get");
+
+        GetResponseSchema(detail, "200").Should()
+            .Be("#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult");
+        GetProblemResponse(detail, "404").Should().Be("#/components/schemas/ProblemDetails");
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

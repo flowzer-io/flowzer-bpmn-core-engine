@@ -126,7 +126,7 @@
       <bpmn:incoming>Flow_Vertretung_Ja</bpmn:incoming>
       <bpmn:outgoing>Flow_Genehmigt_Nachricht</bpmn:outgoing>
       <bpmn:outgoing>Flow_Genehmigt_LexOffice</bpmn:outgoing>
-      <bpmn:outgoing>Flow_Genehmigt_TickyTask</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Genehmigt_Fachsystem</bpmn:outgoing>
     </bpmn:parallelGateway>
 
     <bpmn:serviceTask id="Task_Nachricht" name="Antragsteller benachrichtigen">
@@ -157,9 +157,9 @@
       <bpmn:outgoing>Flow_LexOffice_Join</bpmn:outgoing>
     </bpmn:userTask>
 
-    <bpmn:serviceTask id="Task_TickyTask" name="Urlaub in TickyTask eintragen">
+    <bpmn:serviceTask id="Task_Fachsystem" name="Urlaub in externem Fachsystem eintragen">
       <bpmn:extensionElements>
-        <zeebe:taskDefinition type="urlaub-tickytask-eintragen" />
+        <zeebe:taskDefinition type="urlaub-fachsystem-eintragen" />
         <zeebe:ioMapping>
           <zeebe:input source="=mitarbeiter" target="mitarbeiter" />
           <zeebe:input source="=von" target="von" />
@@ -167,14 +167,14 @@
           <zeebe:input source="=arbeitstage" target="arbeitstage" />
         </zeebe:ioMapping>
       </bpmn:extensionElements>
-      <bpmn:incoming>Flow_Genehmigt_TickyTask</bpmn:incoming>
-      <bpmn:outgoing>Flow_TickyTask_Join</bpmn:outgoing>
+      <bpmn:incoming>Flow_Genehmigt_Fachsystem</bpmn:incoming>
+      <bpmn:outgoing>Flow_Fachsystem_Join</bpmn:outgoing>
     </bpmn:serviceTask>
 
     <bpmn:parallelGateway id="Gw_Join_Genehmigt" name="alles erledigt">
       <bpmn:incoming>Flow_Nachricht_Join</bpmn:incoming>
       <bpmn:incoming>Flow_LexOffice_Join</bpmn:incoming>
-      <bpmn:incoming>Flow_TickyTask_Join</bpmn:incoming>
+      <bpmn:incoming>Flow_Fachsystem_Join</bpmn:incoming>
       <bpmn:outgoing>Flow_Join_Ende</bpmn:outgoing>
     </bpmn:parallelGateway>
 
@@ -236,10 +236,10 @@
 
     <bpmn:sequenceFlow id="Flow_Genehmigt_Nachricht" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_Nachricht" />
     <bpmn:sequenceFlow id="Flow_Genehmigt_LexOffice" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_LexOffice" />
-    <bpmn:sequenceFlow id="Flow_Genehmigt_TickyTask" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_TickyTask" />
+    <bpmn:sequenceFlow id="Flow_Genehmigt_Fachsystem" sourceRef="Gw_Fork_Genehmigt" targetRef="Task_Fachsystem" />
     <bpmn:sequenceFlow id="Flow_Nachricht_Join" sourceRef="Task_Nachricht" targetRef="Gw_Join_Genehmigt" />
     <bpmn:sequenceFlow id="Flow_LexOffice_Join" sourceRef="Task_LexOffice" targetRef="Gw_Join_Genehmigt" />
-    <bpmn:sequenceFlow id="Flow_TickyTask_Join" sourceRef="Task_TickyTask" targetRef="Gw_Join_Genehmigt" />
+    <bpmn:sequenceFlow id="Flow_Fachsystem_Join" sourceRef="Task_Fachsystem" targetRef="Gw_Join_Genehmigt" />
     <bpmn:sequenceFlow id="Flow_Join_Ende" sourceRef="Gw_Join_Genehmigt" targetRef="End_Genehmigt" />
     <bpmn:sequenceFlow id="Flow_Ablehnung_Ende" sourceRef="Task_Ablehnung" targetRef="End_Abgelehnt" />
   </bpmn:process>
@@ -295,7 +295,7 @@
       <bpmndi:BPMNShape id="Shape_Task_LexOffice" bpmnElement="Task_LexOffice">
         <dc:Bounds x="1260" y="280" width="140" height="80" />
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Shape_Task_TickyTask" bpmnElement="Task_TickyTask">
+      <bpmndi:BPMNShape id="Shape_Task_Fachsystem" bpmnElement="Task_Fachsystem">
         <dc:Bounds x="1260" y="420" width="140" height="80" />
       </bpmndi:BPMNShape>
 
@@ -372,7 +372,7 @@
       <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_LexOffice" bpmnElement="Flow_Genehmigt_LexOffice">
         <di:waypoint x="1210" y="320" /><di:waypoint x="1260" y="320" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_TickyTask" bpmnElement="Flow_Genehmigt_TickyTask">
+      <bpmndi:BPMNEdge id="Edge_Flow_Genehmigt_Fachsystem" bpmnElement="Flow_Genehmigt_Fachsystem">
         <di:waypoint x="1185" y="345" /><di:waypoint x="1185" y="460" /><di:waypoint x="1260" y="460" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Nachricht_Join" bpmnElement="Flow_Nachricht_Join">
@@ -381,7 +381,7 @@
       <bpmndi:BPMNEdge id="Edge_Flow_LexOffice_Join" bpmnElement="Flow_LexOffice_Join">
         <di:waypoint x="1400" y="320" /><di:waypoint x="1460" y="320" />
       </bpmndi:BPMNEdge>
-      <bpmndi:BPMNEdge id="Edge_Flow_TickyTask_Join" bpmnElement="Flow_TickyTask_Join">
+      <bpmndi:BPMNEdge id="Edge_Flow_Fachsystem_Join" bpmnElement="Flow_Fachsystem_Join">
         <di:waypoint x="1400" y="460" /><di:waypoint x="1485" y="460" /><di:waypoint x="1485" y="345" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Edge_Flow_Join_Ende" bpmnElement="Flow_Join_Ende">

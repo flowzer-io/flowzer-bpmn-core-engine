@@ -45,6 +45,30 @@ public class UserTaskController(
         (await authorizationService.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
 
     /// <summary>
+    /// Liefert genau eine sichtbare Aufgabe für Deep Links und eingebettete Oberflächen.
+    /// Fremde, erledigte und unbekannte Aufgaben verwenden absichtlich denselben 404-Vertrag.
+    /// </summary>
+    [HttpGet("{userTaskId:guid}")]
+    [ProducesResponseType<ApiStatusResult<ExtendedUserTaskSubscriptionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<ExtendedUserTaskSubscriptionDto>>> GetUserTask(
+        [FromRoute] Guid userTaskId)
+    {
+        var currentUser = currentUserContextAccessor.GetCurrentUser();
+        currentUser.RequireResolvedUserId("reading a user task");
+        var task = await storageSystem.SubscriptionStorage.GetUserTaskExtended(userTaskId);
+        if (task is null) return HiddenUserTask();
+
+        var canOperate = await HasOperatorRole();
+        var access = await UserTaskWorkAuthorization.EvaluateAsync(
+            storageSystem, task, currentUser, canOperate);
+        if (!access.CanSee) return HiddenUserTask();
+
+        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto>(
+            await taskView.ProjectAsync(task, canOperate, access)));
+    }
+
+    /// <summary>
     /// Liefert das Formular, das zu einem offenen User-Task gehört.
     /// Fasst die bisher clientseitige Auflösung (Form-Key lesen, Metadaten suchen,
     /// Version laden) zu einem einzigen Aufruf zusammen.
@@ -194,4 +218,9 @@ public class UserTaskController(
         statusCode: StatusCodes.Status404NotFound,
         title: "User task draft unavailable",
         detail: "The user task or draft operation is not available.");
+
+    private ObjectResult HiddenUserTask() => Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: "User task unavailable",
+        detail: "The user task is not available.");
 }

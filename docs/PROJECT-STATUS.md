@@ -118,6 +118,22 @@ Idempotenz-Hash. Die Konsole pflegt und rendert die Aktionen, Formulare ohne Akt
 behalten den generischen Abschluss. Startformulare bleiben im ersten Slice gesperrt.
 Details: [Entscheidungsaktionen](FORM-DECISION-ACTIONS.md).
 
+## Hostneutrales TypeScript-SDK – #218 (in Umsetzung)
+
+Das eigenständig baubare Paket `@flowzer/sdk` kapselt die generische Flowzer-HTTP-API
+für Aufgabenliste, gebundene Formulare, private Entwürfe, Claim/Release/Assign/Delegate,
+idempotenten Abschluss, feld- und aktionsgebundene Verzeichnissuche sowie
+Vorgangsübersichten. Öffentliche DTOs werden aus dem versionierten OpenAPI-Snapshot
+erzeugt; die CI prüft Drift, Paketbau, Tests, Abhängigkeiten und konkrete
+Host-Anwendungsnamen im Produktcode.
+
+Das SDK besitzt keine React- oder Laufzeitabhängigkeit und keinen globalen
+Authentisierungszustand. Bearer-Token beziehungsweise BFF-CSRF-Werte kommen pro Aufruf
+über diskriminierte Host-Callbacks; Benutzer-Header und still erzeugte
+Idempotenzschlüssel gibt es nicht. Flowzer enthält dabei weder Abhängigkeit noch
+Laufzeitwissen über eine konkrete konsumierende Fachanwendung. Optionale React-
+Komponenten, Host-Adapter und eine reale Einbettungsabnahme bleiben Folgearbeiten.
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.

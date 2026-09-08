@@ -37,7 +37,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
    Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
    Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
-   fachliche Abnahme bleiben offen. SDK/Einbettung für TickyTask, Modellierungsprüfung,
+   fachliche Abnahme bleiben offen. Hostneutrales SDK und Einbettung, Modellierungsprüfung,
    Laufzeitdiagramm und belastbare Vorgangshistorie folgen.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
