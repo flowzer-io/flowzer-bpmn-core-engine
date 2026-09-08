@@ -72,6 +72,16 @@ Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datum
 und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
 Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
+## Gemeinsame Formularvertragsvektoren – #208 (Topic-Branch, noch nicht gemergt)
+
+Ein versionierter JSON-Katalog beschreibt Compile- und Submission-Fälle für
+`flowzer.forms/1` und `/2`. Serverseitiger Compiler/Validator und eine begrenzte
+Browser-Vorprüfung lesen dieselben Schemas, Eingaben und kanonischen Fehlercodes.
+Directory-Auswahl und benannte Berechnungen sind ausdrücklich `server-authoritative`;
+der Client erweitert weder Snapshotrechte noch Berechnungslogik. Der Slice verändert
+keine gespeicherten Formulare oder laufenden Instanzen. Details:
+[Prüfprofil](FORM-VALIDATION-PROFILE.md).
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.

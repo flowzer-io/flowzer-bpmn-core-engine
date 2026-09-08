@@ -111,6 +111,22 @@ bleiben enthalten. Keine eingesandten Werte im Fehlertext. Die Konsole übersetz
 bekannte Codes, zeigt Feldlabels und fokussiert die Fehlerübersicht, ohne das
 Formular neu zu mounten. Die API bleibt auch ohne Browserprüfung verbindlich.
 
+## Gemeinsame Vertragsvektoren
+
+Issue #208 führt den versionierten Katalog
+`tests/form-contract-vectors/manifest.json` ein. `FormContractVectorTest` und
+`formContractVectors.test.ts` lesen exakt dieselbe Datei. Jeder Fall besitzt eine
+stabile ID, eine deutsche Zweckbeschreibung, Profil, Schema, Kontext, Eingabe sowie
+die erwarteten kanonischen Fehlercodes oder die normalisierte Ausgabe.
+
+Der Browser-Spiegel `formContractClient.ts` dient nur als schnelle, nebenwirkungsfreie
+Vorprüfung. Er deckt die als `client-server` markierten skalaren Regeln ab. Fälle mit
+Directory-Snapshot oder benannter Berechnung tragen `server-authoritative`; der Client
+meldet dort bewusst keinen Erfolg und der API-Validator bleibt allein maßgeblich.
+Damit behauptet der Testkatalog keine Berechtigungs- oder Form.io-Parität, macht die
+Grenze aber maschinenprüfbar. Compile-Vektoren sichern zudem Script-, dynamische
+Datenquellen-, unbekannte Komponenten- und Schemagrößen-Ablehnungen ab.
+
 ## Upgrade und offene Arbeit
 
 Vor einem Upgrade bestehende Formulare inventarisieren und eine Testinstallation
@@ -119,8 +135,7 @@ beim Abschluss abgelehnt; sie brauchen einen fachlich geprüften Migrationsweg.
 Externe Altverweise ohne Snapshot werden weiterhin nicht auf heutiges `latest` geraten.
 Dieser PR migriert nur das Beispiel, **keine Kundendaten oder produktiven Workflows**.
 
-Noch offen: gemeinsame Client-/Server-Konformitätsvektoren (insbesondere der neuen
-Flowzer-Regeln), weitere erweiterte Komponenten, Entwürfe/Konflikte,
+Noch offen: weitere erweiterte Komponenten, Formularautoren-Entwürfe und
 Formular-Veröffentlichungsoberfläche, vollständiges Skriptinventar und kontrollierte
 Bestandsmigration. Auch Idempotenz, BFF und Mehrprozess-Transaktionsschutz sind nicht
 Bestandteil dieses Slices. Tests ersetzen keine allgemeine Produktionsfreigabe.

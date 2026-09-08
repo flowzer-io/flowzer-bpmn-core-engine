@@ -170,9 +170,11 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 ## M2 – Verlässliche und wiederverwendbare Formulare
 
-- [ ] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
+- [x] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
   Pflichtwerte, Bereiche, Datumsvergleiche, Auswahlregeln und deklarative Bedingungen ab;
-  gemeinsame Client-/Server-Testvektoren fehlen noch.
+  #208 ergänzt einen gemeinsamen versionierten JSON-Katalog für .NET und Vitest.
+  Directory-Snapshot und benannte Berechnungen bleiben darin ausdrücklich
+  serverautoritativ statt im Browser nachgebildet zu werden.
 - [ ] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
