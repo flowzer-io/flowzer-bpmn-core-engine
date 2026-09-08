@@ -229,6 +229,65 @@ public class FormSubmissionSecurityTest
         await context.AssertStillActiveAsync(task);
     }
 
+    // Testzweck: Beide kompatiblen Abschlussrouten verlangen dieselbe veröffentlichte
+    // Aktion und übernehmen ausschließlich deren serverseitig fest gebundene Belegung.
+    [TestCase("/usertask")]
+    [TestCase("/form/result")]
+    public async Task Completion_ShouldApplyDecisionActionOnBothRoutes(string route)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", DecisionActionSchema);
+        var task = await context.StartAsync("assignee=\"bert\"");
+        using var client = context.CreateClient();
+
+        var result = Result(task, "{\"comment\":\"Geprüft\"}");
+        result.ActionId = "approve";
+        using var response = await client.PostAsJsonAsync(route, result);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var instance = await context.Storage.InstanceStorage.GetProcessInstance(task.ProcessInstanceId!.Value);
+        var output = (IDictionary<string, object?>)instance.Tokens.Single(token => token.Id == task.Token.Id).OutputData!;
+        output["decision"].Should().Be("approved");
+    }
+
+    // Testzweck: Fehlende, unbekannte oder widersprüchliche Entscheidungen lassen die
+    // Aufgabe auf beiden historischen Routen unverändert offen und liefern stabile Codes.
+    [TestCase("/usertask", null, "{}", "", "action.required")]
+    [TestCase("/form/result", "other", "{}", "", "action.invalid")]
+    [TestCase("/usertask", "approve", "{\"decision\":\"rejected\"}", "decision", "action.conflict")]
+    [TestCase("/form/result", "approve", "{\"decision\":\"rejected\"}", "decision", "action.conflict")]
+    public async Task Completion_ShouldRejectManipulatedDecisionAction(
+        string route, string? actionId, string data, string field, string code)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", DecisionActionSchema);
+        var task = await context.StartAsync("assignee=\"bert\"");
+        using var client = context.CreateClient();
+        var result = Result(task, data);
+        result.ActionId = actionId;
+
+        using var response = await client.PostAsJsonAsync(route, result);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        problem.GetProperty("errors").GetProperty(field)[0].GetString().Should().Be(code);
+        await context.AssertStillActiveAsync(task);
+    }
+
+    // Testzweck: Ein Profil-4-Entscheidungsformular darf im ersten Slice nicht als
+    // Startformular deployt werden; der Fehler muss vor jeder Aktivierung sichtbar sein.
+    [Test]
+    public async Task Deployment_ShouldRejectDecisionActionsOnStartForm()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", DecisionActionSchema);
+
+        Func<Task> deploy = () => context.DeployAsync("assignee=\"bert\"", startFormKey: "Approval");
+
+        await deploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*action.start_form*");
+        (await context.Storage.DefinitionStorage.GetDeployedDefinition("Definitions_Completion")).Should().BeNull();
+    }
+
     private const string DirectorySchema = """
         {"flowzer":{"contractVersion":2},"components":[
           {"type":"flowzerSubject","key":"representative","validate":{"required":true},
@@ -242,6 +301,18 @@ public class FormSubmissionSecurityTest
              {"type":"textfield","key":"name","validate":{"required":true}},
              {"type":"number","key":"amount","validate":{"min":1}}
            ]}]}
+        """;
+
+    private const string DecisionActionSchema = """
+        {"flowzer":{"contractVersion":4,"actions":[
+          {"id":"approve","label":"Freigeben","variant":"primary",
+           "set":[{"field":"decision","value":"approved"}]},
+          {"id":"reject","label":"Ablehnen","variant":"danger",
+           "set":[{"field":"decision","value":"rejected"}]}
+         ]},"components":[
+          {"type":"textarea","key":"comment"},
+          {"type":"hidden","key":"decision","validate":{"required":true}}
+         ]}
         """;
 
     private static async Task<Guid> PublishDirectoryUserAsync(

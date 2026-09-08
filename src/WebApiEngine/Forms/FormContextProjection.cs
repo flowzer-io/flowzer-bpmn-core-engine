@@ -26,7 +26,7 @@ public static class FormContextProjection
             var version = root.ValueKind == JsonValueKind.Object
                 ? FormJson.Number(FormJson.Get(root, "flowzer"), "contractVersion") ?? 1
                 : 1;
-            var allowRepeatGroups = version == 3;
+            var allowRepeatGroups = version >= 3;
             if (allowRepeatGroups)
             {
                 // Profil 3 darf verschachtelte Objektwerte nur nach erfolgreicher

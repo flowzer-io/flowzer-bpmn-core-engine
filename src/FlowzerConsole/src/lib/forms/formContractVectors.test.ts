@@ -20,7 +20,7 @@ interface FormContractVector {
   id: string;
   purpose: string;
   phase: 'compile' | 'submission';
-  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3';
+  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3' | 'flowzer.forms/4';
   comparison: 'client-server' | 'server-authoritative';
   schema: Record<string, unknown>;
   schemaPaddingLength?: number;
@@ -46,6 +46,15 @@ function schemaOf(vector: FormContractVector) {
 }
 
 describe('gemeinsame Formularvertragsvektoren', () => {
+  // Testzweck: Die optionale Versionsangabe behandelt einen leeren Altwert genauso
+  // wie der Server als Profil 1, statt ihn durch Number('') irrtümlich abzulehnen.
+  it('behandelt eine leere Vertragsversion wie den Server als Profil 1', () => {
+    expect(inspectClientFormContract(JSON.stringify({
+      flowzer: { contractVersion: '' },
+      components: [],
+    }))).toEqual({ profile: 'flowzer.forms/1', requiresServer: false });
+  });
+
   // Testzweck: Vitest liest denselben versionierten Vektorkatalog wie .NET und
   // sichert eindeutige, nachvollziehbar beschriebene Fälle ab.
   it('lädt genau einen eindeutig beschriebenen Katalog', () => {

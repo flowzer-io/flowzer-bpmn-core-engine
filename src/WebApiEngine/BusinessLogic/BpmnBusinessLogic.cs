@@ -120,6 +120,21 @@ public partial class BpmnBusinessLogic(
             }
             FormKeyResolver.ValidateBindings(definition.FormBindings, directorySnapshot);
 
+            // Profil-4-Aktionen sind im ersten Slice bewusst Human-Task-spezifisch. Ein
+            // identisches Formular an einem Startereignis würde sonst ohne Aktions-ID erst
+            // zur Laufzeit scheitern und Autoren eine nicht startbare Version veröffentlichen lassen.
+            var startFormKeys = model.GetProcesses()
+                .SelectMany(process => process.FlowElements)
+                .OfType<StartEvent>()
+                .Select(start => start.FlowzerFormKey?.Trim())
+                .Where(key => !string.IsNullOrWhiteSpace(key));
+            foreach (var startFormKey in startFormKeys)
+            {
+                if (definition.FormBindings.TryGetValue(startFormKey!, out var binding)
+                    && FormContractCompiler.Compile(binding.FormData).Actions.Count > 0)
+                    throw new FormContractException("action.start_form");
+            }
+
             await UndeployDefinition(definition, storageSystem);
 
             foreach (var process in model.GetProcesses())

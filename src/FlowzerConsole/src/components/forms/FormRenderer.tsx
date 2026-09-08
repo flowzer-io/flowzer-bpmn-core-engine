@@ -14,7 +14,7 @@ export interface FormRendererHandle {
   /** Aktuelle Eingabedaten des Formulars. */
   getData: () => ProcessVariables;
   /** Prüft alle Felder und meldet, ob das Formular gültig ist. */
-  validate: () => Promise<boolean>;
+  validate: (trustedOverrides?: ProcessVariables) => Promise<boolean>;
 }
 
 interface FormRendererProps {
@@ -77,10 +77,17 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
     ref,
     () => ({
       getData: () => instanceRef.current?.submission.data ?? {},
-      validate: async () => {
+      validate: async (trustedOverrides = {}) => {
         const instance = instanceRef.current;
         if (!instance) return false;
-        return instance.checkValidity(instance.submission.data, true, {});
+        // Aktionsbelegungen stammen aus dem kompilierten veröffentlichten Schema. Die
+        // Vorschau dient nur der Form.io-Pflichtfeldprüfung; gesendet werden sie nicht,
+        // weil der Server sie erneut aus seinem gebundenen Snapshot ableitet.
+        return instance.checkValidity(
+          { ...instance.submission.data, ...trustedOverrides },
+          true,
+          {},
+        );
       },
     }),
     [],

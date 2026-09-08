@@ -111,7 +111,9 @@ public partial class BpmnBusinessLogic
 
                 var validated = await ValidateFormInputAsync(storage,
                     (activeTokens[0].CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation,
-                    processInstance.DefinitionId, result.Data, WebApiEngine.Forms.TaskFormContext.Read(processInstance.Tokens, activeTokens[0]));
+                    processInstance.DefinitionId, result.Data,
+                    WebApiEngine.Forms.TaskFormContext.Read(processInstance.Tokens, activeTokens[0]),
+                    result.ActionId, allowActions: true);
                 try
                 {
                     var now = DateTimeOffset.UtcNow;

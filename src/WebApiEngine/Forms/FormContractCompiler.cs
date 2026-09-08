@@ -27,11 +27,12 @@ public static class FormContractCompiler
             if (root.ValueKind != JsonValueKind.Object) Fail("schema.object");
             if (Scripts.Any(key => Active(Get(root, key)))) Fail("schema.script");
             var version = Number(Get(root, "flowzer"), "contractVersion") ?? 1;
-            if (version is not (1 or 2 or 3) || decimal.Truncate(version) != version) Fail("schema.version");
+            if (version is not (1 or 2 or 3 or 4) || decimal.Truncate(version) != version) Fail("schema.version");
             var profile = version switch
             {
                 2 => FormContract.ProfileV2,
                 3 => FormContract.ProfileV3,
+                4 => FormContract.ProfileV4,
                 _ => FormContract.ProfileV1
             };
             List<FormField> fields = [];
@@ -54,7 +55,12 @@ public static class FormContractCompiler
             NamedFormCalculations.ValidateContract(fields);
             var rules = Get(Get(root, "flowzer"), "rules");
             ValidateRules(rules, fields);
-            return new FormContract(profile, fields, ignored, rules) { RepeatGroups = repeatGroups };
+            var actions = CompileActions(Get(Get(root, "flowzer"), "actions"), fields, version: (int)version);
+            return new FormContract(profile, fields, ignored, rules)
+            {
+                RepeatGroups = repeatGroups,
+                Actions = actions
+            };
         }
         catch (JsonException) { throw new FormContractException("schema.json"); }
     }
@@ -94,7 +100,7 @@ public static class FormContractCompiler
             }
             if (type == "datagrid")
             {
-                if (version != 3) Fail("schema.version");
+                if (version < 3) Fail("schema.version");
                 repeatGroups.Add(CompileRepeatGroup(component, visibleWhen, isReadOnly, version));
                 if (fields.Count + repeatGroups.Count + repeatGroups.Sum(group => group.Fields.Count) + ignored.Count > 500)
                     Fail("schema.field_limit");
@@ -237,7 +243,7 @@ public static class FormContractCompiler
 
     private static void ValidateHelpText(JsonElement component, int version)
     {
-        if (version != 3) return;
+        if (version < 3) return;
         foreach (var value in new[] { Get(component, "description"), Get(Get(component, "flowzer"), "helpText") })
         {
             if (value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null) continue;
@@ -421,6 +427,69 @@ public static class FormContractCompiler
                 if (!fields.Any(field => field.Key == key && field.Type == "datetime")) Fail("rule.date_field");
         }
     }
+
+    private static IReadOnlyList<FormAction> CompileActions(
+        JsonElement actions,
+        IReadOnlyList<FormField> fields,
+        int version)
+    {
+        if (actions.ValueKind == JsonValueKind.Undefined) return [];
+        if (version != 4) Fail("schema.version");
+        if (actions.ValueKind != JsonValueKind.Array || actions.GetArrayLength() is < 1 or > 20)
+            Fail("action.list");
+
+        List<FormAction> result = [];
+        HashSet<string> ids = new(StringComparer.Ordinal);
+        foreach (var action in actions.EnumerateArray())
+        {
+            if (action.ValueKind != JsonValueKind.Object
+                || action.EnumerateObject().Any(property => property.Name is not ("id" or "label" or "variant" or "set")))
+                Fail("action.object");
+            var id = Text(action, "id");
+            if (id.Length is < 1 or > 64
+                || !Regex.IsMatch(id, "^[A-Za-z][A-Za-z0-9_-]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)
+                || !ids.Add(id))
+                Fail("action.id");
+            var label = Text(action, "label");
+            if (!SafePlainText(label, 100)) Fail("action.label");
+            var variant = Text(action, "variant");
+            if (variant is not ("primary" or "secondary" or "danger")) Fail("action.variant");
+
+            var assignments = Get(action, "set");
+            if (assignments.ValueKind != JsonValueKind.Array || assignments.GetArrayLength() is < 1 or > 20)
+                Fail("action.assignments");
+            List<FormActionAssignment> compiledAssignments = [];
+            HashSet<string> assignedFields = new(StringComparer.Ordinal);
+            foreach (var assignment in assignments.EnumerateArray())
+            {
+                if (assignment.ValueKind != JsonValueKind.Object
+                    || assignment.EnumerateObject().Any(property => property.Name is not ("field" or "value")))
+                    Fail("action.assignment");
+                if (!assignment.TryGetProperty("value", out var value)) Fail("action.assignment");
+                var fieldKey = Text(assignment, "field");
+                if (!SafeKey(fieldKey) || !assignedFields.Add(fieldKey)) Fail("action.field");
+                var field = fields.SingleOrDefault(candidate => candidate.Key == fieldKey);
+                if (field is null || field.ReadOnly || NamedFormCalculations.IsCalculated(field))
+                    Fail("action.field");
+                if (field.Conditions.Count > 0) Fail("action.field_condition");
+                if (field.Type == "flowzerSubject" || True(field.Schema, "multiple"))
+                    Fail("action.field_type");
+                if (value.ValueKind is JsonValueKind.Array or JsonValueKind.Object or JsonValueKind.Undefined)
+                    Fail("action.value_type");
+                if (!FormSubmissionValidator.IsValidFixedActionValue(field, value))
+                    Fail("action.value");
+                compiledAssignments.Add(new FormActionAssignment(fieldKey, value.Clone()));
+            }
+            result.Add(new FormAction(id, label, variant, compiledAssignments));
+        }
+        return result;
+    }
+
+    private static bool SafePlainText(string value, int maximumLength) =>
+        value.Length is > 0 && value.Length <= maximumLength
+        && !string.IsNullOrWhiteSpace(value)
+        && !value.Contains('<') && !value.Contains('>')
+        && !value.Any(character => char.IsControl(character));
 
     internal static Regex Pattern(string pattern) => new($"\\A(?:{pattern})\\z", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(50));
     [DoesNotReturn]

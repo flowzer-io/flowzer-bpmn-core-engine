@@ -24,8 +24,11 @@ oder produktiv ausgerollt.
 - Zunächst eine getrennte Installation mit eigener Datenbank und Identitätsanbindung
   je Kunde; echtes Mehrmandanten-Hosting ist ein späteres eigenes Vorhaben.
 - Bestehenden modularen .NET-/React-Aufbau schrittweise verbessern, kein Rewrite.
-- TickyTask integriert dieselben Human Tasks und Formulare, ist aber keine Abhängigkeit
-  der Flowzer-Engine. Kein gemeinsamer Datenbankzugriff zwischen den Produkten.
+- Flowzer kennt keine konsumierende Fachanwendung: keine TickyTask-Abhängigkeit,
+  projektspezifischen Modelle, Routen, Konfiguration oder Laufzeitnamen. Flowzer stellt
+  ausschließlich generische, versionierte APIs, ein Headless-SDK und optionale
+  React-Komponenten bereit. TickyTask integriert diese von außen und bleibt Eigentümer
+  seiner Fachobjekte; zwischen den Produkten gibt es keinen gemeinsamen Datenbankzugriff.
 - Der Urlaubsantrag ist ein Beispiel für generische Fähigkeiten, keine vollständige
   Personalverwaltung und keine pauschale Übertragung von Rechten auf Vertretungen.
 - Produktivkonfiguration, echte Anbieteraufrufe und Deployment sind separate Freigaben.
@@ -37,9 +40,10 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #214 / PR #215 erweitert den Formularvertrag additiv um begrenzte
-Wiederholgruppen und Plaintext-Hilfetexte. #212 / PR #213 inventarisiert zuvor
-inkompatible Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
+**Aktiver Slice:** #216 erweitert den Formularvertrag additiv um servergebundene
+Human-Task-Entscheidungsaktionen. #214 / PR #215 liefert dafür bereits begrenzte
+Wiederholgruppen und Plaintext-Hilfetexte; #212 / PR #213 inventarisiert inkompatible
+Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
@@ -196,8 +200,9 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
   Bedingungen waren bereits Teil von Profil 1. #214 / PR #215 ergänzt Profil 3 für begrenzte
-  Datagrids und Plaintext-Hilfetexte; versionierte Abschnittsbibliothek und
-  Entscheidungsaktionen bleiben getrennte Folgeslices.
+  Datagrids und Plaintext-Hilfetexte. #216 ergänzt Profil 4 mit servergebundenen
+  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche;
+  die versionierte Abschnittsbibliothek bleibt als eigener Folgeslice offen.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
   objektbezogene Downloadrechte und Aufbewahrung.
 - [ ] Dynamische Kunden-/Projekt-/andere Auswahldaten nur über administrativ
@@ -205,7 +210,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Urlaubsbeispiel auf strukturierte Benutzerwahl, Zeitraumprüfung, Freigabe und
   optionalen externen Abgleich umstellen.
 
-## M3 – Human Tasks und TickyTask-Einbettung
+## M3 – Human Tasks und generische Einbettung
 
 - [x] Stabile Aufgabenidentität je Token; bestehende Subscriptions aktualisieren
   statt bei jedem Instanzfortschritt neue IDs zu vergeben.
@@ -223,8 +228,9 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
 - [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
-- [ ] Identischer API-/Formularvertrag in Konsole und TickyTask; Flowzer besitzt
-  Prozesse/Aufgaben, TickyTask seine Fachobjekte.
+- [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
+  Flowzer besitzt Prozesse/Aufgaben, der jeweilige Host seine Fachobjekte. Eine
+  konkrete Host-Anwendung wird im Flowzer-Produktcode weder benannt noch referenziert.
 - [ ] Benutzergebundene Einbettung mit Flowzer-Audience, bei gemeinsamem Keycloak
   über korrekt berechtigten Token Exchange; keine frei übergebenen Benutzerheader
   und kein pauschales Administratorkonto.

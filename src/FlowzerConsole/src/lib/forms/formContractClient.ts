@@ -39,12 +39,20 @@ interface ClientField {
 }
 
 interface ClientContract {
-  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3';
+  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3' | 'flowzer.forms/4';
   fields: ClientField[];
   repeatGroupKeys: Set<string>;
   ignoredKeys: Set<string>;
   rules: unknown[];
+  actions: ClientFormAction[];
   requiresServer: boolean;
+}
+
+export interface ClientFormAction {
+  id: string;
+  label: string;
+  variant: 'primary' | 'secondary' | 'danger';
+  assignments: Record<string, unknown>;
 }
 
 const FIELD_TYPES = new Set([
@@ -98,6 +106,14 @@ export function inspectClientFormContract(schemaJson: string) {
   return { profile: contract.profile, requiresServer: contract.requiresServer } as const;
 }
 
+/** Liest ausschließlich vollständig kompilierbare, veröffentlichte Aktionsmetadaten. */
+export function getClientFormActions(schemaJson: string): ClientFormAction[] {
+  return compile(schemaJson).actions.map((action) => ({
+    ...action,
+    assignments: { ...action.assignments },
+  }));
+}
+
 function compile(schemaJson: string): ClientContract {
   if (schemaJson.length > 1_048_576) fail('schema.size_limit');
   let parsed: unknown;
@@ -109,17 +125,24 @@ function compile(schemaJson: string): ClientContract {
   if (!isObject(parsed)) fail('schema.object');
   if (SCRIPT_KEYS.some((key) => active(parsed[key]))) fail('schema.script');
   const flowzer = object(parsed.flowzer);
-  const contractVersion = flowzer.contractVersion ?? 1;
-  if (contractVersion !== 1 && contractVersion !== 2 && contractVersion !== 3) fail('schema.version');
+  const rawContractVersion = flowzer.contractVersion;
+  const contractVersion = Number(
+    rawContractVersion === undefined || rawContractVersion === null || rawContractVersion === ''
+      ? 1
+      : rawContractVersion,
+  );
+  if (![1, 2, 3, 4].includes(contractVersion)) fail('schema.version');
 
   const contract: ClientContract = {
-    profile: contractVersion === 3
-      ? 'flowzer.forms/3'
+    profile: contractVersion === 4
+      ? 'flowzer.forms/4'
+      : contractVersion === 3 ? 'flowzer.forms/3'
       : contractVersion === 2 ? 'flowzer.forms/2' : 'flowzer.forms/1',
     fields: [],
     repeatGroupKeys: new Set(),
     ignoredKeys: new Set(),
     rules: Array.isArray(flowzer.rules) ? flowzer.rules : [],
+    actions: [],
     requiresServer: false,
   };
   visit(parsed.components, contract, [], false, contractVersion);
@@ -129,6 +152,8 @@ function compile(schemaJson: string): ClientContract {
     ...contract.ignoredKeys,
   ];
   if (new Set(keys).size !== keys.length) fail('schema.duplicate_key');
+  contract.actions = compileActions(flowzer.actions, contract.fields, contractVersion);
+  if (contract.actions.length > 0) contract.requiresServer = true;
   return contract;
 }
 
@@ -168,7 +193,7 @@ function visit(
       continue;
     }
     if (type === 'datagrid') {
-      if (version !== 3) fail('schema.version');
+      if (version < 3) fail('schema.version');
       const key = typeof component.key === 'string' ? component.key : '';
       if (!safeKey(key)) fail('schema.key');
       validateRepeatGroup(component, version);
@@ -272,7 +297,7 @@ function validateRepeatGroup(component: JsonObject, version: number) {
 }
 
 function validateHelpText(component: JsonObject, version: number) {
-  if (version !== 3) return;
+  if (version < 3) return;
   for (const value of [component.description, object(component.flowzer).helpText]) {
     if (value === undefined || value === null) continue;
     if (typeof value !== 'string') fail('help.type');
@@ -285,6 +310,67 @@ function validateHelpText(component: JsonObject, version: number) {
       fail('help.plain_text');
     }
   }
+}
+
+function compileActions(
+  candidate: unknown,
+  fields: ClientField[],
+  version: number,
+): ClientFormAction[] {
+  if (candidate === undefined) return [];
+  if (version !== 4) fail('schema.version');
+  if (!Array.isArray(candidate) || candidate.length < 1 || candidate.length > 20) fail('action.list');
+  const ids = new Set<string>();
+  const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+  return candidate.map((actionValue) => {
+    if (!isObject(actionValue)
+        || Object.keys(actionValue).some((key) => !['id', 'label', 'variant', 'set'].includes(key))) {
+      fail('action.object');
+    }
+    const action = actionValue;
+    if (typeof action.id !== 'string' || action.id.length > 64
+        || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(action.id) || ids.has(action.id)) fail('action.id');
+    ids.add(action.id);
+    if (typeof action.label !== 'string' || !safePlainText(action.label, 100)) fail('action.label');
+    if (action.variant !== 'primary' && action.variant !== 'secondary' && action.variant !== 'danger') {
+      fail('action.variant');
+    }
+    if (!Array.isArray(action.set) || action.set.length < 1 || action.set.length > 20) {
+      fail('action.assignments');
+    }
+    const assigned = new Set<string>();
+    const assignments: Record<string, unknown> = {};
+    for (const assignmentValue of action.set) {
+      if (!isObject(assignmentValue)
+          || Object.keys(assignmentValue).some((key) => key !== 'field' && key !== 'value')
+          || !Object.prototype.hasOwnProperty.call(assignmentValue, 'value')) fail('action.assignment');
+      const fieldKey = assignmentValue.field;
+      if (typeof fieldKey !== 'string' || !safeKey(fieldKey) || assigned.has(fieldKey)) fail('action.field');
+      assigned.add(fieldKey);
+      const field = fieldsByKey.get(fieldKey);
+      if (!field || field.readOnly || field.calculated) fail('action.field');
+      if (field.conditions.length > 0) fail('action.field_condition');
+      if (field.type === 'flowzerSubject' || field.schema.multiple === true) fail('action.field_type');
+      const value = assignmentValue.value;
+      if (Array.isArray(value) || isObject(value) || value === undefined) fail('action.value_type');
+      const valueErrors: FormErrorMap = {};
+      validateField(field, value, valueErrors);
+      if (Object.keys(valueErrors).length > 0) fail('action.value');
+      assignments[fieldKey] = value;
+    }
+    return {
+      id: action.id,
+      label: action.label,
+      variant: action.variant,
+      assignments,
+    };
+  });
+}
+
+function safePlainText(value: string, maximumLength: number) {
+  return value.length > 0 && value.length <= maximumLength && value.trim().length > 0
+    && !value.includes('<') && !value.includes('>')
+    && !/\p{Cc}/u.test(value);
 }
 
 function visitNestedLayouts(

@@ -1,7 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#214 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
+#216 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -107,6 +107,16 @@ dieselbe Struktur- und Feldgrenze; Fehler tragen indexierte, wertefreie Pfade. D
 Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole zeigt
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
+
+## Entscheidungsaktionen – #216 (Topic-Branch, noch nicht gemergt)
+
+`flowzer.forms/4` bindet fachlich benannte Human-Task-Aktionen an feste skalare
+Belegungen deklarierter Formularfelder. Beide Abschlussrouten lösen ausschließlich
+die stabile `actionId` im Deployment-Snapshot auf; fehlende, unbekannte oder
+widersprüchliche Entscheidungen enden wertefrei mit `422`. Die Wahl gehört zum
+Idempotenz-Hash. Die Konsole pflegt und rendert die Aktionen, Formulare ohne Aktionen
+behalten den generischen Abschluss. Startformulare bleiben im ersten Slice gesperrt.
+Details: [Entscheidungsaktionen](FORM-DECISION-ACTIONS.md).
 
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
@@ -220,21 +230,25 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.
    Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
-   private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren und die
-   Formularpflege-Trennung von Entwurf/Vorschau/Veröffentlichung fehlen weiterhin. Legacy-Namen
-   und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
-   historische externe Formularstände benötigen Klärung.
+   private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren, getrennte
+   Entwurfs-/Vorschau-/Veröffentlichungszustände, Wiederholgruppen und Entscheidungsaktionen
+   liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
+   Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
+   Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
    serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
-   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, SDK und TickyTask-Einbettung,
-   Modellvalidierung, externe Zustellung und vollständige Vorgangshistorie folgen.
+   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, generisches Headless-SDK samt
+   optionalen React-Komponenten, Modellvalidierung, externe Zustellung und vollständige
+   Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der vollständige UX-Audit und die erste
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal 111 Engine-,
+657 API-/Storage- und 288 Konsolentests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

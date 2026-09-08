@@ -30,5 +30,26 @@ public sealed class FormDraftProjectorTest
         JsonSerializer.Serialize(error.Errors).Should().NotContain("NICHT_SPIEGELN");
     }
 
+    // Testzweck: Ein privater Browserentwurf darf die serverseitig fest belegten
+    // Aktionsfelder nicht konservieren und dadurch einen späteren Abschluss blockieren.
+    [Test]
+    public void DecisionAction_ShouldExcludeServerAssignedFieldsFromDraft()
+    {
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":4,"actions":[
+              {"id":"approve","label":"Freigeben","variant":"primary",
+               "set":[{"field":"decision","value":"approved"}]}
+             ]},"components":[
+              {"type":"textarea","key":"comment"},
+              {"type":"hidden","key":"decision"}
+             ]}
+            """);
+
+        var projected = FormDraftProjector.Project(
+            contract, Data("{\"comment\":\"noch offen\",\"decision\":\"rejected\"}"));
+
+        projected.Should().Be("{\"comment\":\"noch offen\"}");
+    }
+
     private static ExpandoObject Data(string json) => JsonSerializer.Deserialize<ExpandoObject>(json)!;
 }

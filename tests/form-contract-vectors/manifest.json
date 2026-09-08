@@ -754,6 +754,108 @@
       "expected": { "outcome": "rejected", "code": "help.plain_text" }
     },
     {
+      "id": "action-applies-declared-assignment",
+      "purpose": "Eine Human-Task-Aktion setzt ausschließlich ihren veröffentlichten festen Entscheidungswert.",
+      "phase": "submission",
+      "profile": "flowzer.forms/4",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "decision", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [
+          { "type": "textfield", "key": "comment" },
+          { "type": "hidden", "key": "decision", "validate": { "required": true } }
+        ]
+      },
+      "input": { "comment": "Reviewed" },
+      "actionId": "approve",
+      "allowActions": true,
+      "expected": {
+        "outcome": "accepted",
+        "output": { "comment": "Reviewed", "decision": "approved" }
+      }
+    },
+    {
+      "id": "action-requires-explicit-selection",
+      "purpose": "Ein alter Client ohne Action-ID scheitert sicher und erzeugt keinen generischen Abschluss.",
+      "phase": "submission",
+      "profile": "flowzer.forms/4",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "decision", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [{ "type": "hidden", "key": "decision" }]
+      },
+      "input": {},
+      "allowActions": true,
+      "expected": {
+        "outcome": "rejected",
+        "errors": { "": ["action.required"] }
+      }
+    },
+    {
+      "id": "compile-rejects-action-unknown-field",
+      "purpose": "Eine Aktion darf kein nicht deklariertes Prozessfeld als Ausgabe öffnen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/4",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "other", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [{ "type": "hidden", "key": "decision" }]
+      },
+      "expected": { "outcome": "rejected", "code": "action.field" }
+    },
+    {
+      "id": "compile-rejects-action-wrong-value-type",
+      "purpose": "Eine feste Aktionsbelegung muss bereits bei der Veröffentlichung zum Feldtyp passen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/4",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "score",
+              "label": "Bewerten",
+              "variant": "primary",
+              "set": [{ "field": "score", "value": "not-a-number" }]
+            }
+          ]
+        },
+        "components": [{ "type": "number", "key": "score" }]
+      },
+      "expected": { "outcome": "rejected", "code": "action.value" }
+    },
+    {
       "id": "compile-rejects-custom-script",
       "purpose": "Beliebiges Formular-JavaScript wird nicht als veröffentlichbarer Vertrag akzeptiert.",
       "phase": "compile",

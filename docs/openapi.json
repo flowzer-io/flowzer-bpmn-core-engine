@@ -6448,6 +6448,10 @@
             "format": "int64",
             "nullable": true
           },
+          "actionId": {
+            "type": "string",
+            "nullable": true
+          },
           "data": {
             "type": "object",
             "additionalProperties": {},

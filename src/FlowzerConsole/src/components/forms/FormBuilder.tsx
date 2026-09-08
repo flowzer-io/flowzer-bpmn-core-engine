@@ -7,9 +7,15 @@ import {
   ensureFlowzerSubjectContract,
   registerFlowzerSubjectComponent,
 } from './FlowzerSubjectComponent';
+import { FormDecisionActionsEditor } from './FormDecisionActionsEditor';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
+import {
+  inspectFormDecisionActions,
+  writeFormDecisionActions,
+  type FormDecisionActionDraft,
+} from '@/lib/forms/formDecisionActions';
 
 export interface FormBuilderHandle {
   /** Das aktuelle Schema als JSON-String — genau so erwartet es `FormDto.formData`. */
@@ -53,6 +59,8 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
   const onReadyChangeRef = useRef(onReadyChange);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
+  const [actions, setActions] = useState<FormDecisionActionDraft[]>([]);
+  const actionsRef = useRef<FormDecisionActionDraft[]>([]);
 
   onChangeRef.current = onChange;
   onReadyChangeRef.current = onReadyChange;
@@ -64,7 +72,10 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         const builder = builderRef.current;
         if (!builder) throw new Error('Der Formular-Editor ist noch nicht bereit.');
         return JSON.stringify(
-          ensureFlowzerSubjectContract(builder.form ?? builder.schema ?? EMPTY_SCHEMA),
+          ensureFlowzerSubjectContract(writeFormDecisionActions(
+            builder.form ?? builder.schema ?? EMPTY_SCHEMA,
+            actionsRef.current,
+          )),
           null,
           2,
         );
@@ -85,6 +96,18 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         setError('Das gespeicherte Formular-Schema ist kein gültiges JSON und kann nicht bearbeitet werden.');
         return;
       }
+    }
+    const actionInspection = inspectFormDecisionActions(parsed);
+    actionsRef.current = actionInspection.actions;
+    setActions(actionInspection.actions);
+    if (actionInspection.hasUnsupportedFragments) {
+      setStatus('error');
+      setError(
+        'Die gespeicherten Entscheidungsaktionen enthalten unbekannte oder unvollständige Werte. '
+        + 'Der visuelle Editor wurde gesperrt, damit diese Daten nicht stillschweigend verloren gehen.',
+      );
+      onReadyChangeRef.current?.(false);
+      return;
     }
 
     async function create() {
@@ -146,6 +169,16 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         <div className="border-border text-fail rounded-[var(--r)] border border-dashed px-4 py-6 text-center text-[13.5px]">
           {error}
         </div>
+      )}
+      {status === 'ready' && (
+        <FormDecisionActionsEditor
+          actions={actions}
+          onChange={(next) => {
+            actionsRef.current = next;
+            setActions(next);
+            onChangeRef.current?.();
+          }}
+        />
       )}
     </div>
   );

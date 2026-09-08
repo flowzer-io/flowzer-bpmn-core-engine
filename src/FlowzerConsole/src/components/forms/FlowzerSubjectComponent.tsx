@@ -78,7 +78,8 @@ export function ensureFlowzerSubjectContract(schema: unknown): unknown {
     };
   }
   const components = bindRepeatPolicy(root.components);
-  const version = requiredVersion(components);
+  const hasActions = Array.isArray(root.flowzer?.actions) && root.flowzer.actions.length > 0;
+  const version = Math.max(requiredVersion(components), hasActions ? 4 : 1);
   if (version === 1) return schema;
   return { ...root, components, flowzer: { ...(root.flowzer ?? {}), contractVersion: version } };
 }

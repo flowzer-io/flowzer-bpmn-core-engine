@@ -42,7 +42,9 @@ public sealed class FormContractVectorTest
                     contract,
                     ToData(vector.Input),
                     ToData(vector.Context),
-                    directory);
+                    directory,
+                    vector.ActionId,
+                    vector.AllowActions);
                 vector.Expected.Outcome.Should().Be("accepted", vector.Purpose);
                 if (vector.Expected.Output.ValueKind != JsonValueKind.Undefined)
                 {
@@ -184,6 +186,8 @@ public sealed class FormContractVectorTest
         public required JsonElement Schema { get; set; }
         public JsonElement Context { get; set; }
         public JsonElement Input { get; set; }
+        public string? ActionId { get; set; }
+        public bool AllowActions { get; set; }
         public int? SchemaPaddingLength { get; set; }
         public required FormContractVectorExpected Expected { get; set; }
     }

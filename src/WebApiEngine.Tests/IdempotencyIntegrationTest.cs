@@ -236,6 +236,34 @@ public class IdempotencyIntegrationTest
         conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    // Testzweck: Die gewählte fachliche Aktion gehört zum idempotenten Request-Inhalt.
+    // Derselbe Schlüssel darf nicht nachträglich für eine andere Entscheidung gelten.
+    [Test]
+    public async Task Completion_ShouldConflictForChangedActionAfterSuccess()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", """
+            {"flowzer":{"contractVersion":4,"actions":[
+              {"id":"approve","label":"Freigeben","variant":"primary","set":[{"field":"decision","value":"approved"}]},
+              {"id":"reject","label":"Ablehnen","variant":"danger","set":[{"field":"decision","value":"rejected"}]}
+             ]},"components":[{"type":"hidden","key":"decision","validate":{"required":true}}]}
+            """);
+        var task = await context.StartAsync("assignee=\"bert\"");
+        using var client = context.CreateClient();
+        client.DefaultRequestHeaders.Add("Idempotency-Key", "completion-action-conflict");
+        var first = Result(task, "ignored");
+        first.Data = new System.Dynamic.ExpandoObject();
+        first.ActionId = "approve";
+        (await client.PostAsJsonAsync("/usertask", first)).EnsureSuccessStatusCode();
+
+        var changed = Result(task, "ignored");
+        changed.Data = new System.Dynamic.ExpandoObject();
+        changed.ActionId = "reject";
+        using var conflict = await client.PostAsJsonAsync("/form/result", changed);
+
+        conflict.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
     // Testzweck: Fehlende, leere, mehrfache oder übergroße Header öffnen weder einen
     // unbeschränkten Speicherpfad noch erzeugen sie einen Vorgang.
     [TestCase("contains space")]

@@ -37,11 +37,18 @@ public static class FormDraftProjector
 
         var fields = contract.Fields.ToDictionary(field => field.Key, StringComparer.Ordinal);
         var repeatGroups = contract.RepeatGroups.ToDictionary(group => group.Key, StringComparer.Ordinal);
+        var actionFields = contract.Actions
+            .SelectMany(action => action.Assignments)
+            .Select(assignment => assignment.Field)
+            .ToHashSet(StringComparer.Ordinal);
         Dictionary<string, string[]> errors = new(StringComparer.Ordinal);
         SortedDictionary<string, JsonElement> projected = new(StringComparer.Ordinal);
         foreach (var item in input.EnumerateObject())
         {
             if (item.Name == "UserId" || contract.IgnoredKeys.Contains(item.Name)) continue;
+            // Diese Werte gehören dem veröffentlichten Aktionsvertrag. Sie werden erst
+            // beim Abschluss gewählt und niemals aus einem Browserentwurf übernommen.
+            if (actionFields.Contains(item.Name)) continue;
             if (repeatGroups.TryGetValue(item.Name, out var group))
             {
                 if (group.ReadOnly)

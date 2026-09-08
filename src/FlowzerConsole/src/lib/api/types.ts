@@ -436,6 +436,8 @@ export interface UserTaskResultDto {
   processInstanceId?: string | null;
   /** Additiv: ältere API-Nutzer dürfen das Feld während der Migration noch auslassen. */
   expectedTaskRevision?: number;
+  /** Stabile Kennung der im veröffentlichten Aufgabenformular gewählten Aktion. */
+  actionId?: string | null;
   data?: ProcessVariables | null;
 }
 

@@ -23,6 +23,7 @@ import { describeFormKey } from '@/lib/formKey';
 import { cn } from '@/lib/cn';
 import { useCompactLayout } from '@/lib/useCompactLayout';
 import { formatTimestamp } from '@/lib/format';
+import { getClientFormActions } from '@/lib/forms/formContractClient';
 import { useTaskDraftEditor } from '@/lib/taskDraft';
 import { PRIORITY_TONE, sortTasks, taskIcon, toTaskView } from '@/lib/taskView';
 
@@ -87,15 +88,16 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
     canWork,
   );
 
-  async function handleComplete() {
+  async function handleComplete(actionId?: string) {
     // Ein laufendes Draft-Speichern darf nicht mit dem Abschluss derselben Aufgabe
     // konkurrieren; sonst könnte der Abschluss vor dem Zwischenstand eintreffen.
     if (!active || !canWork || lifecycle.isPending || draft.isSaving || draft.isDiscarding
       || draft.loadState !== 'ready') return;
 
     const renderer = formRef.current;
+    const action = actionId ? formActions.find((candidate) => candidate.id === actionId) : undefined;
     if (renderer) {
-      const valid = await renderer.validate();
+      const valid = await renderer.validate(action?.assignments);
       if (!valid) {
         toast.error('Bitte fülle alle Pflichtfelder aus.');
         return;
@@ -111,6 +113,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
         tokenId: active.task.token.id,
         processInstanceId: active.task.processInstanceId ?? null,
         expectedTaskRevision: active.task.workState.revision,
+        actionId,
         data,
       },
       {
@@ -167,6 +170,10 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
 
   const openCount = views.length;
   const listWidth = variant === 'worker' ? 'w-[340px]' : 'w-[320px]';
+  const formActions = useMemo(
+    () => formQuery.data?.formData ? getClientFormActions(formQuery.data.formData) : [],
+    [formQuery.data?.formData],
+  );
 
   return (
     <div className={cn('flex min-h-0 flex-1', variant === 'console' && 'h-full')}>
@@ -404,16 +411,32 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                     Später
                   </Button>
 
-                  <Button
-                    variant="primary"
-                    icon="check_circle"
-                    loading={completeTask.isPending || draft.isSaving || draft.isDiscarding || lifecycle.isPending}
-                    disabled={!formQuery.data || draft.loadState !== 'ready' || draft.isSaving
-                      || draft.isDiscarding || lifecycle.isPending}
-                    onClick={() => void handleComplete()}
-                  >
-                    Aufgabe abschließen
-                  </Button>
+                  <div className="flex flex-wrap justify-end gap-2.5">
+                    {formActions.length === 0 ? (
+                      <Button
+                        variant="primary"
+                        icon="check_circle"
+                        loading={completeTask.isPending || draft.isSaving || draft.isDiscarding || lifecycle.isPending}
+                        disabled={!formQuery.data || draft.loadState !== 'ready' || draft.isSaving
+                          || draft.isDiscarding || lifecycle.isPending}
+                        onClick={() => void handleComplete()}
+                      >
+                        Aufgabe abschließen
+                      </Button>
+                    ) : formActions.map((action) => (
+                      <Button
+                        key={action.id}
+                        variant={action.variant}
+                        icon={action.variant === 'danger' ? 'block' : 'check_circle'}
+                        loading={completeTask.isPending || draft.isSaving || draft.isDiscarding || lifecycle.isPending}
+                        disabled={!formQuery.data || draft.loadState !== 'ready' || draft.isSaving
+                          || draft.isDiscarding || lifecycle.isPending}
+                        onClick={() => void handleComplete(action.id)}
+                      >
+                        {action.label}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>

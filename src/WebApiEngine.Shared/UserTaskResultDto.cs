@@ -10,6 +10,8 @@ public class UserTaskResultDto
     public Guid? ProcessInstanceId { get; set; }
     /// <summary>Optionaler Schutz gegen Abschluss aus einem vor einer Übergabe geöffneten Tab.</summary>
     public long? ExpectedTaskRevision { get; set; }
+    /// <summary>Stabile ID der im veröffentlichten Aufgabenformular gewählten Aktion.</summary>
+    public string? ActionId { get; set; }
 
     [JsonConverter(typeof(ExpandoObjectConverter))]
     public ExpandoObject? Data { get; set; }

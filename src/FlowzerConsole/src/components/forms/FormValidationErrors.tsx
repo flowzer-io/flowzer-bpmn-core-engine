@@ -35,6 +35,10 @@ const messages = new Map(Object.entries({
   'repeat.row_object': 'Dieser Eintrag besitzt nicht die erwartete Feldstruktur.',
   'repeat.min': 'Bitte weitere Einträge hinzufügen.',
   'repeat.max': 'Die Liste enthält zu viele Einträge.',
+  'action.required': 'Bitte eine der vorgesehenen Entscheidungsaktionen auswählen.',
+  'action.invalid': 'Diese Entscheidungsaktion gehört nicht zur veröffentlichten Formularversion.',
+  'action.conflict': 'Ein festes Aktionsfeld darf nicht durch Formulardaten überschrieben werden.',
+  'action.not_allowed': 'Entscheidungsaktionen sind für diesen Formularweg nicht freigegeben.',
 }));
 
 function labelsOf(schema?: string): Map<string, string> {

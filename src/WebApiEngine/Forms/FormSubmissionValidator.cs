@@ -1,7 +1,9 @@
 using System.Dynamic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net.Mail;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Model;
 using StorageSystem;
@@ -17,9 +19,13 @@ public static class FormSubmissionValidator
         FormContract contract,
         ExpandoObject? data,
         ExpandoObject? context = null,
-        DirectorySnapshot? directorySnapshot = null)
+        DirectorySnapshot? directorySnapshot = null,
+        string? actionId = null,
+        bool allowActions = false)
     {
-        using var inputDocument = JsonDocument.Parse(JsonSerializer.Serialize(data ?? new ExpandoObject()));
+        using var submittedDocument = JsonDocument.Parse(JsonSerializer.Serialize(data ?? new ExpandoObject()));
+        var inputValue = ApplyAction(contract, submittedDocument.RootElement, actionId, allowActions);
+        using var inputDocument = JsonDocument.Parse(inputValue.GetRawText());
         using var contextDocument = JsonDocument.Parse(JsonSerializer.Serialize(context ?? new ExpandoObject()));
         var input = inputDocument.RootElement;
         var existing = contextDocument.RootElement;
@@ -71,6 +77,58 @@ public static class FormSubmissionValidator
         if (errors.Count > 0) throw new FormSubmissionException(errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
         return result;
     }
+
+    private static JsonElement ApplyAction(
+        FormContract contract,
+        JsonElement submitted,
+        string? actionId,
+        bool allowActions)
+    {
+        Dictionary<string, List<string>> errors = new(StringComparer.Ordinal);
+        if (contract.Actions.Count == 0)
+        {
+            if (!string.IsNullOrWhiteSpace(actionId)) Add(errors, "", "action.invalid");
+            if (errors.Count > 0) Throw(errors);
+            return submitted.Clone();
+        }
+        if (!allowActions)
+        {
+            Add(errors, "", "action.not_allowed");
+            Throw(errors);
+        }
+        if (string.IsNullOrWhiteSpace(actionId))
+        {
+            Add(errors, "", "action.required");
+            Throw(errors);
+        }
+        var action = contract.Actions.SingleOrDefault(candidate => candidate.Id == actionId);
+        if (action is null)
+        {
+            Add(errors, "", "action.invalid");
+            Throw(errors);
+        }
+
+        var effective = JsonNode.Parse(submitted.GetRawText())?.AsObject()
+            ?? throw new FormSubmissionException(new Dictionary<string, string[]> { [""] = ["form.input_object"] });
+        foreach (var assignment in action.Assignments)
+        {
+            var supplied = Get(submitted, assignment.Field);
+            if (supplied.ValueKind != JsonValueKind.Undefined
+                && !JsonElement.DeepEquals(supplied, assignment.Value))
+            {
+                Add(errors, assignment.Field, "action.conflict");
+                continue;
+            }
+            effective[assignment.Field] = JsonNode.Parse(assignment.Value.GetRawText());
+        }
+        if (errors.Count > 0) Throw(errors);
+        return JsonSerializer.SerializeToElement(effective);
+    }
+
+    [DoesNotReturn]
+    private static void Throw(Dictionary<string, List<string>> errors) =>
+        throw new FormSubmissionException(errors.ToDictionary(
+            pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
 
     private static void ValidateRepeatGroup(
         FormRepeatGroup group,
@@ -183,6 +241,17 @@ public static class FormSubmissionValidator
             return;
         }
         ValidateScalar(field, value, errors, directorySnapshot, errorKey: key);
+    }
+
+    /// <summary>
+    /// Prüft beim Kompilieren, dass eine feste Aktionsbelegung nicht erst jede spätere
+    /// Ausführung unbrauchbar macht. Directory-Werte sind für Aktionen ohnehin gesperrt.
+    /// </summary>
+    internal static bool IsValidFixedActionValue(FormField field, JsonElement value)
+    {
+        Dictionary<string, List<string>> errors = new(StringComparer.Ordinal);
+        ValidateField(field, value, errors, directorySnapshot: null);
+        return errors.Count == 0;
     }
 
     private static void ValidateScalar(

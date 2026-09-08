@@ -2,15 +2,16 @@
 
 M0/M2-Teilpaket #182 / PR #183, aufbauend auf der Formularbindung #180 / PR #181.
 
-`flowzer.forms/1` sowie die additiven Profile `flowzer.forms/2` und
-`flowzer.forms/3` sind **begrenzte**, serverseitig
+`flowzer.forms/1` sowie die additiven Profile `flowzer.forms/2`,
+`flowzer.forms/3` und `flowzer.forms/4` sind **begrenzte**, serverseitig
 prüfbare Form.io-Teilmengen,
 keine vollständige Form.io-Kompatibilität. Neue Deployments und Wiederaktivierungen
 prüfen alle gebundenen Schemas vor einer Änderung der aktiven Version. Der Snapshot
 trägt `ValidationProfile`; das Formular-DTO liefert `validationProfile` mit.
 `flowzer.contractVersion: 1` im Schema ist optional. Version 2 ergänzt die typisierte
 [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Version 3 ergänzt begrenzte
-[Wiederholgruppen und Plaintext-Hilfetexte](FORM-REPEAT-GROUPS.md); andere Versionen
+[Wiederholgruppen und Plaintext-Hilfetexte](FORM-REPEAT-GROUPS.md). Version 4 ergänzt
+[explizite Human-Task-Entscheidungsaktionen](FORM-DECISION-ACTIONS.md); andere Versionen
 werden abgelehnt.
 
 ## Datenfluss und Rechte
@@ -50,6 +51,7 @@ werden abgelehnt.
 | Layout | `panel`, `fieldset`, `columns`, `table`, `tabs`, `well`; flacher Ergebnisscope |
 | Wiederholung (Profil 3) | `datagrid` mit höchstens 50 Zeilen und ausschließlich deklarierten skalaren Zeilenfeldern |
 | Hilfe (Profil 3) | `description` / `flowzer.helpText` als Plaintext bis 2.000 Zeichen |
+| Aktionen (Profil 4) | 1–20 fachlich benannte Human-Task-Aktionen mit festen skalaren Belegungen deklarierter Root-Felder |
 | Pflicht | `validate.required`; null, fehlend, Leer-/Whitespace-String und leeres Array gelten als leer |
 | Sichtbarkeit | `conditional.when` / `eq` / `show`, einschließlich Layout-Vererbung; keine Zyklen oder berechneten Quellen |
 | Kontext | `disabled` / `flowzer.access`; keine Ausgabezuweisung über Browserwerte |
@@ -125,7 +127,8 @@ die erwarteten kanonischen Fehlercodes oder die normalisierte Ausgabe.
 
 Der Browser-Spiegel `formContractClient.ts` dient nur als schnelle, nebenwirkungsfreie
 Vorprüfung. Er deckt die als `client-server` markierten skalaren Regeln ab. Fälle mit
-Directory-Snapshot oder benannter Berechnung tragen `server-authoritative`; der Client
+Directory-Snapshot, benannter Berechnung, Wiederholgruppen oder Entscheidungsaktionen
+tragen `server-authoritative`; der Client
 meldet dort bewusst keinen Erfolg und der API-Validator bleibt allein maßgeblich.
 Damit behauptet der Testkatalog keine Berechtigungs- oder Form.io-Parität, macht die
 Grenze aber maschinenprüfbar. Compile-Vektoren sichern zudem Script-, dynamische

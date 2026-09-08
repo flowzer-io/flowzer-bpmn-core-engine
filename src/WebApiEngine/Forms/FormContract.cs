@@ -26,6 +26,7 @@ public sealed record FormContract(
     public const string ProfileV1 = "flowzer.forms/1";
     public const string ProfileV2 = "flowzer.forms/2";
     public const string ProfileV3 = "flowzer.forms/3";
+    public const string ProfileV4 = "flowzer.forms/4";
 
     /// <summary>
     /// Begrenzte, echte Array-von-Objekten-Strukturen. Sie bleiben getrennt von den
@@ -33,8 +34,14 @@ public sealed record FormContract(
     /// </summary>
     public IReadOnlyList<FormRepeatGroup> RepeatGroups { get; init; } = [];
 
+    /// <summary>
+    /// Explizite Human-Task-Entscheidungen. Die Aktion liefert nur eine stabile Kennung;
+    /// ihre Feldbelegungen stammen ausschließlich aus dem veröffentlichten Vertrag.
+    /// </summary>
+    public IReadOnlyList<FormAction> Actions { get; init; } = [];
+
     public static bool IsSupportedProfile(string? profile) =>
-        profile is null or ProfileV1 or ProfileV2 or ProfileV3;
+        profile is null or ProfileV1 or ProfileV2 or ProfileV3 or ProfileV4;
 }
 
 public sealed record FormField(
@@ -53,6 +60,14 @@ public sealed record FormRepeatGroup(
     IReadOnlyList<FormField> Fields,
     int MinItems,
     int MaxItems);
+
+public sealed record FormAction(
+    string Id,
+    string Label,
+    string Variant,
+    IReadOnlyList<FormActionAssignment> Assignments);
+
+public sealed record FormActionAssignment(string Field, JsonElement Value);
 
 internal static class FormJson
 {

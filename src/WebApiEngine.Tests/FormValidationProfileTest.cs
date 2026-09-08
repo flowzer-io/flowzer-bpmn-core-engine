@@ -179,6 +179,80 @@ public class FormValidationProfileTest
         badRow.Should().Throw<FormSubmissionException>().Which.Errors["rows[0]"].Should().Contain("repeat.row_object");
     }
 
+    // Testzweck: Profil 4 bindet eine explizite Entscheidung an eine feste, deklarierte
+    // Feldbelegung. Der Browser muss das Zielfeld nicht liefern und kann den festgelegten
+    // Wert weder widersprechen noch durch eine unbekannte Aktion ersetzen.
+    [Test]
+    public void DecisionAction_ShouldSelectAndApplyTrustedFieldAssignments()
+    {
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":4,"actions":[
+              {"id":"approve","label":"Freigeben","variant":"primary",
+               "set":[{"field":"decision","value":"approved"}]},
+              {"id":"reject","label":"Ablehnen","variant":"danger",
+               "set":[{"field":"decision","value":"rejected"}]}
+             ]},"components":[
+              {"type":"textarea","key":"comment"},
+              {"type":"hidden","key":"decision","validate":{"required":true}}
+             ]}
+            """);
+
+        var result = FormSubmissionValidator.Validate(
+            contract, Data("{\"comment\":\"Reviewed\"}"), actionId: "approve", allowActions: true);
+
+        JsonSerializer.Serialize(result).Should().Be(
+            "{\"comment\":\"Reviewed\",\"decision\":\"approved\"}");
+        Action missing = () => FormSubmissionValidator.Validate(contract, Data("{}"), allowActions: true);
+        Action unknown = () => FormSubmissionValidator.Validate(contract, Data("{}"), actionId: "other", allowActions: true);
+        Action conflict = () => FormSubmissionValidator.Validate(
+            contract, Data("{\"decision\":\"rejected\"}"), actionId: "approve", allowActions: true);
+        missing.Should().Throw<FormSubmissionException>().Which.Errors[""].Should().Contain("action.required");
+        unknown.Should().Throw<FormSubmissionException>().Which.Errors[""].Should().Contain("action.invalid");
+        conflict.Should().Throw<FormSubmissionException>().Which.Errors["decision"].Should().Contain("action.conflict");
+    }
+
+    // Testzweck: Entscheidungsaktionen sind im ersten Slice ausschließlich fuer Human
+    // Tasks freigegeben; ein Startpfad darf den Aktionsvertrag nicht implizit ausführen.
+    [Test]
+    public void DecisionAction_ShouldRejectNonTaskSubmission()
+    {
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":4,"actions":[
+              {"id":"approve","label":"Freigeben","variant":"primary",
+               "set":[{"field":"decision","value":"approved"}]}
+             ]},"components":[{"type":"hidden","key":"decision"}]}
+            """);
+
+        Action submit = () => FormSubmissionValidator.Validate(contract, Data("{}"));
+
+        submit.Should().Throw<FormSubmissionException>().Which.Errors[""].Should().Contain("action.not_allowed");
+    }
+
+    // Testzweck: Aktionsdefinitionen sind klein, eindeutig und rein deklarativ. Sie
+    // duerfen weder Schreibschutz/Berechnungen umgehen noch Objektwerte einschleusen.
+    [TestCase("{\"id\":\"approve\",\"label\":\"Freigeben\",\"variant\":\"loud\",\"set\":[{\"field\":\"decision\",\"value\":\"approved\"}]}")]
+    // Testzweck: Unbekannte Zielfelder öffnen keinen neuen Ergebnis-Scope.
+    [TestCase("{\"id\":\"approve\",\"label\":\"Freigeben\",\"variant\":\"primary\",\"set\":[{\"field\":\"other\",\"value\":\"approved\"}]}")]
+    // Testzweck: Feste Objektwerte sind ohne eigenen typisierten Vertrag nicht erlaubt.
+    [TestCase("{\"id\":\"numeric\",\"label\":\"Bewerten\",\"variant\":\"primary\",\"set\":[{\"field\":\"amount\",\"value\":\"not-a-number\"}]}")]
+    // Testzweck: Read-only-Felder bleiben auch für Aktionsbelegungen unbeschreibbar.
+    [TestCase("{\"id\":\"approve\",\"label\":\"Freigeben\",\"variant\":\"primary\",\"set\":[{\"field\":\"context\",\"value\":\"changed\"}]}")]
+    // Testzweck: Eine feste Belegung muss bereits beim Veröffentlichen zum Feldtyp passen.
+    [TestCase("{\"id\":\"approve\",\"label\":\"Freigeben\",\"variant\":\"primary\",\"set\":[{\"field\":\"decision\",\"value\":{\"nested\":true}}]}")]
+    public void DecisionAction_ShouldRejectUnsafeContracts(string action)
+    {
+        var components = action.Contains("context", StringComparison.Ordinal)
+            ? "[{\"type\":\"hidden\",\"key\":\"decision\"},{\"type\":\"textfield\",\"key\":\"context\",\"disabled\":true}]"
+            : action.Contains("amount", StringComparison.Ordinal)
+                ? "[{\"type\":\"hidden\",\"key\":\"decision\"},{\"type\":\"number\",\"key\":\"amount\"}]"
+                : "[{\"type\":\"hidden\",\"key\":\"decision\"}]";
+
+        Action compile = () => FormContractCompiler.Compile(
+            $"{{\"flowzer\":{{\"contractVersion\":4,\"actions\":[{action}]}},\"components\":{components}}}");
+
+        compile.Should().Throw<FormContractException>();
+    }
+
     private static ExpandoObject Data(string json) => JsonConvert.DeserializeObject<ExpandoObject>(json)!;
 
     // Testzweck: Eine benannte, rein lokale Berechnung ersetzt Formular-JavaScript.

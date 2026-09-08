@@ -6,6 +6,7 @@ public class UserTaskResult
     public Guid TokenId { get; set; }
     public Guid? ProcessInstanceId { get; set; }
     public long? ExpectedTaskRevision { get; set; }
+    public string? ActionId { get; set; }
 
     public Variables? Data { get; set; }
 }

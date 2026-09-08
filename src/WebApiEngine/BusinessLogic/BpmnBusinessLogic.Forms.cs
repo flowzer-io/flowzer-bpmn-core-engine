@@ -7,7 +7,8 @@ public partial class BpmnBusinessLogic
 {
     /// <summary>Innerhalb der Mutation/Transaktion aufrufen, nie vor Aufgabenrechten.</summary>
     private static async Task<ExpandoObject> ValidateFormInputAsync(IStorageSystem storage, string? key,
-        Guid definitionId, ExpandoObject? data, ExpandoObject? context = null)
+        Guid definitionId, ExpandoObject? data, ExpandoObject? context = null,
+        string? actionId = null, bool allowActions = false)
     {
         var schema = "{\"components\":[]}";
         string? boundProfile = null;
@@ -34,7 +35,8 @@ public partial class BpmnBusinessLogic
             try
             {
                 var snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot();
-                return FormSubmissionValidator.Validate(contract, data, context, snapshot);
+                return FormSubmissionValidator.Validate(
+                    contract, data, context, snapshot, actionId, allowActions);
             }
             catch (FormSubmissionException)
             {
@@ -46,6 +48,7 @@ public partial class BpmnBusinessLogic
                 throw new FormSubmissionException(new Dictionary<string, string[]> { [""] = ["directory.unavailable"] });
             }
         }
-        return FormSubmissionValidator.Validate(contract, data, context);
+        return FormSubmissionValidator.Validate(
+            contract, data, context, actionId: actionId, allowActions: allowActions);
     }
 }
