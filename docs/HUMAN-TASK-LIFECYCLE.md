@@ -1,6 +1,6 @@
 # Human-Task-Lifecycle
 
-**Stand:** 8. September 2026 · **Slice:** #204
+**Stand:** 8. September 2026 · **Slice:** #204 / PR #205
 
 Flowzer trennt die unveränderliche Zuweisung im veröffentlichten BPMN-Modell vom
 tatsächlichen Bearbeiter einer laufenden Aufgabe. Modelle dürfen weiterhin bewusst

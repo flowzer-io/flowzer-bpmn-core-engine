@@ -61,6 +61,6 @@ eine Mehrprozessfreigabe.
 ## Bewusste Grenzen
 
 Dieser Slice enthält keine gemeinsamen Entwürfe, automatische Speicherung, Anhänge,
-Kommentare oder Entwurfshistorie. Claim, Release, Zuweisung und Delegation folgen in #204
-und binden Schreibzugriffe optional an `expectedTaskRevision`. Das spätere Headless-SDK
+Kommentare oder Entwurfshistorie. Claim, Release, Zuweisung und Delegation sind in #204 / PR #205
+umgesetzt und binden Schreibzugriffe optional an `expectedTaskRevision`. Das spätere Headless-SDK
 verwendet denselben HTTP-Vertrag; TickyTask erhält keinen direkten Datenbankzugriff.

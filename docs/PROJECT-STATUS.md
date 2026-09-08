@@ -144,7 +144,7 @@ entfernt die Entwürfe der Aufgabe. PostgreSQL sichert Compare-and-swap und Lebe
 atomar, die Entwicklungs-Dateiablage nur pro API-Prozess. Details:
 [Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
 
-## Human-Task-Lifecycle – #204 (noch nicht gemergt)
+## Human-Task-Lifecycle – #204 / PR #205 (noch nicht gemergt)
 
 Aufgaben können revisionssicher übernommen, freigegeben, als Operator zugewiesen und an
 einen aktiven Directory-Kandidaten delegiert werden. Nach einer Übernahme gelten Liste,
