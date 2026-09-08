@@ -83,6 +83,13 @@ HTTP-/Gesamtlaufgrenzen verhindern blockierte Importe und eine PostgreSQL-Lease 
 vor parallelen API-Prozessen. Operatorstatus und manueller Start geben keine Identitaeten
 oder Secrets aus. Formular-/Task-/Ordnerauswahl ist bewusst der naechste M1-Slice.
 
+**Typisierte Verzeichnissuche:** #192 / PR #193 führt die stabile Referenz
+`{ kind: "user" | "group", id: <lokale UUID> }` und einen begrenzten Such-/Prüfkern
+ein. Die öffentliche Suche verlangt einen konkreten Workflow und dessen tatsächliche
+Modellierungsberechtigung; fremde und unbekannte Kontexte liefern identisch `404`.
+Nur aktive Einträge werden neu angeboten. Dies ist noch kein Formularfeld und ändert
+die bestehende Freitext-Zuweisung nicht.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -116,13 +123,15 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
 - [ ] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. Die stabile Historie ist umgesetzt; Filterung neuer Auswahlen und
-  explizite Klärung mehrdeutiger Bestandszuweisungen folgen mit den Auswahlendpunkten.
+  Auswahlen entfernen. Stabile Historie und Filterung neuer workflowgebundener Suchen
+  sind in #190/#192 umgesetzt; die kontextgebundene historische Anzeige und explizite
+  Klärung mehrdeutiger Bestandszuweisungen folgen mit den konsumierenden Feldern.
 - [ ] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.
 - [ ] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
-  Benutzer expandieren. Server leitet erlaubte Werte aus der Formularversion ab.
+  Benutzer expandieren. Der öffentliche Referenz- und Prüfvertrag ist in #192 umgesetzt;
+  die Ableitung erlaubter Werte aus der veröffentlichten Formularversion folgt noch.
 - [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden.
 - [ ] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
   freien Textmodus. Vor der Eingabe explizit „Bekannter Benutzer / bekannte Gruppe“

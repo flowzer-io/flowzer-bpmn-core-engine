@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187. Der BFF-Slice #188 liegt in einem noch nicht nach `main` gemergten PR.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187. BFF sowie die ersten M1-Verzeichnis-Slices liegen in noch nicht nach `main` gemergten, gestapelten PRs.
 
 ## Einordnung
 
@@ -101,15 +101,30 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
+## Verzeichnis-Slices #190 und #192 (noch nicht gemergt)
+
+#190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
+Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
+stabile lokale IDs und inaktive Historie bleiben erhalten. Überlappende paginierte IDs,
+unvollständige Hierarchien und Teilfehler werden abgewiesen, ohne die aktive Generation
+zu ersetzen. Operatorstatus und manueller Start geben keine Identitätsdaten aus.
+
+#192 / PR #193 ergänzt `SubjectRef` für bekannte Benutzer und Gruppen sowie eine begrenzte
+Suche. Sie ist an einen tatsächlich bearbeitbaren Workflow gebunden, bietet nur aktive
+Identitäten an und liefert bei fremdem oder unbekanntem Kontext einheitlich `404`.
+Formularfelder, historische Anzeige und die durchgängige Task-Zuweisung mit expliziter
+Wahl zwischen Verzeichnisreferenz und Freitext bleiben Folgepakete.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
    abnehmen. Idempotenz externer Worker-/Connector-Effekte bleibt in den jeweiligen
    späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
    bleiben im vorhandenen Vertrag permissiv.
-2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
-   unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
-   bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
+2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
+   gestapelt vor; generisches Auswahlfeld, expliziter Task-Zuweisungsmodus und Entwürfe
+   fehlen. Legacy-Namen/kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
+   historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
    Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.

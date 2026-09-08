@@ -1736,6 +1736,99 @@
         }
       }
     },
+    "/identity-directory/workflows/{definitionId}/subjects": {
+      "get": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance/{instanceId}/cancel": {
       "post": {
         "tags": [
@@ -2939,6 +3032,64 @@
             "type": "object",
             "additionalProperties": {},
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectDto": {
+        "required": [
+          "detail",
+          "displayName",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectSearchResultDto": {
+        "required": [
+          "generationId"
+        ],
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorySubjectDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectSearchResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/DirectorySubjectSearchResultDto"
           }
         },
         "additionalProperties": false
@@ -4212,6 +4363,24 @@
         },
         "additionalProperties": false
       },
+      "SubjectRefDto": {
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
       "TimerSchedulerDiagnosticsDto": {
         "required": [
           "enabled",
@@ -4602,6 +4771,9 @@
     },
     {
       "name": "IdentityDirectory"
+    },
+    {
+      "name": "IdentityDirectorySubject"
     },
     {
       "name": "Instance"

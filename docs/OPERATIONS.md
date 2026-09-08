@@ -111,6 +111,35 @@ begrenzte Warteschlange; `409` bedeutet, dass lokal bereits ein Lauf aktiv oder 
 ist. Erfolg oder Fehler werden im Status sichtbar, die vorherige vollständige Generation
 bleibt bei einem Fehler aktiv.
 
+### Workflowgebundene Identitätssuche
+
+`GET /identity-directory/workflows/{definitionId}/subjects` ist bewusst kein allgemeines
+Adressbuch. Der Aufruf ist nur erfolgreich, wenn die Person den angegebenen Workflow über
+die globale Modelliererrolle oder eine geerbte Ordnerzuständigkeit bearbeiten darf. Ein
+unbekannter und ein fremder Workflow antworten mit demselben `404`-Problem-Details-Vertrag.
+
+Pflichtparameter `query` enthält 2 bis 100 Zeichen. `kind` ist `all`, `user` oder `group`,
+`limit` liegt zwischen 1 und 50 und ist standardmäßig 20. Weitere Query-Parameter wie ein
+vom Browser erfundenes `includeInactive` erweitern die Auswahl nicht. Ohne erfolgreich
+publizierten Snapshot antwortet die Suche mit `503`.
+
+Jeder Treffer enthält einen Anzeigenamen, eine eindeutige Zusatzinformation und eine
+typisierte stabile Referenz:
+
+```json
+{
+  "subject": { "kind": "user", "id": "b0a4a83f-3a32-40ef-a089-267347279018" },
+  "displayName": "Anna Muster",
+  "detail": "keycloak-subject"
+}
+```
+
+Bei Gruppen steht im Detail der vollständige Hierarchiepfad. Neu angeboten werden nur
+aktive Identitäten. Die lokale ID bleibt über Synchronisationen stabil; Anzeigename und
+Detail sind keine Berechtigungskennungen. Eine spätere Speicherung oder Veröffentlichung
+muss die Referenz erneut gegen den dann aktiven Snapshot und dieselbe Serverpolicy prüfen.
+Der vorhandene Freitextvertrag von `zeebe:assignmentDefinition` bleibt davon unverändert.
+
 Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
 auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
 und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor

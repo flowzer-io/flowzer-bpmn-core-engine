@@ -17,7 +17,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
    generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe. Der erste
    M1-Slice #190 / PR #191 implementiert den atomaren, lesenden Keycloak-Abgleich samt
-   stabiler Historie, Mehrprozess-Lease und Operatorstatus; Auswahlfelder folgen separat.
+   stabiler Historie, Mehrprozess-Lease und Operatorstatus. #192 / PR #193 ergänzt darauf
+   aufbauend typisierte `SubjectRef`-Werte und eine workflowgebundene, aktive Suche für
+   berechtigte Modellierende; Formularfeld und Task-Zuweisungsmodus folgen separat.
 3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
    TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
