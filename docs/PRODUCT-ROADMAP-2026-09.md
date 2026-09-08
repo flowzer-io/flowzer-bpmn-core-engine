@@ -37,8 +37,9 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #212 / PR #213 inventarisiert inkompatible veröffentlichte Formularfassungen
-und Autorenentwürfe mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
+**Aktiver Slice:** #214 erweitert den Formularvertrag additiv um begrenzte
+Wiederholgruppen und Plaintext-Hilfetexte. #212 / PR #213 inventarisiert zuvor
+inkompatible Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
@@ -194,6 +195,9 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
+  Bedingungen waren bereits Teil von Profil 1. #214 ergänzt Profil 3 für begrenzte
+  Datagrids und Plaintext-Hilfetexte; versionierte Abschnittsbibliothek und
+  Entscheidungsaktionen bleiben getrennte Folgeslices.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
   objektbezogene Downloadrechte und Aufbewahrung.
 - [ ] Dynamische Kunden-/Projekt-/andere Auswahldaten nur über administrativ

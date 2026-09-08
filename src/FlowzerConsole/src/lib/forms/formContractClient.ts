@@ -39,8 +39,9 @@ interface ClientField {
 }
 
 interface ClientContract {
-  profile: 'flowzer.forms/1' | 'flowzer.forms/2';
+  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3';
   fields: ClientField[];
+  repeatGroupKeys: Set<string>;
   ignoredKeys: Set<string>;
   rules: unknown[];
   requiresServer: boolean;
@@ -109,17 +110,24 @@ function compile(schemaJson: string): ClientContract {
   if (SCRIPT_KEYS.some((key) => active(parsed[key]))) fail('schema.script');
   const flowzer = object(parsed.flowzer);
   const contractVersion = flowzer.contractVersion ?? 1;
-  if (contractVersion !== 1 && contractVersion !== 2) fail('schema.version');
+  if (contractVersion !== 1 && contractVersion !== 2 && contractVersion !== 3) fail('schema.version');
 
   const contract: ClientContract = {
-    profile: contractVersion === 2 ? 'flowzer.forms/2' : 'flowzer.forms/1',
+    profile: contractVersion === 3
+      ? 'flowzer.forms/3'
+      : contractVersion === 2 ? 'flowzer.forms/2' : 'flowzer.forms/1',
     fields: [],
+    repeatGroupKeys: new Set(),
     ignoredKeys: new Set(),
     rules: Array.isArray(flowzer.rules) ? flowzer.rules : [],
     requiresServer: false,
   };
   visit(parsed.components, contract, [], false, contractVersion);
-  const keys = [...contract.fields.map((field) => field.key), ...contract.ignoredKeys];
+  const keys = [
+    ...contract.fields.map((field) => field.key),
+    ...contract.repeatGroupKeys,
+    ...contract.ignoredKeys,
+  ];
   if (new Set(keys).size !== keys.length) fail('schema.duplicate_key');
   return contract;
 }
@@ -137,8 +145,10 @@ function visit(
     if (!isObject(componentValue)) fail('schema.component');
     if (SCRIPT_KEYS.some((key) => active(componentValue[key]))) fail('schema.script');
     const component = componentValue;
+    validateHelpText(component, version);
     const type = typeof component.type === 'string' ? component.type : '';
     const conditional = object(component.conditional);
+    if (active(conditional.json)) fail('condition.script');
     const conditions = [...inheritedConditions];
     if (typeof conditional.when === 'string' && conditional.when.length > 0) {
       if (typeof conditional.show !== 'boolean' || !safeKey(conditional.when)
@@ -150,10 +160,21 @@ function visit(
     const readOnly = inheritedReadOnly || component.disabled === true
       || object(component.flowzer).access === 'context';
 
+    if (type !== 'datagrid' && active(object(component.flowzer).repeat)) fail('repeat.unexpected');
     if (LAYOUT_TYPES.has(type)) {
       visit(component.components, contract, conditions, readOnly, version);
       visitNestedLayouts(component.columns, contract, conditions, readOnly, version);
       visitNestedLayouts(component.rows, contract, conditions, readOnly, version);
+      continue;
+    }
+    if (type === 'datagrid') {
+      if (version !== 3) fail('schema.version');
+      const key = typeof component.key === 'string' ? component.key : '';
+      if (!safeKey(key)) fail('schema.key');
+      validateRepeatGroup(component, version);
+      if (contract.repeatGroupKeys.has(key)) fail('schema.duplicate_key');
+      contract.repeatGroupKeys.add(key);
+      contract.requiresServer = true;
       continue;
     }
     if (type === 'button' || type === 'content' || type === 'htmlelement') {
@@ -161,7 +182,7 @@ function visit(
       continue;
     }
     if (!FIELD_TYPES.has(type)) fail('schema.field_type');
-    if (type === 'flowzerSubject' && version !== 2) fail('schema.version');
+    if (type === 'flowzerSubject' && version < 2) fail('schema.version');
     if (type === 'select' && typeof component.dataSrc === 'string'
         && component.dataSrc !== '' && component.dataSrc !== 'values') {
       fail('selection.dynamic_source');
@@ -177,6 +198,92 @@ function visit(
       conditions,
       calculated,
     });
+  }
+}
+
+function validateRepeatGroup(component: JsonObject, version: number) {
+  if (component.input === false) fail('repeat.input');
+  if (component.multiple === true) fail('repeat.multiple');
+  const flowzer = object(component.flowzer);
+  if (component.flowzer !== undefined && !isObject(component.flowzer)) fail('repeat.policy_object');
+  if (Object.entries(flowzer).some(([key, value]) => !['repeat', 'helpText', 'access'].includes(key) && active(value))) {
+    fail('repeat.policy_unknown');
+  }
+  if (flowzer.access !== undefined && flowzer.access !== null
+      && !['input', 'context', ''].includes(String(flowzer.access))) {
+    fail('field.access');
+  }
+  const repeatValue = flowzer.repeat;
+  if (repeatValue !== undefined && !isObject(repeatValue)) fail('repeat.policy_object');
+  const repeat = object(repeatValue);
+  if (Object.keys(repeat).some((key) => key !== 'minItems' && key !== 'maxItems')) {
+    fail('repeat.policy_unknown');
+  }
+  const minimum = repeat.minItems ?? 0;
+  const maximum = repeat.maxItems ?? 20;
+  if (typeof minimum !== 'number' || typeof maximum !== 'number'
+      || !Number.isInteger(minimum) || !Number.isInteger(maximum)
+      || minimum < 0 || maximum < 1 || maximum > 50 || minimum > maximum) {
+    fail('repeat.range');
+  }
+  const validate = object(component.validate);
+  const allowedValidation = new Set(['required', 'minLength', 'maxLength', 'customMessage']);
+  if (Object.entries(validate).some(([key, value]) => !allowedValidation.has(key) && active(value))) {
+    fail('validation.unsupported');
+  }
+  if (validate.required !== undefined && typeof validate.required !== 'boolean') fail('schema.boolean');
+  if ((validate.minLength !== undefined && validate.minLength !== minimum)
+      || (typeof validate.maxLength === 'number' && validate.maxLength > 0 && validate.maxLength !== maximum)
+      || (validate.required === true && minimum < 1)) {
+    fail('repeat.formio_mismatch');
+  }
+  if (!Array.isArray(component.components)) fail('repeat.components');
+  const keys = new Set<string>();
+  const conditions: ClientCondition[] = [];
+  for (const childValue of component.components) {
+    if (!isObject(childValue)) fail('schema.component');
+    const child = childValue;
+    if (SCRIPT_KEYS.some((key) => active(child[key]))) fail('schema.script');
+    validateHelpText(child, version);
+    const type = typeof child.type === 'string' ? child.type : '';
+    if (type === 'datagrid') fail('repeat.nested');
+    if (!FIELD_TYPES.has(type) || type === 'flowzerSubject') fail('repeat.field_type');
+    if (child.input === false) fail('repeat.input');
+    if (child.multiple === true) fail('repeat.multiple_field');
+    if (child.disabled === true || object(child.flowzer).access === 'context') {
+      fail('repeat.read_only_field');
+    }
+    if (active(object(child.flowzer).calculation)) fail('repeat.calculation');
+    const key = typeof child.key === 'string' ? child.key : '';
+    if (!safeKey(key)) fail('schema.key');
+    if (keys.has(key)) fail('schema.duplicate_key');
+    keys.add(key);
+    const conditional = object(child.conditional);
+    if (active(conditional.json)) fail('condition.script');
+    if (typeof conditional.when === 'string' && conditional.when.length > 0) {
+      if (typeof conditional.show !== 'boolean' || !safeKey(conditional.when)
+          || conditional.eq === undefined || isObject(conditional.eq) || Array.isArray(conditional.eq)) {
+        fail('condition.unsupported');
+      }
+      conditions.push({ when: conditional.when, eq: conditional.eq, show: conditional.show });
+    }
+  }
+  if (conditions.some((condition) => !keys.has(condition.when))) fail('condition.unknown_field');
+}
+
+function validateHelpText(component: JsonObject, version: number) {
+  if (version !== 3) return;
+  for (const value of [component.description, object(component.flowzer).helpText]) {
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'string') fail('help.type');
+    if (value.length > 2_000) fail('help.length');
+    if (value.includes('<') || value.includes('>')
+        || [...value].some((character) => {
+          const code = character.charCodeAt(0);
+          return (code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 127;
+        })) {
+      fail('help.plain_text');
+    }
   }
 }
 

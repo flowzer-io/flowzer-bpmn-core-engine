@@ -92,6 +92,93 @@ public class FormValidationProfileTest
         invalid.Should().Throw<FormSubmissionException>().Which.Message.Should().NotContain("DO_NOT_ECHO");
     }
 
+    // Testzweck: Profil 3 normalisiert eine begrenzte Wiederholgruppe als Array
+    // deklarierter Zeilenobjekte und wertet Pflicht-, Typ- und Zeilenbedingungen pro
+    // Index aus, ohne unbekannte Nachbarwerte in den Prozess zu uebernehmen.
+    [Test]
+    public void RepeatGroup_ShouldValidateAndNormalizeRowsWithIndexedErrors()
+    {
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":3},"components":[
+              {"type":"datagrid","key":"positions","description":"Nur fachliche Positionen.",
+               "validate":{"required":true,"minLength":1,"maxLength":2},
+               "flowzer":{"repeat":{"minItems":1,"maxItems":2},"helpText":"Maximal zwei Positionen."},
+               "components":[
+                 {"type":"textfield","key":"name","validate":{"required":true}},
+                 {"type":"number","key":"amount","validate":{"min":1}},
+                 {"type":"checkbox","key":"detailsRequired"},
+                 {"type":"textarea","key":"details","conditional":{"when":"detailsRequired","eq":"true","show":true},"validate":{"required":true}}
+               ]}
+            ]}
+            """);
+
+        var result = FormSubmissionValidator.Validate(contract, Data("""
+            {"positions":[{"name":"Reise","amount":2,"detailsRequired":false}]}
+            """));
+        JsonSerializer.Serialize(result).Should().Be(
+            """{"positions":[{"name":"Reise","amount":2,"detailsRequired":false}]}""");
+
+        Action invalid = () => FormSubmissionValidator.Validate(contract, Data("""
+            {"positions":[{"name":"","amount":0,"detailsRequired":true,"details":"","secret":"NICHT_SPIEGELN"}]}
+            """));
+        var errors = invalid.Should().Throw<FormSubmissionException>().Which.Errors;
+        errors["positions[0].name"].Should().Contain("required");
+        errors["positions[0].amount"].Should().Contain("number.min");
+        errors["positions[0].details"].Should().Contain("required");
+        errors["positions[0].secret"].Should().Contain("field.undeclared");
+        JsonSerializer.Serialize(errors).Should().NotContain("NICHT_SPIEGELN");
+    }
+
+    // Testzweck: Wiederholgruppen sind nur in Profil 3, ohne Verschachtelung,
+    // Directory-Felder, Berechnungen, HTML-Hilfetexte oder ungebundene Bedingungen
+    // veroeffentlichbar; die feste Zeilengrenze kann nicht per Schema erweitert werden.
+    [TestCase("{\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[]}]}")]
+    // Testzweck: Verschachtelte Wiederholgruppen bleiben im ersten Profil-3-Slice gesperrt.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[{\"type\":\"datagrid\",\"key\":\"nested\",\"components\":[]}]}]}")]
+    // Testzweck: Directory-Felder in Zeilen werden nicht ohne Snapshot-Semantik freigegeben.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[{\"type\":\"flowzerSubject\",\"key\":\"person\"}]}]}")]
+    // Testzweck: Zeilenfelder bleiben skalare Werte und oeffnen keine zweite Arrayebene.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[{\"type\":\"textfield\",\"key\":\"tags\",\"multiple\":true}]}]}")]
+    // Testzweck: Benannte Berechnungen erhalten ohne expliziten Zeilenscope keine Freigabe.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[{\"type\":\"hidden\",\"key\":\"total\",\"flowzer\":{\"calculation\":{\"name\":\"join.v1\",\"fields\":[\"x\"]}}}]}]}")]
+    // Testzweck: Hilfetexte sind Plaintext und duerfen kein HTML transportieren.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"description\":\"<b>unsafe</b>\",\"components\":[]}]}")]
+    // Testzweck: Schemaangaben koennen die feste maximale Zeilenanzahl nicht erweitern.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"flowzer\":{\"repeat\":{\"maxItems\":51}},\"components\":[]}]}")]
+    // Testzweck: Abweichende Form.io- und Flowzer-Grenzen duerfen Autoren nicht taeuschen.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"validate\":{\"maxLength\":5},\"flowzer\":{\"repeat\":{\"maxItems\":2}},\"components\":[]}]}")]
+    // Testzweck: Zeilenbedingungen duerfen keine Werte ausserhalb ihrer Zeile lesen.
+    [TestCase("{\"flowzer\":{\"contractVersion\":3},\"components\":[{\"type\":\"datagrid\",\"key\":\"rows\",\"components\":[{\"type\":\"textfield\",\"key\":\"value\",\"conditional\":{\"when\":\"outside\",\"eq\":\"yes\",\"show\":true}}]},{\"type\":\"textfield\",\"key\":\"outside\"}]}")]
+    public void RepeatGroup_ShouldRejectUnsafeContracts(string schema)
+    {
+        Action compile = () => FormContractCompiler.Compile(schema);
+
+        compile.Should().Throw<FormContractException>();
+    }
+
+    // Testzweck: Anzahlgrenzen und die erwartete Array-/Objektform werden verbindlich
+    // serverseitig geprueft und liefern stabile gruppenbezogene Codes.
+    [Test]
+    public void RepeatGroup_ShouldEnforceContainerAndItemLimits()
+    {
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":3},"components":[
+              {"type":"datagrid","key":"rows","flowzer":{"repeat":{"minItems":1,"maxItems":2}},
+               "components":[{"type":"textfield","key":"value"}]}
+            ]}
+            """);
+
+        Action scalar = () => FormSubmissionValidator.Validate(contract, Data("{\"rows\":\"not-an-array\"}"));
+        Action tooFew = () => FormSubmissionValidator.Validate(contract, Data("{\"rows\":[]}"));
+        Action tooMany = () => FormSubmissionValidator.Validate(contract, Data("{\"rows\":[{},{},{}]}"));
+        Action badRow = () => FormSubmissionValidator.Validate(contract, Data("{\"rows\":[\"not-an-object\"]}"));
+
+        scalar.Should().Throw<FormSubmissionException>().Which.Errors["rows"].Should().Contain("repeat.array");
+        tooFew.Should().Throw<FormSubmissionException>().Which.Errors["rows"].Should().Contain("repeat.min");
+        tooMany.Should().Throw<FormSubmissionException>().Which.Errors["rows"].Should().Contain("repeat.max");
+        badRow.Should().Throw<FormSubmissionException>().Which.Errors["rows[0]"].Should().Contain("repeat.row_object");
+    }
+
     private static ExpandoObject Data(string json) => JsonConvert.DeserializeObject<ExpandoObject>(json)!;
 
     // Testzweck: Eine benannte, rein lokale Berechnung ersetzt Formular-JavaScript.

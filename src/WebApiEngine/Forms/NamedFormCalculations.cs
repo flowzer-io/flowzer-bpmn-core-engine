@@ -43,5 +43,5 @@ public static class NamedFormCalculations
         return result;
     }
 
-    private static void Fail() => throw new InvalidOperationException("Unsupported form contract: calculation.unsupported.");
+    private static void Fail() => throw new FormContractException("calculation.unsupported");
 }

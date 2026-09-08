@@ -1,7 +1,7 @@
 # Gemeinsame Formularvertragsvektoren
 
 `manifest.json` ist der versionierte, gemeinsame Prüfbestand für
-`flowzer.forms/1` und `flowzer.forms/2`.
+`flowzer.forms/1`, `flowzer.forms/2` und das additive `flowzer.forms/3`.
 
 - `.NET`: `FormContractVectorTest`
 - React/Vitest: `formContractVectors.test.ts`

@@ -27,19 +27,60 @@ interface FlowzerSubjectSchema {
   };
 }
 
-/** Ergänzt beim Speichern den Root-Vertrag, ohne fremde Form.io-Komponenten umzuschreiben. */
+/** Bindet beim Speichern den hoechsten benoetigten Root-Vertrag und sichere Datagrid-Grenzen. */
 export function ensureFlowzerSubjectContract(schema: unknown): unknown {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema;
   const root = schema as { components?: unknown; flowzer?: Record<string, unknown> };
-  function containsSubject(value: unknown): boolean {
-    if (!value || typeof value !== 'object') return false;
-    if (Array.isArray(value)) return value.some(containsSubject);
+  function requiredVersion(value: unknown): number {
+    if (!value || typeof value !== 'object') return 1;
+    if (Array.isArray(value)) return value.reduce((maximum, item) => Math.max(maximum, requiredVersion(item)), 1);
     const entry = value as Record<string, unknown>;
-    if (entry.type === 'flowzerSubject') return true;
-    return ['components', 'columns', 'rows'].some((key) => containsSubject(entry[key]));
+    if (entry.type === 'datagrid') return 3;
+    const own = entry.type === 'flowzerSubject' ? 2 : 1;
+    return ['components', 'columns', 'rows'].reduce(
+      (maximum, key) => Math.max(maximum, requiredVersion(entry[key])),
+      own,
+    );
   }
-  if (!containsSubject(root.components)) return schema;
-  return { ...root, flowzer: { ...(root.flowzer ?? {}), contractVersion: 2 } };
+  function bindRepeatPolicy(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(bindRepeatPolicy);
+    if (!value || typeof value !== 'object') return value;
+    const entry = value as Record<string, unknown>;
+    const normalized = Object.fromEntries(Object.entries(entry).map(([key, child]) => [
+      key,
+      ['components', 'columns', 'rows'].includes(key) ? bindRepeatPolicy(child) : child,
+    ]));
+    if (entry.type !== 'datagrid') return normalized;
+    const validate = entry.validate && typeof entry.validate === 'object' && !Array.isArray(entry.validate)
+      ? entry.validate as Record<string, unknown>
+      : {};
+    const flowzer = entry.flowzer && typeof entry.flowzer === 'object' && !Array.isArray(entry.flowzer)
+      ? entry.flowzer as Record<string, unknown>
+      : {};
+    const repeat = flowzer.repeat && typeof flowzer.repeat === 'object' && !Array.isArray(flowzer.repeat)
+      ? flowzer.repeat as Record<string, unknown>
+      : {};
+    const formioMinimum = Number.isInteger(validate.minLength) && Number(validate.minLength) >= 0
+      ? Number(validate.minLength)
+      : validate.required === true ? 1 : 0;
+    const formioMaximum = Number.isInteger(validate.maxLength) && Number(validate.maxLength) > 0
+      ? Number(validate.maxLength)
+      : 20;
+    return {
+      ...normalized,
+      flowzer: {
+        ...flowzer,
+        repeat: {
+          minItems: repeat.minItems ?? formioMinimum,
+          maxItems: repeat.maxItems ?? formioMaximum,
+        },
+      },
+    };
+  }
+  const components = bindRepeatPolicy(root.components);
+  const version = requiredVersion(components);
+  if (version === 1) return schema;
+  return { ...root, components, flowzer: { ...(root.flowzer ?? {}), contractVersion: version } };
 }
 
 function subjectFromValue(value: unknown): SubjectRefDto[] {

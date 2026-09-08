@@ -118,6 +118,53 @@ public class FormSubmissionSecurityTest
         (await context.Storage.InstanceStorage.GetAllInstances()).Should().ContainSingle();
     }
 
+    // Testzweck: Ein direkter Start ohne Browser kann Profil-3-Wiederholgruppen nutzen,
+    // erhaelt aber bei unbekannten Zeilenwerten denselben indexierten Serverfehler.
+    [Test]
+    public async Task Start_ShouldValidateRepeatGroupRows()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", RepeatGroupSchema);
+        await context.DeployAsync("", startFormKey: "Approval");
+        using var client = context.CreateClient();
+        var path = "/definition/meta/Definitions_Completion/instance";
+
+        using var rejected = await client.PostAsJsonAsync(path, new
+        {
+            variables = new { positions = new[] { new { name = "Reise", secret = "NICHT_SPIEGELN" } } }
+        });
+        var problem = await rejected.Content.ReadFromJsonAsync<JsonElement>();
+
+        rejected.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        problem.GetProperty("errors").TryGetProperty("positions[0].secret", out _).Should().BeTrue();
+        problem.ToString().Should().NotContain("NICHT_SPIEGELN");
+        using var accepted = await client.PostAsJsonAsync(path, new
+        {
+            variables = new { positions = new[] { new { name = "Reise", amount = 2 } } }
+        });
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Beide kompatiblen Abschlussrouten verwenden auch fuer verschachtelte
+    // Wiederholzeilen denselben serverseitigen Vertrag und lassen die Aufgabe bei Fehlern offen.
+    [TestCase("/usertask")]
+    [TestCase("/form/result")]
+    public async Task Completion_ShouldValidateRepeatGroupRows(string route)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", RepeatGroupSchema);
+        var task = await context.StartAsync("assignee=\"bert\"");
+        using var client = context.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(route,
+            Result(task, "{\"positions\":[{\"name\":\"\",\"amount\":0}]}"));
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        problem.GetProperty("errors").TryGetProperty("positions[0].name", out _).Should().BeTrue();
+        await context.AssertStillActiveAsync(task);
+    }
+
     // Testzweck: Nicht serverseitig prüfbare Skripte und unbekannte Komponenten werden
     // nicht still ignoriert oder ausgeführt, sondern schon vor Aktivierung abgelehnt.
     [TestCase("{\"components\":[{\"type\":\"textfield\",\"key\":\"reason\",\"validate\":{\"custom\":\"valid = true;\"}}]}")]
@@ -186,6 +233,15 @@ public class FormSubmissionSecurityTest
         {"flowzer":{"contractVersion":2},"components":[
           {"type":"flowzerSubject","key":"representative","validate":{"required":true},
            "flowzer":{"subjectSelection":{"allowUsers":true,"allowGroups":false}}}]}
+        """;
+
+    private const string RepeatGroupSchema = """
+        {"flowzer":{"contractVersion":3},"components":[
+          {"type":"datagrid","key":"positions","flowzer":{"repeat":{"minItems":1,"maxItems":3}},
+           "components":[
+             {"type":"textfield","key":"name","validate":{"required":true}},
+             {"type":"number","key":"amount","validate":{"min":1}}
+           ]}]}
         """;
 
     private static async Task<Guid> PublishDirectoryUserAsync(

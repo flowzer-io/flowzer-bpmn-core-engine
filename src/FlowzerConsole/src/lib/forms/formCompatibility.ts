@@ -19,6 +19,11 @@ export function describeCompatibilityIssue(code: string | null | undefined): str
     'selection.dynamic_source': 'verwendet eine nicht freigegebene dynamische Datenquelle',
     'schema.field_type': 'enthält einen noch nicht unterstützten Feldtyp',
     'validation.unsupported': 'enthält eine nicht unterstützte Validierungsregel',
+    'repeat.nested': 'enthält eine nicht unterstützte verschachtelte Wiederholgruppe',
+    'repeat.field_type': 'enthält einen in Wiederholgruppen nicht unterstützten Feldtyp',
+    'repeat.range': 'enthält ungültige Grenzen für wiederholbare Einträge',
+    'help.plain_text': 'enthält einen Hilfetext außerhalb des sicheren Plaintext-Profils',
+    'help.length': 'enthält einen zu langen Hilfetext',
   };
   return code ? (messages[code] ?? `benötigt Migration (${safeCode(code)})`) : 'benötigt Migration';
 }

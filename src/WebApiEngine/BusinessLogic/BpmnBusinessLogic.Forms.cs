@@ -29,8 +29,7 @@ public partial class BpmnBusinessLogic
         }
         if (boundProfile is not null && boundProfile != contract.ValidationProfile)
             throw new FormSubmissionException(new Dictionary<string, string[]> { [""] = ["form.contract_unsupported"] });
-        if (contract.ValidationProfile == FormContract.ProfileV2
-            && contract.Fields.Any(field => field.SubjectSelection is not null))
+        if (contract.Fields.Any(field => field.SubjectSelection is not null))
         {
             try
             {

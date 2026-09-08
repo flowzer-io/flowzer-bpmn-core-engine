@@ -670,6 +670,90 @@
       }
     },
     {
+      "id": "repeat-group-accepted",
+      "purpose": "Eine begrenzte Profil-3-Wiederholgruppe erzeugt ausschließlich deklarierte Zeilenobjekte.",
+      "phase": "submission",
+      "profile": "flowzer.forms/3",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "positions",
+            "description": "Fachliche Positionen.",
+            "flowzer": { "repeat": { "minItems": 1, "maxItems": 2 } },
+            "components": [
+              { "type": "textfield", "key": "name", "validate": { "required": true } },
+              { "type": "number", "key": "amount", "validate": { "min": 1 } }
+            ]
+          }
+        ]
+      },
+      "context": {},
+      "input": { "positions": [{ "name": "Reise", "amount": 2 }] },
+      "expected": {
+        "outcome": "accepted",
+        "output": { "positions": [{ "name": "Reise", "amount": 2 }] }
+      }
+    },
+    {
+      "id": "repeat-group-rejects-unknown-row-field",
+      "purpose": "Unbekannte Werte innerhalb einer Wiederholzeile werden mit einem indexierten Pfad abgelehnt.",
+      "phase": "submission",
+      "profile": "flowzer.forms/3",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "positions",
+            "flowzer": { "repeat": { "maxItems": 2 } },
+            "components": [{ "type": "textfield", "key": "name" }]
+          }
+        ]
+      },
+      "context": {},
+      "input": { "positions": [{ "name": "Reise", "secret": "NICHT_SPIEGELN" }] },
+      "expected": {
+        "outcome": "rejected",
+        "errors": { "positions[0].secret": ["field.undeclared"] }
+      }
+    },
+    {
+      "id": "compile-rejects-nested-repeat-group",
+      "purpose": "Verschachtelte Wiederholgruppen werden im begrenzten Profil 3 auf Client und Server abgelehnt.",
+      "phase": "compile",
+      "profile": "flowzer.forms/3",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "rows",
+            "components": [{ "type": "datagrid", "key": "nested", "components": [] }]
+          }
+        ]
+      },
+      "expected": { "outcome": "rejected", "code": "repeat.nested" }
+    },
+    {
+      "id": "compile-rejects-html-help-text",
+      "purpose": "Profil-3-Hilfetexte bleiben Plaintext und koennen kein HTML einschleusen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/3",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          { "type": "textfield", "key": "name", "description": "<b>unsafe</b>" }
+        ]
+      },
+      "expected": { "outcome": "rejected", "code": "help.plain_text" }
+    },
+    {
       "id": "compile-rejects-custom-script",
       "purpose": "Beliebiges Formular-JavaScript wird nicht als veröffentlichbarer Vertrag akzeptiert.",
       "phase": "compile",

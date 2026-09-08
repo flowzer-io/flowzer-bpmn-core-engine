@@ -2,13 +2,15 @@
 
 M0/M2-Teilpaket #182 / PR #183, aufbauend auf der Formularbindung #180 / PR #181.
 
-`flowzer.forms/1` und das additive `flowzer.forms/2` sind **begrenzte**, serverseitig
+`flowzer.forms/1` sowie die additiven Profile `flowzer.forms/2` und
+`flowzer.forms/3` sind **begrenzte**, serverseitig
 prüfbare Form.io-Teilmengen,
 keine vollständige Form.io-Kompatibilität. Neue Deployments und Wiederaktivierungen
 prüfen alle gebundenen Schemas vor einer Änderung der aktiven Version. Der Snapshot
 trägt `ValidationProfile`; das Formular-DTO liefert `validationProfile` mit.
-`flowzer.contractVersion: 1` im Schema ist optional. Version 2 ergänzt ausschließlich
-die typisierte [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md); andere Versionen
+`flowzer.contractVersion: 1` im Schema ist optional. Version 2 ergänzt die typisierte
+[Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Version 3 ergänzt begrenzte
+[Wiederholgruppen und Plaintext-Hilfetexte](FORM-REPEAT-GROUPS.md); andere Versionen
 werden abgelehnt.
 
 ## Datenfluss und Rechte
@@ -46,6 +48,8 @@ werden abgelehnt.
 | Versteckt | `hidden`: skalarer String/Zahl/Boolean, nicht automatisch vertrauenswürdig |
 | Mehrfach | `multiple: true`: Array skalarer Werte, `minSelectedCount` / `maxSelectedCount` |
 | Layout | `panel`, `fieldset`, `columns`, `table`, `tabs`, `well`; flacher Ergebnisscope |
+| Wiederholung (Profil 3) | `datagrid` mit höchstens 50 Zeilen und ausschließlich deklarierten skalaren Zeilenfeldern |
+| Hilfe (Profil 3) | `description` / `flowzer.helpText` als Plaintext bis 2.000 Zeichen |
 | Pflicht | `validate.required`; null, fehlend, Leer-/Whitespace-String und leeres Array gelten als leer |
 | Sichtbarkeit | `conditional.when` / `eq` / `show`, einschließlich Layout-Vererbung; keine Zyklen oder berechneten Quellen |
 | Kontext | `disabled` / `flowzer.access`; keine Ausgabezuweisung über Browserwerte |
@@ -92,8 +96,8 @@ Es gibt noch keine Live-Vorschau dieser Berechnung im Renderer.
 
 ## Grenzen und Fehlervertrag
 
-Nicht unterstützt und bei Veröffentlichung abgelehnt: Container/Datagrids/Editgrids,
-beliebige verschachtelte Objekt-/dotted-path-Werte, Datei- und unkontrollierte dynamische Felder,
+Nicht unterstützt und bei Veröffentlichung abgelehnt: allgemeine Container/Editgrids,
+verschachtelte Datagrids, beliebige weitere Objekt-/dotted-path-Werte, Datei- und unkontrollierte dynamische Felder,
 Custom-JavaScript, JSON-Logic, Input-Masks, Widget-Datumsgrenzen, unbekannte aktive
 Validierungsregeln und zum Feldtyp unpassende Regeln. Weitere Geschäftsregeln müssen
 vor Veröffentlichung explizit implementiert werden. Kein stiller JavaScript-Fallback.

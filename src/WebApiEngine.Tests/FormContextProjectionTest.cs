@@ -91,5 +91,23 @@ public class FormContextProjectionTest
             }));
     }
 
+    // Testzweck: Profil-3-Wiederholgruppen projizieren nur deklarierte skalare
+    // Zeilenfelder und verwerfen private Nachbarwerte sowie ungueltige Zeilen.
+    [Test]
+    public void Projection_ShouldRetainOnlyDeclaredRepeatGroupRows()
+    {
+        var result = FormContextProjection.Project("""
+            {"flowzer":{"contractVersion":3},"components":[
+              {"type":"datagrid","key":"positions","flowzer":{"repeat":{"maxItems":2}},
+               "components":[{"type":"textfield","key":"name"},{"type":"number","key":"amount"}]}
+            ]}
+            """, Data("""
+            {"positions":[{"name":"Reise","amount":2,"secret":"private"},{"name":"Hotel"}],"other":"private"}
+            """));
+
+        JsonSerializer.Serialize(result).Should().Be(
+            """{"positions":[{"name":"Reise","amount":2},{"name":"Hotel"}]}""");
+    }
+
     private static ExpandoObject Data(string json) => JsonSerializer.Deserialize<ExpandoObject>(json)!;
 }

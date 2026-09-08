@@ -47,6 +47,23 @@ describe('flowzerSubject Form.io component', () => {
     });
   });
 
+  // Testzweck: Eine Wiederholgruppe benoetigt Profil 3; auch ein zusaetzliches
+  // Directory-Feld darf den Root-Vertrag nicht wieder auf Version 2 herabsetzen.
+  it('setzt für Datagrids den additiven Version-3-Vertrag', () => {
+    expect(ensureFlowzerSubjectContract({
+      components: [{ type: 'flowzerSubject' }, {
+        type: 'datagrid', key: 'rows', validate: { minLength: 1, maxLength: 4 }, components: [],
+      }],
+      flowzer: { existing: true },
+    })).toEqual({
+      components: [{ type: 'flowzerSubject' }, {
+        type: 'datagrid', key: 'rows', validate: { minLength: 1, maxLength: 4 }, components: [],
+        flowzer: { repeat: { minItems: 1, maxItems: 4 } },
+      }],
+      flowzer: { existing: true, contractVersion: 3 },
+    });
+  });
+
   // Testzweck: Der Form.io-Builder muss das Feld genau einmal unter dem erwarteten Typ
   // mit einer verständlichen und zum Serververtrag passenden Konfiguration registrieren.
   it('registriert Schema und verständliche Builder-Konfiguration', () => {

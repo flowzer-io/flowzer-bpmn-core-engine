@@ -20,7 +20,7 @@ interface FormContractVector {
   id: string;
   purpose: string;
   phase: 'compile' | 'submission';
-  profile: 'flowzer.forms/1' | 'flowzer.forms/2';
+  profile: 'flowzer.forms/1' | 'flowzer.forms/2' | 'flowzer.forms/3';
   comparison: 'client-server' | 'server-authoritative';
   schema: Record<string, unknown>;
   schemaPaddingLength?: number;

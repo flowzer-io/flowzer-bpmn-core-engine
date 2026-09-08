@@ -25,9 +25,16 @@ public sealed record FormContract(
 {
     public const string ProfileV1 = "flowzer.forms/1";
     public const string ProfileV2 = "flowzer.forms/2";
+    public const string ProfileV3 = "flowzer.forms/3";
+
+    /// <summary>
+    /// Begrenzte, echte Array-von-Objekten-Strukturen. Sie bleiben getrennt von den
+    /// flachen Feldern, damit bestehende Profile nicht unbemerkt Objektwerte freigeben.
+    /// </summary>
+    public IReadOnlyList<FormRepeatGroup> RepeatGroups { get; init; } = [];
 
     public static bool IsSupportedProfile(string? profile) =>
-        profile is null or ProfileV1 or ProfileV2;
+        profile is null or ProfileV1 or ProfileV2 or ProfileV3;
 }
 
 public sealed record FormField(
@@ -37,6 +44,15 @@ public sealed record FormField(
     bool ReadOnly,
     IReadOnlyList<JsonElement> Conditions,
     DirectorySubjectSelectionPolicy? SubjectSelection = null);
+
+public sealed record FormRepeatGroup(
+    string Key,
+    JsonElement Schema,
+    bool ReadOnly,
+    IReadOnlyList<JsonElement> Conditions,
+    IReadOnlyList<FormField> Fields,
+    int MinItems,
+    int MaxItems);
 
 internal static class FormJson
 {

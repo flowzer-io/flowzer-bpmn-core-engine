@@ -1,7 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
 **Stand:** 8. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#212 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+#214 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -98,6 +98,15 @@ Scriptinhalte bleiben serverseitig; die API liefert nur stabile Codes und Refere
 Die Konsole markiert betroffene Formulare und bietet einen Migrationsfilter. Der
 Bericht verändert keine Bestände und ersetzt keine fachlich geprüfte Migration. Details:
 [Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
+
+## Wiederholbare Formulargruppen – #214 (noch nicht gemergt)
+
+`flowzer.forms/3` bindet Form.io-Datagrids als begrenzte Arrays deklarierter
+Zeilenobjekte. Servervalidierung, private Entwürfe und Kontextprojektion verwenden
+dieselbe Struktur- und Feldgrenze; Fehler tragen indexierte, wertefreie Pfade. Der
+Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole zeigt
+Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
+[Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
