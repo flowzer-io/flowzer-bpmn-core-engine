@@ -1,6 +1,6 @@
 # Wiederholbare Formulargruppen und Hilfetexte
 
-M2-Teilpaket #214. Das additive Profil `flowzer.forms/3` erweitert die bisherigen
+M2-Teilpaket #214 / PR #215. Das additive Profil `flowzer.forms/3` erweitert die bisherigen
 flachen Verträge um genau eine begrenzte Struktur: eine Form.io-`datagrid`-Komponente
 als Array deklarierter Zeilenobjekte.
 

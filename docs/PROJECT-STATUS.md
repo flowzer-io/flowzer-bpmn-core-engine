@@ -99,7 +99,7 @@ Die Konsole markiert betroffene Formulare und bietet einen Migrationsfilter. Der
 Bericht verändert keine Bestände und ersetzt keine fachlich geprüfte Migration. Details:
 [Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
 
-## Wiederholbare Formulargruppen – #214 (noch nicht gemergt)
+## Wiederholbare Formulargruppen – #214 / PR #215 (noch nicht gemergt)
 
 `flowzer.forms/3` bindet Form.io-Datagrids als begrenzte Arrays deklarierter
 Zeilenobjekte. Servervalidierung, private Entwürfe und Kontextprojektion verwenden

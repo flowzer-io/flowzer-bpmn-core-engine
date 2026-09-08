@@ -28,9 +28,9 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Formularvertragsvektoren | Ein gemeinsamer versionierter JSON-Katalog sichert Profile 1/2 in .NET und Vitest; Directory und Serverberechnungen bleiben ausdrücklich serverautoritativ. | [#209](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/209) |
 | Formularpflege | Gemeinsamer CAS-Entwurf, lokale Vorschau und ausdrückliches servervalidiertes Publish; konkrete Versionen sind unveränderlich, PostgreSQL veröffentlicht atomar. | [#211](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/211) |
 | Formular-Kompatibilität | Modellierergeschütztes, datensparsames Inventar jeder veröffentlichten Fassung und des Autorenentwurfs mit isolierter Prüfung und stabilen Migrationscodes. | [#213](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/213) |
-| Wiederholbare Formulargruppen | `flowzer.forms/3` bindet Datagrids, sichere Hilfetexte, Zeilengrenzen sowie indexierte Serverfehler durchgängig an Submission, Entwurf und Kontextprojektion. | #214 / PR folgt |
+| Wiederholbare Formulargruppen | `flowzer.forms/3` bindet Datagrids, sichere Hilfetexte, Zeilengrenzen sowie indexierte Serverfehler durchgängig an Submission, Entwurf und Kontextprojektion. | [#215](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/215) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → PR zu #214**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
