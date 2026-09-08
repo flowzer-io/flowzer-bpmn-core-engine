@@ -6,7 +6,7 @@ import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
 import { ConfirmModal } from '@/components/ui/Modal';
-import { toneSurface } from '@/components/ui/Chip';
+import { Chip, toneSurface } from '@/components/ui/Chip';
 import { SearchInput, TextInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
@@ -17,6 +17,7 @@ import {
   useDiscardFormAuthoringDraft,
   useForm,
   useFormAuthoringDraft,
+  useFormCompatibilityInventory,
   useForms,
   usePublishFormAuthoringDraft,
   useSaveFormAuthoringDraft,
@@ -24,10 +25,12 @@ import {
 } from '@/lib/api/queries';
 import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
+import { describeCompatibilityIssue, incompatibleCountByForm } from '@/lib/forms/formCompatibility';
 import { iconForLabel } from '@/lib/taskView';
 import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
+type InventoryFilter = 'all' | 'migration';
 
 const MODE_OPTIONS = [
   { value: 'preview' as const, label: 'Vorschau' },
@@ -40,6 +43,7 @@ export function FormsPage() {
   const [mode, setMode] = useState<Mode>('preview');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
   const [editorSchema, setEditorSchema] = useState<string | undefined>();
   const [dirty, setDirty] = useState(false);
   const [builderReady, setBuilderReady] = useState(false);
@@ -55,20 +59,34 @@ export function FormsPage() {
   const publishDraft = usePublishFormAuthoringDraft();
   const saveMeta = useSaveFormMeta();
   const deleteForm = useDeleteForm();
+  const compatibilityQuery = useFormCompatibilityInventory(mayPublish);
   const [pendingDelete, setPendingDelete] = useState<{ formId: string; name: string } | null>(null);
   const [pendingPublish, setPendingPublish] = useState(false);
   const [pendingDiscard, setPendingDiscard] = useState(false);
+
+  const incompatibleByForm = useMemo(() => {
+    return incompatibleCountByForm(compatibilityQuery.data ?? []);
+  }, [compatibilityQuery.data]);
 
   const forms = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (formsQuery.data ?? [])
       .filter((form) => term.length === 0 || form.name.toLowerCase().includes(term))
+      .filter((form) => inventoryFilter === 'all' || incompatibleByForm.has(form.formId))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [formsQuery.data, search]);
+  }, [formsQuery.data, incompatibleByForm, inventoryFilter, search]);
 
   // Beim ersten Laden das erste Formular auswählen, damit die Vorschau nicht leer bleibt.
   useEffect(() => {
     if (!selectedId && forms.length > 0) setSelectedId(forms[0]!.formId);
+  }, [forms, selectedId]);
+
+  // Ein Filter darf rechts keinen unsichtbaren, nicht mehr zur Liste gehoerenden
+  // Datensatz stehen lassen. Bei leerem Ergebnis wird auch die Detailauswahl geleert.
+  useEffect(() => {
+    if (selectedId && !forms.some((form) => form.formId === selectedId)) {
+      setSelectedId(forms[0]?.formId ?? null);
+    }
   }, [forms, selectedId]);
 
   const selected = forms.find((form) => form.formId === selectedId);
@@ -89,6 +107,11 @@ export function FormsPage() {
   );
   const sourcePending = mayPublish ? draftQuery.isPending : publishedQuery.isPending;
   const sourceError = mayPublish ? draftQuery.error : publishedQuery.error;
+  const selectedCompatibility = useMemo(
+    () => (compatibilityQuery.data ?? []).filter((item) => item.formId === selectedId),
+    [compatibilityQuery.data, selectedId],
+  );
+  const selectedIssues = selectedCompatibility.filter((item) => !item.compatible);
 
   useEffect(() => {
     setEditorSchema(undefined);
@@ -248,6 +271,19 @@ export function FormsPage() {
             wrapperClassName="py-2 mb-1"
           />
 
+          {mayPublish && (
+            <Segmented
+              options={[
+                { value: 'all', label: 'Alle', count: formsQuery.data?.length ?? 0 },
+                { value: 'migration', label: 'Migration', count: incompatibleByForm.size },
+              ]}
+              value={inventoryFilter}
+              onChange={setInventoryFilter}
+              aria-label="Formularbestand filtern"
+              className="mb-1"
+            />
+          )}
+
           {formsQuery.isPending &&
             Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-[60px]" />)}
 
@@ -297,6 +333,9 @@ export function FormsPage() {
                     Form-Key: {form.name}
                   </span>
                 </span>
+                {(incompatibleByForm.get(form.formId) ?? 0) > 0 && (
+                  <Chip tone="wait">Migration</Chip>
+                )}
               </button>
             );
           })}
@@ -398,6 +437,22 @@ export function FormsPage() {
                 <Button size="sm" variant="secondary" onClick={() => void adoptServerDraft()}>
                   Serverstand laden
                 </Button>
+              </div>
+            )}
+
+            {mayPublish && selectedId && selectedIssues.length > 0 && (
+              <div className="border-warn mb-4 rounded-[var(--r)] border px-4 py-3 text-sm">
+                <div className="text-warn mb-1 font-semibold">Bestand vor erneutem Veröffentlichen prüfen</div>
+                <ul className="text-muted list-disc space-y-1 pl-5">
+                  {selectedIssues.map((item) => (
+                    <li key={`${item.source}-${item.publishedFormId ?? item.draftRevision ?? 'current'}`}>
+                      {item.source === 'draft'
+                        ? `Entwurf Revision ${item.draftRevision ?? 0}`
+                        : `Version ${item.version ? `${item.version.major}.${item.version.minor}` : 'unbekannt'}`}
+                      {' '}{describeCompatibilityIssue(item.issueCode)}.
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

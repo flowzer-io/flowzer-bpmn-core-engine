@@ -27,6 +27,7 @@ import type {
   ExtendedUserTaskSubscriptionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   OperationsDiagnosticsDto,
@@ -80,6 +81,8 @@ export const queryKeys = {
   formList: () => [...queryKeys.forms, 'list'] as const,
   form: (formId: string) => [...queryKeys.forms, 'detail', formId] as const,
   formDraft: (formId: string) => [...queryKeys.forms, 'draft', formId] as const,
+  formCompatibility: (needsMigration?: boolean) =>
+    [...queryKeys.forms, 'compatibility', needsMigration ?? null] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -649,6 +652,7 @@ export function useSaveForm() {
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.form(variables.formId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.formList() });
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] });
     },
   });
 }
@@ -662,12 +666,25 @@ export function useFormAuthoringDraft(formId: string | undefined) {
   });
 }
 
+export function useFormCompatibilityInventory(enabled = true, needsMigration?: boolean) {
+  return useQuery<FormCompatibilityItemDto[]>({
+    queryKey: queryKeys.formCompatibility(needsMigration),
+    queryFn: ({ signal }) => formsApi.compatibility(needsMigration, signal),
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useSaveFormAuthoringDraft() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ formId, draft }: { formId: string; draft: SaveFormAuthoringDraftRequestDto }) =>
       formsApi.saveDraft(formId, draft),
-    onSuccess: (saved) => queryClient.setQueryData(queryKeys.formDraft(saved.formId), saved),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.formDraft(saved.formId), saved);
+      void queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] });
+    },
   });
 }
 
@@ -678,6 +695,7 @@ export function useDiscardFormAuthoringDraft() {
       formsApi.deleteDraft(formId, expectedRevision),
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) });
+      await queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] });
     },
   });
 }
@@ -692,6 +710,7 @@ export function usePublishFormAuthoringDraft() {
         queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.form(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.formList() }),
+        queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] }),
       ]);
     },
   });
@@ -716,6 +735,7 @@ export function useDeleteForm() {
       // gegenstandslos — sonst bleibt sie als Leiche im Zwischenspeicher liegen.
       queryClient.removeQueries({ queryKey: queryKeys.form(formId) });
       queryClient.removeQueries({ queryKey: queryKeys.formDraft(formId) });
+      queryClient.removeQueries({ queryKey: [...queryKeys.forms, 'compatibility'] });
       // Nicht nur die Liste: Aufgaben loesen ihr Formular ueber den Namen auf, die
       // Aufgabenansicht muss ein geloeschtes also neu bewerten.
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms });

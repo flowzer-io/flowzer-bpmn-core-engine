@@ -57,6 +57,11 @@ lokale Fassung stehen, bis die modellierende Person bewusst den Serverstand läd
 Verwerfen und Veröffentlichen sind bestätigt und an die sichtbare Revision gebunden.
 Nicht-Modellierende sehen ausschließlich veröffentlichte Fassungen.
 
+Altbestände und der aktuelle Entwurf werden zusätzlich durch das
+[Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md) geprüft. Die Anzeige
+ist datensparsam und ersetzt weder die fachliche Migration noch die ausdrückliche
+Veröffentlichung.
+
 ## Grenzen
 
 - Es gibt zunächst einen gemeinsamen Autorenentwurf je Formular, keine Feld-Merges

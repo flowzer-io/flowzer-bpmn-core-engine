@@ -6,6 +6,26 @@ import { formsApi } from './endpoints';
 describe('Formularautoren-API', () => {
   beforeEach(() => vi.restoreAllMocks());
 
+  // Testzweck: Das Kompatibilitaetsinventar uebergibt den serverseitigen Filter und
+  // verarbeitet ausschließlich Metadaten statt Formular- oder Scriptinhalte.
+  it('lädt das gefilterte, datensparsame Kompatibilitätsinventar', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        successful: true,
+        result: [{
+          formId: 'f', formName: 'Alt', source: 'published', version: { major: 1, minor: 0 },
+          compatible: false, issueCode: 'schema.script',
+        }],
+      }), { status: 200 }),
+    );
+
+    const result = await formsApi.compatibility(true);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/form/compatibility?needsMigration=true');
+    expect(result[0]).toMatchObject({ compatible: false, issueCode: 'schema.script' });
+    expect(result[0]).not.toHaveProperty('formData');
+  });
+
   // Testzweck: Speichern fuehrt die erwartete Revision und das vollstaendige Schema im
   // PUT-Vertrag mit, statt ueber den kompatiblen Direkt-Publish-Endpunkt zu gehen.
   it('speichert einen Autorenentwurf mit Compare-and-swap-Revision', async () => {

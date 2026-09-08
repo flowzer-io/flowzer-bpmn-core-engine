@@ -38,6 +38,7 @@ builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
 builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddScoped<FormAuthoringService>();
+builder.Services.AddScoped<FormCompatibilityService>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();

@@ -10,12 +10,109 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
 using StorageSystem;
 using WebApiEngine.Shared;
+using WebApiEngine.Forms;
 
 namespace WebApiEngine.Tests;
 
 public class FormControllerIntegrationTest
 {
     private const string ValidFormSchema = "{\"display\":\"form\",\"components\":[{\"type\":\"textfield\",\"key\":\"reason\",\"input\":true}]}";
+
+    // Testzweck: Der Modelliererbericht prueft jede Version und den aktuellen Autorenentwurf
+    // isoliert. Ein kaputtes Schema darf weder spaetere Fassungen blockieren noch seinen Inhalt
+    // oder die Compiler-Nachricht in die API-Antwort leaken.
+    [Test]
+    public async Task Compatibility_ShouldReportPublishedVersionsAndDraftWithoutSchemaDetails()
+    {
+        var storage = TestStorage.Create();
+        var brokenId = SeedFormMetadata(storage, "A kaputt");
+        var brokenPublishedId = Guid.NewGuid();
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = brokenPublishedId,
+            FormId = brokenId,
+            Version = new Model.Version(1, 0),
+            FormData = "{\"components\":[{\"type\":\"textfield\",\"key\":\"x\",\"calculateValue\":\"SECRET_SCRIPT\"}]}"
+        });
+
+        var healthyId = SeedFormMetadata(storage, "B gesund");
+        var healthyPublishedId = Guid.NewGuid();
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = healthyPublishedId,
+            FormId = healthyId,
+            Version = new Model.Version(1, 0),
+            FormData = ValidFormSchema
+        });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(),
+            FormId = healthyId,
+            Version = new Model.Version(1, 1),
+            FormData = "{\"components\":[{\"type\":\"unknown\",\"key\":\"later\"}]}"
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+        var draftResponse = await client.PutAsJsonAsync($"/form/{healthyId}/draft",
+            new SaveFormAuthoringDraftRequestDto
+            {
+                ExpectedRevision = 0,
+                FormData = "{\"components\":[{\"type\":\"textfield\",\"key\":\"draft\",\"customConditional\":\"SECRET_DRAFT\"}]}"
+            });
+        draftResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var response = await client.GetAsync("/form/compatibility");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("SECRET_SCRIPT");
+        body.Should().NotContain("SECRET_DRAFT");
+        body.Should().NotContain("Unsupported form contract");
+
+        var payload = JsonSerializer.Deserialize<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            body, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        payload.Successful.Should().BeTrue(body);
+        payload.Result.Should().HaveCount(4);
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == brokenId && item.Source == "published" && !item.Compatible
+            && item.PublishedFormId == brokenPublishedId && item.Version!.ToString() == "1.0"
+            && item.IssueCode == "schema.script");
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == healthyId && item.Source == "draft" && !item.Compatible
+            && item.DraftRevision == 1 && item.IssueCode == "schema.script");
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == healthyId && item.Source == "published" && item.Compatible
+            && item.PublishedFormId == healthyPublishedId && item.ValidationProfile == FormContract.ProfileV1);
+    }
+
+    // Testzweck: needsMigration ist ein reiner serverseitiger Filter und liefert keine
+    // kaputten Fassungen als vermeintlich kompatibel zurueck.
+    [Test]
+    public async Task Compatibility_ShouldFilterByMigrationNeed()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage, "Filter");
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = ValidFormSchema
+        });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 1),
+            FormData = "{\"components\":[{\"type\":\"unknown\",\"key\":\"bad\"}]}"
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+
+        var migrations = await client.GetFromJsonAsync<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            "/form/compatibility?needsMigration=true");
+        migrations!.Result.Should().ContainSingle(item => !item.Compatible && item.IssueCode == "schema.field_type");
+
+        var compatible = await client.GetFromJsonAsync<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            "/form/compatibility?needsMigration=false");
+        compatible!.Result.Should().ContainSingle(item => item.Compatible && item.ValidationProfile == FormContract.ProfileV1);
+    }
 
     // Testzweck: Compare-and-swap verhindert, dass ein alter Browserstand einen inzwischen
     // gespeicherten Autorenentwurf still ueberschreibt; der Konflikt verrät keine Formulardaten.
@@ -799,9 +896,12 @@ public class FormControllerIntegrationTest
     }
 
     private static Guid SeedFormMetadata(TestStorage storage)
+        => SeedFormMetadata(storage, "Freigabe");
+
+    private static Guid SeedFormMetadata(TestStorage storage, string name)
     {
         var formId = Guid.NewGuid();
-        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Freigabe" });
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = name });
         return formId;
     }
 

@@ -7,6 +7,7 @@ import type {
   ExtendedUserTaskSubscriptionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   HealthStatusDto,
@@ -311,6 +312,13 @@ export const userTasksApi = {
 };
 
 export const formsApi = {
+  /** Datensparsames Inventar veroeffentlichter Fassungen und Autorenentwuerfe. */
+  compatibility: (needsMigration?: boolean, signal?: AbortSignal) =>
+    requestStatusResult<FormCompatibilityItemDto[]>('/form/compatibility', {
+      query: { needsMigration },
+      signal,
+    }),
+
   /** `GET /form/meta` — alle Formulare, optional nach Namen gefiltert. */
   listMeta: (search?: string, signal?: AbortSignal) =>
     requestStatusResult<FormMetaDataDto[]>('/form/meta', { query: { search }, signal }),

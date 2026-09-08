@@ -12,7 +12,8 @@ public class FormController(
     FormBusinessLogic formBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
     UserTaskCompletionService completionService,
-    FormAuthoringService authoringService): ControllerBase
+    FormAuthoringService authoringService,
+    FormCompatibilityService compatibilityService): ControllerBase
 {
 
     [HttpPost()]
@@ -41,6 +42,17 @@ public class FormController(
             Result = retForm,
             Successful = true,
         });
+    }
+
+    /// <summary>Prueft veroeffentlichte Formularversionen und den Autorenentwurf.</summary>
+    [HttpGet("compatibility")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType<ApiStatusResult<FormCompatibilityItemDto[]>>(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ApiStatusResult<FormCompatibilityItemDto[]>>> GetCompatibility(
+        [FromQuery] bool? needsMigration = null)
+    {
+        var result = await compatibilityService.GetAsync(needsMigration);
+        return Ok(new ApiStatusResult<FormCompatibilityItemDto[]>(result.ToArray()));
     }
 
     /// <summary>Liest den gemeinsamen Entwurf oder eine unveraenderliche Veroeffentlichungsbasis.</summary>

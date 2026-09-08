@@ -37,10 +37,10 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #176 / PR #177 implementiert den gemeinsamen Aufgabenabschluss
-und die geschützte Akteurzuordnung. Offene Checkboxen bezeichnen noch nicht
-abgenommene Ergebnisse; weder dieser Slice noch vorhandene Grundlagen schließen
-die gesamte M0- oder Produktabnahme.
+**Aktiver Slice:** #212 inventarisiert inkompatible veröffentlichte Formularfassungen
+und Autorenentwürfe mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
+Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
+noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
 **Folgeslice:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
 aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
@@ -175,8 +175,11 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   #208 / PR #209 ergänzt einen gemeinsamen versionierten JSON-Katalog für .NET und Vitest.
   Directory-Snapshot und benannte Berechnungen bleiben darin ausdrücklich
   serverautoritativ statt im Browser nachgebildet zu werden.
-- [ ] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
+- [x] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
+  #212 liefert dafür einen modellierergeschützten, datensparsamen Bericht über jede
+  veröffentlichte Fassung und den aktuellen Entwurf. Die eigentliche Migration bleibt
+  eine bewusste fachliche Bearbeitung; es gibt keinen automatischen Script-Fallback.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
 - [x] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;

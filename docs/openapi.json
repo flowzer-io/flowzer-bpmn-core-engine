@@ -1505,6 +1505,44 @@
         }
       }
     },
+    "/Form/compatibility": {
+      "get": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "needsMigration",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Form/{formId}/draft": {
       "get": {
         "tags": [
@@ -4864,6 +4902,74 @@
           },
           "result": {
             "$ref": "#/components/schemas/FormAuthoringDraftDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormCompatibilityItemDto": {
+        "required": [
+          "compatible",
+          "formId",
+          "formName",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formName": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedFormId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "compatible": {
+            "type": "boolean"
+          },
+          "validationProfile": {
+            "type": "string",
+            "nullable": true
+          },
+          "issueCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormCompatibilityItemDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormCompatibilityItemDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false

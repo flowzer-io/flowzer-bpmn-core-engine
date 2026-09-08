@@ -239,6 +239,21 @@ export interface SaveFormAuthoringDraftRequestDto {
   formData: string;
 }
 
+export type FormCompatibilitySource = 'published' | 'draft';
+
+/** Datensparsamer Inventareintrag; Schema und Scriptinhalt bleiben serverseitig. */
+export interface FormCompatibilityItemDto {
+  formId: string;
+  formName: string;
+  source: FormCompatibilitySource;
+  publishedFormId?: string | null;
+  version?: VersionDto | null;
+  draftRevision?: number | null;
+  compatible: boolean;
+  validationProfile?: string | null;
+  issueCode?: string | null;
+}
+
 /** Serverseitiger Zwischenstand einer offenen User-Task. */
 export interface UserTaskDraftDto {
   userTaskId: string;

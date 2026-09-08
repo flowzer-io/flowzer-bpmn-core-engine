@@ -5,6 +5,17 @@ using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Forms;
 
+/// <summary>
+/// Stabiler, maschinenlesbarer Grund fuer ein inkompatibles Formularschema.
+/// Die Nachricht bleibt absichtlich generisch, damit Schema-Details den Server
+/// ueber Kompatibilitaetsberichte nie verlassen.
+/// </summary>
+public sealed class FormContractException(string code)
+    : InvalidOperationException("Unsupported form contract: " + code + ".")
+{
+    public string Code { get; } = string.IsNullOrWhiteSpace(code) ? "schema.invalid" : code;
+}
+
 /// <summary>Explizites, begrenztes Prüfprofil; unbekannte Regeln sind keine Freigabe.</summary>
 public sealed record FormContract(
     string ValidationProfile,
@@ -47,7 +58,7 @@ internal static class FormJson
         var value = Get(node, key);
         if (value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null || value.ValueKind == JsonValueKind.String && value.GetString() == "") return null;
         if (decimal.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return number;
-        throw new InvalidOperationException("Unsupported form contract: invalid numeric constraint.");
+        throw new FormContractException("validation.numeric_constraint");
     }
     internal static bool SafeKey(string key) => key.Length is > 0 and <= 128
         && Regex.IsMatch(key, "^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)

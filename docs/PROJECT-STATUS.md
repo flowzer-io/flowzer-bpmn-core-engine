@@ -1,8 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179,
-#181, #183, #185 und #187. BFF sowie die M1-Verzeichnis-/Zuweisungs-Slices bis PR #195
-liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+**Stand:** 8. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
+#212 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -90,6 +89,15 @@ in der Konsole eigenständige Zustände. Publish prüft den Serververtrag, erzeu
 PostgreSQL atomar genau die Folgeversion und löscht den Entwurf; konkrete Versionen
 sind insert-only. Revisionskonflikte erhalten lokale Eingaben und veröffentlichen
 keinen inzwischen geänderten Stand. Details: [Formularpflege](FORM-AUTHORING.md).
+
+## Formular-Kompatibilitätsinventar – #212 (noch nicht gemergt)
+
+Ein modellierergeschützter Bericht prüft jede veröffentlichte Formularversion und den
+aktuellen Autorenentwurf isoliert gegen den serverseitigen Vertrag. Schema- und
+Scriptinhalte bleiben serverseitig; die API liefert nur stabile Codes und Referenzen.
+Die Konsole markiert betroffene Formulare und bietet einen Migrationsfilter. Der
+Bericht verändert keine Bestände und ersetzt keine fachlich geprüfte Migration. Details:
+[Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
 
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 

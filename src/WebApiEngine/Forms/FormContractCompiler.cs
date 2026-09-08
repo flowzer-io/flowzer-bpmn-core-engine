@@ -46,7 +46,7 @@ public static class FormContractCompiler
             ValidateRules(rules, fields);
             return new FormContract(profile, fields, ignored, rules);
         }
-        catch (JsonException) { throw new InvalidOperationException("Unsupported form contract: schema.json."); }
+        catch (JsonException) { throw new FormContractException("schema.json"); }
     }
 
     private static void Visit(JsonElement components, List<FormField> fields, HashSet<string> ignored,
@@ -263,5 +263,5 @@ public static class FormContractCompiler
     }
 
     internal static Regex Pattern(string pattern) => new($"\\A(?:{pattern})\\z", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking, TimeSpan.FromMilliseconds(50));
-    private static void Fail(string code) => throw new InvalidOperationException($"Unsupported form contract: {code}.");
+    private static void Fail(string code) => throw new FormContractException(code);
 }
