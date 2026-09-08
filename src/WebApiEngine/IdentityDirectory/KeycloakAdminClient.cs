@@ -32,9 +32,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
         var configuration = ValidateConfiguration();
         var accessToken = new AccessTokenLease(this, configuration);
         var users = await GetPagedAsync<KeycloakUserRepresentation>(
-            configuration.AdminEndpoint("users"), accessToken, cancellationToken);
+            configuration.AdminEndpoint("users"), user => user.Id, "user", accessToken, cancellationToken);
         var rootGroups = await GetPagedAsync<KeycloakGroupRepresentation>(
-            configuration.AdminEndpoint("groups"), accessToken, cancellationToken);
+            configuration.AdminEndpoint("groups"), group => group.Id, "group", accessToken, cancellationToken);
 
         var groups = new Dictionary<string, KeycloakDirectoryGroup>(StringComparer.Ordinal);
         var loadedGroupTrees = new HashSet<string>(StringComparer.Ordinal);
@@ -54,7 +54,11 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
             }
 
             var memberGroups = await GetPagedAsync<KeycloakGroupRepresentation>(
-                configuration.AdminEndpoint($"users/{Uri.EscapeDataString(subject)}/groups"), accessToken, cancellationToken);
+                configuration.AdminEndpoint($"users/{Uri.EscapeDataString(subject)}/groups"),
+                group => group.Id,
+                "membership group",
+                accessToken,
+                cancellationToken);
 
             var groupIds = memberGroups
                 .Select(group => RequireId(group.Id, "group"))
@@ -107,10 +111,13 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
     private async Task<List<T>> GetPagedAsync<T>(
         Func<int, Uri> endpoint,
+        Func<T, string?> getStableId,
+        string entityName,
         AccessTokenLease accessToken,
         CancellationToken cancellationToken)
     {
         var result = new List<T>();
+        var knownIdentifiers = new HashSet<string>(StringComparer.Ordinal);
         var pageSize = Math.Clamp(_options.PageSize, 1, 1_000);
         var maxPages = Math.Clamp(_options.MaxPages, 1, 100_000);
         var first = 0;
@@ -134,6 +141,17 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
             if (currentPage.Count > pageSize)
             {
                 throw InvalidResponse("Keycloak returned more entries than the requested page size.");
+            }
+
+            foreach (var entry in currentPage)
+            {
+                var stableId = RequireId(getStableId(entry), entityName);
+                if (!knownIdentifiers.Add(stableId))
+                {
+                    // Offset-Pagination kann sich bei parallelen Provideränderungen überlappen.
+                    // Das ist kein vollständiger Stand und darf daher nie publiziert werden.
+                    throw InvalidResponse($"Keycloak returned the same {entityName} identifier more than once.");
+                }
             }
 
             result.AddRange(currentPage);
@@ -174,7 +192,11 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
         // Keycloak liefert im Root-Endpoint ausschließlich Top-Level-Gruppen. Alle Kinder
         // müssen daher separat und wiederum paginiert geladen werden.
         var children = await GetPagedAsync<KeycloakGroupRepresentation>(
-            configuration.AdminEndpoint($"groups/{Uri.EscapeDataString(groupId)}/children"), accessToken, cancellationToken);
+            configuration.AdminEndpoint($"groups/{Uri.EscapeDataString(groupId)}/children"),
+            child => child.Id,
+            "group",
+            accessToken,
+            cancellationToken);
         foreach (var child in children)
         {
             await LoadGroupTreeAsync(child, groups, loadedGroupTrees, configuration, accessToken, cancellationToken, groupId);
@@ -307,16 +329,14 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     {
         var id = RequireId(group.Id, "group");
         var directoryGroup = new KeycloakDirectoryGroup(id, group.Name, group.Path, parentId);
-        if (destination.TryGetValue(id, out var current)
-            && (current.Name != directoryGroup.Name || current.Path != directoryGroup.Path
-                || (current.ParentId is not null && directoryGroup.ParentId is not null && current.ParentId != directoryGroup.ParentId)))
+        if (destination.ContainsKey(id))
         {
-            throw InvalidResponse("Keycloak returned conflicting values for a group identifier.");
+            // Derselbe Knoten in Root-, Untergruppen- oder Geschwisterpfaden belegt eine
+            // inkonsistente Quellsicht. Auch identische Werte dürfen den Fehler nicht verdecken.
+            throw InvalidResponse("Keycloak returned the same group identifier more than once.");
         }
 
-        // Derselbe Knoten kann durch fehlerhafte oder sich waehrend des Imports aendernde
-        // Hierarchien mehrfach auftauchen. Eine bekannte Elternbeziehung darf nicht verloren gehen.
-        destination[id] = current is not null && directoryGroup.ParentId is null ? current : directoryGroup;
+        destination.Add(id, directoryGroup);
     }
 
     private static string RequireId(string? id, string entity) =>

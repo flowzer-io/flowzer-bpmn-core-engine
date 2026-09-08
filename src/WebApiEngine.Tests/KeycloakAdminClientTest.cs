@@ -173,6 +173,131 @@ public sealed class KeycloakAdminClientTest
         exception.Which.Kind.Should().Be(KeycloakAdminClientFailureKind.InvalidResponse);
     }
 
+    // Testzweck: Überlappende Gruppenseiten dürfen keinen scheinbar vollständigen Snapshot
+    // erzeugen, weil dabei nachfolgende Gruppen unbemerkt fehlen und deaktiviert würden.
+    [Test]
+    public async Task GetSnapshotAsync_ShouldRejectDuplicateGroupIdentifiersAcrossPages()
+    {
+        var handler = new ScriptedHttpMessageHandler(request => request.RequestUri!.PathAndQuery switch
+        {
+            "/realms/flowzer/protocol/openid-connect/token" =>
+                Json(HttpStatusCode.OK, new { access_token = "token", expires_in = 300 }),
+            "/admin/realms/flowzer/users?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "group-a", name = "A", path = "/A" },
+                    new { id = "group-b", name = "B", path = "/B" }
+                }),
+            "/admin/realms/flowzer/groups?first=2&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "group-b", name = "B", path = "/B" },
+                    new { id = "group-c", name = "C", path = "/C" }
+                }),
+            "/admin/realms/flowzer/groups?first=4&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/group-a/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/group-b/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/group-c/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            _ => throw new AssertionException($"Unexpected Keycloak request: {request.RequestUri}")
+        });
+
+        var action = () => CreateClient(handler, pageSize: 2).GetSnapshotAsync(CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<KeycloakAdminClientException>();
+        exception.Which.Kind.Should().Be(KeycloakAdminClientFailureKind.InvalidResponse);
+        exception.Which.Message.Should().Contain("group identifier");
+    }
+
+    // Testzweck: Auch überlappende Seiten innerhalb einer Untergruppe werden als inkonsistent
+    // verworfen; ein mehrfach geladener Hierarchieknoten darf nicht still zusammengeführt werden.
+    [Test]
+    public async Task GetSnapshotAsync_ShouldRejectDuplicateChildGroupIdentifiersAcrossPages()
+    {
+        var handler = new ScriptedHttpMessageHandler(request => request.RequestUri!.PathAndQuery switch
+        {
+            "/realms/flowzer/protocol/openid-connect/token" =>
+                Json(HttpStatusCode.OK, new { access_token = "token", expires_in = 300 }),
+            "/admin/realms/flowzer/users?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[] { new { id = "root", name = "Root", path = "/Root" } }),
+            "/admin/realms/flowzer/groups/root/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "child-a", name = "A", path = "/Root/A" },
+                    new { id = "child-b", name = "B", path = "/Root/B" }
+                }),
+            "/admin/realms/flowzer/groups/root/children?first=2&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "child-b", name = "B", path = "/Root/B" },
+                    new { id = "child-c", name = "C", path = "/Root/C" }
+                }),
+            "/admin/realms/flowzer/groups/root/children?first=4&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/child-a/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/child-b/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/child-c/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            _ => throw new AssertionException($"Unexpected Keycloak request: {request.RequestUri}")
+        });
+
+        var action = () => CreateClient(handler, pageSize: 2).GetSnapshotAsync(CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<KeycloakAdminClientException>();
+        exception.Which.Kind.Should().Be(KeycloakAdminClientFailureKind.InvalidResponse);
+        exception.Which.Message.Should().Contain("group identifier");
+    }
+
+    // Testzweck: Doppelte Gruppen desselben Benutzers über mehrere Mitgliedschaftsseiten sind
+    // ein erkennbar inkonsistenter Import und dürfen nicht per Distinct verborgen werden.
+    [Test]
+    public async Task GetSnapshotAsync_ShouldRejectDuplicateMembershipGroupIdentifiersAcrossPages()
+    {
+        var handler = new ScriptedHttpMessageHandler(request => request.RequestUri!.PathAndQuery switch
+        {
+            "/realms/flowzer/protocol/openid-connect/token" =>
+                Json(HttpStatusCode.OK, new { access_token = "token", expires_in = 300 }),
+            "/admin/realms/flowzer/users?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[] { new { id = "user-a", enabled = true } }),
+            "/admin/realms/flowzer/groups?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "group-a", name = "A", path = "/A" },
+                    new { id = "group-b", name = "B", path = "/B" }
+                }),
+            "/admin/realms/flowzer/groups?first=2&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/group-a/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/groups/group-b/children?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, Array.Empty<object>()),
+            "/admin/realms/flowzer/users/user-a/groups?first=0&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[]
+                {
+                    new { id = "group-a", name = "A", path = "/A" },
+                    new { id = "group-b", name = "B", path = "/B" }
+                }),
+            "/admin/realms/flowzer/users/user-a/groups?first=2&max=2&briefRepresentation=true" =>
+                Json(HttpStatusCode.OK, new[] { new { id = "group-b", name = "B", path = "/B" } }),
+            _ => throw new AssertionException($"Unexpected Keycloak request: {request.RequestUri}")
+        });
+
+        var action = () => CreateClient(handler, pageSize: 2).GetSnapshotAsync(CancellationToken.None);
+
+        var exception = await action.Should().ThrowAsync<KeycloakAdminClientException>();
+        exception.Which.Kind.Should().Be(KeycloakAdminClientFailureKind.InvalidResponse);
+        exception.Which.Message.Should().Contain("membership group identifier");
+    }
+
     // Testzweck: Ein haengender JSON-Antwortkoerper endet innerhalb der konfigurierten Grenze
     // und wird als temporaerer Providerfehler klassifiziert statt Single-flight zu blockieren.
     [Test]

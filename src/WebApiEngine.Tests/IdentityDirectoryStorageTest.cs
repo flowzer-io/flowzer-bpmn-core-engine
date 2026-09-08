@@ -1,7 +1,10 @@
 using FilesystemStorageSystem;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Model;
 using StorageSystem;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Tests;
 
@@ -110,6 +113,44 @@ public sealed class IdentityDirectoryStorageTest
         status.ErrorMessage.Should().NotContain("\r").And.NotContain("\n");
         status.ErrorMessage!.Length.Should().BeLessThanOrEqualTo(512);
         status.ErrorMessage.Should().NotContain("secret-value");
+    }
+
+    // Testzweck: Eine vom Provider erkannte inkonsistente Pagination markiert nur den neuen
+    // Lauf als fehlgeschlagen; die zuvor aktive Generation samt Identitäten bleibt unverändert.
+    [Test]
+    public async Task Synchronizer_ShouldKeepActiveGenerationAfterInvalidPaginationResponse()
+    {
+        using var context = new IdentityDirectoryStorageTestContext();
+        var snapshot = CreateSnapshot("anna", "finance", "Finance", "/finance");
+        await StartSync(context.Storage.IdentityDirectoryStorage, snapshot);
+        await context.Storage.IdentityDirectoryStorage.PublishSnapshot(snapshot);
+        var synchronizer = new IdentityDirectorySynchronizer(
+            new ThrowingDirectoryClient(new KeycloakAdminClientException(
+                KeycloakAdminClientFailureKind.InvalidResponse,
+                "Keycloak returned a group identifier more than once.")),
+            context.Storage.IdentityDirectoryStorage,
+            Options.Create(new KeycloakDirectoryOptions
+            {
+                Enabled = true,
+                ServerUrl = "https://keycloak.example.invalid/",
+                Issuer = snapshot.Issuer,
+                Realm = "flowzer"
+            }),
+            TimeProvider.System,
+            NullLogger<IdentityDirectorySynchronizer>.Instance);
+
+        var published = await synchronizer.TrySynchronizeAsync(CancellationToken.None);
+
+        published.Should().BeFalse();
+        var active = (await context.Storage.IdentityDirectoryStorage.GetActiveSnapshot())!;
+        active.GenerationId.Should().Be(snapshot.GenerationId);
+        active.Users.Should().ContainSingle(user => user.Subject == "anna" && user.IsActive);
+        active.Groups.Should().ContainSingle(group => group.ExternalId == "finance" && group.IsActive);
+        active.Memberships.Should().ContainSingle();
+        var status = (await context.Storage.IdentityDirectoryStorage.GetSyncStatus())!;
+        status.State.Should().Be(DirectorySyncState.Failed);
+        status.ActiveGenerationId.Should().Be(snapshot.GenerationId);
+        status.ErrorCode.Should().Be("invalid_response");
     }
 
     // Testzweck: Ein veralteter Fehlerstatus darf einen bereits erfolgreichen Snapshot nicht
@@ -311,5 +352,11 @@ public sealed class IdentityDirectoryStorageTest
             Environment.SetEnvironmentVariable(Storage.StorageRootEnvironmentVariableName, _previousStorageRoot);
             if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
         }
+    }
+
+    private sealed class ThrowingDirectoryClient(Exception exception) : IKeycloakAdminClient
+    {
+        public Task<KeycloakDirectorySnapshot> GetSnapshotAsync(CancellationToken cancellationToken) =>
+            Task.FromException<KeycloakDirectorySnapshot>(exception);
     }
 }
