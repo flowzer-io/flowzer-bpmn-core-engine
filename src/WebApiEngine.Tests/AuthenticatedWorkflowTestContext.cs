@@ -92,6 +92,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
 
     internal async Task<BpmnDefinition> DeployAsync(string assignment)
     {
+        await FormTestSeed.StoreAsync(Storage, "Approval");
         var definition = new BpmnDefinition
         {
             Id = Guid.NewGuid(), DefinitionId = "Definitions_Completion", Hash = "test",

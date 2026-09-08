@@ -31,6 +31,7 @@ public class EngineConcurrencyIntegrationTest
         var provider = new FileSystemTransactionalStorageProvider();
         var businessLogic = new BpmnBusinessLogic(provider);
         var definition = await context.StoreDefinitionAsync(provider, CreateUserTaskXml());
+        using (var seed = provider.GetTransactionalStorage()) await FormTestSeed.StoreAsync(seed, "Approval");
         await businessLogic.DeployDefinition(definition);
 
         // Parallele Leser wie GET /instance, GET /usertask und GET /instance/{id} laufen ohne

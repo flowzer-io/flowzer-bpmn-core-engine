@@ -209,10 +209,10 @@ public class ApiContractHardeningIntegrationTest
         };
     }
 
-    // Testzweck: Die Formular-Auflösung (Form-Key -> neueste Version) gehoert in die API. Ohne
-    // Versionsangabe im Form-Key muss die hoechste gespeicherte Version geliefert werden.
+    // Testzweck: Die API liefert den beim Deployment gebundenen Formularstand; ohne
+    // Versionsangabe gilt die zu diesem Zeitpunkt neueste Fassung, nicht eine spätere.
     [Test]
-    public async Task GetUserTaskForm_ShouldReturnLatestFormVersion_WhenFormKeyHasNoVersion()
+    public async Task GetUserTaskForm_ShouldReturnVersionBoundAtDeployment_WhenFormKeyHasNoVersion()
     {
         var storage = new TestStorage();
         var formId = Guid.NewGuid();
@@ -220,7 +220,7 @@ public class ApiContractHardeningIntegrationTest
         storage.Forms.Add(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{\"v\":1}" });
         var latest = new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(2, 0), FormData = "{\"v\":2}" };
         storage.Forms.Add(latest);
-        var subscription = AddUserTaskSubscription(storage, formKey: "Approval");
+        var subscription = await AddUserTaskSubscription(storage, formKey: "Approval");
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -246,7 +246,7 @@ public class ApiContractHardeningIntegrationTest
         var requested = new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{\"v\":1}" };
         storage.Forms.Add(requested);
         storage.Forms.Add(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(2, 0), FormData = "{\"v\":2}" });
-        var subscription = AddUserTaskSubscription(storage, formKey: "Approval:1.0");
+        var subscription = await AddUserTaskSubscription(storage, formKey: "Approval:1.0");
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -268,7 +268,7 @@ public class ApiContractHardeningIntegrationTest
         storage.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = "Pruefung: Detail" });
         var form = new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" };
         storage.Forms.Add(form);
-        var subscription = AddUserTaskSubscription(storage, formKey: "Pruefung: Detail");
+        var subscription = await AddUserTaskSubscription(storage, formKey: "Pruefung: Detail");
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -303,7 +303,7 @@ public class ApiContractHardeningIntegrationTest
     public async Task GetUserTaskForm_ShouldReturnBadRequest_WhenFormDoesNotExist()
     {
         var storage = new TestStorage();
-        var subscription = AddUserTaskSubscription(storage, formKey: "DoesNotExist");
+        var subscription = await AddUserTaskSubscription(storage, formKey: "DoesNotExist");
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -336,7 +336,7 @@ public class ApiContractHardeningIntegrationTest
     public async Task GetUserTaskForm_ShouldReturnUnauthorized_WhenNoUserContextOutsideDevelopment()
     {
         var storage = new TestStorage();
-        var subscription = AddUserTaskSubscription(storage, formKey: "Approval");
+        var subscription = await AddUserTaskSubscription(storage, formKey: "Approval");
 
         await using var factory = new TestWebApplicationFactory(storage, environmentName: "Production", useFixedUser: false);
         using var client = factory.CreateClient();
@@ -352,7 +352,7 @@ public class ApiContractHardeningIntegrationTest
     public async Task GetAllUserTasks_ShouldExposeFormKeyAndScheduleFromModel()
     {
         var storage = new TestStorage();
-        AddUserTaskSubscription(storage, formKey: "Approval:1.0", dueDate: "2026-10-01T10:00:00Z", followUpDate: "2026-09-28T10:00:00Z");
+        await AddUserTaskSubscription(storage, formKey: "Approval:1.0", dueDate: "2026-10-01T10:00:00Z", followUpDate: "2026-09-28T10:00:00Z");
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -376,7 +376,7 @@ public class ApiContractHardeningIntegrationTest
         var storage = new TestStorage();
         var definitionId = Guid.NewGuid();
         storage.Binaries[definitionId] = WorkflowWithEmbeddedForm("UserTaskForm_Urlaub", EmbeddedSchema);
-        var subscription = AddUserTaskSubscription(
+        var subscription = await AddUserTaskSubscription(
             storage,
             formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
             definitionId: definitionId);
@@ -406,7 +406,7 @@ public class ApiContractHardeningIntegrationTest
         var storage = new TestStorage();
         var definitionId = Guid.NewGuid();
         storage.Binaries[definitionId] = WorkflowWithEmbeddedForm("UserTaskForm_Vorhanden", EmbeddedSchema);
-        var subscription = AddUserTaskSubscription(
+        var subscription = await AddUserTaskSubscription(
             storage,
             formKey: "camunda-forms:bpmn:UserTaskForm_Fehlt",
             definitionId: definitionId);
@@ -429,7 +429,7 @@ public class ApiContractHardeningIntegrationTest
     public async Task GetUserTaskForm_ShouldReturnBadRequest_WhenTheWorkflowDiagramIsGone()
     {
         var storage = new TestStorage();
-        var subscription = AddUserTaskSubscription(
+        var subscription = await AddUserTaskSubscription(
             storage,
             formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
             definitionId: Guid.NewGuid());
@@ -471,7 +471,7 @@ public class ApiContractHardeningIntegrationTest
                                            </bpmn:process>
                                          </bpmn:definitions>
                                          """;
-        var subscription = AddUserTaskSubscription(
+        var subscription = await AddUserTaskSubscription(
             storage,
             formKey: "camunda-forms:bpmn:UserTaskForm_Urlaub",
             definitionId: definitionId);
@@ -510,7 +510,7 @@ public class ApiContractHardeningIntegrationTest
          </bpmn:definitions>
          """;
 
-    private static ExtendedUserTaskSubscription AddUserTaskSubscription(
+    private static async Task<ExtendedUserTaskSubscription> AddUserTaskSubscription(
         TestStorage storage,
         string formKey,
         string? dueDate = null,
@@ -543,6 +543,13 @@ public class ApiContractHardeningIntegrationTest
             DefinitionMetaName = "Review Process",
             DefinitionVersion = new Model.Version(1, 0)
         };
+        var definition = new BpmnDefinition
+        {
+            Id = subscription.DefinitionId, DefinitionId = subscription.MetaDefinitionId,
+            Hash = "fixture", SavedByUser = Guid.NewGuid(), IsActive = true, Version = new Model.Version(1, 0)
+        };
+        await FormTestSeed.BindFixtureAsync(storage, definition, formKey);
+        storage.Definitions[definition.Id] = definition;
         storage.UserTaskSubscriptions.Add(subscription);
         return subscription;
     }
@@ -644,6 +651,7 @@ public class ApiContractHardeningIntegrationTest
     private sealed class TestStorage : ITransactionalStorage
     {
         public Dictionary<Guid, string> Binaries { get; } = [];
+        public Dictionary<Guid, BpmnDefinition> Definitions { get; } = [];
         public List<ProcessInstanceInfo> Instances { get; } = [];
         public List<ExtendedUserTaskSubscription> UserTaskSubscriptions { get; } = [];
         public List<FormMetadata> FormMetadatas { get; } = [];
@@ -692,7 +700,8 @@ public class ApiContractHardeningIntegrationTest
         public Task<BpmnDefinition[]> GetAllDefinitions() => Task.FromResult(Array.Empty<BpmnDefinition>());
         public Task StoreDefinition(BpmnDefinition definition) => throw new NotSupportedException();
         public Task<Model.Version?> GetMaxVersionId(string modelId) => throw new NotSupportedException();
-        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) => storage.Definitions.TryGetValue(id, out var definition)
+            ? Task.FromResult(definition) : throw new FileNotFoundException();
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => throw new NotSupportedException();
         public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());

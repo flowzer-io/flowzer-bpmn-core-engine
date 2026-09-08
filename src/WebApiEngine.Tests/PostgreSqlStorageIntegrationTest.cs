@@ -104,6 +104,8 @@ public class PostgreSqlStorageIntegrationTest
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var v1 = CreateDefinition("catalog-1", 1, 0, isActive: false);
         var v2 = CreateDefinition("catalog-1", 2, 0, isActive: true);
+        var binding = new BoundForm(Guid.NewGuid(), Guid.NewGuid(), "1.0", "{\"components\":[]}");
+        v2.FormBindings = new Dictionary<string, BoundForm> { ["Approval"] = binding };
         await storage.DefinitionStorage.StoreDefinition(v1);
         await storage.DefinitionStorage.StoreDefinition(v2);
         await storage.DefinitionStorage.StoreBinary(v2.Id, "<xml/>");
@@ -113,6 +115,8 @@ public class PostgreSqlStorageIntegrationTest
         (await storage.DefinitionStorage.GetMaxVersionId("unknown")).Should().BeNull();
         (await storage.DefinitionStorage.GetLatestDefinition("catalog-1")).Id.Should().Be(v2.Id);
         (await storage.DefinitionStorage.GetDeployedDefinition("catalog-1"))!.Id.Should().Be(v2.Id);
+        (await storage.DefinitionStorage.GetDefinitionById(v2.Id)).FormBindings!["Approval"].Should().Be(binding);
+        (await storage.DefinitionStorage.GetDefinitionById(v1.Id)).FormBindings.Should().BeNull();
         (await storage.DefinitionStorage.GetBinary(v2.Id)).Should().Be("<xml/>");
         (await storage.DefinitionStorage.GetAllBinaryDefinitions()).Should().Equal(v2.Id);
         var metas = await storage.DefinitionStorage.GetAllMetaDefinitions();
@@ -345,6 +349,7 @@ public class PostgreSqlStorageIntegrationTest
             await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition { DefinitionId = definition.DefinitionId, Name = "Review" });
             await storage.DefinitionStorage.StoreDefinition(definition);
             await storage.DefinitionStorage.StoreBinary(definition.Id, UserTaskXml);
+            await FormTestSeed.StoreAsync(storage, "Approval");
             storage.CommitChanges();
         }
 

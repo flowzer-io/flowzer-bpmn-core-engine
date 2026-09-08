@@ -206,6 +206,20 @@ Workflow von außen mit Startvariablen anstoßen, ohne dass er dafür ein Formul
 
 ## Formulare im Workflow
 
+Ab PR #181 erhalten **alle** beim Deployment referenzierten Start-/Aufgabenformulare
+einen festen Snapshot an der Definitionsversion, auch externe Formulare ohne
+Versionssuffix. Eine neue Formularfassung wirkt erst mit einem neuen Workflow-Deployment.
+Umbenennen oder Wiederaktivieren einer bestehenden Workflow-Version bindet nicht neu.
+Nicht auflösbare Referenzen verhindern die Aktivierung; die bisher aktive Fassung bleibt.
+
+**Upgradehinweis:** Historische externe Referenzen ohne gespeicherten Snapshot werden
+bei Laufzeitabrufen nicht mehr automatisch auf `latest` aufgelöst. Neue Instanzen
+brauchen ein neues Deployment; laufende Altinstanzen eine ausdrücklich geprüfte
+Formularzuordnung im noch ausstehenden Migrationspaket. Eingebettete historische
+Formulare bleiben aus ihrer BPMN-Version lesbar. Vor einem Upgrade solche Referenzen
+inventarisieren; dieses Paket führt keine produktive Migration aus.
+Siehe [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
+
 Ein Formular kann aus zwei Quellen kommen. Der Form-Key
 (`zeebe:formDefinition/@formKey`) sagt, aus welcher — am User-Task wie am Startereignis:
 

@@ -53,8 +53,17 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
             var model =  ModelParser.ParseModel(xmlData);
-        
-        
+
+            // Nur neue Versionen dürfen auflösen. Ein alter Aufrufer kann eine bereits
+            // gebundene Version nicht durch einen fehlenden/stalen Snapshot neu binden.
+            var storedDefinition = await storageSystem.DefinitionStorage.GetDefinitionById(definition.Id);
+            if (storedDefinition.FormBindings is null && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
+                throw new InvalidOperationException("The historical workflow has no verified form bindings. Deploy a new workflow version.");
+            definition.FormBindings = storedDefinition.FormBindings ?? await new FormKeyResolver(storageSystem).BindAsync(
+                model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().Select(task => task.Implementation)
+                    .Concat(model.GetProcesses().SelectMany(process => process.FlowElements).OfType<StartEvent>().Select(start => start.FlowzerFormKey)),
+                definition.Id);
+
             await UndeployDefinition(definition, storageSystem);
         
             foreach (var process in model.GetProcesses())

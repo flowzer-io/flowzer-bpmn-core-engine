@@ -173,7 +173,6 @@ public class InstancePrivacyIntegrationTest
     public async Task TaskList_ShouldProjectOnlyDeclaredFormContext()
     {
         using var context = new AuthenticatedWorkflowTestContext();
-        var task = await context.StartAsync("assignee=\"bert\"");
         var formId = Guid.NewGuid();
         await context.Storage.FormStorage.SaveFormMetaData(new FormMetadata { FormId = formId, Name = "Approval" });
         await context.Storage.FormStorage.SaveForm(new Form
@@ -181,6 +180,7 @@ public class InstancePrivacyIntegrationTest
             Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0),
             FormData = """{"components":[{"type":"textarea","input":true,"disabled":true,"key":"vorgang"}]}"""
         });
+        var task = await context.StartAsync("assignee=\"bert\"");
         task.Token.Variables = new ExpandoObject();
         var data = (IDictionary<string, object?>)task.Token.Variables;
         data["vorgang"] = "Öffentlich freigegebener Kontext";

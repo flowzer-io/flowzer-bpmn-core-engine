@@ -234,6 +234,7 @@ public class ServiceTaskWorkerIntegrationTest
                 });
                 await storage.DefinitionStorage.StoreDefinition(definition);
                 await storage.DefinitionStorage.StoreBinary(definition.Id, xml);
+                await FormTestSeed.StoreAsync(storage, "Antrag");
             }
 
             await BusinessLogic.DeployDefinition(definition);

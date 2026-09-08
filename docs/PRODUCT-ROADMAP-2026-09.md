@@ -45,6 +45,11 @@ aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
 Aufgaben-Leseprojektion ersetzt noch keine immutable Formularbindung oder
 serverseitige Submission-Validierung.
 
+**Formularbindung:** #180 / PR #181 friert alle referenzierten Start-/Aufgabenformulare
+beim Deployment ein, einschließlich Subprozessen. Externe Altbestände ohne Snapshot
+benötigen ausdrückliche Klärung; es erfolgt keine automatische Migration auf `latest`.
+Die drei PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [ ] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle

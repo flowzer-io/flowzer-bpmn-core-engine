@@ -56,9 +56,10 @@ Weitere Feldtypen benötigen einen ausdrücklichen Datenvertrag.
 - Leere konfigurierte Fähigkeitsrollen bleiben gemäß bestehendem Vertrag permissiv.
   `Roles:Operator` deshalb in produktiven Installationen ausdrücklich konfigurieren.
 - Verzeichnisabgleich, Claims/Delegation und gemeinsame Formularverträge folgen separat.
-- Externe Formulare ohne Versionsangabe werden bisher dynamisch aufgelöst. Die
-  unveränderliche Deployment-Bindung folgt unmittelbar als eigener Slice; bis dahin
-  sind Formularänderungen noch keine von Modellierungsrechten getrennte Datenfreigabe.
+- PR #181 bindet externe Formulare beim Deployment als feste Snapshots. Neue
+  Formularfassungen erweitern den Kontext laufender Aufgaben nicht nachträglich.
+  Externe historische Referenzen ohne belegten Stand benötigen ausdrücklich geprüfte
+  Zuordnung; Details: [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 - Kein Mehrprozess-/Rollbackversprechen für die dateibasierte Ablage.
 - Externe Reviews sind im aktuellen autonomen Mandat ausdrücklich ausgesetzt;
   TDD, Selbstprüfung und CI bleiben Pflicht.

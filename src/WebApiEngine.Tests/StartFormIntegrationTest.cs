@@ -30,7 +30,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: null);
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -38,15 +38,15 @@ public class StartFormIntegrationTest
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
-    // Testzweck: Ein Form-Key ohne Version liefert die neueste Fassung des Bestandsformulars.
+    // Testzweck: Ein Form-Key ohne Version liefert die beim Deployment gebundene Fassung.
     [Test]
-    public async Task GetStartForm_ShouldReturnTheLatestVersion_ForAStoredForm()
+    public async Task GetStartForm_ShouldReturnTheVersionBoundAtDeployment_ForAStoredForm()
     {
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
         SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -66,7 +66,7 @@ public class StartFormIntegrationTest
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag:1.0");
         SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -86,7 +86,7 @@ public class StartFormIntegrationTest
         var formId = SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
         SeedWorkflow(storage, startFormKey: formId.ToString());
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -106,7 +106,7 @@ public class StartFormIntegrationTest
         var formId = SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"version\":\"1.0\"}"), ("1.1", "{\"version\":\"1.1\"}"));
         SeedWorkflow(storage, startFormKey: $"{formId}:1.0");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -125,7 +125,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: unbekannt.ToString());
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -144,7 +144,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "camunda-forms:bpmn:StartForm_Urlaub", embeddedFormId: "StartForm_Urlaub");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -163,7 +163,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "GibtEsNicht");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -182,7 +182,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag", secondStartFormKey: "Krankmeldung");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -199,7 +199,7 @@ public class StartFormIntegrationTest
     {
         var storage = TestStorage.Create();
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/definition/meta/gibt-es-nicht/start-form");
@@ -221,7 +221,7 @@ public class StartFormIntegrationTest
             Name = "Urlaubsantrag"
         });
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync($"/definition/meta/{DefinitionId}/start-form");
@@ -239,7 +239,7 @@ public class StartFormIntegrationTest
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
         SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{}"));
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         // Bewusst als roher JSON-Rumpf: Ein anonymes Objekt wuerde der Testserializer
@@ -264,7 +264,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsync($"/definition/meta/{DefinitionId}/instance", content: null);
@@ -284,7 +284,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
@@ -302,7 +302,7 @@ public class StartFormIntegrationTest
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: null);
 
-        await using var factory = new TestWebApplicationFactory(storage);
+        await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
 
         var response = await client.PostAsync($"/definition/meta/{DefinitionId}/instance", content: null);
@@ -414,6 +414,18 @@ public class StartFormIntegrationTest
 
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
     {
+        internal static async Task<TestWebApplicationFactory> CreateAsync(TestStorage storage)
+        {
+            // Expliziter Fixture-Snapshot vor dem HTTP-Abruf, nicht bei jedem Lesen.
+            foreach (var definition in storage.DefinitionStorageSeed.Deployed.Values)
+            {
+                var xml = System.Xml.Linq.XDocument.Parse(storage.DefinitionStorageSeed.Binaries[definition.Id]);
+                foreach (var key in xml.Descendants().SelectMany(element => element.Attributes("formKey")).Select(attribute => attribute.Value))
+                    await FormTestSeed.BindFixtureAsync(storage, definition, key);
+            }
+            return new TestWebApplicationFactory(storage);
+        }
+
         // Reine Vertragsfixtures verwenden den erlaubten Development-Pfad. Negative
         // Produktions-/JWT-Fälle liegen in den eigenen Sicherheitsintegrationstests.
         protected override void ConfigureClient(HttpClient client)
@@ -537,7 +549,8 @@ public class StartFormIntegrationTest
         public Task DeleteBinary(Guid guid) => Task.CompletedTask;
         public Task DeleteDefinition(Guid id) => Task.CompletedTask;
         public Task<Model.Version?> GetMaxVersionId(string modelId) => Task.FromResult<Model.Version?>(null);
-        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) =>
+            Task.FromResult(Deployed.Values.Single(definition => definition.Id == id));
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
 
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) =>

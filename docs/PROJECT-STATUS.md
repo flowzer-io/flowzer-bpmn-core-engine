@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0-Teilpakete in PR #177 und #179.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179 und #181.
 
 ## Einordnung
 
@@ -44,19 +44,29 @@ vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fo
 ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
 
 Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere serverseitige
-Formularvalidierung, unveränderliche externe Formularbindungen, Idempotenzschlüssel und BFF.
+Formularvalidierung, Idempotenzschlüssel und BFF.
 Wiederholter Abschluss liefert derzeit `404`, keine idempotente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
 API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
 
+## Formularbindung – PR #181 (aufbauend auf #179)
+
+Externe und eingebettete Formulare erhalten beim Deployment einen festen Snapshot
+an der Definitionsversion. Neue Fassungen und Umbenennungen verändern weder
+Startformulare noch laufende oder später aktivierte Aufgaben. Fehlende/mehrdeutige
+Referenzen werden vor der Aktivierung abgelehnt. Historische externe Referenzen
+ohne belegten Stand werden bei der Auflösung nicht auf heutige Formulare geraten:
+Sie benötigen eine ausdrücklich geprüfte Zuordnung. Keine produktive Migration.
+Details: [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
-1. **M0:** Formularbindung und verbindliche Formularprüfung zuerst, danach BFF
+1. **M0:** Verbindliche Formularprüfung zuerst, danach BFF
    mit CSRF-Schutz und persistente Idempotenz. Rollen ausdrücklich konfigurieren;
    leere Fähigkeitsrollen bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
    unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
-   bleiben bis zur Migration mehrdeutig; externe unversionierte Form-Keys sind offen.
+   bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Stabile Aufgaben-IDs, Übernahme/Delegation, SDK und TickyTask-Einbettung,
    Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
