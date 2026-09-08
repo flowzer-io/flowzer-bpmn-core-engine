@@ -43,9 +43,10 @@ keinen Instanzzugriff. Aufgabenlisten geben nur deklarierte Formularwerte statt
 vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fordert
 ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
 
-Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere
-Idempotenzschlüssel und BFF.
-Wiederholter Abschluss liefert derzeit `404`, keine idempotente Erfolgswiederholung.
+Das ist **kein vollständiger M0-Abschluss**: Insbesondere der BFF fehlt weiterhin.
+Ohne `Idempotency-Key` liefert ein wiederholter Abschluss aus Kompatibilitätsgründen
+weiterhin `404`; mit dem in PR #187 ergänzten Schlüssel greift die persistente
+Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
 API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
 

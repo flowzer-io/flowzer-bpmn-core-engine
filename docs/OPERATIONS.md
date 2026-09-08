@@ -127,11 +127,12 @@ bestehenden JSON-Token-Dokumenten erforderlich.
 
 Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
 eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
-ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel,
-und eine append-only Audit-Historie
-sind weitere M0/M6-Pakete. Instanzrechte und das begrenzte Formular-Prüfprofil
-werden in eigenen Abschnitten beschrieben. Wiederholter Abschluss wird momentan mit `404`
-abgelehnt, nicht als gespeicherte identische Erfolgsantwort wiederholt.
+ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
+die direkten HTTP-Starts und -Abschlüsse; eine append-only Audit-Historie und der
+allgemeine Mehrprozessschutz bleiben weitere M0/M6-Pakete. Instanzrechte und das
+begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
+`Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
+Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
 
 ### Ordner und Delegation
 
@@ -175,8 +176,10 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 Direkte Starts und Aufgabenabschlüsse können mit `Idempotency-Key` abgesichert werden.
 Identische Wiederholungen liefern dasselbe Ergebnis; anderer Inhalt 409. Der Schlüssel
-muss bereits beim ersten Versuch gesetzt sein, ist 1–200 sichtbare ASCII-Zeichen lang
-und sieben Tage gültig. Details, PostgreSQL-Migration und Grenzen:
+muss bereits beim ersten Versuch gesetzt sein und ist 1–200 sichtbare ASCII-Zeichen
+lang. Abgeschlossene Ergebnisse sind sieben Tage gültig; offene Reservierungen mit
+unklarem Ausgang werden nicht automatisch freigegeben. Details, PostgreSQL-Migration
+und Grenzen:
 [HTTP-Idempotenz](IDEMPOTENCY.md).
 
 

@@ -22,7 +22,7 @@ slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftra
 
 ## Nachweise
 
-- Abschließende lokale .NET-Suite: **100 Engine + 454 API-/Storage-Tests bestanden**,
+- Abschließende lokale .NET-Suite: **100 Engine + 461 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
 - React-Konsole auf dem Formular-Slice: **207 Tests**, Typecheck und Build erfolgreich;
@@ -35,11 +35,14 @@ slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftra
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
   `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
   Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
-- Für den neuen Idempotenz-Slice wurde der verlangte Astra-/High-Review über den
-  zentralen Wrapper gestartet. Der Wrapper lehnte vor Providerstart fail-closed ab,
-  weil seine Codex-Allowlist Astra noch nicht kennt. Das ist **kein Review-Ergebnis**;
-  der Slice bleibt deshalb lokal und PR #187 im Entwurf. Frühere Reviews waren nach
-  Christians damaliger Ausnahme ausgesetzt.
+- Der verlangte abschließende **Astra-/High-Review** lief direkt als strikt lesender
+  Subagent. Drei Befunde wurden umgesetzt: unklare Datei-Commits behalten ihre offene
+  Reservierung, mathematisch gleiche JSON-Zahlen erhalten denselben Hash und der
+  Projektstatus unterscheidet korrekt zwischen Wiederholungen mit/ohne Header.
+  Zusätzliche Fault-Injection-, PostgreSQL-Rollback- und Retentionstests sichern die
+  Korrekturen. Der Re-Review meldete **keine blockierenden Findings**. Als spätere
+  Härtung bleiben weitere Zahlenvektoren/-größenlimits und ein auditierter Klärungsweg
+  für offene Reservierungen dokumentiert.
 
 ## Bewahrte Produktentscheidungen
 

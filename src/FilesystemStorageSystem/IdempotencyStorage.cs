@@ -39,7 +39,11 @@ internal sealed class IdempotencyStorage(Storage storage) : IIdempotencyStorage
         foreach (var entry in StorageFile.ReadExistingFiles(_path, "*.json"))
         {
             var record = JsonConvert.DeserializeObject<IdempotencyRecord>(entry.Content, _settings);
-            if (record is null || record.ExpiresAt <= utcNow) StorageFile.DeleteIfExists(entry.Path);
+            // Offene Datensätze können nach einer nichttransaktionalen Teilmutation einen
+            // unklaren Ausgang markieren. Sie dürfen nicht zeitgesteuert verschwinden,
+            // weil derselbe Retry den Facheffekt danach duplizieren könnte.
+            if (record is { IsCompleted: true } && record.ExpiresAt <= utcNow)
+                StorageFile.DeleteIfExists(entry.Path);
         }
         return Task.CompletedTask;
     }

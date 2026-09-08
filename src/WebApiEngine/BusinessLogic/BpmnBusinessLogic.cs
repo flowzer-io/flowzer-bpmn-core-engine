@@ -553,50 +553,55 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                     ?? throw new IdempotencyConflictException("The stored start result is incomplete.");
                 return await storageSystem.InstanceStorage.GetProcessInstance(replayId);
             }
+            var persistedMutationMayExist = false;
             try
             {
                 var (deployedDefinition, process) =
                     await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
 
-            // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
-            // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
-            if (RequireStartFormKey(process) is not null && variables is null)
-            {
-                throw new InvalidOperationException(
-                    $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
-            }
+                // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
+                // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
+                if (RequireStartFormKey(process) is not null && variables is null)
+                {
+                    throw new InvalidOperationException(
+                        $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
+                }
 
-            if (RequireStartFormKey(process) is { } startFormKey)
-                variables = await ValidateFormInputAsync(storageSystem, startFormKey, deployedDefinition.Id, variables);
+                if (RequireStartFormKey(process) is { } startFormKey)
+                    variables = await ValidateFormInputAsync(storageSystem, startFormKey, deployedDefinition.Id, variables);
 
-            var processEngine = new ProcessEngine(process);
-            var instance = processEngine.StartProcess(variables);
-            // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
-            // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
-            instance.MasterToken.Initiator = initiator;
-            var processInstanceInfo = CreateProcessInstanceInfo(
-                deployedDefinition.Id,
-                relatedDefinitionId,
-                process.Id,
-                instance);
+                var processEngine = new ProcessEngine(process);
+                var instance = processEngine.StartProcess(variables);
+                // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
+                // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
+                instance.MasterToken.Initiator = initiator;
+                var processInstanceInfo = CreateProcessInstanceInfo(
+                    deployedDefinition.Id,
+                    relatedDefinitionId,
+                    process.Id,
+                    instance);
 
-            await SaveSubscriptions(
-                storageSystem,
-                instance,
-                relatedDefinitionId,
-                deployedDefinition.Id,
-                process.Id,
-                instance.InstanceId);
-            await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
-            if (acquisition.Record is not null)
-                await storageSystem.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, processInstanceInfo.InstanceId);
+                // Ab hier kann ein nichttransaktionaler Adapter bereits einzelne Dateien
+                // dauerhaft geschrieben haben. Bei einem späteren Fehler muss die offene
+                // Reservierung erhalten bleiben, damit ein Retry nichts dupliziert.
+                persistedMutationMayExist = true;
+                await SaveSubscriptions(
+                    storageSystem,
+                    instance,
+                    relatedDefinitionId,
+                    deployedDefinition.Id,
+                    process.Id,
+                    instance.InstanceId);
+                await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+                if (acquisition.Record is not null)
+                    await storageSystem.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, processInstanceInfo.InstanceId);
 
-            storageSystem.CommitChanges();
-            return processInstanceInfo;
+                storageSystem.CommitChanges();
+                return processInstanceInfo;
             }
             catch
             {
-                try { await IdempotencyExecution.Abandon(storageSystem, acquisition); }
+                try { await IdempotencyExecution.Abandon(storageSystem, acquisition, persistedMutationMayExist); }
                 catch (Exception cleanupError)
                 {
                     (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(cleanupError,

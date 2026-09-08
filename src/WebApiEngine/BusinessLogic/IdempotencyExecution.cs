@@ -26,9 +26,17 @@ internal static class IdempotencyExecution
         return Existing(existing, request);
     }
 
-    internal static async Task Abandon(IStorageSystem storage, IdempotencyAcquisition acquisition)
+    internal static async Task Abandon(
+        IStorageSystem storage,
+        IdempotencyAcquisition acquisition,
+        bool persistedMutationMayExist = false)
     {
-        if (acquisition.IsOwned) await storage.IdempotencyStorage.Remove(acquisition.Record!.ScopeHash);
+        // Nichttransaktionale Adapter (insbesondere die Dateiablage) dürfen die
+        // Reservierung nach einem möglicherweise bereits dauerhaften Facheffekt nicht
+        // entfernen: Der Ausgang ist unklar und ein Retry könnte den Effekt duplizieren.
+        // In PostgreSQL rollt Dispose ohne Commit Reservierung und Fachdaten gemeinsam zurück.
+        if (acquisition.IsOwned && !persistedMutationMayExist)
+            await storage.IdempotencyStorage.Remove(acquisition.Record!.ScopeHash);
     }
 
     private static IdempotencyAcquisition Existing(IdempotencyRecord existing, IdempotencyRequest request)

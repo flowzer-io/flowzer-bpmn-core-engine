@@ -14,7 +14,9 @@ Netzwerkaufruf wiederholt, muss denselben Schlüssel bereits beim **ersten** Ver
   OIDC-Paar `(Issuer, Subject)`. Eine GUID oder Identität aus Body/freiem Header zählt nicht.
 - Der Requestinhalt wird als kanonisches JSON mit sortierten Objektschlüsseln gehasht.
   Arrayreihenfolge und JSON-Typen bleiben fachlich relevant. Zwei Objekt-Reihenfolgen
-  sind gleich, `1` und `"1"` oder fehlend und `null` dagegen nicht.
+  sowie mathematisch identische JSON-Zahlen (`1`, `1.0`, `1e0`) sind gleich. Die
+  Zahlennormalisierung arbeitet dezimal und ohne `double`-Rundung. `1` und `"1"`
+  oder fehlend und `null` bleiben dagegen verschieden.
 - Identische Wiederholung liefert das gespeicherte Ergebnis: beim Start dieselbe
   Instanz-ID, beim Abschluss erneut Erfolg – auch über `/usertask` und `/form/result`
   hinweg. Es findet keine zweite Mutation statt.
@@ -44,19 +46,25 @@ Tests verwenden getrennte `BpmnBusinessLogic`-Objekte, sodass keine gemeinsame
 prozesslokale Sperre den Mehrprozess-Konflikt verdeckt.
 
 Die Dateiablage schreibt atomare JSON-Dokumente und entfernt eine eigene Reservierung
-bei Fehlern. Sie besitzt weiterhin weder Transaktionsrollback noch ein
-prozessübergreifendes Lock. Sie ist für lokale Entwicklung, **nicht** als Nachweis für
-mehrere API-Prozesse gedacht. Drittadapter dürfen das Default-Storageobjekt nur nutzen,
-wenn die betreffenden Requests keinen Idempotenzheader senden; für den öffentlichen
-Vertrag müssen sie `IIdempotencyStorage` implementieren.
+nur, solange sicher noch keine dauerhafte Fachmutation begonnen hat. Scheitert das
+Festschreiben des Ergebnisses erst danach, bleibt die Reservierung offen: Der Ausgang
+ist unklar und weitere Ausführung mit demselben Schlüssel endet mit `409`, statt einen
+möglichen Effekt zu duplizieren. Sie besitzt weiterhin weder Transaktionsrollback noch
+ein prozessübergreifendes Lock. Sie ist für lokale Entwicklung, **nicht** als Nachweis
+für mehrere API-Prozesse gedacht. Drittadapter dürfen das Default-Storageobjekt nur
+nutzen, wenn die betreffenden Requests keinen Idempotenzheader senden; für den
+öffentlichen Vertrag müssen sie `IIdempotencyStorage` implementieren.
 
 ## Aufbewahrung und Betrieb
 
-Datensätze laufen sieben Tage nach Anlage ab und werden bei einem folgenden
-idempotenten Request best-effort bereinigt. Nach Ablauf darf derselbe Clientschlüssel
-wieder eine neue Mutation bezeichnen. Clients müssen ihre Retry-Periode darunter
-halten. Eine konfigurierbare Retention und ein eigener Cleanup-Job können später
-folgen; sieben Tage sind für Profil 1 Teil des dokumentierten Vertrags.
+**Abgeschlossene** Datensätze laufen sieben Tage nach Anlage ab und werden bei einem
+folgenden idempotenten Request best-effort bereinigt. Danach darf derselbe
+Clientschlüssel wieder eine neue Mutation bezeichnen; Clients müssen ihre Retry-Periode
+darunter halten. Offene Reservierungen laufen bewusst nicht automatisch ab, weil sie
+bei nichttransaktionaler Ablage einen unklaren Facheffekt markieren können. Ihre
+operative Auflösung benötigt einen späteren, auditierten Klärungsweg. Eine
+konfigurierbare Retention und ein eigener Cleanup-/Klärungsjob können später folgen;
+sieben Tage für abgeschlossene Ergebnisse sind für Profil 1 Teil des Vertrags.
 
 Vor Upgrade Migration 004 in einer Testinstallation anwenden und danach einen
 idempotenten Start sowie einen Abschluss-Replay prüfen. Rollback des Anwendungscodes

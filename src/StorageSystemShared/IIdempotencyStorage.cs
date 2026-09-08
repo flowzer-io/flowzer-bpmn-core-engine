@@ -6,6 +6,11 @@ public interface IIdempotencyStorage
     Task<bool> TryCreate(IdempotencyRecord record);
     Task Complete(string scopeHash, Guid? processInstanceId);
     Task Remove(string scopeHash);
+
+    /// <summary>
+    /// Entfernt abgelaufene, abgeschlossene Ergebnisse. Offene Reservierungen bleiben
+    /// erhalten, da sie bei nichttransaktionaler Ablage einen unklaren Ausgang markieren.
+    /// </summary>
     Task DeleteExpired(DateTime utcNow);
 }
 

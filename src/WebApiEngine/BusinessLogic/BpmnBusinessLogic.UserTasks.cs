@@ -39,6 +39,7 @@ public partial class BpmnBusinessLogic
                 await IdempotencyExecution.Abandon(storage, acquisition);
                 return UserTaskCompletionOutcome.NotFound;
             }
+            var persistedMutationMayExist = false;
             try
             {
             var subscriptions = (await storage.SubscriptionStorage.GetAllUserTasks(instanceId))
@@ -97,6 +98,10 @@ public partial class BpmnBusinessLogic
                 (activeTokens[0].CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation,
                 processInstance.DefinitionId, result.Data, WebApiEngine.Forms.TaskFormContext.Read(processInstance.Tokens, activeTokens[0]));
             instance.HandleTaskResult(result.TokenId, validated, userId);
+            // SaveInstance schreibt bei der Dateiablage mehrere dauerhafte Dokumente.
+            // Scheitert danach der Ergebnisdatensatz, bleibt der Ausgang absichtlich
+            // unklar und der Idempotenzschlüssel für weitere Ausführung gesperrt.
+            persistedMutationMayExist = true;
             await SaveInstance(storage, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
             if (acquisition.Record is not null)
                 await storage.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, null);
@@ -105,7 +110,7 @@ public partial class BpmnBusinessLogic
             }
             catch
             {
-                try { await IdempotencyExecution.Abandon(storage, acquisition); }
+                try { await IdempotencyExecution.Abandon(storage, acquisition, persistedMutationMayExist); }
                 catch (Exception cleanupError)
                 {
                     (logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<BpmnBusinessLogic>.Instance)

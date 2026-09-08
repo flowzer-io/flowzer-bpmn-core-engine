@@ -61,7 +61,7 @@ internal sealed class PostgreSqlIdempotencyStorage(PostgreSqlSession session) : 
     public Task DeleteExpired(DateTime utcNow) => session.RunAsync(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction,
-            "DELETE FROM {schema}.idempotency_records WHERE expires_at <= @utcNow");
+            "DELETE FROM {schema}.idempotency_records WHERE is_completed = true AND expires_at <= @utcNow");
         command.Parameters.AddWithValue("utcNow", utcNow);
         await command.ExecuteNonQueryAsync();
     });

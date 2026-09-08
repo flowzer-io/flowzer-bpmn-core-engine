@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Numerics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -49,8 +51,39 @@ public static class HttpIdempotency
             case JsonValueKind.Array:
                 writer.WriteStartArray(); foreach (var item in value.EnumerateArray()) WriteCanonical(writer, item); writer.WriteEndArray();
                 break;
+            case JsonValueKind.Number:
+                // JsonElement bewahrt die lexikalische Schreibweise. Für Idempotenz ist
+                // jedoch der exakte Dezimalwert maßgeblich: 1, 1.0 und 1e0 sind gleich.
+                // Die Normalisierung arbeitet auf Ziffern/BigInteger und vermeidet damit
+                // jede Rundung über double oder decimal.
+                writer.WriteRawValue(NormalizeJsonNumber(value.GetRawText()));
+                break;
             default: value.WriteTo(writer); break;
         }
+    }
+
+    private static string NormalizeJsonNumber(string rawNumber)
+    {
+        var exponentIndex = rawNumber.IndexOfAny(['e', 'E']);
+        var mantissa = exponentIndex < 0 ? rawNumber : rawNumber[..exponentIndex];
+        var exponent = exponentIndex < 0
+            ? BigInteger.Zero
+            : BigInteger.Parse(rawNumber[(exponentIndex + 1)..], NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture);
+        var negative = mantissa[0] == '-';
+        var unsignedMantissa = negative ? mantissa[1..] : mantissa;
+        var decimalPoint = unsignedMantissa.IndexOf('.');
+        var fractionLength = decimalPoint < 0 ? 0 : unsignedMantissa.Length - decimalPoint - 1;
+        var digits = decimalPoint < 0
+            ? unsignedMantissa
+            : string.Concat(unsignedMantissa.AsSpan(0, decimalPoint), unsignedMantissa.AsSpan(decimalPoint + 1));
+        digits = digits.TrimStart('0');
+        if (digits.Length == 0) return "0";
+
+        var trailingZeros = digits.Length - digits.TrimEnd('0').Length;
+        var significantDigits = trailingZeros == 0 ? digits : digits[..^trailingZeros];
+        var normalizedExponent = exponent - fractionLength + trailingZeros;
+        return $"{(negative ? "-" : "")}{significantDigits}e{normalizedExponent.ToString(CultureInfo.InvariantCulture)}";
     }
 
     private static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
