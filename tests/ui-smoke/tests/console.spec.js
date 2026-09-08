@@ -52,8 +52,9 @@ async function ohneModelliererrolle(page) {
     })
   );
   // Die API laeuft im Smoke absichtlich mit Authentication=None und besitzt deshalb kein
-  // echtes BFF-Cookie. Die globale Aufgabenabfrage wird fuer diesen reinen Rollen-UI-Test
-  // leer beantwortet, damit ihr erwartetes 401 die nachgebildete Session nicht beendet.
+  // echtes BFF-Cookie. Globale Aufgaben- und Meldungsabfragen werden fuer diesen reinen
+  // Rollen-UI-Test leer beantwortet, damit ihr erwartetes 401 die nachgebildete Sitzung
+  // nicht beendet. Die fachliche Autorisierung dieser Endpunkte pruefen API-Tests.
   await page.route('**/api/usertask*', (route) =>
     route.fulfill({
       status: 200,
@@ -62,6 +63,13 @@ async function ohneModelliererrolle(page) {
     })
   );
   await page.route('**/api/instance', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
+    })
+  );
+  await page.route('**/api/notifications*', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
