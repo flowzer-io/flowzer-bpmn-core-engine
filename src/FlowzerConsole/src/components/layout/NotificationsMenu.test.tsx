@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const notificationsMock = vi.hoisted(() => vi.fn());
@@ -9,6 +10,14 @@ vi.mock('@/lib/api/queries', () => ({
   useMarkNotificationRead: () => ({ mutate: markReadMock }),
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }));
+// Radix-Positionierung und Animation sind nicht Gegenstand dieses Komponententests.
+// Der schlanke Adapter vermeidet echte Portal-/Observer-Timer und hält CI deterministisch.
+vi.mock('@radix-ui/react-popover', () => ({
+  Root: ({ children }: { children: ReactNode }) => children,
+  Trigger: ({ children }: { children: ReactNode }) => children,
+  Portal: ({ children }: { children: ReactNode }) => children,
+  Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 
 import { NotificationsMenu } from './NotificationsMenu';
 
@@ -35,7 +44,6 @@ describe('NotificationsMenu', () => {
     });
 
     render(<NotificationsMenu />);
-    fireEvent.click(screen.getByRole('button', { name: /Benachrichtigungen/ }));
     expect(screen.getByText('Aufgabe fällig: Freigabe erteilen')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Aufgabe fällig: Freigabe erteilen'));
 
@@ -47,7 +55,6 @@ describe('NotificationsMenu', () => {
   it('zeigt Lade- und Fehlerzustand', () => {
     notificationsMock.mockReturnValue({ data: undefined, isPending: true, error: null });
     const { rerender } = render(<NotificationsMenu />);
-    fireEvent.click(screen.getByRole('button', { name: 'Benachrichtigungen' }));
     expect(screen.getByText('Benachrichtigungen werden geladen …')).toBeInTheDocument();
 
     notificationsMock.mockReturnValue({ data: undefined, isPending: false, error: new Error('offline') });
