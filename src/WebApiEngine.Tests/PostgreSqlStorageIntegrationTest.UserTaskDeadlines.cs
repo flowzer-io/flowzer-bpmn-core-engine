@@ -57,7 +57,10 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.UserTaskNotificationStorage.MarkRead(notificationId, firstOwner, now)).Should().BeTrue();
 
         (await storage.UserTaskNotificationStorage.GetForTasks(
-            [task.Id], firstOwner, null, 20, false)).Single().ReadAtUtc.Should().Be(now);
+            [task.Id], firstOwner, null, 20, false)).Single().ReadAtUtc.Should()
+            // PostgreSQL speichert timestamptz auf Mikrosekunden genau, DateTimeOffset
+            // kann lokal dagegen noch eine zusätzliche 100-ns-Stelle tragen.
+            .BeCloseTo(now, TimeSpan.FromTicks(9));
         (await storage.UserTaskNotificationStorage.GetForTasks(
             [task.Id], secondOwner, null, 20, false)).Single().ReadAtUtc.Should().BeNull();
 

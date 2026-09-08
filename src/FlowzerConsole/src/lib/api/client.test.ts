@@ -87,6 +87,9 @@ describe('API-Client mit BFF-CSRF', () => {
       }),
     );
     await loadRuntimeConfig();
+    // Vitest 5 gibt beim erneuten spyOn denselben aktiven Spy zurück. Der reine
+    // Konfigurationsaufruf darf deshalb nicht als eigentlicher API-Request zählen.
+    vi.restoreAllMocks();
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
 
     await request('/local-only', { method: 'POST' });
