@@ -180,7 +180,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
 - [x] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
-  laufende Aufgaben behalten ihre Version. #210 trennt gemeinsame, revisionierte
+  laufende Aufgaben behalten ihre Version. #210 / PR #211 trennt gemeinsame, revisionierte
   Autorenentwürfe, lokale Vorschau und ausdrückliche servervalidierte Veröffentlichung;
   PostgreSQL veröffentlicht Version und Draft-Löschung atomar. Die Dateiablage bleibt
   für diesen Mehrdateivorgang ausdrücklich Entwicklung ohne Rollback.
