@@ -701,6 +701,12 @@ Abschnitt `Storage`:
 
 PostgreSQL ist der Betriebspfad: Engine-Operationen (Deploy, Start, User-Task, Message, Timer, Abbruch) sowie das Speichern von Definitionen und Formularversionen laufen je in einer Datenbanktransaktion und werden atomar sichtbar; die übrigen Katalog- und Formular-Metadatenpfade schreiben je Aufruf in einer kurzen Transaktion. Die Dokumente werden mit derselben JSON-Serialisierung wie in der Dateiablage abgelegt; ein Wechsel zwischen beiden Ablagen ist damit ein reiner Kopiervorgang.
 
+Private Aufgabenentwürfe verwenden in PostgreSQL einen atomaren Revisionsvergleich und
+werden beim Entfernen der User-Task per Fremdschlüssel mitgelöscht. Die Dateiablage schützt
+deren Revision nur innerhalb eines API-Prozesses und bleibt wie alle dateibasierten
+Mutationen auf Entwicklung/Einzelprozess-Demos begrenzt. Vertrag, Rechte und Grenzen:
+[Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash
@@ -711,7 +717,8 @@ genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-S
 
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
-Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
+Die dateibasierte Persistenz ist die maßgebliche lokale Entwicklungsquelle. Für Diagnose,
+Backup und Restore von Einzelprozess-Demos gelten deshalb ein paar einfache Regeln:
 
 ### Nebenläufigkeit
 

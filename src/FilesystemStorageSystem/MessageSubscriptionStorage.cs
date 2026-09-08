@@ -189,6 +189,9 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
             StorageFile.DeleteIfExists(file);
         }
 
+        if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
+            drafts.DeleteAllFiles(userTaskSubscriptionId);
+
         return Task.CompletedTask;
     }
 
@@ -197,7 +200,11 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         foreach (var (file, subscription) in ReadAll<UserTaskSubscription>("usertask_*.json"))
         {
             if (subscription.ProcessInstanceId == instanceId)
+            {
                 StorageFile.DeleteIfExists(file);
+                if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
+                    drafts.DeleteAllFiles(subscription.Id);
+            }
         }
     }
 
@@ -206,7 +213,11 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         foreach (var (file, subscription) in ReadAll<UserTaskSubscription>($"usertask_{relatedDefinitionId}_*.json"))
         {
             if (subscription.ProcessInstanceId == null || subscription.ProcessInstanceId == Guid.Empty)
+            {
                 StorageFile.DeleteIfExists(file);
+                if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
+                    drafts.DeleteAllFiles(subscription.Id);
+            }
         }
 
         return Task.CompletedTask;

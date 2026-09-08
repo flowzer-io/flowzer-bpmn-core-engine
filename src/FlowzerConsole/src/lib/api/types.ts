@@ -223,6 +223,20 @@ export interface FormDto {
   formData?: string | null;
 }
 
+/** Serverseitiger Zwischenstand einer offenen User-Task. */
+export interface UserTaskDraftDto {
+  userTaskId: string;
+  revision: number;
+  updatedAtUtc: string | null;
+  data: ProcessVariables;
+}
+
+/** Vollständiger Schreibkörper für einen Aufgabenentwurf. */
+export interface UserTaskDraftRequest {
+  expectedRevision: number;
+  data: ProcessVariables;
+}
+
 /** Entspricht `UserTaskSubscriptionDto`. */
 export interface SubjectRefDto {
   kind: 'user' | 'group';

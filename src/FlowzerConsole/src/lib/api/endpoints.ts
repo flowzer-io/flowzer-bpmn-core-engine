@@ -17,6 +17,8 @@ import type {
   TimerSubscriptionDto,
   TokenDto,
   UserTaskResultDto,
+  UserTaskDraftDto,
+  UserTaskDraftRequest,
   VersionDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -238,6 +240,24 @@ export const userTasksApi = {
   /** `GET /usertask/{id}/form` — Formular zu einer Aufgabe (serverseitig aufgelöst). */
   getForm: (userTaskId: string, signal?: AbortSignal) =>
     requestStatusResult<FormDto>(`/usertask/${userTaskId}/form`, { signal }),
+
+  /** `GET /usertask/{id}/draft` — lädt den serverseitigen Eingabeentwurf. */
+  getDraft: (userTaskId: string, signal?: AbortSignal) =>
+    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, { signal }),
+
+  /** `PUT /usertask/{id}/draft` — speichert den Entwurf mit optimistischer Revision. */
+  saveDraft: (userTaskId: string, draft: UserTaskDraftRequest) =>
+    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
+      method: 'PUT',
+      body: draft,
+    }),
+
+  /** `DELETE /usertask/{id}/draft?expectedRevision=…` — verwirft den Entwurf. */
+  deleteDraft: (userTaskId: string, expectedRevision: number) =>
+    requestStatus(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
+      method: 'DELETE',
+      query: { expectedRevision },
+    }),
 
   /** `POST /usertask` — schließt eine Aufgabe mit Ergebnisdaten ab. */
   complete: (result: UserTaskResultDto) => requestStatus('/usertask', { method: 'POST', body: result }),

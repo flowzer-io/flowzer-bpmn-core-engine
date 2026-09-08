@@ -132,6 +132,18 @@ serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet aus
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 
+## Private Aufgabenentwürfe – #202 (noch nicht gemergt)
+
+Der Bearbeitungsstand einer offenen User-Task kann serverseitig gespeichert, wieder
+aufgenommen und verworfen werden. Er gehört der authentifizierten Person, nicht der
+Kandidatengruppe; auch Operatoren sehen nur ihren eigenen Entwurf. Eine monotone Revision
+meldet konkurrierende Tabs als 409, ohne den anderen Inhalt offenzulegen. Nur deklarierte,
+beschreibbare Felder der gebundenen Formularversion werden übernommen; Pflicht- und
+Geschäftsregeln bleiben dem Abschluss vorbehalten. Erfolgreicher Abschluss oder Abbruch
+entfernt die Entwürfe der Aufgabe. PostgreSQL sichert Compare-and-swap und Lebenszyklus
+atomar, die Entwicklungs-Dateiablage nur pro API-Prozess. Details:
+[Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -141,8 +153,9 @@ mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.
-   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200;
-   Formularentwürfe fehlen weiterhin. Legacy-Namen
+   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
+   private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren und die
+   Formularpflege-Trennung von Entwurf/Vorschau/Veröffentlichung fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,

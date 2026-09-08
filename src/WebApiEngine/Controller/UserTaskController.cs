@@ -11,6 +11,7 @@ namespace WebApiEngine.Controller;
 public class UserTaskController(
     IStorageSystem storageSystem,
     UserTaskCompletionService completionService,
+    UserTaskDraftService draftService,
     FormKeyResolver formKeyResolver,
     UserTaskViewService taskView,
     IAuthorizationService authorizationService,
@@ -97,6 +98,49 @@ public class UserTaskController(
         return Ok(new ApiStatusResult<FormDto>(resolved.Form));
     }
 
+    /// <summary>Liefert den privaten Entwurf des aktuellen Bearbeiters; Revision 0 bedeutet leer.</summary>
+    [HttpGet("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult<UserTaskDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> GetDraft([FromRoute] Guid userTaskId)
+    {
+        var draft = await draftService.GetAsync(userTaskId);
+        return draft is null
+            ? HiddenDraft()
+            : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
+    }
+
+    /// <summary>Speichert den vollstaendigen privaten Entwurfsstand per Compare-and-swap.</summary>
+    [HttpPut("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult<UserTaskDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> SaveDraft(
+        [FromRoute] Guid userTaskId,
+        [FromBody] SaveUserTaskDraftRequestDto request)
+    {
+        var draft = await draftService.SaveAsync(userTaskId, request);
+        return draft is null
+            ? HiddenDraft()
+            : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
+    }
+
+    /// <summary>Verwirft den privaten Entwurf nur bei noch aktueller Revision.</summary>
+    [HttpDelete("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> DeleteDraft(
+        [FromRoute] Guid userTaskId,
+        [FromQuery] long expectedRevision)
+    {
+        return await draftService.DeleteAsync(userTaskId, expectedRevision)
+            ? Ok(new ApiStatusResult { Successful = true })
+            : HiddenDraft();
+    }
+
     [HttpPost]
     [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiStatusResult>(StatusCodes.Status400BadRequest)]
@@ -113,4 +157,9 @@ public class UserTaskController(
             ? Ok(new ApiStatusResult { Successful = true })
             : NotFound(new ApiStatusResult("The user task was not found."));
     }
+
+    private ObjectResult HiddenDraft() => Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: "User task draft unavailable",
+        detail: "The user task or draft operation is not available.");
 }

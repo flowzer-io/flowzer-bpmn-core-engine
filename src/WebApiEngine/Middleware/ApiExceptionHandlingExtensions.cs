@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using WebApiEngine.Shared;
 using WebApiEngine.Forms;
 using WebApiEngine.Idempotency;
+using WebApiEngine.BusinessLogic;
 
 namespace WebApiEngine.Middleware;
 
@@ -37,10 +38,46 @@ public static class ApiExceptionHandlingExtensions
                     {
                         Status = StatusCodes.Status409Conflict,
                         Title = "The idempotency key conflicts with an earlier request.",
-                        Detail = exception.Message, Type = "about:blank", Instance = context.Request.Path
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
                     };
                     problem.Extensions["traceId"] = context.TraceIdentifier;
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
+                if (exception is UserTaskDraftConflictException draftConflict)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The user-task draft has changed.",
+                        Detail = draftConflict.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "task_draft.revision_conflict";
+                    problem.Extensions["expectedRevision"] = draftConflict.ExpectedRevision;
+                    problem.Extensions["currentRevision"] = draftConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
+                if (exception is UserTaskDraftPayloadTooLargeException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status413PayloadTooLarge,
+                        Title = "The user-task draft is too large.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "task_draft.payload_too_large";
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
                     return;
                 }
                 if (context.Response.StatusCode == StatusCodes.Status422UnprocessableEntity)
@@ -51,8 +88,10 @@ public static class ApiExceptionHandlingExtensions
                     var problem = new ApiValidationProblem(fields)
                     {
                         Status = StatusCodes.Status422UnprocessableEntity,
-                        Title = "The request could not be processed.", Detail = exception.Message,
-                        Type = "about:blank", Instance = context.Request.Path
+                        Title = "The request could not be processed.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
                     };
                     problem.Extensions["traceId"] = context.TraceIdentifier;
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
@@ -80,7 +119,8 @@ public static class ApiExceptionHandlingExtensions
         return exception switch
         {
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
-            DefinitionStorageConflictException or IdempotencyConflictException => StatusCodes.Status409Conflict,
+            DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException => StatusCodes.Status409Conflict,
+            UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,

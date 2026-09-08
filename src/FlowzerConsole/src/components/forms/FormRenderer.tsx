@@ -47,6 +47,12 @@ function parseSchema(schema: string | undefined): { value: unknown | null; error
   }
 }
 
+/** Form.io darf den Submission-Baum mutieren, niemals aber Query- oder Draft-Daten. */
+function cloneInitialData(data: ProcessVariables): ProcessVariables {
+  if (typeof structuredClone === 'function') return structuredClone(data);
+  return JSON.parse(JSON.stringify(data)) as ProcessVariables;
+}
+
 /**
  * Rendert ein Form.io-Formular.
  *
@@ -123,7 +129,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         instanceRef.current = form;
 
         if (initialData && Object.keys(initialData).length > 0) {
-          form.submission = { data: { ...initialData } };
+          form.submission = { data: cloneInitialData(initialData) };
         }
 
         form.on('change', () => {

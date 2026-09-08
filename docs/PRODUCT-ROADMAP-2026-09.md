@@ -175,8 +175,10 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
   laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
   Veröffentlichung in der Formularpflege fehlt noch.
-- [ ] Serverseitige Bearbeitungsentwürfe mit Wiederaufnahme und Konflikterkennung;
-  Refetch darf keine ungespeicherten Eingaben zurücksetzen.
+- [x] Serverseitige private Bearbeitungsentwürfe mit Wiederaufnahme, Größen-/Feldgrenzen
+  und optimistischer Revision; Refetch setzt keine ungespeicherten Eingaben zurück. #202
+  PostgreSQL-CAS und FK-Kaskade sichern Konkurrenz und Aufgabenlebenszyklus, die
+  Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
@@ -194,7 +196,8 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe.
 - [ ] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
   dauerhafte, deduplizierte Benachrichtigungen.
-- [ ] Entwürfe, Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
+- [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision. #202
+- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
 - [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
 - [ ] Identischer API-/Formularvertrag in Konsole und TickyTask; Flowzer besitzt
@@ -295,8 +298,9 @@ vollständige Kompensation und echtes Mehrmandanten-Hosting bleiben separate Str
 - Append-only-Historie mit Akteur, Zeitpunkt, Korrelation und datensparsamen Änderungen.
 - Vorwärtsmigrationen; laufende Instanzen behalten Definition und gebundene Formulare.
 - Reihenfolge M0 → M1/M2 → M3/M4 → M5; notwendige M6-Bausteine jeweils vorziehen.
-- TDD, Testzweck-Kommentare und fokussierte PRs nach `main`. Vor nichttrivialen Pushes
-  zwei unabhängige Reviews über die zentralen Wrapper; keine direkten Main-Writes.
+- TDD, Testzweck-Kommentare und fokussierte PRs nach `main`. Für dieses autonome Mandat
+  entfallen Zwischenreviews; vor der finalen Zusammenführung prüft ein direkter
+  Astra-Subagent mit hoher Reasoning-Stufe den Gesamtstand und behebt Findings.
 - Negative Rechte-/Verzeichnis-/Formulartests, Konkurrenz und Neustart, Host-Parität,
   KI-Injection/Freigabe/Limits/unklarer Ausgang sowie echte DB-/Upgrade-/Restore-Tests.
 - CI um Architektur, OpenAPI-/Client-Drift, Migration, Secret- und Lizenzprüfungen

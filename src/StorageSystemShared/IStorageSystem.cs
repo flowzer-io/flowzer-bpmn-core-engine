@@ -28,4 +28,7 @@ public interface IStorageSystem
 
     /// <summary>Aktueller, atomar veröffentlichter Stand des externen Identitätsverzeichnisses.</summary>
     IIdentityDirectoryStorage IdentityDirectoryStorage => UnsupportedIdentityDirectoryStorage.Instance;
+
+    /// <summary>Private, revisionsgeschuetzte Bearbeitungsstaende offener User-Tasks.</summary>
+    IUserTaskDraftStorage UserTaskDraftStorage => UnsupportedUserTaskDraftStorage.Instance;
 }

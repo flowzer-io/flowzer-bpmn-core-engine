@@ -31,6 +31,8 @@ import type {
   ProcessVariables,
   TimerSubscriptionDto,
   UserTaskResultDto,
+  UserTaskDraftDto,
+  UserTaskDraftRequest,
   VersionDto,
   SubjectRefDto,
   FormDirectorySearchContext,
@@ -62,6 +64,7 @@ export const queryKeys = {
   userTasks: ['userTasks'] as const,
   userTaskList: () => [...queryKeys.userTasks, 'list'] as const,
   userTaskForm: (userTaskId: string) => [...queryKeys.userTasks, 'form', userTaskId] as const,
+  userTaskDraft: (userTaskId: string) => [...queryKeys.userTasks, 'draft', userTaskId] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -486,6 +489,43 @@ export function useUserTaskForm(userTaskId: string | undefined) {
     enabled: Boolean(userTaskId),
     staleTime: 5 * 60_000,
     retry: false,
+  });
+}
+
+/** Lädt den explizit gespeicherten Zwischenstand einer Aufgabe. */
+export function useUserTaskDraft(userTaskId: string | undefined) {
+  return useQuery<UserTaskDraftDto>({
+    queryKey: queryKeys.userTaskDraft(userTaskId ?? ''),
+    queryFn: ({ signal }) => userTasksApi.getDraft(userTaskId!, signal),
+    enabled: Boolean(userTaskId),
+    // Der Hook hydratisiert den Editor nur einmal. Refetches dienen lediglich dazu,
+    // einen möglichen Konflikt sichtbar zu machen, nicht zum Überschreiben lokaler Daten.
+    refetchInterval: LIVE_REFETCH_MS,
+    retry: false,
+  });
+}
+
+export function useSaveUserTaskDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userTaskId, draft }: { userTaskId: string; draft: UserTaskDraftRequest }) =>
+      userTasksApi.saveDraft(userTaskId, draft),
+    onSuccess: (saved, variables) => {
+      queryClient.setQueryData(queryKeys.userTaskDraft(variables.userTaskId), saved);
+    },
+  });
+}
+
+export function useDeleteUserTaskDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userTaskId, expectedRevision }: { userTaskId: string; expectedRevision: number }) =>
+      userTasksApi.deleteDraft(userTaskId, expectedRevision),
+    onSuccess: (_result, variables) => {
+      // Der Server meldet nach DELETE keinen Nutzdatensatz; der Editor setzt seinen
+      // lokalen Grundwert erst nach dem bestätigten Erfolg zurück.
+      queryClient.removeQueries({ queryKey: queryKeys.userTaskDraft(variables.userTaskId) });
+    },
   });
 }
 

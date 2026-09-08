@@ -12,6 +12,7 @@ public class Storage : IStorageSystem
     public Storage()
     {
         _storageRoot = ResolveStorageRoot();
+        UserTaskDraftStorage = new UserTaskDraftStorage(this);
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         FolderStorage = new FolderStorage(this);
@@ -28,6 +29,7 @@ public class Storage : IStorageSystem
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
+    public IUserTaskDraftStorage UserTaskDraftStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

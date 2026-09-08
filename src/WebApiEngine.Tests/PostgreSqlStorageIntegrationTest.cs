@@ -66,7 +66,7 @@ public partial class PostgreSqlStorageIntegrationTest
         command.CommandText = string.Join(";", new[]
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
-            "message_subscriptions", "signal_subscriptions", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
+            "message_subscriptions", "signal_subscriptions", "user_task_drafts", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
             "workflow_folders", "idempotency_records", "identity_directory_state"

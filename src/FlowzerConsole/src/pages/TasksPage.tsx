@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
 import { FormValidationErrors } from '@/components/forms/FormValidationErrors';
+import { TaskDraftConflictBanner, TaskDraftStatus } from '@/components/tasks/TaskDraftStatus';
 import { Button } from '@/components/ui/Button';
 import { Chip, toneSurface } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/Card';
@@ -10,10 +11,10 @@ import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner, LoadingRows } from '@/components/ui/States';
 import { useCompleteUserTask, useUserTaskForm, useUserTasks } from '@/lib/api/queries';
 import { describeFormKey } from '@/lib/formKey';
-import type { ProcessVariables } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { useCompactLayout } from '@/lib/useCompactLayout';
 import { formatTimestamp } from '@/lib/format';
+import { useTaskDraftEditor } from '@/lib/taskDraft';
 import { PRIORITY_TONE, sortTasks, taskIcon, toTaskView } from '@/lib/taskView';
 
 interface TasksPageProps {
@@ -39,7 +40,6 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
   // Anzeigezustand, die Engine kennt kein "später".
   const [deferred, setDeferred] = useState<string[]>([]);
   const [fallbackSelection, setFallbackSelection] = useState<string | null>(null);
-  const [formData, setFormData] = useState<ProcessVariables>({});
   const [submissionError, setSubmissionError] = useState<{ taskId: string; error: unknown } | null>(null);
 
   const views = useMemo(() => {
@@ -57,16 +57,18 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
   const active = views.find((view) => view.id === activeId) ?? (compact ? undefined : views[0]);
 
   const select = (taskId: string | null) => {
-    setFormData({});
     setSubmissionError(null);
     if (onSelectTask) onSelectTask(taskId);
     else setFallbackSelection(taskId);
   };
 
   const formQuery = useUserTaskForm(active?.id);
+  const draft = useTaskDraftEditor(active?.id, active?.task.token.variables ?? {});
 
   async function handleComplete() {
-    if (!active) return;
+    // Ein laufendes Draft-Speichern darf nicht mit dem Abschluss derselben Aufgabe
+    // konkurrieren; sonst könnte der Abschluss vor dem Zwischenstand eintreffen.
+    if (!active || draft.isSaving || draft.isDiscarding || draft.loadState !== 'ready') return;
 
     const renderer = formRef.current;
     if (renderer) {
@@ -77,7 +79,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
       }
     }
 
-    const data = renderer?.getData() ?? formData;
+    const data = renderer?.getData() ?? draft.currentData;
     setSubmissionError(null);
 
     completeTask.mutate(
@@ -90,7 +92,6 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
       {
         onSuccess: () => {
           toast.success('Aufgabe abgeschlossen — der Prozess läuft weiter');
-          setFormData({});
           const next = views.find((view) => view.id !== active.id);
           if (next) select(next.id);
         },
@@ -269,7 +270,17 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
               </div>
 
               <div className="px-[30px] py-[26px]">
-                {formQuery.isPending && <InlineSpinner label="Formular wird geladen …" />}
+                {draft.saveState === 'conflict' && (
+                  <TaskDraftConflictBanner
+                    error={draft.error}
+                    loading={draft.isRefreshing}
+                    onLoadServer={() => void draft.adoptServerDraft()}
+                  />
+                )}
+
+                {draft.loadState === 'ready' && formQuery.isPending && (
+                  <InlineSpinner label="Formular wird geladen …" />
+                )}
 
                 {formQuery.error && (
                   <div className="border-border rounded-[var(--r)] border border-dashed px-4 py-6 text-center">
@@ -285,48 +296,56 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                   </div>
                 )}
 
-                {formQuery.data && (
+                {draft.loadState === 'ready' && formQuery.data && (
                   <FormValidationErrors error={submissionError?.taskId === active.id ? submissionError.error : undefined}
                     schema={formQuery.data.formData ?? undefined} />
                 )}
-                {formQuery.data && (
+                {draft.loadState === 'ready' && formQuery.data && (
                   <FormRenderer
-                    key={active.id}
+                    key={`${active.id}:${draft.formInstanceKey}`}
                     ref={formRef}
                     schema={formQuery.data.formData ?? undefined}
-                    initialData={active.task.token.variables ?? undefined}
-                    onChange={setFormData}
+                    initialData={draft.initialData}
+                    onChange={draft.setData}
                     directoryContext={{ kind: 'userTask', taskId: active.id }}
                   />
                 )}
               </div>
 
-              <div className="border-border bg-surface-2 flex items-center justify-between gap-2.5 border-t px-6 py-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="schedule"
-                  onClick={() => {
-                    setDeferred((current) =>
-                      current.includes(active.id) ? current : [...current, active.id],
-                    );
-                    const next = views.find((view) => view.id !== active.id);
-                    if (next) select(next.id);
-                    toast('Zurückgestellt — bleibt in deiner Liste', { icon: '🕓' });
-                  }}
-                >
-                  Später
-                </Button>
+              <div className="border-border bg-surface-2 flex flex-col gap-3 border-t px-6 py-4">
+                <TaskDraftStatus
+                  {...draft}
+                  onSave={draft.save}
+                  onDiscard={draft.discard}
+                  onLoadServer={() => void draft.adoptServerDraft()}
+                />
+                <div className="flex items-center justify-between gap-2.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon="schedule"
+                    onClick={() => {
+                      setDeferred((current) =>
+                        current.includes(active.id) ? current : [...current, active.id],
+                      );
+                      const next = views.find((view) => view.id !== active.id);
+                      if (next) select(next.id);
+                      toast('Zurückgestellt — bleibt in deiner Liste', { icon: '🕓' });
+                    }}
+                  >
+                    Später
+                  </Button>
 
-                <Button
-                  variant="primary"
-                  icon="check_circle"
-                  loading={completeTask.isPending}
-                  disabled={!formQuery.data}
-                  onClick={() => void handleComplete()}
-                >
-                  Aufgabe abschließen
-                </Button>
+                  <Button
+                    variant="primary"
+                    icon="check_circle"
+                    loading={completeTask.isPending || draft.isSaving || draft.isDiscarding}
+                    disabled={!formQuery.data || draft.loadState !== 'ready' || draft.isSaving || draft.isDiscarding}
+                    onClick={() => void handleComplete()}
+                  >
+                    Aufgabe abschließen
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
