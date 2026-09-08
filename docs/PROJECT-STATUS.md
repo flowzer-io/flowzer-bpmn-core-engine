@@ -1,7 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
 **Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#216 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+#218 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -118,7 +118,7 @@ Idempotenz-Hash. Die Konsole pflegt und rendert die Aktionen, Formulare ohne Akt
 behalten den generischen Abschluss. Startformulare bleiben im ersten Slice gesperrt.
 Details: [Entscheidungsaktionen](FORM-DECISION-ACTIONS.md).
 
-## Hostneutrales TypeScript-SDK – #218 (in Umsetzung)
+## Hostneutrales TypeScript-SDK – #218 / PR #219 (noch nicht gemergt)
 
 Das eigenständig baubare Paket `@flowzer/sdk` kapselt die generische Flowzer-HTTP-API
 für Aufgabenliste, gebundene Formulare, private Entwürfe, Claim/Release/Assign/Delegate,

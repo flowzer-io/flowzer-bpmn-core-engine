@@ -40,7 +40,7 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #218 ergänzt ein hostneutrales Headless-TypeScript-SDK für
+**Aktiver Slice:** #218 / PR #219 ergänzt ein hostneutrales Headless-TypeScript-SDK für
 Aufgaben, Formulare, Aktionen, Verzeichnisauswahl und Vorgangsstatus. #216 / PR #217
 liefert dafür bereits servergebundene Human-Task-Entscheidungsaktionen. Optionale
 React-Komponenten und Host-Adapter bleiben ein eigener Folgeslice.
@@ -228,7 +228,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
 - [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
-  #218 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
+  #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
   Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. Optionale
   React-Komponenten und Host-Adapter bleiben offen.
 - [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
