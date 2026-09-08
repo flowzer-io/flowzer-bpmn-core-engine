@@ -136,7 +136,7 @@ Externe Altverweise ohne Snapshot werden weiterhin nicht auf heutiges `latest` g
 Dieser PR migriert nur das Beispiel, **keine Kundendaten oder produktiven Workflows**.
 
 Weitere erweiterte Komponenten und eine kontrollierte Bestandsmigration bleiben offen.
-#212 ergänzt ein modellierergeschütztes, datensparsames
+#212 / PR #213 ergänzt ein modellierergeschütztes, datensparsames
 [Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md) für alle veröffentlichten
 Fassungen und den aktuellen Autorenentwurf. #210 ergänzt Autorenentwürfe und die
 Veröffentlichungsoberfläche; Details stehen in [Formularpflege](FORM-AUTHORING.md).

@@ -37,7 +37,7 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #212 inventarisiert inkompatible veröffentlichte Formularfassungen
+**Aktiver Slice:** #212 / PR #213 inventarisiert inkompatible veröffentlichte Formularfassungen
 und Autorenentwürfe mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
@@ -177,7 +177,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   serverautoritativ statt im Browser nachgebildet zu werden.
 - [x] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
-  #212 liefert dafür einen modellierergeschützten, datensparsamen Bericht über jede
+  #212 / PR #213 liefert dafür einen modellierergeschützten, datensparsamen Bericht über jede
   veröffentlichte Fassung und den aktuellen Entwurf. Die eigentliche Migration bleibt
   eine bewusste fachliche Bearbeitung; es gibt keinen automatischen Script-Fallback.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen

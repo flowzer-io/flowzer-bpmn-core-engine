@@ -90,7 +90,7 @@ PostgreSQL atomar genau die Folgeversion und löscht den Entwurf; konkrete Versi
 sind insert-only. Revisionskonflikte erhalten lokale Eingaben und veröffentlichen
 keinen inzwischen geänderten Stand. Details: [Formularpflege](FORM-AUTHORING.md).
 
-## Formular-Kompatibilitätsinventar – #212 (noch nicht gemergt)
+## Formular-Kompatibilitätsinventar – #212 / PR #213 (noch nicht gemergt)
 
 Ein modellierergeschützter Bericht prüft jede veröffentlichte Formularversion und den
 aktuellen Autorenentwurf isoliert gegen den serverseitigen Vertrag. Schema- und

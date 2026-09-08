@@ -1,6 +1,6 @@
 # Formular-Kompatibilitätsinventar
 
-M2-Teilpaket #212. Das Inventar macht vor einem Upgrade oder einer erneuten
+M2-Teilpaket #212 / PR #213. Das Inventar macht vor einem Upgrade oder einer erneuten
 Veröffentlichung sichtbar, welche vorhandenen Formularfassungen nicht vom aktuellen
 serverseitigen Vertrag unterstützt werden.
 
