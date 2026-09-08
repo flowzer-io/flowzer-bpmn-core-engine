@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Zwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Einundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
 umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
 kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
@@ -29,8 +29,9 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Formularpflege | Gemeinsamer CAS-Entwurf, lokale Vorschau und ausdrückliches servervalidiertes Publish; konkrete Versionen sind unveränderlich, PostgreSQL veröffentlicht atomar. | [#211](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/211) |
 | Formular-Kompatibilität | Modellierergeschütztes, datensparsames Inventar jeder veröffentlichten Fassung und des Autorenentwurfs mit isolierter Prüfung und stabilen Migrationscodes. | [#213](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/213) |
 | Wiederholbare Formulargruppen | `flowzer.forms/3` bindet Datagrids, sichere Hilfetexte, Zeilengrenzen sowie indexierte Serverfehler durchgängig an Submission, Entwurf und Kontextprojektion. | [#215](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/215) |
+| Entscheidungsaktionen | `flowzer.forms/4` bindet fachliche Human-Task-Aktionen an den veröffentlichten Snapshot; Browserwerte können feste Belegungen nicht ändern, die Konsole rendert und pflegt den Vertrag. | [#217](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/217) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -38,10 +39,10 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Aktuelle lokale .NET-Suite einschließlich #214: **111 Engine + 640 API-/Storage-Tests bestanden**,
+- Aktuelle lokale .NET-Suite einschließlich #216: **111 Engine + 657 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Profil 3: **280 Tests**, Typecheck und Build erfolgreich;
+- React-Konsole einschließlich Profil 4: **288 Tests**, Typecheck und Build erfolgreich;
   Lint ohne Fehler, acht bestehende Warnungen.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
   Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
@@ -104,8 +105,10 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
    Historische Identitätsauflösung und Klärung mehrdeutiger Altwerte bleiben offen.
 2. **M2:** Weitere deklarative Regeln, Wiederholgruppen, Anhänge, freigegebene
    dynamische Quellen, Skriptinventar und geprüfte Bestandsmigration.
-3. **M3/M4:** Kommentare/Vorgangshistorie, Headless-SDK und TickyTask-Einbettung,
-   gemeinsame Modellfähigkeiten, Laufzeitdiagramme und vollständiger UX-Audit.
+3. **M3/M4:** Kommentare/Vorgangshistorie, generisches Headless-SDK und optionale
+   React-Komponenten für beliebige Host-Anwendungen, gemeinsame Modellfähigkeiten,
+   Laufzeitdiagramme und vollständiger UX-Audit. Flowzer erhält dabei keine Abhängigkeit
+   von einer konkreten konsumierenden Fachanwendung.
 4. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige
    PostgreSQL-, Lease-, Runtime-, Betriebs- und Upgrade-Bausteine vorziehen.
 5. **Finale Abnahme:** Direkter Astra-/High-Subagent prüft alle M0–M6-Punkte und

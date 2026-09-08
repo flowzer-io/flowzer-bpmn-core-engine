@@ -108,7 +108,7 @@ Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
-## Entscheidungsaktionen – #216 (Topic-Branch, noch nicht gemergt)
+## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
 
 `flowzer.forms/4` bindet fachlich benannte Human-Task-Aktionen an feste skalare
 Belegungen deklarierter Formularfelder. Beide Abschlussrouten lösen ausschließlich

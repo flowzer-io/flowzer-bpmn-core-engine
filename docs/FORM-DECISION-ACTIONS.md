@@ -1,6 +1,6 @@
 # Explizite Entscheidungsaktionen in Aufgabenformularen
 
-M2/M3-Teilpaket #216. Das additive Profil `flowzer.forms/4` ergänzt fachlich
+M2/M3-Teilpaket #216 / PR #217. Das additive Profil `flowzer.forms/4` ergänzt fachlich
 benannte Human-Task-Aktionen, ohne den bisherigen generischen Abschluss für
 Formulare ohne Aktionen zu brechen.
 

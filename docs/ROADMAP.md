@@ -30,7 +30,8 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    #212 / PR #213 inventarisiert danach alle veröffentlichten Fassungen und Autorenentwürfe
    anhand stabiler, datensparsamer Kompatibilitätscodes.
    #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
-   Hilfetexte; Abschnittsbibliothek und Entscheidungsaktionen folgen separat.
+   Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
+   die Abschnittsbibliothek folgt separat.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,

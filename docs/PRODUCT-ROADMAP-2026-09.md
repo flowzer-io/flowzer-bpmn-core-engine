@@ -40,7 +40,7 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #216 erweitert den Formularvertrag additiv um servergebundene
+**Aktiver Slice:** #216 / PR #217 erweitert den Formularvertrag additiv um servergebundene
 Human-Task-Entscheidungsaktionen. #214 / PR #215 liefert dafür bereits begrenzte
 Wiederholgruppen und Plaintext-Hilfetexte; #212 / PR #213 inventarisiert inkompatible
 Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
@@ -200,7 +200,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
   Bedingungen waren bereits Teil von Profil 1. #214 / PR #215 ergänzt Profil 3 für begrenzte
-  Datagrids und Plaintext-Hilfetexte. #216 ergänzt Profil 4 mit servergebundenen
+  Datagrids und Plaintext-Hilfetexte. #216 / PR #217 ergänzt Profil 4 mit servergebundenen
   Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche;
   die versionierte Abschnittsbibliothek bleibt als eigener Folgeslice offen.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
