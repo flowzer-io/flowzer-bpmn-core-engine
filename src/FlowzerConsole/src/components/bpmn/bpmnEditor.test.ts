@@ -190,6 +190,71 @@ describe('Teiländerungen', () => {
 
     expect(businessObject.extensionElements).toBeUndefined();
   });
+
+  it('markiert eine bearbeitete Textzuweisung explizit und entfernt alte Directory-Attribute', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeId: 'alte-id' }],
+      } as ModdleElement,
+    });
+
+    editor.setAssignmentMode('Element_1', 'text');
+    editor.setAssignment('Element_1', { assignee: 'anna' });
+
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toMatchObject({ mode: 'text' });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeId).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toMatchObject({ assignee: 'anna' });
+  });
+
+  it('schreibt Directory-Referenzen deterministisch und entfernt Freitext vollständig', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:AssignmentDefinition', assignee: 'anna', candidateGroups: 'personal' }],
+      } as ModdleElement,
+    });
+
+    editor.setDirectoryAssignment('Element_1', {
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds: [
+        '10000000-0000-0000-0000-000000000003',
+        '10000000-0000-0000-0000-000000000002',
+        '10000000-0000-0000-0000-000000000003',
+      ],
+      candidateGroupIds: ['20000000-0000-0000-0000-000000000001'],
+    });
+
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toMatchObject({
+      mode: 'directory',
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds:
+        '10000000-0000-0000-0000-000000000002,10000000-0000-0000-0000-000000000003',
+      candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+    });
+  });
+
+  it('erzeugt beim Entfernen der letzten Directory-Referenz keinen ungültigen Vertrag', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{
+          $type: 'flowzer:TaskAssignment',
+          mode: 'directory',
+          candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+        }],
+      } as ModdleElement,
+    });
+
+    editor.setDirectoryAssignment('Element_1', { candidateGroupIds: [] });
+
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toBeUndefined();
+  });
 });
 
 // Testzweck: Der Parser liest `processId` als Pflichtangabe und laeuft ohne sie in einen

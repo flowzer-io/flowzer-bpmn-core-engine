@@ -1,0 +1,87 @@
+import { BpmnModdle } from 'bpmn-moddle';
+import zeebeModdle from 'zeebe-bpmn-moddle/resources/zeebe.json';
+import { describe, expect, it } from 'vitest';
+
+import { FLOWZER_MODDLE } from './flowzerModdle';
+
+interface ParsedDefinitions {
+  rootElements?: Array<{
+    flowElements?: Array<{
+      extensionElements?: { values?: Array<Record<string, unknown>> };
+    }>;
+  }>;
+}
+
+const DIRECTORY_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+  id="Definitions_1" targetNamespace="https://flowzer.io/test">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:userTask id="Task_1">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="Urlaubsantrag:1.0" />
+        <flowzer:taskAssignment mode="directory"
+          assigneeId="10000000-0000-0000-0000-000000000001"
+          candidateUserIds="10000000-0000-0000-0000-000000000002"
+          candidateGroupIds="20000000-0000-0000-0000-000000000001" />
+      </bpmn:extensionElements>
+    </bpmn:userTask>
+  </bpmn:process>
+</bpmn:definitions>`;
+
+// Testzweck: Der eigene Moddle-Vertrag muss exakt denselben Namespace und dieselben
+// Attributnamen wie der serverseitige Parser verwenden.
+describe('Flowzer-Moddle-Vertrag', () => {
+  it('beschreibt die versionierte Task-Zuweisung ohne zusätzliche Felder', () => {
+    expect(FLOWZER_MODDLE).toMatchObject({
+      name: 'Flowzer',
+      prefix: 'flowzer',
+      uri: 'https://flowzer.io/schema/bpmn/1.0',
+    });
+
+    expect(FLOWZER_MODDLE.types[0]).toMatchObject({
+      name: 'TaskAssignment',
+      superClass: ['Element'],
+    });
+    expect(FLOWZER_MODDLE.types[0]?.properties.map((property) => property.name)).toEqual([
+      'mode',
+      'assigneeId',
+      'candidateUserIds',
+      'candidateGroupIds',
+    ]);
+  });
+
+  it('liest und schreibt stabile Verzeichnisreferenzen semantisch unverändert', async () => {
+    const moddle = new BpmnModdle({ zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE });
+    const parsed = await moddle.fromXML(DIRECTORY_XML);
+    const definitions = parsed.rootElement as unknown as ParsedDefinitions;
+    const values = definitions.rootElements?.[0]?.flowElements?.[0]?.extensionElements?.values ?? [];
+    const assignment = values.find((value) => value.$type === 'flowzer:TaskAssignment');
+
+    expect(assignment).toMatchObject({
+      mode: 'directory',
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds: '10000000-0000-0000-0000-000000000002',
+      candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+    });
+
+    const serialized = await moddle.toXML(parsed.rootElement, { format: true });
+    expect(serialized.xml).toContain('xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"');
+    expect(serialized.xml).toContain('<flowzer:taskAssignment');
+    expect(serialized.xml).toContain('assigneeId="10000000-0000-0000-0000-000000000001"');
+  });
+
+  it('lässt eine vorhandene Legacy-Textzuweisung beim Roundtrip unangetastet', async () => {
+    const moddle = new BpmnModdle({ zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE });
+    const legacyXml = DIRECTORY_XML
+      .replace(/\s+xmlns:flowzer="[^"]+"/, '')
+      .replace(/\s*<flowzer:taskAssignment[\s\S]*?\/>/, '\n        <zeebe:assignmentDefinition assignee="anna" candidateGroups="personal" />');
+
+    const parsed = await moddle.fromXML(legacyXml);
+    const serialized = await moddle.toXML(parsed.rootElement, { format: true });
+
+    expect(serialized.xml).toContain('<zeebe:assignmentDefinition assignee="anna" candidateGroups="personal" />');
+    expect(serialized.xml).not.toContain('flowzer:taskAssignment');
+  });
+});

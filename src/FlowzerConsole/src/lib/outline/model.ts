@@ -37,6 +37,11 @@ export interface OutlineStep {
   readonly assignee?: string;
   readonly candidateGroups?: string;
   readonly candidateUsers?: string;
+  /** Fehlt bei unverändertem Legacy-Freitext; `text` ist die explizite Auswahl. */
+  readonly assignmentMode?: 'text' | 'directory';
+  readonly directoryAssigneeId?: string;
+  readonly directoryCandidateUserIds?: readonly string[];
+  readonly directoryCandidateGroupIds?: readonly string[];
   readonly dueDate?: string;
   readonly followUpDate?: string;
   /** Nur `service`: Typ aus `zeebe:taskDefinition`. */

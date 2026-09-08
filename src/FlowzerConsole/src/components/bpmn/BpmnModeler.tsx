@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { describeFormKey } from '@/lib/formKey';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
+import { FLOWZER_MODDLE } from './flowzerModdle';
 import { BpmnProperties } from './properties/BpmnProperties';
 import { READ_ONLY_MODULE } from './readOnly';
 
@@ -27,6 +28,8 @@ export interface BpmnModelerHandle {
 }
 
 interface BpmnModelerProps {
+  /** Katalogkennung, an die Verzeichnissuchen des Eigenschaften-Panels gebunden werden. */
+  definitionId: string;
   xml: string | undefined;
   onChange?: () => void;
   onZoomChange?: (zoom: number) => void;
@@ -91,7 +94,7 @@ const FORM_OVERLAY_TYPE = 'flowzer-form';
  * sich nicht mehr speichern.
  */
 export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(function BpmnModeler(
-  { xml, onChange, onZoomChange, className, readOnly = false },
+  { definitionId, xml, onChange, onZoomChange, className, readOnly = false },
   ref,
 ) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -153,7 +156,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       const modeler = new ModelerCtor({
         container,
         additionalModules: readOnly ? [READ_ONLY_MODULE] : [],
-        moddleExtensions: { zeebe: zeebeModdle },
+        moddleExtensions: { zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE },
       });
 
       modelerRef.current = modeler;
@@ -283,6 +286,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
 
       <div className="border-border bg-surface w-[320px] flex-none overflow-auto border-l">
         <BpmnProperties
+          definitionId={definitionId}
           editor={editor}
           selectedId={selectedId}
           revision={revision}

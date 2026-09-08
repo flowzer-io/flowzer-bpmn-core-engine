@@ -222,6 +222,19 @@ export interface SubjectRefDto {
   id: string;
 }
 
+/** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
+export interface DirectorySubjectDto {
+  subject: SubjectRefDto;
+  displayName: string;
+  detail: string;
+}
+
+/** Begrenzte Treffer aus genau einer atomar veröffentlichten Verzeichnisgeneration. */
+export interface DirectorySubjectSearchResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
 /** Entspricht `UserTaskSubscriptionDto`. */
 export interface UserTaskSubscriptionDto {
   id: string;

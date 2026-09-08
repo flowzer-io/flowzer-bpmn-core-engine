@@ -103,7 +103,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192 und #194 / PR #195 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192, #194 und #196 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -116,8 +116,10 @@ Suche. Sie ist an einen tatsächlich bearbeitbaren Workflow gebunden, bietet nur
 Identitäten an und liefert bei fremdem oder unbekanntem Kontext einheitlich `404`.
 Formularfelder und historische Anzeige bleiben Folgepakete. #194 / PR #195 ergänzt
 bereits die durchgängige Task-Zuweisung mit explizitem Text-/Directory-Vertrag, stabilen
-Referenzen, Deployment-Prüfung und identischer Laufzeitberechtigung. Die grafische Auswahl
-im Modeler folgt getrennt.
+Referenzen, Deployment-Prüfung und identischer Laufzeitberechtigung. #196 ergänzt die
+workflowgebundene Auswahl im Diagramm und in der Gliederung: Freitext bleibt ausdrücklich
+erhalten, bekannte Benutzer/Gruppen werden gesucht, als stabile IDs geschrieben und beim
+erneuten Öffnen ohne allgemeine Verzeichnisliste aufgelöst.
 
 ## Verbleibende Risiken und Reihenfolge
 
@@ -126,9 +128,9 @@ im Modeler folgt getrennt.
    späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
    bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
-   gestapelt vor; der Backend-Vertrag für den expliziten Task-Zuweisungsmodus folgt in
-   #194 / PR #195.
-   Generisches Auswahlfeld, Modeler-Auswahl und Entwürfe fehlen weiterhin. Legacy-Namen
+   gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
+   Task-Zuweisungsmodus liegen in #194/#196.
+   Generisches Formular-Auswahlfeld, Ordnerreferenzen und Entwürfe fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,

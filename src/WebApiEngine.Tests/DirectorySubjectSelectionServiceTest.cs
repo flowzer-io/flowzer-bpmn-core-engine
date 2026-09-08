@@ -74,6 +74,25 @@ public sealed class DirectorySubjectSelectionServiceTest
             DirectorySubjectSelectionPolicy.WorkflowModeling)).Should().BeNull();
     }
 
+    // Testzweck: Der Modeler muss bereits gespeicherte aktive Referenzen nach einem erneuten
+    // Öffnen eindeutig darstellen können, ohne dafür ein ungeschütztes Vollverzeichnis zu laden.
+    [Test]
+    public async Task SearchAsync_ShouldResolveAnActiveSubjectByItsStableId()
+    {
+        var snapshot = CreateSnapshot();
+        var service = new DirectorySubjectSelectionService(new SnapshotStorage(snapshot));
+        var activeUser = snapshot.Users.Single(user => user.Subject == "subject-anna-a");
+
+        var result = await service.SearchAsync(
+            activeUser.Id.ToString(),
+            DirectorySubjectSearchKind.User,
+            10,
+            DirectorySubjectSelectionPolicy.WorkflowModeling);
+
+        result!.Items.Should().ContainSingle().Which.Subject.Should().Be(
+            new SubjectRef(DirectorySubjectKind.User, activeUser.Id));
+    }
+
     // Testzweck: Eine Gruppenbeschränkung wird serverseitig ausgewertet; Untergruppen erweitern
     // die erlaubten Benutzer nur nach ausdrücklicher Freigabe und nie durch Browserparameter.
     [Test]

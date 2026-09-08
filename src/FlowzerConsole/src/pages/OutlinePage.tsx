@@ -189,6 +189,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
           {draft && (
             <aside className="border-border bg-surface w-[340px] flex-none overflow-auto border-l p-5 max-lg:hidden">
               <BlockEditor
+                definitionId={definitionId}
                 document={draft}
                 block={selectedId ? findBlock(draft.blocks, selectedId) : undefined}
                 editable={mayPublish}

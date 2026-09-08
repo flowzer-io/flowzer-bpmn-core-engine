@@ -95,8 +95,9 @@ und `directory` durchgängig von der BPMN-Erweiterung über Parser und Deploymen
 persistierten Subscription und Autorisierung. Der Directory-Modus prüft ausschließlich
 stabile Benutzer-/Gruppen-IDs, exaktes `(Issuer, Subject)` und aktuelle Mitgliedschaften;
 ein Namensfallback ist ausgeschlossen. Legacy-Modelle bleiben Text. Die grafische
-Modellerauswahl folgt als eigener UI-Slice und ist damit noch nicht als vollständig geliefert
-markiert.
+Modellerauswahl folgt in #196: Diagramm und Gliederung bieten Freitext oder workflowgebunden
+gesuchte Benutzer/Gruppen an und schreiben denselben Vertrag. Das generische Formularfeld und
+typisierte Ordnerrechte bleiben davon getrennte M1-Pakete.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 
@@ -140,8 +141,9 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 - [ ] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
   Benutzer expandieren. Der öffentliche Referenz- und Prüfvertrag ist in #192 umgesetzt;
   die Ableitung erlaubter Werte aus der veröffentlichten Formularversion folgt noch.
-- [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden.
-- [ ] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
+- [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden. Die
+  Aufgaben-Auswahl ist in #196 umgesetzt; Ordnerberechtigungen folgen separat.
+- [x] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
   freien Textmodus. Vor der Eingabe explizit „Bekannter Benutzer / bekannte Gruppe“
   oder „Text-String“ wählen. Verzeichniswahl speichert eine typisierte stabile
   Referenz; Text bleibt ein explizit als solcher markierter Wert und wird nicht
@@ -153,7 +155,8 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Gruppenreferenzen und werden nicht zum behaupteten individuellen Bearbeiter.
   Modellierer zeigen Modus und eventuelle Mehrdeutigkeit verständlich an.
   Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194 / PR #195
-  umgesetzt; die Auswahloberfläche im Modeler folgt separat.
+  umgesetzt. #196 ergänzt die Auswahl in Diagramm und Gliederung einschließlich stabiler
+  XML-Roundtrips, ID-Auflösung, Lade-/Fehlerzuständen und historischen Warn-Chips.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.

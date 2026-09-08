@@ -1,13 +1,24 @@
 import {
   useMutation,
   useQuery,
+  useQueries,
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
 
-import { definitionsApi, foldersApi, formsApi, instancesApi, operationsApi, userTasksApi } from './endpoints';
+import {
+  definitionsApi,
+  foldersApi,
+  formsApi,
+  identityDirectoryApi,
+  instancesApi,
+  operationsApi,
+  userTasksApi,
+} from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
+  DirectorySubjectSearchResultDto,
+  DirectorySubjectDto,
   FolderAssignmentDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -21,6 +32,7 @@ import type {
   TimerSubscriptionDto,
   UserTaskResultDto,
   VersionDto,
+  SubjectRefDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -30,6 +42,10 @@ export const queryKeys = {
   definitionLatest: (definitionId: string) => [...queryKeys.definitions, 'latest', definitionId] as const,
   definitionXml: (versionGuid: string) => [...queryKeys.definitions, 'xml', versionGuid] as const,
   definitionStartForm: (definitionId: string) => [...queryKeys.definitions, 'start-form', definitionId] as const,
+
+  identityDirectory: ['identityDirectory'] as const,
+  directorySubjects: (definitionId: string, query: string, kind: 'user' | 'group') =>
+    [...queryKeys.identityDirectory, 'workflow', definitionId, kind, query] as const,
 
   folders: ['folders'] as const,
   folderList: () => [...queryKeys.folders, 'list'] as const,
@@ -172,6 +188,63 @@ export function useStartInstance() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
       void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
     },
+  });
+}
+
+/**
+ * Sucht ausschließlich innerhalb des Workflows, dessen Modellierrechte die API erneut prüft.
+ * Der Browser wählt weder globale Verzeichnisse noch eigene Filtergrenzen.
+ */
+export function useDirectorySubjectSearch(
+  definitionId: string,
+  query: string,
+  kind: 'user' | 'group',
+  enabled = true,
+) {
+  const normalizedQuery = query.trim();
+  return useQuery<DirectorySubjectSearchResultDto>({
+    queryKey: queryKeys.directorySubjects(definitionId, normalizedQuery, kind),
+    queryFn: ({ signal }) =>
+      identityDirectoryApi.searchSubjects(definitionId, normalizedQuery, kind, signal),
+    enabled: enabled && definitionId.length > 0 && normalizedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
+/** Löst bereits gespeicherte IDs einzeln auf, ohne einen unbeschränkten Directory-Abruf. */
+export function useDirectorySubjectResolutions(
+  definitionId: string,
+  subjects: SubjectRefDto[],
+  enabled = true,
+) {
+  const uniqueSubjects = subjects.filter(
+    (subject, index) =>
+      subjects.findIndex(
+        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+      ) === index,
+  );
+
+  return useQueries({
+    queries: uniqueSubjects.map((subject) => ({
+      queryKey: queryKeys.directorySubjects(definitionId, subject.id, subject.kind),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        identityDirectoryApi.searchSubjects(definitionId, subject.id, subject.kind, signal),
+      enabled: enabled && definitionId.length > 0 && subject.id.length >= 2,
+      staleTime: 30_000,
+    })),
+    combine: (results) => ({
+      data: results.flatMap((result, index) => {
+        const subject = uniqueSubjects[index];
+        if (!subject) return [];
+        return (result.data?.items ?? []).filter(
+          (item: DirectorySubjectDto) =>
+            item.subject.kind === subject.kind && item.subject.id === subject.id,
+        );
+      }),
+      isPending: results.some((result) => result.isPending),
+      isFetching: results.some((result) => result.isFetching),
+      error: results.find((result) => result.error)?.error ?? null,
+    }),
   });
 }
 

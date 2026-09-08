@@ -162,5 +162,8 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
 
     private static bool MatchesQuery(DirectorySubjectResult item, string query) =>
         item.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
-        || item.Detail.Contains(query, StringComparison.OrdinalIgnoreCase);
+        || item.Detail.Contains(query, StringComparison.OrdinalIgnoreCase)
+        // Bereits veröffentlichte BPMN-Verträge speichern absichtlich nur diese lokale ID.
+        // Der workflowgebundene Suchpfad darf sie deshalb zur Anzeigeauflösung akzeptieren.
+        || item.Subject.Id.ToString().Equals(query, StringComparison.OrdinalIgnoreCase);
 }

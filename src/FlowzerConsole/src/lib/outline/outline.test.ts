@@ -90,6 +90,32 @@ describe('readOutline — einfacher Ablauf', () => {
     expect(document?.blocks.map((block) => block.kind)).toEqual(['end']);
     expect(writeOutlineXml(document!).xml).toContain('bpmn:startEvent');
   });
+
+  it('liest und schreibt eine stabile Directory-Zuweisung ohne Informationsverlust', () => {
+    const directoryXml = MINIMAL
+      .replace(
+        'xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"',
+        'xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"',
+      )
+      .replace(
+        '<zeebe:assignmentDefinition candidateGroups="Vorgesetzte" />',
+        '<flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" candidateGroupIds="20000000-0000-0000-0000-000000000001" />',
+      );
+
+    const read = readOutline(directoryXml);
+    const step = read.document?.blocks[0] as OutlineStep;
+
+    expect(hasBlocker(read.issues)).toBe(false);
+    expect(step.assignmentMode).toBe('directory');
+    expect(step.directoryAssigneeId).toBe('10000000-0000-0000-0000-000000000001');
+    expect(step.directoryCandidateGroupIds).toEqual(['20000000-0000-0000-0000-000000000001']);
+
+    const written = writeOutlineXml(read.document!);
+    expect(hasBlocker(written.issues)).toBe(false);
+    expect(written.xml).toContain('xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"');
+    expect(written.xml).toContain('<flowzer:taskAssignment mode="directory"');
+    expect(written.xml).not.toContain('zeebe:assignmentDefinition');
+  });
 });
 
 // Testzweck: Das echte Beispiel bricht seit dem abbrechenden Endereignis den ganzen

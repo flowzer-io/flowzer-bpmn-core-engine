@@ -260,6 +260,17 @@ nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig. Ein fehlender
 `flowzer:taskAssignment` bedeutet immer Textmodus und löst keine automatische Migration
 anhand gleichlautender Verzeichniseinträge aus.
 
+Diagramm und Gliederung zeigen vor der Bearbeitung die Wahl **Freitext** oder **Bekannte
+Benutzer/Gruppen**. Die bekannte Auswahl sucht ausschließlich über
+`GET /identity-directory/workflows/{definitionId}/subjects`; der Server prüft dabei erneut
+die Modellierungsberechtigung des konkreten Workflows und gibt höchstens 20 aktive Treffer
+zurück. Anzeigename und Zusatzinformation werden nur dargestellt, in das BPMN gelangen
+ausschließlich stabile UUIDs. Bereits gespeicherte aktive UUIDs werden über denselben
+workflowgebundenen Pfad einzeln aufgelöst; deaktivierte oder nicht mehr bekannte Werte bleiben
+als warnender ID-Chip sichtbar und werden nicht automatisch ersetzt. Ein Wechsel in den
+Directory-Modus wird erst mit der ersten Auswahl in das Diagramm geschrieben. In der
+Gliederung sperrt ein noch leerer Directory-Entwurf Speichern und Deployment.
+
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
 Objektbezogene Instanzprojektionen beschränken Antragsteller und aktuell berechtigte

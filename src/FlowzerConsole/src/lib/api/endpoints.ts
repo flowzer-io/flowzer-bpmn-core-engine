@@ -21,6 +21,7 @@ import type {
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
+  DirectorySubjectSearchResultDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -119,6 +120,20 @@ export const definitionsApi = {
     );
     return normalizeInstance(instance);
   },
+};
+
+/** Workflowgebundene Suche nach aktiven, stabil referenzierten Identitäten. */
+export const identityDirectoryApi = {
+  searchSubjects: (
+    definitionId: string,
+    query: string,
+    kind: 'user' | 'group',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
 };
 
 /** Ordner des Workflow-Katalogs und die Zuständigkeiten daran. */
