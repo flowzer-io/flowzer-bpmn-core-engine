@@ -325,7 +325,29 @@ export interface ExtendedUserTaskSubscriptionDto extends UserTaskSubscriptionDto
   /** Ergänzt durch die Console-API: Fälligkeitsangabe aus dem BPMN-Modell. */
   dueDate?: string | null;
   followUpDate?: string | null;
+  /** Serverseitig gebundener Vertrag; Rohwerte sind nur noch Diagnoseinformation. */
+  deadline?: {
+    scheduleState: 'none' | 'resolved' | 'unsupported' | 'invalid';
+    status: 'none' | 'scheduled' | 'follow_up_due' | 'overdue' | 'escalated' | 'unsupported' | 'invalid';
+    activatedAtUtc: string;
+    dueAtUtc?: string | null;
+    followUpAtUtc?: string | null;
+    escalationAtUtc?: string | null;
+  } | null;
   priority?: string | null;
+}
+
+/** Persistente, benutzergebundene Meldung aus dem Server-Feed. */
+export interface NotificationDto {
+  id: string;
+  userTaskId: string;
+  kind: string;
+  occurredAtUtc: string;
+  readAtUtc: string | null;
+  title: string;
+  message: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  href: string;
 }
 
 /** Entspricht `TimerSubscriptionDto`. */

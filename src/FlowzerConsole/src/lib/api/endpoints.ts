@@ -10,6 +10,7 @@ import type {
   HealthStatusDto,
   MessageDto,
   MessageSubscriptionDto,
+  NotificationDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
@@ -347,6 +348,15 @@ export const formsApi = {
 export const messagesApi = {
   /** `POST /message` — korreliert eine Nachricht in laufende Instanzen. */
   publish: (message: MessageDto) => requestStatusResult<string>('/message', { method: 'POST', body: message }),
+};
+
+export const notificationsApi = {
+  /** `GET /notifications` — persistenter Feed der angemeldeten Person. */
+  list: (signal?: AbortSignal) => requestStatusResult<NotificationDto[]>('/notifications', { signal }),
+
+  /** `POST /notifications/{id}/read` — idempotentes Lesestatus-Update. */
+  markRead: (id: string) =>
+    requestStatus(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }),
 };
 
 export const operationsApi = {

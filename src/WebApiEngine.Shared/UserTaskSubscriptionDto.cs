@@ -52,6 +52,9 @@ public class ExtendedUserTaskSubscriptionDto : UserTaskSubscriptionDto
     /// <summary>Wiedervorlage aus <c>zeebe:taskSchedule/@followUpDate</c>.</summary>
     public string? FollowUpDate { get; set; }
 
+    /// <summary>Einmalig serverseitig gebundener Terminvertrag.</summary>
+    public UserTaskDeadlineDto? Deadline { get; set; }
+
     /// <summary>Priorität aus dem BPMN-Modell, sofern gepflegt.</summary>
     public string? Priority { get; set; }
 

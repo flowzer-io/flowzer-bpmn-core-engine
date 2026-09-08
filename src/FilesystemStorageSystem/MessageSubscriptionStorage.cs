@@ -196,6 +196,10 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
             drafts.DeleteAllFiles(userTaskSubscriptionId);
         if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
             lifecycle.DeleteState(userTaskSubscriptionId);
+        if (_storage.UserTaskDeadlineStorage is UserTaskDeadlineStorage deadlines)
+            deadlines.Delete(userTaskSubscriptionId);
+        if (_storage.UserTaskNotificationStorage is UserTaskNotificationStorage notifications)
+            notifications.DeleteForTask(userTaskSubscriptionId);
 
         return Task.CompletedTask;
     }
@@ -211,6 +215,10 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
                     drafts.DeleteAllFiles(subscription.Id);
                 if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
                     lifecycle.DeleteState(subscription.Id);
+                if (_storage.UserTaskDeadlineStorage is UserTaskDeadlineStorage deadlines)
+                    deadlines.Delete(subscription.Id);
+                if (_storage.UserTaskNotificationStorage is UserTaskNotificationStorage notifications)
+                    notifications.DeleteForTask(subscription.Id);
             }
         }
     }
@@ -226,6 +234,10 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
                     drafts.DeleteAllFiles(subscription.Id);
                 if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
                     lifecycle.DeleteState(subscription.Id);
+                if (_storage.UserTaskDeadlineStorage is UserTaskDeadlineStorage deadlines)
+                    deadlines.Delete(subscription.Id);
+                if (_storage.UserTaskNotificationStorage is UserTaskNotificationStorage notifications)
+                    notifications.DeleteForTask(subscription.Id);
             }
         }
 

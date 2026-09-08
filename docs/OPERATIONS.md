@@ -485,6 +485,50 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
 
+### Human-Task-Deadline-Scheduler
+
+Der Deadline-Scheduler verarbeitet die serverseitig gebundenen Termine offener
+Human Tasks. Er startet nach der Engine-Startup-Recovery, legt fehlende Deadline-Zeilen
+für bestehende offene Aufgaben anhand des gespeicherten Token-Startzeitpunkts an und
+arbeitet danach in konfigurierten Poll-Intervallen höchstens `BatchSize` Kandidaten ab.
+Fällige Meilensteine werden nach einem Neustart nachgeholt; der persistierte
+Meilenstein-Schlüssel verhindert doppelte Meldungen.
+
+Die Konfiguration liegt in `src/WebApiEngine/appsettings.json` beziehungsweise in
+Environment-Variablen:
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `UserTaskDeadlines__Enabled` | `true` aktiviert den Scheduler, `false` deaktiviert ihn |
+| `UserTaskDeadlines__PollIntervalSeconds` | Poll-Intervall von 1 bis 3600 Sekunden |
+| `UserTaskDeadlines__BatchSize` | maximal 1 bis 1000 Deadline-Kandidaten je Tick |
+| `UserTaskDeadlines__PolicyVersion` | Version der gebundenen Reminder-/Eskalationsregeln |
+| `UserTaskDeadlines__ReminderLeadTimes__0` usw. | ISO-8601-Vorlaufzeiten wie `P1D` oder `PT1H` |
+| `UserTaskDeadlines__EscalationAfterDue` | ISO-8601-Dauer nach der Fälligkeit, mindestens `PT0S` |
+
+Die Konfiguration wird beim Hoststart validiert. Eine ungültige Dauer, ein ungültiges
+Intervall oder eine zu große Batch-Größe verhindert den Start statt einen teilweise
+aktiven Scheduler zu erzeugen. Eine neue `PolicyVersion` verschiebt bereits gebundene
+Termine nicht; sie ist nur für bewusst neue Regeln zu verwenden.
+
+Der Scheduler erzeugt ausschließlich persistente In-App-Meldungen über
+`GET /notifications` und `POST /notifications/{id}/read`. E-Mail, Push, Chat,
+automatische Delegation und BPMN-Eskalationsereignisse gehören nicht zu diesem Slice.
+Scheduler-Backfill, Tick-Erfolg und Tick-Fehler erscheinen derzeit im API-Log; ein
+eigener Deadline-Diagnoseblock im Operations-Endpunkt ist noch nicht vorhanden.
+
+PostgreSQL ist für mehrere API-Prozesse vorgesehen: Deadline-Fortschritt und
+Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per
+Compare-and-swap und Unique-Deduplication geschrieben. Die Dateiablage schützt nur
+innerhalb eines API-Prozesses und bleibt ein Entwicklungsadapter. Die Migration liegt
+unter `src/PostgreSqlStorageSystem/Migrations/008_user_task_deadlines.sql` und wird
+wie alle Migrationen getrennt über `dotnet WebApiEngine.dll --migrate` angewendet.
+
+Für lokale Prüfungen genügt die Default-Konfiguration. Nach einem Neustart sollten
+die Logs `Bound schedules for ...` und bei fälligen Aufgaben `Created ... due
+user-task notification(s).` zeigen. Bei einem dauerhaften Scheduler-Fehler bleibt
+der Prozess selbst aktiv; der Logeintrag muss geprüft und die Ursache behoben werden.
+
 ## Lokaler Start ohne Docker
 
 ### Web-API
@@ -735,6 +779,7 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 
 - lokale Dev-/Compose-Daten: `.data/flowzer-storage`
 - runtime-nahe Containerdaten: `.data/runtime-storage`
+- Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
 
 ### Sicheres Backup
 

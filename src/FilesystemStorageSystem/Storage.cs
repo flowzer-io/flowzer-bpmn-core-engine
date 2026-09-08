@@ -14,6 +14,8 @@ public class Storage : IStorageSystem
         _storageRoot = ResolveStorageRoot();
         UserTaskDraftStorage = new UserTaskDraftStorage(this);
         UserTaskLifecycleStorage = new UserTaskLifecycleStorage(this);
+        UserTaskDeadlineStorage = new UserTaskDeadlineStorage(this);
+        UserTaskNotificationStorage = new UserTaskNotificationStorage(this);
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         FolderStorage = new FolderStorage(this);
@@ -32,6 +34,8 @@ public class Storage : IStorageSystem
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
     public IUserTaskDraftStorage UserTaskDraftStorage { get; }
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
+    public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
+    public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

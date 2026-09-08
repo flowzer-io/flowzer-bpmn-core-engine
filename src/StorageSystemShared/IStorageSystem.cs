@@ -34,4 +34,10 @@ public interface IStorageSystem
 
     /// <summary>Tatsächliche Human-Task-Bearbeiter, Revisionen und Audit-Ereignisse.</summary>
     IUserTaskLifecycleStorage UserTaskLifecycleStorage => UnsupportedUserTaskLifecycleStorage.Instance;
+
+    /// <summary>Einmalig gebundene Human-Task-Fälligkeiten und Schedulerfortschritt.</summary>
+    IUserTaskDeadlineStorage UserTaskDeadlineStorage => UnsupportedUserTaskDeadlineStorage.Instance;
+
+    /// <summary>Dauerhafte, deduplizierte In-App-Meldungen zu Human Tasks.</summary>
+    IUserTaskNotificationStorage UserTaskNotificationStorage => UnsupportedUserTaskNotificationStorage.Instance;
 }

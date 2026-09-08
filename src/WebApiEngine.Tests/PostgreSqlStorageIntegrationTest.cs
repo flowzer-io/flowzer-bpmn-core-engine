@@ -67,6 +67,7 @@ public partial class PostgreSqlStorageIntegrationTest
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
             "message_subscriptions", "signal_subscriptions", "user_task_drafts",
+            "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
             "timer_subscriptions", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der

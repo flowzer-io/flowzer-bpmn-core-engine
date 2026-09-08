@@ -59,6 +59,8 @@ ist nicht für produktiven Mehrprozessbetrieb freigegeben.
 ## Bewusste Grenzen
 
 Dieser Slice enthält noch keine Fristen, Wiedervorlagen, Erinnerungen, Benachrichtigungen,
-Kommentare oder automatische Rechtevertretung. Ein öffentlicher Historien-Endpunkt folgt
+Kommentare oder automatische Rechtevertretung. Die getrennte Umsetzung von Fristen und
+Benachrichtigungen steht in [Human-Task-Fristen und Benachrichtigungen](HUMAN-TASK-DEADLINES.md).
+Ein öffentlicher Historien-Endpunkt folgt
 erst mit der objektberechtigten Vorgangshistorie. TickyTask soll später denselben API-Vertrag
 über das headless SDK verwenden und erhält keinen direkten Datenbankzugriff.

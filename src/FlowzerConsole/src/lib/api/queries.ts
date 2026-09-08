@@ -14,6 +14,7 @@ import {
   instancesApi,
   operationsApi,
   userTasksApi,
+  notificationsApi,
 } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
@@ -39,6 +40,7 @@ import type {
   UserTaskWorkStateDto,
   VersionDto,
   SubjectRefDto,
+  NotificationDto,
   FormDirectorySearchContext,
 } from './types';
 
@@ -80,6 +82,8 @@ export const queryKeys = {
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
   timers: () => [...queryKeys.operations, 'timers'] as const,
   health: () => [...queryKeys.operations, 'health'] as const,
+  notifications: ['notifications'] as const,
+  notificationList: () => [...queryKeys.notifications, 'list'] as const,
 } as const;
 
 /** Live-Daten werden regelmäßig nachgeladen, damit die Konsole den Laufzeitzustand zeigt. */
@@ -502,6 +506,26 @@ export function useUserTasks(options?: QueryTuning<ExtendedUserTaskSubscriptionD
     queryFn: ({ signal }) => userTasksApi.list(signal),
     refetchInterval: LIVE_REFETCH_MS,
     ...options,
+  });
+}
+
+/** Persistenter Meldungsfeed; der Server bleibt Quelle für Inhalt und Lesestatus. */
+export function useNotifications(options?: QueryTuning<NotificationDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.notificationList(),
+    queryFn: ({ signal }) => notificationsApi.list(signal),
+    refetchInterval: LIVE_REFETCH_MS,
+    ...options,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => notificationsApi.markRead(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.notificationList() });
+    },
   });
 }
 

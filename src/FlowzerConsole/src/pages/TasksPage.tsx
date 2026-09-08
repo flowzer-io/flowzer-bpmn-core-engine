@@ -301,17 +301,6 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                 </h1>
                 <div className="text-muted mt-1.5 text-[13.5px]">
                   Gestartet {formatTimestamp(active.startedAt)} · fällig {active.dueLabel}
-                  {active.dueRaw && (
-                    <>
-                      {' '}
-                      <span
-                        className="text-faint font-mono text-xs"
-                        title="Fälligkeit ist ein Ausdruck und wird von der Engine ausgewertet."
-                      >
-                        ({active.dueRaw})
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>

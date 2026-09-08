@@ -16,8 +16,13 @@ using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
 
-public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
+public partial class BpmnBusinessLogic(
+    ITransactionalStorageProvider storageProvider,
+    ILogger<BpmnBusinessLogic>? logger = null,
+    UserTaskDeadlinePolicy? userTaskDeadlinePolicy = null)
 {
+    private readonly UserTaskDeadlinePolicy _userTaskDeadlinePolicy =
+        userTaskDeadlinePolicy ?? UserTaskDeadlinePolicy.Default;
     // Die dateibasierte Ablage kennt weder Transaktionen noch Sperren. Parallele HTTP-Requests
     // und der Timer-Scheduler wuerden sonst gleichzeitig Instanz- und Subscription-Dateien
     // lesen, loeschen und schreiben (Read-Modify-Write ohne Schutz). Alle Engine-Mutationen

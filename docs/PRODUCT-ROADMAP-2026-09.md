@@ -198,10 +198,15 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 - [x] Stabile Aufgabenidentität je Token; bestehende Subscriptions aktualisieren
   statt bei jedem Instanzfortschritt neue IDs zu vergeben.
-- [ ] Claim, Release, Zuweisung und berechtigte Delegation mit Revision, Akteur und
-  Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe.
-- [ ] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
-  dauerhafte, deduplizierte Benachrichtigungen.
+- [x] Claim, Release, Zuweisung und berechtigte Delegation mit Revision, Akteur und
+  Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe. #204 / PR #205
+  ist im Topic-Branch umgesetzt; Merge und Abnahme sind noch offen.
+- [x] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
+  dauerhafte, deduplizierte Benachrichtigungen. #206 bindet die unterstützte
+  Zeitteilmenge einmalig in UTC, verarbeitet Meilensteine nachholbar und liefert einen
+  objektberechtigten In-App-Feed. Externe Zustellung, automatische Vertretung und BPMN-
+  Eskalationspropagation bleiben bewusst außerhalb dieses Slices; Merge und Abnahme sind
+  noch offen.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.

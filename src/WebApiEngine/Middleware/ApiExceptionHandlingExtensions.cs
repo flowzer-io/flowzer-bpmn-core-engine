@@ -98,6 +98,21 @@ public static class ApiExceptionHandlingExtensions
                         problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is UserTaskNotificationUnavailableException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status503ServiceUnavailable,
+                        Title = "User-task notifications are unavailable.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (context.Response.StatusCode == StatusCodes.Status422UnprocessableEntity)
                 {
                     var fields = exception is FormSubmissionException form
@@ -140,6 +155,7 @@ public static class ApiExceptionHandlingExtensions
             DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
                 or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
+            UserTaskNotificationUnavailableException => StatusCodes.Status503ServiceUnavailable,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,

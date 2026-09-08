@@ -24,6 +24,8 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
         UserTaskDraftStorage = new PostgreSqlUserTaskDraftStorage(_session);
         UserTaskLifecycleStorage = new PostgreSqlUserTaskLifecycleStorage(_session);
+        UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
+        UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -36,6 +38,8 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
     public IUserTaskDraftStorage UserTaskDraftStorage { get; }
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
+    public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
+    public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -61,6 +65,8 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
         UserTaskDraftStorage = new PostgreSqlUserTaskDraftStorage(_session);
         UserTaskLifecycleStorage = new PostgreSqlUserTaskLifecycleStorage(_session);
+        UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
+        UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -73,6 +79,8 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
     public IUserTaskDraftStorage UserTaskDraftStorage { get; }
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
+    public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
+    public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
 
     public void CommitChanges() => _session.Commit();
 

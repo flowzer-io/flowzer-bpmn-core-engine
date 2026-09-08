@@ -34,7 +34,12 @@ public record UserTask : Activities.Task, IFlowzerInputMapping, IFlowzerOutputMa
     /// <summary>Stabile lokale Gruppen-IDs der Kandidatengruppen im Verzeichnismodus.</summary>
     public FlowzerList<Guid> FlowzerDirectoryCandidateGroupIds { get; init; } = [];
 
+    /// <summary>Bleibt bis zur serverseitigen, versionierten Terminbindung als Rohvertrag erhalten.</summary>
+    [DoNotTranslate]
     public string? FlowzerDueDate { get; init; }
+
+    /// <summary>Bleibt bis zur serverseitigen, versionierten Terminbindung als Rohvertrag erhalten.</summary>
+    [DoNotTranslate]
     public string? FlowzerFollowUpDate { get; init; }
     public string? FlowzerPriority { get; init; }
     public FlowzerList<FlowzerIoMapping>? InputMappings { get; init; }

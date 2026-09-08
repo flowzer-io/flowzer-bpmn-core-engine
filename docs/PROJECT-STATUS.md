@@ -155,6 +155,25 @@ PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Audi
 dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
 
+## Human-Task-Fristen – #206 (Topic-Branch, noch nicht gemergt)
+
+Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
+stabilen Task-ID an absolute UTC-Zeitpunkte. ISO-8601-Zeitpunkte mit Offset und
+ISO-8601-Dauern werden unterstützt; lokale Zeitwerte ohne Offset und FEEL-Ausdrücke
+bleiben ausdrücklich `unsupported` und erzeugen keine automatische Fälligkeit.
+
+Der Deadline-Scheduler backfillt offene Altaufgaben, verarbeitet Follow-up-, Reminder-,
+Due- und Eskalationsmeilensteine nachholbar und begrenzt pro Tick. PostgreSQL dedupliziert
+Meldungen über einen eindeutigen Schlüssel und schützt den Fortschritt per Revision;
+die Dateiablage bleibt ein Einzelprozess-Entwicklungsadapter. Der Feed unter
+`/notifications` nutzt dieselbe objektbezogene Task-Autorisierung wie Liste, Formular,
+Entwurf und Abschluss. Abschluss oder Abbruch entfernt offene Meldungen per
+Fremdschlüssel. Details: [Human-Task-Fristen und Benachrichtigungen](HUMAN-TASK-DEADLINES.md).
+
+Der Slice liefert keine E-Mail-/Push-/Chat-Zustellung, keine automatische Delegation
+und keine BPMN-Eskalationspropagation. Der eigene Operations-Diagnoseblock für den
+Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme bleiben offen.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -169,9 +188,11 @@ dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Det
    Formularpflege-Trennung von Entwurf/Vorschau/Veröffentlichung fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation und private Entwürfe liegen als
-   gestapelte Slices vor. SDK und TickyTask-Einbettung, Fristen/Benachrichtigungen,
-   Modellvalidierung und vollständige Vorgangshistorie folgen. Mobil-PR #153 nicht duplizieren.
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
+   serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
+   vor (#202, #204/#205, #206). Merge/Abnahme, SDK und TickyTask-Einbettung,
+   Modellvalidierung, externe Zustellung und vollständige Vorgangshistorie folgen.
+   Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.

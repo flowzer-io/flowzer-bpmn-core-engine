@@ -43,13 +43,23 @@ builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddScoped<UserTaskCompletionService>();
 builder.Services.AddScoped<UserTaskDraftService>();
 builder.Services.AddScoped<UserTaskLifecycleService>();
+builder.Services.AddScoped<UserTaskNotificationService>();
+builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
+builder.Services.AddOptions<UserTaskDeadlineOptions>()
+    .Bind(builder.Configuration.GetSection(UserTaskDeadlineOptions.SectionName))
+    .Validate(options => options.IsValid(), "UserTaskDeadlines configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UserTaskDeadlineOptions>>()
+        .Value.ToPolicy());
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
 builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
+builder.Services.AddHostedService<UserTaskDeadlineBackgroundService>();
 
 // Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
 // um eine Benachrichtigung an angemeldete Adressen.
