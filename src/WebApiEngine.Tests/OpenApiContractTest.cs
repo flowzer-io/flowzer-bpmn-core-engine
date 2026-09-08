@@ -53,7 +53,13 @@ public class OpenApiContractTest
 
         // Ausnahmen mit Begruendung: XML liefert ein Dokument, Health ist ein Probe-Endpunkt
         // fuer Orchestratoren mit eigenem, schlankem Vertrag.
-        string[] exceptions = ["/definition/xml/{guid}", "/health", "/health/ready"];
+        string[] exceptions = [
+            "/bff/session",
+            "/bff/csrf",
+            "/definition/xml/{guid}",
+            "/health",
+            "/health/ready"
+        ];
 
         var offenders = new List<string>();
         foreach (var path in document.RootElement.GetProperty("paths").EnumerateObject())
@@ -87,6 +93,36 @@ public class OpenApiContractTest
         offenders.Should().BeEmpty();
     }
 
+    // Testzweck: Der Browservertrag des BFF bleibt explizit und darf nicht versehentlich in
+    // den Legacy-ApiStatusResult-Umschlag oder in unbeschriebene Statuscodes zurückfallen.
+    [Test]
+    public async Task BffEndpoints_ShouldExposeTheDocumentedResponses()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var paths = document.RootElement.GetProperty("paths");
+
+        var login = GetOperation(paths, "/bff/login", "get");
+        GetResponse(login, "302").Should().NotBeNull();
+        GetResponse(login, "404").Should().NotBeNull();
+        GetProblemResponse(login, "400").Should().Be("#/components/schemas/ProblemDetails");
+
+        var session = GetOperation(paths, "/bff/session", "get");
+        GetResponseSchema(session, "200").Should().Be("#/components/schemas/BffSessionDto");
+        GetResponse(session, "401").Should().NotBeNull();
+        GetResponse(session, "404").Should().NotBeNull();
+
+        var csrf = GetOperation(paths, "/bff/csrf", "get");
+        GetResponseSchema(csrf, "200").Should().Be("#/components/schemas/BffCsrfDto");
+        GetResponse(csrf, "401").Should().NotBeNull();
+        GetResponse(csrf, "404").Should().NotBeNull();
+
+        var logout = GetOperation(paths, "/bff/logout", "post");
+        GetResponse(logout, "204").Should().NotBeNull();
+        GetProblemResponse(logout, "400").Should().Be("#/components/schemas/ProblemDetails");
+        GetResponse(logout, "401").Should().NotBeNull();
+        GetResponse(logout, "404").Should().NotBeNull();
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))
@@ -101,6 +137,53 @@ public class OpenApiContractTest
         }
 
         return null;
+    }
+
+    private static JsonElement GetOperation(JsonElement paths, string path, string method)
+    {
+        paths.TryGetProperty(path, out var pathItem).Should().BeTrue($"der BFF-Endpunkt {path} muss beschrieben sein");
+        pathItem.TryGetProperty(method, out var operation).Should().BeTrue($"{method.ToUpperInvariant()} {path} muss beschrieben sein");
+        return operation;
+    }
+
+    private static JsonElement? GetResponse(JsonElement operation, string statusCode)
+    {
+        var responses = operation.GetProperty("responses");
+        return responses.TryGetProperty(statusCode, out var response) ? response : null;
+    }
+
+    private static string? GetResponseSchema(JsonElement operation, string statusCode)
+    {
+        var response = GetResponse(operation, statusCode);
+        if (response is null || !response.Value.TryGetProperty("content", out var content))
+        {
+            return null;
+        }
+
+        foreach (var mediaType in content.EnumerateObject())
+        {
+            if (mediaType.Value.TryGetProperty("schema", out var schema)
+                && schema.TryGetProperty("$ref", out var reference))
+            {
+                return reference.GetString();
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetProblemResponse(JsonElement operation, string statusCode)
+    {
+        var response = GetResponse(operation, statusCode);
+        if (response is null || !response.Value.TryGetProperty("content", out var content)
+            || !content.TryGetProperty("application/problem+json", out var mediaType)
+            || !mediaType.TryGetProperty("schema", out var schema)
+            || !schema.TryGetProperty("$ref", out var reference))
+        {
+            return null;
+        }
+
+        return reference.GetString();
     }
 
     private static async Task<string> FetchDocument()

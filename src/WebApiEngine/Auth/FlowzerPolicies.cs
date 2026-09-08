@@ -9,6 +9,9 @@ public static class FlowzerPolicies
     /// </summary>
     public const string Access = "flowzer:access";
 
+    /// <summary>Nur Anmeldung fuer die eigene BFF-Sitzung, ohne fachliche Zugangsrolle.</summary>
+    public const string Session = "flowzer:session";
+
     public const string Modeler = "flowzer:modeler";
     public const string Operator = "flowzer:operator";
 

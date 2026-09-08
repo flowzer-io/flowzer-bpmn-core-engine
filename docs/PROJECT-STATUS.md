@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187. Der BFF-Slice #188 liegt in einem noch nicht nach `main` gemergten PR.
 
 ## Einordnung
 
@@ -16,7 +16,7 @@ keine aktuelle Liste noch fehlender Funktionen.
 ## Bereits vorhandene Grundlagen
 
 - Eine React-Konsole; die frühere Blazor-Oberfläche wurde entfernt.
-- OIDC-Anmeldung in der Konsole, JWT-Bearer-Prüfung und Rollen in der API.
+- BFF-Implementierung für serverseitigen OIDC-Code-Flow, `HttpOnly`/`Secure`-Host-Cookies und CSRF; externe JWT-Bearer-Prüfung bleibt kompatibel. Der BFF-Slice ist noch ungemergt und nicht abgenommen.
 - Aufgabenfilter anhand modellierter Personen und Gruppen; Workflow-Ordner mit
   Bearbeitungs-/Delegationsrechten. Diese ersetzen keine Instanz-Datenschutzrechte.
 - PostgreSQL-Backend und dateibasierte Entwicklungsablage.
@@ -43,10 +43,10 @@ keinen Instanzzugriff. Aufgabenlisten geben nur deklarierte Formularwerte statt
 vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fordert
 ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
 
-Das ist **kein vollständiger M0-Abschluss**: Insbesondere der BFF fehlt weiterhin.
-Ohne `Idempotency-Key` liefert ein wiederholter Abschluss aus Kompatibilitätsgründen
-weiterhin `404`; mit dem in PR #187 ergänzten Schlüssel greift die persistente
-Erfolgswiederholung.
+Das ist **kein vollständiger M0-Abschluss**: Der BFF-Slice ist zwar in Arbeit,
+aber noch nicht nach `main` gemergt oder integriert abgenommen. Ohne `Idempotency-Key`
+liefert ein wiederholter Abschluss aus Kompatibilitätsgründen weiterhin `404`; mit dem
+in PR #187 ergänzten Schlüssel greift die persistente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
 API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
 
@@ -87,11 +87,26 @@ dieselbe Instanz beziehungsweise Erfolg; anderer Inhalt endet mit 409. PostgreSQ
 reserviert den Hash atomar in derselben Transaktion. Details, Sieben-Tage-Aufbewahrung
 und Datei-/Integrationsgrenzen: [HTTP-Idempotenz](IDEMPOTENCY.md).
 
+## BFF-Slice #188 (noch nicht gemergt)
+
+Der laufende Slice verlagert die Browser-Anmeldung in den API-seitigen,
+vertraulichen OIDC-Code-Flow. Access-Tokens und das BFF-Client-Secret bleiben im
+API-Prozess; die Konsole erhält nur die minimal projizierte Sitzung über
+`HttpOnly`/`Secure` `__Host-`-Cookies. Schreibende Cookie-Anfragen benötigen
+`X-Flowzer-CSRF` und gleichen Origin. Externe Bearer-Clients bleiben ohne
+CSRF-Header kompatibel und ein fehlerhafter Bearer fällt nicht auf eine Cookie-
+Sitzung zurück. Compose persistiert den getrennten Data-Protection-Keyring.
+
+Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
+`main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
+und Recovery-Pakete.
+
 ## Verbleibende Risiken und Reihenfolge
 
-1. **M0:** BFF mit HttpOnly-Cookies und CSRF-Schutz. Idempotenz externer
-   Worker-/Connector-Effekte bleibt in den jeweiligen späteren Paketen. Rollen ausdrücklich konfigurieren;
-   leere Fähigkeitsrollen bleiben im vorhandenen Vertrag permissiv.
+1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
+   abnehmen. Idempotenz externer Worker-/Connector-Effekte bleibt in den jeweiligen
+   späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
+   bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
    unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
    bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.

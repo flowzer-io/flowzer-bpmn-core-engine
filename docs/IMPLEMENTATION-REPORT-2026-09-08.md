@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Sechs aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Sieben aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
 umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
 kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
@@ -15,19 +15,19 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Formularprüfung | Begrenztes serverseitiges Prüfprofil für Pflichtfelder, Typen, Bereiche, statische Auswahl, Sichtbarkeit und Datumsvergleich. Read-only-Schutz und Feldfehler ohne Eingabeverlust. Zwei Beispielskripte durch deklarative/benannte Serverregeln ersetzt. | [#183](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/183) |
 | Aufgabenidentität | Bestehende Task-IDs/Zuweisungen bleiben über parallelen Fortschritt, Timer und Neuladen erhalten. Nur neue Tokens bekommen neue IDs; erledigte Aufgaben werden gezielt entfernt. | [#185](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/185) |
 | HTTP-Idempotenz | Direkte Starts und beide Abschlussrouten erhalten akteurs-/ressourcengebundene, persistente Wiederholungen; Inhaltswechsel liefert 409. | [#187](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/187) |
+| Browser-BFF | Vertraulicher OIDC-Code-Flow, kurzlebige HttpOnly-Cookie-Sitzung, Origin-/CSRF-Schutz, minimale Sitzungsprojektion und weiter kompatible Bearer-API. | [#189](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/189) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftragt.
 
 ## Nachweise
 
-- Abschließende lokale .NET-Suite: **100 Engine + 461 API-/Storage-Tests bestanden**,
+- Abschließende lokale .NET-Suite: **100 Engine + 480 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole auf dem Formular-Slice: **207 Tests**, Typecheck und Build erfolgreich;
-  Lint ohne Fehler, acht bestehende Warnungen. Der Aufgaben-ID-Slice ändert keinen
-  Frontendcode; die PR-CI prüft die gesamte Kette erneut.
+- React-Konsole einschließlich BFF: **209 Tests**, Typecheck und Build erfolgreich;
+  Lint ohne Fehler, acht bestehende Warnungen.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
   Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
 - Vorgangsübersichten auf Desktop und Mobil visuell geprüft. Das ersetzt noch nicht
@@ -43,6 +43,11 @@ slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftra
   Korrekturen. Der Re-Review meldete **keine blockierenden Findings**. Als spätere
   Härtung bleiben weitere Zahlenvektoren/-größenlimits und ein auditierter Klärungsweg
   für offene Reservierungen dokumentiert.
+- Ein zusätzlich verlangter direkter **Astra-/High-Review des BFF-Slices** fand und
+  behob die an das Access-Token gebundene, nicht gleitende Sitzungsdauer, Logout für
+  angemeldete Konten ohne Fachrolle, fehlgeschlagene Logout-Anzeige sowie abgeschaltete
+  BFF-Routen. Negativtests decken Signatur und CSRF ab. Unmittelbarer Provider-Widerruf
+  vor Tokenablauf, echter Keycloak-Code-Flow und Keyring-Restore bleiben Abnahmen.
 
 ## Bewahrte Produktentscheidungen
 
@@ -77,8 +82,11 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
 
 ## Nächste Umsetzungsschritte
 
-1. **M0 weiter schließen:** BFF mit HttpOnly-/Secure-Cookies und CSRF. Idempotenz
-   später auf explizite Worker-/Connector-Außenwirkungen ausdehnen.
+1. **M0 weiter schließen:** Der BFF-Slice mit HttpOnly-/Secure-Host-Cookies,
+   `X-Flowzer-CSRF`, serverseitigem vertraulichem OIDC-Client und persistentem
+   Data-Protection-Keyring läuft in einem noch nicht gemergten PR. Nach Merge sind
+   HTTPS-/Secret-Store-/Keyring-Restore-Abnahme sowie später Idempotenz für explizite
+   Worker-/Connector-Außenwirkungen offen.
 2. **M1/M2:** Read-only-Keycloak-Verzeichnis mit atomarer Sync-Generation, Pagination,
    Fehler-/Deaktivierungsschutz und stabilen Referenzen. Auswahlkomponente für
    Formulare, Tasks und Ordner – inklusive des ausdrücklich separaten Textmodus.

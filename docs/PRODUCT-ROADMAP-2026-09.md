@@ -65,11 +65,15 @@ Operation, Ziel und kanonischen Inhalt. PostgreSQL-Konkurrenztests belegen genau
 Start/Abschluss; geänderter Inhalt endet mit 409. Externe Effekte folgen separat.
 Details: [HTTP-Idempotenz](IDEMPOTENCY.md).
 
-**BFF:** #188 ist der nächste M0-Slice. Die Web-API übernimmt den serverseitigen
-OIDC-Code-Flow, hält Browser-Tokens aus Storage und Antworten fern und schützt
-Cookie-Mutationen per CSRF. Die externe Bearer-API bleibt kompatibel.
+**BFF:** #188 ist der laufende M0-Slice in einem noch nicht nach `main` gemergten
+PR. Die Web-API übernimmt den serverseitigen OIDC-Code-Flow mit vertraulichem
+Client, hält Browser-Tokens und Client-Secret aus Storage/Antworten fern und
+schützt `HttpOnly`/`Secure` Host-Cookies per `X-Flowzer-CSRF` und Origin-Prüfung.
+Der Data-Protection-Keyring wird getrennt persistent gehalten; die externe
+Bearer-API bleibt kompatibel.
 
-Die sechs PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
+Die Teil-PRs bleiben bis Merge und Abnahme separat; auch der laufende BFF-Slice
+ist kein Produkt- oder vollständiger M0-Abschluss.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 
@@ -81,8 +85,10 @@ Die sechs PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produkt
   eigene Vorgänge, Bearbeiter nur benötigten Kontext, Modellierer nicht automatisch
   Personalvorgänge; Betrieb erhält ausdrücklich berechtigte Diagnoseansichten.
 - [x] Serverseitige Validierung für Starts und Aufgabenabschlüsse (gemeinsam mit M2).
-- [ ] BFF-Anmeldung mit HttpOnly-/Secure-Cookies und CSRF-Schutz; keine Browser-Tokens
-  in `sessionStorage`, Bearer-Vertrag für externe Konsumenten bleibt bestehen.
+- [ ] BFF-Anmeldung mit HttpOnly-/Secure-`__Host-`-Cookies, persistentem API-Keyring
+  und CSRF-Schutz (`X-Flowzer-CSRF`); keine Browser-Tokens oder Clientsecrets in
+  Storage/Antworten, Bearer-Vertrag für externe Konsumenten bleibt bestehen. Umsetzung
+  läuft in einem noch ungemergten PR und ist nicht als M0-Abnahme markiert.
 - [x] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
   erzeugt einen Konflikt statt einen weiteren Vorgang.
 - [x] Bestandsissues #93–#96 und #98 bereinigt und #176 / PR #177 verknüpft;

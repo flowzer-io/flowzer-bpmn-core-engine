@@ -10,7 +10,10 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 
 1. **M0 – Sicherheit und Verträge:** zentraler Aufgabenabschluss (#176, PR #177),
    objektbezogene Instanzrechte, serverseitige Validierung und Idempotenz sind als
-   gestapelte PRs umgesetzt; #188 schließt als Nächstes den BFF mit Cookie/CSRF.
+   gestapelte PRs umgesetzt. #188 ist der laufende, noch nicht nach `main` gemergte
+   BFF-Slice: vertraulicher OIDC-Code-Flow, `HttpOnly`/`Secure`-Cookies,
+   `X-Flowzer-CSRF`, persistenter API-Keyring und kompatibler externer Bearer-Vertrag.
+   Bis Merge und HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
 2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
    generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe.
 3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
@@ -22,7 +25,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 
 ## Vorhandenes nicht neu bauen
 
-React-Konsole, OIDC/Rollen, PostgreSQL, Service-Task-Worker, Startformulare und
+React-Konsole, API-seitiger BFF-/Bearer-Auth-Vertrag (laufender ungemergter Slice), PostgreSQL, Service-Task-Worker, Startformulare und
 Workflow-Ordner existieren. Der offene Mobil-PR #153 enthält noch nicht auf `main`
 enthaltene Korrekturen und bleibt ein eigener Strang; sie werden hier nicht dupliziert.
 

@@ -32,18 +32,40 @@ async function seedWorkflow(request) {
 /**
  * Laesst die Konsole ohne Modelliererrolle laufen.
  *
- * Der Entwicklungsbenutzer traegt fest `access`, `modeler`, `operator` und `worker`. Welche
- * Rollennamen dahinter zaehlen, steht aber in `config.json` — der Betrieb vergibt sie im
- * Identity Provider. Verlangt die Konfiguration fuers Modellieren einen Namen, den niemand
- * traegt, sieht die Oberflaeche einen Zugelassenen ohne Modelliererrolle. Das ist genau der
- * Fall, um den es hier geht, und er braucht keinen laufenden Identity Provider.
+ * Der BFF liefert die wirksamen Faehigkeiten serverseitig. Fuer diesen reinen UI-Test wird
+ * seine datensparsame Sessionprojektion ohne `modeler` nachgebildet; die API-Autorisierung
+ * selbst pruefen die .NET-Integrationstests.
  */
 async function ohneModelliererrolle(page) {
   await page.route('**/config.json', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ apiBaseUrl: '/api', roleNames: { modeler: 'rolle-die-niemand-hat' } })
+      body: JSON.stringify({ apiBaseUrl: '/api', bffEnabled: true })
+    })
+  );
+  await page.route('**/bff/session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'ui-smoke', name: 'UI Smoke', capabilities: ['access', 'operator', 'worker'] })
+    })
+  );
+  // Die API laeuft im Smoke absichtlich mit Authentication=None und besitzt deshalb kein
+  // echtes BFF-Cookie. Die globale Aufgabenabfrage wird fuer diesen reinen Rollen-UI-Test
+  // leer beantwortet, damit ihr erwartetes 401 die nachgebildete Session nicht beendet.
+  await page.route('**/api/usertask*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
+    })
+  );
+  await page.route('**/api/instance', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
     })
   );
 }

@@ -25,13 +25,36 @@ Der Entwicklungsserver läuft auf `http://localhost:5273` und leitet `/api` an d
 
 ## Anmeldung
 
-Authorization Code Flow mit PKCE gegen den konfigurierten Identity Provider. Die Konsole ist ein öffentlicher Client ohne Geheimnis; ein Geheimnis im Browser wäre keines. Das Zugangstoken geht als Bearer an die API und wird im Hintergrund über eine eigene, minimale Seite erneuert.
+Die ausgelieferte Konsole verwendet einen **same-origin Backend-for-Frontend
+(BFF)**. Der Browser startet die Anmeldung über `GET /bff/login`; die Web-API
+führt den Authorization-Code-Flow mit PKCE als **vertraulicher OIDC-Client** aus.
+Das Client-Secret und erhaltene Access-Tokens bleiben im API-Prozess. Weder
+`config.json` noch JavaScript, `sessionStorage` oder `localStorage` enthalten
+Tokens oder OIDC-Clientdaten.
 
-Die Sitzung liegt in `sessionStorage`: Sie endet mit dem Tab und wandert nicht in andere Fenster. Das ist für einen öffentlichen Client mit PKCE üblich, hat aber eine bekannte Grenze — wer es schafft, fremdes JavaScript in die Seite zu bekommen, kann das Token lesen. Wer diese Grenze nicht akzeptieren will, braucht einen serverseitigen Vermittler, der das Token behält und der Oberfläche nur ein HttpOnly-Cookie gibt. Das ist ein eigener Umbau und keine Einstellung; er steht als nächster Härtungsschritt an.
+Nach erfolgreicher Anmeldung setzt die API die Cookies `__Host-Flowzer-Session`
+und `__Host-Flowzer-Csrf`: beide sind `HttpOnly`, `Secure`, haben `Path=/` und
+sind damit nur unter HTTPS auf genau diesem Host gültig. Die Sitzung liegt im
+Cookie, nicht im Browser-Speicher. Die Konsole liest nur die datensparsame
+Sitzungsprojektion von `GET /bff/session`.
 
-Die API muss im selben Origin liegen. Das mitgelieferte nginx leitet die API-Pfade weiter, deshalb genügt dort `/`. Eine Adresse in einem anderen Origin wird abgelehnt: Das Zugangstoken ginge dorthin, und der Browser gäbe den Header, mit dem die API eine Ablehnung einordnet, ohne ausdrückliche Freigabe gar nicht heraus.
+Für jede schreibende Cookie-Anfrage holt die Konsole bei `GET /bff/csrf` einen
+nur im JavaScript-Speicher gehaltenen Request-Token und sendet ihn im Header
+`X-Flowzer-CSRF`. Die API verlangt zusätzlich einen gleichen Origin. Logout ist
+ebenfalls ein CSRF-geschütztes `POST /bff/logout`. Direkte API-Konsumenten dürfen
+weiterhin `Authorization: Bearer …` verwenden; dieser Vertrag ist nicht
+CSRF-pflichtig und ein fehlerhafter Bearer fällt nicht auf ein vorhandenes Cookie
+zurück.
 
-Die Rollen aus dem Token bestimmen, was die Oberfläche anbietet:
+Konsole und API müssen unter derselben HTTPS-Origin liegen. Das mitgelieferte
+nginx leitet die API- und `/bff`-Pfade weiter, daher genügt als API-Basis `/`.
+Eine fremde Origin wird abgelehnt. Für lokale Entwicklungsprüfungen bleibt
+`Authentication:Scheme=None` mit technischem Benutzer möglich. `JwtBearer`
+bleibt für direkte/externe Bearer-Clients kompatibel, betreibt die gelieferte
+Konsole aber nicht als Browser-Anmeldung; dafür ist `Bff` zu konfigurieren.
+
+Die Rollen werden serverseitig aus dem validierten Access-Token in die minimale
+BFF-Sitzung projiziert und bestimmen, was die Oberfläche anbietet:
 
 | Rolle | Wirkung |
 | --- | --- |
@@ -51,25 +74,25 @@ Wer die Zugangsrolle nicht hat, bekommt die reduzierte Aufgabenansicht — die v
 
 Der Modellierer wird ohne `modeler` zur Ansicht: Das Diagramm lässt sich betrachten, zoomen und auswählen, aber nicht ändern — keine Palette, kein Kontextpad, kein Verschieben oder Löschen. Das Eigenschaften-Panel zeigt weiterhin alle Werte, nimmt aber keine an. Sonst entstünden Änderungen, die niemand speichern kann, und die Seite warnte beim Verlassen davor.
 
-Die Anzeige richtet sich nach den Rollen, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
+Die Anzeige richtet sich nach den serverseitig projizierten Fähigkeiten, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
 
 ## Konfiguration zur Laufzeit
 
-Ein gebautes Bündel ist unveränderlich; die Adressen dürfen deshalb nicht beim Bauen feststehen, sonst braucht jede Umgebung ein eigenes Image. Der Container schreibt beim Start `config.json`, und die Anwendung lädt sie, bevor sie das erste Mal zeichnet.
+Ein gebautes Bündel ist unveränderlich; der Container schreibt nur unkritische
+Bereitstellungswerte nach `config.json`, bevor die Anwendung zeichnet. OIDC-
+Authority, Client-ID, Scopes, Rollenbezeichnungen, Secrets und Tokens gehören
+**nicht** zu dieser Datei und nicht in den Konsolen-Container.
 
 | Umgebungsvariable | Bedeutung |
 | --- | --- |
 | `FLOWZER_API_BASE_URL` | Basisadresse der API, im Container `/` (das mitgelieferte nginx leitet weiter) |
 | `FLOWZER_API_UPSTREAM` | Ziel der Weiterleitung als `host:port`, z. B. `api:8080` |
-| `FLOWZER_OIDC_AUTHORITY` | OIDC-Issuer; leer heißt: ohne Anmeldung |
-| `FLOWZER_OIDC_CLIENT_ID` | Client-Id der Konsole |
-| `FLOWZER_OIDC_AUDIENCE` | Audience der API im Token; unter ihr stehen die Clientrollen |
-| `FLOWZER_OIDC_SCOPES` | zusätzliche Scopes über `openid profile email` hinaus |
+| `FLOWZER_BFF_ENABLED` | `true` für die ausgelieferte BFF-Konsole; lokale Entwicklung kann explizit `false` setzen |
 | `FLOWZER_ACCENT` | Akzentfarbe: `iris`, `teal`, `emerald`, `amber` oder `rose` |
 
-Heißen die Rollen im Identity Provider anders als `access`, `modeler`, `operator` und `worker`, gehören die abweichenden Namen unter `roleNames` in die `config.json`. Die API wertet sie ebenfalls konfigurierbar aus; beide Seiten müssen dieselben Namen kennen.
-
-Im Entwicklungsbetrieb ohne `config.json` greifen die `VITE_`-Werte aus `.env`.
+Im Entwicklungsbetrieb ohne `config.json` greifen nur die nicht geheimen `VITE_`
+Werte. Ein lokaler technischer Benutzer setzt weiterhin `Authentication:Scheme=None`
+voraus; er ist keine Produktions-Anmeldevariante.
 
 ## Darstellung
 

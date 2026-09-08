@@ -85,4 +85,37 @@ for entrypoint in "${entrypoints[@]}"; do
   fi
 done
 
+# Testzweck: Der BFF muss hinter einem TLS-Terminator das urspruengliche Schema und den
+# vollstaendigen Host inklusive Nichtstandardport bis zur API erhalten. `$scheme` am
+# Runtime-Gateway wuerde HTTPS zu internem HTTP herabstufen; `$host` entfernt den Port und
+# laesst dadurch Origin-/CSRF-Pruefungen fehlschlagen.
+runtime_gateway="$repo_root/deploy/nginx/runtime.conf"
+console_entrypoint="$repo_root/deploy/console/entrypoint.sh"
+if grep -Fq 'proxy_set_header X-Forwarded-Proto $scheme;' "$runtime_gateway"; then
+  echo "Das Runtime-Gateway ueberschreibt X-Forwarded-Proto mit dem internen Schema." >&2
+  exit 1
+fi
+
+grep -Fq 'proxy_set_header X-Forwarded-Proto $flowzer_forwarded_proto;' "$runtime_gateway"
+grep -Fq 'proxy_set_header X-Forwarded-Proto \$flowzer_forwarded_proto;' "$console_entrypoint"
+grep -Fq 'proxy_set_header Host $http_host;' "$runtime_gateway"
+grep -Fq 'proxy_set_header Host \$http_host;' "$console_entrypoint"
+
+# Testzweck: Die API darf Forwarded-Header nur aus dem explizit konfigurierten
+# Containernetz auswerten. Ohne diese Runtime-Einstellung erzeugt der OIDC-Handler intern
+# eine HTTP-Callback-Adresse und die vorgelagerte TLS-Terminierung ist wirkungslos.
+runtime_compose="$repo_root/compose.runtime.yml"
+if ! grep -q 'ForwardedHeaders__KnownNetworks__0:' "$runtime_compose"; then
+  echo "compose.runtime.yml vertraut keinem konfigurierten Proxy-Netz." >&2
+  exit 1
+fi
+
+# Testzweck: Das lokale Runtime-Gateway darf einen vom Client fälschbaren
+# X-Forwarded-Proto-Header nicht standardmäßig im gesamten Hostnetz anbieten. Wer einen
+# externen Container-Proxy nutzt, muss die Bindung deshalb bewusst öffnen.
+if ! grep -Fq '${FLOWZER_RUNTIME_BIND_ADDRESS:-127.0.0.1}:${FLOWZER_RUNTIME_PORT:-5288}:8080' "$runtime_compose"; then
+  echo "Das Runtime-Gateway bindet nicht standardmäßig ausschließlich an Loopback." >&2
+  exit 1
+fi
+
 printf 'OK: Das Gateway leitet alle API-Routen weiter.\n'
