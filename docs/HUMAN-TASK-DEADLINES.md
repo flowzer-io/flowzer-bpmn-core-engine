@@ -1,6 +1,6 @@
 # Human-Task-Fristen und Benachrichtigungen
 
-**Stand:** 8. September 2026 · **Slice:** #206
+**Stand:** 8. September 2026 · **Slice:** #206 / PR #207
 
 Flowzer bindet `zeebe:taskSchedule/@dueDate` und `@followUpDate` beim ersten
 Auftreten einer stabilen Human-Task-ID an absolute UTC-Zeitpunkte. Token-Updates,
@@ -73,4 +73,3 @@ verschiebt bestehende Termine nicht. Für bewusst geänderte Regeln ist eine neu
 
 E-Mail, Push, Chat-Zustellung, frei konfigurierbare Reminder pro Task, automatische
 Vertretung sowie BPMN-Error-/Escalation-Propagation sind nicht Teil dieses Slices.
-

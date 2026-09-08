@@ -27,7 +27,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    in PR #203.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
-   #206 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
+   #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
    Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
    Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
    fachliche Abnahme bleiben offen. SDK/Einbettung für TickyTask, Modellierungsprüfung,
@@ -42,7 +42,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 - [x] **#204 / PR #205 – Human-Task-Lifecycle:** Claim, Release, Operator-Zuweisung
   und berechtigte Delegation mit monotoner Revision, Akteur, Begründung und Auditspur
   sind im Topic-Branch umgesetzt.
-- [x] **#206 – Human-Task-Fristen:** Due-/Follow-up-Werte werden einmalig serverseitig
+- [x] **#206 / PR #207 – Human-Task-Fristen:** Due-/Follow-up-Werte werden einmalig serverseitig
   aufgelöst und als UTC-Termine gebunden. Der Scheduler holt fällige Meilensteine nach;
   Benachrichtigungen sind taskbezogen, persistent und per Unique-Schlüssel dedupliziert.
   Die Dateiablage bleibt Einzelprozess-Entwicklung; PostgreSQL ist der vorgesehene

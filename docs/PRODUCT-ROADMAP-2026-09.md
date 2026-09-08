@@ -202,7 +202,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe. #204 / PR #205
   ist im Topic-Branch umgesetzt; Merge und Abnahme sind noch offen.
 - [x] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
-  dauerhafte, deduplizierte Benachrichtigungen. #206 bindet die unterstützte
+  dauerhafte, deduplizierte Benachrichtigungen. #206 / PR #207 bindet die unterstützte
   Zeitteilmenge einmalig in UTC, verarbeitet Meilensteine nachholbar und liefert einen
   objektberechtigten In-App-Feed. Externe Zustellung, automatische Vertretung und BPMN-
   Eskalationspropagation bleiben bewusst außerhalb dieses Slices; Merge und Abnahme sind

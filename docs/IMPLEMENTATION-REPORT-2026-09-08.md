@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Sieben aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Sechzehn aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
 umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
 kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
@@ -16,17 +16,28 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Aufgabenidentität | Bestehende Task-IDs/Zuweisungen bleiben über parallelen Fortschritt, Timer und Neuladen erhalten. Nur neue Tokens bekommen neue IDs; erledigte Aufgaben werden gezielt entfernt. | [#185](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/185) |
 | HTTP-Idempotenz | Direkte Starts und beide Abschlussrouten erhalten akteurs-/ressourcengebundene, persistente Wiederholungen; Inhaltswechsel liefert 409. | [#187](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/187) |
 | Browser-BFF | Vertraulicher OIDC-Code-Flow, kurzlebige HttpOnly-Cookie-Sitzung, Origin-/CSRF-Schutz, minimale Sitzungsprojektion und weiter kompatible Bearer-API. | [#189](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/189) |
+| Keycloak-Verzeichnis | Lesender, paginierter und atomar veröffentlichter Verzeichnisabgleich mit stabilen lokalen IDs, Hierarchie, Deaktivierungshistorie und Mehrprozess-Lease. | [#191](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/191) |
+| Typisierte Verzeichnissuche | Workflowgebundene Suche und Prüfung stabiler Benutzer-/Gruppenreferenzen ohne Namensfallback. | [#193](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/193) |
+| Aufgaben-Zuweisungsvertrag | Explizite Wahl zwischen bewahrtem Freitextmodus und stabilen Directory-Referenzen samt serverseitiger Deployment-/Rechteprüfung. | [#195](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/195) |
+| Modelerauswahl | Diagramm und Gliederung pflegen denselben Text-/Directory-Vertrag mit Such-, Lade-, Fehler- und historischen Warnzuständen. | [#197](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/197) |
+| Formular-Identitätsfeld | `flowzer.forms/2` ergänzt gebundene Einzel-/Mehrfachauswahl von Benutzern und Gruppen samt serverseitiger Filter- und Submission-Prüfung. | [#199](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/199) |
+| Ordnerrechte | Ordnerberechtigungen verwenden dieselben stabilen Directory-Referenzen und behalten den ausdrücklich gewählten Freitextmodus. | [#201](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/201) |
+| Aufgabenentwürfe | Private serverseitige Entwürfe mit Größen-/Feldgrenzen, optimistischer Revision, Wiederaufnahme und Konfliktdarstellung. | [#203](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/203) |
+| Human-Task-Lifecycle | Claim, Release, Operator-Zuweisung und berechtigte Delegation mit tatsächlichem Bearbeiter, Revision und Auditspur. | [#205](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/205) |
+| Fristen und Meldungen | Einmalig gebundene UTC-Termine, nachholbarer Scheduler sowie persistenter, deduplizierter und objektberechtigter In-App-Feed. | [#207](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/207) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
-slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftragt.
+slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
+Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
+abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Abschließende lokale .NET-Suite: **100 Engine + 480 API-/Storage-Tests bestanden**,
+- Abschließende lokale .NET-Suite auf PR #207: **111 Engine + 611 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich BFF: **209 Tests**, Typecheck und Build erfolgreich;
+- React-Konsole einschließlich BFF und Task-Feed: **269 Tests**, Typecheck und Build erfolgreich;
   Lint ohne Fehler, acht bestehende Warnungen.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
   Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
@@ -72,30 +83,30 @@ slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftra
    brauchen eine geprüfte Migration in einer Testinstallation.
 3. **Rollen:** `Roles:Operator` ausdrücklich konfigurieren. Der alte permissive
    Vertrag für leere Fähigkeitsrollen ist noch nicht ersetzt.
-4. **Persistenz:** Dateiablage besitzt keinen Rollback. Die prozesslokale Sperre und
-   vorhandene PostgreSQL-Transaktion sind noch kein Nachweis für sicheren
-   Mehrprozessbetrieb. Revisionen/Unique-Constraints/Konkurrenztests fehlen.
-5. **Zuweisungen:** Stabile Task-ID bedeutet noch keine Claim-/Delegationsfunktion.
-   Das Bewahren historischer Bearbeitermetadaten aktiviert keine neuen Rechte.
+4. **Persistenz:** Dateiablage besitzt keinen Rollback und bleibt ein
+   Einzelprozess-Entwicklungsweg. PostgreSQL-Konkurrenztests belegen die neuen
+   Idempotenz-, Directory-, Draft-, Lifecycle- und Deadline-Verträge, aber noch nicht
+   jede Runtime-Transition des vollständigen M6-Mehrprozessbetriebs.
+5. **Benachrichtigungen:** Der aktuelle Feed ist taskgebunden und wird beim Taskende
+   entfernt. Langfristige Vorgangshistorie und externe Zustellung benötigen eigene
+   Aufbewahrungs-, Rechte- und Outbox-Verträge.
 
 Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
 
 ## Nächste Umsetzungsschritte
 
-1. **M0 weiter schließen:** Der BFF-Slice mit HttpOnly-/Secure-Host-Cookies,
-   `X-Flowzer-CSRF`, serverseitigem vertraulichem OIDC-Client und persistentem
-   Data-Protection-Keyring läuft in einem noch nicht gemergten PR. Nach Merge sind
-   HTTPS-/Secret-Store-/Keyring-Restore-Abnahme sowie später Idempotenz für explizite
-   Worker-/Connector-Außenwirkungen offen.
-2. **M1/M2:** Read-only-Keycloak-Verzeichnis mit atomarer Sync-Generation, Pagination,
-   Fehler-/Deaktivierungsschutz und stabilen Referenzen. Auswahlkomponente für
-   Formulare, Tasks und Ordner – inklusive des ausdrücklich separaten Textmodus.
-3. **M2:** Gemeinsame Client-/Server-Konformitätsfälle, weitere deklarative Regeln,
+1. **M0/M1 integrieren:** Gestapelte BFF-/Directory-PRs später in Reihenfolge mergen
+   und mit echtem Keycloak, HTTPS, Secret-Store und Keyring-Restore abnehmen.
+   Historische Identitätsauflösung und Klärung mehrdeutiger Altwerte bleiben offen.
+2. **M2:** Gemeinsame Client-/Server-Konformitätsfälle, weitere deklarative Regeln,
    Versionierungsoberfläche, Entwürfe/Konflikte, Wiederholgruppen und geprüfte Migration.
-4. **M3/M4:** Taskrevision/Claim/Release/Delegation, Historie, Fristen und Benachrichtigungen;
-   SDK/TickyTask-Einbettung, Modellfähigkeiten und vollständiger UX-Audit.
-5. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige
+3. **M3/M4:** Kommentare/Vorgangshistorie, Headless-SDK und TickyTask-Einbettung,
+   gemeinsame Modellfähigkeiten, Laufzeitdiagramme und vollständiger UX-Audit.
+4. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige
    PostgreSQL-, Lease-, Runtime-, Betriebs- und Upgrade-Bausteine vorziehen.
+5. **Finale Abnahme:** Direkter Astra-/High-Subagent prüft alle M0–M6-Punkte und
+   liefert Korrekturen im gemeinsamen Worktree; danach vollständige Tests,
+   Zusammenführung nach `main` und Deployment-Verifikation.
 
 Die erste vollständige Produktabnahme – frische Installation mit Keycloak-Auswahl,
 Konsole/Host-Aufgabe und nach Neustart fortgesetztem KI-Task samt Werkzeugfreigabe –

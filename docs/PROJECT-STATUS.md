@@ -155,7 +155,7 @@ PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Audi
 dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
 
-## Human-Task-Fristen – #206 (Topic-Branch, noch nicht gemergt)
+## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
 stabilen Task-ID an absolute UTC-Zeitpunkte. ISO-8601-Zeitpunkte mit Offset und
@@ -190,7 +190,7 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
    serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
-   vor (#202, #204/#205, #206). Merge/Abnahme, SDK und TickyTask-Einbettung,
+   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, SDK und TickyTask-Einbettung,
    Modellvalidierung, externe Zustellung und vollständige Vorgangshistorie folgen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
