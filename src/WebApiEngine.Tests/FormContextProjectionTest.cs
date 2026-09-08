@@ -68,5 +68,28 @@ public class FormContextProjectionTest
         JsonSerializer.Serialize(result).Should().Be("""{"person":{"name":"Anna"}}""");
     }
 
+    // Testzweck: Das Verzeichnisfeld darf genau seine typisierte Referenz in den
+    // Formularkontext projizieren, aber keine eingeschleusten Profilattribute.
+    [Test]
+    public void Projection_ShouldRetainOnlyStrictDirectorySubjectReferences()
+    {
+        var validId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var result = FormContextProjection.Project("""
+            {"flowzer":{"contractVersion":2},"components":[
+              {"type":"flowzerSubject","key":"representative"},
+              {"type":"flowzerSubject","key":"forged"}]}
+            """, Data(JsonSerializer.Serialize(new
+            {
+                representative = new { kind = "user", id = validId },
+                forged = new { kind = "user", id = validId, email = "private@example.test" }
+            })));
+
+        JsonSerializer.Serialize(result).Should().Be(
+            JsonSerializer.Serialize(new
+            {
+                representative = new { kind = "user", id = validId.ToString() }
+            }));
+    }
+
     private static ExpandoObject Data(string json) => JsonSerializer.Deserialize<ExpandoObject>(json)!;
 }

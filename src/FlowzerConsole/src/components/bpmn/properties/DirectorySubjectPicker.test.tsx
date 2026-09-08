@@ -11,10 +11,14 @@ import {
 
 const searchMock = vi.hoisted(() => vi.fn());
 const resolutionMock = vi.hoisted(() => vi.fn());
+const formSearchMock = vi.hoisted(() => vi.fn());
+const formResolutionMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api/queries', () => ({
   useDirectorySubjectSearch: searchMock,
   useDirectorySubjectResolutions: resolutionMock,
+  useFormDirectorySubjectSearch: formSearchMock,
+  useFormDirectorySubjectResolutions: formResolutionMock,
 }));
 
 const userSubject: SubjectRefDto = { kind: 'user', id: 'user-1' };
@@ -46,6 +50,10 @@ describe('DirectorySubjectPicker', () => {
     searchMock.mockReturnValue(searchResult());
     resolutionMock.mockReset();
     resolutionMock.mockReturnValue({ data: [], isPending: false, isFetching: false, error: null });
+    formSearchMock.mockReset();
+    formSearchMock.mockReturnValue(searchResult());
+    formResolutionMock.mockReset();
+    formResolutionMock.mockReturnValue({ data: [], isPending: false, isFetching: false, error: null });
   });
 
   // Testzweck: Der Picker wartet bis zur Mindestlänge und übergibt dem Hook den Workflow,
@@ -62,6 +70,29 @@ describe('DirectorySubjectPicker', () => {
     await waitFor(() => expect(searchMock).toHaveBeenLastCalledWith('workflow-1', 'an', 'user', true), {
       timeout: 500,
     });
+  });
+
+  // Testzweck: Formularfelder verwenden den fachlich gebundenen Startformular-Endpunkt
+  // und dürfen nicht auf die allgemeine Workflow-Suche oder eine globale Suche ausweichen.
+  it('übergibt Formularfeldkontext und Feldschlüssel an die Suche', async () => {
+    const user = userEvent.setup();
+    renderPicker({
+      definitionId: '',
+      kind: 'all',
+      directoryContext: { kind: 'startForm', definitionId: 'workflow-1' },
+      fieldKey: 'approvers',
+      label: 'Benutzer oder Gruppen',
+    });
+
+    await user.type(screen.getByRole('searchbox', { name: 'Benutzer oder Gruppen suchen' }), 'an');
+    await waitFor(() => expect(formSearchMock).toHaveBeenLastCalledWith(
+      { kind: 'startForm', definitionId: 'workflow-1' },
+      'approvers',
+      'an',
+      'all',
+      true,
+    ), { timeout: 500 });
+    expect(searchMock).not.toHaveBeenCalled();
   });
 
   // Testzweck: Suchtreffer werden als stabile Referenzen zurückgegeben und doppelte IDs können

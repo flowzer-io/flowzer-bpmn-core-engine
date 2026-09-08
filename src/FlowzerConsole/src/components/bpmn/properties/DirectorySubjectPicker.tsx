@@ -3,8 +3,15 @@ import { useEffect, useId, useState } from 'react';
 import {
   useDirectorySubjectResolutions,
   useDirectorySubjectSearch,
+  useFormDirectorySubjectResolutions,
+  useFormDirectorySubjectSearch,
 } from '@/lib/api/queries';
-import type { DirectorySubjectDto, SubjectRefDto } from '@/lib/api/types';
+import type {
+  DirectorySubjectDto,
+  DirectorySubjectSearchResultDto,
+  FormDirectorySearchContext,
+  SubjectRefDto,
+} from '@/lib/api/types';
 
 import { FieldLabel, SearchInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
@@ -21,12 +28,31 @@ export interface DirectorySubjectSelection {
 
 export interface DirectorySubjectPickerProps {
   definitionId: string;
-  kind: SubjectRefDto['kind'];
+  kind: SubjectRefDto['kind'] | 'all';
+  /** Bei Formularen ersetzt dieser Kontext die workflowgebundene Modeler-Suche. */
+  directoryContext?: FormDirectorySearchContext;
+  /** Technischer Form.io-Key, der serverseitig in die Policy-Prüfung einfließt. */
+  fieldKey?: string;
+  disabledReason?: string;
   selected: DirectorySubjectSelection[];
   multiple: boolean;
   disabled?: boolean;
   label: string;
   onChange: (selected: DirectorySubjectSelection[]) => void;
+}
+
+interface SearchState {
+  data?: DirectorySubjectSearchResultDto;
+  isPending: boolean;
+  isFetching: boolean;
+  error: unknown;
+}
+
+interface ResolutionState {
+  data: DirectorySubjectDto[];
+  isPending: boolean;
+  isFetching: boolean;
+  error: unknown;
 }
 
 /**
@@ -37,31 +63,28 @@ export interface DirectorySubjectPickerProps {
  * Anzeigeprojektion zurück. Dadurch bleiben auch unbekannte historische IDs als Warn-Chips
  * sichtbar, statt bei einer neuen Suche still verloren zu gehen.
  */
-export function DirectorySubjectPicker({
-  definitionId,
+function DirectorySubjectPickerView({
   kind,
+  disabledReason,
   selected,
   multiple,
   disabled = false,
   label,
   onChange,
-}: DirectorySubjectPickerProps) {
+  search,
+  resolution,
+  query,
+  setQuery,
+  debouncedQuery,
+}: DirectorySubjectPickerProps & {
+  search: SearchState;
+  resolution: ResolutionState;
+  query: string;
+  setQuery: (value: string) => void;
+  debouncedQuery: string;
+}) {
   const fieldId = useId();
-  const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
-    return () => window.clearTimeout(timeout);
-  }, [query]);
-
-  const canSearch = !disabled && debouncedQuery.length >= 2;
-  const search = useDirectorySubjectSearch(definitionId, debouncedQuery, kind, canSearch);
-  const resolution = useDirectorySubjectResolutions(
-    definitionId,
-    selected.map((entry) => entry.subject),
-    !disabled,
-  );
   const items = search.data?.items ?? [];
   const displayedSelected = selected.map((entry) => {
     const resolved = resolution.data.find(
@@ -137,7 +160,7 @@ export function DirectorySubjectPicker({
           id={fieldId}
           value={query}
           disabled={disabled}
-          placeholder={kind === 'user' ? 'Benutzer suchen …' : 'Gruppe suchen …'}
+          placeholder={kind === 'user' ? 'Benutzer suchen …' : kind === 'group' ? 'Gruppe suchen …' : 'Benutzer oder Gruppe suchen …'}
           aria-label={`${label} suchen`}
           onChange={(event) => setQuery(event.target.value)}
         />
@@ -145,6 +168,12 @@ export function DirectorySubjectPicker({
 
       {disabled && selected.length === 0 && (
         <p className="text-faint m-0 text-[12px]">Keine Referenz ausgewählt.</p>
+      )}
+
+      {disabledReason && (
+        <p className="text-fail bg-fail/10 m-0 rounded-[var(--r-sm)] px-2.5 py-2 text-[12px]" role="alert">
+          {disabledReason}
+        </p>
       )}
 
       {!disabled && query.trim().length > 0 && query.trim().length < 2 && (
@@ -158,7 +187,7 @@ export function DirectorySubjectPicker({
         </p>
       )}
 
-      {!disabled && hasSearch && !searching && search.error && (
+      {!disabled && hasSearch && !searching && Boolean(search.error) && (
         <p className="text-fail bg-fail/10 m-0 rounded-[var(--r-sm)] px-2.5 py-2 text-[12px]" role="alert">
           Die Directory-Suche ist derzeit nicht verfügbar.
         </p>
@@ -198,4 +227,54 @@ export function DirectorySubjectPicker({
       )}
     </div>
   );
+}
+
+/** Gemeinsame Ansicht für Modeler- und Formularsuche; nur der Hook-Kontext unterscheidet sich. */
+export function DirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  if (props.directoryContext && props.fieldKey) {
+    return <FormDirectorySubjectPicker {...props} />;
+  }
+  return <WorkflowDirectorySubjectPicker {...props} />;
+}
+
+function WorkflowDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+  const workflowKind = props.kind === 'all' ? 'user' : props.kind;
+  const search = useDirectorySubjectSearch(props.definitionId, debouncedQuery, workflowKind, !props.disabled && debouncedQuery.length >= 2);
+  const resolution = useDirectorySubjectResolutions(
+    props.definitionId,
+    props.selected.map((entry) => entry.subject),
+    props.definitionId.length > 0,
+  );
+  return <DirectorySubjectPickerView {...props} search={search} resolution={resolution} query={query} setQuery={setQuery} debouncedQuery={debouncedQuery} />;
+}
+
+function FormDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+  const context = props.directoryContext!;
+  const fieldKey = props.fieldKey!;
+  const search = useFormDirectorySubjectSearch(
+    context,
+    fieldKey,
+    debouncedQuery,
+    props.kind,
+    !props.disabled && debouncedQuery.length >= 2,
+  );
+  const resolution = useFormDirectorySubjectResolutions(
+    context,
+    fieldKey,
+    props.selected.map((entry) => entry.subject),
+    Boolean(context),
+  );
+  return <DirectorySubjectPickerView {...props} search={search} resolution={resolution} query={query} setQuery={setQuery} debouncedQuery={debouncedQuery} />;
 }

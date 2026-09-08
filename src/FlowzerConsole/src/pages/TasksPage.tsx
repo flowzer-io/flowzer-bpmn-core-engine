@@ -296,6 +296,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                     schema={formQuery.data.formData ?? undefined}
                     initialData={active.task.token.variables ?? undefined}
                     onChange={setFormData}
+                    directoryContext={{ kind: 'userTask', taskId: active.id }}
                   />
                 )}
               </div>

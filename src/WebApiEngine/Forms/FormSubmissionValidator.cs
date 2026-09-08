@@ -3,14 +3,21 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Model;
+using StorageSystem;
 using static WebApiEngine.Forms.FormJson;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Forms;
 
 /// <summary>Validiert ausschließlich deklarierte Eingaben und baut einen neuen Ergebnisscope.</summary>
 public static class FormSubmissionValidator
 {
-    public static ExpandoObject Validate(FormContract contract, ExpandoObject? data, ExpandoObject? context = null)
+    public static ExpandoObject Validate(
+        FormContract contract,
+        ExpandoObject? data,
+        ExpandoObject? context = null,
+        DirectorySnapshot? directorySnapshot = null)
     {
         using var inputDocument = JsonDocument.Parse(JsonSerializer.Serialize(data ?? new ExpandoObject()));
         using var contextDocument = JsonDocument.Parse(JsonSerializer.Serialize(context ?? new ExpandoObject()));
@@ -41,9 +48,11 @@ public static class FormSubmissionValidator
                 if (!Empty(value)) Add(errors, field.Key, "field.inactive");
                 continue;
             }
-            ValidateField(field, value, errors);
-            if (value.ValueKind != JsonValueKind.Undefined)
-                output[field.Key] = Empty(value) && value.ValueKind != JsonValueKind.Array ? null : ToValue(value);
+            ValidateField(field, value, errors, directorySnapshot);
+            if (value.ValueKind != JsonValueKind.Undefined && !errors.ContainsKey(field.Key))
+                output[field.Key] = Empty(value) && value.ValueKind != JsonValueKind.Array
+                    ? null
+                    : ToValue(field, value);
         }
         ValidateDateRules(contract, input, existing, errors);
         if (errors.Count > 0) throw new FormSubmissionException(errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
@@ -52,14 +61,18 @@ public static class FormSubmissionValidator
             var calculated = NamedFormCalculations.Compute(field, contract, input, existing);
             var supplied = Get(input, field.Key);
             if (!Empty(supplied) && (supplied.ValueKind != JsonValueKind.String || supplied.GetString() != calculated)) Add(errors, field.Key, "field.calculated");
-            ValidateField(field, JsonSerializer.SerializeToElement(calculated), errors);
+            ValidateField(field, JsonSerializer.SerializeToElement(calculated), errors, directorySnapshot);
             output[field.Key] = calculated;
         }
         if (errors.Count > 0) throw new FormSubmissionException(errors.ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal));
         return result;
     }
 
-    private static void ValidateField(FormField field, JsonElement value, Dictionary<string, List<string>> errors)
+    private static void ValidateField(
+        FormField field,
+        JsonElement value,
+        Dictionary<string, List<string>> errors,
+        DirectorySnapshot? directorySnapshot)
     {
         var validate = Get(field.Schema, "validate");
         if (value.ValueKind == JsonValueKind.Array && !True(field.Schema, "multiple"))
@@ -80,16 +93,40 @@ public static class FormSubmissionValidator
             var count = value.GetArrayLength();
             if (count > 500 || Number(validate, "maxSelectedCount") is { } max && count > max) Add(errors, field.Key, "selection.max");
             if (Number(validate, "minSelectedCount") is { } min && count < min) Add(errors, field.Key, "selection.min");
-            foreach (var item in value.EnumerateArray()) ValidateScalar(field, item, errors);
+            HashSet<SubjectRef>? seenSubjects = field.Type == "flowzerSubject" ? [] : null;
+            foreach (var item in value.EnumerateArray())
+            {
+                ValidateScalar(field, item, errors, directorySnapshot, seenSubjects);
+            }
             return;
         }
-        ValidateScalar(field, value, errors);
+        ValidateScalar(field, value, errors, directorySnapshot);
     }
 
-    private static void ValidateScalar(FormField field, JsonElement value, Dictionary<string, List<string>> errors)
+    private static void ValidateScalar(
+        FormField field,
+        JsonElement value,
+        Dictionary<string, List<string>> errors,
+        DirectorySnapshot? directorySnapshot,
+        HashSet<SubjectRef>? seenSubjects = null)
     {
         var validate = Get(field.Schema, "validate");
-        if (field.Type is "number" or "currency")
+        if (field.Type == "flowzerSubject")
+        {
+            if (!DirectorySubjectValue.TryParse(value, out var subject))
+            {
+                Add(errors, field.Key, "type.subject_ref");
+                return;
+            }
+            if (seenSubjects is not null && !seenSubjects.Add(subject))
+                Add(errors, field.Key, "selection.duplicate");
+            if (directorySnapshot is null)
+                Add(errors, field.Key, "directory.unavailable");
+            else if (field.SubjectSelection is null
+                     || DirectorySubjectSelectionService.Resolve(directorySnapshot, subject, field.SubjectSelection) is null)
+                Add(errors, field.Key, "selection.invalid");
+        }
+        else if (field.Type is "number" or "currency")
         {
             if (value.ValueKind != JsonValueKind.Number || !value.TryGetDecimal(out var number)) { Add(errors, field.Key, "type.number"); return; }
             if (Number(validate, "min") is { } min && number < min) Add(errors, field.Key, "number.min");
@@ -160,14 +197,26 @@ public static class FormSubmissionValidator
         || value.ValueKind == JsonValueKind.Array && value.GetArrayLength() == 0;
     private static bool TryDate(string value, out DateTimeOffset date) => DateTimeOffset.TryParseExact(value,
         ["yyyy-MM-dd", "yyyy-MM-dd'T'HH:mm:ssK", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK"], CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out date);
-    private static object? ToValue(JsonElement value) => value.ValueKind switch
+    private static object? ToValue(FormField field, JsonElement value) => field.Type == "flowzerSubject"
+        ? value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray().Select(NormalizeSubjectRef).ToArray()
+            : NormalizeSubjectRef(value)
+        : ToScalarValue(value);
+
+    private static object? ToScalarValue(JsonElement value) => value.ValueKind switch
     {
         JsonValueKind.String => value.GetString(), JsonValueKind.True => true, JsonValueKind.False => false,
         JsonValueKind.Number when value.TryGetInt64(out var integer) => integer,
         JsonValueKind.Number when value.TryGetDecimal(out var number) => number,
-        JsonValueKind.Array => value.EnumerateArray().Select(ToValue).ToArray(),
+        JsonValueKind.Array => value.EnumerateArray().Select(ToScalarValue).ToArray(),
         _ => null
     };
+
+    private static Dictionary<string, object?> NormalizeSubjectRef(JsonElement value)
+    {
+        _ = DirectorySubjectValue.TryParse(value, out var subject);
+        return DirectorySubjectValue.Normalize(subject);
+    }
     private static void Add(Dictionary<string, List<string>> errors, string key, string code)
     {
         if (!errors.TryGetValue(key, out var codes)) errors[key] = codes = [];

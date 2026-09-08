@@ -58,8 +58,21 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
         if (limit is < 1 or > 50) throw new ArgumentOutOfRangeException(nameof(limit));
 
         var snapshot = await storage.GetActiveSnapshot();
-        if (snapshot is null) return null;
+        return snapshot is null ? null : Search(snapshot, query, requestedKind, limit, policy);
+    }
 
+    /// <summary>Fuehrt eine Suche auf genau einer bereits autorisierten Snapshot-Generation aus.</summary>
+    public static DirectorySubjectSearchResult Search(
+        DirectorySnapshot snapshot,
+        string query,
+        DirectorySubjectSearchKind requestedKind,
+        int limit,
+        DirectorySubjectSelectionPolicy policy)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(query);
+        ArgumentNullException.ThrowIfNull(policy);
+        if (limit is < 1 or > 50) throw new ArgumentOutOfRangeException(nameof(limit));
         var items = EligibleSubjects(snapshot, requestedKind, policy)
             .Where(item => MatchesQuery(item, query.Trim()))
             .OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -86,9 +99,19 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
         var snapshot = await storage.GetActiveSnapshot();
         return snapshot is null
             ? null
-            : EligibleSubjects(snapshot, DirectorySubjectSearchKind.All, policy)
-                .SingleOrDefault(item => item.Subject == subject);
+            : Resolve(snapshot, subject, policy);
     }
+
+    /// <summary>
+    /// Gemeinsamer, snapshotreiner Pruefkern fuer Suche und Formular-Submission. Dadurch
+    /// entscheidet derselbe Policycode ueber angezeigte und tatsaechlich akzeptierte Werte.
+    /// </summary>
+    public static DirectorySubjectResult? Resolve(
+        DirectorySnapshot snapshot,
+        SubjectRef subject,
+        DirectorySubjectSelectionPolicy policy) =>
+        EligibleSubjects(snapshot, DirectorySubjectSearchKind.All, policy)
+            .SingleOrDefault(item => item.Subject == subject);
 
     private static IEnumerable<DirectorySubjectResult> EligibleSubjects(
         DirectorySnapshot snapshot,

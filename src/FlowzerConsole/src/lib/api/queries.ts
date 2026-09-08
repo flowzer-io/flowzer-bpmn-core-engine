@@ -33,6 +33,7 @@ import type {
   UserTaskResultDto,
   VersionDto,
   SubjectRefDto,
+  FormDirectorySearchContext,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -204,9 +205,30 @@ export function useDirectorySubjectSearch(
   const normalizedQuery = query.trim();
   return useQuery<DirectorySubjectSearchResultDto>({
     queryKey: queryKeys.directorySubjects(definitionId, normalizedQuery, kind),
-    queryFn: ({ signal }) =>
-      identityDirectoryApi.searchSubjects(definitionId, normalizedQuery, kind, signal),
+    queryFn: ({ signal }) => identityDirectoryApi.searchSubjects(definitionId, normalizedQuery, kind, signal),
     enabled: enabled && definitionId.length > 0 && normalizedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
+/** Formularfeldsuche mit serverseitig geprüftem Start-/Aufgabenkontext. */
+export function useFormDirectorySubjectSearch(
+  context: FormDirectorySearchContext | undefined,
+  fieldKey: string,
+  query: string,
+  kind: 'all' | 'user' | 'group',
+  enabled = true,
+) {
+  const normalizedQuery = query.trim();
+  const contextKey = context?.kind === 'startForm'
+    ? `start:${context.definitionId}`
+    : context?.kind === 'userTask'
+      ? `task:${context.taskId}`
+      : '';
+  return useQuery<DirectorySubjectSearchResultDto>({
+    queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, kind, normalizedQuery],
+    queryFn: ({ signal }) => identityDirectoryApi.searchFormSubjects(context!, fieldKey, normalizedQuery, kind, signal),
+    enabled: enabled && Boolean(context) && fieldKey.length > 0 && normalizedQuery.length >= 2,
     staleTime: 30_000,
   });
 }
@@ -229,7 +251,7 @@ export function useDirectorySubjectResolutions(
       queryKey: queryKeys.directorySubjects(definitionId, subject.id, subject.kind),
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         identityDirectoryApi.searchSubjects(definitionId, subject.id, subject.kind, signal),
-      enabled: enabled && definitionId.length > 0 && subject.id.length >= 2,
+      enabled: enabled && definitionId.length > 0 && subject.id.length >= 1,
       staleTime: 30_000,
     })),
     combine: (results) => ({
@@ -240,6 +262,46 @@ export function useDirectorySubjectResolutions(
           (item: DirectorySubjectDto) =>
             item.subject.kind === subject.kind && item.subject.id === subject.id,
         );
+      }),
+      isPending: results.some((result) => result.isPending),
+      isFetching: results.some((result) => result.isFetching),
+      error: results.find((result) => result.error)?.error ?? null,
+    }),
+  });
+}
+
+/** Löst Formularwerte über denselben gebundenen Endpoint wie die Suche auf. */
+export function useFormDirectorySubjectResolutions(
+  context: FormDirectorySearchContext | undefined,
+  fieldKey: string,
+  subjects: SubjectRefDto[],
+  enabled = true,
+) {
+  const contextKey = context?.kind === 'startForm'
+    ? `start:${context.definitionId}`
+    : context?.kind === 'userTask'
+      ? `task:${context.taskId}`
+      : '';
+  const uniqueSubjects = subjects.filter(
+    (subject, index) => subjects.findIndex(
+      (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+    ) === index,
+  );
+
+  return useQueries({
+    queries: uniqueSubjects.map((subject) => ({
+      queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, subject.kind, subject.id],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        identityDirectoryApi.searchFormSubjects(context!, fieldKey, subject.id, subject.kind, signal),
+      enabled: enabled && Boolean(context) && fieldKey.length > 0,
+      staleTime: 30_000,
+    })),
+    combine: (results) => ({
+      data: results.flatMap((result, index) => {
+        const subject = uniqueSubjects[index];
+        return subject
+          ? (result.data?.items ?? []).filter((item) => item.subject.kind === subject.kind && item.subject.id === subject.id)
+          : [];
       }),
       isPending: results.some((result) => result.isPending),
       isFetching: results.some((result) => result.isFetching),

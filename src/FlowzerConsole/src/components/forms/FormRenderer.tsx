@@ -4,10 +4,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import './formioStyles';
 
 import { registerDialogCalendarWidget } from './dialogCalendarWidget';
+import { registerFlowzerSubjectComponent } from './FlowzerSubjectComponent';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
-import type { ProcessVariables } from '@/lib/api/types';
+import type { FormDirectorySearchContext, ProcessVariables } from '@/lib/api/types';
 
 export interface FormRendererHandle {
   /** Aktuelle Eingabedaten des Formulars. */
@@ -23,6 +24,8 @@ interface FormRendererProps {
   readOnly?: boolean;
   onChange?: (data: ProcessVariables) => void;
   className?: string;
+  /** Kontext, der die serverseitige Directory-Suche auf genau dieses Formular bindet. */
+  directoryContext?: FormDirectorySearchContext;
 }
 
 interface FormioInstance {
@@ -53,7 +56,7 @@ function parseSchema(schema: string | undefined): { value: unknown | null; error
  * damit „Freigeben“ und „Ablehnen“ als eigene Prozessentscheidungen sichtbar sind.
  */
 export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(function FormRenderer(
-  { schema, initialData, readOnly = false, onChange, className },
+  { schema, initialData, readOnly = false, onChange, className, directoryContext },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +82,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
   // Der Erstwert soll das Formular nicht bei jeder Elternaktualisierung neu aufbauen.
   const initialDataKey = JSON.stringify(initialData ?? {});
+  const directoryContextKey = JSON.stringify(directoryContext ?? null);
 
   useEffect(() => {
     let disposed = false;
@@ -100,6 +104,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         const { Formio, Widgets } = await import('@formio/js');
         // Muss vor dem ersten Formular stehen: Form.io liest das Widget beim Aufbau.
         registerDialogCalendarWidget(Widgets);
+        registerFlowzerSubjectComponent(Formio);
         if (disposed) return;
 
         const form = (await Formio.createForm(container, parsed.value, {
@@ -107,6 +112,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
           noAlerts: true,
           // Der eingebaute Submit-Button würde mit den Prozessaktionen konkurrieren.
           buttonSettings: { showCancel: false, showSubmit: false },
+          flowzerDirectoryContext: directoryContext,
         })) as unknown as FormioInstance;
 
         if (disposed) {
@@ -141,7 +147,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
       instanceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, readOnly, initialDataKey]);
+  }, [schema, readOnly, initialDataKey, directoryContextKey]);
 
   return (
     <div className={cn('formio-surface relative', className)}>

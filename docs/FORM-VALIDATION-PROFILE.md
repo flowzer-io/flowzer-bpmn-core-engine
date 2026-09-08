@@ -2,11 +2,14 @@
 
 M0/M2-Teilpaket #182 / PR #183, aufbauend auf der Formularbindung #180 / PR #181.
 
-`flowzer.forms/1` ist eine **begrenzte**, serverseitig prüfbare Form.io-Teilmenge,
+`flowzer.forms/1` und das additive `flowzer.forms/2` sind **begrenzte**, serverseitig
+prüfbare Form.io-Teilmengen,
 keine vollständige Form.io-Kompatibilität. Neue Deployments und Wiederaktivierungen
 prüfen alle gebundenen Schemas vor einer Änderung der aktiven Version. Der Snapshot
 trägt `ValidationProfile`; das Formular-DTO liefert `validationProfile` mit.
-`flowzer.contractVersion: 1` im Schema ist optional; andere Versionen werden abgelehnt.
+`flowzer.contractVersion: 1` im Schema ist optional. Version 2 ergänzt ausschließlich
+die typisierte [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md); andere Versionen
+werden abgelehnt.
 
 ## Datenfluss und Rechte
 
@@ -38,6 +41,7 @@ trägt `ValidationProfile`; das Formular-DTO liefert `validationProfile` mit.
 | Zahlen | `number`, `currency`; JSON-Zahl, Decimal-Bereich, `validate.min` / `max`; **keine** String-zu-Zahl-Konvertierung |
 | Boolesch | `checkbox`; JSON-Boolean, erforderlich bedeutet `true` |
 | Auswahl | `select` mit `dataSrc: "values"`, `radio`; typstrenge skalare statische Optionswerte |
+| Verzeichnis (Profil 2) | `flowzerSubject`; stabile `{ kind, id }`-Referenz, Single/Multi, aktive serverseitige Policy |
 | Zeit | `datetime`: ISO-Datum oder ISO-Zeitstempel; `time`: `HH:mm` / `HH:mm:ss` |
 | Versteckt | `hidden`: skalarer String/Zahl/Boolean, nicht automatisch vertrauenswürdig |
 | Mehrfach | `multiple: true`: Array skalarer Werte, `minSelectedCount` / `maxSelectedCount` |
@@ -89,7 +93,7 @@ Es gibt noch keine Live-Vorschau dieser Berechnung im Renderer.
 ## Grenzen und Fehlervertrag
 
 Nicht unterstützt und bei Veröffentlichung abgelehnt: Container/Datagrids/Editgrids,
-verschachtelte Objekt-/dotted-path-Werte, Verzeichnis-/Dateifelder, dynamische Quellen,
+beliebige verschachtelte Objekt-/dotted-path-Werte, Datei- und unkontrollierte dynamische Felder,
 Custom-JavaScript, JSON-Logic, Input-Masks, Widget-Datumsgrenzen, unbekannte aktive
 Validierungsregeln und zum Feldtyp unpassende Regeln. Weitere Geschäftsregeln müssen
 vor Veröffentlichung explizit implementiert werden. Kein stiller JavaScript-Fallback.
@@ -116,7 +120,7 @@ Externe Altverweise ohne Snapshot werden weiterhin nicht auf heutiges `latest` g
 Dieser PR migriert nur das Beispiel, **keine Kundendaten oder produktiven Workflows**.
 
 Noch offen: gemeinsame Client-/Server-Konformitätsvektoren (insbesondere der neuen
-Flowzer-Regeln), erweiterte Komponenten, Verzeichniswahl, Entwürfe/Konflikte,
+Flowzer-Regeln), weitere erweiterte Komponenten, Entwürfe/Konflikte,
 Formular-Veröffentlichungsoberfläche, vollständiges Skriptinventar und kontrollierte
 Bestandsmigration. Auch Idempotenz, BFF und Mehrprozess-Transaktionsschutz sind nicht
 Bestandteil dieses Slices. Tests ersetzen keine allgemeine Produktionsfreigabe.

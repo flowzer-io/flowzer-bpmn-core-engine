@@ -135,12 +135,13 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Auswahlen entfernen. Stabile Historie und Filterung neuer workflowgebundener Suchen
   sind in #190/#192 umgesetzt; die kontextgebundene historische Anzeige und explizite
   Klärung mehrdeutiger Bestandszuweisungen folgen mit den konsumierenden Feldern.
-- [ ] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
+- [x] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.
-- [ ] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
+- [x] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
   Benutzer expandieren. Der öffentliche Referenz- und Prüfvertrag ist in #192 umgesetzt;
-  die Ableitung erlaubter Werte aus der veröffentlichten Formularversion folgt noch.
+  #198 ergänzt die Ableitung erlaubter Werte aus der veröffentlichten Formularversion,
+  gebundene Start-/Task-Suche und erneute Submission-Prüfung.
 - [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden. Die
   Aufgaben-Auswahl ist in #196 umgesetzt; Ordnerberechtigungen folgen separat.
 - [x] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
@@ -163,16 +164,16 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 ## M2 – Verlässliche und wiederverwendbare Formulare
 
-- [ ] Form.io behalten; versionierter, serverseitig prüfbarer Komponentenvertrag mit
-  gemeinsamen Testvektoren für Typen, Pflichtwerte, Bereiche, Datumsvergleiche,
-  Auswahlregeln und deklarative Bedingungen.
+- [ ] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
+  Pflichtwerte, Bereiche, Datumsvergleiche, Auswahlregeln und deklarative Bedingungen ab;
+  gemeinsame Client-/Server-Testvektoren fehlen noch.
 - [ ] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
-- [ ] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
+- [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
-- [ ] Unveränderliche veröffentlichte Formularversionen beim Deployment binden;
-  laufende Aufgaben behalten ihre gebundene Version. Entwurf/Vorschau/Veröffentlichung
-  klar unterscheiden.
+- [ ] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
+  laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
+  Veröffentlichung in der Formularpflege fehlt noch.
 - [ ] Serverseitige Bearbeitungsentwürfe mit Wiederaufnahme und Konflikterkennung;
   Refetch darf keine ungespeicherten Eingaben zurücksetzen.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte

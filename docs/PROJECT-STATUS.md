@@ -103,7 +103,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192, #194 und #196 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192, #194, #196 und #198 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -121,6 +121,11 @@ workflowgebundene Auswahl im Diagramm und in der Gliederung: Freitext bleibt aus
 erhalten, bekannte Benutzer/Gruppen werden gesucht, als stabile IDs geschrieben und beim
 erneuten Öffnen ohne allgemeine Verzeichnisliste aufgelöst.
 
+#198 ergänzt `flowzer.forms/2` mit dem typisierten `flowzerSubject`-Feld. Auswahlpolicy,
+aktive Filterreferenzen und Profil werden mit der Workflow-Version gebunden; Start und
+beide Abschlussrouten prüfen stabile Referenzen erneut gegen den aktuellen Snapshot.
+Startformular- und Task-Suche leiten ihre Grenzen ausschließlich aus dem gebundenen Feld ab.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -130,7 +135,7 @@ erneuten Öffnen ohne allgemeine Verzeichnisliste aufgelöst.
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.
-   Generisches Formular-Auswahlfeld, Ordnerreferenzen und Entwürfe fehlen weiterhin. Legacy-Namen
+   Das generische Formular-Auswahlfeld liegt in #198 vor; Ordnerreferenzen und Entwürfe fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,

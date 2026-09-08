@@ -4,7 +4,7 @@ import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRe
 import { FormValidationErrors } from '@/components/forms/FormValidationErrors';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import type { ProcessVariables } from '@/lib/api/types';
+import type { FormDirectorySearchContext, ProcessVariables } from '@/lib/api/types';
 
 interface StartWorkflowDialogProps {
   open: boolean;
@@ -13,6 +13,7 @@ interface StartWorkflowDialogProps {
   workflowName: string;
   /** Form.io-Schema des Startformulars als JSON-String. */
   schema: string | undefined;
+  directoryContext?: FormDirectorySearchContext;
   busy?: boolean;
   serverError?: unknown;
   onStart: (variables: ProcessVariables) => void;
@@ -29,6 +30,7 @@ export function StartWorkflowDialog({
   onOpenChange,
   workflowName,
   schema,
+  directoryContext,
   busy = false,
   serverError,
   onStart,
@@ -93,7 +95,7 @@ export function StartWorkflowDialog({
     >
       <div className="pb-3">
         <FormValidationErrors error={serverError} schema={schema} />
-        <FormRenderer ref={formRef} schema={schema} />
+        <FormRenderer ref={formRef} schema={schema} directoryContext={directoryContext} />
         {error && <div className="text-fail mt-2 text-[12.5px]">{error}</div>}
       </div>
     </Modal>

@@ -22,6 +22,7 @@ import type {
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
   DirectorySubjectSearchResultDto,
+  FormDirectorySearchContext,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -134,6 +135,23 @@ export const identityDirectoryApi = {
       `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects`,
       { query: { query, kind, limit: 20 }, signal },
     ),
+
+  /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
+  searchFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectSearchResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    );
+  },
 };
 
 /** Ordner des Workflow-Katalogs und die Zuständigkeiten daran. */

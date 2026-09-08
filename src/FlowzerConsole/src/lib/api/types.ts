@@ -235,6 +235,11 @@ export interface DirectorySubjectSearchResultDto {
   items: DirectorySubjectDto[];
 }
 
+/** Kontext, in dem ein Formularfeld Directory-Identitäten suchen darf. */
+export type FormDirectorySearchContext =
+  | { kind: 'startForm'; definitionId: string }
+  | { kind: 'userTask'; taskId: string };
+
 /** Entspricht `UserTaskSubscriptionDto`. */
 export interface UserTaskSubscriptionDto {
   id: string;

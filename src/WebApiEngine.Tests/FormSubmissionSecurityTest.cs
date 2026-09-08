@@ -5,6 +5,7 @@ using System.Text.Json;
 using FluentAssertions;
 using Model;
 using Newtonsoft.Json;
+using StorageSystem;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
@@ -129,6 +130,92 @@ public class FormSubmissionSecurityTest
         Func<Task> deploy = () => context.DeployAsync("");
         await deploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*contract*");
         (await context.Storage.DefinitionStorage.GetDeployedDefinition("Definitions_Completion")).Should().BeNull();
+    }
+
+    // Testzweck: Ein direkter Workflow-Start akzeptiert nur aktuell aktive typisierte
+    // Referenzen. Eine Deaktivierung zwischen Anzeige und Submission wird erneut geprueft.
+    [Test]
+    public async Task Start_ShouldRevalidateDirectorySubjectAgainstCurrentSnapshot()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var subjectId = await PublishDirectoryUserAsync(context, active: true);
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", DirectorySchema);
+        await context.DeployAsync("", startFormKey: "Approval");
+        using var client = context.CreateClient();
+        var path = "/definition/meta/Definitions_Completion/instance";
+
+        using var accepted = await client.PostAsJsonAsync(path, new
+        {
+            variables = new { representative = new { kind = "user", id = subjectId } }
+        });
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        (await PublishDirectoryUserAsync(context, active: false)).Should().Be(subjectId);
+        using var rejected = await client.PostAsJsonAsync(path, new
+        {
+            variables = new { representative = new { kind = "user", id = subjectId } }
+        });
+        rejected.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await rejected.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("errors").GetProperty("representative")[0].GetString()
+            .Should().Be("selection.invalid");
+    }
+
+    // Testzweck: Beide historischen Abschlussrouten verwenden fuer Verzeichnisfelder denselben
+    // autoritativen Snapshot und lehnen Freitext statt SubjectRef browserunabhaengig ab.
+    [TestCase("/usertask")]
+    [TestCase("/form/result")]
+    public async Task Completion_ShouldRequireTypedDirectorySubject(string route)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await PublishDirectoryUserAsync(context, active: true);
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", DirectorySchema);
+        var task = await context.StartAsync("assignee=\"bert\"");
+        using var client = context.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(route, Result(task, "{\"representative\":\"Anna\"}"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("errors").GetProperty("representative")[0].GetString()
+            .Should().Be("type.subject_ref");
+        await context.AssertStillActiveAsync(task);
+    }
+
+    private const string DirectorySchema = """
+        {"flowzer":{"contractVersion":2},"components":[
+          {"type":"flowzerSubject","key":"representative","validate":{"required":true},
+           "flowzer":{"subjectSelection":{"allowUsers":true,"allowGroups":false}}}]}
+        """;
+
+    private static async Task<Guid> PublishDirectoryUserAsync(
+        AuthenticatedWorkflowTestContext context,
+        bool active)
+    {
+        var now = DateTime.UtcNow;
+        var snapshot = new DirectorySnapshot
+        {
+            GenerationId = Guid.NewGuid(),
+            Issuer = AuthenticatedWorkflowTestContext.Issuer,
+            CompletedAtUtc = now,
+            Users =
+            [
+                new DirectoryUser
+                {
+                    Id = Guid.NewGuid(),
+                    SourceKind = DirectorySourceKind.Keycloak,
+                    Issuer = AuthenticatedWorkflowTestContext.Issuer,
+                    Subject = "subject-representative",
+                    DisplayName = "Anna Vertreterin",
+                    IsActive = active
+                }
+            ]
+        };
+        (await context.Storage.IdentityDirectoryStorage.TryStartSync(
+            snapshot.Issuer, snapshot.GenerationId, now, now.AddMinutes(5))).Should().BeTrue();
+        await context.Storage.IdentityDirectoryStorage.PublishSnapshot(snapshot);
+        return (await context.Storage.IdentityDirectoryStorage.GetActiveSnapshot())!
+            .Users.Single(user => user.Subject == "subject-representative").Id;
     }
 
     private static ExpandoObject Data(string json) => JsonConvert.DeserializeObject<ExpandoObject>(json)!;

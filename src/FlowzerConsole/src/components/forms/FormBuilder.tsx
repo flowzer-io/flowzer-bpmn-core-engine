@@ -3,6 +3,11 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 // Alle Stilblätter in fester Reihenfolge; siehe formioStyles.ts.
 import './formioStyles';
 
+import {
+  ensureFlowzerSubjectContract,
+  registerFlowzerSubjectComponent,
+} from './FlowzerSubjectComponent';
+
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
 
@@ -58,7 +63,11 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       getSchema: () => {
         const builder = builderRef.current;
         if (!builder) throw new Error('Der Formular-Editor ist noch nicht bereit.');
-        return JSON.stringify(builder.form ?? builder.schema ?? EMPTY_SCHEMA, null, 2);
+        return JSON.stringify(
+          ensureFlowzerSubjectContract(builder.form ?? builder.schema ?? EMPTY_SCHEMA),
+          null,
+          2,
+        );
       },
     }),
     [],
@@ -86,6 +95,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
 
       try {
         const { Formio } = await import('@formio/js');
+        registerFlowzerSubjectComponent(Formio);
         if (disposed) return;
 
         const builder = (await Formio.builder(container, parsed, {

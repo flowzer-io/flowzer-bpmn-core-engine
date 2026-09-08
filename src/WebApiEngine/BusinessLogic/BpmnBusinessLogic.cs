@@ -11,6 +11,7 @@ using StorageSystem.Exceptions;
 using WebApiEngine.Auth;
 using WebApiEngine.Idempotency;
 using WebApiEngine.IdentityDirectory;
+using WebApiEngine.Forms;
 using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
@@ -81,7 +82,16 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                     .Concat(model.GetProcesses().SelectMany(process => process.FlowElements).OfType<StartEvent>().Select(start => start.FlowzerFormKey)),
                 definition.Id);
 
-            FormKeyResolver.ValidateBindings(definition.FormBindings);
+            var boundContracts = definition.FormBindings.Values
+                .Select(binding => FormContractCompiler.Compile(binding.FormData))
+                .ToArray();
+            if (directorySnapshot is null
+                && boundContracts.Any(contract => contract.Fields.Any(field => field.SubjectSelection is not null)))
+            {
+                try { directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot(); }
+                catch (NotSupportedException) { /* Validator liefert den stabilen Fachfehler. */ }
+            }
+            FormKeyResolver.ValidateBindings(definition.FormBindings, directorySnapshot);
 
             await UndeployDefinition(definition, storageSystem);
         

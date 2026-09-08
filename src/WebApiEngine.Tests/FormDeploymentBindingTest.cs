@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Model;
 using Newtonsoft.Json.Linq;
+using StorageSystem;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Shared;
 
@@ -202,6 +203,86 @@ public class FormDeploymentBindingTest
         (await new FormKeyResolver(context.Storage).ResolveAsync("Approval:1.0", definition.Id)).Form!.Id.Should().Be(initial.Id);
     }
 
+    // Testzweck: Ein Formular mit Verzeichnisfeld wird nur zusammen mit einem vollstaendig
+    // publizierten Snapshot gebunden; der konkrete Profilstand 2 bleibt am Workflow erhalten.
+    [Test]
+    public async Task DirectoryForm_ShouldRequireSnapshotAndBindProfileTwo()
+    {
+        var allowedUser = new DirectoryUser
+        {
+            Id = Guid.Parse("20000000-0000-0000-0000-000000000001"),
+            SourceKind = DirectorySourceKind.Keycloak,
+            Issuer = AuthenticatedWorkflowTestContext.Issuer,
+            Subject = "subject-active",
+            DisplayName = "Anna Muster",
+            IsActive = true
+        };
+        using (var missing = new AuthenticatedWorkflowTestContext())
+        {
+            await SaveForm(missing, schema: SubjectSchema(allowedUser.Id));
+            Func<Task> deploy = () => Deploy(missing);
+            await deploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*directory*");
+        }
+
+        using var context = new AuthenticatedWorkflowTestContext();
+        var snapshot = new DirectorySnapshot
+        {
+            GenerationId = Guid.NewGuid(),
+            Issuer = AuthenticatedWorkflowTestContext.Issuer,
+            CompletedAtUtc = DateTime.UtcNow,
+            Users = [allowedUser]
+        };
+        (await context.Storage.IdentityDirectoryStorage.TryStartSync(
+            snapshot.Issuer, snapshot.GenerationId, snapshot.CompletedAtUtc,
+            snapshot.CompletedAtUtc.AddMinutes(5))).Should().BeTrue();
+        await context.Storage.IdentityDirectoryStorage.PublishSnapshot(snapshot);
+        var publishedUserId = (await context.Storage.IdentityDirectoryStorage.GetActiveSnapshot())!
+            .Users.Single(user => user.Subject == allowedUser.Subject).Id;
+        await SaveForm(context, schema: SubjectSchema(publishedUserId));
+
+        var definition = await Deploy(context);
+
+        definition.FormBindings!["Approval"].ValidationProfile.Should().Be("flowzer.forms/2");
+    }
+
+    // Testzweck: Filterreferenzen falscher Art oder auf deaktivierte Directory-Eintraege
+    // duerfen nicht erst bei der spaeteren Formularanzeige auffallen.
+    [Test]
+    public async Task DirectoryForm_ShouldRejectInactivePolicyReferences()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var inactiveId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        var snapshot = new DirectorySnapshot
+        {
+            GenerationId = Guid.NewGuid(),
+            Issuer = AuthenticatedWorkflowTestContext.Issuer,
+            CompletedAtUtc = DateTime.UtcNow,
+            Users =
+            [
+                new DirectoryUser
+                {
+                    Id = inactiveId,
+                    SourceKind = DirectorySourceKind.Keycloak,
+                    Issuer = AuthenticatedWorkflowTestContext.Issuer,
+                    Subject = "subject-inactive",
+                    DisplayName = "Inactive",
+                    IsActive = false
+                }
+            ]
+        };
+        (await context.Storage.IdentityDirectoryStorage.TryStartSync(
+            snapshot.Issuer, snapshot.GenerationId, snapshot.CompletedAtUtc,
+            snapshot.CompletedAtUtc.AddMinutes(5))).Should().BeTrue();
+        await context.Storage.IdentityDirectoryStorage.PublishSnapshot(snapshot);
+        var publishedInactiveId = (await context.Storage.IdentityDirectoryStorage.GetActiveSnapshot())!
+            .Users.Single(user => user.Subject == "subject-inactive").Id;
+        await SaveForm(context, schema: SubjectSchema(publishedInactiveId));
+
+        Func<Task> deploy = () => Deploy(context);
+
+        await deploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*directory*");
+    }
+
     private static async Task<Form> SaveForm(AuthenticatedWorkflowTestContext context, Guid? formId = null,
         int major = 1, string schema = InitialSchema, string name = "Approval")
     {
@@ -210,6 +291,22 @@ public class FormDeploymentBindingTest
         await context.Storage.FormStorage.SaveForm(form);
         return form;
     }
+
+    private static string SubjectSchema(Guid allowedUserId) => System.Text.Json.JsonSerializer.Serialize(new
+    {
+        flowzer = new { contractVersion = 2 },
+        components = new[]
+        {
+            new
+            {
+                type = "flowzerSubject", key = "representative",
+                flowzer = new
+                {
+                    subjectSelection = new { allowedUserIds = new[] { allowedUserId.ToString() } }
+                }
+            }
+        }
+    });
 
     private static async Task<BpmnDefinition> Deploy(AuthenticatedWorkflowTestContext context, string formKey = "Approval",
         bool startForm = false, int version = 1, bool messageStart = false)

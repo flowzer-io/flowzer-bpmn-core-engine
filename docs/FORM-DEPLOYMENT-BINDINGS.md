@@ -15,6 +15,10 @@ vollständig erfolgreich sein. Eine neue Formularversion wird erst durch eine ne
 Workflow-Version wirksam. Eine erneute Aktivierung derselben Definitionsversion
 ändert ihre Bindungen nicht.
 
+Ab `flowzer.forms/2` gehören auch die Policy und stabilen Filterreferenzen eines
+`flowzerSubject`-Felds zu diesem Snapshot. Das Deployment prüft sie gegen den aktiven
+Directory-Stand; Details: [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md).
+
 ## Historischer Bestand
 
 Ein externes Formular ohne historisch gespeicherten Stand lässt sich nicht

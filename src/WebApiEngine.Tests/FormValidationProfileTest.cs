@@ -3,6 +3,8 @@ using JsonSerializer = System.Text.Json.JsonSerializer;
 using FluentAssertions;
 using Newtonsoft.Json;
 using WebApiEngine.Forms;
+using Model;
+using StorageSystem;
 
 namespace WebApiEngine.Tests;
 
@@ -116,4 +118,149 @@ public class FormValidationProfileTest
             """);
         compile.Should().Throw<InvalidOperationException>();
     }
+
+    // Testzweck: Die neue Verzeichnisauswahl wird als typisierte Referenz gespeichert;
+    // Anzeigenamen und E-Mail-Adressen duerfen den stabilen Identifier nicht ersetzen.
+    [Test]
+    public void DirectorySubjectField_ShouldAcceptOnlyEligibleTypedReferences()
+    {
+        var allowedUserId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var groupId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var contract = FormContractCompiler.Compile(JsonSerializer.Serialize(new
+        {
+            flowzer = new { contractVersion = 2 },
+            components = new[]
+            {
+                new
+                {
+                    type = "flowzerSubject", key = "representative", validate = new { required = true },
+                    flowzer = new
+                    {
+                        subjectSelection = new
+                        {
+                            allowUsers = true, allowGroups = false,
+                            allowedUserIds = new[] { allowedUserId.ToString() },
+                            userMemberOfGroupIds = new[] { groupId.ToString() }
+                        }
+                    }
+                }
+            }
+        }));
+        var snapshot = DirectorySnapshot(
+            users: [DirectoryUser(allowedUserId, "subject-anna", true)],
+            groups: [DirectoryGroup(groupId, true)],
+            memberships: [new DirectoryMembership { UserId = allowedUserId, GroupId = groupId }]);
+
+        var output = (IDictionary<string, object?>)FormSubmissionValidator.Validate(
+            contract,
+            Data(JsonSerializer.Serialize(new { representative = new { kind = "user", id = allowedUserId } })),
+            directorySnapshot: snapshot);
+
+        JsonSerializer.Serialize(output["representative"]).Should().Be(
+            JsonSerializer.Serialize(new { kind = "user", id = allowedUserId.ToString() }));
+        Action text = () => FormSubmissionValidator.Validate(contract, Data("{\"representative\":\"Anna\"}"), directorySnapshot: snapshot);
+        Action wrongKind = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { representative = new { kind = "group", id = groupId } })), directorySnapshot: snapshot);
+        text.Should().Throw<FormSubmissionException>().Which.Errors["representative"].Should().Contain("type.subject_ref");
+        wrongKind.Should().Throw<FormSubmissionException>().Which.Errors["representative"].Should().Contain("selection.invalid");
+    }
+
+    // Testzweck: Mehrfachauswahl, Mindest-/Hoechstzahl und Directory-Snapshot werden gemeinsam
+    // serverseitig geprueft; deaktivierte, doppelte oder manipulierte IDs gelangen nicht in den Prozess.
+    [Test]
+    public void DirectorySubjectField_ShouldRejectUnavailableDuplicateAndExcessiveSelections()
+    {
+        var activeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var inactiveId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":2},"components":[{"type":"flowzerSubject","key":"reviewers","multiple":true,
+              "validate":{"minSelectedCount":1,"maxSelectedCount":2},
+              "flowzer":{"subjectSelection":{"allowUsers":true,"allowGroups":false}}}]}
+            """);
+        var snapshot = DirectorySnapshot(
+            users: [DirectoryUser(activeId, "active", true), DirectoryUser(inactiveId, "inactive", false)]);
+
+        Action unavailable = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { reviewers = new[] { new { kind = "user", id = inactiveId } } })), directorySnapshot: snapshot);
+        Action duplicate = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { reviewers = new[] { new { kind = "user", id = activeId }, new { kind = "user", id = activeId } } })), directorySnapshot: snapshot);
+        Action tooMany = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { reviewers = new[] { new { kind = "user", id = activeId }, new { kind = "user", id = Guid.NewGuid() }, new { kind = "user", id = Guid.NewGuid() } } })), directorySnapshot: snapshot);
+        Action missingSnapshot = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { reviewers = new[] { new { kind = "user", id = activeId } } })));
+
+        unavailable.Should().Throw<FormSubmissionException>().Which.Errors["reviewers"].Should().Contain("selection.invalid");
+        duplicate.Should().Throw<FormSubmissionException>().Which.Errors["reviewers"].Should().Contain("selection.duplicate");
+        tooMany.Should().Throw<FormSubmissionException>().Which.Errors["reviewers"].Should().Contain("selection.max");
+        missingSnapshot.Should().Throw<FormSubmissionException>().Which.Errors["reviewers"].Should().Contain("directory.unavailable");
+    }
+
+    // Testzweck: Der publizierbare Vertrag akzeptiert nur eindeutige UUID-Filter und eine
+    // sinnvolle Kombination erlaubter Identitaetsarten; Browser-Metadaten erweitern ihn nicht.
+    [TestCase("{\"allowUsers\":false,\"allowGroups\":false}")]
+    // Testzweck: Ungültige UUID-Filter werden bereits beim Kompilieren abgewiesen.
+    [TestCase("{\"allowUsers\":true,\"allowedUserIds\":[\"not-a-guid\"]}")]
+    // Testzweck: Doppelte stabile Referenzen dürfen nicht veröffentlicht werden.
+    [TestCase("{\"allowUsers\":true,\"allowedUserIds\":[\"20000000-0000-0000-0000-000000000001\",\"20000000-0000-0000-0000-000000000001\"]}")]
+    // Testzweck: Verzeichnisfelder dürfen deaktivierte Identitäten nie freigeben.
+    [TestCase("{\"allowUsers\":true,\"activeOnly\":false}")]
+    public void DirectorySubjectField_ShouldRejectUnsafePolicies(string policy)
+    {
+        Action compile = () => FormContractCompiler.Compile(
+            "{\"flowzer\":{\"contractVersion\":2},\"components\":[{\"type\":\"flowzerSubject\",\"key\":\"person\",\"flowzer\":{\"subjectSelection\":" + policy + "}}]}");
+
+        compile.Should().Throw<InvalidOperationException>().WithMessage("*contract*");
+    }
+
+    // Testzweck: Vom Builder serialisierte leere Filterlisten behalten die sichere
+    // Standardpolicy "alle aktiven Benutzer", statt unbemerkt jede Auswahl auszuschließen.
+    [Test]
+    public void DirectorySubjectField_ShouldTreatEmptyFilterArraysAsUnrestricted()
+    {
+        var activeId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var contract = FormContractCompiler.Compile("""
+            {"flowzer":{"contractVersion":2},"components":[{"type":"flowzerSubject","key":"person",
+              "flowzer":{"subjectSelection":{"allowedUserIds":[],"userMemberOfGroupIds":[]}}}]}
+            """);
+
+        Action validate = () => FormSubmissionValidator.Validate(contract,
+            Data(JsonSerializer.Serialize(new { person = new { kind = "user", id = activeId } })),
+            directorySnapshot: DirectorySnapshot(users: [DirectoryUser(activeId, "active", true)]));
+
+        validate.Should().NotThrow();
+    }
+
+    private static DirectorySnapshot DirectorySnapshot(
+        IReadOnlyList<DirectoryUser>? users = null,
+        IReadOnlyList<DirectoryGroup>? groups = null,
+        IReadOnlyList<DirectoryMembership>? memberships = null) => new()
+    {
+        GenerationId = Guid.Parse("30000000-0000-0000-0000-000000000001"),
+        Issuer = "https://issuer.example/realms/flowzer",
+        CompletedAtUtc = DateTime.Parse("2026-09-08T10:00:00Z").ToUniversalTime(),
+        Users = users?.ToList() ?? [],
+        Groups = groups?.ToList() ?? [],
+        Memberships = memberships?.ToList() ?? []
+    };
+
+    private static DirectoryUser DirectoryUser(Guid id, string subject, bool active) => new()
+    {
+        Id = id,
+        SourceKind = DirectorySourceKind.Keycloak,
+        Issuer = "https://issuer.example/realms/flowzer",
+        Subject = subject,
+        DisplayName = subject,
+        IsActive = active
+    };
+
+    private static DirectoryGroup DirectoryGroup(Guid id, bool active) => new()
+    {
+        Id = id,
+        SourceKind = DirectorySourceKind.Keycloak,
+        Issuer = "https://issuer.example/realms/flowzer",
+        ExternalId = id.ToString(),
+        Name = "Allowed",
+        Path = "/Allowed",
+        IsActive = active
+    };
 }

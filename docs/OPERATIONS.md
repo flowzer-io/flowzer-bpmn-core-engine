@@ -381,7 +381,8 @@ Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API d
 Objekt `{}` wird anschließend wie jede andere Eingabe validiert.
 
 Pflichtwerte, Typen, statische Auswahlwerte, deklarative Sichtbarkeits- und Datumsregeln
-prüft der Server im [Formular-Prüfprofil 1](FORM-VALIDATION-PROFILE.md). Ungültige Eingaben
+prüft der Server im [Formular-Prüfprofil](FORM-VALIDATION-PROFILE.md). Profil 2 ergänzt
+die gebundene [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Ungültige Eingaben
 liefern `422 application/problem+json` mit feldbezogenen Codes. Nicht unterstützte
 Geschäftsregeln blockieren das Deployment, statt nur im Browser zu gelten.
 Die Konsole zeigt Serverfehler unter Erhalt der Eingaben an. Vollständige Form.io-
