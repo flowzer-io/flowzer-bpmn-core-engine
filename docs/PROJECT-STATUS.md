@@ -132,7 +132,7 @@ serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet aus
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 
-## Private Aufgabenentwürfe – #202 (noch nicht gemergt)
+## Private Aufgabenentwürfe – #202 / PR #203 (noch nicht gemergt)
 
 Der Bearbeitungsstand einer offenen User-Task kann serverseitig gespeichert, wieder
 aufgenommen und verworfen werden. Er gehört der authentifizierten Person, nicht der

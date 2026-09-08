@@ -1,6 +1,6 @@
 # Private Aufgabenentwürfe
 
-**Stand:** 8. September 2026 · **Slice:** #202
+**Stand:** 8. September 2026 · **Slice:** #202 / PR #203
 
 Flowzer speichert den unfertigen Eingabestand einer offenen User-Task serverseitig.
 Der Entwurf ist kein Prozesszustand und ersetzt nicht die vollständige Prüfung beim

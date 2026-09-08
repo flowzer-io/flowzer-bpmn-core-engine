@@ -99,6 +99,11 @@ Modellerauswahl folgt in #196: Diagramm und Gliederung bieten Freitext oder work
 gesuchte Benutzer/Gruppen an und schreiben denselben Vertrag. Das generische Formularfeld und
 typisierte Ordnerrechte bleiben davon getrennte M1-Pakete.
 
+**Private Aufgabenentwürfe:** #202 / PR #203 speichert pro offener stabiler Task-ID
+und authentifizierter Person einen begrenzten Entwurf. Revisionen verhindern stilles
+Überschreiben, die Konsole bewahrt lokale Eingaben bei Refetch/409. PostgreSQL sichert
+CAS und Lebenszyklus atomar; die Dateiablage bleibt ein Einzelprozess-Entwicklungsweg.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -176,7 +181,8 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
   Veröffentlichung in der Formularpflege fehlt noch.
 - [x] Serverseitige private Bearbeitungsentwürfe mit Wiederaufnahme, Größen-/Feldgrenzen
-  und optimistischer Revision; Refetch setzt keine ungespeicherten Eingaben zurück. #202
+  und optimistischer Revision; Refetch setzt keine ungespeicherten Eingaben zurück.
+  #202 / PR #203
   PostgreSQL-CAS und FK-Kaskade sichern Konkurrenz und Aufgabenlebenszyklus, die
   Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
@@ -196,7 +202,8 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe.
 - [ ] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
   dauerhafte, deduplizierte Benachrichtigungen.
-- [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision. #202
+- [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
+  #202 / PR #203
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
 - [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
