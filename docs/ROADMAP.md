@@ -24,7 +24,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    das gebundene `flowzerSubject`-Formularfeld; #200 verwendet dieselbe Auswahl für typisierte
    Ordnerrechte und erhält daneben den expliziten Freitextmodus. #202 ergänzt private,
    revisionsgeschützte Aufgabenentwürfe samt Wiederaufnahme und Konfliktdarstellung
-   in PR #203. #208 sichert die Formularprofile mit demselben versionierten
+   in PR #203. #208 / PR #209 sichert die Formularprofile mit demselben versionierten
    Vertragsvektor-Katalog in .NET und Vitest ab.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.

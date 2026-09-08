@@ -113,7 +113,7 @@ Formular neu zu mounten. Die API bleibt auch ohne Browserprüfung verbindlich.
 
 ## Gemeinsame Vertragsvektoren
 
-Issue #208 führt den versionierten Katalog
+Issue #208 / PR #209 führt den versionierten Katalog
 `tests/form-contract-vectors/manifest.json` ein. `FormContractVectorTest` und
 `formContractVectors.test.ts` lesen exakt dieselbe Datei. Jeder Fall besitzt eine
 stabile ID, eine deutsche Zweckbeschreibung, Profil, Schema, Kontext, Eingabe sowie

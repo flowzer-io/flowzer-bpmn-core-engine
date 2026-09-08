@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Sechzehn aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Siebzehn aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
 umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
 kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
@@ -25,8 +25,9 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Aufgabenentwürfe | Private serverseitige Entwürfe mit Größen-/Feldgrenzen, optimistischer Revision, Wiederaufnahme und Konfliktdarstellung. | [#203](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/203) |
 | Human-Task-Lifecycle | Claim, Release, Operator-Zuweisung und berechtigte Delegation mit tatsächlichem Bearbeiter, Revision und Auditspur. | [#205](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/205) |
 | Fristen und Meldungen | Einmalig gebundene UTC-Termine, nachholbarer Scheduler sowie persistenter, deduplizierter und objektberechtigter In-App-Feed. | [#207](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/207) |
+| Formularvertragsvektoren | Ein gemeinsamer versionierter JSON-Katalog sichert Profile 1/2 in .NET und Vitest; Directory und Serverberechnungen bleiben ausdrücklich serverautoritativ. | [#209](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/209) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -34,10 +35,10 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Abschließende lokale .NET-Suite auf PR #207: **111 Engine + 611 API-/Storage-Tests bestanden**,
+- Abschließende lokale .NET-Suite auf PR #209: **111 Engine + 612 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich BFF und Task-Feed: **269 Tests**, Typecheck und Build erfolgreich;
+- React-Konsole einschließlich gemeinsamem Formularvertrag: **272 Tests**, Typecheck und Build erfolgreich;
   Lint ohne Fehler, acht bestehende Warnungen.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
   Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.

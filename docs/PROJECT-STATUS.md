@@ -72,7 +72,7 @@ Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datum
 und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
 Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
-## Gemeinsame Formularvertragsvektoren – #208 (Topic-Branch, noch nicht gemergt)
+## Gemeinsame Formularvertragsvektoren – #208 / PR #209 (noch nicht gemergt)
 
 Ein versionierter JSON-Katalog beschreibt Compile- und Submission-Fälle für
 `flowzer.forms/1` und `/2`. Serverseitiger Compiler/Validator und eine begrenzte
