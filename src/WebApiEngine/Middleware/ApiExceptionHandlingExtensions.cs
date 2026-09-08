@@ -3,6 +3,7 @@ using core_engine.Exceptions;
 using StorageSystem.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using WebApiEngine.Shared;
+using WebApiEngine.Forms;
 
 namespace WebApiEngine.Middleware;
 
@@ -29,6 +30,21 @@ public static class ApiExceptionHandlingExtensions
                 }
 
                 context.Response.StatusCode = MapStatusCode(exception);
+                if (context.Response.StatusCode == StatusCodes.Status422UnprocessableEntity)
+                {
+                    var fields = exception is FormSubmissionException form
+                        ? form.Errors.ToDictionary(pair => pair.Key, pair => pair.Value)
+                        : new Dictionary<string, string[]>();
+                    var problem = new ApiValidationProblem(fields)
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity,
+                        Title = "The request could not be processed.", Detail = exception.Message,
+                        Type = "about:blank", Instance = context.Request.Path
+                    };
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 context.Response.ContentType = "application/json";
 
                 var errorMessage = context.Response.StatusCode >= StatusCodes.Status500InternalServerError
@@ -62,7 +78,7 @@ public static class ApiExceptionHandlingExtensions
             // and not default for Exclusive Gateway" muss die modellierende Person
             // lesen können — als 500 würde sie maskiert und wäre in der Oberfläche
             // nicht diagnostizierbar.
-            FlowzerRuntimeException or FlowzerModelParseException or ModelValidationException =>
+            FormSubmissionException or FlowzerRuntimeException or FlowzerModelParseException or ModelValidationException =>
                 StatusCodes.Status422UnprocessableEntity,
 
             _ => StatusCodes.Status500InternalServerError

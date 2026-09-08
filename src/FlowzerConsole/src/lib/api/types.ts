@@ -204,6 +204,7 @@ export interface FormMetaDataDto {
 
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
 export interface FormDto {
+  validationProfile?: string | null;
   id?: string | null;
   /**
    * Kennung im Formularbestand. Fehlt bei einem Formular, das im Workflow selbst liegt:

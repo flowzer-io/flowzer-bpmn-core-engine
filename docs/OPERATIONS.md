@@ -128,8 +128,9 @@ bestehenden JSON-Token-Dokumenten erforderlich.
 Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
 eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
 ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel,
-Instanzdatenrechte, serverseitige Formularregeln und eine append-only Audit-Historie
-sind weitere M0/M2/M6-Pakete. Wiederholter Abschluss wird momentan mit `404`
+und eine append-only Audit-Historie
+sind weitere M0/M6-Pakete. Instanzrechte und das begrenzte Formular-Prüfprofil
+werden in eigenen Abschnitten beschrieben. Wiederholter Abschluss wird momentan mit `404`
 abgelehnt, nicht als gespeicherte identische Erfolgsantwort wiederholt.
 
 ### Ordner und Delegation
@@ -180,11 +181,14 @@ Ohne Rumpf startet der Workflow wie bisher ohne Angaben. Trägt sein reines Star
 Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API das
 `variables`-Objekt und antwortet sonst mit 400 und
 `The workflow "…" requires its start form. Send the form data as "variables".` Ein leeres
-Objekt `{}` gilt als Antwort und wird angenommen.
+Objekt `{}` wird anschließend wie jede andere Eingabe validiert.
 
-Die **Pflichtfelder des Formulars prüft der Server nicht.** Form.io kennt bedingt sichtbare
-Felder (`conditional`), die der Server nicht auswertet — er würde damit gültige Eingaben der
-Oberfläche ablehnen. Diese Prüfung sitzt im Renderer der Konsole.
+Pflichtwerte, Typen, statische Auswahlwerte, deklarative Sichtbarkeits- und Datumsregeln
+prüft der Server im [Formular-Prüfprofil 1](FORM-VALIDATION-PROFILE.md). Ungültige Eingaben
+liefern `422 application/problem+json` mit feldbezogenen Codes. Nicht unterstützte
+Geschäftsregeln blockieren das Deployment, statt nur im Browser zu gelten.
+Die Konsole zeigt Serverfehler unter Erhalt der Eingaben an. Vollständige Form.io-
+Kompatibilität und gemeinsame Client-/Server-Konformitätsvektoren stehen noch aus.
 
 `GET /definition/meta/{definitionId}/start-form` liefert das Startformular als
 `ApiStatusResult<FormDto>` — aufgelöst über die Kennung der deployten Version, damit auch ein

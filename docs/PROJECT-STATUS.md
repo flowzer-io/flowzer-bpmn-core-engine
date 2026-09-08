@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179 und #181.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181 und #183.
 
 ## Einordnung
 
@@ -43,8 +43,8 @@ keinen Instanzzugriff. Aufgabenlisten geben nur deklarierte Formularwerte statt
 vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fordert
 ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
 
-Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere serverseitige
-Formularvalidierung, Idempotenzschlüssel und BFF.
+Das ist **kein vollständiger M0-Abschluss**: Noch fehlen insbesondere
+Idempotenzschlüssel und BFF.
 Wiederholter Abschluss liefert derzeit `404`, keine idempotente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
 API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
@@ -59,9 +59,19 @@ ohne belegten Stand werden bei der Auflösung nicht auf heutige Formulare gerate
 Sie benötigen eine ausdrücklich geprüfte Zuordnung. Keine produktive Migration.
 Details: [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 
+## Formularprüfung – PR #183 (aufbauend auf #181)
+
+Das begrenzte Profil `flowzer.forms/1` prüft Starts und beide Abschlussrouten
+serverseitig. Deklarierte Typen/Pflichtwerte/Auswahl-/Datumsregeln sind verbindlich;
+Read-only-Kontext und unbekannte Felder gelangen nicht ins Ergebnis. Nicht unterstützte
+Regeln blockieren Veröffentlichung und Wiederaktivierung. Feldfehler erscheinen in
+Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datumsregeln
+und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
+Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
-1. **M0:** Verbindliche Formularprüfung zuerst, danach BFF
+1. **M0:** BFF
    mit CSRF-Schutz und persistente Idempotenz. Rollen ausdrücklich konfigurieren;
    leere Fähigkeitsrollen bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
@@ -73,8 +83,9 @@ Details: [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Eine aktuelle visuelle Browserabnahme sowie die erste Produktabnahme aus der Roadmap
-stehen aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
+Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
+sichern Kernwege und Feldfehler. Der vollständige UX-Audit und die erste
+Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell
 

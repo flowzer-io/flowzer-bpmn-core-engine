@@ -121,6 +121,7 @@ public class UserTaskCompletionSecurityTest
     public async Task Completion_ShouldPersistTheAuthenticatedActorOutsideFormData(string route)
     {
         using var context = new CompletionContext();
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", """{"components":[{"type":"textfield","key":"answer"}]}""");
         var task = await context.StartAsync("");
         var result = ResultFor(task);
         result.Data = new ExpandoObject();

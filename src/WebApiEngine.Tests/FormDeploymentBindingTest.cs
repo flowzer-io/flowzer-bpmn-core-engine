@@ -155,6 +155,26 @@ public class FormDeploymentBindingTest
         resolved.Form!.Id.Should().Be(initial.Id);
     }
 
+    // Testzweck: Auch die Wiederaktivierung alter Snapshots darf keine ungeprüften
+    // Skripte oder unbekannte Prüfprofile erneut veröffentlichen.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task Redeployment_ShouldValidateExistingSnapshot(bool unknownProfile)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await SaveForm(context);
+        var definition = await Deploy(context);
+        var stored = await context.Storage.DefinitionStorage.GetDefinitionById(definition.Id);
+        var binding = stored.FormBindings!["Approval"];
+        stored.FormBindings["Approval"] = unknownProfile
+            ? binding with { ValidationProfile = "future/99" }
+            : binding with { FormData = """{"components":[{"type":"hidden","key":"value","calculateValue":"value = 1;"}]}""" };
+        await context.Storage.DefinitionStorage.StoreDefinition(stored);
+        Func<Task> redeploy = () => context.Services.GetRequiredService<BpmnBusinessLogic>().DeployDefinition(definition);
+        await redeploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*contract*");
+        (await context.Storage.DefinitionStorage.GetDeployedDefinition(definition.DefinitionId))!.Id.Should().Be(definition.Id);
+    }
+
     // Testzweck: Historische externe Referenzen ohne belegten Stand dürfen nicht still
     // auf heutige Formulare migriert werden; gebundene BPMN-Formulare brauchen diesen Weg nicht.
     [Test]

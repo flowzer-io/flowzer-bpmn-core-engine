@@ -18,4 +18,7 @@ public class FormDto
     /// </summary>
     public VersionDto? Version { get; set; }
     public string? FormData { get; set; }
+
+    /// <summary>Beim Deployment geprüftes Serverprofil; null bei Entwurf/Altbestand.</summary>
+    public string? ValidationProfile { get; set; }
 }

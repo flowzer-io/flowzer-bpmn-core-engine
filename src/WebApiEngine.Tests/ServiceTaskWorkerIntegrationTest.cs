@@ -234,7 +234,9 @@ public class ServiceTaskWorkerIntegrationTest
                 });
                 await storage.DefinitionStorage.StoreDefinition(definition);
                 await storage.DefinitionStorage.StoreBinary(definition.Id, xml);
-                await FormTestSeed.StoreAsync(storage, "Antrag");
+                await FormTestSeed.StoreAsync(storage, "Antrag", """
+                    {"components":[{"type":"textfield","key":"vertretung"},{"type":"textarea","key":"bemerkung"}]}
+                    """);
             }
 
             await BusinessLogic.DeployDefinition(definition);

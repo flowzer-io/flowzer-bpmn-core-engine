@@ -145,6 +145,16 @@
           }
         },
         "responses": {
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -1333,19 +1343,9 @@
           "422": {
             "description": "Unprocessable Content",
             "content": {
-              "text/plain": {
+              "application/problem\u002Bjson": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
+                  "$ref": "#/components/schemas/ApiValidationProblem"
                 }
               }
             }
@@ -2264,19 +2264,9 @@
           "422": {
             "description": "Unprocessable Content",
             "content": {
-              "text/plain": {
+              "application/problem\u002Bjson": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiStatusResult"
+                  "$ref": "#/components/schemas/ApiValidationProblem"
                 }
               }
             }
@@ -2339,6 +2329,52 @@
           }
         },
         "additionalProperties": false
+      },
+      "ApiValidationProblem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": {}
       },
       "BpmnDefinitionDto": {
         "required": [
@@ -2801,6 +2837,10 @@
             "$ref": "#/components/schemas/VersionDto"
           },
           "formData": {
+            "type": "string",
+            "nullable": true
+          },
+          "validationProfile": {
             "type": "string",
             "nullable": true
           }

@@ -48,7 +48,12 @@ serverseitige Submission-Validierung.
 **Formularbindung:** #180 / PR #181 friert alle referenzierten Start-/Aufgabenformulare
 beim Deployment ein, einschließlich Subprozessen. Externe Altbestände ohne Snapshot
 benötigen ausdrückliche Klärung; es erfolgt keine automatische Migration auf `latest`.
-Die drei PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
+**Formularprüfung:** #182 / PR #183 ergänzt das begrenzte Profil `flowzer.forms/1`,
+verbindliche Submission-Prüfung, Read-only-Schutz, Feldfehler und die Migration der
+Beispielskripte. Vollständige Form.io-Parität und Bestandsmigration bleiben offen.
+Details: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
+
+Die vier PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 

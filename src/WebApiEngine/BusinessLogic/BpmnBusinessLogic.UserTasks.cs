@@ -82,7 +82,10 @@ public partial class BpmnBusinessLogic
                 return UserTaskCompletionOutcome.NotFound;
             }
 
-            instance.HandleTaskResult(result.TokenId, result.Data, userId);
+            var validated = await ValidateFormInputAsync(storage,
+                (activeTokens[0].CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation,
+                processInstance.DefinitionId, result.Data, WebApiEngine.Forms.TaskFormContext.Read(processInstance.Tokens, activeTokens[0]));
+            instance.HandleTaskResult(result.TokenId, validated, userId);
             await SaveInstance(storage, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
             storage.CommitChanges();
             return UserTaskCompletionOutcome.Completed;

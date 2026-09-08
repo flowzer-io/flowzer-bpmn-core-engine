@@ -50,7 +50,7 @@ public class UrlaubsantragTerminateIntegrationTest
             new Dictionary<string, object?>
             {
                 ["pruefungBestanden"] = "nein",
-                ["pruefwert"] = "3",
+                ["pruefwert"] = 3,
                 ["pruefkommentar"] = "Nur noch 3 Resttage im Konto."
             });
 
@@ -115,7 +115,7 @@ public class UrlaubsantragTerminateIntegrationTest
             new Dictionary<string, object?>
             {
                 ["pruefungBestanden"] = "nein",
-                ["pruefwert"] = "3",
+                ["pruefwert"] = 3,
                 ["pruefkommentar"] = "Nur noch 3 Resttage im Konto."
             });
 
@@ -223,7 +223,7 @@ public class UrlaubsantragTerminateIntegrationTest
             new Dictionary<string, object?>
             {
                 ["pruefungBestanden"] = "ja",
-                ["pruefwert"] = "22",
+                ["pruefwert"] = 22,
                 ["pruefkommentar"] = string.Empty
             });
 
@@ -334,8 +334,7 @@ public class UrlaubsantragTerminateIntegrationTest
                                        "bis":"2026-10-16",
                                        "arbeitstage":10,
                                        "vertretung":"Melli",
-                                       "bemerkung":"",
-                                       "vorgang":"Christian Maaß · Erholungsurlaub · 05.10.2026 bis 16.10.2026"
+                                       "bemerkung":""
                                      }}
                                      """;
 

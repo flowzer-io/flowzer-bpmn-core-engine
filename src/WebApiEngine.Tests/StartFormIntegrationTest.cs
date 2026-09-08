@@ -237,7 +237,7 @@ public class StartFormIntegrationTest
     {
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
-        SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{}"));
+        SeedStoredForm(storage, "Urlaubsantrag", ("1.0", """{"components":[{"type":"textfield","key":"Antragsteller"}]}"""));
 
         await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();
@@ -275,14 +275,14 @@ public class StartFormIntegrationTest
         payload.ErrorMessage.Should().Contain("requires its start form");
     }
 
-    // Testzweck: Ein leeres Wertobjekt ist eine Antwort und wird angenommen. Ein Formular kann
-    // ausschliesslich aus bedingt sichtbaren Feldern bestehen; der Server prüft die
-    // Pflichtfelder bewusst nicht.
+    // Testzweck: Ein ausdrücklich leeres Formular nimmt ein leeres Wertobjekt an;
+    // es gibt keine Pflichtfelder, die der Server ergänzend prüfen müsste.
     [Test]
     public async Task StartInstance_ShouldAcceptAnEmptyVariablesObject_WhenTheWorkflowHasAStartForm()
     {
         var storage = TestStorage.Create();
         SeedWorkflow(storage, startFormKey: "Urlaubsantrag");
+        SeedStoredForm(storage, "Urlaubsantrag", ("1.0", "{\"components\":[]}"));
 
         await using var factory = await TestWebApplicationFactory.CreateAsync(storage);
         using var client = factory.CreateClient();

@@ -90,7 +90,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         return (await Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
     }
 
-    internal async Task<BpmnDefinition> DeployAsync(string assignment)
+    internal async Task<BpmnDefinition> DeployAsync(string assignment, string? startFormKey = null)
     {
         await FormTestSeed.StoreAsync(Storage, "Approval");
         var definition = new BpmnDefinition
@@ -101,11 +101,12 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         await Storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition
             { DefinitionId = definition.DefinitionId, Name = "Review" });
         await Storage.DefinitionStorage.StoreDefinition(definition);
+        var startForm = startFormKey is null ? "" : $"<bpmn:extensionElements><zeebe:formDefinition formKey=\"{startFormKey}\" /></bpmn:extensionElements>";
         await Storage.DefinitionStorage.StoreBinary(definition.Id, $$"""
             <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                 xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_Completion" targetNamespace="test">
               <bpmn:process id="Process_Completion" isExecutable="true">
-                <bpmn:startEvent id="Start"><bpmn:outgoing>ToReview</bpmn:outgoing></bpmn:startEvent>
+                <bpmn:startEvent id="Start">{{startForm}}<bpmn:outgoing>ToReview</bpmn:outgoing></bpmn:startEvent>
                 <bpmn:sequenceFlow id="ToReview" sourceRef="Start" targetRef="Review" />
                 <bpmn:userTask id="Review" name="Review">
                   <bpmn:extensionElements>

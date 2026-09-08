@@ -64,6 +64,8 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                     .Concat(model.GetProcesses().SelectMany(process => process.FlowElements).OfType<StartEvent>().Select(start => start.FlowzerFormKey)),
                 definition.Id);
 
+            FormKeyResolver.ValidateBindings(definition.FormBindings);
+
             await UndeployDefinition(definition, storageSystem);
         
             foreach (var process in model.GetProcesses())
@@ -576,16 +578,16 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             var (deployedDefinition, process) =
                 await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
 
-            // Traegt der Workflow ein Startformular, sind seine Werte Teil des Starts. Geprueft
-            // wird nur, ob ueberhaupt eine Antwort kam — die Pflichtfelder pruefen wir bewusst
-            // nicht: Form.io kennt bedingt sichtbare Felder (`conditional`), die der Server nicht
-            // auswertet; er wuerde damit gueltige Eingaben der Konsole ablehnen. Die
-            // Pflichtfelder prueft der Renderer, bevor er absendet.
+            // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
+            // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
             if (RequireStartFormKey(process) is not null && variables is null)
             {
                 throw new InvalidOperationException(
                     $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
             }
+
+            if (RequireStartFormKey(process) is { } startFormKey)
+                variables = await ValidateFormInputAsync(storageSystem, startFormKey, deployedDefinition.Id, variables);
 
             var processEngine = new ProcessEngine(process);
             var instance = processEngine.StartProcess(variables);

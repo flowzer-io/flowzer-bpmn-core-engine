@@ -66,6 +66,12 @@ public class ApiContractHardeningIntegrationTest
         var instanceId = Guid.NewGuid();
         var (userTaskToken, tokens) = CreateInstanceWaitingAtUserTaskBeforeBrokenGateway(instanceId);
         var definitionId = Guid.NewGuid();
+        storage.Definitions[definitionId] = new BpmnDefinition
+        {
+            Id = definitionId, DefinitionId = "broken-gateway", Hash = "fixture", SavedByUser = Guid.NewGuid(),
+            Version = new Model.Version(1, 0), IsActive = true,
+            FormBindings = new Dictionary<string, BoundForm> { ["Approval"] = new(null, null, null, "{\"components\":[]}") }
+        };
         storage.Instances.Add(new ProcessInstanceInfo
         {
             InstanceId = instanceId,

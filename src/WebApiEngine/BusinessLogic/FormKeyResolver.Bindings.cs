@@ -1,4 +1,5 @@
 using WebApiEngine.Shared;
+using WebApiEngine.Forms;
 
 namespace WebApiEngine.BusinessLogic;
 
@@ -14,9 +15,21 @@ public sealed partial class FormKeyResolver
             if (resolved.Form is not { FormData: not null } form)
                 throw new InvalidOperationException($"Cannot create form binding for \"{key}\": {resolved.ErrorMessage}");
 
-            bindings.Add(key, new BoundForm(form.Id, form.FormId, form.Version?.ToString(), form.FormData));
+            FormContractCompiler.Compile(form.FormData);
+            bindings.Add(key, new BoundForm(form.Id, form.FormId, form.Version?.ToString(), form.FormData, FormContract.Profile));
         }
         return bindings;
+    }
+
+    /// <summary>Erneutes Aktivieren behält Inhalte, muss aber aktuelle Prüfprofile erfüllen.</summary>
+    public static void ValidateBindings(IReadOnlyDictionary<string, BoundForm> bindings)
+    {
+        foreach (var binding in bindings.Values)
+        {
+            if (binding.ValidationProfile is not null and not FormContract.Profile)
+                throw new InvalidOperationException("Unsupported form contract: profile.version.");
+            FormContractCompiler.Compile(binding.FormData);
+        }
     }
 
     private static Result FromBinding(BoundForm bound)
@@ -30,7 +43,7 @@ public sealed partial class FormKeyResolver
         }
         return new Result(new FormDto
         {
-            Id = bound.Id, FormId = bound.FormId, FormData = bound.FormData,
+            Id = bound.Id, FormId = bound.FormId, FormData = bound.FormData, ValidationProfile = bound.ValidationProfile,
             Version = version is null ? null : new VersionDto { Major = version.Major, Minor = version.Minor }
         }, null);
     }

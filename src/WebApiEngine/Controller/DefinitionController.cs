@@ -94,6 +94,7 @@ public class DefinitionController(
     /// <c>variables</c>.
     /// </summary>
     [HttpPost("meta/{id}/instance")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance(
@@ -108,7 +109,7 @@ public class DefinitionController(
             var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException)
         {
             throw;
         }

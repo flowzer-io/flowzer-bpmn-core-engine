@@ -187,6 +187,9 @@ public class InstancePrivacyIntegrationTest
         data["privateSalary"] = "SHOULD_NOT_LEAK";
         task.Token.OutputData = task.Token.Variables;
         await context.Storage.SubscriptionStorage.AddUserTaskSubscription(task);
+        var stored = await context.Storage.InstanceStorage.GetProcessInstance(task.ProcessInstanceId!.Value);
+        stored.Tokens.Single(token => token.Id == task.Token.Id).Variables = task.Token.Variables;
+        await context.Storage.InstanceStorage.AddOrUpdateInstance(stored);
         using var client = context.CreateClient();
 
         var response = await client.GetFromJsonAsync<JsonElement>("/usertask");
