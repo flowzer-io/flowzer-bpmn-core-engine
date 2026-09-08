@@ -19,7 +19,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    M1-Slice #190 / PR #191 implementiert den atomaren, lesenden Keycloak-Abgleich samt
    stabiler Historie, Mehrprozess-Lease und Operatorstatus. #192 / PR #193 ergänzt darauf
    aufbauend typisierte `SubjectRef`-Werte und eine workflowgebundene, aktive Suche für
-   berechtigte Modellierende. #194 ergänzt den serverseitigen Text-/Directory-Vertrag für
+   berechtigte Modellierende. #194 / PR #195 ergänzt den serverseitigen Text-/Directory-Vertrag für
    User-Task-Zuweisungen; grafische Modelerauswahl und Formularfeld folgen separat.
 3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
    TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.

@@ -1,7 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
 **Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179,
-#181, #183, #185 und #187. BFF sowie die M1-Verzeichnis-/Zuweisungs-Slices bis #194
+#181, #183, #185 und #187. BFF sowie die M1-Verzeichnis-/Zuweisungs-Slices bis PR #195
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -103,7 +103,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192 und #194 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192 und #194 / PR #195 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -114,7 +114,7 @@ zu ersetzen. Operatorstatus und manueller Start geben keine Identitätsdaten aus
 #192 / PR #193 ergänzt `SubjectRef` für bekannte Benutzer und Gruppen sowie eine begrenzte
 Suche. Sie ist an einen tatsächlich bearbeitbaren Workflow gebunden, bietet nur aktive
 Identitäten an und liefert bei fremdem oder unbekanntem Kontext einheitlich `404`.
-Formularfelder und historische Anzeige bleiben Folgepakete. Der Backend-Slice #194 ergänzt
+Formularfelder und historische Anzeige bleiben Folgepakete. #194 / PR #195 ergänzt
 bereits die durchgängige Task-Zuweisung mit explizitem Text-/Directory-Vertrag, stabilen
 Referenzen, Deployment-Prüfung und identischer Laufzeitberechtigung. Die grafische Auswahl
 im Modeler folgt getrennt.
@@ -126,7 +126,8 @@ im Modeler folgt getrennt.
    späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
    bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
-   gestapelt vor; der Backend-Vertrag für den expliziten Task-Zuweisungsmodus folgt in #194.
+   gestapelt vor; der Backend-Vertrag für den expliziten Task-Zuweisungsmodus folgt in
+   #194 / PR #195.
    Generisches Auswahlfeld, Modeler-Auswahl und Entwürfe fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
