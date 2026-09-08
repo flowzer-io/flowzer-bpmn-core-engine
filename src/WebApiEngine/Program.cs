@@ -1,9 +1,11 @@
+using StorageSystem;
 using WebApiEngine;
 using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Jobs;
+using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
@@ -50,6 +52,24 @@ builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 // Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
 // um eine Benachrichtigung an angemeldete Adressen.
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Keycloak bleibt die fuehrende, ausschließlich gelesene Quelle. Der Abgleich ist opt-in;
+// ohne vollstaendige sichere Konfiguration startet die aktivierte Installation nicht halb.
+builder.Services.AddOptions<KeycloakDirectoryOptions>()
+    .Bind(builder.Configuration.GetSection(KeycloakDirectoryOptions.SectionName))
+    .Validate(options => options.IsValid(), "IdentityDirectory configuration is invalid or incomplete.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IIdentityDirectoryStorage>(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().IdentityDirectoryStorage);
+builder.Services.AddHttpClient("flowzer-keycloak-directory", client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-keycloak-directory"),
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakDirectoryOptions>>(),
+    serviceProvider.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
+builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<IdentityDirectoryBackgroundService>());
 builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
                               ?? new FlowzerWebhookOptions());
 builder.Services.AddSingleton<ServiceTaskJobService>();

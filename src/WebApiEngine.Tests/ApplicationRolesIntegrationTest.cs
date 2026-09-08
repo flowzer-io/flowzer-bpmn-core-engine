@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
@@ -11,6 +12,7 @@ using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
+using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
 
@@ -102,6 +104,58 @@ public class ApplicationRolesIntegrationTest
 
         withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         withRole.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Auch der Verzeichnisstatus ist eine Betriebsinformation und bleibt fuer
+    // angemeldete Personen ohne Operatorrolle gesperrt.
+    [Test]
+    public async Task IdentityDirectoryStatus_ShouldRequireTheOperatorRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+        var withoutRole = await client.GetAsync("/identity-directory/status");
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["operator"]));
+        var withRole = await client.GetAsync("/identity-directory/status");
+
+        withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        withRole.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await withRole.Content.ReadFromJsonAsync<ApiStatusResult<IdentityDirectoryStatusDto>>();
+        payload!.Result!.Enabled.Should().BeFalse();
+        payload.Result.State.Should().Be("disabled");
+    }
+
+    // Testzweck: Ein manueller Start bleibt im Opt-out-Default wirkungslos und liefert einen
+    // dokumentierten Problem-Details-Fehler statt einen scheinbar erfolgreichen Import.
+    [Test]
+    public async Task IdentityDirectorySync_ShouldRejectTheDisabledFeature()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["operator"]));
+
+        var response = await client.PostAsync("/identity-directory/sync", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+    }
+
+    // Testzweck: Die neuen administrativen Verzeichnisendpunkte fallen bei vergessener
+    // Operatorrollen-Konfiguration geschlossen aus statt fuer jeden angemeldeten Nutzer offen.
+    [Test]
+    public async Task IdentityDirectoryEndpoints_ShouldFailClosedWithoutConfiguredOperatorRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: null);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["operator"]));
+
+        var status = await client.GetAsync("/identity-directory/status");
+        var synchronization = await client.PostAsync("/identity-directory/sync", content: null);
+
+        status.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        synchronization.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     // Testzweck: Ohne konfigurierte Rollennamen bleibt alles wie bisher offen; bestehende

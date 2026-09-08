@@ -75,6 +75,14 @@ Bearer-API bleibt kompatibel.
 Die Teil-PRs bleiben bis Merge und Abnahme separat; auch der laufende BFF-Slice
 ist kein Produkt- oder vollständiger M0-Abschluss.
 
+**Keycloak-Verzeichnis:** #190 / PR #191 implementiert den opt-in, lesenden und
+vollstaendig paginierten Abgleich als atomaren Snapshot. `(Issuer, Subject)`, externe
+Gruppen-ID, Hierarchie und Mitgliedschaften erhalten stabile lokale IDs; erfolgreiche
+Folgesnapshots deaktivieren fehlende Historie. Teilfehler behalten die vorige Generation,
+HTTP-/Gesamtlaufgrenzen verhindern blockierte Importe und eine PostgreSQL-Lease schuetzt
+vor parallelen API-Prozessen. Operatorstatus und manueller Start geben keine Identitaeten
+oder Secrets aus. Formular-/Task-/Ordnerauswahl ist bewusst der naechste M1-Slice.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -100,15 +108,16 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 
 ## M1 – Verzeichnis und Auswahl von Benutzern/Gruppen
 
-- [ ] Keycloak bleibt führend; nur lesender, minimal berechtigter Servicezugang über
+- [x] Keycloak bleibt führend; nur lesender, minimal berechtigter Servicezugang über
   die Admin REST API. Keine Passwörter oder unnötigen Profilattribute übernehmen.
-- [ ] Lokales Verzeichnis mit stabiler interner ID, `(Issuer, Subject)`, Anzeigename,
+- [x] Lokales Verzeichnis mit stabiler interner ID, `(Issuer, Subject)`, Anzeigename,
   Benutzerstatus, externer Gruppenkennung, Hierarchie und Mitgliedschaften.
-- [ ] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
+- [x] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
 - [ ] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. Mehrdeutige Bestandszuweisungen explizit klären.
+  Auswahlen entfernen. Die stabile Historie ist umgesetzt; Filterung neuer Auswahlen und
+  explizite Klärung mehrdeutiger Bestandszuweisungen folgen mit den Auswahlendpunkten.
 - [ ] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.

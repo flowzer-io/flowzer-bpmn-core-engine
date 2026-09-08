@@ -12,6 +12,8 @@ services:
       Authentication__JwtBearer__Authority: ${FLOWZER_AUTH_AUTHORITY:-}
       Authentication__JwtBearer__Audience: ${FLOWZER_AUTH_AUDIENCE:-}
       Authentication__JwtBearer__RequireHttpsMetadata: ${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}
+      # Fuer die neuen Verzeichnisendpunkte zwingend: leer bedeutet dort fail-closed.
+      Authentication__JwtBearer__Roles__Operator: ${FLOWZER_AUTH_ROLE_OPERATOR:-}
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
       # Laufzeit uebergeben, nie dem Konsolen-Container oder dem Browser.
       Authentication__Bff__ClientId: ${FLOWZER_BFF_CLIENT_ID:-}
@@ -20,6 +22,15 @@ services:
       Authentication__Bff__Scopes__1: ${FLOWZER_BFF_SCOPE_1:-}
       Authentication__Bff__Scopes__2: ${FLOWZER_BFF_SCOPE_2:-}
       Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # Optionaler, ausschliesslich lesender Keycloak-Verzeichnisabgleich. Beide Secrets
+      # werden nur dem API-Prozess aus dem Laufzeit-Secret-Store uebergeben.
+      IdentityDirectory__Enabled: ${FLOWZER_DIRECTORY_ENABLED:-false}
+      IdentityDirectory__ServerUrl: ${FLOWZER_DIRECTORY_SERVER_URL:-}
+      IdentityDirectory__Issuer: ${FLOWZER_DIRECTORY_ISSUER:-}
+      IdentityDirectory__Realm: ${FLOWZER_DIRECTORY_REALM:-}
+      IdentityDirectory__ClientId: ${FLOWZER_DIRECTORY_CLIENT_ID:-}
+      IdentityDirectory__ClientSecret: ${FLOWZER_DIRECTORY_CLIENT_SECRET:-}
+      IdentityDirectory__SyncIntervalSeconds: ${FLOWZER_DIRECTORY_SYNC_INTERVAL_SECONDS:-300}
       # API-Anfragen kommen ueber Gateway und Konsolen-nginx aus dem privaten
       # Compose-Netz. Nur aus diesem explizit konfigurierten Netz werden Hostschema
       # und Clientadresse fuer OIDC, Secure-Cookies und Rate-Limits uebernommen.

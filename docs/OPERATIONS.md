@@ -58,6 +58,59 @@ HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTP
 einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
 kein funktionaler BFF-Testpfad.
 
+## Lesender Keycloak-Verzeichnisabgleich
+
+Der optionale M1-Abgleich uebernimmt Benutzer, Gruppenhierarchie und Mitgliedschaften aus
+Keycloak in einen lokalen, atomar publizierten Snapshot. Keycloak bleibt fuehrend; Flowzer
+ruft ausschließlich Token- und `GET`-Endpunkte der
+[Keycloak Admin REST API](https://www.keycloak.org/docs-api/latest/rest-api/index.html) auf.
+Passwoerter, Credentials, Rollen-Mappings, freie Attribute und E-Mail-Adressen werden nicht
+in das Verzeichnis kopiert.
+
+| Einstellung | Bedeutung |
+|---|---|
+| `IdentityDirectory__Enabled` | Opt-in; Standard ist `false` |
+| `IdentityDirectory__ServerUrl` | technische HTTPS-Basisadresse des Keycloak-Servers, gegebenenfalls intern erreichbar |
+| `IdentityDirectory__Issuer` | exakter, externer `iss`-Wert der Benutzer-Tokens; bildet zusammen mit `sub` die stabile Benutzeridentitaet |
+| `IdentityDirectory__Realm` | zu lesender Realm |
+| `IdentityDirectory__ClientId` | vertrauliches Servicekonto nur fuer die benoetigten Leseoperationen |
+| `IdentityDirectory__ClientSecret` | ausschließlich zur Laufzeit aus dem Secret-Store; nie in `.env`, BPMN, Formularen oder Browserantworten speichern |
+| `IdentityDirectory__SyncIntervalSeconds` | Intervall nach dem sofortigen Startlauf; 10 bis 86.400 Sekunden |
+
+Im authentifizierten Betrieb muss zusaetzlich
+`Authentication__JwtBearer__Roles__Operator` gesetzt sein. Anders als historische
+Kompatibilitaetspolicies sind die neuen Verzeichnisendpunkte bei einem leeren Rollenwert
+vollstaendig gesperrt. Im ausdrücklich lokalen `Authentication__Scheme=None`-Modus bleibt
+die Entwicklungs-API offen.
+
+Weitere begrenzte Einstellungen (`PageSize`, `MaxPages`, `MaxRetries`,
+`RequestTimeoutSeconds`, `SynchronizationTimeoutSeconds`, `LeaseGraceSeconds`,
+`MaxResponseBytes`, `TokenRefreshSkewSeconds`) besitzen sichere Defaults in
+`appsettings.json`. Eine aktivierte, unvollstaendige oder unsichere Konfiguration beendet
+den Hoststart mit einer generischen Validierungsmeldung, die kein Secret wiedergibt.
+
+Das Keycloak-Servicekonto soll ueber feingranulare Rechte nur die verwendeten Benutzer-,
+Gruppen-, Gruppen-Kinder- und Benutzergruppen-Endpunkte lesen duerfen. Nach der Einrichtung
+ist mit einem negativen Test sicherzustellen, dass Schreiboperationen fuer dieses Konto
+abgewiesen werden. Eine pauschale Realm-Administratorrolle ist nicht vorgesehen.
+
+Der Startlauf und jeder Intervalllauf lesen alle Seiten. Erst nach vollstaendigem Erfolg
+werden Snapshot und Status gemeinsam ersetzt. Ein Seiten-, Hierarchie-, Timeout- oder
+Validierungsfehler laesst die letzte aktive Generation unveraendert. Fehlende Identitaeten
+werden erst durch einen erfolgreichen Folgelauf historisch inaktiv; ihre lokalen IDs bleiben
+auflösbar. Eine datenbankgestuetzte Lease verhindert parallele Importe durch mehrere
+API-Prozesse und laesst nach Ablauf einen Neustart zu. Die Keycloak-Offset-Pagination ist
+allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraenderte Realms
+bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
+
+Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
+`POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,
+Generations-IDs, Zaehler und klassifizierte Fehler, aber keine Subjects, Gruppen,
+Provideradresse oder Zugangsdaten. Der manuelle Aufruf stellt einen Lauf mit `202` in eine
+begrenzte Warteschlange; `409` bedeutet, dass lokal bereits ein Lauf aktiv oder vorgemerkt
+ist. Erfolg oder Fehler werden im Status sichtbar, die vorherige vollständige Generation
+bleibt bei einem Fehler aktiv.
+
 Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
 auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
 und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor

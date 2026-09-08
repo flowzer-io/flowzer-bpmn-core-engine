@@ -46,6 +46,15 @@ services:
       Authentication__Bff__Scopes__1: "${FLOWZER_BFF_SCOPE_1:-}"
       Authentication__Bff__Scopes__2: "${FLOWZER_BFF_SCOPE_2:-}"
       Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # Read-only Service-Account; ClientSecret ist ein Coolify-Secret und gelangt
+      # weder in die Konsole noch in Statusantworten oder Prozesspakete.
+      IdentityDirectory__Enabled: "${FLOWZER_DIRECTORY_ENABLED:-false}"
+      IdentityDirectory__ServerUrl: "${FLOWZER_DIRECTORY_SERVER_URL:-}"
+      IdentityDirectory__Issuer: "${FLOWZER_DIRECTORY_ISSUER:-}"
+      IdentityDirectory__Realm: "${FLOWZER_DIRECTORY_REALM:-}"
+      IdentityDirectory__ClientId: "${FLOWZER_DIRECTORY_CLIENT_ID:-}"
+      IdentityDirectory__ClientSecret: "${FLOWZER_DIRECTORY_CLIENT_SECRET:-}"
+      IdentityDirectory__SyncIntervalSeconds: "${FLOWZER_DIRECTORY_SYNC_INTERVAL_SECONDS:-300}"
       # Das Gateway laeuft im selben Docker-Netz; nur von dort wird der Weiterleitungsheader
       # geglaubt. Ohne diese Angabe zaehlt jedes anonyme Kontingent gegen die Proxy-Adresse.
       ForwardedHeaders__KnownNetworks__0: "${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}"
