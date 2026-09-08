@@ -21,7 +21,8 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    aufbauend typisierte `SubjectRef`-Werte und eine workflowgebundene, aktive Suche für
    berechtigte Modellierende. #194 / PR #195 ergänzt den serverseitigen Text-/Directory-Vertrag für
    User-Task-Zuweisungen; #196 ergänzt die Auswahl in Diagramm und Gliederung. #198 ergänzt
-   das gebundene `flowzerSubject`-Formularfeld. Typisierte Ordnerrechte folgen separat.
+   das gebundene `flowzerSubject`-Formularfeld; #200 verwendet dieselbe Auswahl für typisierte
+   Ordnerrechte und erhält daneben den expliziten Freitextmodus.
 3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
    TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,

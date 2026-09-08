@@ -69,6 +69,47 @@ public sealed class IdentityDirectorySubjectControllerIntegrationTest
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    // Testzweck: Die Ordnerauswahl darf nur im Kontext eines vorhandenen Ordners mit
+    // Delegationsrecht suchen; fremde und erfundene Ordner bleiben identisch verborgen.
+    [Test]
+    public async Task FolderSearch_ShouldRequireDelegationRightAndHideForeignFolders()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await SeedDirectoryAsync(context.Storage);
+        var own = new WorkflowFolder
+        {
+            Id = Guid.NewGuid(), Name = "Own", CreatedOn = DateTime.UtcNow,
+            CreatedByUser = Guid.NewGuid(),
+            Assignments =
+            [
+                new FolderAssignment
+                {
+                    SubjectKind = FolderSubjectKind.Group,
+                    Subject = "/team/review",
+                    Role = FolderRole.Steward
+                }
+            ]
+        };
+        var foreign = new WorkflowFolder
+        {
+            Id = Guid.NewGuid(), Name = "Foreign", CreatedOn = DateTime.UtcNow,
+            CreatedByUser = Guid.NewGuid()
+        };
+        await context.Storage.FolderStorage.StoreFolder(own);
+        await context.Storage.FolderStorage.StoreFolder(foreign);
+        using var client = context.CreateClient();
+
+        var allowed = await client.GetAsync($"/identity-directory/folders/{own.Id}/subjects?query=anna&kind=all");
+        var hidden = await client.GetAsync($"/identity-directory/folders/{foreign.Id}/subjects?query=anna&kind=user");
+        var unknown = await client.GetAsync($"/identity-directory/folders/{Guid.NewGuid()}/subjects?query=anna&kind=user");
+
+        allowed.StatusCode.Should().Be(HttpStatusCode.OK);
+        hidden.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        unknown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await hidden.Content.ReadFromJsonAsync<ProblemDetails>())!.Title.Should()
+            .Be((await unknown.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
+    }
+
     // Testzweck: Fremde und unbekannte Workflow-Kontexte antworten identisch mit 404, damit
     // die Suche weder die Existenz des Workflows noch Verzeichnisdaten offenlegt.
     [Test]

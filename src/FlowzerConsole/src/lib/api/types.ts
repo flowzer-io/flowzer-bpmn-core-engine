@@ -143,6 +143,9 @@ export interface BpmnMetaDefinitionDto {
 export const FOLDER_SUBJECT_KINDS = ['user', 'group'] as const;
 export type FolderSubjectKind = (typeof FOLDER_SUBJECT_KINDS)[number];
 
+/** Herkunft einer Ordnerzuweisung. Fehlende Werte bleiben aus Legacy-Antworten `text`. */
+export type FolderReferenceMode = 'text' | 'directory';
+
 /**
  * Die beiden Rollen eines Ordners. `editor` darf die Workflows darin ändern,
  * `steward` — die Fachverantwortung — zusätzlich Unterordner anlegen und delegieren.
@@ -156,6 +159,10 @@ export interface FolderAssignmentDto {
   subject: string;
   role: FolderRole;
   displayName?: string | null;
+  /** Additiver Vertragswert: alte Antworten ohne Wert sind weiterhin Freitext. */
+  referenceMode?: FolderReferenceMode;
+  /** Bei `directory` die stabile, vom Verzeichnis bestätigte Identität. */
+  subjectRef?: SubjectRefDto | null;
 }
 
 /** Entspricht `InheritedFolderAssignmentDto` — eine Zuweisung aus einem übergeordneten Ordner. */

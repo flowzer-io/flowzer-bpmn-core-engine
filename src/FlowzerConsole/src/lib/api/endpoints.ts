@@ -136,6 +136,18 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
+  /** Sucht aktive Identitäten, die am konkreten Workflow-Ordner delegiert werden dürfen. */
+  searchFolderSubjects: (
+    folderId: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
+
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
     context: FormDirectorySearchContext,

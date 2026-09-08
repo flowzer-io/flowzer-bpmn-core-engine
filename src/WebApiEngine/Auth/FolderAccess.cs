@@ -1,4 +1,5 @@
 using Model;
+using StorageSystem;
 
 namespace WebApiEngine.Auth;
 
@@ -22,9 +23,40 @@ public static class FolderAccess
         ArgumentNullException.ThrowIfNull(folders);
         ArgumentNullException.ThrowIfNull(identity);
 
+        return ResolveRoles(folders, assignment => assignment.AssignmentMode == FolderAssignmentMode.Text
+                                                  && MatchesText(assignment, identity));
+    }
+
+    /// <summary>
+    /// Wertet beide expliziten Referenzmodi aus. Freitext bleibt claimbasiert; Directory-Rechte
+    /// zaehlen nur fuer die exakt aufgeloeste aktive Identitaet und Mitgliedschaft.
+    /// </summary>
+    public static IReadOnlyDictionary<Guid, FolderRole> ResolveRoles(
+        IReadOnlyCollection<WorkflowFolder> folders,
+        CurrentUserContext currentUser,
+        DirectorySnapshot? snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(currentUser);
+        var textIdentity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
+        var directoryIdentity = DirectoryIdentityAccess.Resolve(currentUser, snapshot);
+        return ResolveRoles(folders, assignment => assignment.AssignmentMode switch
+        {
+            FolderAssignmentMode.Text => MatchesText(assignment, textIdentity),
+            FolderAssignmentMode.Directory => assignment.DirectorySubject is { } subject
+                                              && directoryIdentity?.Matches(subject) == true,
+            _ => false
+        });
+    }
+
+    private static IReadOnlyDictionary<Guid, FolderRole> ResolveRoles(
+        IReadOnlyCollection<WorkflowFolder> folders,
+        Func<FolderAssignment, bool> matches)
+    {
+        ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(matches);
         var byId = folders.GroupBy(folder => folder.Id).ToDictionary(group => group.Key, group => group.First());
         var direct = byId.Values
-            .Select(folder => (folder.Id, Role: StrongestDirectRole(folder, identity)))
+            .Select(folder => (folder.Id, Role: StrongestDirectRole(folder, matches)))
             .Where(entry => entry.Role.HasValue)
             .ToDictionary(entry => entry.Id, entry => entry.Role!.Value);
 
@@ -123,12 +155,14 @@ public static class FolderAccess
         }
     }
 
-    private static FolderRole? StrongestDirectRole(WorkflowFolder folder, UserTaskIdentity identity)
+    private static FolderRole? StrongestDirectRole(
+        WorkflowFolder folder,
+        Func<FolderAssignment, bool> matches)
     {
         FolderRole? role = null;
         foreach (var assignment in folder.Assignments)
         {
-            if (Matches(assignment, identity))
+            if (matches(assignment))
             {
                 role = Stronger(role, assignment.Role);
             }
@@ -137,7 +171,7 @@ public static class FolderAccess
         return role;
     }
 
-    private static bool Matches(FolderAssignment assignment, UserTaskIdentity identity) =>
+    private static bool MatchesText(FolderAssignment assignment, UserTaskIdentity identity) =>
         assignment.SubjectKind switch
         {
             FolderSubjectKind.User => UserTaskAssignment.MatchesAnyName([assignment.Subject], identity.Names),

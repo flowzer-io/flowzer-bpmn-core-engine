@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Model;
+using StorageSystem;
 using WebApiEngine.Auth;
 
 namespace WebApiEngine.Tests;
@@ -31,6 +32,15 @@ public class FolderAccessTest
         new() { SubjectKind = FolderSubjectKind.Group, Subject = subject, Role = role };
 
     private static UserTaskIdentity Identity(string[] names, string[] groups) => new(names, groups);
+
+    private static FolderAssignment DirectorySubject(SubjectRef subject, FolderRole role) => new()
+    {
+        AssignmentMode = FolderAssignmentMode.Directory,
+        SubjectKind = subject.Kind == DirectorySubjectKind.User ? FolderSubjectKind.User : FolderSubjectKind.Group,
+        Subject = subject.Id.ToString(),
+        DirectorySubject = subject,
+        Role = role
+    };
 
     // Testzweck: Eine Zuweisung an einem Ordner gilt auch fuer dessen Unterordner. Ohne
     // Vererbung muesste jede Fachverantwortung in jedem Unterordner wiederholt werden — und
@@ -109,6 +119,50 @@ public class FolderAccessTest
         FolderAccess.ResolveRoles(folders, Identity(["anna"], [])).Should().BeEmpty();
     }
 
+    // Testzweck: Eine stabile Benutzerreferenz wird ausschliesslich ueber die exakte aktive
+    // Issuer-/Subject-Identitaet ausgewertet; ein gleicher Anzeigename oder Claimname reicht nicht.
+    [Test]
+    public void ResolveRoles_ShouldMatchDirectoryUsersWithoutNameFallback()
+    {
+        var userId = Guid.NewGuid();
+        WorkflowFolder[] folders =
+        [
+            Folder(FinanzenId, "Finanzen", null,
+                DirectorySubject(new SubjectRef(DirectorySubjectKind.User, userId), FolderRole.Editor))
+        ];
+        var snapshot = Snapshot(userId: userId, userSubject: "stable-anna");
+        var exact = CurrentUser("issuer-a", "stable-anna", names: ["neuer-name"]);
+        var impostor = CurrentUser("issuer-a", "someone-else", names: ["stable-anna", "neuer-name"]);
+
+        FolderAccess.ResolveRoles(folders, exact, snapshot).Should().ContainKey(FinanzenId);
+        FolderAccess.ResolveRoles(folders, impostor, snapshot).Should().BeEmpty();
+        FolderAccess.ResolveRoles(folders, Identity(["stable-anna"], [])).Should().BeEmpty(
+            "der Legacy-Overload darf Directory-Rechte nie per String oeffnen");
+    }
+
+    // Testzweck: Eine Directory-Gruppe berechtigt nur ueber eine aktive Snapshot-Mitgliedschaft;
+    // anderer Issuer, deaktivierte Gruppe und Token-Gruppenclaims fallen geschlossen aus.
+    [Test]
+    public void ResolveRoles_ShouldMatchOnlyActiveDirectoryMemberships()
+    {
+        var userId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        WorkflowFolder[] folders =
+        [
+            Folder(FinanzenId, "Finanzen", null,
+                DirectorySubject(new SubjectRef(DirectorySubjectKind.Group, groupId), FolderRole.Steward))
+        ];
+        var user = CurrentUser("issuer-a", "stable-anna", groups: ["/same-name"]);
+
+        FolderAccess.ResolveRoles(folders, user, Snapshot(userId, "stable-anna", groupId, groupActive: true))
+            .Should().ContainKey(FinanzenId);
+        FolderAccess.ResolveRoles(folders, user, Snapshot(userId, "stable-anna", groupId, groupActive: false))
+            .Should().BeEmpty();
+        FolderAccess.ResolveRoles(folders, CurrentUser("issuer-b", "stable-anna", groups: ["/same-name"]),
+                Snapshot(userId, "stable-anna", groupId, groupActive: true))
+            .Should().BeEmpty();
+    }
+
     // Testzweck: Ein durch einen Fehler entstandener Ring darf die Aufloesung nicht aufhaengen.
     [Test]
     public void ResolveRoles_ShouldSurviveACycle()
@@ -172,4 +226,56 @@ public class FolderAccessTest
         FolderAccess.WouldCreateCycle(FinanzenId, PersonalId, folders).Should().BeFalse();
         FolderAccess.WouldCreateCycle(FinanzenId, null, folders).Should().BeFalse("die oberste Ebene ist immer gueltig");
     }
+
+    private static CurrentUserContext CurrentUser(
+        string issuer,
+        string subject,
+        string[]? names = null,
+        string[]? groups = null) => new(Guid.NewGuid(), "test", IsFallback: false)
+    {
+        Identity = new AuthenticatedSubject(issuer, subject),
+        Names = names ?? [],
+        Groups = groups ?? []
+    };
+
+    private static DirectorySnapshot Snapshot(
+        Guid userId,
+        string userSubject,
+        Guid? groupId = null,
+        bool groupActive = true) => new()
+    {
+        GenerationId = Guid.NewGuid(),
+        Issuer = "issuer-a",
+        CompletedAtUtc = DateTime.UtcNow,
+        Users =
+        [
+            new DirectoryUser
+            {
+                Id = userId,
+                SourceKind = DirectorySourceKind.Keycloak,
+                Issuer = "issuer-a",
+                Subject = userSubject,
+                DisplayName = "Anna Gleichname",
+                IsActive = true
+            }
+        ],
+        Groups = groupId is { } id
+            ?
+            [
+                new DirectoryGroup
+                {
+                    Id = id,
+                    SourceKind = DirectorySourceKind.Keycloak,
+                    Issuer = "issuer-a",
+                    ExternalId = "group-external",
+                    Name = "Gleichname",
+                    Path = "/same-name",
+                    IsActive = groupActive
+                }
+            ]
+            : [],
+        Memberships = groupId is { } membershipGroup
+            ? [new DirectoryMembership { UserId = userId, GroupId = membershipGroup }]
+            : []
+    };
 }

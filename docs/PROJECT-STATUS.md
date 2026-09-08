@@ -103,7 +103,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192, #194, #196 und #198 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192, #194, #196, #198 und #200 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -126,6 +126,12 @@ aktive Filterreferenzen und Profil werden mit der Workflow-Version gebunden; Sta
 beide Abschlussrouten prüfen stabile Referenzen erneut gegen den aktuellen Snapshot.
 Startformular- und Task-Suche leiten ihre Grenzen ausschließlich aus dem gebundenen Feld ab.
 
+#200 verwendet dieselbe stabile Auswahl für Ordnerberechtigungen. Jede Zuweisung entscheidet
+explizit zwischen unverändertem Freitext und einer Directory-Referenz. Neue Referenzen werden
+serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet ausschließlich das
+exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
+mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -135,7 +141,8 @@ Startformular- und Task-Suche leiten ihre Grenzen ausschließlich aus dem gebund
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.
-   Das generische Formular-Auswahlfeld liegt in #198 vor; Ordnerreferenzen und Entwürfe fehlen weiterhin. Legacy-Namen
+   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200;
+   Formularentwürfe fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,

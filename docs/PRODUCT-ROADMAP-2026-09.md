@@ -142,8 +142,9 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Benutzer expandieren. Der öffentliche Referenz- und Prüfvertrag ist in #192 umgesetzt;
   #198 ergänzt die Ableitung erlaubter Werte aus der veröffentlichten Formularversion,
   gebundene Start-/Task-Suche und erneute Submission-Prüfung.
-- [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden. Die
-  Aufgaben-Auswahl ist in #196 umgesetzt; Ordnerberechtigungen folgen separat.
+- [x] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden. #196
+  integriert den expliziten Task-Modus; #200 ergänzt stabile Ordnerrechte samt bewusst
+  erhaltenem Legacy-Freitextmodus.
 - [x] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
   freien Textmodus. Vor der Eingabe explizit „Bekannter Benutzer / bekannte Gruppe“
   oder „Text-String“ wählen. Verzeichniswahl speichert eine typisierte stabile

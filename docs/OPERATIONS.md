@@ -333,11 +333,17 @@ Regeln, die im Betrieb zählen:
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
 
-Ordnerzuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen
-(`subjectKind: "group"`) derzeit weiterhin mit den bisherigen Textkennungen und derselben
-Auswertung von `preferred_username`, `email` und `groups`. Ihre Umstellung auf die typisierten
-Directory-Referenzen ist ein eigener M1-Slice; sie darf nicht still anhand eines Anzeigenamens
-erfolgen.
+Ordnerzuweisungen besitzen einen expliziten `referenceMode`:
+
+- `text` ist der kompatible Standard für bisherige Kennungen. Er wertet `subjectKind` und
+  `subject` weiterhin gegen `preferred_username`, `email` und `groups` aus.
+- `directory` verlangt zusätzlich `subjectRef` mit `kind` und stabiler lokaler UUID.
+  Die API prüft neue Referenzen gegen den aktiven Snapshot und ersetzt den mitgesendeten
+  Anzeigenamen durch die serverseitige Projektion. Zugriff entsteht nur über das exakte
+  `(Issuer, Subject)` oder eine aktive direkte Gruppenmitgliedschaft.
+
+Beide Modi werden weder automatisch ineinander umgewandelt noch per Anzeigename verknüpft.
+Details und Beispiele stehen in [Ordnerzuweisungen](FOLDER-DIRECTORY-ASSIGNMENTS.md).
 
 Bestehende Katalogeinträge tragen kein `folderId` und liegen damit auf der obersten Ebene; ein Umzug ist nicht nötig.
 

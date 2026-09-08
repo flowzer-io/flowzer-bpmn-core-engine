@@ -163,44 +163,14 @@ public static class UserTaskAssignment
             return IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), seeAll: false);
         }
 
-        if (snapshot is null || currentUser.Identity is null
-            || !string.Equals(snapshot.Issuer, currentUser.Identity.Issuer, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        var matchingUsers = snapshot.Users.Where(user =>
-                user.IsActive
-                && string.Equals(user.Issuer, currentUser.Identity.Issuer, StringComparison.Ordinal)
-                && string.Equals(user.Subject, currentUser.Identity.Subject, StringComparison.Ordinal))
-            .Take(2)
-            .ToArray();
-        if (matchingUsers.Length != 1)
-        {
-            return false;
-        }
-
-        var directoryUser = matchingUsers[0];
-        if (subscription.DirectoryAssigneeUserId == directoryUser.Id
-            || subscription.DirectoryCandidateUserIds.Contains(directoryUser.Id))
-        {
-            return true;
-        }
-
-        if (subscription.DirectoryCandidateGroupIds.Count == 0)
-        {
-            return false;
-        }
-
-        var activeGroups = snapshot.Groups
-            .Where(group => group.IsActive
-                            && string.Equals(group.Issuer, snapshot.Issuer, StringComparison.Ordinal))
-            .Select(group => group.Id)
-            .ToHashSet();
-        return snapshot.Memberships.Any(membership =>
-            membership.UserId == directoryUser.Id
-            && activeGroups.Contains(membership.GroupId)
-            && subscription.DirectoryCandidateGroupIds.Contains(membership.GroupId));
+        var identity = DirectoryIdentityAccess.Resolve(currentUser, snapshot);
+        return identity is not null
+               && (subscription.DirectoryAssigneeUserId is { } assignee
+                   && identity.Matches(new SubjectRef(DirectorySubjectKind.User, assignee))
+                   || subscription.DirectoryCandidateUserIds.Any(id =>
+                       identity.Matches(new SubjectRef(DirectorySubjectKind.User, id)))
+                   || subscription.DirectoryCandidateGroupIds.Any(id =>
+                       identity.Matches(new SubjectRef(DirectorySubjectKind.Group, id))));
     }
 
     /// <summary>

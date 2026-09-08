@@ -3,6 +3,8 @@ import { useEffect, useId, useState } from 'react';
 import {
   useDirectorySubjectResolutions,
   useDirectorySubjectSearch,
+  useFolderDirectorySubjectResolutions,
+  useFolderDirectorySubjectSearch,
   useFormDirectorySubjectResolutions,
   useFormDirectorySubjectSearch,
 } from '@/lib/api/queries';
@@ -28,6 +30,8 @@ export interface DirectorySubjectSelection {
 
 export interface DirectorySubjectPickerProps {
   definitionId: string;
+  /** Für Ordnerdelegationen wird statt des Workflowpfads dieser Kontext verwendet. */
+  folderId?: string;
   kind: SubjectRefDto['kind'] | 'all';
   /** Bei Formularen ersetzt dieser Kontext die workflowgebundene Modeler-Suche. */
   directoryContext?: FormDirectorySearchContext;
@@ -229,12 +233,45 @@ function DirectorySubjectPickerView({
   );
 }
 
-/** Gemeinsame Ansicht für Modeler- und Formularsuche; nur der Hook-Kontext unterscheidet sich. */
+/** Gemeinsame Ansicht für Workflow-, Ordner- und Formularsuche; nur der Hook-Kontext unterscheidet sich. */
 export function DirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  if (props.folderId) {
+    return <FolderDirectorySubjectPicker {...props} />;
+  }
   if (props.directoryContext && props.fieldKey) {
     return <FormDirectorySubjectPicker {...props} />;
   }
   return <WorkflowDirectorySubjectPicker {...props} />;
+}
+
+function FolderDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+  const search = useFolderDirectorySubjectSearch(
+    props.folderId!,
+    debouncedQuery,
+    props.kind,
+    !props.disabled && debouncedQuery.length >= 2,
+  );
+  const resolution = useFolderDirectorySubjectResolutions(
+    props.folderId!,
+    props.selected.map((entry) => entry.subject),
+    props.folderId!.length > 0,
+  );
+  return (
+    <DirectorySubjectPickerView
+      {...props}
+      search={search}
+      resolution={resolution}
+      query={query}
+      setQuery={setQuery}
+      debouncedQuery={debouncedQuery}
+    />
+  );
 }
 
 function WorkflowDirectorySubjectPicker(props: DirectorySubjectPickerProps) {

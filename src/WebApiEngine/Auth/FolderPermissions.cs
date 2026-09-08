@@ -1,4 +1,5 @@
 using Model;
+using StorageSystem;
 
 namespace WebApiEngine.Auth;
 
@@ -15,17 +16,25 @@ public sealed class FolderPermissions
     public FolderPermissions(
         IReadOnlyCollection<WorkflowFolder> folders,
         IReadOnlyDictionary<Guid, FolderRole> roles,
-        bool isGlobalModeler)
+        bool isGlobalModeler,
+        DirectorySnapshot? directorySnapshot = null)
     {
         Folders = folders;
         _roles = roles;
         IsGlobalModeler = isGlobalModeler;
+        DirectorySnapshot = directorySnapshot;
     }
 
     public IReadOnlyCollection<WorkflowFolder> Folders { get; }
 
     /// <summary>Traegt die Person die Anwendungsrolle fuers Modellieren? Die gilt ueberall.</summary>
     public bool IsGlobalModeler { get; }
+
+    /// <summary>
+    /// Genau der Snapshot, mit dem Directory-Zuweisungen dieser Rechteansicht ausgewertet
+    /// wurden. Kontextgebundene Folgeschritte koennen so ohne Generationswechsel fortfahren.
+    /// </summary>
+    public DirectorySnapshot? DirectorySnapshot { get; }
 
     public FolderRole? RoleIn(Guid folderId) => _roles.TryGetValue(folderId, out var role) ? role : null;
 

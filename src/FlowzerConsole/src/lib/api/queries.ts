@@ -47,6 +47,8 @@ export const queryKeys = {
   identityDirectory: ['identityDirectory'] as const,
   directorySubjects: (definitionId: string, query: string, kind: 'user' | 'group') =>
     [...queryKeys.identityDirectory, 'workflow', definitionId, kind, query] as const,
+  folderDirectorySubjects: (folderId: string, query: string, kind: 'all' | 'user' | 'group') =>
+    [...queryKeys.identityDirectory, 'folder', folderId, kind, query] as const,
 
   folders: ['folders'] as const,
   folderList: () => [...queryKeys.folders, 'list'] as const,
@@ -211,6 +213,22 @@ export function useDirectorySubjectSearch(
   });
 }
 
+/** Ordnergebundene Suche für Delegationen; der Server prüft die Fachverantwortung erneut. */
+export function useFolderDirectorySubjectSearch(
+  folderId: string,
+  query: string,
+  kind: 'all' | 'user' | 'group',
+  enabled = true,
+) {
+  const normalizedQuery = query.trim();
+  return useQuery<DirectorySubjectSearchResultDto>({
+    queryKey: queryKeys.folderDirectorySubjects(folderId, normalizedQuery, kind),
+    queryFn: ({ signal }) => identityDirectoryApi.searchFolderSubjects(folderId, normalizedQuery, kind, signal),
+    enabled: enabled && folderId.length > 0 && normalizedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
 /** Formularfeldsuche mit serverseitig geprüftem Start-/Aufgabenkontext. */
 export function useFormDirectorySubjectSearch(
   context: FormDirectorySearchContext | undefined,
@@ -252,6 +270,43 @@ export function useDirectorySubjectResolutions(
       queryFn: ({ signal }: { signal: AbortSignal }) =>
         identityDirectoryApi.searchSubjects(definitionId, subject.id, subject.kind, signal),
       enabled: enabled && definitionId.length > 0 && subject.id.length >= 1,
+      staleTime: 30_000,
+    })),
+    combine: (results) => ({
+      data: results.flatMap((result, index) => {
+        const subject = uniqueSubjects[index];
+        if (!subject) return [];
+        return (result.data?.items ?? []).filter(
+          (item: DirectorySubjectDto) =>
+            item.subject.kind === subject.kind && item.subject.id === subject.id,
+        );
+      }),
+      isPending: results.some((result) => result.isPending),
+      isFetching: results.some((result) => result.isFetching),
+      error: results.find((result) => result.error)?.error ?? null,
+    }),
+  });
+}
+
+/** Löst gespeicherte Ordnerreferenzen einzeln auf; unbekannte IDs bleiben im Picker sichtbar. */
+export function useFolderDirectorySubjectResolutions(
+  folderId: string,
+  subjects: SubjectRefDto[],
+  enabled = true,
+) {
+  const uniqueSubjects = subjects.filter(
+    (subject, index) =>
+      subjects.findIndex(
+        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+      ) === index,
+  );
+
+  return useQueries({
+    queries: uniqueSubjects.map((subject) => ({
+      queryKey: queryKeys.folderDirectorySubjects(folderId, subject.id, subject.kind),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        identityDirectoryApi.searchFolderSubjects(folderId, subject.id, subject.kind, signal),
+      enabled: enabled && folderId.length > 0 && subject.id.length >= 1,
       staleTime: 30_000,
     })),
     combine: (results) => ({

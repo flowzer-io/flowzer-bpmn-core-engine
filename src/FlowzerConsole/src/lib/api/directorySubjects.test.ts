@@ -29,6 +29,25 @@ describe('identityDirectoryApi.searchSubjects', () => {
   });
 });
 
+// Testzweck: Ordnerdelegationen müssen den geplanten, ordnergebundenen Endpoint mit
+// URL-kodierter Ordner-ID und derselben begrenzten User-/Gruppen-Suche verwenden.
+describe('identityDirectoryApi.searchFolderSubjects', () => {
+  it('sendet Suche und Limit an den Ordnerpfad', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({ successful: true, result: { generationId: 'generation-1', items: [] } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await identityDirectoryApi.searchFolderSubjects('folder/2026', 'Anna', 'all');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      '/api/identity-directory/folders/folder%2F2026/subjects?query=Anna&kind=all&limit=20',
+    );
+    expect(init).toMatchObject({ method: 'GET', credentials: 'same-origin' });
+  });
+});
+
 // Testzweck: Start- und Aufgabenformulare müssen denselben Vertrag verwenden, aber ihren
 // eigenen gebundenen Kontext sowie den Feldschlüssel an den Server weiterreichen.
 describe('identityDirectoryApi.searchFormSubjects', () => {
