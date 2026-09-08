@@ -157,7 +157,10 @@ public class FormController(
     [ProducesResponseType(typeof(void), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ApiStatusResult>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult>> HandleUserFormData(UserTaskResultDto formMetadataDto)
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> HandleUserFormData(
+        UserTaskResultDto formMetadataDto,
+        [FromHeader(Name = WebApiEngine.Idempotency.HttpIdempotency.HeaderName)] string? _idempotencyKey = null)
     {
         try
         {

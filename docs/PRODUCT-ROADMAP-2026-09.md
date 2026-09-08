@@ -58,7 +58,12 @@ parallelen Fortschritt/Timer/Neuladen. Neue Tokens erhalten neue IDs, veraltete 
 werden entfernt. Claims/Revisionen/Entwürfe und Mehrprozessschutz folgen separat.
 Details: [Aufgabenidentität](STABLE-TASK-IDENTITY.md).
 
-Die fünf PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
+**HTTP-Idempotenz:** #186 / PR #187 bindet optionale Schlüssel an Akteur,
+Operation, Ziel und kanonischen Inhalt. PostgreSQL-Konkurrenztests belegen genau einen
+Start/Abschluss; geänderter Inhalt endet mit 409. Externe Effekte folgen separat.
+Details: [HTTP-Idempotenz](IDEMPOTENCY.md).
+
+Die sechs PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 

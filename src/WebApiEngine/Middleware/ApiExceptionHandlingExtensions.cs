@@ -4,6 +4,7 @@ using StorageSystem.Exceptions;
 using Microsoft.AspNetCore.Diagnostics;
 using WebApiEngine.Shared;
 using WebApiEngine.Forms;
+using WebApiEngine.Idempotency;
 
 namespace WebApiEngine.Middleware;
 
@@ -30,6 +31,18 @@ public static class ApiExceptionHandlingExtensions
                 }
 
                 context.Response.StatusCode = MapStatusCode(exception);
+                if (exception is IdempotencyConflictException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The idempotency key conflicts with an earlier request.",
+                        Detail = exception.Message, Type = "about:blank", Instance = context.Request.Path
+                    };
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (context.Response.StatusCode == StatusCodes.Status422UnprocessableEntity)
                 {
                     var fields = exception is FormSubmissionException form
@@ -67,7 +80,7 @@ public static class ApiExceptionHandlingExtensions
         return exception switch
         {
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
-            DefinitionStorageConflictException => StatusCodes.Status409Conflict,
+            DefinitionStorageConflictException or IdempotencyConflictException => StatusCodes.Status409Conflict,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,

@@ -171,6 +171,15 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 ## Workflow starten
 
+### Wiederholte HTTP-Aufrufe
+
+Direkte Starts und Aufgabenabschlüsse können mit `Idempotency-Key` abgesichert werden.
+Identische Wiederholungen liefern dasselbe Ergebnis; anderer Inhalt 409. Der Schlüssel
+muss bereits beim ersten Versuch gesetzt sein, ist 1–200 sichtbare ASCII-Zeichen lang
+und sieben Tage gültig. Details, PostgreSQL-Migration und Grenzen:
+[HTTP-Idempotenz](IDEMPOTENCY.md).
+
+
 `POST /definition/meta/{definitionId}/instance` startet eine Instanz. Der Rumpf ist optional:
 
 ```json

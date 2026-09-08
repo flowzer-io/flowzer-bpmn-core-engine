@@ -1,4 +1,5 @@
 using WebApiEngine.Auth;
+using WebApiEngine.Idempotency;
 
 namespace WebApiEngine.BusinessLogic;
 
@@ -13,7 +14,8 @@ public partial class BpmnBusinessLogic
         UserTaskResult result,
         CurrentUserContext currentUser,
         bool canOperateAllTasks = false,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IdempotencyRequest? idempotency = null)
     {
         var userId = currentUser.RequireResolvedUserId("completing user tasks");
         if (userId == Guid.Empty)
@@ -30,6 +32,15 @@ public partial class BpmnBusinessLogic
         try
         {
             using var storage = storageProvider.GetTransactionalStorage();
+            var acquisition = await IdempotencyExecution.Acquire(storage, idempotency);
+            if (acquisition.IsReplay) return UserTaskCompletionOutcome.Completed;
+            async Task<UserTaskCompletionOutcome> NotFound()
+            {
+                await IdempotencyExecution.Abandon(storage, acquisition);
+                return UserTaskCompletionOutcome.NotFound;
+            }
+            try
+            {
             var subscriptions = (await storage.SubscriptionStorage.GetAllUserTasks(instanceId))
                 .Where(task => task.Token?.Id == result.TokenId).ToArray();
 
@@ -37,7 +48,7 @@ public partial class BpmnBusinessLogic
             // Aufgaben dieser Instanz geladen, nicht der gesamte angereicherte Benutzerbestand.
             if (subscriptions.Length != 1)
             {
-                return UserTaskCompletionOutcome.NotFound;
+                return await NotFound();
             }
 
             var subscription = subscriptions[0];
@@ -45,14 +56,14 @@ public partial class BpmnBusinessLogic
                 || subscription.Token.State != FlowNodeState.Active
                 || !string.Equals(subscription.Token.CurrentFlowNode?.Id, result.FlowNodeId, StringComparison.Ordinal))
             {
-                return UserTaskCompletionOutcome.NotFound;
+                return await NotFound();
             }
 
             UserTaskAssignment.EnsureAssignmentFromModel(subscription);
             var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
             if (!UserTaskAssignment.IsVisibleTo(subscription, identity, canOperateAllTasks))
             {
-                return UserTaskCompletionOutcome.NotFound;
+                return await NotFound();
             }
 
             ProcessInstanceInfo processInstance;
@@ -63,7 +74,7 @@ public partial class BpmnBusinessLogic
             catch (FileNotFoundException)
             {
                 // Verwaiste Subscription und unbekannte Aufgabe haben denselben Außenvertrag.
-                return UserTaskCompletionOutcome.NotFound;
+                return await NotFound();
             }
 
             var instance = new InstanceEngine(processInstance.Tokens) { InstanceId = instanceId };
@@ -79,7 +90,7 @@ public partial class BpmnBusinessLogic
                 || processInstance.metaDefinitionId != subscription.MetaDefinitionId
                 || processInstance.ProcessId != subscription.ProcessId)
             {
-                return UserTaskCompletionOutcome.NotFound;
+                return await NotFound();
             }
 
             var validated = await ValidateFormInputAsync(storage,
@@ -87,8 +98,21 @@ public partial class BpmnBusinessLogic
                 processInstance.DefinitionId, result.Data, WebApiEngine.Forms.TaskFormContext.Read(processInstance.Tokens, activeTokens[0]));
             instance.HandleTaskResult(result.TokenId, validated, userId);
             await SaveInstance(storage, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            if (acquisition.Record is not null)
+                await storage.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, null);
             storage.CommitChanges();
             return UserTaskCompletionOutcome.Completed;
+            }
+            catch
+            {
+                try { await IdempotencyExecution.Abandon(storage, acquisition); }
+                catch (Exception cleanupError)
+                {
+                    (logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<BpmnBusinessLogic>.Instance)
+                        .LogWarning(cleanupError, "Could not remove failed idempotency reservation {ScopeHash}.", acquisition.Record?.ScopeHash);
+                }
+                throw;
+            }
         }
         finally
         {

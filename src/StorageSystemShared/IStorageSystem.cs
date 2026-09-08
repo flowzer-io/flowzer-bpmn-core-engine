@@ -22,4 +22,7 @@ public interface IStorageSystem
 
     /// <summary>Auftraege fuer externe Worker und deren Webhook-Anmeldungen.</summary>
     IServiceTaskStorage ServiceTaskStorage { get; }
+
+    /// <summary>Persistente Wiederholungsverträge für direkte HTTP-Mutationen.</summary>
+    IIdempotencyStorage IdempotencyStorage => UnsupportedIdempotencyStorage.Instance;
 }

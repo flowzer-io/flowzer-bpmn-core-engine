@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Fünf aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Sechs aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
 umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
 kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
@@ -14,14 +14,15 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Formularstände | Deployment bindet konkrete Formular-Snapshots. Spätere Fassungen oder Umbenennungen ändern laufende und später aktivierte Aufgaben nicht. | [#181](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/181) |
 | Formularprüfung | Begrenztes serverseitiges Prüfprofil für Pflichtfelder, Typen, Bereiche, statische Auswahl, Sichtbarkeit und Datumsvergleich. Read-only-Schutz und Feldfehler ohne Eingabeverlust. Zwei Beispielskripte durch deklarative/benannte Serverregeln ersetzt. | [#183](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/183) |
 | Aufgabenidentität | Bestehende Task-IDs/Zuweisungen bleiben über parallelen Fortschritt, Timer und Neuladen erhalten. Nur neue Tokens bekommen neue IDs; erledigte Aufgaben werden gezielt entfernt. | [#185](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/185) |
+| HTTP-Idempotenz | Direkte Starts und beide Abschlussrouten erhalten akteurs-/ressourcengebundene, persistente Wiederholungen; Inhaltswechsel liefert 409. | [#187](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/187) |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftragt.
 
 ## Nachweise
 
-- Abschließende lokale .NET-Suite: **100 Engine + 442 API-/Storage-Tests bestanden**,
+- Abschließende lokale .NET-Suite: **100 Engine + 454 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
 - React-Konsole auf dem Formular-Slice: **207 Tests**, Typecheck und Build erfolgreich;
@@ -34,8 +35,11 @@ slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftra
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
   `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
   Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
-- Externe Reviews wurden nach Christians ausdrücklicher Ausnahme ausgesetzt.
-  Tests, Selbstprüfung, CI und Dokumentation wurden nicht ausgesetzt.
+- Für den neuen Idempotenz-Slice wurde der verlangte Astra-/High-Review über den
+  zentralen Wrapper gestartet. Der Wrapper lehnte vor Providerstart fail-closed ab,
+  weil seine Codex-Allowlist Astra noch nicht kennt. Das ist **kein Review-Ergebnis**;
+  der Slice bleibt deshalb lokal und PR #187 im Entwurf. Frühere Reviews waren nach
+  Christians damaliger Ausnahme ausgesetzt.
 
 ## Bewahrte Produktentscheidungen
 
@@ -70,8 +74,8 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
 
 ## Nächste Umsetzungsschritte
 
-1. **M0 schließen:** BFF mit HttpOnly-/Secure-Cookies und CSRF; persistente Idempotenz
-   für Starts/Abschlüsse samt Inhaltskonflikten. Aktuelle Rechtebasis beibehalten.
+1. **M0 weiter schließen:** BFF mit HttpOnly-/Secure-Cookies und CSRF. Idempotenz
+   später auf explizite Worker-/Connector-Außenwirkungen ausdehnen.
 2. **M1/M2:** Read-only-Keycloak-Verzeichnis mit atomarer Sync-Generation, Pagination,
    Fehler-/Deaktivierungsschutz und stabilen Referenzen. Auswahlkomponente für
    Formulare, Tasks und Ordner – inklusive des ausdrücklich separaten Textmodus.

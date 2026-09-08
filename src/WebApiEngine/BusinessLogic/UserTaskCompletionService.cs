@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using WebApiEngine.Auth;
+using WebApiEngine.Idempotency;
 
 namespace WebApiEngine.BusinessLogic;
 
@@ -22,8 +23,12 @@ public sealed class UserTaskCompletionService(
         var httpContext = httpContextAccessor.HttpContext
             ?? throw new UnauthorizedAccessException("A request context is required for completing user tasks.");
         var canOperate = (await authorizationService.AuthorizeAsync(httpContext.User, FlowzerPolicies.Operator)).Succeeded;
+        var target = $"{result.ProcessInstanceId:D}/{result.TokenId:D}";
+        var idempotency = HttpIdempotency.Create(httpContext.Request, currentUser,
+            "user-task-completion", target, result);
 
-        return await businessLogic.CompleteUserTaskAsync(result, currentUser, canOperate, httpContext.RequestAborted);
+        return await businessLogic.CompleteUserTaskAsync(result, currentUser, canOperate,
+            httpContext.RequestAborted, idempotency);
     }
 }
 

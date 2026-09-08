@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
+using WebApiEngine.Idempotency;
 using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
@@ -536,7 +537,8 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         string relatedDefinitionId,
         Variables? variables = null,
         string? processId = null,
-        AuthenticatedSubject? initiator = null)
+        AuthenticatedSubject? initiator = null,
+        IdempotencyRequest? idempotency = null)
     {
         await _engineMutationLock.WaitAsync();
         try
@@ -544,8 +546,17 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
-            var (deployedDefinition, process) =
-                await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+            var acquisition = await IdempotencyExecution.Acquire(storageSystem, idempotency);
+            if (acquisition.IsReplay)
+            {
+                var replayId = acquisition.Record?.ProcessInstanceId
+                    ?? throw new IdempotencyConflictException("The stored start result is incomplete.");
+                return await storageSystem.InstanceStorage.GetProcessInstance(replayId);
+            }
+            try
+            {
+                var (deployedDefinition, process) =
+                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
 
             // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
             // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
@@ -577,10 +588,22 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                 process.Id,
                 instance.InstanceId);
             await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+            if (acquisition.Record is not null)
+                await storageSystem.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, processInstanceInfo.InstanceId);
 
             storageSystem.CommitChanges();
-
             return processInstanceInfo;
+            }
+            catch
+            {
+                try { await IdempotencyExecution.Abandon(storageSystem, acquisition); }
+                catch (Exception cleanupError)
+                {
+                    (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(cleanupError,
+                        "Could not remove failed idempotency reservation {ScopeHash}.", acquisition.Record?.ScopeHash);
+                }
+                throw;
+            }
         }
         finally
         {

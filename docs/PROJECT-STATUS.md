@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183 und #185.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187.
 
 ## Einordnung
 
@@ -78,10 +78,18 @@ Regressionen prüfen Dateiablage und PostgreSQL einschließlich neuer Engine nac
 Persistierung. Mehrdeutige Bestände werden nicht automatisch zusammengeführt.
 Details und Grenzen: [Aufgabenidentität](STABLE-TASK-IDENTITY.md).
 
+## Persistente HTTP-Idempotenz – PR #187 (aufbauend auf #185)
+
+Direkte Starts sowie beide Abschlussrouten akzeptieren einen an Operation, Ressource
+und `(Issuer, Subject)` gebundenen `Idempotency-Key`. Identische Wiederholungen liefern
+dieselbe Instanz beziehungsweise Erfolg; anderer Inhalt endet mit 409. PostgreSQL
+reserviert den Hash atomar in derselben Transaktion. Details, Sieben-Tage-Aufbewahrung
+und Datei-/Integrationsgrenzen: [HTTP-Idempotenz](IDEMPOTENCY.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
-1. **M0:** BFF
-   mit CSRF-Schutz und persistente Idempotenz. Rollen ausdrücklich konfigurieren;
+1. **M0:** BFF mit HttpOnly-Cookies und CSRF-Schutz. Idempotenz externer
+   Worker-/Connector-Effekte bleibt in den jeweiligen späteren Paketen. Rollen ausdrücklich konfigurieren;
    leere Fähigkeitsrollen bleiben im vorhandenen Vertrag permissiv.
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
    unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen

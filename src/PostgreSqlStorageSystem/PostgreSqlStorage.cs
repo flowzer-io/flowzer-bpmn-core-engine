@@ -20,6 +20,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
+        IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -28,6 +29,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
+    public IIdempotencyStorage IdempotencyStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -49,6 +51,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
+        IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -57,6 +60,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
+    public IIdempotencyStorage IdempotencyStorage { get; }
 
     public void CommitChanges() => _session.Commit();
 

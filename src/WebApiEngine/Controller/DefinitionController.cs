@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
+using WebApiEngine.Idempotency;
 
 namespace WebApiEngine.Controller;
 
@@ -97,19 +98,23 @@ public class DefinitionController(
     [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance(
         [FromRoute] string id,
-        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body,
+        [FromHeader(Name = HttpIdempotency.HeaderName)] string? _idempotencyKey = null)
     {
         try
         {
             var (currentUser, canInspect) = await instanceAccess.GetPermissionsAsync();
+            var idempotency = HttpIdempotency.Create(Request, currentUser,
+                "workflow-start", id, body?.Variables);
             var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables,
-                initiator: currentUser.Identity);
+                initiator: currentUser.Identity, idempotency: idempotency);
             var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
-        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException or IdempotencyConflictException)
         {
             throw;
         }

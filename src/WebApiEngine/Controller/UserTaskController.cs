@@ -98,7 +98,10 @@ public class UserTaskController(
     [ProducesResponseType(typeof(void), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType<ApiStatusResult>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult([FromBody] UserTaskResultDto messageDto)
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult(
+        [FromBody] UserTaskResultDto messageDto,
+        [FromHeader(Name = WebApiEngine.Idempotency.HttpIdempotency.HeaderName)] string? _idempotencyKey = null)
     {
         var outcome = await completionService.CompleteAsync(messageDto.ToModel());
         return outcome == UserTaskCompletionOutcome.Completed
