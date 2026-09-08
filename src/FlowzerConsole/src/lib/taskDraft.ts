@@ -227,6 +227,8 @@ export interface TaskDraftEditor {
 export function useTaskDraftEditor(
   taskId: string | undefined,
   fallbackData: ProcessVariables | null | undefined,
+  taskRevision?: number,
+  enabled = true,
 ): TaskDraftEditor {
   // Der Task-Refetch liefert häufig neue Objektinstanzen. Der Fallback darf deshalb
   // nur bei einer echten Task-ID-Änderung neu eingefangen werden.
@@ -244,7 +246,7 @@ export function useTaskDraftEditor(
     taskDraftReducer,
     createTaskDraftState(taskId ?? '', fallbackData ?? {}),
   );
-  const draftQuery = useUserTaskDraft(taskId);
+  const draftQuery = useUserTaskDraft(taskId, enabled);
   const saveMutation = useSaveUserTaskDraft();
   const discardMutation = useDeleteUserTaskDraft();
   const stateRef = useRef(state);
@@ -274,7 +276,10 @@ export function useTaskDraftEditor(
     const data = cloneProcessVariables(current.currentData);
     dispatch({ type: 'saveStarted' });
     saveMutation.mutate(
-      { userTaskId: taskId, draft: { expectedRevision: current.revision, data } },
+      {
+        userTaskId: taskId,
+        draft: { expectedRevision: current.revision, expectedTaskRevision: taskRevision, data },
+      },
       {
         onSuccess: (saved) => dispatch({ type: 'saveSucceeded', taskId, draft: saved }),
         onError: (error) =>
@@ -286,13 +291,13 @@ export function useTaskDraftEditor(
           }),
       },
     );
-  }, [saveMutation, taskId]);
+  }, [saveMutation, taskId, taskRevision]);
 
   const discard = useCallback(() => {
     const current = stateRef.current;
     if (!taskId || discardMutation.isPending) return;
     discardMutation.mutate(
-      { userTaskId: taskId, expectedRevision: current.revision },
+      { userTaskId: taskId, expectedRevision: current.revision, expectedTaskRevision: taskRevision },
       {
         onSuccess: () => dispatch({ type: 'discardSucceeded', taskId }),
         onError: (error) => dispatch({
@@ -303,7 +308,7 @@ export function useTaskDraftEditor(
         }),
       },
     );
-  }, [discardMutation, taskId]);
+  }, [discardMutation, taskId, taskRevision]);
 
   const adoptServerDraft = useCallback(async () => {
     if (!taskId) return;

@@ -13,8 +13,8 @@ Die stabile `UserTaskSubscription.Id` adressiert Aufgabe und Entwurf:
 | Methode | Pfad | Bedeutung |
 | --- | --- | --- |
 | `GET` | `/usertask/{taskId}/draft` | Eigener Entwurf; Revision `0` und `{}` bedeuten „noch nicht gespeichert“ |
-| `PUT` | `/usertask/{taskId}/draft` | Vollständigen Stand mit `expectedRevision` speichern |
-| `DELETE` | `/usertask/{taskId}/draft?expectedRevision=…` | Eigenen Stand bei passender Revision verwerfen |
+| `PUT` | `/usertask/{taskId}/draft` | Vollständigen Stand mit `expectedRevision` und optionaler `expectedTaskRevision` speichern |
+| `DELETE` | `/usertask/{taskId}/draft?expectedRevision=…&expectedTaskRevision=…` | Eigenen Stand bei passender Revision verwerfen |
 
 Ein erfolgreicher Schreibzugriff erhöht die Revision monoton. Hat ein anderer Tab
 zwischenzeitlich gespeichert oder gelöscht, antwortet die API mit `409
@@ -61,5 +61,6 @@ eine Mehrprozessfreigabe.
 ## Bewusste Grenzen
 
 Dieser Slice enthält keine gemeinsamen Entwürfe, automatische Speicherung, Anhänge,
-Kommentare, Claim-/Release-/Delegation oder Entwurfshistorie. Das spätere Headless-SDK
+Kommentare oder Entwurfshistorie. Claim, Release, Zuweisung und Delegation folgen in #204
+und binden Schreibzugriffe optional an `expectedTaskRevision`. Das spätere Headless-SDK
 verwendet denselben HTTP-Vertrag; TickyTask erhält keinen direkten Datenbankzugriff.

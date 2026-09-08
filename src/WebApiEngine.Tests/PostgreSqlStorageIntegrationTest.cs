@@ -66,7 +66,9 @@ public partial class PostgreSqlStorageIntegrationTest
         command.CommandText = string.Join(";", new[]
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
-            "message_subscriptions", "signal_subscriptions", "user_task_drafts", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
+            "message_subscriptions", "signal_subscriptions", "user_task_drafts",
+            "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
+            "timer_subscriptions", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
             "workflow_folders", "idempotency_records", "identity_directory_state"
@@ -268,13 +270,23 @@ public partial class PostgreSqlStorageIntegrationTest
         var token = instance.Tokens.Single(candidate => candidate.CurrentFlowNode is UserTask);
         await storage.SubscriptionStorage.AddUserTaskSubscription(new UserTaskSubscription
         {
-            Id = Guid.NewGuid(), Name = "Review", Token = token, ProcessInstanceId = instance.InstanceId,
-            MetaDefinitionId = "catalog-2", DefinitionId = definition.Id, ProcessId = "Process_1"
+            Id = Guid.NewGuid(),
+            Name = "Review",
+            Token = token,
+            ProcessInstanceId = instance.InstanceId,
+            MetaDefinitionId = "catalog-2",
+            DefinitionId = definition.Id,
+            ProcessId = "Process_1"
         });
         await storage.SubscriptionStorage.AddUserTaskSubscription(new UserTaskSubscription
         {
-            Id = Guid.NewGuid(), Name = "Orphan", Token = token, ProcessInstanceId = Guid.NewGuid(),
-            MetaDefinitionId = "missing-catalog", DefinitionId = Guid.NewGuid(), ProcessId = "Process_1"
+            Id = Guid.NewGuid(),
+            Name = "Orphan",
+            Token = token,
+            ProcessInstanceId = Guid.NewGuid(),
+            MetaDefinitionId = "missing-catalog",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1"
         });
 
         var extended = (await storage.SubscriptionStorage.GetAllUserTasksExtended(Guid.NewGuid())).ToList();
@@ -423,9 +435,17 @@ public partial class PostgreSqlStorageIntegrationTest
         var task = new Token { ProcessInstanceId = instanceId, ParentTokenId = master.Id, CurrentBaseElement = userTask, ActiveBoundaryEvents = [], State = finished ? FlowNodeState.Completed : FlowNodeState.Active };
         return new ProcessInstanceInfo
         {
-            InstanceId = instanceId, metaDefinitionId = "catalog-1", DefinitionId = Guid.NewGuid(), ProcessId = "Process_1",
-            Tokens = [master, task], IsFinished = finished, State = finished ? ProcessInstanceState.Completed : ProcessInstanceState.Waiting,
-            MessageSubscriptionCount = 0, SignalSubscriptionCount = 0, UserTaskSubscriptionCount = finished ? 0 : 1, ServiceSubscriptionCount = 0
+            InstanceId = instanceId,
+            metaDefinitionId = "catalog-1",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            Tokens = [master, task],
+            IsFinished = finished,
+            State = finished ? ProcessInstanceState.Completed : ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = finished ? 0 : 1,
+            ServiceSubscriptionCount = 0
         };
     }
 

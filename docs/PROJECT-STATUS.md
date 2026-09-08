@@ -144,6 +144,17 @@ entfernt die Entwürfe der Aufgabe. PostgreSQL sichert Compare-and-swap und Lebe
 atomar, die Entwicklungs-Dateiablage nur pro API-Prozess. Details:
 [Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
 
+## Human-Task-Lifecycle – #204 (noch nicht gemergt)
+
+Aufgaben können revisionssicher übernommen, freigegeben, als Operator zugewiesen und an
+einen aktiven Directory-Kandidaten delegiert werden. Nach einer Übernahme gelten Liste,
+Formular, Entwurf, Abschluss und Instanzübersicht nur noch für den tatsächlichen Bearbeiter
+oder den Betrieb. Gruppen bleiben Kandidatenmengen; tatsächliche Ziele sind Benutzer. Ein
+Task-gebundener Suchendpunkt liefert je Aktion ausschließlich zulässige aktive Ziele.
+PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Auditspur nach
+dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -158,8 +169,9 @@ atomar, die Entwicklungs-Dateiablage nur pro API-Prozess. Details:
    Formularpflege-Trennung von Entwurf/Vorschau/Veröffentlichung fehlen weiterhin. Legacy-Namen
    und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
    historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
-   Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation und private Entwürfe liegen als
+   gestapelte Slices vor. SDK und TickyTask-Einbettung, Fristen/Benachrichtigungen,
+   Modellvalidierung und vollständige Vorgangshistorie folgen. Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.

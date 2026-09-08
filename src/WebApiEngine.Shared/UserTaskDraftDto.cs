@@ -21,6 +21,8 @@ public sealed class UserTaskDraftDto
 public sealed class SaveUserTaskDraftRequestDto
 {
     public required long ExpectedRevision { get; init; }
+    /// <summary>Optionaler Lifecycle-Stand, gegen den der Entwurf geöffnet wurde.</summary>
+    public long? ExpectedTaskRevision { get; init; }
 
     [JsonConverter(typeof(ExpandoObjectConverter))]
     public ExpandoObject? Data { get; init; }

@@ -13,11 +13,11 @@ public interface IStorageSystem
 
     /// <summary>Ordner des Workflow-Katalogs samt der Zuweisungen, die an ihnen haengen.</summary>
     IFolderStorage FolderStorage { get; }
-    
+
     IMessageSubscriptionStorage SubscriptionStorage { get; }
-    
+
     IInstanceStorage InstanceStorage { get; }
-    
+
     IFormStorage FormStorage { get; }
 
     /// <summary>Auftraege fuer externe Worker und deren Webhook-Anmeldungen.</summary>
@@ -31,4 +31,7 @@ public interface IStorageSystem
 
     /// <summary>Private, revisionsgeschuetzte Bearbeitungsstaende offener User-Tasks.</summary>
     IUserTaskDraftStorage UserTaskDraftStorage => UnsupportedUserTaskDraftStorage.Instance;
+
+    /// <summary>Tatsächliche Human-Task-Bearbeiter, Revisionen und Audit-Ereignisse.</summary>
+    IUserTaskLifecycleStorage UserTaskLifecycleStorage => UnsupportedUserTaskLifecycleStorage.Instance;
 }

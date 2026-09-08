@@ -19,6 +19,10 @@ import type {
   UserTaskResultDto,
   UserTaskDraftDto,
   UserTaskDraftRequest,
+  UserTaskClaimRequest,
+  UserTaskReleaseRequest,
+  UserTaskTransferRequest,
+  UserTaskWorkStateDto,
   VersionDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -150,6 +154,18 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
+  /** Aktive Benutzer, die für genau diese Laufzeitaktion als Ziel zulässig sind. */
+  searchTaskAssignees: (
+    userTaskId: string,
+    query: string,
+    action: 'assign' | 'delegate',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/user-tasks/${encodeURIComponent(userTaskId)}/assignees`,
+      { query: { query, action, limit: 20 }, signal },
+    ),
+
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
     context: FormDirectorySearchContext,
@@ -253,10 +269,38 @@ export const userTasksApi = {
     }),
 
   /** `DELETE /usertask/{id}/draft?expectedRevision=…` — verwirft den Entwurf. */
-  deleteDraft: (userTaskId: string, expectedRevision: number) =>
+  deleteDraft: (userTaskId: string, expectedRevision: number, expectedTaskRevision?: number) =>
     requestStatus(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
       method: 'DELETE',
-      query: { expectedRevision },
+      query: { expectedRevision, expectedTaskRevision },
+    }),
+
+  /** Übernimmt eine freie Kandidatenaufgabe für die authentifizierte Person. */
+  claim: (userTaskId: string, command: UserTaskClaimRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/claim`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Gibt die eigene Übernahme mit protokolliertem Grund zurück in den Kandidatenpool. */
+  release: (userTaskId: string, command: UserTaskReleaseRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/release`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Administrative Zuweisung an einen aktiven Directory-Benutzer. */
+  assign: (userTaskId: string, command: UserTaskTransferRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/assign`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Berechtigte Übergabe an einen aktiven Directory-Kandidaten. */
+  delegate: (userTaskId: string, command: UserTaskTransferRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/delegate`, {
+      method: 'POST',
+      body: command,
     }),
 
   /** `POST /usertask` — schließt eine Aufgabe mit Ergebnisdaten ab. */

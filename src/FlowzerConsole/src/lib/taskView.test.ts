@@ -28,6 +28,18 @@ function task(overrides: Partial<ExtendedUserTaskSubscriptionDto> = {}): Extende
     definitionMetaName: overrides.definitionMetaName ?? 'Rechnungsfreigabe',
     definitionVersion: { major: 1, minor: 0 },
     ...overrides,
+    workState: overrides.workState ?? {
+      revision: 0,
+      claimed: false,
+      actualAssignee: null,
+      actualAssigneeDisplayName: null,
+      isAssignedToCurrentUser: false,
+      canWork: false,
+      canClaim: true,
+      canRelease: false,
+      canAssign: false,
+      canDelegate: false,
+    },
   };
 }
 

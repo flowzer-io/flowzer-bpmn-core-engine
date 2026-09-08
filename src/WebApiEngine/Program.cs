@@ -42,6 +42,7 @@ builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddScoped<UserTaskCompletionService>();
 builder.Services.AddScoped<UserTaskDraftService>();
+builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();

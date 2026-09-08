@@ -7,6 +7,7 @@ import {
   useFolderDirectorySubjectSearch,
   useFormDirectorySubjectResolutions,
   useFormDirectorySubjectSearch,
+  useTaskAssigneeSearch,
 } from '@/lib/api/queries';
 import type {
   DirectorySubjectDto,
@@ -37,6 +38,8 @@ export interface DirectorySubjectPickerProps {
   directoryContext?: FormDirectorySearchContext;
   /** Technischer Form.io-Key, der serverseitig in die Policy-Prüfung einfließt. */
   fieldKey?: string;
+  /** Laufzeitgebundene Auswahl eines tatsächlichen Bearbeiters. */
+  taskAssignee?: { taskId: string; action: 'assign' | 'delegate' };
   disabledReason?: string;
   selected: DirectorySubjectSelection[];
   multiple: boolean;
@@ -238,10 +241,39 @@ export function DirectorySubjectPicker(props: DirectorySubjectPickerProps) {
   if (props.folderId) {
     return <FolderDirectorySubjectPicker {...props} />;
   }
+  if (props.taskAssignee) {
+    return <TaskAssigneeDirectorySubjectPicker {...props} />;
+  }
   if (props.directoryContext && props.fieldKey) {
     return <FormDirectorySubjectPicker {...props} />;
   }
   return <WorkflowDirectorySubjectPicker {...props} />;
+}
+
+function TaskAssigneeDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+  const context = props.taskAssignee!;
+  const search = useTaskAssigneeSearch(
+    context.taskId,
+    context.action,
+    debouncedQuery,
+    !props.disabled && debouncedQuery.length >= 2,
+  );
+  // Ein Laufzeitziel entsteht immer aus der aktuellen Suche. Der tatsächliche
+  // gespeicherte Bearbeiter wird bereits mit seiner Anzeigeprojektion im Task geliefert.
+  const resolution: ResolutionState = {
+    data: [],
+    isPending: false,
+    isFetching: false,
+    error: null,
+  };
+  return <DirectorySubjectPickerView {...props} search={search} resolution={resolution}
+    query={query} setQuery={setQuery} debouncedQuery={debouncedQuery} />;
 }
 
 function FolderDirectorySubjectPicker(props: DirectorySubjectPickerProps) {

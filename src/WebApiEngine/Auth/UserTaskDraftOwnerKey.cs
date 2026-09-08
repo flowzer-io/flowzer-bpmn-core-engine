@@ -18,4 +18,10 @@ public static class UserTaskDraftOwnerKey
             : $"local\0{currentUser.Source}\0{currentUser.UserId:D}";
         return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
     }
+
+    /// <summary>Erzeugt denselben stabilen Schlüssel für einen serverseitig aufgelösten Directory-Benutzer.</summary>
+    public static string Create(Model.AuthenticatedSubject identity) => Hash($"oidc\0{identity.Issuer}\0{identity.Subject}");
+
+    private static string Hash(string material) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(material)));
 }

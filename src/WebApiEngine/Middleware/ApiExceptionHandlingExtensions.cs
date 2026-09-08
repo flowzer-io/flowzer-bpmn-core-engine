@@ -64,6 +64,24 @@ public static class ApiExceptionHandlingExtensions
                         problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is UserTaskLifecycleConflictException lifecycleConflict)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The user-task assignment has changed.",
+                        Detail = lifecycleConflict.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "user_task.revision_conflict";
+                    problem.Extensions["expectedRevision"] = lifecycleConflict.ExpectedRevision;
+                    problem.Extensions["currentRevision"] = lifecycleConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (exception is UserTaskDraftPayloadTooLargeException)
                 {
                     var problem = new ApiProblemDetails
@@ -119,7 +137,8 @@ public static class ApiExceptionHandlingExtensions
         return exception switch
         {
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
-            DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException => StatusCodes.Status409Conflict,
+            DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
+                or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,

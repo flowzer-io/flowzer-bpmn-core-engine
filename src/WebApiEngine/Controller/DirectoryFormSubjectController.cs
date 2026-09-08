@@ -21,6 +21,63 @@ public sealed class DirectoryFormSubjectController(
     IAuthorizationService authorization,
     ICurrentUserContextAccessor currentUserAccessor) : ControllerBase
 {
+    [HttpGet("user-tasks/{taskId:guid}/assignees")]
+    [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<DirectorySubjectSearchResultDto>>> SearchTaskAssignees(
+        Guid taskId,
+        [FromQuery] string action,
+        [FromQuery] string? query,
+        [FromQuery] int limit = 20)
+    {
+        if (action is not ("assign" or "delegate"))
+            return InvalidSearch("The action must be assign or delegate.");
+        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length is < 2 or > 100)
+            return InvalidSearch("The query must contain between 2 and 100 non-whitespace characters.");
+        if (limit is < 1 or > 50) return InvalidSearch("The limit must be between 1 and 50.");
+
+        var currentUser = currentUserAccessor.GetCurrentUser();
+        currentUser.RequireResolvedUserId("searching user-task assignees");
+        var task = await storage.SubscriptionStorage.GetUserTaskExtended(taskId);
+        if (task is null) return HiddenNotFound();
+        var canOperate = (await authorization.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
+        DirectorySnapshot? snapshot;
+        try { snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
+        catch (NotSupportedException) { snapshot = null; }
+        if (snapshot is null)
+            return Problem(statusCode: StatusCodes.Status503ServiceUnavailable,
+                title: "Identity directory unavailable",
+                detail: "No successfully synchronized identity-directory snapshot is available.");
+
+        var access = await UserTaskWorkAuthorization.EvaluateAsync(storage, task, currentUser, canOperate, snapshot);
+        if (action == "assign" ? !access.CanAssign : !access.CanDelegate) return HiddenNotFound();
+
+        var normalizedQuery = query.Trim();
+        var users = snapshot.Users
+            .Where(user => user.IsActive
+                           && (user.DisplayName.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)
+                               || user.Subject.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase)))
+            .Where(user => action == "assign"
+                           || IsCandidate(task, user, snapshot))
+            .OrderBy(user => user.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(user => user.Subject, StringComparer.Ordinal)
+            .Take(limit)
+            .Select(user => new DirectorySubjectDto
+            {
+                Subject = new SubjectRefDto { Kind = "user", Id = user.Id },
+                DisplayName = user.DisplayName,
+                Detail = user.Subject
+            })
+            .ToList();
+        return Ok(new ApiStatusResult<DirectorySubjectSearchResultDto>(new DirectorySubjectSearchResultDto
+        {
+            GenerationId = snapshot.GenerationId,
+            Items = users
+        }));
+    }
+
     [HttpGet("start-forms/{definitionId}/fields/{fieldKey}/subjects")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
@@ -67,12 +124,13 @@ public sealed class DirectoryFormSubjectController(
         var task = await storage.SubscriptionStorage.GetUserTaskExtended(taskId);
         if (task is null) return HiddenNotFound();
 
-        UserTaskAssignment.EnsureAssignmentFromModel(task);
         var canOperate = (await authorization.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
         StorageSystem.DirectorySnapshot? snapshot;
         try { snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
         catch (NotSupportedException) { snapshot = null; }
-        if (!UserTaskAssignment.IsVisibleTo(task, currentUser, snapshot, canOperate))
+        var access = await UserTaskWorkAuthorization.EvaluateAsync(
+            storage, task, currentUser, canOperate, snapshot);
+        if (!access.CanWork)
             return HiddenNotFound();
 
         FormKeyResolver.Result resolved;
@@ -155,6 +213,15 @@ public sealed class DirectoryFormSubjectController(
             _ => (DirectorySubjectSearchKind)(-1)
         };
         return Enum.IsDefined(kind);
+    }
+
+    private static bool IsCandidate(UserTaskSubscription task, DirectoryUser user, DirectorySnapshot snapshot)
+    {
+        var candidate = new CurrentUserContext(Guid.Empty, "directory", IsFallback: false)
+        {
+            Identity = new Model.AuthenticatedSubject(user.Issuer, user.Subject)
+        };
+        return UserTaskAssignment.IsVisibleTo(task, candidate, snapshot, seeAll: false);
     }
 
     private static DirectorySubjectDto ToDto(DirectorySubjectResult item) => new()

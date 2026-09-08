@@ -8,10 +8,14 @@ namespace WebApiEngine.BusinessLogic;
 public sealed class UserTaskViewService(FormKeyResolver forms, IStorageSystem storage)
 {
     private readonly Dictionary<Guid, ProcessInstanceInfo?> _instances = [];
-    public async Task<ExtendedUserTaskSubscriptionDto> ProjectAsync(ExtendedUserTaskSubscription task, bool canInspect)
+    public async Task<ExtendedUserTaskSubscriptionDto> ProjectAsync(
+        ExtendedUserTaskSubscription task,
+        bool canInspect,
+        WebApiEngine.Auth.UserTaskAccess? access = null)
     {
         // Ohne Betriebsrecht nicht erst den Modellgraphen serialisieren und danach wegwerfen.
         var dto = task.ToDto(includeTokenContext: canInspect);
+        if (access is not null) dto.WorkState = WebApiEngine.Auth.UserTaskWorkAuthorization.ToDto(access);
         var form = await forms.ResolveAsync(dto.FormKey, task.DefinitionId);
         // Auch Operator-Formulare dürfen keine unsichtbaren Zusatzvariablen zurücksenden.
         // Vollständige Diagnose bleibt über die separat berechtigte Instanz-API erreichbar.

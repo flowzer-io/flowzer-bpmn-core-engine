@@ -234,13 +234,45 @@ export interface UserTaskDraftDto {
 /** Vollständiger Schreibkörper für einen Aufgabenentwurf. */
 export interface UserTaskDraftRequest {
   expectedRevision: number;
+  /** Bindet den privaten Stand zusätzlich an die aktuelle Übernahmegeneration. */
+  expectedTaskRevision?: number;
   data: ProcessVariables;
 }
 
-/** Entspricht `UserTaskSubscriptionDto`. */
+/** Stabile Benutzer- oder Gruppenreferenz aus dem veröffentlichten Verzeichnis. */
 export interface SubjectRefDto {
   kind: 'user' | 'group';
   id: string;
+}
+
+/** Laufzeitzuweisung einer offenen Aufgabe, getrennt von der BPMN-Modellzuweisung. */
+export interface UserTaskWorkStateDto {
+  /** Eigene monotone Revision des Task-Lebenszyklus, nicht die Draft-Revision. */
+  revision: number;
+  claimed: boolean;
+  /** Tatsächlicher Bearbeiter, sofern er eine bekannte Directory-Identität ist. */
+  actualAssignee: SubjectRefDto | null;
+  actualAssigneeDisplayName: string | null;
+  isAssignedToCurrentUser: boolean;
+  /** Gemeinsame serverseitige Entscheidung für Formular, Draft und Abschluss. */
+  canWork: boolean;
+  canClaim: boolean;
+  canRelease: boolean;
+  canAssign: boolean;
+  canDelegate: boolean;
+}
+
+export interface UserTaskClaimRequest {
+  expectedRevision: number;
+}
+
+export interface UserTaskReleaseRequest extends UserTaskClaimRequest {
+  reason: string;
+}
+
+export interface UserTaskTransferRequest extends UserTaskReleaseRequest {
+  /** Die Console bietet bewusst nur aktive, serverseitig erlaubte Benutzer an. */
+  assignee: SubjectRefDto;
 }
 
 /** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
@@ -277,6 +309,8 @@ export interface UserTaskSubscriptionDto {
   directoryAssignee?: SubjectRefDto | null;
   directoryCandidateUsers: SubjectRefDto[];
   directoryCandidateGroups: SubjectRefDto[];
+  /** Additiver, revisionssicherer Laufzeitvertrag für Claim und Übergaben. */
+  workState: UserTaskWorkStateDto;
   processInstanceId?: string | null;
   definitionId: string;
   processId: string;
@@ -347,6 +381,8 @@ export interface UserTaskResultDto {
   flowNodeId: string;
   tokenId: string;
   processInstanceId?: string | null;
+  /** Additiv: ältere API-Nutzer dürfen das Feld während der Migration noch auslassen. */
+  expectedTaskRevision?: number;
   data?: ProcessVariables | null;
 }
 

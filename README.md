@@ -172,6 +172,7 @@ gebundenen Formulars. Rechte, Lebenszyklus, API und Betriebsgrenzen stehen in
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [src/FlowzerConsole/README.md](src/FlowzerConsole/README.md) – Oberfläche: Konfiguration, lokale Starts, Aufbau
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot

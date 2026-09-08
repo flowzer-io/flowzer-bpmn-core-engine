@@ -27,6 +27,28 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
     private readonly SemaphoreSlim _engineMutationLock = new(1, 1);
 
     /// <summary>
+    /// Führt eine mit Engine-Abschluss und Timerläufen serialisierte Nebenmutation aus.
+    /// PostgreSQL-Adapter ergänzen dies durch Datenbanklocks für mehrere API-Prozesse.
+    /// </summary>
+    internal async Task<T> ExecuteUserTaskMutationAsync<T>(
+        Func<ITransactionalStorage, Task<T>> mutation,
+        CancellationToken cancellationToken = default)
+    {
+        await _engineMutationLock.WaitAsync(cancellationToken);
+        try
+        {
+            using var storage = storageProvider.GetTransactionalStorage();
+            var result = await mutation(storage);
+            storage.CommitChanges();
+            return result;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Stellt die persistierten Timer wieder her und holt ueberfaellige Faelligkeiten nach.
     /// Wird beim Hochlauf vom <see cref="Background.EngineStartupService"/> aufgerufen.
     /// </summary>
@@ -45,17 +67,17 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         cancellationToken.ThrowIfCancellationRequested();
         await HandleTime(DateTime.UtcNow);
     }
-    
+
     public async Task DeployDefinition(BpmnDefinition definition)
     {
         await _engineMutationLock.WaitAsync();
         try
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
-        
-        
+
+
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
-            var model =  ModelParser.ParseModel(xmlData);
+            var model = ModelParser.ParseModel(xmlData);
             var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
             DirectorySnapshot? directorySnapshot = null;
             if (userTasks.Any(task => task.FlowzerAssignmentMode == UserTaskAssignmentMode.Directory))
@@ -94,7 +116,7 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             FormKeyResolver.ValidateBindings(definition.FormBindings, directorySnapshot);
 
             await UndeployDefinition(definition, storageSystem);
-        
+
             foreach (var process in model.GetProcesses())
             {
                 var pe = new ProcessEngine(process);
@@ -112,9 +134,9 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             definition.IsActive = true;
             definition.DeployedOn = DateTime.UtcNow;
             await storageSystem.DefinitionStorage.StoreDefinition(definition);
-        
+
             storageSystem.CommitChanges();
-        
+
         }
         finally
         {
@@ -293,7 +315,7 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
     {
         if (processInstanceId != null) //if there are already stored catch messages subscriptions for this instance, remove them
             await storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(processInstanceId.Value);
-        
+
         foreach (var activeCatchMessage in catchHandler.ActiveCatchMessages)
         {
             await storageSystem.SubscriptionStorage.AddMessageSubscription(
@@ -303,17 +325,17 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                     relatedDefinitionId,
                     definitionId,
                     processInstanceId
-                ));    
+                ));
         }
-    }    
-    
+    }
+
     private void SaveActiveSignals(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId,
         string processId, Guid? processInstanceId)
     {
         if (processInstanceId != null) //if there are already stored signals subscriptions for this instance, remove them
             storageSystem.SubscriptionStorage.RemoveProcessSingalSubscriptionsByProcessInstanceId(processInstanceId.Value);
 
-        
+
         foreach (var activeSignal in catchHandler.ActiveCatchSignals)
         {
             storageSystem.SubscriptionStorage.AddSignalSubscription(
@@ -321,9 +343,9 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
                     activeSignal,
                     processId,
                     relatedDefinitionId,
-                    definitionId,   
+                    definitionId,
                     processInstanceId
-                ));    
+                ));
         }
     }
 
@@ -440,14 +462,14 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             else //the message is for a new instance, so create a new one
             {
                 var xmlData = await storageSystem.DefinitionStorage.GetBinary(messageSubscription.DefinitionId);
-                var model =  ModelParser.ParseModel(xmlData);
+                var model = ModelParser.ParseModel(xmlData);
 
                 var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
                 if (process == null)
                     throw new FileNotFoundException($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
-            
+
                 instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
-            
+
             }
 
             await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
@@ -460,7 +482,7 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
             _engineMutationLock.Release();
         }
     }
-    
+
     /// <summary>
     /// Uebernimmt das Ergebnis eines externen Workers und fuehrt den Token weiter.
     /// Laeuft wie jede andere Zustandsaenderung unter der Engine-Sperre.
@@ -694,7 +716,7 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
     }
-    
+
     private InstanceEngine StartProcessByMessage(Guid definitionsId, string relatedDefinitionId,
         Process process, Message message)
     {
@@ -702,8 +724,8 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         var instance = processEngine.HandleMessage(message);
         return instance;
     }
-    
-    private async  Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
+
+    private async Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance)
     {
         await storageSystem.InstanceStorage.AddOrUpdateInstance(

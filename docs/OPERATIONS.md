@@ -707,6 +707,13 @@ deren Revision nur innerhalb eines API-Prozesses und bleibt wie alle dateibasier
 Mutationen auf Entwicklung/Einzelprozess-Demos begrenzt. Vertrag, Rechte und Grenzen:
 [Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
 
+Human-Task-Claims, Freigaben und Übergaben verwenden in PostgreSQL eine eigene
+Lifecycle-Tabelle mit atomarem Revisionsvergleich. Zustand und Auditereignis werden in
+derselben Transaktion geschrieben; beim Taskende wird nur der aktuelle Zustand kaskadiert,
+die Auditspur bleibt erhalten. Die Dateiablage bietet dafür ebenfalls nur
+Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Grenzen:
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash

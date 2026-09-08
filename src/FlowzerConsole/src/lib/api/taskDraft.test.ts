@@ -32,15 +32,22 @@ describe('Task-Draft-API', () => {
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ successful: true }), { status: 200 }));
 
-    await userTasksApi.saveDraft('task-1', { expectedRevision: 2, data: { reason: 'x' } });
-    await userTasksApi.deleteDraft('task-1', 3);
+    await userTasksApi.saveDraft('task-1', {
+      expectedRevision: 2,
+      expectedTaskRevision: 7,
+      data: { reason: 'x' },
+    });
+    await userTasksApi.deleteDraft('task-1', 3, 7);
 
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'PUT' });
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       expectedRevision: 2,
+      expectedTaskRevision: 7,
       data: { reason: 'x' },
     });
-    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/usertask/task-1/draft?expectedRevision=3');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      '/api/usertask/task-1/draft?expectedRevision=3&expectedTaskRevision=7',
+    );
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'DELETE' });
   });
 

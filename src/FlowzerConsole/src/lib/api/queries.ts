@@ -33,6 +33,10 @@ import type {
   UserTaskResultDto,
   UserTaskDraftDto,
   UserTaskDraftRequest,
+  UserTaskClaimRequest,
+  UserTaskReleaseRequest,
+  UserTaskTransferRequest,
+  UserTaskWorkStateDto,
   VersionDto,
   SubjectRefDto,
   FormDirectorySearchContext,
@@ -65,6 +69,8 @@ export const queryKeys = {
   userTaskList: () => [...queryKeys.userTasks, 'list'] as const,
   userTaskForm: (userTaskId: string) => [...queryKeys.userTasks, 'form', userTaskId] as const,
   userTaskDraft: (userTaskId: string) => [...queryKeys.userTasks, 'draft', userTaskId] as const,
+  userTaskAssignees: (userTaskId: string, action: 'assign' | 'delegate', query: string) =>
+    [...queryKeys.identityDirectory, 'user-task-assignees', userTaskId, action, query] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -368,6 +374,23 @@ export function useFormDirectorySubjectResolutions(
   });
 }
 
+/** Aktionsgebundene Suche für die tatsächliche Laufzeitzuweisung einer Aufgabe. */
+export function useTaskAssigneeSearch(
+  userTaskId: string,
+  action: 'assign' | 'delegate',
+  query: string,
+  enabled = true,
+) {
+  const normalizedQuery = query.trim();
+  return useQuery<DirectorySubjectSearchResultDto>({
+    queryKey: queryKeys.userTaskAssignees(userTaskId, action, normalizedQuery),
+    queryFn: ({ signal }) =>
+      identityDirectoryApi.searchTaskAssignees(userTaskId, normalizedQuery, action, signal),
+    enabled: enabled && userTaskId.length > 0 && normalizedQuery.length >= 2,
+    staleTime: 30_000,
+  });
+}
+
 /* ---------------------------------------------------------------------- Ordner */
 
 export function useFolders(options?: QueryTuning<WorkflowFolderDto[]>) {
@@ -482,22 +505,22 @@ export function useUserTasks(options?: QueryTuning<ExtendedUserTaskSubscriptionD
   });
 }
 
-export function useUserTaskForm(userTaskId: string | undefined) {
+export function useUserTaskForm(userTaskId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: queryKeys.userTaskForm(userTaskId ?? ''),
     queryFn: ({ signal }) => userTasksApi.getForm(userTaskId!, signal),
-    enabled: Boolean(userTaskId),
+    enabled: enabled && Boolean(userTaskId),
     staleTime: 5 * 60_000,
     retry: false,
   });
 }
 
 /** Lädt den explizit gespeicherten Zwischenstand einer Aufgabe. */
-export function useUserTaskDraft(userTaskId: string | undefined) {
+export function useUserTaskDraft(userTaskId: string | undefined, enabled = true) {
   return useQuery<UserTaskDraftDto>({
     queryKey: queryKeys.userTaskDraft(userTaskId ?? ''),
     queryFn: ({ signal }) => userTasksApi.getDraft(userTaskId!, signal),
-    enabled: Boolean(userTaskId),
+    enabled: enabled && Boolean(userTaskId),
     // Der Hook hydratisiert den Editor nur einmal. Refetches dienen lediglich dazu,
     // einen möglichen Konflikt sichtbar zu machen, nicht zum Überschreiben lokaler Daten.
     refetchInterval: LIVE_REFETCH_MS,
@@ -519,8 +542,11 @@ export function useSaveUserTaskDraft() {
 export function useDeleteUserTaskDraft() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userTaskId, expectedRevision }: { userTaskId: string; expectedRevision: number }) =>
-      userTasksApi.deleteDraft(userTaskId, expectedRevision),
+    mutationFn: ({ userTaskId, expectedRevision, expectedTaskRevision }: {
+      userTaskId: string;
+      expectedRevision: number;
+      expectedTaskRevision?: number;
+    }) => userTasksApi.deleteDraft(userTaskId, expectedRevision, expectedTaskRevision),
     onSuccess: (_result, variables) => {
       // Der Server meldet nach DELETE keinen Nutzdatensatz; der Editor setzt seinen
       // lokalen Grundwert erst nach dem bestätigten Erfolg zurück.
@@ -537,6 +563,33 @@ export function useCompleteUserTask() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
       void queryClient.invalidateQueries({ queryKey: queryKeys.operations });
+    },
+  });
+}
+
+export type UserTaskLifecycleCommand =
+  | ({ action: 'claim'; userTaskId: string } & UserTaskClaimRequest)
+  | ({ action: 'release'; userTaskId: string } & UserTaskReleaseRequest)
+  | ({ action: 'assign' | 'delegate'; userTaskId: string } & UserTaskTransferRequest);
+
+/** Ein gemeinsamer Mutationszustand verhindert konkurrierende Aktionen derselben Ansicht. */
+export function useUserTaskLifecycleMutation() {
+  const queryClient = useQueryClient();
+  return useMutation<UserTaskWorkStateDto, unknown, UserTaskLifecycleCommand>({
+    retry: false,
+    mutationFn: ({ action, userTaskId, ...command }) => {
+      if (action === 'claim') return userTasksApi.claim(userTaskId, command);
+      if (action === 'release') return userTasksApi.release(userTaskId, command as UserTaskReleaseRequest);
+      if (action === 'assign') return userTasksApi.assign(userTaskId, command as UserTaskTransferRequest);
+      return userTasksApi.delegate(userTaskId, command as UserTaskTransferRequest);
+    },
+    onSettled: async () => {
+      // Auch nach Konflikten muss die Person den aktuellen Aufgabenstand sehen. Ein
+      // Refetch ersetzt jedoch weder lokale Formulareingaben noch Dialogfelder.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.userTasks }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.instances }),
+      ]);
     },
   });
 }

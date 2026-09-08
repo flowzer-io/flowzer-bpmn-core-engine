@@ -18,7 +18,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
     {
         _storage = storage;
         _messageSubscriptionsPath = _storage.GetBasePath("FileStorage/MessageSubscriptions");
-        
+
         _newtonSoftDefaultSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Auto,
@@ -37,8 +37,8 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         string? correlationKey, Guid? instanceId)
     {
         var allMessageSubscriptions = await GetAllMessageSubscriptions();
-        var messageSubscriptions = allMessageSubscriptions.Where(x => 
-            x.Message.Name == messageName && 
+        var messageSubscriptions = allMessageSubscriptions.Where(x =>
+            x.Message.Name == messageName &&
             x.Message.FlowzerCorrelationKey == correlationKey &&
             x.ProcessInstanceId == instanceId
         );
@@ -149,13 +149,13 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
             var definition = await _storage.DefinitionStorage.GetDefinitionById(userTaskSubscription.DefinitionId);
             userTaskSubscription.DefinitionMetaName = metaDefinition.Name;
             userTaskSubscription.DefinitionVersion = definition.Version;
-            
+
             ret.Add(userTaskSubscription);
         }
 
         return ret;
     }
-    
+
     public async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId)
     {
         // Der Dateiname traegt die Id; ein Verzeichnislisting ist dafuer nicht noetig.
@@ -175,6 +175,9 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         return subscription;
     }
 
+    internal bool UserTaskExists(Guid userTaskId) =>
+        File.Exists(Path.Combine(_messageSubscriptionsPath, $"usertask_{userTaskId}.json"));
+
     public Task AddUserTaskSubscription(UserTaskSubscription userTasks)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"usertask_{userTasks.Id}.json");
@@ -191,6 +194,8 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 
         if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
             drafts.DeleteAllFiles(userTaskSubscriptionId);
+        if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
+            lifecycle.DeleteState(userTaskSubscriptionId);
 
         return Task.CompletedTask;
     }
@@ -204,6 +209,8 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
                 StorageFile.DeleteIfExists(file);
                 if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
                     drafts.DeleteAllFiles(subscription.Id);
+                if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
+                    lifecycle.DeleteState(subscription.Id);
             }
         }
     }
@@ -217,6 +224,8 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
                 StorageFile.DeleteIfExists(file);
                 if (_storage.UserTaskDraftStorage is UserTaskDraftStorage drafts)
                     drafts.DeleteAllFiles(subscription.Id);
+                if (_storage.UserTaskLifecycleStorage is UserTaskLifecycleStorage lifecycle)
+                    lifecycle.DeleteState(subscription.Id);
             }
         }
 

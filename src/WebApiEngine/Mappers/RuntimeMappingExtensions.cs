@@ -88,7 +88,18 @@ public static class RuntimeMappingExtensions
             FormKey = userTask?.Implementation,
             DueDate = userTask?.FlowzerDueDate,
             FollowUpDate = userTask?.FlowzerFollowUpDate,
-            Priority = userTask?.FlowzerPriority
+            Priority = userTask?.FlowzerPriority,
+            WorkState = new UserTaskWorkStateDto
+            {
+                Revision = 0,
+                Claimed = false,
+                IsAssignedToCurrentUser = false,
+                CanWork = true,
+                CanClaim = true,
+                CanRelease = false,
+                CanAssign = false,
+                CanDelegate = false
+            }
         };
     }
 

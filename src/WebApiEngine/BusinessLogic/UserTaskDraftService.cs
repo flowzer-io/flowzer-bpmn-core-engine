@@ -23,7 +23,6 @@ public sealed class UserTaskDraftService(
         using var storage = storageProvider.GetTransactionalStorage();
         var task = await FindAuthorizedTask(storage, userTaskId, request);
         if (task is null) return null;
-
         var ownerKey = UserTaskDraftOwnerKey.Create(request.User);
         var draft = await storage.UserTaskDraftStorage.Get(userTaskId, ownerKey);
         if (draft is not null) EnsureBinding(draft, task.Value);
@@ -40,8 +39,12 @@ public sealed class UserTaskDraftService(
 
         var request = await GetRequestContext();
         using var storage = storageProvider.GetTransactionalStorage();
+        if (!await LockTaskIfSupported(storage, userTaskId)) return null;
         var task = await FindAuthorizedTask(storage, userTaskId, request);
         if (task is null) return null;
+        if (requestDto.ExpectedTaskRevision is { } expectedTaskRevision
+            && expectedTaskRevision != task.Value.WorkRevision)
+            throw new UserTaskLifecycleConflictException(expectedTaskRevision, task.Value.WorkRevision);
 
         var formKey = (task.Value.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
         var resolved = await new FormKeyResolver(storage).ResolveAsync(formKey, task.Value.Subscription.DefinitionId);
@@ -71,14 +74,20 @@ public sealed class UserTaskDraftService(
         return ToDto(userTaskId, written.Draft!);
     }
 
-    public async Task<bool> DeleteAsync(Guid userTaskId, long expectedRevision)
+    public async Task<bool> DeleteAsync(
+        Guid userTaskId,
+        long expectedRevision,
+        long? expectedTaskRevision = null)
     {
         if (expectedRevision < 0)
             throw new ArgumentException("ExpectedRevision must not be negative.", nameof(expectedRevision));
         var request = await GetRequestContext();
         using var storage = storageProvider.GetTransactionalStorage();
+        if (!await LockTaskIfSupported(storage, userTaskId)) return false;
         var task = await FindAuthorizedTask(storage, userTaskId, request);
         if (task is null) return false;
+        if (expectedTaskRevision is { } expected && expected != task.Value.WorkRevision)
+            throw new UserTaskLifecycleConflictException(expected, task.Value.WorkRevision);
 
         var result = await storage.UserTaskDraftStorage.TryDelete(
             userTaskId, UserTaskDraftOwnerKey.Create(request.User), expectedRevision);
@@ -110,13 +119,9 @@ public sealed class UserTaskDraftService(
             || subscription.Token.CurrentFlowNode is not BPMN.HumanInteraction.UserTask)
             return null;
 
-        UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-        var directorySnapshot = request.CanOperate
-            ? null
-            : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
-                storage.IdentityDirectoryStorage, [subscription]);
-        if (!UserTaskAssignment.IsVisibleTo(
-                subscription, request.User, directorySnapshot, request.CanOperate)) return null;
+        var access = await UserTaskWorkAuthorization.EvaluateAsync(
+            storage, subscription, request.User, request.CanOperate);
+        if (!access.CanWork) return null;
 
         ProcessInstanceInfo instance;
         try { instance = await storage.InstanceStorage.GetProcessInstance(instanceId); }
@@ -132,7 +137,13 @@ public sealed class UserTaskDraftService(
             || token.ProcessInstanceId != subscription.Token.ProcessInstanceId)
             return null;
 
-        return new AuthorizedTask(subscription, instance, token);
+        return new AuthorizedTask(subscription, instance, token, access.State?.Revision ?? 0);
+    }
+
+    private static async Task<bool> LockTaskIfSupported(IStorageSystem storage, Guid taskId)
+    {
+        try { return await storage.UserTaskLifecycleStorage.LockTask(taskId); }
+        catch (NotSupportedException) { return true; }
     }
 
     private static void EnsureBinding(UserTaskDraft draft, AuthorizedTask task)
@@ -161,7 +172,8 @@ public sealed class UserTaskDraftService(
     private readonly record struct AuthorizedTask(
         ExtendedUserTaskSubscription Subscription,
         ProcessInstanceInfo Instance,
-        Token Token);
+        Token Token,
+        long WorkRevision);
 }
 
 /// <summary>Enthaelt nur Revisionen, niemals den konkurrierenden Entwurfsinhalt.</summary>

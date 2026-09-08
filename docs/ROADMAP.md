@@ -25,8 +25,10 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Ordnerrechte und erhält daneben den expliziten Freitextmodus. #202 ergänzt private,
    revisionsgeschützte Aufgabenentwürfe samt Wiederaufnahme und Konfliktdarstellung
    in PR #203.
-3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
-   TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.
+3. **M3/M4 – Aufgaben und Oberflächen:** #204 ergänzt Übernahme, Freigabe,
+   Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
+   SDK/Einbettung für TickyTask, Fristen/Benachrichtigungen, Modellierungsprüfung,
+   Laufzeitdiagramm und belastbare Vorgangshistorie folgen.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
