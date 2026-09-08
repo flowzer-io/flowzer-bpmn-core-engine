@@ -9,12 +9,14 @@ Paket. `docs/ROADMAP.md` verweist auf diesen führenden Plan.
 
 ## Aktuelles Arbeitsmandat
 
-Am 8. September 2026 hat Christian die autonome Fortsetzung beauftragt und für
-sie vorerst auf externe Reviews verzichtet. Diese befristete Ausnahme betrifft
-nur Reviews, nicht Test-/Build-/Vertragsprüfungen oder Produktionsfreigaben.
-Sie wird in den jeweiligen PRs ausgewiesen; die zentralen Regeln bleiben ansonsten
-unverändert. Es erfolgen keine direkten Writes auf `main`/`release` und kein
-Produktivdeployment durch dieses Mandat.
+Am 8. September 2026 hat Christian die autonome Umsetzung aller Pakete beauftragt.
+Terra/Luna dürfen für begrenzte Teilaufgaben unterstützen; vor der finalen
+Zusammenführung prüft Astra mit hoher Reasoning-Stufe den Gesamtstand und erkannte
+Probleme werden behoben. Bis zur belegten Gesamt-Abnahme bleibt die Arbeit in
+Topic-Branches und PRs. Für den danach verifizierten Gesamtstand hat Christian den
+Merge nach `main` und das dadurch ausgelöste Deployment ausdrücklich freigegeben;
+direkte Zwischenstände werden weiterhin weder nach `main` noch `release` geschrieben
+oder produktiv ausgerollt.
 
 ## Ziel und Grenzen
 
@@ -63,21 +65,25 @@ Operation, Ziel und kanonischen Inhalt. PostgreSQL-Konkurrenztests belegen genau
 Start/Abschluss; geänderter Inhalt endet mit 409. Externe Effekte folgen separat.
 Details: [HTTP-Idempotenz](IDEMPOTENCY.md).
 
+**BFF:** #188 ist der nächste M0-Slice. Die Web-API übernimmt den serverseitigen
+OIDC-Code-Flow, hält Browser-Tokens aus Storage und Antworten fern und schützt
+Cookie-Mutationen per CSRF. Die externe Bearer-API bleibt kompatibel.
+
 Die sechs PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 
-- [ ] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
+- [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
   HTTP-Routen; fremde Ressourcen liefern `404`, keine freigebenden Fallbacks.
-- [ ] Ausführende Identität getrennt von untrusted Formulardaten speichern; eingehende
+- [x] Ausführende Identität getrennt von untrusted Formulardaten speichern; eingehende
   `UserId` darf den authentifizierten Akteur nicht ersetzen.
-- [ ] Objektbezogene Instanzrechte und datensparsame Projektionen: Antragsteller sehen
+- [x] Objektbezogene Instanzrechte und datensparsame Projektionen: Antragsteller sehen
   eigene Vorgänge, Bearbeiter nur benötigten Kontext, Modellierer nicht automatisch
   Personalvorgänge; Betrieb erhält ausdrücklich berechtigte Diagnoseansichten.
-- [ ] Serverseitige Validierung für Starts und Aufgabenabschlüsse (gemeinsam mit M2).
+- [x] Serverseitige Validierung für Starts und Aufgabenabschlüsse (gemeinsam mit M2).
 - [ ] BFF-Anmeldung mit HttpOnly-/Secure-Cookies und CSRF-Schutz; keine Browser-Tokens
   in `sessionStorage`, Bearer-Vertrag für externe Konsumenten bleibt bestehen.
-- [ ] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
+- [x] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
   erzeugt einen Konflikt statt einen weiteren Vorgang.
 - [x] Bestandsissues #93–#96 und #98 bereinigt und #176 / PR #177 verknüpft;
   Mobil-PR #153 gegen `main` auf Überschneidungen geprüft, nicht dupliziert.
@@ -143,7 +149,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 ## M3 – Human Tasks und TickyTask-Einbettung
 
-- [ ] Stabile Aufgabenidentität je Token; bestehende Subscriptions aktualisieren
+- [x] Stabile Aufgabenidentität je Token; bestehende Subscriptions aktualisieren
   statt bei jedem Instanzfortschritt neue IDs zu vergeben.
 - [ ] Claim, Release, Zuweisung und berechtigte Delegation mit Revision, Akteur und
   Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe.

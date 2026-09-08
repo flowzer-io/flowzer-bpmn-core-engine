@@ -9,7 +9,8 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 ## Reihenfolge
 
 1. **M0 – Sicherheit und Verträge:** zentraler Aufgabenabschluss (#176, PR #177),
-   objektbezogene Instanzrechte, serverseitige Validierung, BFF und Idempotenz.
+   objektbezogene Instanzrechte, serverseitige Validierung und Idempotenz sind als
+   gestapelte PRs umgesetzt; #188 schließt als Nächstes den BFF mit Cookie/CSRF.
 2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
    generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe.
 3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
