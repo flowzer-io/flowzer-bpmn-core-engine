@@ -25,7 +25,8 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Ordnerrechte und erhält daneben den expliziten Freitextmodus. #202 ergänzt private,
    revisionsgeschützte Aufgabenentwürfe samt Wiederaufnahme und Konfliktdarstellung
    in PR #203. #208 / PR #209 sichert die Formularprofile mit demselben versionierten
-   Vertragsvektor-Katalog in .NET und Vitest ab.
+   Vertragsvektor-Katalog in .NET und Vitest ab. #210 trennt Formularautoren-Entwurf,
+   Vorschau und ausdrückliche unveränderliche Veröffentlichung.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,

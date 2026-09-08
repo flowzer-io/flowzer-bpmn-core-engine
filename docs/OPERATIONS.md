@@ -449,6 +449,12 @@ eingebettetem Formular läuft ohne Umbau.
 
 ## Formulare löschen
 
+Die Formularpflege verwendet revisionierte Autorenentwürfe und eine ausdrückliche
+Veröffentlichung. Betrieb, Konfliktvertrag, PostgreSQL-Migration und Grenzen der
+Dateiablage beschreibt [Formularpflege](FORM-AUTHORING.md). Der kompatible
+`POST /form`-Endpunkt veröffentlicht weiterhin direkt, prüft das Schema aber ebenfalls
+serverseitig und überschreibt keine bestehende konkrete Version.
+
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
 Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Formular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — und ein Startformular nähme dem Workflow den Start. Gezählt werden deshalb sowohl die menschlichen Aufgaben als auch die Startereignisse. Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.

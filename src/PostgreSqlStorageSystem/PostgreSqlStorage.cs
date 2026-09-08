@@ -19,6 +19,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
+        FormAuthoringStorage = new PostgreSqlFormAuthoringStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
         IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
@@ -33,6 +34,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IFormAuthoringStorage FormAuthoringStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
@@ -60,6 +62,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         SubscriptionStorage = new PostgreSqlSubscriptionStorage(_session, DefinitionStorage);
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
+        FormAuthoringStorage = new PostgreSqlFormAuthoringStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
         IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
@@ -74,6 +77,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IFormAuthoringStorage FormAuthoringStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }

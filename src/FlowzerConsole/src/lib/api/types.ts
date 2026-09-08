@@ -223,6 +223,22 @@ export interface FormDto {
   formData?: string | null;
 }
 
+/** Gemeinsamer Formularautoren-Entwurf oder die noch unveraenderte Veroeffentlichungsbasis. */
+export interface FormAuthoringDraftDto {
+  formId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedFormId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  formData: string;
+}
+
+export interface SaveFormAuthoringDraftRequestDto {
+  expectedRevision: number;
+  formData: string;
+}
+
 /** Serverseitiger Zwischenstand einer offenen User-Task. */
 export interface UserTaskDraftDto {
   userTaskId: string;

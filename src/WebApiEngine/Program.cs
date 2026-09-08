@@ -37,6 +37,7 @@ builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUse
 builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
 builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
+builder.Services.AddScoped<FormAuthoringService>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();

@@ -6,6 +6,8 @@ import type {
   ExtendedBpmnMetaDefinitionDto,
   ExtendedUserTaskSubscriptionDto,
   FormDto,
+  FormAuthoringDraftDto,
+  SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   HealthStatusDto,
   MessageDto,
@@ -338,6 +340,31 @@ export const formsApi = {
     requestStatusResult<FormDto>('/form', {
       method: 'POST',
       body: { formId: form.formId, formData: form.formData, version: form.version ?? { major: 0, minor: 1 } },
+    }),
+
+  /** Autorenentwurf oder Basis der neuesten Veroeffentlichung. */
+  getDraft: (formId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, { signal }),
+
+  /** Revisionierten Autorenentwurf speichern. */
+  saveDraft: (formId: string, draft: SaveFormAuthoringDraftRequestDto) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'PUT',
+      body: draft,
+    }),
+
+  /** Autorenentwurf bei passender Revision verwerfen. */
+  deleteDraft: (formId: string, expectedRevision: number) =>
+    request<void>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'DELETE',
+      query: { expectedRevision },
+    }),
+
+  /** Erwarteten Entwurf als naechste unveraenderliche Version veroeffentlichen. */
+  publishDraft: (formId: string, expectedRevision: number) =>
+    requestStatusResult<FormDto>(`/form/${encodeURIComponent(formId)}/publish`, {
+      method: 'POST',
+      body: { expectedRevision },
     }),
 
   /** `POST /form/result` — reicht Formulardaten für einen User-Task ein. */

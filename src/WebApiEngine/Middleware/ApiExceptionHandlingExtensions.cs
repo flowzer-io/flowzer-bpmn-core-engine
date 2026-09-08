@@ -64,6 +64,24 @@ public static class ApiExceptionHandlingExtensions
                         problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is FormAuthoringConflictException formConflict)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The form-authoring draft has changed.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "form_draft.revision_conflict";
+                    problem.Extensions["expectedRevision"] = formConflict.ExpectedRevision;
+                    problem.Extensions["currentRevision"] = formConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (exception is UserTaskLifecycleConflictException lifecycleConflict)
                 {
                     var problem = new ApiProblemDetails
@@ -153,6 +171,7 @@ public static class ApiExceptionHandlingExtensions
         {
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
             DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
+                or FormAuthoringConflictException
                 or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             UserTaskNotificationUnavailableException => StatusCodes.Status503ServiceUnavailable,
@@ -166,7 +185,8 @@ public static class ApiExceptionHandlingExtensions
             // and not default for Exclusive Gateway" muss die modellierende Person
             // lesen können — als 500 würde sie maskiert und wäre in der Oberfläche
             // nicht diagnostizierbar.
-            FormSubmissionException or FlowzerRuntimeException or FlowzerModelParseException or ModelValidationException =>
+            FormSubmissionException or FormPublicationValidationException or FlowzerRuntimeException
+                or FlowzerModelParseException or ModelValidationException =>
                 StatusCodes.Status422UnprocessableEntity,
 
             _ => StatusCodes.Status500InternalServerError

@@ -12,6 +12,7 @@ public class Storage : IStorageSystem
     public Storage()
     {
         _storageRoot = ResolveStorageRoot();
+        FormAuthoringStorage = new FormAuthoringStorage(this);
         UserTaskDraftStorage = new UserTaskDraftStorage(this);
         UserTaskLifecycleStorage = new UserTaskLifecycleStorage(this);
         UserTaskDeadlineStorage = new UserTaskDeadlineStorage(this);
@@ -29,6 +30,7 @@ public class Storage : IStorageSystem
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IFormAuthoringStorage FormAuthoringStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }

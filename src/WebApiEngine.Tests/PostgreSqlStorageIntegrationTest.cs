@@ -69,7 +69,7 @@ public partial class PostgreSqlStorageIntegrationTest
             "message_subscriptions", "signal_subscriptions", "user_task_drafts",
             "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
-            "timer_subscriptions", "forms", "form_metadata",
+            "timer_subscriptions", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
             "workflow_folders", "idempotency_records", "identity_directory_state"
@@ -414,6 +414,17 @@ public partial class PostgreSqlStorageIntegrationTest
         await storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
         var saveDuplicateForm = () => storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
         await saveDuplicateForm.Should().ThrowAsync<DefinitionStorageConflictException>();
+
+        // Dieselbe konkrete ID ist eine veroeffentlichte Fassung und darf ebenfalls nicht
+        // als verdecktes Update mit anderem Inhalt benutzt werden.
+        var immutable = new Form
+        {
+            Id = Guid.NewGuid(), FormId = Guid.NewGuid(), Version = new Model.Version(1, 0), FormData = "{}"
+        };
+        await storage.FormStorage.SaveForm(immutable);
+        immutable.FormData = "{\"changed\":true}";
+        await storage.FormStorage.Invoking(s => s.SaveForm(immutable))
+            .Should().ThrowAsync<DefinitionStorageConflictException>();
     }
 
     private static BpmnDefinition CreateDefinition(string definitionId, int major, int minor, bool isActive) => new()

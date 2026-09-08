@@ -135,7 +135,7 @@ beim Abschluss abgelehnt; sie brauchen einen fachlich geprüften Migrationsweg.
 Externe Altverweise ohne Snapshot werden weiterhin nicht auf heutiges `latest` geraten.
 Dieser PR migriert nur das Beispiel, **keine Kundendaten oder produktiven Workflows**.
 
-Noch offen: weitere erweiterte Komponenten, Formularautoren-Entwürfe und
-Formular-Veröffentlichungsoberfläche, vollständiges Skriptinventar und kontrollierte
-Bestandsmigration. Auch Idempotenz, BFF und Mehrprozess-Transaktionsschutz sind nicht
-Bestandteil dieses Slices. Tests ersetzen keine allgemeine Produktionsfreigabe.
+Weitere erweiterte Komponenten, das vollständige Skriptinventar und eine kontrollierte
+Bestandsmigration bleiben offen. #210 ergänzt inzwischen Autorenentwürfe und die
+Veröffentlichungsoberfläche; Details stehen in [Formularpflege](FORM-AUTHORING.md).
+Tests ersetzen keine allgemeine Produktionsfreigabe.

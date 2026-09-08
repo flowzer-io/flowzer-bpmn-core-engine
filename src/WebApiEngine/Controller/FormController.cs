@@ -11,7 +11,8 @@ public class FormController(
     IStorageSystem storageSystem,
     FormBusinessLogic formBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
-    UserTaskCompletionService completionService): ControllerBase
+    UserTaskCompletionService completionService,
+    FormAuthoringService authoringService): ControllerBase
 {
 
     [HttpPost()]
@@ -41,6 +42,46 @@ public class FormController(
             Successful = true,
         });
     }
+
+    /// <summary>Liest den gemeinsamen Entwurf oder eine unveraenderliche Veroeffentlichungsbasis.</summary>
+    [HttpGet("{formId:guid}/draft")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType<ApiStatusResult<FormAuthoringDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<FormAuthoringDraftDto>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiStatusResult<FormAuthoringDraftDto>>> GetDraft(Guid formId) =>
+        Ok(new ApiStatusResult<FormAuthoringDraftDto>(await authoringService.GetAsync(formId)));
+
+    /// <summary>Speichert den Autorenentwurf nur bei passender Revision.</summary>
+    [HttpPut("{formId:guid}/draft")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType<ApiStatusResult<FormAuthoringDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<FormAuthoringDraftDto>>> SaveDraft(
+        Guid formId,
+        SaveFormAuthoringDraftRequestDto request) =>
+        Ok(new ApiStatusResult<FormAuthoringDraftDto>(await authoringService.SaveAsync(formId, request)));
+
+    /// <summary>Verwirft den Autorenentwurf nur bei passender Revision.</summary>
+    [HttpDelete("{formId:guid}/draft")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<IActionResult> DeleteDraft(Guid formId, [FromQuery] long expectedRevision)
+    {
+        await authoringService.DeleteAsync(formId, expectedRevision);
+        return NoContent();
+    }
+
+    /// <summary>Prueft und veroeffentlicht genau den erwarteten Entwurfsstand.</summary>
+    [HttpPost("{formId:guid}/publish")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<FormDto>>> PublishDraft(
+        Guid formId,
+        PublishFormAuthoringDraftRequestDto request) =>
+        Ok(new ApiStatusResult<FormDto>((await authoringService.PublishAsync(formId, request.ExpectedRevision)).ToDto()));
 
     [HttpGet("{formId}/{formIdentifier}")]
     public async Task<ActionResult<ApiStatusResult<FormDto>>> GetForm(Guid formId, string formIdentifier)

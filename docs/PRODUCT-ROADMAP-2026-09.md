@@ -179,9 +179,11 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
-- [ ] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
-  laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
-  Veröffentlichung in der Formularpflege fehlt noch.
+- [x] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
+  laufende Aufgaben behalten ihre Version. #210 trennt gemeinsame, revisionierte
+  Autorenentwürfe, lokale Vorschau und ausdrückliche servervalidierte Veröffentlichung;
+  PostgreSQL veröffentlicht Version und Draft-Löschung atomar. Die Dateiablage bleibt
+  für diesen Mehrdateivorgang ausdrücklich Entwicklung ohne Rollback.
 - [x] Serverseitige private Bearbeitungsentwürfe mit Wiederaufnahme, Größen-/Feldgrenzen
   und optimistischer Revision; Refetch setzt keine ungespeicherten Eingaben zurück.
   #202 / PR #203

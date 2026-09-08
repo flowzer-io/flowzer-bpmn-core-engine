@@ -82,6 +82,15 @@ der Client erweitert weder Snapshotrechte noch Berechnungslogik. Der Slice verä
 keine gespeicherten Formulare oder laufenden Instanzen. Details:
 [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
+## Formularpflege – #210 (noch nicht gemergt)
+
+Gemeinsame Autorenentwürfe besitzen eine Compare-and-swap-Revision und bleiben von
+veröffentlichten Versionen getrennt. Vorschau, Speichern, Verwerfen und Publish sind
+in der Konsole eigenständige Zustände. Publish prüft den Serververtrag, erzeugt unter
+PostgreSQL atomar genau die Folgeversion und löscht den Entwurf; konkrete Versionen
+sind insert-only. Revisionskonflikte erhalten lokale Eingaben und veröffentlichen
+keinen inzwischen geänderten Stand. Details: [Formularpflege](FORM-AUTHORING.md).
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.

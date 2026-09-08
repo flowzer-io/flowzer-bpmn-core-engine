@@ -26,6 +26,8 @@ import type {
   ExtendedBpmnMetaDefinitionDto,
   ExtendedUserTaskSubscriptionDto,
   FormDto,
+  FormAuthoringDraftDto,
+  SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
@@ -77,6 +79,7 @@ export const queryKeys = {
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
   form: (formId: string) => [...queryKeys.forms, 'detail', formId] as const,
+  formDraft: (formId: string) => [...queryKeys.forms, 'draft', formId] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -650,6 +653,50 @@ export function useSaveForm() {
   });
 }
 
+export function useFormAuthoringDraft(formId: string | undefined) {
+  return useQuery<FormAuthoringDraftDto>({
+    queryKey: queryKeys.formDraft(formId ?? ''),
+    queryFn: ({ signal }) => formsApi.getDraft(formId!, signal),
+    enabled: Boolean(formId),
+    retry: false,
+  });
+}
+
+export function useSaveFormAuthoringDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formId, draft }: { formId: string; draft: SaveFormAuthoringDraftRequestDto }) =>
+      formsApi.saveDraft(formId, draft),
+    onSuccess: (saved) => queryClient.setQueryData(queryKeys.formDraft(saved.formId), saved),
+  });
+}
+
+export function useDiscardFormAuthoringDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formId, expectedRevision }: { formId: string; expectedRevision: number }) =>
+      formsApi.deleteDraft(formId, expectedRevision),
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) });
+    },
+  });
+}
+
+export function usePublishFormAuthoringDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formId, expectedRevision }: { formId: string; expectedRevision: number }) =>
+      formsApi.publishDraft(formId, expectedRevision),
+    onSuccess: async (_published, variables) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.form(variables.formId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.formList() }),
+      ]);
+    },
+  });
+}
+
 export function useSaveFormMeta() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -668,6 +715,7 @@ export function useDeleteForm() {
       // Die Detailabfrage des geloeschten Formulars wird nicht nur ungueltig, sie ist
       // gegenstandslos — sonst bleibt sie als Leiche im Zwischenspeicher liegen.
       queryClient.removeQueries({ queryKey: queryKeys.form(formId) });
+      queryClient.removeQueries({ queryKey: queryKeys.formDraft(formId) });
       // Nicht nur die Liste: Aufgaben loesen ihr Formular ueber den Namen auf, die
       // Aufgabenansicht muss ein geloeschtes also neu bewerten.
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
