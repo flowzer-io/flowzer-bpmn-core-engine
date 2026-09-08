@@ -18,7 +18,7 @@ namespace WebApiEngine.Tests;
 /// Ohne erreichbaren Docker-Daemon werden die Tests uebersprungen, nicht rot.
 /// </summary>
 [NonParallelizable]
-public class PostgreSqlStorageIntegrationTest
+public partial class PostgreSqlStorageIntegrationTest
 {
     private const string Schema = "flowzer_test";
     private PostgreSqlContainer? _container;

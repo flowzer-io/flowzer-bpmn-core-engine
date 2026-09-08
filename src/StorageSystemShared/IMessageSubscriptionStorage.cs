@@ -43,6 +43,10 @@ public interface IMessageSubscriptionStorage
     /// </summary>
     async Task<ExtendedUserTaskSubscription?> GetUserTaskExtended(Guid userTaskId) =>
         (await GetAllUserTasksExtended(Guid.Empty)).FirstOrDefault(candidate => candidate.Id == userTaskId);
+    /// <summary>
+    /// Speichert eine Aufgabe per Upsert nach ihrer ID. Bestehende IDs müssen aktualisiert
+    /// werden, nicht als zweite Aufgabe angehängt. Aufrufer erhalten die Identität je Token.
+    /// </summary>
     Task AddUserTaskSubscription(UserTaskSubscription userTasks);
     Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId);
 

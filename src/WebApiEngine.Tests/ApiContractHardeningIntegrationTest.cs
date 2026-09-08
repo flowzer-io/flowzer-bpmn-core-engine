@@ -124,7 +124,17 @@ public class ApiContractHardeningIntegrationTest
         var storage = new TestStorage();
         var instanceId = Guid.NewGuid();
         var (_, tokens) = CreateInstanceWaitingAtUserTaskBeforeBrokenGateway(instanceId);
-        storage.Instances.Add(CreateWaitingInstance(instanceId, tokens));
+        var instance = CreateWaitingInstance(instanceId, tokens);
+        storage.Instances.Add(instance);
+        var taskId = Guid.NewGuid();
+        // Nicht nur einen Bulk-Methodenaufruf beobachten: Eine tatsächlich vorhandene
+        // Aufgabe muss gezielt entfernt werden, ohne pauschales Löschen aller IDs.
+        storage.UserTaskSubscriptions.Add(new ExtendedUserTaskSubscription
+        {
+            Id = taskId, Name = "Review", ProcessInstanceId = instanceId,
+            DefinitionId = instance.DefinitionId, MetaDefinitionId = instance.metaDefinitionId,
+            ProcessId = instance.ProcessId, Token = tokens.Single(token => token.CurrentFlowNode is BPMN.HumanInteraction.UserTask)
+        });
 
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
@@ -137,7 +147,9 @@ public class ApiContractHardeningIntegrationTest
         payload.Result!.State.Should().Be(ProcessInstanceStateDto.Terminated);
         payload.Result.FinishedAt.Should().NotBeNull();
         storage.Instances.Single().IsFinished.Should().BeTrue();
-        storage.RemovedUserTaskSubscriptionInstanceIds.Should().Contain(instanceId);
+        storage.RemovedUserTaskIds.Should().Equal(taskId);
+        storage.UserTaskSubscriptions.Should().BeEmpty();
+        storage.RemovedUserTaskSubscriptionInstanceIds.Should().BeEmpty();
         storage.RemovedMessageSubscriptionInstanceIds.Should().Contain(instanceId);
         storage.RemovedSignalSubscriptionInstanceIds.Should().Contain(instanceId);
         storage.RemovedTimerSubscriptionInstanceIds.Should().Contain(instanceId);
@@ -662,6 +674,7 @@ public class ApiContractHardeningIntegrationTest
         public List<ExtendedUserTaskSubscription> UserTaskSubscriptions { get; } = [];
         public List<FormMetadata> FormMetadatas { get; } = [];
         public List<Form> Forms { get; } = [];
+        public List<Guid> RemovedUserTaskIds { get; } = [];
         public List<Guid> RemovedUserTaskSubscriptionInstanceIds { get; } = [];
         public List<Guid> RemovedMessageSubscriptionInstanceIds { get; } = [];
         public List<Guid> RemovedSignalSubscriptionInstanceIds { get; } = [];
@@ -754,7 +767,12 @@ public class ApiContractHardeningIntegrationTest
             return Task.CompletedTask;
         }
 
-        public Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId) => Task.CompletedTask;
+        public Task RemoveUserTaskSubscription(Guid userTaskSubscriptionId)
+        {
+            storage.RemovedUserTaskIds.Add(userTaskSubscriptionId);
+            storage.UserTaskSubscriptions.RemoveAll(task => task.Id == userTaskSubscriptionId);
+            return Task.CompletedTask;
+        }
 
         public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId)
         {

@@ -188,37 +188,6 @@ public partial class BpmnBusinessLogic(ITransactionalStorageProvider storageProv
         await SaveActiveTimers(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
 
-    private async Task SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
-    {
-        if (processInstanceId != null) //if there are already stored user task subscriptions for this instance, remove them
-            storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(processInstanceId.Value);
-        
-        foreach (var activeUserTask in catchHandler.ActiveUserTasks())
-        {
-            var userTask = (UserTask)activeUserTask.CurrentFlowNode!; 
-            await storageSystem.SubscriptionStorage.AddUserTaskSubscription(
-                new UserTaskSubscription()
-                {
-                    Id = Guid.NewGuid(),
-                    Token = activeUserTask,
-                    Name = userTask.Name,
-                    // Die Zuweisungen aus dem Modell werden beim Anlegen festgehalten. Aendert
-                    // sich spaeter eine Definition, behaelt eine laufende Aufgabe die Zuweisung,
-                    // mit der sie entstanden ist.
-                    Assignee = string.IsNullOrWhiteSpace(userTask.FlowzerAssignee) ? null : userTask.FlowzerAssignee.Trim(),
-                    CandidateUsers = UserTaskAssignment.SplitList(userTask.FlowzerCandidateUsers),
-                    CandidateGroups = UserTaskAssignment.SplitList(userTask.FlowzerCandidateGroups),
-                    UserCandidates = [],
-                    UserGroups = [],
-                    CurrenAssignedUser = null,
-                    ProcessInstanceId = processInstanceId,
-                    DefinitionId = definitionId,
-                    MetaDefinitionId = metaDefinitionId,
-                    ProcessId = processId
-                });
-        }
-    }
-
     /// <summary>
     /// Legt fuer jeden wartenden Service-Task einen Auftrag an, den ein externer Worker holen
     /// kann. Bereits vergebene Auftraege derselben Instanz behalten ihren Zustand: Ein Worker,

@@ -30,8 +30,9 @@ gebunden und müssen nicht gegen einen externen Formularbestand aufgelöst werde
 ## Grenzen und Tests
 
 Dieser Slice ist noch kein gemeinsamer Formular-Validierungsvertrag. Pflichtwerte,
-Geschäftsregeln, Eingabe-/Ausgabefelder und serverseitige Abschlussprüfung folgen
-separat. Dateiablage bleibt Entwicklung; keine Mehrprozessgarantie.
+Geschäftsregeln, Eingabe-/Ausgabefelder und serverseitige Abschlussprüfung ergänzt
+der Folgeslice #183 als [begrenztes Prüfprofil](FORM-VALIDATION-PROFILE.md), einschließlich
+einer Vertragsprüfung bei Wiederaktivierung. Dateiablage bleibt Entwicklung; keine Mehrprozessgarantie.
 
 TDD prüft Versionswechsel, Umbenennung, später aktivierte Aufgaben, Startformulare,
 fehlgeschlagene Bindung ohne Verlust der aktiven Definition, persistierten Snapshot

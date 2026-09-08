@@ -53,7 +53,12 @@ verbindliche Submission-Prüfung, Read-only-Schutz, Feldfehler und die Migration
 Beispielskripte. Vollständige Form.io-Parität und Bestandsmigration bleiben offen.
 Details: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
-Die vier PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
+**Aufgabenidentität:** #184 / PR #185 erhält IDs und gespeicherte Zuweisungen über
+parallelen Fortschritt/Timer/Neuladen. Neue Tokens erhalten neue IDs, veraltete Aufgaben
+werden entfernt. Claims/Revisionen/Entwürfe und Mehrprozessschutz folgen separat.
+Details: [Aufgabenidentität](STABLE-TASK-IDENTITY.md).
+
+Die fünf PRs sind gestapelte, noch separat zu mergende Teilpakete, kein Produktabschluss.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 

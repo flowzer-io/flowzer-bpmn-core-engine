@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181 und #183.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183 und #185.
 
 ## Einordnung
 
@@ -69,6 +69,15 @@ Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datum
 und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
 Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
+## Aufgabenidentität – PR #185 (aufbauend auf #183)
+
+Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.
+Subscriptions werden nach Tokenidentität aktualisiert; gespeicherte Zuweisungen
+bleiben erhalten, nur erledigte/abgebrochene Aufgaben werden entfernt. Identische
+Regressionen prüfen Dateiablage und PostgreSQL einschließlich neuer Engine nach
+Persistierung. Mehrdeutige Bestände werden nicht automatisch zusammengeführt.
+Details und Grenzen: [Aufgabenidentität](STABLE-TASK-IDENTITY.md).
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF
@@ -77,7 +86,7 @@ Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
    unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
    bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Stabile Aufgaben-IDs, Übernahme/Delegation, SDK und TickyTask-Einbettung,
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
    Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,

@@ -41,13 +41,16 @@ offene menschliche Aufgaben; `tokens` ist ohne Diagnoseberechtigung leer.
 Startantworten unterliegen derselben Projektion wie spätere Detailabrufe.
 
 Aufgabenlisten dürfen nicht über `Token.CurrentFlowElement`, `Variables` oder
-`OutputData` den gesamten Prozesskontext umgehen. Ohne Betriebsrecht werden nur
+`OutputData` den gesamten Prozesskontext umgehen. Auch mit Betriebsrecht werden nur
 im zur Aufgabe aufgelösten Formular deklarierte Eingabefelder als Ausgangswerte geliefert;
-fehlende/ungültige Formularauflösung liefert keine Variablen. Eigene Formularrechte
-und serverseitige Submission-Validierung sind der anschließende M0/M2-Slice.
+fehlende/ungültige Formularauflösung liefert keine Variablen. PR #183 ergänzt die verbindliche
+[Submission-Validierung](FORM-VALIDATION-PROFILE.md) unter denselben Kontextgrenzen.
+Eigene Formularverwaltungsrechte bleiben ein separates Paket.
 
 Die Leseprojektion unterstützt skalare Felder, explizite skalare Mehrfachwerte,
-Layoutgruppen und verschachtelte Container. Beliebige Objekte, unbekannte Feldtypen,
+Layoutgruppen und verschachtelte Container. Der strengere Veröffentlichungs-/
+Submission-Vertrag aus PR #183 unterstützt Container noch nicht; Lesbarkeit ist
+keine Freigabe für ungeprüfte Objekt-Eingaben. Beliebige Objekte, unbekannte Feldtypen,
 Skripte und nicht deklarierte Unterfelder öffnen keinen vollständigen Variablenscope.
 Weitere Feldtypen benötigen einen ausdrücklichen Datenvertrag.
 
