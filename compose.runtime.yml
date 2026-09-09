@@ -14,6 +14,14 @@ services:
       Authentication__JwtBearer__RequireHttpsMetadata: ${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}
       # Fuer die neuen Verzeichnisendpunkte zwingend: leer bedeutet dort fail-closed.
       Authentication__JwtBearer__Roles__Operator: ${FLOWZER_AUTH_ROLE_OPERATOR:-}
+      Authentication__JwtBearer__Roles__AiConnectionUser: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_USER:-}
+      Authentication__JwtBearer__Roles__AiConnectionManager: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_MANAGER:-}
+      # Keine Workflowangabe kann diese Installationsgrenzen erweitern.
+      Ai__AllowCloudProviders: ${FLOWZER_AI_ALLOW_CLOUD_PROVIDERS:-false}
+      Ai__AllowLocalEndpoints: ${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}
+      Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
+      # Provider-Secrets hier absichtlich nicht auffuehren: `env:FLOWZER_AI_*`-Werte
+      # ausschliesslich ueber den Orchestrator bzw. einen Compose-Override injizieren.
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
       # Laufzeit uebergeben, nie dem Konsolen-Container oder dem Browser.
       Authentication__Bff__ClientId: ${FLOWZER_BFF_CLIENT_ID:-}

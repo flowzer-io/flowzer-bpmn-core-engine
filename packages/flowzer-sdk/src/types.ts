@@ -11,6 +11,36 @@ export type SubjectRef = components['schemas']['SubjectRefDto'];
 export type DirectorySubject = components['schemas']['DirectorySubjectDto'];
 export type DirectorySubjectSearchResult = components['schemas']['DirectorySubjectSearchResultDto'];
 export type DirectorySubjectResolutionResult = components['schemas']['DirectorySubjectResolutionResultDto'];
+/** Sichere Verbindungsprojektion ohne Secret-Wert oder Secret-Referenz. */
+export type AiConnection = components['schemas']['AiConnectionDto'];
+export type AiProviderKind = components['schemas']['AiProviderKindDto'];
+export type AiProcessingLocation = components['schemas']['AiProcessingLocationDto'];
+
+/** Eingabevertrag zum Anlegen einer KI-Verbindung; Secret-Referenzen sind nur schreibbar. */
+export interface CreateAiConnectionCommand {
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  secretReference: string;
+}
+
+/** Revisionsgebundener Eingabevertrag; eine fehlende Secret-Referenz behält die bisherige bei. */
+export interface UpdateAiConnectionCommand {
+  expectedRevision: number;
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  secretReference?: string | null;
+}
+
+export interface SetAiConnectionEnabledCommand {
+  expectedRevision: number;
+  enabled: boolean;
+}
 
 export type ProcessVariables = Record<string, unknown>;
 

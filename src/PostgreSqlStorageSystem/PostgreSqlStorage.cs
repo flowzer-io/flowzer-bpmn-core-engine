@@ -29,6 +29,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
         UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
+        AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -46,6 +47,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
+    public IAiConnectionStorage AiConnectionStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -76,6 +78,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
         UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
+        AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -93,6 +96,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
+    public IAiConnectionStorage AiConnectionStorage { get; }
 
     public void CommitChanges() => _session.Commit();
 

@@ -21,6 +21,7 @@ import { OperationsPage } from '@/pages/OperationsPage';
 import { OutlinePage } from '@/pages/OutlinePage';
 import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
+import { AiConnectionsPage } from '@/pages/AiConnectionsPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
@@ -126,6 +127,12 @@ const operationsRoute = createRoute({
   component: OperationsPage,
 });
 
+const aiConnectionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/ai-connections',
+  component: AiConnectionsPage,
+});
+
 interface TasksSearch {
   task?: string;
 }
@@ -179,6 +186,7 @@ const routeTree = rootRoute.addChildren([
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
     formSectionsRoute,
+    aiConnectionsRoute,
     operationsRoute,
     tasksRoute,
   ]),

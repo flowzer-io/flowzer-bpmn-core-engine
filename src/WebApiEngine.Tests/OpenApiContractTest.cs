@@ -226,6 +226,37 @@ public class OpenApiContractTest
         required.Should().BeEquivalentTo("jobId", "lockedUntil");
     }
 
+    // Testzweck: KI-Verbindungen besitzen einen vollstaendigen, revisionsgeschuetzten
+    // OpenAPI-Vertrag; die Antwortprojektion enthaelt weder Secret-Wert noch Secret-Referenz.
+    [Test]
+    public async Task AiConnections_ShouldExposeSafeMetadataAndProblemDetails()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+        var list = GetOperation(paths, "/ai/connection", "get");
+        var create = GetOperation(paths, "/ai/connection", "post");
+        var get = GetOperation(paths, "/ai/connection/{connectionId}", "get");
+        var update = GetOperation(paths, "/ai/connection/{connectionId}", "put");
+        var status = GetOperation(paths, "/ai/connection/{connectionId}/enabled", "put");
+
+        GetResponseSchema(list, "200").Should().Be("#/components/schemas/AiConnectionDtoArrayApiStatusResult");
+        GetResponseSchema(create, "201").Should().Be("#/components/schemas/AiConnectionDtoApiStatusResult");
+        GetProblemResponse(create, "400").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(create, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(get, "404").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(update, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(status, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+
+        var responseProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("AiConnectionDto").GetProperty("properties");
+        responseProperties.TryGetProperty("secretReference", out _).Should().BeFalse();
+        responseProperties.TryGetProperty("secret", out _).Should().BeFalse();
+        root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("CreateAiConnectionRequestDto").GetProperty("properties")
+            .TryGetProperty("secretReference", out _).Should().BeTrue();
+    }
+
     // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
     // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
     [Test]

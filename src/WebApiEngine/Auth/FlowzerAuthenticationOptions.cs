@@ -67,6 +67,12 @@ public sealed class FlowzerAuthenticationOptions
 
         /// <summary>Darf Auftraege fuer Service-Tasks abholen und zurueckmelden.</summary>
         public string Worker { get; set; } = string.Empty;
+
+        /// <summary>Darf aktive KI-Verbindungen beim Modellieren verwenden.</summary>
+        public string AiConnectionUser { get; set; } = string.Empty;
+
+        /// <summary>Darf KI-Verbindungen und deren Secret-Referenzen verwalten.</summary>
+        public string AiConnectionManager { get; set; } = string.Empty;
     }
 
     /// <summary>Vertraulicher OIDC-Client und persistenter Schluesselring fuer Browser-Sessions.</summary>

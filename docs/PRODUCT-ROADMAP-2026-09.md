@@ -287,11 +287,18 @@ und Abschluss bleiben identisch.
 - [ ] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
   Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen.
 - [ ] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
-  von lokalen Modellen in die Cloud.
-- [ ] Verbindungen und Secret-Referenzen administrieren; Verwenden und Verwalten
-  getrennt berechtigen. Secrets nur über austauschbaren Secret-Store zur Laufzeit.
+  von lokalen Modellen in die Cloud. #240 setzt die installationsweiten Opt-ins und
+  die explizite Standortangabe bereits am Verbindungsvertrag durch; die spätere
+  Provider-Runtime muss dieselben Grenzen erneut erzwingen.
+- [x] Verbindungen und Secret-Referenzen administrieren; Verwenden und Verwalten
+  getrennt berechtigen. #240 implementiert revisionsgeschützte Metadaten in Dateiablage
+  und PostgreSQL, fail-closed Rollen, einen austauschbaren Secret-Store sowie Konsole,
+  OpenAPI und SDK. Deaktivierte Verbindungen bleiben historisch erhalten und sind für
+  reine Verwender nicht sichtbar.
 - [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
-  lokale Endpunkte nur mit expliziter administrativer Freigabe.
+  lokale Endpunkte nur mit expliziter administrativer Freigabe. #240 hält Secret-Wert
+  und -Referenz bereits aus allen API-/Browserantworten und erlaubt lokale Ziele nur
+  nach Installations-Opt-in; BPMN-/Prompt-/Exportpfade entstehen erst in Folgeslices.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
   (#238; PR #239). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
   Störungsbehandlung bleiben offen.

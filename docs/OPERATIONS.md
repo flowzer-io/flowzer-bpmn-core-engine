@@ -45,6 +45,8 @@ vorgesehen und kein Produktionspfad.
 | `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
+| `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
 ### BFF-Vertrag
@@ -205,12 +207,23 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### KI-Verbindungen
+
+Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
+serverseitig aufgeloeste Secret-Referenzen ist in [AI-CONNECTIONS.md](AI-CONNECTIONS.md)
+dokumentiert. Cloud- und lokale Verarbeitung sind getrennte Installations-Opt-ins. Das
+aktuelle Paket fuehrt noch keine Provideraufrufe aus. Die Use-Rolle sieht nur aktive
+Verbindungen; die Manage-Rolle darf auch deaktivierte historische Metadaten pflegen.
+
 ### Rollen und Zuweisungen
 
 Vier Ebenen, die unabhängig voneinander wirken:
 
 1. **Zugang** (`RequiredRole`): Wer Flowzer überhaupt benutzen darf. Ohne die Rolle antwortet jeder Fachendpunkt 403.
-2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`): Wer veröffentlichen und wer den Betrieb einsehen darf. Endpunkte mit einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
+2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`, `Roles:Worker` sowie die
+   getrennten KI-Use-/Manage-Rollen): Wer veröffentlichen, Betrieb einsehen, technische
+   Aufträge bearbeiten oder KI-Verbindungen verwenden/verwalten darf. Endpunkte mit
+   einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
 3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
 4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 

@@ -15,6 +15,7 @@ import {
   instancesApi,
   operationsApi,
   notificationsApi,
+  aiConnectionsApi,
 } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
@@ -44,6 +45,9 @@ import type {
   FormSectionAuthoringDraftDto,
   FormSectionVersionDto,
   SaveFormSectionAuthoringDraftRequestDto,
+  AiConnectionDto,
+  CreateAiConnectionInput,
+  UpdateAiConnectionInput,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -87,6 +91,9 @@ export const queryKeys = {
   formSectionList: () => [...queryKeys.formSections, 'list'] as const,
   formSectionVersions: (sectionId: string) => [...queryKeys.formSections, 'versions', sectionId] as const,
   formSectionDraft: (sectionId: string) => [...queryKeys.formSections, 'draft', sectionId] as const,
+
+  aiConnections: ['aiConnections'] as const,
+  aiConnectionList: () => [...queryKeys.aiConnections, 'list'] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -706,6 +713,46 @@ export function useRenameFormSection() {
   return useMutation({
     mutationFn: ({ sectionId, name }: { sectionId: string; name: string }) => formSectionsApi.rename(sectionId, name),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() }),
+  });
+}
+
+/* ------------------------------------------------------------- KI-Verbindungen */
+
+export function useAiConnections(options?: QueryTuning<AiConnectionDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.aiConnectionList(),
+    queryFn: ({ signal }) => aiConnectionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useCreateAiConnection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateAiConnectionInput) => aiConnectionsApi.create(input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.aiConnections }),
+  });
+}
+
+export function useUpdateAiConnection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ connectionId, input }: { connectionId: string; input: UpdateAiConnectionInput }) =>
+      aiConnectionsApi.update(connectionId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.aiConnections }),
+  });
+}
+
+export function useSetAiConnectionEnabled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ connectionId, expectedRevision, enabled }: {
+      connectionId: string;
+      expectedRevision: number;
+      enabled: boolean;
+    }) => aiConnectionsApi.setEnabled(connectionId, expectedRevision, enabled),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.aiConnections }),
   });
 }
 

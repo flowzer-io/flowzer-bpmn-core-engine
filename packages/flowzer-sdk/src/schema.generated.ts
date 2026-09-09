@@ -4,6 +4,264 @@
  */
 
 export interface paths {
+    "/ai/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiConnectionDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["AiConnectionDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["AiConnectionDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateAiConnectionRequestDto"];
+                    "text/json": components["schemas"]["CreateAiConnectionRequestDto"];
+                    "application/*+json": components["schemas"]["CreateAiConnectionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/connection/{connectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    connectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    connectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["UpdateAiConnectionRequestDto"];
+                    "text/json": components["schemas"]["UpdateAiConnectionRequestDto"];
+                    "application/*+json": components["schemas"]["UpdateAiConnectionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/connection/{connectionId}/enabled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    connectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SetAiConnectionEnabledRequestDto"];
+                    "text/json": components["schemas"]["SetAiConnectionEnabledRequestDto"];
+                    "application/*+json": components["schemas"]["SetAiConnectionEnabledRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["AiConnectionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/login": {
         parameters: {
             query?: never;
@@ -4692,6 +4950,41 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AiConnectionDto: {
+            /** Format: uuid */
+            id: string;
+            name: string | null;
+            provider: components["schemas"]["AiProviderKindDto"];
+            location: components["schemas"]["AiProcessingLocationDto"];
+            baseAddress?: string | null;
+            defaultModel: string | null;
+            enabled: boolean;
+            ready: boolean;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            updatedAtUtc: string;
+        };
+        AiConnectionDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["AiConnectionDto"];
+        };
+        AiConnectionDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["AiConnectionDto"][] | null;
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        AiProcessingLocationDto: 0 | 1;
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        AiProviderKindDto: 0 | 1 | 2;
         ApiProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -4818,6 +5111,14 @@ export interface components {
             variables?: {
                 [key: string]: unknown;
             } | null;
+        };
+        CreateAiConnectionRequestDto: {
+            name: string | null;
+            provider: components["schemas"]["AiProviderKindDto"];
+            location: components["schemas"]["AiProcessingLocationDto"];
+            baseAddress?: string | null;
+            defaultModel: string | null;
+            secretReference: string | null;
         };
         CreateFormSectionRequestDto: {
             name: string | null;
@@ -5453,6 +5754,11 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["ServiceTaskWebhookDto"][] | null;
         };
+        SetAiConnectionEnabledRequestDto: {
+            /** Format: int64 */
+            expectedRevision: number;
+            enabled: boolean;
+        };
         SignalSubscriptionDto: {
             signal: string | null;
             processId: string | null;
@@ -5561,6 +5867,16 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["TokenDto"][] | null;
+        };
+        UpdateAiConnectionRequestDto: {
+            /** Format: int64 */
+            expectedRevision: number;
+            name: string | null;
+            provider: components["schemas"]["AiProviderKindDto"];
+            location: components["schemas"]["AiProcessingLocationDto"];
+            baseAddress?: string | null;
+            defaultModel: string | null;
+            secretReference?: string | null;
         };
         UserTaskClaimRequestDto: {
             /** Format: int64 */

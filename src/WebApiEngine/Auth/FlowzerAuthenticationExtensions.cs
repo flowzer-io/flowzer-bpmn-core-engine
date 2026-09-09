@@ -130,6 +130,7 @@ public static class FlowzerAuthenticationExtensions
             .AddPolicy(FlowzerPolicies.Access, policy => policy.Combine(BuildBasePolicy(options).Build()));
         AddApplicationRolePolicies(authorization, options);
         AddStrictIdentityDirectoryPolicy(authorization, options);
+        AddStrictAiConnectionPolicies(authorization, options);
 
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, FlowzerAuthorizationResultHandler>();
 
@@ -222,6 +223,36 @@ public static class FlowzerAuthenticationExtensions
     }
 
     /// <summary>
+    /// Neue KI-Verbindungsrechte sind fail-closed. Ein Manager darf die sicheren Metadaten
+    /// ebenfalls lesen; umgekehrt erhaelt ein reiner Verwender niemals Schreibrechte.
+    /// </summary>
+    private static void AddStrictAiConnectionPolicies(
+        AuthorizationBuilder authorization,
+        FlowzerAuthenticationOptions options)
+    {
+        var audience = options.JwtBearer.Audience;
+        var userRole = options.JwtBearer.Roles.AiConnectionUser;
+        var managerRole = options.JwtBearer.Roles.AiConnectionManager;
+
+        authorization.AddPolicy(FlowzerPolicies.AiConnectionUse, policy =>
+        {
+            policy.Combine(BuildBasePolicy(options).Build());
+            policy.RequireAssertion(context =>
+                (!string.IsNullOrWhiteSpace(managerRole)
+                 && TokenRoles.HasRole(context.User, audience, managerRole))
+                || (!string.IsNullOrWhiteSpace(userRole)
+                    && TokenRoles.HasRole(context.User, audience, userRole)));
+        });
+        authorization.AddPolicy(FlowzerPolicies.AiConnectionManage, policy =>
+        {
+            policy.Combine(BuildBasePolicy(options).Build());
+            policy.RequireAssertion(context =>
+                !string.IsNullOrWhiteSpace(managerRole)
+                && TokenRoles.HasRole(context.User, audience, managerRole));
+        });
+    }
+
+    /// <summary>
     /// Ohne aktives JWT-Schema gibt es keine Rollen; die Policies muessen trotzdem existieren,
     /// weil die Controller sie benennen.
     /// </summary>
@@ -234,7 +265,9 @@ public static class FlowzerAuthenticationExtensions
             .AddPolicy(FlowzerPolicies.Modeler, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Operator, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.IdentityDirectoryOperator, policy => policy.RequireAssertion(_ => true))
-            .AddPolicy(FlowzerPolicies.Worker, policy => policy.RequireAssertion(_ => true));
+            .AddPolicy(FlowzerPolicies.Worker, policy => policy.RequireAssertion(_ => true))
+            .AddPolicy(FlowzerPolicies.AiConnectionUse, policy => policy.RequireAssertion(_ => true))
+            .AddPolicy(FlowzerPolicies.AiConnectionManage, policy => policy.RequireAssertion(_ => true));
 
         return services;
     }

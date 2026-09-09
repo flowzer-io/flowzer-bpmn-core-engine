@@ -28,6 +28,12 @@ public static class FlowzerPolicies
     /// </summary>
     public const string Worker = "flowzer:worker";
 
+    /// <summary>Darf freigegebene KI-Verbindungsmetadaten in Workflows auswaehlen.</summary>
+    public const string AiConnectionUse = "flowzer:ai-connection-use";
+
+    /// <summary>Darf KI-Verbindungen, Endpunkte und Secret-Referenzen administrieren.</summary>
+    public const string AiConnectionManage = "flowzer:ai-connection-manage";
+
     /// <summary>
     /// Antwortheader, der eine 403 einordnet: <c>application</c> heisst, dass dieses Konto
     /// Flowzer gar nicht benutzen darf, <c>capability</c> heisst, dass nur diese eine Handlung

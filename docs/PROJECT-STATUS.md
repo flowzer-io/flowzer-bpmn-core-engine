@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #233
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #239
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -348,6 +348,22 @@ Vertrag liefert den tatsächlich gespeicherten UTC-Ablauf zurück und begrenzt j
 angeforderte Dauer auf höchstens eine Stunde. Dieser M6-Baustein bereitet dauerhafte
 KI-Läufe vor, implementiert aber noch keinen Modellanbieter oder KI-Ausführungszustand.
 
+## KI-Verbindungen und Secret-Referenzen – #240 (PR folgt)
+
+Der erste M5-Verbindungsslice persistiert stabile, revisionsgeschützte Metadaten für
+OpenAI, Anthropic und ausdrücklich OpenAI-kompatible Endpunkte. Cloud- und lokale
+Verarbeitung bleiben getrennte Installations-Opt-ins; Standardprovider erlauben keine
+umgedeutete Basisadresse. PostgreSQL erzwingt Revisionen und case-insensitiv eindeutige
+Namen atomar, die Dateiablage bleibt ein Einzelprozess-Entwicklungsweg.
+
+Secret-Referenzen sind ausschließlich schreibbar und auf `env:FLOWZER_AI_*` begrenzt.
+Weder Referenz noch Wert stehen in API-, OpenAPI-, SDK- oder Browserantworten. Ein
+austauschbarer `IAiSecretStore` löst Werte erst serverseitig und kurzlebig auf. Use und
+Manage sind getrennte, im authentifizierten Betrieb fail-closed Rollen; reine Verwender
+sehen keine deaktivierten Verbindungen. Konsole und headless SDK verwenden denselben
+hostneutralen Vertrag. Provideraufrufe, KI-Task-Modellierung, Werkzeuge, Freigaben und
+dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -371,13 +387,14 @@ KI-Läufe vor, implementiert aber noch keinen Modellanbieter oder KI-Ausführung
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
-   Die dafür nötige Worker-Lease-Verlängerung liegt in #238 bereits vor.
+   Worker-Lease-Verlängerung (#238) und sichere Verbindungsverwaltung (#240) liegen vor;
+   Provideradapter, Task-Vertrag, dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
+Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-751 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
+778 API-/Storage-, 335 Konsolen-, 24 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

@@ -4,7 +4,13 @@
  * Laufzeitkonfiguration und nicht hier. Die Rollen selbst stehen im Access-Token unter
  * `resource_access.<audience>.roles` (Keycloak) oder als `roles` (Entra ID).
  */
-export type FlowzerCapability = 'access' | 'modeler' | 'operator' | 'worker';
+export type FlowzerCapability =
+  | 'access'
+  | 'modeler'
+  | 'operator'
+  | 'worker'
+  | 'aiConnectionUse'
+  | 'aiConnectionManage';
 
 interface AccessTokenClaims {
   resource_access?: Record<string, { roles?: string[] } | undefined>;

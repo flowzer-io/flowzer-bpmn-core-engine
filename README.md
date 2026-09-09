@@ -187,6 +187,16 @@ Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm 
 der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
 [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md).
 
+## KI-Verbindungen
+
+Flowzer verwaltet revisionsgeschützte, hostneutrale Metadaten für OpenAI, Anthropic
+und OpenAI-kompatible Cloud-/lokale Endpunkte. Cloud und lokale Verarbeitung sind
+getrennte Installations-Opt-ins; Verwenden und Verwalten besitzen getrennte Rollen.
+Secret-Referenzen sind nur schreibbar, Secret-Werte bleiben ausschließlich im
+serverseitigen `IAiSecretStore`. Die Verwaltungsbasis führt noch keine Provideraufrufe
+aus und ist keine vorgetäuschte KI-Task-Runtime. Details:
+[docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md).
+
 ## Release und Deployment
 
 `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
@@ -203,6 +213,7 @@ der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
+- [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation

@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Zweiunddreißig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Dreiunddreißig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal sowie in CI getestet.
 Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
 Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
@@ -42,8 +42,9 @@ produktiver Benutzer oder Datenbanken.
 | Marker und technische Schrittdaten | Mehrere aktive Token am selben Knoten werden gezählt; Prozessvariablen sowie persistierte Ein-/Ausgaben einzelner Knotenausführungen sind getrennt in der Operatoransicht sichtbar. | #235 / PR #236 |
 | Historische Identitätsauflösung | Gespeicherte Benutzer-/Gruppenreferenzen werden nur im autorisierten Kontext als begrenzter Batch aufgelöst; Aktivität und heutige Auswählbarkeit bleiben getrennt. | #234 / PR #237 |
 | Worker-Lease-Verlängerung | Lang laufende Service-Task-Worker verlängern ihre noch gültige Lease besitzergebunden; PostgreSQL prüft und aktualisiert atomar, abgelaufene oder fremde Leases bleiben gesperrt. | #238 / PR #239 |
+| KI-Verbindungen und Secret-Referenzen | Revisionsgeschützte Provider-Metadaten, getrennte Use-/Manage-Rollen, Installations-Opt-ins und austauschbarer Laufzeit-Secret-Store; API, SDK und Console geben weder Secret-Wert noch -Referenz zurück. | #240 / PR folgt |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → 239**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → 239 → #240-PR**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -51,20 +52,21 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Aktuelle lokale .NET-Suite einschließlich #238: **139 Engine- und 751 API-/Storage-Tests
+- Aktuelle lokale .NET-Suite einschließlich #240: **139 Engine- und 778 API-/Storage-Tests
   bestanden**, keine übersprungenen Tests; der lange API-Lauf wurde vollständig in vier
   disjunkten Fixture-Gruppen ausgeführt. Einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Laufzeit- und Identitätsansichten: **329 Tests**, Typecheck
+- React-Konsole einschließlich KI-Verbindungsverwaltung: **335 Tests**, Typecheck
   und Build erfolgreich; Lint ohne Fehler und sieben bestehende Warnungen. Ein frischer
   `Dockerfile.console`-Build einschließlich lokaler SDK-/React-Pakete ist erfolgreich.
-- Headless-SDK: **21 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
+- Headless-SDK: **24 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
   Paket-Trockenlauf und npm-Audit ohne Befund erfolgreich.
 - React-Integrationspaket: **20 Tests**, Typecheck, Build, Paket-Trockenlauf und
   npm-Audit ohne Befund; eine unabhängige Host-Fixture kompiliert erfolgreich gegen
   `@flowzer/sdk` und `@flowzer/react`.
-- Lokale Playwright-Suite auf dem aktuellen Stack: **32 Tests bestanden**. Insbesondere
-  Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
+- Lokale Playwright-Suite auf dem aktuellen Stack: **33 Tests bestanden**. Insbesondere
+  Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare, Vorgangsübersichten und der
+  nur schreibbare Secret-Referenzpfad der KI-Verbindungsverwaltung.
 - Vorgangsübersichten auf Desktop und Mobil visuell geprüft. Das ersetzt noch nicht
   den vollständigen M4-UX-Audit aller Modellierungs- und Betriebswege.
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
@@ -106,8 +108,9 @@ abschließenden Astra-/High-Gesamtreview.
 2. **Historische Formularstände:** Externe Altverweise ohne belegten Snapshot werden
    nicht auf das heutige `latest` geraten. Formularinventar und laufende Instanzen
    brauchen eine geprüfte Migration in einer Testinstallation.
-3. **Rollen:** `Roles:Operator` ausdrücklich konfigurieren. Der alte permissive
-   Vertrag für leere Fähigkeitsrollen ist noch nicht ersetzt.
+3. **Rollen:** `Roles:Operator` ausdrücklich konfigurieren. Für KI-Verbindungen sind
+   `Roles:AiConnectionUser` und `Roles:AiConnectionManager` absichtlich fail-closed;
+   andere leere Bestands-Fähigkeitsrollen bleiben im alten permissiven Vertrag.
 4. **Persistenz:** Dateiablage besitzt keinen Rollback und bleibt ein
    Einzelprozess-Entwicklungsweg. PostgreSQL-Konkurrenztests belegen die neuen
    Idempotenz-, Directory-, Draft-, Lifecycle- und Deadline-Verträge, aber noch nicht
@@ -128,8 +131,9 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
 3. **M3/M4:** Kommentare/Vorgangshistorie, gemeinsame Modellfähigkeiten,
    Laufzeitdiagramme und vollständiger UX-Audit. Flowzer erhält dabei keine Abhängigkeit
    von einer konkreten konsumierenden Fachanwendung.
-4. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige
-   PostgreSQL-, Lease-, Runtime-, Betriebs- und Upgrade-Bausteine vorziehen.
+4. **M5/M6:** Auf der sicheren Verbindungsverwaltung aus #240 die Provideradapter,
+   versionierte KI-Tasks, Werkzeuge, Freigaben und Wiederaufnahme aufbauen; nötige
+   PostgreSQL-, Runtime-, Betriebs- und Upgrade-Bausteine jeweils vorziehen.
 5. **Finale Abnahme:** Direkter Astra-/High-Subagent prüft alle M0–M6-Punkte und
    liefert Korrekturen im gemeinsamen Worktree; danach vollständige Tests,
    Zusammenführung nach `main` und Deployment-Verifikation.

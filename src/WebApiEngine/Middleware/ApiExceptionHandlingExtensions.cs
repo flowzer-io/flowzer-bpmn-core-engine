@@ -6,6 +6,7 @@ using WebApiEngine.Shared;
 using WebApiEngine.Forms;
 using WebApiEngine.Idempotency;
 using WebApiEngine.BusinessLogic;
+using WebApiEngine.Ai;
 
 namespace WebApiEngine.Middleware;
 
@@ -95,6 +96,40 @@ public static class ApiExceptionHandlingExtensions
                     problem.Extensions["code"] = "form_section_draft.revision_conflict";
                     problem.Extensions["expectedRevision"] = sectionConflict.ExpectedRevision;
                     problem.Extensions["currentRevision"] = sectionConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
+                if (exception is AiConnectionConflictException connectionConflict)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The AI connection has changed.",
+                        Detail = connectionConflict.Message,
+                        Type = "about:blank",
+                        Instance = "/ai/connection"
+                    };
+                    problem.Extensions["code"] = "ai_connection.revision_conflict";
+                    problem.Extensions["expectedRevision"] = connectionConflict.ExpectedRevision;
+                    problem.Extensions["currentRevision"] = connectionConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
+                if (exception is AiConnectionNotFoundException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status404NotFound,
+                        Title = "The AI connection was not found.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = "/ai/connection"
+                    };
+                    problem.Extensions["code"] = "ai_connection.not_found";
                     problem.Extensions["traceId"] = context.TraceIdentifier;
                     await context.Response.WriteAsJsonAsync(
                         problem, options: null, contentType: "application/problem+json");
@@ -236,6 +271,7 @@ public static class ApiExceptionHandlingExtensions
             DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
                 or FormAuthoringConflictException
                 or FormSectionAuthoringConflictException
+                or AiConnectionConflictException
                 or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             UserTaskNotificationUnavailableException => StatusCodes.Status503ServiceUnavailable,

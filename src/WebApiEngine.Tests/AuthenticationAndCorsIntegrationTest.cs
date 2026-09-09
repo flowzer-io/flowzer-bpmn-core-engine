@@ -21,6 +21,7 @@ using Model;
 using StorageSystem;
 using WebApiEngine.Auth;
 using WebApiEngine.Shared;
+using WebApiEngine.Ai;
 
 namespace WebApiEngine.Tests;
 
@@ -313,7 +314,8 @@ public class AuthenticationAndCorsIntegrationTest
         json.GetProperty("name").GetString().Should().Be("Ada Lovelace");
         json.GetProperty("email").GetString().Should().Be("ada@example.test");
         json.GetProperty("capabilities").EnumerateArray().Select(value => value.GetString())
-            .Should().BeEquivalentTo("access", "modeler", "operator", "worker");
+            .Should().BeEquivalentTo(
+                "access", "modeler", "operator", "worker", "aiConnectionUse", "aiConnectionManage");
         json.TryGetProperty("accessToken", out _).Should().BeFalse();
         json.TryGetProperty("refreshToken", out _).Should().BeFalse();
         tasks.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -461,6 +463,86 @@ public class AuthenticationAndCorsIntegrationTest
         (await client.GetAsync("/bff/login")).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    // Testzweck: Verwenden und Verwalten von KI-Verbindungen sind getrennte, fail-closed
+    // Rollen; ein reiner Verwender darf lesen, aber keine Secret-Referenz schreiben.
+    [Test]
+    public async Task AiConnectionPolicies_ShouldSeparateUseAndManagementRoles()
+    {
+        var storage = new TestStorage();
+        var settings = new Dictionary<string, string?>
+        {
+            ["Authentication:Scheme"] = "JwtBearer",
+            ["Authentication:JwtBearer:Authority"] = Issuer,
+            ["Authentication:JwtBearer:Audience"] = Audience,
+            ["Authentication:JwtBearer:Roles:AiConnectionUser"] = "ai-user",
+            ["Authentication:JwtBearer:Roles:AiConnectionManager"] = "ai-manager",
+            ["Ai:AllowCloudProviders"] = "true"
+        };
+        await using var factory = new TestWebApplicationFactory(
+            storage, "Production", settings, useStaticSigningKey: true);
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", CreateToken([new Claim("sub", Guid.NewGuid().ToString())]));
+        (await client.GetAsync("/ai/connection")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", CreateToken([
+                new Claim("sub", Guid.NewGuid().ToString()),
+                new Claim("roles", "ai-user")
+            ]));
+        (await client.GetAsync("/ai/connection")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var deniedWrite = await client.PostAsJsonAsync("/ai/connection", new CreateAiConnectionRequestDto
+        {
+            Name = "Nicht erlaubt",
+            Provider = AiProviderKindDto.OpenAi,
+            Location = AiProcessingLocationDto.Cloud,
+            DefaultModel = "gpt-example",
+            SecretReference = "env:FLOWZER_AI_OPENAI"
+        });
+        deniedWrite.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", CreateToken([
+                new Claim("sub", Guid.NewGuid().ToString()),
+                new Claim("roles", "ai-manager")
+            ]));
+        (await client.GetAsync("/ai/connection")).StatusCode.Should().Be(HttpStatusCode.OK);
+        var allowedWrite = await client.PostAsJsonAsync("/ai/connection", new CreateAiConnectionRequestDto
+        {
+            Name = "Administriert",
+            Provider = AiProviderKindDto.OpenAi,
+            Location = AiProcessingLocationDto.Cloud,
+            DefaultModel = "gpt-example",
+            SecretReference = "env:FLOWZER_AI_OPENAI"
+        });
+        allowedWrite.StatusCode.Should().Be(HttpStatusCode.Created);
+        var createdBody = await allowedWrite.Content.ReadAsStringAsync();
+        createdBody.Should().NotContain("secretReference");
+        createdBody.Should().NotContain("FLOWZER_AI_OPENAI");
+        using var createdJson = System.Text.Json.JsonDocument.Parse(createdBody);
+        var created = createdJson.RootElement.GetProperty("result");
+        var createdId = created.GetProperty("id").GetGuid();
+        var createdRevision = created.GetProperty("revision").GetInt64();
+        var disabled = await client.PutAsJsonAsync($"/ai/connection/{createdId}/enabled", new SetAiConnectionEnabledRequestDto
+        {
+            ExpectedRevision = createdRevision,
+            Enabled = false
+        });
+        disabled.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", CreateToken([
+                new Claim("sub", Guid.NewGuid().ToString()),
+                new Claim("roles", "ai-user")
+            ]));
+        var useOnlyList = (await (await client.GetAsync("/ai/connection"))
+            .Content.ReadFromJsonAsync<ApiStatusResult<AiConnectionDto[]>>())!.Result!;
+        useOnlyList.Should().BeEmpty();
+        (await client.GetAsync($"/ai/connection/{createdId}"))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     // Testzweck: Die optionale BFF-Fassade muss auch im offenen Entwicklungsmodus abgeschaltet
     // bleiben, statt Authentifizierung ohne registriertes Schema anzufordern.
     [TestCase("login", "GET")]
@@ -504,6 +586,8 @@ public class AuthenticationAndCorsIntegrationTest
             ["Authentication:JwtBearer:Roles:Modeler"] = "modeler",
             ["Authentication:JwtBearer:Roles:Operator"] = "operator",
             ["Authentication:JwtBearer:Roles:Worker"] = "worker",
+            ["Authentication:JwtBearer:Roles:AiConnectionUser"] = "ai-user",
+            ["Authentication:JwtBearer:Roles:AiConnectionManager"] = "ai-manager",
             ["Authentication:Bff:ClientId"] = "flowzer-console",
             ["Authentication:Bff:ClientSecret"] = bffClientSecret,
             ["Authentication:Bff:DataProtectionKeysPath"] = dataProtectionPath
@@ -637,6 +721,7 @@ public class AuthenticationAndCorsIntegrationTest
         public IInstanceStorage InstanceStorage => new EmptyInstanceStorage();
         public IFormStorage FormStorage => new EmptyFormStorage();
         public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
+        public IAiConnectionStorage AiConnectionStorage { get; } = new TestAiConnectionStorage();
 
         public void CommitChanges()
         {
@@ -648,6 +733,36 @@ public class AuthenticationAndCorsIntegrationTest
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class TestAiConnectionStorage : IAiConnectionStorage
+    {
+        private readonly Dictionary<Guid, AiConnection> _connections = [];
+
+        public Task<IReadOnlyList<AiConnection>> List() =>
+            Task.FromResult<IReadOnlyList<AiConnection>>(_connections.Values.ToArray());
+
+        public Task<AiConnection?> Get(Guid id) => Task.FromResult(_connections.GetValueOrDefault(id));
+
+        public Task<AiConnectionWriteResult> TryCreate(AiConnection connection)
+        {
+            if (!_connections.TryAdd(connection.Id, connection))
+                return Task.FromResult(new AiConnectionWriteResult(AiConnectionWriteStatus.Conflict, null, 0));
+            return Task.FromResult(new AiConnectionWriteResult(
+                AiConnectionWriteStatus.Written, connection, connection.Revision));
+        }
+
+        public Task<AiConnectionWriteResult> TryUpdate(AiConnection connection, long expectedRevision)
+        {
+            if (!_connections.TryGetValue(connection.Id, out var current))
+                return Task.FromResult(new AiConnectionWriteResult(AiConnectionWriteStatus.NotFound, null, 0));
+            if (current.Revision != expectedRevision)
+                return Task.FromResult(new AiConnectionWriteResult(
+                    AiConnectionWriteStatus.Conflict, current, current.Revision));
+            _connections[connection.Id] = connection;
+            return Task.FromResult(new AiConnectionWriteResult(
+                AiConnectionWriteStatus.Written, connection, connection.Revision));
         }
     }
 
@@ -754,6 +869,8 @@ public sealed class BffTestController(BffMutationProbe mutationProbe) : Controll
             new("roles", "modeler"),
             new("roles", "operator"),
             new("roles", "worker"),
+            new("roles", "ai-user"),
+            new("roles", "ai-manager"),
             new("resource_access", "{\"flowzer-api\":{\"roles\":[\"access\"]}}", JsonClaimValueTypes.Json)
         ];
         await HttpContext.SignInAsync("Flowzer.Cookie", new ClaimsPrincipal(new ClaimsIdentity(

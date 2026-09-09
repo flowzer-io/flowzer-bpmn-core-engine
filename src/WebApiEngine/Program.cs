@@ -9,6 +9,7 @@ using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
+using WebApiEngine.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +51,12 @@ builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddScoped<AiConnectionService>();
+builder.Services.AddOptions<FlowzerAiOptions>()
+    .Bind(builder.Configuration.GetSection(FlowzerAiOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IAiSecretStore, EnvironmentAiSecretStore>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()

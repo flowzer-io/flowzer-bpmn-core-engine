@@ -1,6 +1,8 @@
 import { completionOptions, FlowzerTransport } from './transport.js';
 import type {
+  AiConnection,
   CompleteUserTaskCommand,
+  CreateAiConnectionCommand,
   CreateFormSectionCommand,
   DirectorySubjectResolutionResult,
   DirectorySubjectSearchOptions,
@@ -22,10 +24,12 @@ import type {
   ReleaseUserTaskCommand,
   SaveFormSectionAuthoringDraftCommand,
   SaveUserTaskDraftCommand,
+  SetAiConnectionEnabledCommand,
   SubjectRef,
   TaskAssigneeResolutionOptions,
   TaskAssigneeSearchOptions,
   TransferUserTaskCommand,
+  UpdateAiConnectionCommand,
   UserTaskDraft,
   UserTaskRevisionCommand,
   UserTaskWorkState,
@@ -191,6 +195,47 @@ export class FlowzerClient {
     /** Lädt die serverseitig bereinigte Laufzeitprojektion der gebundenen BPMN-Version. */
     runtimeDiagram: (instanceId: string, options: FlowzerCallOptions = {}): Promise<RuntimeDiagram> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}/runtime-diagram`, options),
+  };
+
+  /**
+   * Verwaltung der hostneutralen KI-Verbindungsmetadaten. Antworten enthalten
+   * absichtlich weder Secret-Werte noch die beim Schreiben verwendete Referenz.
+   */
+  readonly aiConnections = {
+    list: async (options: FlowzerCallOptions = {}): Promise<AiConnection[]> =>
+      (await this.transport.status<AiConnection[]>('/ai/connection', options)) ?? [],
+
+    get: (connectionId: string, options: FlowzerCallOptions = {}): Promise<AiConnection> =>
+      this.transport.statusResult(`/ai/connection/${segment(connectionId)}`, options),
+
+    create: (
+      command: CreateAiConnectionCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<AiConnection> => this.transport.statusResult('/ai/connection', {
+      method: 'POST', body: command, signal: options.signal,
+    }),
+
+    update: async (
+      connectionId: string,
+      command: UpdateAiConnectionCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<AiConnection> => {
+      revision(command.expectedRevision, 'Updating an AI connection', true);
+      return this.transport.statusResult(`/ai/connection/${segment(connectionId)}`, {
+        method: 'PUT', body: command, signal: options.signal,
+      });
+    },
+
+    setEnabled: async (
+      connectionId: string,
+      command: SetAiConnectionEnabledCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<AiConnection> => {
+      revision(command.expectedRevision, 'Changing an AI connection', true);
+      return this.transport.statusResult(`/ai/connection/${segment(connectionId)}/enabled`, {
+        method: 'PUT', body: command, signal: options.signal,
+      });
+    },
   };
 
   /**

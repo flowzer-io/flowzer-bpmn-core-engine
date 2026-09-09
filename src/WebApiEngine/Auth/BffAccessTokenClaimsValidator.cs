@@ -122,7 +122,9 @@ public sealed class BffAccessTokenClaimsValidator(FlowzerAuthenticationOptions o
                      options.JwtBearer.RequiredRole,
                      options.JwtBearer.Roles.Modeler,
                      options.JwtBearer.Roles.Operator,
-                     options.JwtBearer.Roles.Worker
+                     options.JwtBearer.Roles.Worker,
+                     options.JwtBearer.Roles.AiConnectionUser,
+                     options.JwtBearer.Roles.AiConnectionManager
                  }.Where(role => !string.IsNullOrWhiteSpace(role)).Distinct(StringComparer.Ordinal))
         {
             if (TokenRoles.HasRole(accessPrincipal, options.JwtBearer.Audience, role))

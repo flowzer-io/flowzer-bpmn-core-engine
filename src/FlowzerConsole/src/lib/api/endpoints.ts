@@ -1,5 +1,6 @@
 import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
 import { normalizeInstance } from './normalize';
+import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import type {
   BpmnDefinitionDto,
   BpmnCapabilityContract,
@@ -34,6 +35,9 @@ import type {
   FormSectionVersionDto,
   FormSectionAuthoringDraftDto,
   SaveFormSectionAuthoringDraftRequestDto,
+  AiConnectionDto,
+  CreateAiConnectionInput,
+  UpdateAiConnectionInput,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -399,6 +403,41 @@ export const formSectionsApi = {
         method: 'POST', body: { expectedRevision },
       },
     ),
+};
+
+/** Sichere KI-Verbindungsmetadaten; Secret-Referenzen werden nur schreibend uebertragen. */
+export const aiConnectionsApi = {
+  list: async (signal?: AbortSignal) => {
+    const items = await requestStatusResult<Array<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>>('/ai/connection', { signal });
+    return items.map(normalizeAiConnection);
+  },
+  create: async (input: CreateAiConnectionInput) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>('/ai/connection', { method: 'POST', body: createAiConnectionBody(input) }),
+  ),
+  update: async (connectionId: string, input: UpdateAiConnectionInput) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>(`/ai/connection/${encodeURIComponent(connectionId)}`, {
+      method: 'PUT',
+      body: updateAiConnectionBody(input),
+    }),
+  ),
+  setEnabled: async (connectionId: string, expectedRevision: number, enabled: boolean) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>(`/ai/connection/${encodeURIComponent(connectionId)}/enabled`, {
+      method: 'PUT',
+      body: { expectedRevision, enabled },
+    }),
+  ),
 };
 
 export const messagesApi = {

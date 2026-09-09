@@ -1,6 +1,6 @@
 # Laufzeitlücken und aktueller Restbestand
 
-**Stand:** 5. September 2026
+**Stand:** 9. September 2026
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
 
@@ -123,9 +123,24 @@ Nicht enthalten:
 - BPMN-Kompensationshandler
 - fachliche Undo-Semantik für Seiteneffekte
 
+### 4. KI-Ausführung und Werkzeuge
+
+Vorhanden sind die besitzergebundene Worker-Lease-Verlängerung sowie revisionsgeschützte
+KI-Verbindungsmetadaten mit installationsweiten Cloud-/Lokal-Grenzen und serverseitiger
+Secret-Store-Abstraktion. Diese Basis führt bewusst noch keinen Modellaufruf aus.
+
+Weiterhin offen:
+
+- Provideradapter und explizite Modellfähigkeitsprüfung,
+- versionierter KI-Task-Vertrag mit Eingaben, Ergebnisschema und Ausgängen,
+- dauerhafte, nach Neustart fortsetzbare Läufe,
+- typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal,
+- erneute Ziel-/DNS-Prüfung unmittelbar vor jedem Provideraufruf.
+
 ## Empfohlene nächste Runtime-Schritte
 
 1. Recovery- und Wiederholungsstrategie nur noch für Boundary- und Spezialtimer weiter härten
 2. Error-/Escalation-Semantik gezielt modellieren und testen
-3. `Cancel()` später um echte Kompensationsstrategien erweitern
-4. Boundary-Timer nur noch bei echten Randfällen weiter vertiefen
+3. KI-Provider erst hinter dauerhaftem Lauf-, Freigabe- und Zielprüfvertrag anbinden
+4. `Cancel()` später um echte Kompensationsstrategien erweitern
+5. Boundary-Timer nur noch bei echten Randfällen weiter vertiefen
