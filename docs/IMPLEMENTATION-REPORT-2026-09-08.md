@@ -34,9 +34,9 @@ produktiver Benutzer oder Datenbanken.
 | Headless-TypeScript-SDK | `@flowzer/sdk` kapselt Aufgaben, Formulare, Entwürfe, Aktionen, gebundene Verzeichnissuche und Vorgangsstatus ohne Host- oder UI-Abhängigkeit; ein objektberechtigter Task-Deep-Link ergänzt den OpenAPI-Vertrag. | [#219](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/219) |
 | React-Integrationsbausteine | `@flowzer/react` ergänzt darstellungsfreie Hooks und Controller mit sicheren Installations-/Sitzungs-Caches, bewusst nicht wiederholten Task-Mutationen und neutralem Formularadapter; eine unabhängige Host-Fixture kompiliert ausschließlich gegen öffentliche Pakete. | [#221](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/221) |
 | CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | [#223](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/223) |
-| Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR folgt |
+| Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR #225 |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → #224/PR folgt**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem

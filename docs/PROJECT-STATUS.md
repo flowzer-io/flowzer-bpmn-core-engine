@@ -156,13 +156,13 @@ bereits geladene Formular-/Entwurfsdaten aus der sichtbaren Projektion und dem S
 
 Form.io, CSS, Navigation und Fachobjekte bleiben beim Host. Ein neutraler
 Formularadaptervertrag und eine unabhängig kompilierte Fixture belegen diese Grenze.
-Die Flowzer-Konsole konsumiert die Pakete mit #224 inzwischen selbst: Ihre BFF-,
+Die Flowzer-Konsole konsumiert die Pakete mit #224/PR #225 inzwischen selbst: Ihre BFF-,
 Form.io- und Development-Details bleiben in schmalen Console-Adaptern, während der
 parallele Human-Task-Transport entfernt wurde. Eine reale externe Identity-/HTTPS-
 Einbettungsabnahme bleibt separat offen. Details:
 [Hostneutrale Einbettung](HOST-INTEGRATION.md).
 
-## Console auf öffentlichen Task-Paketen – #224 (noch nicht gemergt)
+## Console auf öffentlichen Task-Paketen – #224 / PR #225 (noch nicht gemergt)
 
 Aufgabenlisten in Dashboard, Navigation und Arbeitsplatz verwenden `@flowzer/react`;
 Detail, Formular, privater Entwurf, Lifecycle, Directory und idempotenter Abschluss

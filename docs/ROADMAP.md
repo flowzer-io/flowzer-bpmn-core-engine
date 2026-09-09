@@ -40,7 +40,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
    Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
    fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
-   React-Bausteine (#220/PR #221) liegen vor. #224 migriert die Flowzer-Konsole auf
+   React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
    genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
    Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
    folgen.
@@ -62,7 +62,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Vertretung sind ausdrücklich nicht enthalten.
 - [x] **#218/#220 – öffentliche Integrationspakete:** Das zustandslose SDK sowie
   darstellungsfreie React-Hooks/-Controller bleiben frei von konkreten Hosts.
-- [x] **#224 – Console-Paketmigration:** Die Flowzer-Konsole verwendet für Human
+- [x] **#224 / PR #225 – Console-Paketmigration:** Die Flowzer-Konsole verwendet für Human
   Tasks die öffentlichen Pakete; BFF, Form.io und Development-Details bleiben
   ausschließlich Console-Adapter. Ein konkreter externer Host ist nicht Bestandteil
   von Flowzer.
