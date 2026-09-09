@@ -292,8 +292,9 @@ und Abschluss bleiben identisch.
   getrennt berechtigen. Secrets nur über austauschbaren Secret-Store zur Laufzeit.
 - [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
   lokale Endpunkte nur mit expliziter administrativer Freigabe.
-- [ ] Worker-Vertrag um Lease-Verlängerung und dauerhafte, begrenzt fortsetzbare
-  KI-Läufe mit Störungsbehandlung erweitern.
+- [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
+  (#238; PR folgt). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
+  Störungsbehandlung bleiben offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
   Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,

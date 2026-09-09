@@ -55,7 +55,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
    Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
-   parametergebundene Freigaben und sichere Wiederaufnahme.
+   parametergebundene Freigaben und sichere Wiederaufnahme. Der vorgezogene M6-Baustein
+   #238 ergänzt bereits die atomare Lease-Verlängerung für lang laufende Worker; der PR
+   folgt auf #237.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 

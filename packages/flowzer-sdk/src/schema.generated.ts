@@ -3535,6 +3535,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job/{jobId}/lease": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RenewJobLeaseRequestDto"];
+                    "text/json": components["schemas"]["RenewJobLeaseRequestDto"];
+                    "application/*+json": components["schemas"]["RenewJobLeaseRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RenewJobLeaseResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["RenewJobLeaseResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["RenewJobLeaseResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/job/{jobId}/fail": {
         parameters: {
             query?: never;
@@ -5248,6 +5320,22 @@ export interface components {
         };
         RenameFormSectionRequestDto: {
             name: string | null;
+        };
+        RenewJobLeaseRequestDto: {
+            workerId: string | null;
+            /** Format: int32 */
+            lockSeconds?: number;
+        };
+        RenewJobLeaseResultDto: {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: date-time */
+            lockedUntil: string;
+        };
+        RenewJobLeaseResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["RenewJobLeaseResultDto"];
         };
         RuntimeDiagramDto: {
             /** Format: uuid */

@@ -205,6 +205,27 @@ public class OpenApiContractTest
         eventProperties.TryGetProperty("correlationId", out _).Should().BeFalse();
     }
 
+    // Testzweck: Der neue Worker-Heartbeat beschreibt Erfolg und jeden erwartbaren Fehler
+    // explizit; neue Clients duerfen nicht auf undokumentierte Legacy-Fehlerumschlaege treffen.
+    [Test]
+    public async Task ServiceTaskLeaseEndpoint_ShouldExposeProblemDetailsAndUtcExpiry()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(root.GetProperty("paths"), "/job/{jobId}/lease", "post");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/RenewJobLeaseResultDtoApiStatusResult");
+        GetProblemResponse(operation, "400").Should().Be("#/components/schemas/ProblemDetails");
+        GetProblemResponse(operation, "404").Should().Be("#/components/schemas/ProblemDetails");
+        GetProblemResponse(operation, "409").Should().Be("#/components/schemas/ProblemDetails");
+
+        var required = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("RenewJobLeaseResultDto").GetProperty("required")
+            .EnumerateArray().Select(value => value.GetString()).ToArray();
+        required.Should().BeEquivalentTo("jobId", "lockedUntil");
+    }
+
     // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
     // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
     [Test]

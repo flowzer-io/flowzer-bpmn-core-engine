@@ -66,6 +66,7 @@ public partial class PostgreSqlStorageIntegrationTest
         command.CommandText = string.Join(";", new[]
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
+            "service_task_jobs", "service_task_webhooks",
             "message_subscriptions", "signal_subscriptions", "user_task_drafts",
             "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",

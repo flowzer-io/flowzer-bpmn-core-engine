@@ -338,6 +338,16 @@ Der Slice liefert keine E-Mail-/Push-/Chat-Zustellung, keine automatische Delega
 und keine BPMN-Eskalationspropagation. Der eigene Operations-Diagnoseblock für den
 Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme bleiben offen.
 
+## Verlängerbare Worker-Leases – #238 (PR folgt)
+
+Lang laufende Service-Task-Worker können ihre noch gültige Lease über einen eigenen
+Heartbeat verlängern. Der Besitz bleibt an authentifizierte Person und Worker-Kennung
+gebunden; eine abgelaufene oder bereits fremde Lease wird nicht wiederbelebt. PostgreSQL
+prüft Besitzer, Ablauf und Aktualisierung atomar in einem Statement. Der öffentliche
+Vertrag liefert den tatsächlich gespeicherten UTC-Ablauf zurück und begrenzt jede
+angeforderte Dauer auf höchstens eine Stunde. Dieser M6-Baustein bereitet dauerhafte
+KI-Läufe vor, implementiert aber noch keinen Modellanbieter oder KI-Ausführungszustand.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -361,12 +371,13 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
+   Die dafür nötige Worker-Lease-Verlängerung liegt in #238 bereits vor.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-737 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
+751 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell
