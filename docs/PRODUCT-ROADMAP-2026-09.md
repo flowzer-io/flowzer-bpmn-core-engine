@@ -231,7 +231,9 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   noch offen.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
-- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
+- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln. #226 / PR #227
+  liefert die datensparsame Human-Task-Auditprojektion; #232 ergänzt die getrennte
+  objektberechtigte Engine-Ereignisspur. Fachliche Kommentare bleiben offen.
 - [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
   #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
@@ -262,9 +264,11 @@ und Abschluss bleiben identisch.
 - [x] Anwählbare Validierungsfehler für unerreichbare Schritte, ungültige Referenzen,
   Exclusive-Gateway-Bedingungen sowie fehlende User-/Service-/Timer-Konfiguration.
   Diagramm und Gliederung verwenden denselben stabilen 422-Vertrag aus #228 / PR #229.
-- [ ] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
-  abgebrochene und gestörte Schritte. Kein scheinexaktes „Schritt x von y“ bei
-  offenen Verzweigungen.
+- [x] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
+  abgebrochene und gestörte Schritte. #232 bindet die unveränderliche Definitionsversion,
+  bereinigt das BPMN-Dokument, speichert Engine-Ereignisse append-only und liefert den
+  Vertrag über API, SDK, React und responsive Console. Kein scheinexaktes „Schritt x von y“
+  bei offenen Verzweigungen.
 - [ ] Versionsvergleich, Änderungsübersicht und atomare Veröffentlichung von
   zusammengehörigem BPMN-/Formularstand.
 - [ ] Such-/Filterzustände, Tastatur, Fokus, Formularfehler, Ladezustände und mobile

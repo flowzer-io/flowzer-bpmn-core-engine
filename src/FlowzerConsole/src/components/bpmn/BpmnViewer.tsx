@@ -11,7 +11,7 @@ import { type Box, fitViewport } from './fitViewport';
 import { FLOWZER_MODDLE } from './flowzerModdle';
 
 /** Darstellungszustand eines BPMN-Elements im Instanzverlauf. */
-export type NodeMarker = 'completed' | 'active' | 'failed';
+export type NodeMarker = 'completed' | 'active' | 'cancelled' | 'failed';
 
 interface BpmnViewerProps {
   xml: string | undefined;
@@ -27,6 +27,8 @@ interface BpmnViewerProps {
   fit?: boolean;
   /** Freier Rand in Pixeln, der beim Einpassen um das Diagramm bleibt. */
   fitPadding?: number;
+  /** Zugängliche Beschreibung der rein visuellen BPMN-Fläche. */
+  ariaLabel?: string;
 }
 
 interface CanvasLike {
@@ -48,7 +50,7 @@ interface ViewerLike {
   destroy: () => void;
 }
 
-const ALL_MARKERS = ['flowzer-completed', 'flowzer-active', 'flowzer-failed'] as const;
+const ALL_MARKERS = ['flowzer-completed', 'flowzer-active', 'flowzer-cancelled', 'flowzer-failed'] as const;
 
 /**
  * Nur-Lese-Ansicht eines BPMN-Diagramms mit Zustandsmarkierungen.
@@ -70,9 +72,11 @@ export function BpmnViewer({
   interactive = true,
   fit = true,
   fitPadding = 16,
+  ariaLabel,
 }: BpmnViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<ViewerLike | null>(null);
+  const markedElementIdsRef = useRef<Set<string>>(new Set());
   const onElementClickRef = useRef(onElementClick);
   const [imported, setImported] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +127,7 @@ export function BpmnViewer({
         }
 
         viewerRef.current = viewer;
+        markedElementIdsRef.current.clear();
         if (fit) fitViewport(viewer.get<CanvasLike>('canvas'), fitPadding);
         setImported(true);
       } catch (cause) {
@@ -167,11 +172,16 @@ export function BpmnViewer({
     const viewer = viewerRef.current;
     if (!imported || !viewer) return;
 
-    applyMarkers(viewer, JSON.parse(markerKey) as Record<string, NodeMarker>, JSON.parse(tokenKey) as string[]);
+    applyMarkers(
+      viewer,
+      JSON.parse(markerKey) as Record<string, NodeMarker>,
+      JSON.parse(tokenKey) as string[],
+      markedElementIdsRef.current,
+    );
   }, [imported, markerKey, tokenKey]);
 
   return (
-    <div className={cn('bpmn-surface relative', className)}>
+    <div className={cn('bpmn-surface relative', className)} role={ariaLabel ? 'img' : undefined} aria-label={ariaLabel}>
       <div ref={containerRef} className="h-full w-full" />
       {error && (
         <div className="bg-surface/90 text-fail absolute inset-0 grid place-items-center p-6 text-center text-[13.5px]">
@@ -202,19 +212,34 @@ function describeImportError(cause: unknown): string {
   return `${message} — ${details}`;
 }
 
-function applyMarkers(viewer: ViewerLike, markers: Record<string, NodeMarker>, tokens: string[]): void {
+function applyMarkers(
+  viewer: ViewerLike,
+  markers: Record<string, NodeMarker>,
+  tokens: string[],
+  previouslyMarked: Set<string>,
+): void {
   const canvas = viewer.get<CanvasLike>('canvas');
   const overlays = viewer.get<OverlaysLike>('overlays');
 
   overlays.clear();
 
-  for (const [elementId, marker] of Object.entries(markers)) {
+  // Auch Markierungen entfernen, die in der neuen Serverprojektion nicht mehr
+  // vorkommen. Andernfalls bliebe beispielsweise ein alter Active-Ring sichtbar.
+  for (const elementId of new Set([...previouslyMarked, ...Object.keys(markers)])) {
     try {
       for (const existing of ALL_MARKERS) canvas.removeMarker(elementId, existing);
-      canvas.addMarker(elementId, `flowzer-${marker}`);
     } catch {
       // Elemente aus älteren Versionen können im aktuellen Diagramm fehlen —
       // eine fehlende Markierung darf die Ansicht nicht abbrechen.
+    }
+  }
+  previouslyMarked.clear();
+  for (const [elementId, marker] of Object.entries(markers)) {
+    try {
+      canvas.addMarker(elementId, `flowzer-${marker}`);
+      previouslyMarked.add(elementId);
+    } catch {
+      // siehe oben
     }
   }
 

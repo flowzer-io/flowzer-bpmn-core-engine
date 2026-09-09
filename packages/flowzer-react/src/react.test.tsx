@@ -10,6 +10,7 @@ import {
   flowzerQueryKeys,
   useFlowzer,
   useInstanceHistory,
+  useInstanceRuntimeDiagram,
   useTaskFormData,
   useFormSectionActions,
   useFormSectionDraft,
@@ -98,6 +99,38 @@ describe('@flowzer/react', () => {
     await waitFor(() => expect(result.current.data).toBeUndefined());
     await waitFor(() => expect(queryClient.getQueryData(
       flowzerQueryKeys.instanceHistory('installation-a', 'session-a', 'instance-1'),
+    )).toBeUndefined());
+  });
+
+  // Testzweck: Die technische Laufzeitprojektion wird erst bei ausdrücklicher
+  // Freigabe geladen und nach einem Rechteentzug synchron aus Cache und Hook entfernt.
+  it('lädt das Laufzeitdiagramm fail-closed und sitzungsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      instanceId: 'instance-1',
+      definitionId: 'definition-1',
+      processId: 'Process_1',
+      state: 2,
+      snapshotAtUtc: '2026-09-09T10:00:00Z',
+      diagramXml: '<definitions />',
+      nodes: [],
+      events: [],
+    }));
+    const { queryClient, wrapper } = setup(fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useInstanceRuntimeDiagram('instance-1', { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.processId).toBe('Process_1'));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance-1/runtime-diagram');
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(
+      flowzerQueryKeys.instanceRuntimeDiagram('installation-a', 'session-a', 'instance-1'),
     )).toBeUndefined());
   });
 

@@ -19,6 +19,7 @@ import type {
   FormSectionVersionSummary,
   ProcessInstance,
   ProcessHistory,
+  RuntimeDiagram,
   ReleaseUserTaskCommand,
   RenameFormSectionCommand,
   SaveFormSectionAuthoringDraftCommand,
@@ -189,6 +190,27 @@ export function useInstanceHistory(instanceId: string, options: FlowzerQueryOpti
   }, [cacheNamespace, enabled, instanceId, queryClient, sessionScope]);
   // Deaktivierte Observer können ihren letzten Wert noch bis zum nächsten internen
   // Query-Update halten. Die öffentliche Projektion schließt deshalb synchron fail-closed.
+  return enabled ? query : { ...query, data: undefined };
+}
+
+/**
+ * Lädt die technische Laufzeitprojektion nur nach ausdrücklicher Freischaltung. Ein
+ * Rechteentzug entfernt sowohl Observer-Daten als auch den sitzungsgebundenen Cache.
+ */
+export function useInstanceRuntimeDiagram(instanceId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const enabled = Boolean(instanceId) && (options.enabled ?? true);
+  const queryKey = flowzerQueryKeys.instanceRuntimeDiagram(cacheNamespace, sessionScope, instanceId);
+  const query = useQuery<RuntimeDiagram, Error>({
+    queryKey,
+    queryFn: ({ signal }) => client.instances.runtimeDiagram(instanceId, { signal }),
+    enabled,
+    ...(options.refetchInterval === undefined ? {} : { refetchInterval: options.refetchInterval }),
+  });
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!enabled) queryClient.removeQueries({ queryKey });
+  }, [enabled, queryClient, queryKey]);
   return enabled ? query : { ...query, data: undefined };
 }
 

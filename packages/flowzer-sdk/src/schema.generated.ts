@@ -2840,6 +2840,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}/runtime-diagram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
+                        "application/json": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
+                        "text/json": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/{instanceId}/subscription/messages": {
         parameters: {
             query?: never;
@@ -4821,6 +4869,45 @@ export interface components {
         };
         RenameFormSectionRequestDto: {
             name: string | null;
+        };
+        RuntimeDiagramDto: {
+            /** Format: uuid */
+            instanceId: string;
+            /** Format: uuid */
+            definitionId: string;
+            processId: string | null;
+            state: components["schemas"]["ProcessInstanceStateDto"];
+            /** Format: date-time */
+            snapshotAtUtc: string;
+            diagramXml: string | null;
+            nodes: components["schemas"]["RuntimeNodeSummaryDto"][] | null;
+            events: components["schemas"]["RuntimeNodeEventDto"][] | null;
+        };
+        RuntimeDiagramDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["RuntimeDiagramDto"];
+        };
+        RuntimeNodeEventDto: {
+            /** Format: uuid */
+            id: string;
+            flowNodeId: string | null;
+            state: components["schemas"]["FlowNodeStateDto"];
+            /** Format: date-time */
+            occurredAtUtc: string;
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        RuntimeNodeStatusDto: 0 | 1 | 2 | 3;
+        RuntimeNodeSummaryDto: {
+            flowNodeId: string | null;
+            status: components["schemas"]["RuntimeNodeStatusDto"];
+            /** Format: int32 */
+            tokenCount: number;
+            /** Format: date-time */
+            lastChangedAtUtc?: string | null;
         };
         SaveFormAuthoringDraftRequestDto: {
             /** Format: int64 */

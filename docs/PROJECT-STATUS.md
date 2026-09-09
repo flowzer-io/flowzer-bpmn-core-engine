@@ -285,6 +285,21 @@ Element-ID und Eigenschaftspfad. Diagramm und Gliederung zeigen sie dauerhaft,
 markieren beziehungsweise öffnen den betroffenen Knoten. Details:
 [BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
 
+## Laufzeitdiagramm und Engine-Ereignisse – #232 (noch nicht gemergt)
+
+Persistenzgrenzen schreiben append-only, idempotente und datensparsame
+Flow-Node-Zustände. PostgreSQL koppelt sie transaktional an den Instanzstand; die
+Dateiablage bleibt Einzelprozess-Entwicklung. Ein eigener objektberechtigter
+Operatorendpunkt liefert ausschließlich die exakt an die Instanz gebundene,
+bereinigte BPMN-Struktur, verdichtete Knotenstatus und die kanonisch sortierte
+Ereignisspur. Token-/Korrelations-IDs, Personen, Variablen, Formulardaten und
+Erweiterungskonfiguration verlassen den Server nicht.
+
+SDK und React-Schicht stellen denselben hostneutralen Vertrag bereit. Die Console
+zeigt Diagramm, Statuslegende, tastaturbedienbare Knotenliste und echte
+Ereigniszeitleiste responsiv; die fachlich falsche lineare Fortschrittsanzeige ist
+entfernt. Details: [Laufzeitdiagramm](RUNTIME-DIAGRAM.md).
+
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
@@ -322,17 +337,17 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
    serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
    Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
-   vor (#202–#226). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
-   Engine-Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   vor (#202–#232). Merge/Abnahme, externe Zustellung und weiterführende Runtime-
+   Diagnose folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 111 Engine-,
-680 API-/Storage-, 302 Konsolen-, 14 SDK- und 16 React-Pakettests. Der vollständige UX-Audit und die erste
+Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
+730 API-/Storage-, 322 Konsolen-, 20 SDK- und 19 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

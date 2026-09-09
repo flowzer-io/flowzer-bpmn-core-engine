@@ -6,6 +6,7 @@ export type FlowzerForm = components['schemas']['FormDto'];
 export type UserTaskDraft = components['schemas']['UserTaskDraftDto'];
 export type UserTaskWorkState = components['schemas']['UserTaskWorkStateDto'];
 export type ProcessInstance = components['schemas']['ProcessInstanceInfoDto'];
+export type RuntimeDiagram = components['schemas']['RuntimeDiagramDto'];
 export type SubjectRef = components['schemas']['SubjectRefDto'];
 export type DirectorySubjectSearchResult = components['schemas']['DirectorySubjectSearchResultDto'];
 

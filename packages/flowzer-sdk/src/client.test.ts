@@ -177,6 +177,31 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
   });
 
+  // Testzweck: Die hostneutrale Laufzeitprojektion wird über ihren eigenen
+  // objektberechtigten Pfad geladen; AbortSignal und unbekannte Enumwerte bleiben erhalten.
+  it('lädt das Laufzeitdiagramm mit sicher kodierter Instanz-ID', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        instanceId: 'instance/id',
+        definitionId: 'definition-1',
+        processId: 'Process_1',
+        state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z',
+        diagramXml: '<definitions />',
+        nodes: [{ flowNodeId: 'Review', status: 99, tokenCount: 1 }],
+        events: [],
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await expect(client.instances.runtimeDiagram('instance/id', { signal: controller.signal }))
+      .resolves.toMatchObject({ nodes: [{ flowNodeId: 'Review', status: 99 }] });
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance%2Fid/runtime-diagram');
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
   // Testzweck: Der SDK erzeugt niemals stillschweigend einen Ersatzschlüssel und
   // verwirft ungültige Idempotenzwerte, bevor eine Mutation den Server erreicht.
   it('weist ungültige Idempotenzschlüssel vor dem Request zurück', async () => {

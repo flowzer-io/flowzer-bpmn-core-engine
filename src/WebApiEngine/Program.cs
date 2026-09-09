@@ -49,6 +49,7 @@ builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
+builder.Services.AddScoped<RuntimeDiagramService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()

@@ -4,12 +4,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InstanceDetailPage } from './InstanceDetailPage';
 
-const mocks = vi.hoisted(() => ({ instance: vi.fn(), xml: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn() }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
-vi.mock('@flowzer/react', () => ({ useInstanceHistory: mocks.history }));
+vi.mock('@flowzer/react', () => ({
+  useInstanceHistory: mocks.history,
+  useInstanceRuntimeDiagram: mocks.runtime,
+}));
 vi.mock('@/stores/breadcrumbs', () => ({ useBreadcrumbs: vi.fn() }));
 vi.mock('@/lib/api/queries', () => ({
-  useInstance: mocks.instance, useDefinitionXml: mocks.xml, useInstanceSubscriptions: mocks.subscriptions,
+  useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
   queryKeys: {},
 }));
 vi.mock('@/components/bpmn/BpmnViewer', () => ({ BpmnViewer: () => <div>Technisches Diagramm</div> }));
@@ -24,7 +27,7 @@ const overview = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.instance.mockReturnValue({ data: overview, isPending: false });
-  mocks.xml.mockReturnValue({ data: undefined, isPending: false });
+  mocks.runtime.mockReturnValue({ data: undefined, isPending: false });
   mocks.history.mockReturnValue({ data: undefined, isPending: false });
   mocks.subscriptions.mockReturnValue({ data: undefined, isPending: false });
 });
@@ -34,7 +37,10 @@ describe('Datensparsame Instanzansicht', () => {
   // angefordert, auch nicht schon während des initialen Ladens.
   it('fragt für die Übersicht keine technischen Ressourcen an', () => {
     render(<InstanceDetailPage instanceId="instance-1" />);
-    expect(mocks.xml).toHaveBeenCalledWith(undefined);
+    expect(mocks.runtime).toHaveBeenCalledWith('instance-1', {
+      enabled: false,
+      refetchInterval: false,
+    });
     expect(mocks.subscriptions).toHaveBeenCalledWith(undefined);
     expect(mocks.history).toHaveBeenCalledWith('instance-1', { enabled: false });
   });
@@ -49,9 +55,9 @@ describe('Datensparsame Instanzansicht', () => {
     expect(screen.queryByText('Technisches Diagramm')).not.toBeInTheDocument();
   });
 
-  // Testzweck: Die Diagnoseansicht zeigt die echte append-only Aufgabenaktion in
-  // verständlicher Sprache und behält die bestehende Token-Momentaufnahme getrennt bei.
-  it('zeigt Task-Historie und aktuellen Tokenstand als getrennte Bereiche', async () => {
+  // Testzweck: Die Diagnoseansicht zeigt echte append-only Engine- und Aufgabenereignisse,
+  // aber keine aus dem aktuellen Tokenstand erfundene zweite Historie.
+  it('zeigt Engine- und Aufgabenereignisse ohne Token-Pseudohistorie', async () => {
     mocks.instance.mockReturnValue({
       data: {
         ...overview,
@@ -73,14 +79,31 @@ describe('Datensparsame Instanzansicht', () => {
       },
       isPending: false,
     });
+    mocks.runtime.mockReturnValue({
+      data: {
+        instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1', state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />',
+        nodes: [{ flowNodeId: 'Review', status: 0, tokenCount: 1 }],
+        events: [{
+          id: 'runtime-1', flowNodeId: 'Review', state: 1,
+          occurredAtUtc: '2026-09-09T09:59:00Z',
+        }],
+      },
+      isPending: false,
+    });
 
     const user = userEvent.setup();
     render(<InstanceDetailPage instanceId="instance-1" />);
     await user.click(screen.getByRole('tab', { name: 'Verlauf' }));
 
     expect(mocks.history).toHaveBeenCalledWith('instance-1', { enabled: true });
+    expect(mocks.runtime).toHaveBeenCalledWith('instance-1', {
+      enabled: true,
+      refetchInterval: 10_000,
+    });
     expect(screen.getByText(/Übernommen · Revision 1/)).toBeInTheDocument();
-    expect(screen.getByText('Aufgabenereignisse')).toBeInTheDocument();
-    expect(screen.getByText('Aktueller Tokenstand')).toBeInTheDocument();
+    expect(screen.getByText('Engine-Ereignisse')).toBeInTheDocument();
+    expect(screen.getByText('Aufgabenaktionen')).toBeInTheDocument();
+    expect(screen.queryByText('Aktueller Tokenstand')).not.toBeInTheDocument();
   });
 });

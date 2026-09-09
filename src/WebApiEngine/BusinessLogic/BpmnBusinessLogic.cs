@@ -657,14 +657,12 @@ public partial class BpmnBusinessLogic(
                 // dauerhaft geschrieben haben. Bei einem späteren Fehler muss die offene
                 // Reservierung erhalten bleiben, damit ein Retry nichts dupliziert.
                 persistedMutationMayExist = true;
-                await SaveSubscriptions(
+                await SaveInstance(
                     storageSystem,
                     instance,
                     relatedDefinitionId,
                     deployedDefinition.Id,
-                    process.Id,
-                    instance.InstanceId);
-                await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+                    process.Id);
                 if (acquisition.Record is not null)
                     await storageSystem.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, processInstanceInfo.InstanceId);
 
@@ -739,6 +737,7 @@ public partial class BpmnBusinessLogic(
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
+        await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }
 
     private InstanceEngine StartProcessByMessage(Guid definitionsId, string relatedDefinitionId,

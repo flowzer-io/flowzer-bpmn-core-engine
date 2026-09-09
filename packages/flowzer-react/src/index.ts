@@ -2,6 +2,7 @@ export {
   FormSectionEditorController,
   FormSectionListController,
   InstanceStatusController,
+  InstanceRuntimeDiagramController,
   UserTaskListController,
   UserTaskWorkspaceController,
 } from './controllers.js';
@@ -11,6 +12,7 @@ export type {
   FormSectionEditorControllerState,
   FormSectionListControllerProps,
   InstanceStatusControllerProps,
+  InstanceRuntimeDiagramControllerProps,
   UserTaskListControllerProps,
   UserTaskWorkspaceControllerProps,
   UserTaskWorkspaceControllerState,
@@ -23,6 +25,7 @@ export type { TaskFormDataState } from './formState.js';
 export {
   useInstanceStatus,
   useInstanceHistory,
+  useInstanceRuntimeDiagram,
   useFormSection,
   useFormSectionActions,
   useFormSectionDraft,

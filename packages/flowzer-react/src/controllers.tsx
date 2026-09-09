@@ -6,10 +6,12 @@ import type {
   FormSectionMetadata,
   FormSectionVersionSummary,
   ProcessInstance,
+  RuntimeDiagram,
 } from '@flowzer/sdk';
 
 import {
   useInstanceStatus,
+  useInstanceRuntimeDiagram,
   useFormSection,
   useFormSectionActions,
   useFormSectionDraft,
@@ -76,6 +78,27 @@ export function InstanceStatusController({
   ...options
 }: InstanceStatusControllerProps) {
   const query = useInstanceStatus(instanceId, options);
+  return children({
+    data: query.data,
+    isPending: query.isPending,
+    isRefreshing: query.isFetching,
+    error: query.error,
+    reload: async () => { await query.refetch(); },
+  });
+}
+
+export interface InstanceRuntimeDiagramControllerProps extends FlowzerQueryOptions {
+  instanceId: string;
+  children: (state: AsyncControllerState<RuntimeDiagram | undefined>) => ReactNode;
+}
+
+/** Darstellungsfreier Controller; Diagramm, Timeline und Texte bleiben Aufgabe des Hosts. */
+export function InstanceRuntimeDiagramController({
+  instanceId,
+  children,
+  ...options
+}: InstanceRuntimeDiagramControllerProps) {
+  const query = useInstanceRuntimeDiagram(instanceId, options);
   return children({
     data: query.data,
     isPending: query.isPending,

@@ -16,6 +16,7 @@ import type {
   FormSectionVersionSummary,
   ProcessInstance,
   ProcessHistory,
+  RuntimeDiagram,
   RenameFormSectionCommand,
   ReleaseUserTaskCommand,
   SaveFormSectionAuthoringDraftCommand,
@@ -156,6 +157,10 @@ export class FlowzerClient {
     /** Lädt die serverseitig berechtigte, datensparsame Prozesshistorie. */
     history: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessHistory> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}/history`, options),
+
+    /** Lädt die serverseitig bereinigte Laufzeitprojektion der gebundenen BPMN-Version. */
+    runtimeDiagram: (instanceId: string, options: FlowzerCallOptions = {}): Promise<RuntimeDiagram> =>
+      this.transport.statusResult(`/instance/${segment(instanceId)}/runtime-diagram`, options),
   };
 
   /**

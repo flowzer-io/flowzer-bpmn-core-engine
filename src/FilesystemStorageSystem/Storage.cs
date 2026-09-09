@@ -18,6 +18,7 @@ public class Storage : IStorageSystem
         UserTaskLifecycleStorage = new UserTaskLifecycleStorage(this);
         UserTaskDeadlineStorage = new UserTaskDeadlineStorage(this);
         UserTaskNotificationStorage = new UserTaskNotificationStorage(this);
+        RuntimeNodeEventStorage = new RuntimeNodeEventStorage(this);
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         FolderStorage = new FolderStorage(this);
@@ -40,6 +41,7 @@ public class Storage : IStorageSystem
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
+    public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

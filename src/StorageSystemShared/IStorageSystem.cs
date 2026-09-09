@@ -46,4 +46,7 @@ public interface IStorageSystem
 
     /// <summary>Dauerhafte, deduplizierte In-App-Meldungen zu Human Tasks.</summary>
     IUserTaskNotificationStorage UserTaskNotificationStorage => UnsupportedUserTaskNotificationStorage.Instance;
+
+    /// <summary>Append-only, datensparsame Engine-Knotenereignisse für Runtime-Diagnosen.</summary>
+    IRuntimeNodeEventStorage RuntimeNodeEventStorage => UnsupportedRuntimeNodeEventStorage.Instance;
 }

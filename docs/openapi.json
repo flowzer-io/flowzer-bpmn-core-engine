@@ -3370,6 +3370,56 @@
         }
       }
     },
+    "/Instance/{instanceId}/runtime-diagram": {
+      "get": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance/{instanceId}/subscription/messages": {
       "get": {
         "tags": [
@@ -7090,6 +7140,139 @@
         "properties": {
           "name": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeDiagramDto": {
+        "required": [
+          "definitionId",
+          "diagramXml",
+          "events",
+          "instanceId",
+          "nodes",
+          "processId",
+          "snapshotAtUtc",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProcessInstanceStateDto"
+          },
+          "snapshotAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "diagramXml": {
+            "type": "string",
+            "nullable": true
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeNodeSummaryDto"
+            },
+            "nullable": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeNodeEventDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeDiagramDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/RuntimeDiagramDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeNodeEventDto": {
+        "required": [
+          "flowNodeId",
+          "id",
+          "occurredAtUtc",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/FlowNodeStateDto"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeNodeStatusDto": {
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "RuntimeNodeSummaryDto": {
+        "required": [
+          "flowNodeId",
+          "status",
+          "tokenCount"
+        ],
+        "type": "object",
+        "properties": {
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/RuntimeNodeStatusDto"
+          },
+          "tokenCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastChangedAtUtc": {
+            "type": "string",
+            "format": "date-time",
             "nullable": true
           }
         },

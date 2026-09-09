@@ -1,24 +1,25 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useNavigate } from '@tanstack/react-router';
-import { useInstanceHistory } from '@flowzer/react';
+import { useInstanceHistory, useInstanceRuntimeDiagram } from '@flowzer/react';
 import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { BpmnViewer } from '@/components/bpmn/BpmnViewer';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
+import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
+import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, SectionLabel } from '@/components/ui/Card';
 import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
-import { instanceBucket, isFailedToken, isLiveToken } from '@/lib/api/normalize';
-import { useDefinitionXml, useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
+import { instanceBucket } from '@/lib/api/normalize';
+import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { ProcessVariables, TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
 import { formatDueIn, formatTimestamp, formatVariableValue, parseApiDate, shortId } from '@/lib/format';
-import { BUCKET_TONE, currentToken, STATE_LABEL, tokenMarkers } from '@/lib/instanceView';
+import { BUCKET_TONE, currentToken, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 
 interface InstanceDetailPageProps {
@@ -42,15 +43,14 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   // Keine technischen Requests auf Verdacht: Die öffentliche Projektion entscheidet,
   // nicht die bloße Anmeldung oder ein im Browser sichtbarer Rollenname.
   const canInspect = instance?.canInspect === true;
-  const xmlQuery = useDefinitionXml(canInspect ? instance.definitionId! : undefined);
+  const runtimeQuery = useInstanceRuntimeDiagram(instanceId, {
+    enabled: canInspect,
+    refetchInterval: canInspect ? 10_000 : false,
+  });
   const historyQuery = useInstanceHistory(instanceId, { enabled: canInspect });
   const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
 
-  const model = useMemo(() => parseBpmn(xmlQuery.data), [xmlQuery.data]);
-  const { markers, activeNodeIds } = useMemo(
-    () => (instance ? tokenMarkers(instance) : { markers: {}, activeNodeIds: [] }),
-    [instance],
-  );
+  const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
 
   useBreadcrumbs([
     { label: 'Instanzen', to: '/instances' },
@@ -88,7 +88,7 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const variableEntries = Object.entries(variables);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
       <div className="border-border bg-surface flex flex-none flex-wrap items-center gap-3.5 gap-y-2.5 border-b px-6 py-3">
         <Button
           variant="ghost"
@@ -140,55 +140,33 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
         </Button>
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="canvas-grid relative min-w-0 flex-1">
-          {xmlQuery.isPending && (
+      <div className="flex flex-none flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+        <div className="canvas-grid relative min-w-0 flex-none lg:min-h-0 lg:flex-1">
+          {runtimeQuery.isPending && (
             <div className="grid h-full place-items-center">
               <InlineSpinner label="Diagramm wird geladen …" />
             </div>
           )}
 
-          {xmlQuery.error && (
+          {runtimeQuery.error && (
             <div className="grid h-full place-items-center p-8">
               <ErrorState
-                error={xmlQuery.error}
+                error={runtimeQuery.error}
                 title="Diagramm nicht verfügbar"
-                onRetry={() => void xmlQuery.refetch()}
+                onRetry={() => void runtimeQuery.refetch()}
               />
             </div>
           )}
 
-          {xmlQuery.data && (
-            <BpmnViewer
-              xml={xmlQuery.data}
-              markers={markers}
-              tokens={activeNodeIds}
-              className="h-full w-full"
-            />
-          )}
-
-          <div className="bg-surface/90 border-border text-muted absolute bottom-4 left-5 flex gap-3.5 rounded-[20px] border px-3.5 py-1.5 text-xs backdrop-blur-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <span className="bg-accent h-2.5 w-2.5 rounded-full" />
-              durchlaufen
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="border-accent animate-token-pulse h-2.5 w-2.5 rounded-full border-2" />
-              aktiv
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span className="border-border-strong h-2.5 w-2.5 rounded-full border border-dashed" />
-              ausstehend
-            </span>
-          </div>
+          {runtimeQuery.data && <RuntimeDiagram runtime={runtimeQuery.data} />}
         </div>
 
         <Tabs.Root
           value={tab}
           onValueChange={(value) => setTab(value as PanelTab)}
-          className="border-border bg-surface flex w-[392px] min-h-0 flex-none flex-col border-l"
+          className="border-border bg-surface flex max-h-[52vh] min-h-0 w-full flex-none flex-col border-t lg:max-h-none lg:w-[392px] lg:border-t-0 lg:border-l"
         >
-          <Tabs.List className="border-border flex flex-none gap-0.5 border-b px-3 pt-2.5">
+          <Tabs.List className="border-border flex flex-none gap-0.5 overflow-x-auto border-b px-3 pt-2.5">
             {TABS.map((entry) => (
               <Tabs.Trigger
                 key={entry.value}
@@ -252,16 +230,15 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             </Tabs.Content>
 
             <Tabs.Content value="timeline">
-              <SectionLabel className="mb-3.5">Aufgabenereignisse</SectionLabel>
+              <SectionLabel className="mb-3.5">Engine-Ereignisse</SectionLabel>
+              {runtimeQuery.isPending && <InlineSpinner />}
+              {runtimeQuery.error && <ErrorState error={runtimeQuery.error} onRetry={() => void runtimeQuery.refetch()} />}
+              {runtimeQuery.data && <RuntimeTimeline runtime={runtimeQuery.data} model={model} />}
+
+              <SectionLabel className="mt-6 mb-3.5">Aufgabenaktionen</SectionLabel>
               {historyQuery.isPending && <InlineSpinner />}
               {historyQuery.error && <ErrorState error={historyQuery.error} onRetry={() => void historyQuery.refetch()} />}
               {historyQuery.data && <TaskHistoryTimeline entries={historyQuery.data.events} model={model} />}
-
-              <SectionLabel className="mt-6 mb-1.5">Aktueller Tokenstand</SectionLabel>
-              <p className="text-faint mt-0 mb-3 text-[11.5px] leading-normal">
-                Technische Momentaufnahme der gespeicherten Tokens, keine vollständige Ereignishistorie.
-              </p>
-              <TokenStateTimeline tokens={instance.tokens} model={model} />
             </Tabs.Content>
 
             <Tabs.Content value="subscriptions">
@@ -333,52 +310,6 @@ function TaskHistoryTimeline({ entries, model }: {
               <div className="text-[13.5px] font-semibold">{nodeLabel(model, entry.flowNodeId)}</div>
               <div className="text-muted mt-0.5 text-[12.5px]">
                 {nodeTypeLabel(node?.type)} · {HISTORY_ACTION_LABEL[entry.action]} · Revision {entry.revision}
-              </div>
-              <div className="text-faint mt-1 font-mono text-[11.5px]">{formatTimestamp(at)}</div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function TokenStateTimeline({ tokens, model }: {
-  tokens: TokenDto[];
-  model: ReturnType<typeof parseBpmn>;
-}) {
-  const states = useMemo(
-    () => tokens
-      .filter((token) => Boolean(token.currentFlowNodeId))
-      .map((token) => ({
-        token,
-        at: parseApiDate(token.lastStateChangeTime) ?? parseApiDate(token.startTime),
-      }))
-      .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
-    [tokens],
-  );
-
-  if (states.length === 0) {
-    return <EmptyState icon="account_tree" title="Keine Tokens" description="Es ist kein technischer Tokenstand gespeichert." />;
-  }
-
-  return (
-    <div>
-      {states.map(({ token, at }, index) => {
-        const tone: Tone = isFailedToken(token) ? 'fail' : isLiveToken(token) ? 'run' : 'done';
-        const node = token.currentFlowNodeId ? model.nodeById.get(token.currentFlowNodeId) : undefined;
-        return (
-          <div key={token.id} className="flex gap-3.5">
-            <div className="flex flex-none flex-col items-center">
-              <Dot tone={tone} size={12} halo className="mt-1" />
-              {index < states.length - 1 && <span className="bg-border my-1 w-0.5 flex-1" />}
-            </div>
-            <div className="pb-[18px]">
-              <div className="text-[13.5px] font-semibold">
-                {nodeLabel(model, token.currentFlowNodeId)}
-              </div>
-              <div className="text-muted mt-0.5 text-[12.5px]">
-                {nodeTypeLabel(node?.type)} · {token.state}
               </div>
               <div className="text-faint mt-1 font-mono text-[11.5px]">{formatTimestamp(at)}</div>
             </div>

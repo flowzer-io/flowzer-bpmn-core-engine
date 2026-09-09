@@ -65,6 +65,17 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--accent) 45%, transparent));
 }
 
+/* Abgebrochene oder zurückgezogene Ausführungspfade: gestrichelt und nicht nur farblich. */
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--muted) !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 5 3 !important;
+}
+
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--muted) 10%, var(--surface)) !important;
+}
+
 /* Fehlgeschlagene Elemente. */
 .bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;

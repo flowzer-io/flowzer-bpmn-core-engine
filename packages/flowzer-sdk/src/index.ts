@@ -23,6 +23,7 @@ export type {
   ProcessHistory,
   ProcessHistoryEntry,
   ProcessHistoryAction,
+  RuntimeDiagram,
   ProcessVariables,
   RenameFormSectionCommand,
   ReleaseUserTaskCommand,

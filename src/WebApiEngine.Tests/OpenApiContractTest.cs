@@ -182,6 +182,29 @@ public class OpenApiContractTest
         ]);
     }
 
+    // Testzweck: Die technische Laufzeitprojektion ist als eigener 404-geschützter Vertrag
+    // beschrieben und kann keine internen Token- oder Korrelationskennungen serialisieren.
+    [Test]
+    public async Task RuntimeDiagramEndpoint_ShouldExposeOnlyTheSanitizedProjection()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(
+            root.GetProperty("paths"), "/Instance/{instanceId}/runtime-diagram", "get");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/RuntimeDiagramDtoApiStatusResult");
+        GetProblemResponse(operation, "404").Should().Be("#/components/schemas/ProblemDetails");
+
+        var eventProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("RuntimeNodeEventDto").GetProperty("properties");
+        eventProperties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "flowNodeId", "state", "occurredAtUtc"
+        ]);
+        eventProperties.TryGetProperty("tokenId", out _).Should().BeFalse();
+        eventProperties.TryGetProperty("correlationId", out _).Should().BeFalse();
+    }
+
     // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
     // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
     [Test]
