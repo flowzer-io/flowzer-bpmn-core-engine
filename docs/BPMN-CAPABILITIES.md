@@ -12,7 +12,7 @@ unverändert als historischer Vertrag erhalten. Der aktuelle Vertrag unterscheid
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
 Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
 nicht ausführbar abgelehnt. Die einzige vorübergehende, explizite Ausnahme ist der vollständig
-geprüfte KI-Autorenvertrag aus #242: Er darf als Entwurf gespeichert werden, bleibt bis zur
+geprüfte KI-Autorenvertrag aus #242 / PR #243: Er darf als Entwurf gespeichert werden, bleibt bis zur
 Runtime jedoch nicht deploybar. Flowzer errät keine Fähigkeiten aus einer konsumierenden
 Anwendung; der Vertrag ist vollständig hostneutral.
 

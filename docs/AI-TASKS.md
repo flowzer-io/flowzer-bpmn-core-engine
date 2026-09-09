@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · Slice #242**
+**Stand: 9. September 2026 · Slice #242 / PR #243**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen

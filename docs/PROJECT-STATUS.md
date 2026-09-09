@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #241
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #243
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -364,7 +364,7 @@ sehen keine deaktivierten Verbindungen. Konsole und headless SDK verwenden dense
 hostneutralen Vertrag. Provideraufrufe, KI-Task-Modellierung, Werkzeuge, Freigaben und
 dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
 
-## KI-Aufgabenmodellierung – #242 (noch nicht gemergt)
+## KI-Aufgabenmodellierung – #242 ([PR #243](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/243))
 
 Der KI-Schritt bleibt technisch ein BPMN-Service-Task und trägt den neuen
 `flowzer:aiTask`-Vertrag in Version 1. Verbindung, optionales Modell, versionierte
