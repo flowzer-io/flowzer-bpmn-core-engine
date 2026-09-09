@@ -44,7 +44,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
    genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
    Transport. #228 / PR #229 ergänzt die zentrale versionierte BPMN-Fähigkeitsmatrix, gemeinsame
-   Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. #232 ergänzt
+   Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. #232 / PR #233 ergänzt
    das objektberechtigte Laufzeitdiagramm mit exakt gebundener, bereinigter BPMN-Version
    und append-only Engine-Ereignisspur. Der vollständige UX-Audit folgt. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
@@ -78,7 +78,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Vertrag trennt modellierbar, parsebar und ausführbar. API, Save und Deploy verwenden
   denselben Validator; Diagramm und Gliederung zeigen stabile, anwählbare Befunde.
   Error-/Escalation-Semantik und lokale Call Activities folgen separat.
-- [x] **#232 – Laufzeitdiagramm und Engine-Ereignisse:** Persistenzgrenzen schreiben
+- [x] **#232 / PR #233 – Laufzeitdiagramm und Engine-Ereignisse:** Persistenzgrenzen schreiben
   idempotente, datensparsame Knotenfakten. Der Betrieb erhält die exakt gebundene und
   von Ausführungsdaten bereinigte BPMN-Version, verdichtete Knotenstatus sowie eine
   echte Zeitleiste über API, SDK, React-Schicht und responsive Console. Eine lineare

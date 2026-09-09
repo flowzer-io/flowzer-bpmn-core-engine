@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #231
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #233
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -285,7 +285,7 @@ Element-ID und Eigenschaftspfad. Diagramm und Gliederung zeigen sie dauerhaft,
 markieren beziehungsweise öffnen den betroffenen Knoten. Details:
 [BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
 
-## Laufzeitdiagramm und Engine-Ereignisse – #232 (noch nicht gemergt)
+## Laufzeitdiagramm und Engine-Ereignisse – #232 / PR #233 (noch nicht gemergt)
 
 Persistenzgrenzen schreiben append-only, idempotente und datensparsame
 Flow-Node-Zustände. PostgreSQL koppelt sie transaktional an den Instanzstand; die
@@ -337,8 +337,8 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
    serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
    Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
-   vor (#202–#232). Merge/Abnahme, externe Zustellung und weiterführende Runtime-
-   Diagnose folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   vor (#202–#232). Merge/Abnahme, externe Zustellung sowie weiterführende Laufzeitkennzahlen
+   und Störungsdiagnose folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.

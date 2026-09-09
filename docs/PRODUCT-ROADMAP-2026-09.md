@@ -232,7 +232,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln. #226 / PR #227
-  liefert die datensparsame Human-Task-Auditprojektion; #232 ergänzt die getrennte
+  liefert die datensparsame Human-Task-Auditprojektion; #232 / PR #233 ergänzt die getrennte
   objektberechtigte Engine-Ereignisspur. Fachliche Kommentare bleiben offen.
 - [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
@@ -265,7 +265,7 @@ und Abschluss bleiben identisch.
   Exclusive-Gateway-Bedingungen sowie fehlende User-/Service-/Timer-Konfiguration.
   Diagramm und Gliederung verwenden denselben stabilen 422-Vertrag aus #228 / PR #229.
 - [x] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
-  abgebrochene und gestörte Schritte. #232 bindet die unveränderliche Definitionsversion,
+  abgebrochene und gestörte Schritte. #232 / PR #233 bindet die unveränderliche Definitionsversion,
   bereinigt das BPMN-Dokument, speichert Engine-Ereignisse append-only und liefert den
   Vertrag über API, SDK, React und responsive Console. Kein scheinexaktes „Schritt x von y“
   bei offenen Verzweigungen.
