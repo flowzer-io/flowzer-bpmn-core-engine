@@ -8,12 +8,16 @@ namespace WebApiEngine.Ai;
 /// Gemeinsame enge HTTP-Grenze ohne automatische Wiederholung. Provideradapter liefern nur
 /// Request- und Antwortabbildung; Timeout, Groessenlimit und Fehlerklassifikation gelten gleich.
 /// </summary>
-internal abstract class AiHttpProviderAdapter(HttpClient client) : IAiProviderAdapter
+internal abstract class AiHttpProviderAdapter(IAiHttpClientLeaseFactory clientFactory) : IAiProviderAdapter
 {
     private const int MaximumEnvelopeBytes = 2 * 1024 * 1024;
 
     public abstract Model.AiProviderKind Provider { get; }
     public abstract AiProviderCapability Capabilities { get; }
+
+    protected AiHttpProviderAdapter(HttpClient client) : this(new SharedAiHttpClientLeaseFactory(client))
+    {
+    }
 
     public async Task<AiProviderResult> ExecuteAsync(
         AiProviderRequest request,
@@ -21,12 +25,13 @@ internal abstract class AiHttpProviderAdapter(HttpClient client) : IAiProviderAd
         CancellationToken cancellationToken)
     {
         using var message = BuildRequest(request, secret);
+        using var clientLease = await clientFactory.CreateAsync(request.Connection, cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(request.Timeout);
 
         try
         {
-            using var response = await client.SendAsync(
+            using var response = await clientLease.Client.SendAsync(
                 message,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);

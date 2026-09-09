@@ -128,6 +128,10 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   und konservative Recovery liegen in Dateiablage und PostgreSQL vor. Unklare Provider-
   oder Engine-Ausgänge werden angehalten statt blind wiederholt. Der Executor und damit die
   Aktivierung des Deploymentpfads bleiben der nächste Slice.
+- [x] **#248 – Gebundene Netzwerkziele:** Benutzerdefinierte Cloudendpunkte werden nur bei
+  ausschließlich öffentlichen DNS-Ergebnissen zugelassen. Der Socket verwendet danach
+  exakt die geprüften Adressen sowie denselben Host und Port; lokale Ziele bleiben an das
+  ausdrückliche Installations-Opt-in gebunden. Der Deploymentblocker bleibt bestehen.
 
 ## Vorhandenes nicht neu bauen
 

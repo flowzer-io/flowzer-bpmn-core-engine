@@ -7,8 +7,14 @@ using Model;
 namespace WebApiEngine.Ai;
 
 /// <summary>Enger OpenAI-kompatibler Chat-Completions-Vertrag ohne Provider-Fallback.</summary>
-internal sealed class OpenAiCompatibleChatAdapter(HttpClient client) : AiHttpProviderAdapter(client)
+internal sealed class OpenAiCompatibleChatAdapter(IAiHttpClientLeaseFactory clientFactory)
+    : AiHttpProviderAdapter(clientFactory)
 {
+    internal OpenAiCompatibleChatAdapter(HttpClient client)
+        : this(new SharedAiHttpClientLeaseFactory(client))
+    {
+    }
+
     public override AiProviderKind Provider => AiProviderKind.OpenAiCompatible;
     public override AiProviderCapability Capabilities => AiProviderCapability.StructuredOutput;
 

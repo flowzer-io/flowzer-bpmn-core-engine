@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #245
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #247
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -145,8 +145,7 @@ Das eigenständig baubare Paket `@flowzer/sdk` kapselt die generische Flowzer-HT
 für Aufgabenliste, gebundene Formulare, private Entwürfe, Claim/Release/Assign/Delegate,
 idempotenten Abschluss, feld- und aktionsgebundene Verzeichnissuche sowie
 Vorgangsübersichten. Öffentliche DTOs werden aus dem versionierten OpenAPI-Snapshot
-erzeugt; die CI prüft Drift, Paketbau, Tests, Abhängigkeiten und konkrete
-Host-Anwendungsnamen im Produktcode.
+erzeugt; die CI prüft Drift, Paketbau, Tests und Abhängigkeiten.
 
 Das SDK besitzt keine React- oder Laufzeitabhängigkeit und keinen globalen
 Authentisierungszustand. Bearer-Token beziehungsweise BFF-CSRF-Werte kommen pro Aufruf
@@ -424,6 +423,16 @@ Die Ablage allein aktiviert noch keine KI-Aufgabe. Hintergrund-Executor, DNS-Adr
 für benutzerdefinierte Cloudziele und atomarer Engine-Fortschritt folgen vor dem Entfernen
 des Deployment-Blockers.
 
+## Netzwerkbindung benutzerdefinierter KI-Endpunkte – #248 (noch nicht gemergt)
+
+OpenAI-kompatible Cloudziele werden unmittelbar vor dem Aufruf aufgelöst und nur bei
+ausschließlich öffentlichen Unicast-Adressen zugelassen. Der Socketaufbau ist an genau
+diesen geprüften Adressvorrat sowie an Host und Port gebunden; eine zweite unkontrollierte
+DNS-Auflösung, Systemproxys und Weiterleitungen entfallen. Gemischte öffentliche/private
+Antworten werden insgesamt abgelehnt. Ausdrücklich lokale Verbindungen behalten bei
+Installations-Opt-in ihren privaten beziehungsweise Loopback-Zugriff. Der Slice aktiviert
+noch keine BPMN-KI-Aufgabe.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -449,13 +458,14 @@ des Deployment-Blockers.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
-   persistente Laufzustand (#246 / PR #247) liegen vor; Executor und Werkzeugfreigaben bleiben offen.
+   persistente Laufzustand (#246 / PR #247) sowie die DNS-/Socketbindung (#248) liegen vor;
+   Executor und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
-817 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+839 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
 33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
 Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 

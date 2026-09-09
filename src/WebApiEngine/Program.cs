@@ -64,8 +64,13 @@ builder.Services.AddHttpClient("flowzer-ai-provider", client => client.Timeout =
     .RedactLoggedHeaders(["Authorization", "x-api-key"]);
 builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiResponsesAdapter(
     serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+builder.Services.AddSingleton<IAiHostAddressResolver, SystemAiHostAddressResolver>();
+builder.Services.AddSingleton<IAiSocketDialer, SystemAiSocketDialer>();
+builder.Services.AddSingleton<AiResolvedEndpointResolver>();
+builder.Services.AddSingleton<PinnedAiSocketConnector>();
+builder.Services.AddSingleton<PinnedAiHttpClientLeaseFactory>();
 builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiCompatibleChatAdapter(
-    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+    serviceProvider.GetRequiredService<PinnedAiHttpClientLeaseFactory>()));
 builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new AnthropicMessagesAdapter(
     serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
 builder.Services.AddSingleton<AiProviderRegistry>();

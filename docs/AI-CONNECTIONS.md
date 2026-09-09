@@ -1,6 +1,6 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245
+**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245 und #248
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
 eine ausschließlich interne Provideraufrufschicht; es gibt weiterhin keinen öffentlichen
@@ -33,10 +33,15 @@ Workflowfassungen spaeter erklaerbar, ohne die Verbindung fuer neue Ausfuehrunge
 Standard-OpenAI und Anthropic sind feste Cloudfamilien. Eine abweichende Basisadresse ist
 nur fuer `OpenAiCompatible` moeglich. Cloudziele muessen HTTPS verwenden und duerfen keine
 eingebetteten Credentials, Queryparameter, Fragmente, Loopback- oder private IP-Adressen
-enthalten. Lokale Ziele benoetigen das gesonderte Installations-Opt-in. Vor einem spaeteren
-Provideraufruf muss die Zielpruefung erneut gegen die tatsaechlich aufgeloeste Adresse
-erfolgen; insbesondere DNS-Rebinding ist mit reiner Metadatenpruefung nicht abschließend
-abgewehrt.
+enthalten. Lokale Ziele benoetigen das gesonderte Installations-Opt-in.
+
+#248 ergänzt die Laufzeitgrenze für benutzerdefinierte Endpunkte: Der Host wird unmittelbar
+vor jedem Aufruf genau einmal aufgelöst. Ein Cloudziel wird nur akzeptiert, wenn **alle**
+Ergebnisse öffentliche Unicast-Adressen sind; gemischte öffentliche/private Antworten werden
+insgesamt abgelehnt. Der anschließende Socketaufbau verwendet ausschließlich diesen geprüften
+Adressvorrat und stimmt Host sowie Port erneut ab. Systemproxys und Weiterleitungen sind für
+diesen Transport abgeschaltet. Ausdrücklich lokale Verbindungen dürfen private und Loopback-
+Adressen nutzen, jedoch keine unspezifizierten oder Multicast-Ziele.
 
 Es gibt keinen stillen Wechsel von lokal zu Cloud und keinen Modell-Fallback. Eine
 Workflowdefinition darf diese Grenzen spaeter nur weiter einschraenken, nie erweitern.
@@ -105,8 +110,7 @@ Entwicklungsweg ohne Mehrprozess- oder Rollbackversprechen.
 
 ## Folgeschritte
 
-Provideradapter, ein portables Ergebnisschema, die KI-Task-Erweiterung und der dauerhafte
-Laufzustand (#246 / PR #247) liegen als getrennte Slices vor. DNS-Auflösungsschutz für
-benutzerdefinierte Cloudziele, Hintergrund-Executor, Werkzeugregistry, Freigaben, Kosten
-und Testmodus folgen in eigenen Paketen. Erst diese Bausteine ergeben gemeinsam eine
-ausführbare KI-Task-Runtime.
+Provideradapter, ein portables Ergebnisschema, die KI-Task-Erweiterung, der dauerhafte
+Laufzustand (#246 / PR #247) und die DNS-/Socketbindung (#248) liegen als getrennte Slices
+vor. Hintergrund-Executor, Werkzeugregistry, Freigaben, Kosten und Testmodus folgen in
+eigenen Paketen. Erst diese Bausteine ergeben gemeinsam eine ausführbare KI-Task-Runtime.
