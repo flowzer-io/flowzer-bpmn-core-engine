@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Toaster } from 'sonner';
 
+import { ConsoleFlowzerProvider } from '@/lib/flowzer/provider';
 import { useApplyAppearance, useResolvedTheme } from '@/stores/appearance';
 
 // Der Import registriert den Benutzerkontext beim API-Client.
@@ -16,7 +17,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <>
-      {children}
+      <ConsoleFlowzerProvider>{children}</ConsoleFlowzerProvider>
       <Toaster
         position="bottom-center"
         theme={theme}

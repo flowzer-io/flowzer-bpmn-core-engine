@@ -1,35 +1,46 @@
+import { FlowzerApiError, type ExtendedUserTask } from '@flowzer/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-import type { ExtendedUserTaskSubscriptionDto } from '@/lib/api/types';
 
 import { TasksPage } from './TasksPage';
 
 const mocks = vi.hoisted(() => ({
-  useUserTaskForm: vi.fn(),
+  task: undefined as ExtendedUserTask | undefined,
+  workspace: undefined as ReturnType<typeof workspaceState> | undefined,
   useTaskDraftEditor: vi.fn(),
-  completeMutate: vi.fn(),
   rendererValidate: vi.fn(async () => true),
-  canWork: false,
+  rendererProps: undefined as Record<string, unknown> | undefined,
+  claim: mutation(),
+  release: mutation(),
+  assign: mutation(),
+  delegate: mutation(),
+  saveDraft: mutation(),
+  deleteDraft: mutation(),
+  complete: mutation(),
+  searchAssignees: vi.fn(),
 }));
 
 vi.mock('@/lib/useCompactLayout', () => ({ useCompactLayout: () => false }));
-vi.mock('@/lib/api/queries', () => ({
-  useUserTasks: () => ({ data: [task(mocks.canWork)], isPending: false, error: null }),
-  useCompleteUserTask: () => ({ isPending: false, mutate: mocks.completeMutate }),
-  useUserTaskLifecycleMutation: () => ({
-    isPending: false,
-    error: null,
-    mutate: vi.fn(),
-    reset: vi.fn(),
+vi.mock('@flowzer/react', () => ({
+  useUserTasks: () => ({ data: mocks.task ? [mocks.task] : [], isPending: false, error: null }),
+  useUserTaskWorkspace: () => mocks.workspace,
+  useUserTaskActions: () => ({
+    claim: mocks.claim,
+    release: mocks.release,
+    assign: mocks.assign,
+    delegate: mocks.delegate,
+    saveDraft: mocks.saveDraft,
+    deleteDraft: mocks.deleteDraft,
+    complete: mocks.complete,
+    searchAssignees: mocks.searchAssignees,
   }),
-  useUserTaskForm: mocks.useUserTaskForm,
 }));
 vi.mock('@/lib/taskDraft', () => ({ useTaskDraftEditor: mocks.useTaskDraftEditor }));
 vi.mock('@/components/forms/FormRenderer', async () => {
   const React = await import('react');
   return {
-    FormRenderer: React.forwardRef(function FormRendererMock(_props, ref) {
+    FormRenderer: React.forwardRef(function FormRendererMock(props: Record<string, unknown>, ref) {
+      mocks.rendererProps = props;
       React.useImperativeHandle(ref, () => ({
         validate: mocks.rendererValidate,
         getData: () => ({ comment: 'Geprüft' }),
@@ -39,80 +50,134 @@ vi.mock('@/components/forms/FormRenderer', async () => {
   };
 });
 
-describe('TasksPage mit Task-Lifecycle', () => {
+describe('TasksPage über öffentliche Human-Task-Pakete', () => {
   beforeEach(() => {
-    mocks.canWork = false;
-    mocks.completeMutate.mockReset();
+    mocks.task = task(false);
+    mocks.workspace = workspaceState(mocks.task, false);
+    mocks.rendererProps = undefined;
     mocks.rendererValidate.mockClear();
-    mocks.useUserTaskForm.mockReset();
-    mocks.useTaskDraftEditor.mockReset();
+    mocks.useTaskDraftEditor.mockReset().mockReturnValue(draftEditor());
+    resetMutation(mocks.claim);
+    resetMutation(mocks.release);
+    resetMutation(mocks.assign);
+    resetMutation(mocks.delegate);
+    resetMutation(mocks.saveDraft);
+    resetMutation(mocks.deleteDraft);
+    resetMutation(mocks.complete);
+    mocks.searchAssignees.mockReset();
   });
 
   // Testzweck: Eine bloß sichtbare Kandidatenaufgabe darf Formular und privaten Draft
-  // noch nicht laden; erst `canWork` des Servers öffnet den Bearbeitungsbereich.
+  // noch nicht erhalten; ausschließlich canWork des öffentlichen Workspace öffnet sie.
   it('hält Formular und Draft vor dem Claim deaktiviert', () => {
-    mocks.useUserTaskForm.mockReturnValue({ data: undefined, isPending: false, error: null });
-    mocks.useTaskDraftEditor.mockReturnValue(draftEditor());
-
     render(<TasksPage />);
 
-    expect(mocks.useUserTaskForm).toHaveBeenCalledWith('task-1', false);
-    expect(mocks.useTaskDraftEditor).toHaveBeenCalledWith('task-1', {}, 4, false);
+    expect(mocks.useTaskDraftEditor).toHaveBeenCalledWith(
+      'task-1', {}, 4, false, expect.objectContaining({ draft: undefined }),
+    );
     expect(screen.queryByText('Formular ausfüllen')).not.toBeInTheDocument();
     expect(screen.getByText('Noch nicht zur Bearbeitung geöffnet')).toBeInTheDocument();
   });
 
-  // Testzweck: Ein Profil-4-Aufgabenformular zeigt seine fachlich benannten Aktionen
-  // statt des generischen Abschlussknopfs und sendet ausschließlich deren stabile ID.
-  it('sendet die ausgewählte Entscheidungsaktion beim Abschluss', async () => {
-    mocks.canWork = true;
-    mocks.useUserTaskForm.mockReturnValue({
-      data: {
-        formData: JSON.stringify({
-          flowzer: {
-            contractVersion: 4,
-            actions: [
-              { id: 'approve', label: 'Freigeben', variant: 'primary', set: [{ field: 'decision', value: 'approved' }] },
-              { id: 'reject', label: 'Ablehnen', variant: 'danger', set: [{ field: 'decision', value: 'rejected' }] },
-            ],
-          },
-          components: [{ type: 'hidden', key: 'decision' }],
-        }),
-      },
-      isPending: false,
-      error: null,
-    });
-    mocks.useTaskDraftEditor.mockReturnValue({ ...draftEditor(), loadState: 'ready' as const });
+  // Testzweck: Ein Profil-4-Formular sendet die stabile Aktions-ID, die Revision aus
+  // dem Detail-Workspace und einen ausdrücklich erzeugten Idempotenzschlüssel.
+  it('schließt eine Entscheidungsaktion revisions- und idempotenzgebunden ab', async () => {
+    enableWork();
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001');
 
     render(<TasksPage />);
-    expect(screen.queryByRole('button', { name: 'Aufgabe abschließen' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Freigeben' }));
 
     await waitFor(() => expect(mocks.rendererValidate).toHaveBeenCalledWith({ decision: 'approved' }));
-    await waitFor(() => expect(mocks.completeMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ actionId: 'approve', data: { comment: 'Geprüft' } }),
+    expect(mocks.complete.mutate).toHaveBeenCalledWith({
+      command: {
+        flowNodeId: 'Task_1',
+        tokenId: 'token-1',
+        processInstanceId: 'instance-1',
+        expectedTaskRevision: 4,
+        actionId: 'approve',
+        data: { comment: 'Geprüft' },
+      },
+      options: { idempotencyKey: '00000000-0000-4000-8000-000000000001' },
+    }, expect.any(Object));
+    expect(mocks.rendererProps?.directoryAdapter).toBeDefined();
+    expect(mocks.rendererProps).not.toHaveProperty('directoryContext');
+  });
+
+  // Testzweck: Nach einem unklaren Netzwerkausgang muss eine bewusste Wiederholung
+  // denselben Schlüssel senden, damit Flowzer keinen zweiten Abschluss erzeugt.
+  it('behält den Abschluss-Schlüssel nach einem Netzwerkfehler bei', async () => {
+    enableWork();
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001');
+    mocks.complete.mutate.mockImplementation((_input, callbacks) => {
+      callbacks?.onError?.(new FlowzerApiError('Nicht erreichbar', { status: 0, url: '/api/usertask' }));
+    });
+    render(<TasksPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Freigeben' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Freigeben' }));
+
+    await waitFor(() => expect(mocks.complete.mutate).toHaveBeenCalledTimes(2));
+    expect(completionKeyAt(1)).toBe(completionKeyAt(0));
+  });
+
+  // Testzweck: Ein eindeutiger fachlicher Fehler bedeutet, dass kein Abschluss
+  // erfolgt ist; ein korrigierter neuer Versuch erhält daher einen neuen Schlüssel.
+  it('erneuert den Abschluss-Schlüssel nach einer eindeutigen Ablehnung', async () => {
+    enableWork();
+    vi.spyOn(crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000001')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000002');
+    mocks.complete.mutate.mockImplementation((_input, callbacks) => {
+      callbacks?.onError?.(new FlowzerApiError('Ungültig', { status: 422, url: '/api/usertask' }));
+    });
+    render(<TasksPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Freigeben' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Freigeben' }));
+
+    await waitFor(() => expect(mocks.complete.mutate).toHaveBeenCalledTimes(2));
+    expect(completionKeyAt(0)).not.toBe(completionKeyAt(1));
+  });
+
+  // Testzweck: Claim wird nicht über den alten Console-Transport dupliziert, sondern
+  // mit der sichtbaren Serverrevision an die öffentliche Action-Mutation delegiert.
+  it('übernimmt eine Kandidatenaufgabe über die öffentliche Action-Mutation', () => {
+    render(<TasksPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Übernehmen' }));
+
+    expect(mocks.claim.mutate).toHaveBeenCalledWith(
+      { expectedRevision: 4 },
       expect.any(Object),
-    ));
+    );
   });
 });
 
-function task(canWork = false): ExtendedUserTaskSubscriptionDto {
+function mutation() {
+  return {
+    isPending: false,
+    error: null as Error | null,
+    mutate: vi.fn(),
+    reset: vi.fn(),
+  };
+}
+
+function resetMutation(value: ReturnType<typeof mutation>) {
+  value.isPending = false;
+  value.error = null;
+  value.mutate.mockReset();
+  value.reset.mockReset();
+}
+
+function task(canWork: boolean): ExtendedUserTask {
   return {
     id: 'task-1',
     name: 'Antrag prüfen',
-    token: { id: 'token-1', state: 'Active', currentFlowNodeId: 'Task_1', variables: {} },
-    userCandidates: [],
-    userGroups: [],
-    candidateUsers: [],
-    candidateGroups: [],
-    assignmentMode: 'text',
-    directoryCandidateUsers: [],
-    directoryCandidateGroups: [],
+    token: { id: 'token-1', state: 1, currentFlowNodeId: 'Task_1', variables: {} },
     workState: {
       revision: 4,
       claimed: canWork,
-      actualAssignee: null,
-      actualAssigneeDisplayName: null,
       isAssignedToCurrentUser: canWork,
       canWork,
       canClaim: !canWork,
@@ -120,11 +185,54 @@ function task(canWork = false): ExtendedUserTaskSubscriptionDto {
       canAssign: false,
       canDelegate: false,
     },
+    processInstanceId: 'instance-1',
     definitionId: 'definition-1',
     processId: 'Process_1',
     definitionMetaName: 'Urlaubsantrag',
     definitionVersion: { major: 1, minor: 0 },
   };
+}
+
+function workspaceState(currentTask: ExtendedUserTask, canWork: boolean) {
+  return {
+    task: currentTask,
+    form: canWork ? {
+      id: 'form-1',
+      formData: JSON.stringify({
+        flowzer: {
+          contractVersion: 4,
+          actions: [{
+            id: 'approve',
+            label: 'Freigeben',
+            variant: 'primary',
+            set: [{ field: 'decision', value: 'approved' }],
+          }],
+        },
+        components: [{ type: 'hidden', key: 'decision' }],
+      }),
+    } : undefined,
+    draft: canWork ? { userTaskId: 'task-1', revision: 0, data: {} } : undefined,
+    canWork,
+    isPending: false,
+    isRefreshing: false,
+    error: null,
+    reload: vi.fn(),
+    reloadDraft: vi.fn(),
+    searchSubjects: vi.fn(),
+  };
+}
+
+function enableWork() {
+  mocks.task = task(true);
+  mocks.workspace = workspaceState(mocks.task, true);
+  mocks.useTaskDraftEditor.mockReturnValue({ ...draftEditor(), loadState: 'ready' as const });
+}
+
+function completionKeyAt(callIndex: number): string {
+  const input = mocks.complete.mutate.mock.calls[callIndex]?.[0] as {
+    options: { idempotencyKey: string };
+  };
+  return input.options.idempotencyKey;
 }
 
 function draftEditor() {
@@ -146,6 +254,5 @@ function draftEditor() {
     save: vi.fn(),
     discard: vi.fn(),
     adoptServerDraft: vi.fn(),
-    refetch: vi.fn(),
   };
 }

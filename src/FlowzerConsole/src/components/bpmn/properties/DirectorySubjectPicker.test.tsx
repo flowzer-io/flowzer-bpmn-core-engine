@@ -173,6 +173,41 @@ describe('DirectorySubjectPicker', () => {
     expect(screen.getByRole('button', { name: 'Anna entfernen' })).toBeDisabled();
   });
 
+  // Testzweck: Verschachtelte Form.io-Roots verwenden ausschließlich die vom Host
+  // gebundenen Callbacks; Task-, Feld- oder Aktionskennungen werden nicht aus dem
+  // Suchtext rekonstruiert und kein Console-Query-Hook ist dafür erforderlich.
+  it('verwendet einen gebundenen Adapter für Suche und Auflösung', async () => {
+    const search = vi.fn().mockResolvedValue(
+      searchResult([{ subject: userSubject, displayName: 'Anna Beispiel', detail: 'anna@example.test' }]).data,
+    );
+    const resolve = vi.fn().mockResolvedValue([{
+      subject: userSubject,
+      displayName: 'Anna Beispiel',
+      detail: 'anna@example.test',
+    }]);
+    const adapter = { cacheKey: ['test'], search, resolve };
+    const user = userEvent.setup();
+
+    renderPicker({
+      directoryAdapter: adapter,
+      fieldKey: 'representative',
+      selected: [{ subject: userSubject, displayName: 'user-1', detail: 'ID', available: false }],
+      multiple: true,
+    });
+
+    await waitFor(() => expect(resolve).toHaveBeenCalledWith(
+      'representative',
+      [userSubject],
+      expect.any(AbortSignal),
+    ));
+    await user.type(screen.getByRole('searchbox', { name: 'Benutzer suchen' }), 'an');
+    await waitFor(() => expect(search).toHaveBeenCalledWith(
+      'representative',
+      { query: 'an', kind: 'user', signal: expect.any(AbortSignal) },
+    ), { timeout: 1000 });
+    expect(screen.getByRole('option', { name: /Anna Beispiel/ })).toBeInTheDocument();
+  });
+
   // Testzweck: Fehler und leere Ergebnisse werden inline verständlich dargestellt, ohne
   // transport- oder serverinterne Details in das Eigenschaften-Panel zu leaken.
   it('zeigt Lade-, Fehler- und Leerzustände', async () => {

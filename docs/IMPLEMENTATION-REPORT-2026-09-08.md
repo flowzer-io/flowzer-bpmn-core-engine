@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Vierundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Fünfundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal sowie in CI getestet.
 Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
 Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
@@ -34,8 +34,9 @@ produktiver Benutzer oder Datenbanken.
 | Headless-TypeScript-SDK | `@flowzer/sdk` kapselt Aufgaben, Formulare, Entwürfe, Aktionen, gebundene Verzeichnissuche und Vorgangsstatus ohne Host- oder UI-Abhängigkeit; ein objektberechtigter Task-Deep-Link ergänzt den OpenAPI-Vertrag. | [#219](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/219) |
 | React-Integrationsbausteine | `@flowzer/react` ergänzt darstellungsfreie Hooks und Controller mit sicheren Installations-/Sitzungs-Caches, bewusst nicht wiederholten Task-Mutationen und neutralem Formularadapter; eine unabhängige Host-Fixture kompiliert ausschließlich gegen öffentliche Pakete. | [#221](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/221) |
 | CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | [#223](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/223) |
+| Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR folgt |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → #224/PR folgt**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -46,11 +47,12 @@ abschließenden Astra-/High-Gesamtreview.
 - Aktuelle lokale .NET-Suite einschließlich #222: **111 Engine + 674 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Security-Codegenerator: **289 Tests**, Typecheck und Build erfolgreich;
-  Lint ohne Fehler, acht bestehende Warnungen.
+- React-Konsole einschließlich öffentlicher Paketmigration: **301 Tests**, Typecheck
+  und Build erfolgreich; Lint ohne Fehler und sieben bestehende Warnungen. Ein frischer
+  `Dockerfile.console`-Build einschließlich lokaler SDK-/React-Pakete ist erfolgreich.
 - Headless-SDK: **13 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
   Paket-Trockenlauf und npm-Audit ohne Befund erfolgreich.
-- React-Integrationspaket: **9 Tests**, Typecheck, Build, Paket-Trockenlauf und
+- React-Integrationspaket: **15 Tests**, Typecheck, Build, Paket-Trockenlauf und
   npm-Audit ohne Befund; eine unabhängige Host-Fixture kompiliert erfolgreich gegen
   `@flowzer/sdk` und `@flowzer/react`.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
@@ -115,8 +117,7 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
    Historische Identitätsauflösung und Klärung mehrdeutiger Altwerte bleiben offen.
 2. **M2:** Weitere deklarative Regeln, Wiederholgruppen, Anhänge, freigegebene
    dynamische Quellen, Skriptinventar und geprüfte Bestandsmigration.
-3. **M3/M4:** Kommentare/Vorgangshistorie, Migration der Flowzer-Konsole auf die
-   öffentlichen Integrationspakete, gemeinsame Modellfähigkeiten,
+3. **M3/M4:** Kommentare/Vorgangshistorie, gemeinsame Modellfähigkeiten,
    Laufzeitdiagramme und vollständiger UX-Audit. Flowzer erhält dabei keine Abhängigkeit
    von einer konkreten konsumierenden Fachanwendung.
 4. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige

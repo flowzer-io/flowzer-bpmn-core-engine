@@ -1,4 +1,5 @@
-import { ApiError } from '@/lib/api/client';
+import { FlowzerApiError } from '@flowzer/sdk';
+
 import { formatTimestamp } from '@/lib/format';
 import type { TaskDraftLoadState, TaskDraftSaveState } from '@/lib/taskDraft';
 
@@ -100,7 +101,7 @@ export function TaskDraftConflictBanner({
           <div className="text-[13.5px] font-semibold">Der Entwurf wurde zwischenzeitlich geändert.</div>
           <div className="text-muted mt-0.5 text-[12.5px]">
             Deine Eingaben bleiben erhalten. Lade den Serverstand ausdrücklich, um den Konflikt zu lösen.
-            {error instanceof ApiError && error.message ? ` (${error.message})` : ''}
+            {error instanceof FlowzerApiError && error.message ? ` (${error.message})` : ''}
           </div>
         </div>
       </div>

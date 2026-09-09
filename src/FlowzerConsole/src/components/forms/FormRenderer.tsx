@@ -6,6 +6,7 @@ import './formioStyles';
 import { registerDialogCalendarWidget } from './dialogCalendarWidget';
 import { registerFlowzerSubjectComponent } from './FlowzerSubjectComponent';
 
+import type { BoundDirectorySubjectAdapter } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
 import type { FormDirectorySearchContext, ProcessVariables } from '@/lib/api/types';
@@ -17,7 +18,7 @@ export interface FormRendererHandle {
   validate: (trustedOverrides?: ProcessVariables) => Promise<boolean>;
 }
 
-interface FormRendererProps {
+export interface FormRendererProps {
   /** Form.io-Schema als JSON-String (so liefert es die API in `FormDto.formData`). */
   schema: string | undefined;
   initialData?: ProcessVariables;
@@ -26,6 +27,12 @@ interface FormRendererProps {
   className?: string;
   /** Kontext, der die serverseitige Directory-Suche auf genau dieses Formular bindet. */
   directoryContext?: FormDirectorySearchContext;
+  /**
+   * Bereits gebundene Directory-Callbacks für verschachtelte Form.io-Roots.
+   * Der Adapter selbst enthält keine Task-ID und kann dadurch keinen weiteren
+   * Feldkontext an die API anhängen.
+   */
+  directoryAdapter?: BoundDirectorySubjectAdapter;
 }
 
 interface FormioInstance {
@@ -62,7 +69,7 @@ function cloneInitialData(data: ProcessVariables): ProcessVariables {
  * damit „Freigeben“ und „Ablehnen“ als eigene Prozessentscheidungen sichtbar sind.
  */
 export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(function FormRenderer(
-  { schema, initialData, readOnly = false, onChange, className, directoryContext },
+  { schema, initialData, readOnly = false, onChange, className, directoryContext, directoryAdapter },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,6 +133,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
           // Der eingebaute Submit-Button würde mit den Prozessaktionen konkurrieren.
           buttonSettings: { showCancel: false, showSubmit: false },
           flowzerDirectoryContext: directoryContext,
+          flowzerDirectoryAdapter: directoryAdapter,
         })) as unknown as FormioInstance;
 
         if (disposed) {
@@ -160,7 +168,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
       instanceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, readOnly, initialDataKey, directoryContextKey]);
+  }, [schema, readOnly, initialDataKey, directoryContextKey, directoryAdapter]);
 
   return (
     <div className={cn('formio-surface relative', className)}>

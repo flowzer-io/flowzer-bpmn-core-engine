@@ -5,6 +5,7 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
+import { flowzerQueryKeys, useFlowzer } from '@flowzer/react';
 
 import {
   definitionsApi,
@@ -13,7 +14,6 @@ import {
   identityDirectoryApi,
   instancesApi,
   operationsApi,
-  userTasksApi,
   notificationsApi,
 } from './endpoints';
 import type {
@@ -24,7 +24,6 @@ import type {
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   ExtendedBpmnMetaDefinitionDto,
-  ExtendedUserTaskSubscriptionDto,
   FormDto,
   FormAuthoringDraftDto,
   FormCompatibilityItemDto,
@@ -34,13 +33,6 @@ import type {
   ProcessInstanceInfoDto,
   ProcessVariables,
   TimerSubscriptionDto,
-  UserTaskResultDto,
-  UserTaskDraftDto,
-  UserTaskDraftRequest,
-  UserTaskClaimRequest,
-  UserTaskReleaseRequest,
-  UserTaskTransferRequest,
-  UserTaskWorkStateDto,
   VersionDto,
   SubjectRefDto,
   NotificationDto,
@@ -69,13 +61,6 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
-
-  userTasks: ['userTasks'] as const,
-  userTaskList: () => [...queryKeys.userTasks, 'list'] as const,
-  userTaskForm: (userTaskId: string) => [...queryKeys.userTasks, 'form', userTaskId] as const,
-  userTaskDraft: (userTaskId: string) => [...queryKeys.userTasks, 'draft', userTaskId] as const,
-  userTaskAssignees: (userTaskId: string, action: 'assign' | 'delegate', query: string) =>
-    [...queryKeys.identityDirectory, 'user-task-assignees', userTaskId, action, query] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -203,12 +188,15 @@ export function useDeleteDefinition() {
 
 export function useStartInstance() {
   const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
   return useMutation({
     mutationFn: ({ definitionId, variables }: { definitionId: string; variables?: ProcessVariables }) =>
       definitionsApi.startInstance(definitionId, variables),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
+      void queryClient.invalidateQueries({
+        queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+      });
     },
   });
 }
@@ -384,23 +372,6 @@ export function useFormDirectorySubjectResolutions(
   });
 }
 
-/** Aktionsgebundene Suche für die tatsächliche Laufzeitzuweisung einer Aufgabe. */
-export function useTaskAssigneeSearch(
-  userTaskId: string,
-  action: 'assign' | 'delegate',
-  query: string,
-  enabled = true,
-) {
-  const normalizedQuery = query.trim();
-  return useQuery<DirectorySubjectSearchResultDto>({
-    queryKey: queryKeys.userTaskAssignees(userTaskId, action, normalizedQuery),
-    queryFn: ({ signal }) =>
-      identityDirectoryApi.searchTaskAssignees(userTaskId, normalizedQuery, action, signal),
-    enabled: enabled && userTaskId.length > 0 && normalizedQuery.length >= 2,
-    staleTime: 30_000,
-  });
-}
-
 /* ---------------------------------------------------------------------- Ordner */
 
 export function useFolders(options?: QueryTuning<WorkflowFolderDto[]>) {
@@ -504,17 +475,6 @@ export function useInstanceSubscriptions(instanceId: string | undefined) {
   });
 }
 
-/* ------------------------------------------------------------------- Aufgaben */
-
-export function useUserTasks(options?: QueryTuning<ExtendedUserTaskSubscriptionDto[]>) {
-  return useQuery({
-    queryKey: queryKeys.userTaskList(),
-    queryFn: ({ signal }) => userTasksApi.list(signal),
-    refetchInterval: LIVE_REFETCH_MS,
-    ...options,
-  });
-}
-
 /** Persistenter Meldungsfeed; der Server bleibt Quelle für Inhalt und Lesestatus. */
 export function useNotifications(options?: QueryTuning<NotificationDto[]>) {
   return useQuery({
@@ -531,95 +491,6 @@ export function useMarkNotificationRead() {
     mutationFn: (id: string) => notificationsApi.markRead(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationList() });
-    },
-  });
-}
-
-export function useUserTaskForm(userTaskId: string | undefined, enabled = true) {
-  return useQuery({
-    queryKey: queryKeys.userTaskForm(userTaskId ?? ''),
-    queryFn: ({ signal }) => userTasksApi.getForm(userTaskId!, signal),
-    enabled: enabled && Boolean(userTaskId),
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-}
-
-/** Lädt den explizit gespeicherten Zwischenstand einer Aufgabe. */
-export function useUserTaskDraft(userTaskId: string | undefined, enabled = true) {
-  return useQuery<UserTaskDraftDto>({
-    queryKey: queryKeys.userTaskDraft(userTaskId ?? ''),
-    queryFn: ({ signal }) => userTasksApi.getDraft(userTaskId!, signal),
-    enabled: enabled && Boolean(userTaskId),
-    // Der Hook hydratisiert den Editor nur einmal. Refetches dienen lediglich dazu,
-    // einen möglichen Konflikt sichtbar zu machen, nicht zum Überschreiben lokaler Daten.
-    refetchInterval: LIVE_REFETCH_MS,
-    retry: false,
-  });
-}
-
-export function useSaveUserTaskDraft() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userTaskId, draft }: { userTaskId: string; draft: UserTaskDraftRequest }) =>
-      userTasksApi.saveDraft(userTaskId, draft),
-    onSuccess: (saved, variables) => {
-      queryClient.setQueryData(queryKeys.userTaskDraft(variables.userTaskId), saved);
-    },
-  });
-}
-
-export function useDeleteUserTaskDraft() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ userTaskId, expectedRevision, expectedTaskRevision }: {
-      userTaskId: string;
-      expectedRevision: number;
-      expectedTaskRevision?: number;
-    }) => userTasksApi.deleteDraft(userTaskId, expectedRevision, expectedTaskRevision),
-    onSuccess: (_result, variables) => {
-      // Der Server meldet nach DELETE keinen Nutzdatensatz; der Editor setzt seinen
-      // lokalen Grundwert erst nach dem bestätigten Erfolg zurück.
-      queryClient.removeQueries({ queryKey: queryKeys.userTaskDraft(variables.userTaskId) });
-    },
-  });
-}
-
-export function useCompleteUserTask() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (result: UserTaskResultDto) => userTasksApi.complete(result),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.operations });
-    },
-  });
-}
-
-export type UserTaskLifecycleCommand =
-  | ({ action: 'claim'; userTaskId: string } & UserTaskClaimRequest)
-  | ({ action: 'release'; userTaskId: string } & UserTaskReleaseRequest)
-  | ({ action: 'assign' | 'delegate'; userTaskId: string } & UserTaskTransferRequest);
-
-/** Ein gemeinsamer Mutationszustand verhindert konkurrierende Aktionen derselben Ansicht. */
-export function useUserTaskLifecycleMutation() {
-  const queryClient = useQueryClient();
-  return useMutation<UserTaskWorkStateDto, unknown, UserTaskLifecycleCommand>({
-    retry: false,
-    mutationFn: ({ action, userTaskId, ...command }) => {
-      if (action === 'claim') return userTasksApi.claim(userTaskId, command);
-      if (action === 'release') return userTasksApi.release(userTaskId, command as UserTaskReleaseRequest);
-      if (action === 'assign') return userTasksApi.assign(userTaskId, command as UserTaskTransferRequest);
-      return userTasksApi.delegate(userTaskId, command as UserTaskTransferRequest);
-    },
-    onSettled: async () => {
-      // Auch nach Konflikten muss die Person den aktuellen Aufgabenstand sehen. Ein
-      // Refetch ersetzt jedoch weder lokale Formulareingaben noch Dialogfelder.
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.userTasks }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.instances }),
-      ]);
     },
   });
 }
@@ -728,6 +599,7 @@ export function useSaveFormMeta() {
 
 export function useDeleteForm() {
   const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
   return useMutation({
     mutationFn: (formId: string) => formsApi.deleteMeta(formId),
     onSuccess: (_data, formId) => {
@@ -739,7 +611,9 @@ export function useDeleteForm() {
       // Nicht nur die Liste: Aufgaben loesen ihr Formular ueber den Namen auf, die
       // Aufgabenansicht muss ein geloeschtes also neu bewerten.
       void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.userTasks });
+      void queryClient.invalidateQueries({
+        queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+      });
     },
   });
 }

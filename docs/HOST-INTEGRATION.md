@@ -32,6 +32,11 @@ Directory-Suche und Aktionen, ohne den veröffentlichten Serververtrag zu erweit
 Eine unabhängig kompilierte Minimalintegration liegt unter
 [`examples/react-host-embedding`](../examples/react-host-embedding/README.md).
 
+Die Flowzer-Konsole verwendet dieselben Pakete als produktinterner Referenzkonsument.
+Ihre BFF-, Form.io- und Development-Adapter sind jedoch kein Bestandteil des
+öffentlichen Pakets und keine Vorgabe für externe Hosts. Details:
+[Console-Paketintegration](CONSOLE-TASK-PACKAGE-INTEGRATION.md).
+
 ## Authentisierung
 
 Interaktive Requests bleiben immer an den tatsächlichen Benutzer gebunden:

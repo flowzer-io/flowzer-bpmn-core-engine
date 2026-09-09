@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 
 import {
   DirectorySubjectPicker,
+  type BoundDirectorySubjectAdapter,
   type DirectorySubjectSelection,
 } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import type { FormDirectorySearchContext, SubjectRefDto } from '@/lib/api/types';
@@ -241,6 +242,11 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
       const component = this.component as FlowzerSubjectSchema;
       const policy = component.flowzer?.subjectSelection ?? {};
       const context = this.options?.flowzerDirectoryContext as FormDirectorySearchContext | undefined;
+      const directoryAdapter = this.options?.flowzerDirectoryAdapter as BoundDirectorySubjectAdapter | undefined;
+      // Aufgabenformulare dürfen ihren Task-Kontext ausschließlich über den
+      // gebundenen Host-Adapter erhalten. Der alte Context-Hook bleibt nur für
+      // Startformulare und damit außerhalb des verschachtelten Task-Roots aktiv.
+      const startFormContext = context?.kind === 'startForm' ? context : undefined;
       const allowUsers = policy.allowUsers !== false;
       const allowGroups = policy.allowGroups === true;
       const kind = allowUsers && allowGroups ? 'all' : allowGroups ? 'group' : 'user';
@@ -254,13 +260,18 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
         <FlowzerSubjectBridge
           initialSelected={selected}
           pickerProps={{
-            definitionId: context?.kind === 'startForm' ? context.definitionId : '',
-            directoryContext: context,
+            definitionId: startFormContext?.definitionId ?? '',
+            ...(directoryAdapter
+              ? { directoryAdapter }
+              : startFormContext ? { directoryContext: startFormContext } : {}),
             fieldKey: component.key,
             kind,
             multiple: component.multiple === true,
-            disabled: Boolean(this.options?.readOnly) || (!allowUsers && !allowGroups) || !context,
-            disabledReason: !context ? 'Die Verzeichnissuche ist nur im gebundenen Start- oder Aufgabenformular verfügbar.' : undefined,
+            disabled: Boolean(this.options?.readOnly) || (!allowUsers && !allowGroups)
+              || (!startFormContext && !directoryAdapter),
+            disabledReason: !startFormContext && !directoryAdapter
+              ? 'Die Verzeichnissuche ist nur im gebundenen Start- oder Aufgabenformular verfügbar.'
+              : undefined,
             label: component.label ?? 'Benutzer oder Gruppe',
           }}
           onChange={(next) => {

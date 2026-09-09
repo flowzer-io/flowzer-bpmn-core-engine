@@ -1,6 +1,6 @@
+import type { UserTaskDraft } from '@flowzer/sdk';
 import { describe, expect, it } from 'vitest';
 
-import type { UserTaskDraftDto } from './api/types';
 import {
   cloneProcessVariables,
   createTaskDraftState,
@@ -8,7 +8,7 @@ import {
   type TaskDraftState,
 } from './taskDraft';
 
-const draft = (data: Record<string, unknown>, revision = 1): UserTaskDraftDto => ({
+const draft = (data: Record<string, unknown>, revision = 1): UserTaskDraft => ({
   userTaskId: 'task-1',
   revision,
   updatedAtUtc: '2026-09-08T12:00:00Z',

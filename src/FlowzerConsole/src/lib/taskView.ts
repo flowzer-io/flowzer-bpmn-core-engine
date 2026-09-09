@@ -1,7 +1,7 @@
 import { endOfDay, endOfWeek, isValid, parseISO } from 'date-fns';
+import type { ExtendedUserTask } from '@flowzer/sdk';
 
 import type { Tone } from '@/components/ui/Chip';
-import type { ExtendedUserTaskSubscriptionDto } from '@/lib/api/types';
 import { formatTimestamp, parseApiDate } from '@/lib/format';
 
 /**
@@ -95,7 +95,7 @@ export function normalizePriority(value: string | null | undefined): Priority | 
 }
 
 export interface TaskView {
-  task: ExtendedUserTaskSubscriptionDto;
+  task: ExtendedUserTask;
   id: string;
   title: string;
   workflowName: string;
@@ -110,7 +110,7 @@ export interface TaskView {
 }
 
 /** Bereitet eine Aufgabe für die Darstellung auf. */
-export function toTaskView(task: ExtendedUserTaskSubscriptionDto, now: Date = new Date()): TaskView {
+export function toTaskView(task: ExtendedUserTask, now: Date = new Date()): TaskView {
   const date = parseApiDate(task.deadline?.dueAtUtc);
   const scheduleUnsupported = task.deadline?.scheduleState === 'unsupported'
     || task.deadline?.scheduleState === 'invalid';
@@ -126,7 +126,7 @@ export function toTaskView(task: ExtendedUserTaskSubscriptionDto, now: Date = ne
     task,
     id: task.id,
     title: task.name?.trim() || task.token.currentFlowNodeId || 'Aufgabe',
-    workflowName: task.definitionMetaName || task.processId,
+    workflowName: task.definitionMetaName?.trim() || task.processId?.trim() || 'Workflow',
     dueDate: date,
     dueRaw: null,
     dueLabel: date

@@ -1,7 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 
 import { Icon } from '@/components/ui/Icon';
-import { useUserTasks } from '@/lib/api/queries';
+import { useUserTasks } from '@flowzer/react';
 import { cn, mix } from '@/lib/cn';
 import { useAppearance } from '@/stores/appearance';
 import { describeRole, useSession, useCan } from '@/stores/session';
@@ -22,7 +22,7 @@ export function Sidebar({ onOpenUserMenu }: SidebarProps) {
   const navItems = visibleNavItems(can);
   // Die Zahl ist der Grund, warum man hier hinklickt — ohne sie muesste man die Seite
   // oeffnen, um zu sehen, ob ueberhaupt etwas offen ist.
-  const offeneAufgaben = useUserTasks().data?.length ?? 0;
+  const offeneAufgaben = useUserTasks({ refetchInterval: 10_000 }).data?.length ?? 0;
 
   const expanded = sidebar === 'full';
   const currentKey = activeNavKey(pathname);

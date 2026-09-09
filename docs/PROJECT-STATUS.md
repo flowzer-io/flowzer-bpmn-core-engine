@@ -156,9 +156,22 @@ bereits geladene Formular-/Entwurfsdaten aus der sichtbaren Projektion und dem S
 
 Form.io, CSS, Navigation und Fachobjekte bleiben beim Host. Ein neutraler
 Formularadaptervertrag und eine unabhängig kompilierte Fixture belegen diese Grenze.
-Die Flowzer-Konsole nutzt die Pakete noch nicht selbst; diese Migration und eine reale
-Identity-/HTTPS-Einbettungsabnahme bleiben separat offen. Details:
+Die Flowzer-Konsole konsumiert die Pakete mit #224 inzwischen selbst: Ihre BFF-,
+Form.io- und Development-Details bleiben in schmalen Console-Adaptern, während der
+parallele Human-Task-Transport entfernt wurde. Eine reale externe Identity-/HTTPS-
+Einbettungsabnahme bleibt separat offen. Details:
 [Hostneutrale Einbettung](HOST-INTEGRATION.md).
+
+## Console auf öffentlichen Task-Paketen – #224 (noch nicht gemergt)
+
+Aufgabenlisten in Dashboard, Navigation und Arbeitsplatz verwenden `@flowzer/react`;
+Detail, Formular, privater Entwurf, Lifecycle, Directory und idempotenter Abschluss
+laufen über denselben öffentlichen Workspace-/Action-Vertrag. Ein opaker
+Sitzungsscope wird bei Logout, `401` und Kontowechsel gezielt bereinigt. Form.io erhält
+nur feldgebundene Directory-Callbacks; konkrete Hosts bleiben vollständig außerhalb
+des Produkts. Der frühere Console-eigene Tasktransport und sein alternativer
+`/form/result`-Aufruf wurden entfernt. Details:
+[Console-Paketintegration](CONSOLE-TASK-PACKAGE-INTEGRATION.md).
 
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
@@ -277,10 +290,10 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
    Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
    Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
-   serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
-   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, generisches Headless-SDK samt
-   optionalen React-Komponenten, Modellvalidierung, externe Zustellung und vollständige
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
+   serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
+   Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
+   vor (#202–#224). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
    Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
@@ -289,8 +302,8 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal 111 Engine-,
-657 API-/Storage- und 288 Konsolentests. Der vollständige UX-Audit und die erste
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 111 Engine-,
+674 API-/Storage-, 301 Konsolen-, 13 SDK- und 15 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

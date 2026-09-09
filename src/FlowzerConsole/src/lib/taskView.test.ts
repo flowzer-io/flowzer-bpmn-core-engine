@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { ExtendedUserTask } from '@flowzer/sdk';
 
 import { normalizePriority, parseDueDate, parseIsoDuration, sortTasks, toTaskView } from './taskView';
-import type { ExtendedUserTaskSubscriptionDto } from './api/types';
 
 const NOW = new Date('2026-07-27T09:00:00Z');
 
@@ -14,13 +14,13 @@ function deadline(dueAtUtc: string, status: 'scheduled' | 'overdue' = 'scheduled
   };
 }
 
-function task(overrides: Partial<ExtendedUserTaskSubscriptionDto> = {}): ExtendedUserTaskSubscriptionDto {
+function task(overrides: Partial<ExtendedUserTask> = {}): ExtendedUserTask {
   return {
     id: overrides.id ?? 'task-1',
     name: overrides.name ?? 'Freigabe erteilen',
     token: {
       id: 'token-1',
-      state: 'Active',
+      state: 1,
       currentFlowNodeId: 'Activity_1',
       startTime: '2026-07-27T08:00:00',
       ...overrides.token,
@@ -40,7 +40,6 @@ function task(overrides: Partial<ExtendedUserTaskSubscriptionDto> = {}): Extende
     workState: overrides.workState ?? {
       revision: 0,
       claimed: false,
-      actualAssignee: null,
       actualAssigneeDisplayName: null,
       isAssignedToCurrentUser: false,
       canWork: false,

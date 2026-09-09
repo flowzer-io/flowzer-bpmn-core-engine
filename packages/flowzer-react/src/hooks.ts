@@ -50,6 +50,7 @@ export interface TaskWorkspaceState {
   isRefreshing: boolean;
   error: Error | null;
   reload: () => Promise<void>;
+  reloadDraft: () => Promise<UserTaskDraft | undefined>;
   searchSubjects: (
     fieldKey: string,
     options: DirectorySubjectSearchOptions,
@@ -154,6 +155,11 @@ export function useUserTaskWorkspace(
         await Promise.all([form.refetch(), draft.refetch()]);
       }
     },
+    reloadDraft: async () => {
+      const result = await draft.refetch();
+      if (result.error) throw result.error;
+      return result.data;
+    },
     searchSubjects,
   };
 }
@@ -180,21 +186,25 @@ export function useUserTaskActions(userTaskId: string): UserTaskActions {
     mutationFn: (command: UserTaskRevisionCommand) => client.userTasks.claim(userTaskId, command),
     retry: false,
     onSuccess: refreshTask,
+    onError: () => refreshTask(),
   });
   const release = useMutation({
     mutationFn: (command: ReleaseUserTaskCommand) => client.userTasks.release(userTaskId, command),
     retry: false,
     onSuccess: refreshTask,
+    onError: () => refreshTask(),
   });
   const assign = useMutation({
     mutationFn: (command: TransferUserTaskCommand) => client.userTasks.assign(userTaskId, command),
     retry: false,
     onSuccess: refreshTask,
+    onError: () => refreshTask(),
   });
   const delegate = useMutation({
     mutationFn: (command: TransferUserTaskCommand) => client.userTasks.delegate(userTaskId, command),
     retry: false,
     onSuccess: refreshTask,
+    onError: () => refreshTask(),
   });
   const saveDraft = useMutation({
     mutationFn: (command: SaveUserTaskDraftCommand) => client.userTasks.saveDraft(userTaskId, command),

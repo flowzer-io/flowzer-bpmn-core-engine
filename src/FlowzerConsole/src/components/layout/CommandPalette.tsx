@@ -4,7 +4,9 @@ import { Command } from 'cmdk';
 import { useMemo } from 'react';
 
 import { Icon } from '@/components/ui/Icon';
-import { useDefinitions, useInstances, useUserTasks } from '@/lib/api/queries';
+import { useUserTasks } from '@flowzer/react';
+
+import { useDefinitions, useInstances } from '@/lib/api/queries';
 import { shortId } from '@/lib/format';
 import { useAppearance } from '@/stores/appearance';
 import { useCan } from '@/stores/session';
@@ -39,7 +41,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // Nur laden, während die Palette offen ist — sonst hält sie unnötig Abfragen wach.
   const definitionsQuery = useDefinitions({ enabled: open });
   const instancesQuery = useInstances({ enabled: open });
-  const userTasksQuery = useUserTasks({ enabled: open });
+  const userTasksQuery = useUserTasks({ enabled: open, refetchInterval: 10_000 });
 
   const definitions = definitionsQuery.data;
   const instances = instancesQuery.data;
@@ -101,12 +103,12 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         id: `task-${task.id}`,
         group: 'Aufgaben',
         icon: 'assignment',
-        label: task.name,
-        hint: task.definitionMetaName,
+        label: task.name?.trim() || task.token.currentFlowNodeId?.trim() || 'Aufgabe',
+        hint: task.definitionMetaName?.trim() || task.processId?.trim() || 'Workflow',
         run: go(`/tasks?task=${task.id}`),
       })),
     ];
-  }, [definitions, instances, userTasks, navigate, onOpenChange, toggleTheme]);
+  }, [can, definitions, instances, userTasks, navigate, onOpenChange, toggleTheme]);
 
   const groups = useMemo(() => {
     const byGroup = new Map<string, Entry[]>();

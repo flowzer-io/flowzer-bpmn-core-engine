@@ -39,8 +39,11 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
    Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
    Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
-   fachliche Abnahme bleiben offen. Hostneutrales SDK und Einbettung, Modellierungsprüfung,
-   Laufzeitdiagramm und belastbare Vorgangshistorie folgen.
+   fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
+   React-Bausteine (#220/PR #221) liegen vor. #224 migriert die Flowzer-Konsole auf
+   genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
+   Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
+   folgen.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
@@ -57,6 +60,12 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Die Dateiablage bleibt Einzelprozess-Entwicklung; PostgreSQL ist der vorgesehene
   Mehrprozesspfad. BPMN-Eskalationspropagation, externe Zustellung und automatische
   Vertretung sind ausdrücklich nicht enthalten.
+- [x] **#218/#220 – öffentliche Integrationspakete:** Das zustandslose SDK sowie
+  darstellungsfreie React-Hooks/-Controller bleiben frei von konkreten Hosts.
+- [x] **#224 – Console-Paketmigration:** Die Flowzer-Konsole verwendet für Human
+  Tasks die öffentlichen Pakete; BFF, Form.io und Development-Details bleiben
+  ausschließlich Console-Adapter. Ein konkreter externer Host ist nicht Bestandteil
+  von Flowzer.
 
 ## Vorhandenes nicht neu bauen
 

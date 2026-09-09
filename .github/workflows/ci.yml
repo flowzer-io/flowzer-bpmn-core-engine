@@ -126,7 +126,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: src/FlowzerConsole/package-lock.json
+          cache-dependency-path: |
+            src/FlowzerConsole/package-lock.json
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
 
       - name: Abhaengigkeiten installieren
         working-directory: src/FlowzerConsole

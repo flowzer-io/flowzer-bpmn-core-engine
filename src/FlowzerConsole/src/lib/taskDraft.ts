@@ -1,12 +1,6 @@
+import { FlowzerApiError, type ProcessVariables, type UserTaskDraft } from '@flowzer/sdk';
+import type { TaskWorkspaceState, UserTaskActions } from '@flowzer/react';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-
-import { ApiError } from './api/client';
-import type { UserTaskDraftDto, ProcessVariables } from './api/types';
-import {
-  useDeleteUserTaskDraft,
-  useSaveUserTaskDraft,
-  useUserTaskDraft,
-} from './api/queries';
 
 export type TaskDraftLoadState = 'loading' | 'ready' | 'error';
 export type TaskDraftSaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error' | 'conflict';
@@ -36,11 +30,11 @@ export interface TaskDraftState {
 
 export type TaskDraftAction =
   | { type: 'taskChanged'; taskId: string; fallbackData: ProcessVariables }
-  | { type: 'hydrate'; draft: UserTaskDraftDto; force?: boolean }
+  | { type: 'hydrate'; draft: UserTaskDraft; force?: boolean }
   | { type: 'loadFailed'; error: unknown }
   | { type: 'change'; data: ProcessVariables }
   | { type: 'saveStarted' }
-  | { type: 'saveSucceeded'; taskId: string; draft: UserTaskDraftDto }
+  | { type: 'saveSucceeded'; taskId: string; draft: UserTaskDraft }
   | { type: 'saveFailed'; taskId: string; error: unknown; conflict: boolean }
   | { type: 'discardSucceeded'; taskId: string };
 
@@ -67,7 +61,7 @@ function dataSignature(data: ProcessVariables): string {
   return JSON.stringify(canonicalValue(data));
 }
 
-function hasServerDraft(draft: UserTaskDraftDto): boolean {
+function hasServerDraft(draft: UserTaskDraft): boolean {
   // Revision 0 plus an empty object is the API's explicit „kein Entwurf“-value.
   return draft.revision !== 0 || Object.keys(draft.data ?? {}).length > 0;
 }
@@ -113,7 +107,7 @@ export function taskDraftReducer(state: TaskDraftState, action: TaskDraftAction)
         savedData: cloneProcessVariables(data),
         revision: action.draft.revision,
         hasDraft: hasServerDraft(action.draft),
-        updatedAtUtc: action.draft.updatedAtUtc,
+        updatedAtUtc: action.draft.updatedAtUtc ?? null,
         initialized: true,
         loadState: 'ready',
         saveState: 'idle',
@@ -154,15 +148,16 @@ export function taskDraftReducer(state: TaskDraftState, action: TaskDraftAction)
     case 'saveSucceeded': {
       if (action.taskId !== state.taskId) return state;
       const currentSignature = dataSignature(state.currentData);
-      const savedSignature = dataSignature(action.draft.data);
+      const savedData = action.draft.data ?? {};
+      const savedSignature = dataSignature(savedData);
       return {
         ...state,
         // Keep currentData and initialData untouched. This prevents a canonical server
         // response from rebuilding Form.io while the user is still looking at the form.
-        savedData: cloneProcessVariables(action.draft.data),
+        savedData: cloneProcessVariables(savedData),
         revision: action.draft.revision,
         hasDraft: true,
-        updatedAtUtc: action.draft.updatedAtUtc,
+        updatedAtUtc: action.draft.updatedAtUtc ?? null,
         dirty: currentSignature !== savedSignature,
         saveState: currentSignature === savedSignature ? 'saved' : 'dirty',
         error: null,
@@ -217,7 +212,16 @@ export interface TaskDraftEditor {
   save: () => void;
   discard: () => void;
   adoptServerDraft: () => Promise<void>;
-  refetch: () => Promise<unknown>;
+}
+
+export interface TaskDraftBackend {
+  draft: TaskWorkspaceState['draft'];
+  isPending: boolean;
+  isRefreshing: boolean;
+  error: Error | null;
+  reloadDraft: TaskWorkspaceState['reloadDraft'];
+  saveDraft: UserTaskActions['saveDraft'];
+  deleteDraft: UserTaskActions['deleteDraft'];
 }
 
 /**
@@ -227,9 +231,19 @@ export interface TaskDraftEditor {
 export function useTaskDraftEditor(
   taskId: string | undefined,
   fallbackData: ProcessVariables | null | undefined,
-  taskRevision?: number,
-  enabled = true,
+  taskRevision: number | undefined,
+  enabled: boolean,
+  backend: TaskDraftBackend,
 ): TaskDraftEditor {
+  const {
+    draft: serverDraft,
+    isPending,
+    isRefreshing,
+    error: backendError,
+    reloadDraft,
+    saveDraft,
+    deleteDraft,
+  } = backend;
   // Der Task-Refetch liefert häufig neue Objektinstanzen. Der Fallback darf deshalb
   // nur bei einer echten Task-ID-Änderung neu eingefangen werden.
   const seedRef = useRef<{ taskId: string; data: ProcessVariables }>({
@@ -246,9 +260,6 @@ export function useTaskDraftEditor(
     taskDraftReducer,
     createTaskDraftState(taskId ?? '', fallbackData ?? {}),
   );
-  const draftQuery = useUserTaskDraft(taskId, enabled);
-  const saveMutation = useSaveUserTaskDraft();
-  const discardMutation = useDeleteUserTaskDraft();
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -257,13 +268,13 @@ export function useTaskDraftEditor(
   }, [taskId]);
 
   useEffect(() => {
-    if (!taskId || draftQuery.isPending) return;
-    if (draftQuery.error) {
-      dispatch({ type: 'loadFailed', error: draftQuery.error });
+    if (!taskId || !enabled || isPending) return;
+    if (backendError) {
+      dispatch({ type: 'loadFailed', error: backendError });
       return;
     }
-    if (draftQuery.data) dispatch({ type: 'hydrate', draft: draftQuery.data });
-  }, [taskId, draftQuery.data, draftQuery.error, draftQuery.isPending]);
+    if (serverDraft) dispatch({ type: 'hydrate', draft: serverDraft });
+  }, [backendError, enabled, isPending, serverDraft, taskId]);
 
   const setData = useCallback((data: ProcessVariables) => {
     dispatch({ type: 'change', data });
@@ -271,14 +282,15 @@ export function useTaskDraftEditor(
 
   const save = useCallback(() => {
     const current = stateRef.current;
-    if (!taskId || !current.initialized || !current.dirty || saveMutation.isPending) return;
+    if (!taskId || !current.initialized || !current.dirty || saveDraft.isPending) return;
 
     const data = cloneProcessVariables(current.currentData);
     dispatch({ type: 'saveStarted' });
-    saveMutation.mutate(
+    saveDraft.mutate(
       {
-        userTaskId: taskId,
-        draft: { expectedRevision: current.revision, expectedTaskRevision: taskRevision, data },
+        expectedRevision: current.revision,
+        expectedTaskRevision: taskRevision,
+        data,
       },
       {
         onSuccess: (saved) => dispatch({ type: 'saveSucceeded', taskId, draft: saved }),
@@ -287,38 +299,39 @@ export function useTaskDraftEditor(
             type: 'saveFailed',
             taskId,
             error,
-            conflict: error instanceof ApiError && error.status === 409,
+            conflict: error instanceof FlowzerApiError && error.status === 409,
           }),
       },
     );
-  }, [saveMutation, taskId, taskRevision]);
+  }, [saveDraft, taskId, taskRevision]);
 
   const discard = useCallback(() => {
     const current = stateRef.current;
-    if (!taskId || discardMutation.isPending) return;
-    discardMutation.mutate(
-      { userTaskId: taskId, expectedRevision: current.revision, expectedTaskRevision: taskRevision },
+    if (!taskId || deleteDraft.isPending) return;
+    deleteDraft.mutate(
+      { expectedRevision: current.revision, expectedTaskRevision: taskRevision },
       {
         onSuccess: () => dispatch({ type: 'discardSucceeded', taskId }),
         onError: (error) => dispatch({
           type: 'saveFailed',
           taskId,
           error,
-          conflict: error instanceof ApiError && error.status === 409,
+          conflict: error instanceof FlowzerApiError && error.status === 409,
         }),
       },
     );
-  }, [discardMutation, taskId, taskRevision]);
+  }, [deleteDraft, taskId, taskRevision]);
 
   const adoptServerDraft = useCallback(async () => {
     if (!taskId) return;
-    const result = await draftQuery.refetch();
-    if (result.error) {
-      dispatch({ type: 'loadFailed', error: result.error });
+    try {
+      const draft = await reloadDraft();
+      if (draft) dispatch({ type: 'hydrate', draft, force: true });
+    } catch (error) {
+      dispatch({ type: 'loadFailed', error });
       return;
     }
-    if (result.data) dispatch({ type: 'hydrate', draft: result.data, force: true });
-  }, [draftQuery, taskId]);
+  }, [reloadDraft, taskId]);
 
   const taskMatches = state.taskId === (taskId ?? '');
   return {
@@ -328,19 +341,16 @@ export function useTaskDraftEditor(
     hasDraft: taskMatches && state.hasDraft,
     updatedAtUtc: taskMatches ? state.updatedAtUtc : null,
     dirty: taskMatches && state.dirty,
-    loadState: taskMatches ? (draftQuery.isPending ? 'loading' : state.loadState) : 'loading',
+    loadState: taskMatches ? (isPending ? 'loading' : state.loadState) : 'loading',
     saveState: taskMatches ? state.saveState : 'idle',
     error: taskMatches ? state.error : null,
-    isRefreshing: taskMatches && draftQuery.isFetching && !draftQuery.isPending,
-    isSaving: saveMutation.isPending,
-    isDiscarding: discardMutation.isPending,
+    isRefreshing: taskMatches && isRefreshing && !isPending,
+    isSaving: saveDraft.isPending,
+    isDiscarding: deleteDraft.isPending,
     formInstanceKey: taskMatches ? state.formInstanceKey : 0,
     setData,
     save,
     discard,
     adoptServerDraft,
-    refetch: async () => {
-      await draftQuery.refetch();
-    },
   };
 }
