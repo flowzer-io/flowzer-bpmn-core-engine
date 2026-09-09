@@ -30,7 +30,7 @@ for (const viewport of [{ width: 1440, height: 960 }, { width: 390, height: 844 
         diagramXml,
         nodes: [
           { flowNodeId: 'Start', status: 1, tokenCount: 1, lastChangedAtUtc: '2026-09-09T09:59:00Z' },
-          { flowNodeId: 'Review', status: 0, tokenCount: 1, lastChangedAtUtc: '2026-09-09T10:00:00Z' },
+          { flowNodeId: 'Review', status: 0, tokenCount: 3, lastChangedAtUtc: '2026-09-09T10:00:00Z' },
         ],
         events: [
           { id: 'event-1', flowNodeId: 'Start', state: 4, occurredAtUtc: '2026-09-09T09:59:00Z' },
@@ -49,7 +49,28 @@ for (const viewport of [{ width: 1440, height: 960 }, { width: 390, height: 844 
         instanceId, definitionId: 'a6c16d51-8d1b-4410-8c4b-b5288d794822',
         relatedDefinitionId: 'urlaub', relatedDefinitionName: 'Urlaubsantrag – September',
         state: 'Waiting', canInspect: true, startedAt: '2026-09-09T09:58:00Z',
-        tokens: [{ id: 'token-1', currentFlowNodeId: 'Review', state: 'Active', variables: {} }],
+        tokens: [
+          {
+            id: 'master-token', parentTokenId: null, currentFlowNodeId: 'Process_Runtime', state: 'Active',
+            variables: { requestId: 'REQ-42', days: 5 }, outputData: null,
+            startTime: '2026-09-09T09:58:00Z', lastStateChangeTime: '2026-09-09T09:58:00Z',
+          },
+          {
+            id: 'token-1', parentTokenId: 'master-token', currentFlowNodeId: 'Review', state: 'Active',
+            variables: { reviewer: 'anna' }, outputData: { decision: 'open' },
+            startTime: '2026-09-09T09:59:00Z', lastStateChangeTime: '2026-09-09T10:00:00Z',
+          },
+          {
+            id: 'token-2', parentTokenId: 'master-token', currentFlowNodeId: 'Review', state: 'Active',
+            variables: { reviewer: 'bert' }, outputData: null,
+            startTime: '2026-09-09T09:59:10Z', lastStateChangeTime: '2026-09-09T10:00:00Z',
+          },
+          {
+            id: 'token-3', parentTokenId: 'master-token', currentFlowNodeId: 'Review', state: 'Active',
+            variables: { reviewer: 'carla' }, outputData: {},
+            startTime: '2026-09-09T09:59:20Z', lastStateChangeTime: '2026-09-09T10:00:00Z',
+          },
+        ],
         userTaskSubscriptionCount: 1, messageSubscriptionCount: 0,
         signalSubscriptionCount: 0, serviceSubscriptionCount: 0,
       } },
@@ -59,7 +80,15 @@ for (const viewport of [{ width: 1440, height: 960 }, { width: 390, height: 844 
 
     await expect(page.getByRole('img', { name: 'BPMN-Laufzeitdiagramm' })).toBeVisible();
     await expect(page.getByRole('list', { name: 'Legende der Laufzeitzustände' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Prüfen Aktiv/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Prüfen Aktiv ×3/ })).toBeVisible();
+    await expect(page.locator('.flowzer-token')).toHaveCount(1);
+    await expect(page.locator('.flowzer-token')).toHaveText('3');
+    await expect(page.getByText('requestId')).toBeVisible();
+    await expect(page.getByText('"REQ-42"')).toBeVisible();
+    await page.getByRole('tab', { name: 'Schrittdaten' }).click();
+    await expect(page.getByRole('article', { name: 'Ausführung 1 von 3' })).toContainText('"anna"');
+    await expect(page.getByText('Für diese Ausführung ist noch kein Output-Snapshot persistiert.')).toBeVisible();
+    await expect(page.getByText('Für diese Ausführung wurde ein leerer Output-Snapshot persistiert.')).toBeVisible();
     await page.getByRole('tab', { name: 'Verlauf' }).click();
     await expect(page.getByRole('list', { name: 'Engine-Ereignisse' })).toContainText('Prüfen');
     await expect(page.getByText(/\d+ von \d+ Elementen/)).toHaveCount(0);

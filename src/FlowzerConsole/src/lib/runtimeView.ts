@@ -34,15 +34,23 @@ export function runtimeState(value: unknown): FlowNodeState | 'Unknown' {
 export function runtimeMarkers(runtime: RuntimeDiagram | undefined): {
   markers: Record<string, NodeMarker>;
   activeNodeIds: string[];
+  activeTokenCounts: Record<string, number>;
 } {
   const markers: Record<string, NodeMarker> = {};
   const activeNodeIds: string[] = [];
+  const activeTokenCounts: Record<string, number> = {};
   for (const node of runtime?.nodes ?? []) {
     if (!node.flowNodeId) continue;
     const status = runtimeNodeStatus(node.status);
     if (status === 'unknown') continue;
     markers[node.flowNodeId] = status;
-    if (status === 'active') activeNodeIds.push(node.flowNodeId);
+    if (status === 'active') {
+      activeNodeIds.push(node.flowNodeId);
+      // Die Serverprojektion fasst parallele Tokens pro BPMN-Knoten bereits
+      // zusammen. Die Anzahl bleibt hier erhalten, damit die Oberfläche genau
+      // einen Marker mit Zähler statt mehrerer deckungsgleicher Punkte zeichnet.
+      activeTokenCounts[node.flowNodeId] = Math.max(1, node.tokenCount ?? 1);
+    }
   }
-  return { markers, activeNodeIds };
+  return { markers, activeNodeIds, activeTokenCounts };
 }

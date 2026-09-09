@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { RuntimeDiagram } from './RuntimeDiagram';
 
 vi.mock('@/components/bpmn/BpmnViewer', () => ({
-  BpmnViewer: ({ ariaLabel }: { ariaLabel: string }) => <div role="img" aria-label={ariaLabel} />,
+  BpmnViewer: ({ ariaLabel, tokenCounts }: { ariaLabel: string; tokenCounts: Record<string, number> }) => (
+    <div role="img" aria-label={ariaLabel} data-token-counts={JSON.stringify(tokenCounts)} />
+  ),
 }));
 
 describe('RuntimeDiagram', () => {
@@ -13,6 +15,7 @@ describe('RuntimeDiagram', () => {
   // Alternative mit Statussymbol und Klartext; Farbe ist nie das einzige Signal.
   it('zeigt Legende und auswählbare Laufzeitknoten zugänglich an', async () => {
     const user = userEvent.setup();
+    const onNodeSelect = vi.fn();
     render(<RuntimeDiagram runtime={{
       instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1', state: 2,
       snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />', events: [],
@@ -20,9 +23,10 @@ describe('RuntimeDiagram', () => {
         { flowNodeId: 'Review', status: 0, tokenCount: 2 },
         { flowNodeId: 'Archive', status: 2, tokenCount: 1 },
       ],
-    }} />);
+    }} onNodeSelect={onNodeSelect} />);
 
-    expect(screen.getByRole('img', { name: 'BPMN-Laufzeitdiagramm' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'BPMN-Laufzeitdiagramm' }))
+      .toHaveAttribute('data-token-counts', '{"Review":2}');
     expect(screen.getByRole('list', { name: 'Legende der Laufzeitzustände' }))
       .toHaveTextContent('AktivAbgeschlossenAbgebrochenGestört');
     const review = screen.getByRole('button', { name: /Review Aktiv ×2/ });
@@ -31,6 +35,7 @@ describe('RuntimeDiagram', () => {
 
     await user.click(archive);
 
+    expect(onNodeSelect).toHaveBeenCalledWith('Archive');
     expect(archive).toHaveAttribute('aria-current', 'step');
     expect(review).not.toHaveAttribute('aria-current');
   });

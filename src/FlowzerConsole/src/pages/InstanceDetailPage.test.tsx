@@ -106,4 +106,52 @@ describe('Datensparsame Instanzansicht', () => {
     expect(screen.getByText('Aufgabenaktionen')).toBeInTheDocument();
     expect(screen.queryByText('Aktueller Tokenstand')).not.toBeInTheDocument();
   });
+
+  // Testzweck: Die technische Instanzsicht liest den Prozessscope aus dem
+  // Master-Token und trennt ihn von den persistierten Ein-/Ausgaben eines Knotens.
+  it('zeigt Prozessvariablen sowie Ein- und Ausgaben einzelner Ausführungen', async () => {
+    mocks.instance.mockReturnValue({
+      data: {
+        ...overview,
+        canInspect: true,
+        tokens: [
+          {
+            id: 'master-token', parentTokenId: null, currentFlowNodeId: 'Process_1', state: 'Active',
+            variables: { requestId: 'REQ-42' }, outputData: null,
+            startTime: '2026-09-09T09:00:00Z', lastStateChangeTime: '2026-09-09T09:00:00Z',
+          },
+          {
+            id: 'review-token', parentTokenId: 'master-token', currentFlowNodeId: 'Review', state: 'Active',
+            variables: { selectedApprover: 'directory-user-7' }, outputData: { decision: 'approved' },
+            startTime: '2026-09-09T09:30:00Z', lastStateChangeTime: '2026-09-09T09:35:00Z',
+          },
+        ],
+      },
+      isPending: false,
+    });
+    mocks.runtime.mockReturnValue({
+      data: {
+        instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1', state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />', events: [],
+        nodes: [{ flowNodeId: 'Review', status: 0, tokenCount: 1 }],
+      },
+      isPending: false,
+    });
+
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    expect(screen.getByText('requestId')).toBeInTheDocument();
+    expect(screen.getByText('"REQ-42"')).toBeInTheDocument();
+    expect(screen.queryByText('selectedApprover')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Schrittdaten' }));
+
+    expect(screen.getByText('Gebundener Input')).toBeInTheDocument();
+    expect(screen.getByText('selectedApprover')).toBeInTheDocument();
+    expect(screen.getByText('"directory-user-7"')).toBeInTheDocument();
+    expect(screen.getByText('Erzeugter Output')).toBeInTheDocument();
+    expect(screen.getByText('decision')).toBeInTheDocument();
+    expect(screen.getByText('"approved"')).toBeInTheDocument();
+  });
 });

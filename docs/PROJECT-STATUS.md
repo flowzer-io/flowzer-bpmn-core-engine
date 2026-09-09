@@ -300,6 +300,17 @@ zeigt Diagramm, Statuslegende, tastaturbedienbare Knotenliste und echte
 Ereigniszeitleiste responsiv; die fachlich falsche lineare Fortschrittsanzeige ist
 entfernt. Details: [Laufzeitdiagramm](RUNTIME-DIAGRAM.md).
 
+## Gezählt markierte Ausführungen und Instanzdaten – #235 (noch ohne PR)
+
+Mehrere Token am selben aktiven BPMN-Knoten werden in Diagramm und Klartextliste
+als eine verdichtete Anzahl angezeigt, statt deckungsgleiche Punkte zu zeichnen.
+Die technische Instanzansicht liest Prozessvariablen zuverlässig aus dem
+Master-Token. Für einen ausgewählten Knoten zeigt sie alle persistierten
+Ausführungen mit getrenntem Input und Output, Zustand und Startzeit; fehlende und
+leere Snapshots bleiben unterscheidbar. Diese Informationen verlassen die bereits
+objektberechtigte Operatoransicht nicht, und der Runtime-Diagramm-Vertrag bleibt
+datensparsam.
+
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
@@ -347,7 +358,7 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-730 API-/Storage-, 322 Konsolen-, 20 SDK- und 19 React-Pakettests. Der vollständige UX-Audit und die erste
+730 API-/Storage-, 326 Konsolen-, 20 SDK- und 19 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

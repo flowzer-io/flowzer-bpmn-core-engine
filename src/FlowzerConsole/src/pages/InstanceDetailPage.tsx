@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
+import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
 import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
 import { Button } from '@/components/ui/Button';
@@ -15,21 +16,22 @@ import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { instanceBucket } from '@/lib/api/normalize';
 import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
-import type { ProcessVariables, TokenDto } from '@/lib/api/types';
+import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
-import { formatDueIn, formatTimestamp, formatVariableValue, parseApiDate, shortId } from '@/lib/format';
-import { BUCKET_TONE, currentToken, STATE_LABEL } from '@/lib/instanceView';
+import { formatDueIn, formatTimestamp, parseApiDate, shortId } from '@/lib/format';
+import { BUCKET_TONE, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 
 interface InstanceDetailPageProps {
   instanceId: string;
 }
 
-type PanelTab = 'variables' | 'timeline' | 'subscriptions';
+type PanelTab = 'variables' | 'nodeData' | 'timeline' | 'subscriptions';
 
 const TABS: { value: PanelTab; label: string; icon: string }[] = [
   { value: 'variables', label: 'Variablen', icon: 'data_object' },
+  { value: 'nodeData', label: 'Schrittdaten', icon: 'account_tree' },
   { value: 'timeline', label: 'Verlauf', icon: 'timeline' },
   { value: 'subscriptions', label: 'Warteobjekte', icon: 'notifications_active' },
 ];
@@ -37,6 +39,7 @@ const TABS: { value: PanelTab; label: string; icon: string }[] = [
 export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<PanelTab>('variables');
+  const [selectedNodeId, setSelectedNodeId] = useState<string>();
 
   const instanceQuery = useInstance(instanceId);
   const instance = instanceQuery.data;
@@ -51,6 +54,11 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
 
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
+  const selectedFlowNodeId = useMemo(() => {
+    const nodes = (runtimeQuery.data?.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
+    if (selectedNodeId && nodes.some((node) => node.flowNodeId === selectedNodeId)) return selectedNodeId;
+    return nodes.find((node) => node.status === 0)?.flowNodeId ?? nodes[0]?.flowNodeId ?? undefined;
+  }, [runtimeQuery.data?.nodes, selectedNodeId]);
 
   useBreadcrumbs([
     { label: 'Instanzen', to: '/instances' },
@@ -81,11 +89,9 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
 
   const bucket = instanceBucket(instance.state);
   const tone = BUCKET_TONE[bucket];
-  const active = currentToken(instance);
-
-  // Prozessvariablen liegen am Token; das aktuelle Token ist die relevante Sicht.
-  const variables: ProcessVariables = active?.variables ?? {};
-  const variableEntries = Object.entries(variables);
+  // Der Master-Token ist der persistierte Prozessscope. Fachknoten enthalten
+  // dagegen ihre eigenen gebundenen Eingaben und dürfen ihn nicht ersetzen.
+  const variables = processScopeVariables(instance);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:overflow-hidden">
@@ -158,7 +164,15 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             </div>
           )}
 
-          {runtimeQuery.data && <RuntimeDiagram runtime={runtimeQuery.data} />}
+          {runtimeQuery.data && (
+            <RuntimeDiagram
+              runtime={runtimeQuery.data}
+              onNodeSelect={(flowNodeId) => {
+                setSelectedNodeId(flowNodeId);
+                setTab('nodeData');
+              }}
+            />
+          )}
         </div>
 
         <Tabs.Root
@@ -185,48 +199,15 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
 
           <div className="min-h-0 flex-1 overflow-auto p-[18px]">
             <Tabs.Content value="variables">
-              <div className="mb-3 flex items-center justify-between">
-                <SectionLabel>Prozessvariablen</SectionLabel>
-                {variableEntries.length > 0 && (
-                  <button
-                    type="button"
-                    title="Als JSON kopieren"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(JSON.stringify(variables, null, 2));
-                      toast.success('Variablen kopiert');
-                    }}
-                    className="text-faint hover:text-text cursor-pointer border-none bg-transparent p-0"
-                  >
-                    <Icon name="content_copy" size={18} />
-                  </button>
-                )}
-              </div>
+              <ProcessVariablesPanel variables={variables} />
+            </Tabs.Content>
 
-              {variableEntries.length === 0 ? (
-                <EmptyState
-                  icon="data_object"
-                  title="Keine Variablen"
-                  description="Dieser Prozess führt derzeit keine Daten mit."
-                />
-              ) : (
-                <div className="border-border overflow-hidden rounded-[var(--r)] border">
-                  {variableEntries.map(([key, value], index) => (
-                    <div
-                      key={key}
-                      className={cn(
-                        'flex items-center gap-2.5 px-3 py-2.5 font-mono text-[12.5px]',
-                        index > 0 && 'border-border border-t',
-                      )}
-                    >
-                      <span className="text-muted flex-none">{key}</span>
-                      <span className="flex-1" />
-                      <span className="text-accent truncate text-right font-semibold">
-                        {formatVariableValue(value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <Tabs.Content value="nodeData">
+              <RuntimeNodeDataPanel
+                instance={instance}
+                flowNodeId={selectedFlowNodeId}
+                model={model}
+              />
             </Tabs.Content>
 
             <Tabs.Content value="timeline">

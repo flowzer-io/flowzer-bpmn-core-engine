@@ -1,7 +1,7 @@
 # Objektberechtigtes Laufzeitdiagramm
 
 **Stand:** 9. September 2026  
-**Issue/PR:** #232 / #233
+**Issue/PR:** #232 / #233 sowie #235 / noch ohne PR
 
 ## Zweck und Sicherheitsgrenze
 
@@ -54,6 +54,30 @@ Die Konsole zeigt diese Zustände im BPMN-Diagramm, in einer tastaturbedienbaren
 semantischen Knotenliste und in der echten Ereigniszeitleiste. Farbe ist nicht das
 einzige Signal. Eine lineare Anzeige „Schritt x von y“ wurde entfernt, weil offene
 Verzweigungen und Schleifen keinen belastbaren Nenner besitzen.
+
+Mehrere Token am selben aktiven Knoten erzeugen genau einen pulsierenden Marker.
+Ab zwei Ausführungen trägt der Kreis ihre verdichtete Tokenanzahl. Damit bleiben
+insbesondere zusammenführende Gateways lesbar, ohne deckungsgleiche Marker zu
+zeichnen; dieselbe Anzahl steht zusätzlich als Text in der Knotenliste.
+
+## Variablen und Schrittdaten
+
+Die technische Instanzansicht verwendet weiterhin ausschließlich die vorhandene
+objektbezogene Diagnosefreigabe. Sie liest den aktuellen Prozessscope aus dem
+Master-Token und nicht aus einem zufällig aktiven Fachtoken. Ein eigener Tab zeigt
+für den im Diagramm oder in der Knotenliste gewählten Schritt jede persistierte
+Ausführung separat und deterministisch sortiert mit:
+
+- Tokenzustand und Startzeitpunkt,
+- dem an den Schritt gebundenen Input-Snapshot und
+- dem vom Schritt erzeugten Output-Snapshot.
+
+Fehlende und bewusst leer persistierte Snapshots werden unterschieden. Besitzt ein
+Schritt keine Eingabezuordnung, erfindet die Konsole insbesondere für historische
+Ausführungen keinen Input aus dem heute aktuellen Prozessscope. Die datensparsame
+öffentliche Runtime-Diagramm-Projektion bleibt unverändert frei von Variablen und
+Ergebnissen; die Diagnoseansicht verwendet dafür die bereits geschützte
+Instanzprojektion.
 
 ## Öffentliche Nutzung
 

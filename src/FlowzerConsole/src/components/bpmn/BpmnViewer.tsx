@@ -9,6 +9,7 @@ import { cn } from '@/lib/cn';
 
 import { type Box, fitViewport } from './fitViewport';
 import { FLOWZER_MODDLE } from './flowzerModdle';
+import { createTokenBadge } from './tokenBadge';
 
 /** Darstellungszustand eines BPMN-Elements im Instanzverlauf. */
 export type NodeMarker = 'completed' | 'active' | 'cancelled' | 'failed';
@@ -17,8 +18,8 @@ interface BpmnViewerProps {
   xml: string | undefined;
   /** Elemente, die farblich hervorgehoben werden (Flow-Node-Id → Zustand). */
   markers?: Record<string, NodeMarker>;
-  /** Element-Ids, an denen ein pulsierender Token gezeichnet wird. */
-  tokens?: string[];
+  /** Aktive Token je Element-Id; mehrere Tokens teilen sich einen Zähler. */
+  tokenCounts?: Record<string, number>;
   onElementClick?: (elementId: string) => void;
   className?: string;
   /** Interaktion (Zoom/Pan) erlauben. Für Vorschaubilder abschalten. */
@@ -66,7 +67,7 @@ const ALL_MARKERS = ['flowzer-completed', 'flowzer-active', 'flowzer-cancelled',
 export function BpmnViewer({
   xml,
   markers,
-  tokens,
+  tokenCounts,
   onElementClick,
   className,
   interactive = true,
@@ -86,7 +87,7 @@ export function BpmnViewer({
   // Stabile Schlüssel, damit ein bei jedem Render neu gebautes Objekt mit
   // gleichem Inhalt keine erneute Markierung auslöst.
   const markerKey = useMemo(() => JSON.stringify(markers ?? {}), [markers]);
-  const tokenKey = useMemo(() => JSON.stringify(tokens ?? []), [tokens]);
+  const tokenKey = useMemo(() => JSON.stringify(tokenCounts ?? {}), [tokenCounts]);
 
   useEffect(() => {
     let disposed = false;
@@ -175,7 +176,7 @@ export function BpmnViewer({
     applyMarkers(
       viewer,
       JSON.parse(markerKey) as Record<string, NodeMarker>,
-      JSON.parse(tokenKey) as string[],
+      JSON.parse(tokenKey) as Record<string, number>,
       markedElementIdsRef.current,
     );
   }, [imported, markerKey, tokenKey]);
@@ -215,7 +216,7 @@ function describeImportError(cause: unknown): string {
 function applyMarkers(
   viewer: ViewerLike,
   markers: Record<string, NodeMarker>,
-  tokens: string[],
+  tokenCounts: Record<string, number>,
   previouslyMarked: Set<string>,
 ): void {
   const canvas = viewer.get<CanvasLike>('canvas');
@@ -243,11 +244,10 @@ function applyMarkers(
     }
   }
 
-  for (const elementId of tokens) {
+  for (const [elementId, count] of Object.entries(tokenCounts)) {
     try {
-      const dot = document.createElement('div');
-      dot.className = 'flowzer-token';
-      overlays.add(elementId, { position: { top: -9, left: -9 }, html: dot });
+      const badge = createTokenBadge(count);
+      overlays.add(elementId, { position: { top: -11, left: -11 }, html: badge });
     } catch {
       // siehe oben
     }

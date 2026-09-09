@@ -21,7 +21,7 @@ describe('Runtime-Projektion', () => {
       state: 2 as const, snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />',
       events: [],
       nodes: [
-        { flowNodeId: 'A', status: 0 as const, tokenCount: 1 },
+        { flowNodeId: 'A', status: 0 as const, tokenCount: 3 },
         { flowNodeId: 'B', status: 2 as const, tokenCount: 2 },
         { flowNodeId: 'C', status: 3 as const, tokenCount: 1 },
       ],
@@ -30,6 +30,7 @@ describe('Runtime-Projektion', () => {
     expect(runtimeMarkers(projection)).toEqual({
       markers: { A: 'active', B: 'cancelled', C: 'failed' },
       activeNodeIds: ['A'],
+      activeTokenCounts: { A: 3 },
     });
   });
 });

@@ -12,11 +12,22 @@ import {
   runtimeNodeStatus,
 } from '@/lib/runtimeView';
 
-export function RuntimeDiagram({ runtime }: { runtime: RuntimeDiagramDto }) {
+export function RuntimeDiagram({
+  runtime,
+  onNodeSelect,
+}: {
+  runtime: RuntimeDiagramDto;
+  onNodeSelect?: (flowNodeId: string) => void;
+}) {
   const model = useMemo(() => parseBpmn(runtime.diagramXml ?? undefined), [runtime.diagramXml]);
-  const { markers, activeNodeIds } = useMemo(() => runtimeMarkers(runtime), [runtime]);
+  const { markers, activeNodeIds, activeTokenCounts } = useMemo(() => runtimeMarkers(runtime), [runtime]);
   const [selectedId, setSelectedId] = useState<string | undefined>(activeNodeIds[0]);
   const nodes = (runtime.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
+
+  const selectNode = (flowNodeId: string) => {
+    setSelectedId(flowNodeId);
+    onNodeSelect?.(flowNodeId);
+  };
 
   useEffect(() => {
     if (selectedId && nodes.some((node) => node.flowNodeId === selectedId)) return;
@@ -30,8 +41,8 @@ export function RuntimeDiagram({ runtime }: { runtime: RuntimeDiagramDto }) {
         <BpmnViewer
           xml={runtime.diagramXml ?? undefined}
           markers={markers}
-          tokens={activeNodeIds}
-          onElementClick={setSelectedId}
+          tokenCounts={activeTokenCounts}
+          onElementClick={selectNode}
           className="h-full w-full"
           ariaLabel="BPMN-Laufzeitdiagramm"
         />
@@ -54,7 +65,7 @@ export function RuntimeDiagram({ runtime }: { runtime: RuntimeDiagramDto }) {
                 <button
                   type="button"
                   aria-current={selectedId === flowNodeId ? 'step' : undefined}
-                  onClick={() => setSelectedId(flowNodeId)}
+                  onClick={() => selectNode(flowNodeId)}
                   className={cn(
                     'border-border bg-surface-2 inline-flex min-h-11 items-center gap-2 rounded-[var(--r-sm)] border px-3 py-2 text-left text-xs',
                     selectedId === flowNodeId && 'border-accent text-accent',

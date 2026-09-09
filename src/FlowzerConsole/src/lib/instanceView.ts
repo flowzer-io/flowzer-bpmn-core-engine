@@ -5,7 +5,7 @@ import type { Tone } from '@/components/ui/Chip';
 import { definitionsApi } from '@/lib/api/endpoints';
 import { isFailedToken, isFinishedToken, isLiveToken, type InstanceBucket } from '@/lib/api/normalize';
 import { queryKeys } from '@/lib/api/queries';
-import type { ProcessInstanceInfoDto, ProcessInstanceState, TokenDto } from '@/lib/api/types';
+import type { ProcessInstanceInfoDto, ProcessInstanceState, ProcessVariables, TokenDto } from '@/lib/api/types';
 import { parseBpmn, type BpmnModelSummary } from '@/lib/bpmnModel';
 
 export const BUCKET_TONE: Record<InstanceBucket, Tone> = {
@@ -85,6 +85,23 @@ export function currentToken(instance: ProcessInstanceInfoDto): TokenDto | undef
   }
 
   return instance.tokens.at(-1);
+}
+
+/** Aktueller Prozessscope aus dem Master-Token der Instanz. */
+export function processScopeVariables(instance: ProcessInstanceInfoDto): ProcessVariables {
+  const masterToken = instance.tokens.find((token) => token.parentTokenId == null);
+  return masterToken?.variables ?? {};
+}
+
+/** Alle persistierten Ausführungen eines BPMN-Knotens in stabiler Reihenfolge. */
+export function nodeExecutions(instance: ProcessInstanceInfoDto, flowNodeId: string): TokenDto[] {
+  return instance.tokens
+    .filter((token) => token.currentFlowNodeId === flowNodeId)
+    .sort((left, right) => {
+      const leftStart = left.startTime ?? '\uffff';
+      const rightStart = right.startTime ?? '\uffff';
+      return leftStart.localeCompare(rightStart) || left.id.localeCompare(right.id);
+    });
 }
 
 /** Markierungen für den BPMN-Viewer aus den Tokens einer Instanz. */
