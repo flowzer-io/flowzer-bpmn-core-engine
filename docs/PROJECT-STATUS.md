@@ -518,11 +518,11 @@ Vertrag. Die tatsächliche Ausführung ist damit nicht vorgetäuscht und folgt a
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
-871 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
-33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
-Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
+Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft. Der
+aktuelle Stand besteht lokal aus 172 Engine-, 886 API-/Storage-, 345 Konsolen-, 25 SDK-
+und 20 React-Pakettests; zusätzlich bleiben die vorhandenen 33 Chromium-Smoke-Tests
+Bestandteil der CI. Der vollständige UX-Audit und die erste Produktabnahme aus der Roadmap
+stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell
 
