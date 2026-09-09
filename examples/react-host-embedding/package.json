@@ -1,0 +1,21 @@
+{
+  "name": "flowzer-react-host-example",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@flowzer/react": "file:../../packages/flowzer-react",
+    "@flowzer/sdk": "file:../../packages/flowzer-sdk",
+    "@tanstack/react-query": "^5.90.12",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.7.3"
+  }
+}

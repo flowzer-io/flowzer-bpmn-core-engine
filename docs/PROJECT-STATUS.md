@@ -134,6 +134,20 @@ Idempotenzschlüssel gibt es nicht. Flowzer enthält dabei weder Abhängigkeit n
 Laufzeitwissen über eine konkrete konsumierende Fachanwendung. Optionale React-
 Komponenten, Host-Adapter und eine reale Einbettungsabnahme bleiben Folgearbeiten.
 
+## Hostneutrale React-Bausteine – #220 (in Umsetzung)
+
+Das optionale Paket `@flowzer/react` setzt ausschließlich auf die öffentliche SDK-API
+und stellt Hooks sowie Render-Prop-Controller für Aufgabenliste, Task-Arbeitsbereich
+und Vorgangsstatus bereit. Installation und Sitzung bilden explizite, nicht geheime
+Cache-Scopes. Mutationen werden nie automatisch wiederholt; ein Rechteentzug entfernt
+bereits geladene Formular-/Entwurfsdaten aus der sichtbaren Projektion und dem Scope.
+
+Form.io, CSS, Navigation und Fachobjekte bleiben beim Host. Ein neutraler
+Formularadaptervertrag und eine unabhängig kompilierte Fixture belegen diese Grenze.
+Die Flowzer-Konsole nutzt die Pakete noch nicht selbst; diese Migration und eine reale
+Identity-/HTTPS-Einbettungsabnahme bleiben separat offen. Details:
+[Hostneutrale Einbettung](HOST-INTEGRATION.md).
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.

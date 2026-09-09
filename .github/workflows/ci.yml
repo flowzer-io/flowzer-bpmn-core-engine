@@ -159,7 +159,7 @@ jobs:
         run: npm audit --audit-level=high
 
   typescript_sdk:
-    name: Headless TypeScript SDK
+    name: Headless SDK und React-Bausteine
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -171,7 +171,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: packages/flowzer-sdk/package-lock.json
+          cache-dependency-path: |
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
+            examples/react-host-embedding/package-lock.json
 
       - name: Abhängigkeiten installieren
         working-directory: packages/flowzer-sdk
@@ -197,6 +200,29 @@ jobs:
       - name: Bekannte Schwachstellen der Abhängigkeiten prüfen
         working-directory: packages/flowzer-sdk
         run: npm audit --audit-level=high
+
+      - name: React-Abhängigkeiten installieren
+        working-directory: packages/flowzer-react
+        run: npm ci
+
+      - name: React-Bausteine prüfen und bauen
+        working-directory: packages/flowzer-react
+        run: npm run check
+
+      - name: Veröffentlichbares React-Paket prüfen
+        working-directory: packages/flowzer-react
+        run: npm pack --dry-run
+
+      - name: React-Abhängigkeiten auf bekannte Schwachstellen prüfen
+        working-directory: packages/flowzer-react
+        run: npm audit --audit-level=high
+
+      - name: Unabhängige Hostfixture installieren und prüfen
+        working-directory: examples/react-host-embedding
+        run: |
+          npm ci
+          npm run typecheck
+          npm audit --audit-level=high
 
   console_smoke:
     name: UI-Smoke-Tests der Konsole

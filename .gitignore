@@ -210,6 +210,13 @@ PublishScripts/
 !packages/flowzer-sdk/**
 packages/flowzer-sdk/node_modules/
 packages/flowzer-sdk/dist/
+!packages/flowzer-react/
+!packages/flowzer-react/**
+packages/flowzer-react/node_modules/
+packages/flowzer-react/dist/
+!examples/react-host-embedding/
+!examples/react-host-embedding/**
+examples/react-host-embedding/node_modules/
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/[Pp]ackages/repositories.config
 # NuGet v3's project.json files produces more ignorable files
@@ -418,6 +425,8 @@ FodyWeavers.xsd
 package-lock.json
 !tests/ui-smoke/package-lock.json
 !packages/flowzer-sdk/package-lock.json
+!packages/flowzer-react/package-lock.json
+!examples/react-host-embedding/package-lock.json
 
 # Laufzeitkonfiguration des Compose-Stacks (Vorlage: .env.example)
 .env

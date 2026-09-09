@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOTS = [ROOT / "src", ROOT / "packages" / "flowzer-sdk" / "src", ROOT / "examples"]
+SOURCE_ROOTS = [ROOT / "src", ROOT / "packages", ROOT / "examples"]
 SUFFIXES = {
     ".bpmn", ".cs", ".csproj", ".js", ".json", ".jsx", ".mjs", ".ts",
     ".tsx", ".xml", ".yaml", ".yml",

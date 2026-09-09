@@ -40,10 +40,10 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #218 / PR #219 ergänzt ein hostneutrales Headless-TypeScript-SDK für
-Aufgaben, Formulare, Aktionen, Verzeichnisauswahl und Vorgangsstatus. #216 / PR #217
-liefert dafür bereits servergebundene Human-Task-Entscheidungsaktionen. Optionale
-React-Komponenten und Host-Adapter bleiben ein eigener Folgeslice.
+**Aktiver Slice:** #220 ergänzt auf #218 / PR #219 aufbauende, hostneutrale React-Hooks,
+Render-Prop-Controller und einen neutralen Formularadaptervertrag. Eine unabhängig
+kompilierte Hostfixture belegt die äußere Produktgrenze. Die Migration der Flowzer-
+Konsole auf dieselben Pakete bleibt ein eigener Folgeslice.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
@@ -226,11 +226,12 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
-- [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
+- [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
   #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
-  Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. Optionale
-  React-Komponenten und Host-Adapter bleiben offen.
+  Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. #220 ergänzt
+  darstellungsfreie React-Controller, sichere Cache-Scopes, Mutations- und
+  Formularadapter sowie eine unabhängige Hostfixture.
 - [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
   Flowzer besitzt Prozesse/Aufgaben, der jeweilige Host seine Fachobjekte. Eine
   konkrete Host-Anwendung wird im Flowzer-Produktcode weder benannt noch referenziert.

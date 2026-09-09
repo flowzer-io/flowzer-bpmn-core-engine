@@ -17,6 +17,7 @@ CS_TEST_DIRECTORIES = [
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',
     ROOT / 'packages' / 'flowzer-sdk' / 'src',
+    ROOT / 'packages' / 'flowzer-react' / 'src',
 ]
 
 CS_TEST_ATTRIBUTE = re.compile(r'^\s*\[(Test|TestCase|TestCaseSource|Theory|Fact)\b')

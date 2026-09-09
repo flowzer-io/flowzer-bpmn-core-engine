@@ -157,14 +157,17 @@ Der Server akzeptiert nur deklarierte beschreibbare Felder des an die Workflow-V
 gebundenen Formulars. Rechte, Lebenszyklus, API und Betriebsgrenzen stehen in
 [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md).
 
-## Hostneutrales TypeScript-SDK
+## Hostneutrale Integrationspakete
 
 `packages/flowzer-sdk` stellt einen zustandslosen, aus dem versionierten OpenAPI-
 Snapshot typisierten Client für Aufgaben, Formulare, Bearbeitungsaktionen,
-Verzeichnisauswahl und Vorgangsstatus bereit. Authentisierung, Darstellung und
-Fachobjekte bleiben vollständig bei der konsumierenden Anwendung; Flowzer kennt
-keine konkrete Host-Anwendung. Verwendung und Entwicklungsablauf stehen in
-[packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md).
+Verzeichnisauswahl und Vorgangsstatus bereit. `packages/flowzer-react` ergänzt
+optionale darstellungsfreie Hooks und Render-Prop-Controller. Authentisierung,
+Darstellung und Fachobjekte bleiben vollständig bei der konsumierenden Anwendung;
+Flowzer kennt keine konkrete Host-Anwendung. Verträge und Entwicklungsablauf stehen
+in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
+[packages/flowzer-react/README.md](packages/flowzer-react/README.md) und
+[docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md).
 
 ## Release und Deployment
 
@@ -184,6 +187,8 @@ keine konkrete Host-Anwendung. Verwendung und Entwicklungsablauf stehen in
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
 - [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md) – hostneutraler TypeScript-Client für Aufgaben- und Formularintegration
+- [packages/flowzer-react/README.md](packages/flowzer-react/README.md) – optionale darstellungsfreie React-Hooks und Controller
+- [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md) – Eigentums-, Authentisierungs-, Cache- und Integrationsgrenzen
 - [src/FlowzerConsole/README.md](src/FlowzerConsole/README.md) – Oberfläche: Konfiguration, lokale Starts, Aufbau
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot
