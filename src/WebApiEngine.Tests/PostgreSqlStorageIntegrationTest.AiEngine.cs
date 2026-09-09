@@ -25,7 +25,9 @@ public partial class PostgreSqlStorageIntegrationTest
         ExpandoObject input = new();
         ((IDictionary<string, object?>)input)["request"] = "Please classify";
         var instance = await business.StartProcessInstance(definition.DefinitionId, input);
-        var now = DateTime.UtcNow;
+        // Erzwingt eine Genauigkeit unterhalb der von PostgreSQL gespeicherten Mikrosekunde.
+        // Damit bleibt der Regressionstest unabhängig von der zufälligen Systemuhr-Auflösung.
+        var now = new DateTime((DateTime.UtcNow.Ticks / 10 * 10) + 1, DateTimeKind.Utc);
         await MakePostgreSqlAiResultReadyAsync(now);
         var time = new FakeTimeProvider(new DateTimeOffset(now.AddMinutes(1)));
         var policy = AiEnginePolicy();
@@ -97,8 +99,14 @@ public partial class PostgreSqlStorageIntegrationTest
             Revision = claimed.Revision + 1,
             UpdatedAtUtc = now.AddSeconds(1)
         };
-        await storage.AiRunStorage.TryUpdate(started, claimed.Revision, "provider", now.AddSeconds(1));
-        var ready = started with
+        var startResult = await storage.AiRunStorage.TryUpdate(
+            started,
+            claimed.Revision,
+            "provider",
+            now.AddSeconds(1));
+        startResult.Status.Should().Be(AiRunWriteStatus.Written);
+        var persistedStarted = startResult.Current!;
+        var ready = persistedStarted with
         {
             Status = AiRunStatus.ResultReady,
             LeaseOwner = null,
@@ -108,10 +116,14 @@ public partial class PostgreSqlStorageIntegrationTest
             InputTokens = 10,
             OutputTokens = 2,
             TotalTokens = 12,
-            Revision = started.Revision + 1,
+            Revision = persistedStarted.Revision + 1,
             UpdatedAtUtc = now.AddSeconds(2)
         };
-        (await storage.AiRunStorage.TryUpdate(ready, started.Revision, "provider", now.AddSeconds(2)))
+        (await storage.AiRunStorage.TryUpdate(
+            ready,
+            persistedStarted.Revision,
+            "provider",
+            now.AddSeconds(2)))
             .Status.Should().Be(AiRunWriteStatus.Written);
     }
 
