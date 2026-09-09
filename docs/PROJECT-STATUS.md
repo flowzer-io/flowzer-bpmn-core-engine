@@ -213,7 +213,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192, #194, #196, #198 und #200 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192, #194, #196, #198, #200 und #234 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -241,6 +241,14 @@ explizit zwischen unverändertem Freitext und einer Directory-Referenz. Neue Ref
 serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet ausschließlich das
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
+
+#234 ergänzt einen getrennten, begrenzten Batch-Vertrag für historische Anzeigeauflösung.
+Workflow, Ordner, gebundenes Formular und Task-Lifecycle erlauben nur Referenzen, die im
+jeweiligen berechtigten Kontext bereits gespeichert sind; eine manipulierte bekannte UUID
+bleibt ohne Treffer. Antworten unterscheiden aktuellen Directory-Status (`isActive`) von
+heutiger Auswählbarkeit (`isSelectable`). Console, SDK und React-Schicht markieren inaktive
+oder nicht mehr erlaubte Werte, ohne sie erneut einreichbar zu machen. Details:
+[Historische Identitätsreferenzen](HISTORICAL-IDENTITY-RESOLUTION.md).
 
 ## Private Aufgabenentwürfe – #202 / PR #203 (noch nicht gemergt)
 
@@ -358,7 +366,7 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-730 API-/Storage-, 326 Konsolen-, 20 SDK- und 19 React-Pakettests. Der vollständige UX-Audit und die erste
+737 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

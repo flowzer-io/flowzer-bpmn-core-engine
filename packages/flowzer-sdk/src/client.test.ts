@@ -235,7 +235,7 @@ describe('FlowzerClient', () => {
   // Testzweck: Formular-Identitätsfelder fragen ausschließlich ihren servergebundenen
   // Task-/Feldkontext ab; Task- und Feldkennung werden dabei als Pfadsegmente kodiert.
   it('sucht erlaubte Formularidentitäten im gebundenen Aufgabenkontext', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
       successful: true,
       result: { generationId: 'generation-1', items: [] },
     }));
@@ -250,6 +250,36 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![0]).toBe(
       '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects?query=Alex&kind=user&limit=12',
     );
+  });
+
+  // Testzweck: Historische Referenzen werden per begrenztem Batch an den
+  // servergebundenen Aufgabenfeld- beziehungsweise Lifecycle-Kontext gesendet;
+  // der SDK-Client fällt dafür nicht auf die aktive Suche zurück.
+  it('löst historische Aufgabenreferenzen über die gebundenen Batch-Endpunkte auf', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: { generationId: 'generation-1', items: [] },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const subjects = [{ kind: 'user' as const, id: 'user/retired' }];
+
+    await client.userTasks.resolveFormSubjects('task/id', 'delegate/user', subjects);
+    await client.userTasks.resolveAssignees('task/id', {
+      action: 'delegate',
+      subjects,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects/resolve',
+      '/api/identity-directory/user-tasks/task%2Fid/assignees/resolve?action=delegate',
+    ]);
+    expect(fetch.mock.calls.map(([, init]) => ({
+      method: init?.method,
+      body: JSON.parse(String(init?.body)),
+    }))).toEqual([
+      { method: 'POST', body: { subjects } },
+      { method: 'POST', body: { subjects } },
+    ]);
   });
 
   // Testzweck: Ein Host kann eine konkrete Aufgabe per stabiler ID laden, ohne die

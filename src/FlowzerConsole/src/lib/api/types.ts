@@ -318,10 +318,20 @@ export interface DirectorySubjectDto {
   subject: SubjectRefDto;
   displayName: string;
   detail: string;
+  /** Status im aktuellen vollständig publizierten Verzeichnisstand. */
+  isActive: boolean;
+  /** Darf im gebundenen fachlichen Kontext erneut ausgewählt werden? */
+  isSelectable: boolean;
 }
 
 /** Begrenzte Treffer aus genau einer atomar veröffentlichten Verzeichnisgeneration. */
 export interface DirectorySubjectSearchResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
+/** Exakte Anzeigeauflösung bereits gespeicherter stabiler Referenzen. */
+export interface DirectorySubjectResolutionResultDto {
   generationId: string;
   items: DirectorySubjectDto[];
 }

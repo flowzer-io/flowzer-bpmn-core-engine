@@ -73,6 +73,11 @@ Das Paket interpretiert bewusst kein Form.io-Schema. Ein Host kann seinen Render
 Feldschlüssel und Suchoptionen; die zulässige Auswahl leitet der Flowzer-Server aus dem
 veröffentlichten Formular ab.
 
+Der Workspace stellt zusätzlich `resolveSubjects(fieldKey, subjects)` bereit. Lifecycle-
+Aktionen besitzen `resolveAssignees(action, subjects)`. Beide Methoden verwenden die
+serverseitig gebundene historische Batch-Auflösung und geben den aktuellen Aktiv-/
+Auswahlstatus zurück; sie öffnen weder eine globale Suche noch eine Historienliste.
+
 Eine kleine, unabhängig kompilierte Referenz steht unter
 [`examples/react-host-embedding`](../../examples/react-host-embedding/README.md).
 

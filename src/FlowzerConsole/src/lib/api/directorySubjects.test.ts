@@ -68,3 +68,35 @@ describe('identityDirectoryApi.searchFormSubjects', () => {
     );
   });
 });
+
+// Testzweck: Historische Referenzen werden in einem begrenzten POST-Batch und
+// ausschließlich im gebundenen Workflow-, Ordner- oder Formularkontext aufgelöst.
+describe('identityDirectoryApi.resolveSubjects', () => {
+  it('sendet stabile Referenzen an die kontextgebundenen Auflösungsrouten', async () => {
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({
+      successful: true,
+      result: { generationId: 'generation-1', items: [] },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const subjects = [{ kind: 'user' as const, id: 'user-1' }];
+
+    await identityDirectoryApi.resolveSubjects('urlaub/2026', subjects);
+    await identityDirectoryApi.resolveFolderSubjects('folder/2026', subjects);
+    await identityDirectoryApi.resolveFormSubjects(
+      { kind: 'userTask', taskId: 'task/42' }, 'approver/user', subjects,
+    );
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/identity-directory/workflows/urlaub%2F2026/subjects/resolve',
+      '/api/identity-directory/folders/folder%2F2026/subjects/resolve',
+      '/api/identity-directory/user-tasks/task%2F42/fields/approver%2Fuser/subjects/resolve',
+    ]);
+    for (const [, init] of fetchMock.mock.calls as [string, RequestInit][]) {
+      expect(init).toMatchObject({
+        method: 'POST',
+        credentials: 'same-origin',
+      });
+      expect(JSON.parse(String(init.body))).toEqual({ subjects });
+    }
+  });
+});

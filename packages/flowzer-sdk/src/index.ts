@@ -4,6 +4,8 @@ export type { components, operations, paths } from './schema.generated.js';
 export type {
   CompleteUserTaskCommand,
   CreateFormSectionCommand,
+  DirectorySubject,
+  DirectorySubjectResolutionResult,
   DirectorySubjectSearchOptions,
   DirectorySubjectSearchResult,
   ExtendedUserTask,
@@ -31,6 +33,7 @@ export type {
   SaveFormSectionAuthoringDraftCommand,
   SubjectRef,
   TaskAssigneeSearchOptions,
+  TaskAssigneeResolutionOptions,
   TransferUserTaskCommand,
   UserTaskDraft,
   UserTaskRevisionCommand,

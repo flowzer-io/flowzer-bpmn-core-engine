@@ -8,6 +8,7 @@ import { useCallback, useEffect } from 'react';
 
 import type {
   CompleteUserTaskCommand,
+  DirectorySubjectResolutionResult,
   DirectorySubjectSearchOptions,
   DirectorySubjectSearchResult,
   ExtendedUserTask,
@@ -24,6 +25,8 @@ import type {
   RenameFormSectionCommand,
   SaveFormSectionAuthoringDraftCommand,
   SaveUserTaskDraftCommand,
+  SubjectRef,
+  TaskAssigneeResolutionOptions,
   TaskAssigneeSearchOptions,
   TransferUserTaskCommand,
   UserTaskDraft,
@@ -63,6 +66,11 @@ export interface TaskWorkspaceState {
     fieldKey: string,
     options: DirectorySubjectSearchOptions,
   ) => Promise<DirectorySubjectSearchResult>;
+  resolveSubjects: (
+    fieldKey: string,
+    subjects: readonly SubjectRef[],
+    options?: { signal?: AbortSignal | undefined },
+  ) => Promise<DirectorySubjectResolutionResult>;
 }
 
 export interface UserTaskActions {
@@ -74,6 +82,7 @@ export interface UserTaskActions {
   deleteDraft: UseMutationResult<void, Error, DeleteDraftInput>;
   complete: UseMutationResult<void, Error, CompleteTaskInput>;
   searchAssignees: (options: TaskAssigneeSearchOptions) => Promise<DirectorySubjectSearchResult>;
+  resolveAssignees: (options: TaskAssigneeResolutionOptions) => Promise<DirectorySubjectResolutionResult>;
 }
 
 /** Revisionsgebundene Modellierungsaktionen für genau einen Abschnitt. */
@@ -250,6 +259,11 @@ export function useUserTaskWorkspace(
       client.userTasks.searchFormSubjects(userTaskId, fieldKey, search),
     [client, userTaskId],
   );
+  const resolveSubjects = useCallback(
+    (fieldKey: string, subjects: readonly SubjectRef[], options: { signal?: AbortSignal | undefined } = {}) =>
+      client.userTasks.resolveFormSubjects(userTaskId, fieldKey, subjects, options),
+    [client, userTaskId],
+  );
 
   return {
     task: task.data,
@@ -271,6 +285,7 @@ export function useUserTaskWorkspace(
       return result.data;
     },
     searchSubjects,
+    resolveSubjects,
   };
 }
 
@@ -350,8 +365,15 @@ export function useUserTaskActions(userTaskId: string): UserTaskActions {
     (search: TaskAssigneeSearchOptions) => client.userTasks.searchAssignees(userTaskId, search),
     [client, userTaskId],
   );
+  const resolveAssignees = useCallback(
+    (options: TaskAssigneeResolutionOptions) => client.userTasks.resolveAssignees(userTaskId, options),
+    [client, userTaskId],
+  );
 
-  return { claim, release, assign, delegate, saveDraft, deleteDraft, complete, searchAssignees };
+  return {
+    claim, release, assign, delegate, saveDraft, deleteDraft, complete,
+    searchAssignees, resolveAssignees,
+  };
 }
 
 /**

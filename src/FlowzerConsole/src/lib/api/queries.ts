@@ -1,7 +1,6 @@
 import {
   useMutation,
   useQuery,
-  useQueries,
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
@@ -21,7 +20,7 @@ import type {
   BpmnMetaDefinitionDto,
   BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
-  DirectorySubjectDto,
+  DirectorySubjectResolutionResultDto,
   FolderAssignmentDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -61,6 +60,10 @@ export const queryKeys = {
     [...queryKeys.identityDirectory, 'workflow', definitionId, kind, query] as const,
   folderDirectorySubjects: (folderId: string, query: string, kind: 'all' | 'user' | 'group') =>
     [...queryKeys.identityDirectory, 'folder', folderId, kind, query] as const,
+  directorySubjectResolution: (definitionId: string, subjects: string) =>
+    [...queryKeys.identityDirectory, 'workflow', definitionId, 'resolve', subjects] as const,
+  folderDirectorySubjectResolution: (folderId: string, subjects: string) =>
+    [...queryKeys.identityDirectory, 'folder', folderId, 'resolve', subjects] as const,
 
   folders: ['folders'] as const,
   folderList: () => [...queryKeys.folders, 'list'] as const,
@@ -290,78 +293,38 @@ export function useFormDirectorySubjectSearch(
   });
 }
 
-/** Löst bereits gespeicherte IDs einzeln auf, ohne einen unbeschränkten Directory-Abruf. */
+/** Löst bereits gespeicherte IDs in einem begrenzten, workflowgebundenen Batch auf. */
 export function useDirectorySubjectResolutions(
   definitionId: string,
   subjects: SubjectRefDto[],
   enabled = true,
 ) {
-  const uniqueSubjects = subjects.filter(
-    (subject, index) =>
-      subjects.findIndex(
-        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-      ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: queryKeys.directorySubjects(definitionId, subject.id, subject.kind),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchSubjects(definitionId, subject.id, subject.kind, signal),
-      enabled: enabled && definitionId.length > 0 && subject.id.length >= 1,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        if (!subject) return [];
-        return (result.data?.items ?? []).filter(
-          (item: DirectorySubjectDto) =>
-            item.subject.kind === subject.kind && item.subject.id === subject.id,
-        );
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: queryKeys.directorySubjectResolution(definitionId, subjectKey),
+    queryFn: ({ signal }) => identityDirectoryApi.resolveSubjects(definitionId, uniqueSubjects, signal),
+    enabled: enabled && definitionId.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
 }
 
-/** Löst gespeicherte Ordnerreferenzen einzeln auf; unbekannte IDs bleiben im Picker sichtbar. */
+/** Löst gespeicherte Ordnerreferenzen als Batch auf; unbekannte IDs bleiben im Picker sichtbar. */
 export function useFolderDirectorySubjectResolutions(
   folderId: string,
   subjects: SubjectRefDto[],
   enabled = true,
 ) {
-  const uniqueSubjects = subjects.filter(
-    (subject, index) =>
-      subjects.findIndex(
-        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-      ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: queryKeys.folderDirectorySubjects(folderId, subject.id, subject.kind),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchFolderSubjects(folderId, subject.id, subject.kind, signal),
-      enabled: enabled && folderId.length > 0 && subject.id.length >= 1,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        if (!subject) return [];
-        return (result.data?.items ?? []).filter(
-          (item: DirectorySubjectDto) =>
-            item.subject.kind === subject.kind && item.subject.id === subject.id,
-        );
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: queryKeys.folderDirectorySubjectResolution(folderId, subjectKey),
+    queryFn: ({ signal }) => identityDirectoryApi.resolveFolderSubjects(folderId, uniqueSubjects, signal),
+    enabled: enabled && folderId.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
 }
 
 /** Löst Formularwerte über denselben gebundenen Endpoint wie die Suche auf. */
@@ -376,32 +339,27 @@ export function useFormDirectorySubjectResolutions(
     : context?.kind === 'userTask'
       ? `task:${context.taskId}`
       : '';
-  const uniqueSubjects = subjects.filter(
-    (subject, index) => subjects.findIndex(
-      (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-    ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, subject.kind, subject.id],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchFormSubjects(context!, fieldKey, subject.id, subject.kind, signal),
-      enabled: enabled && Boolean(context) && fieldKey.length > 0,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        return subject
-          ? (result.data?.items ?? []).filter((item) => item.subject.kind === subject.kind && item.subject.id === subject.id)
-          : [];
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, 'resolve', subjectKey],
+    queryFn: ({ signal }) => identityDirectoryApi.resolveFormSubjects(
+      context!, fieldKey, uniqueSubjects, signal,
+    ),
+    enabled: enabled && Boolean(context) && fieldKey.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
+}
+
+function uniqueSubjectRefs(subjects: SubjectRefDto[]): SubjectRefDto[] {
+  return subjects.filter((subject, index) => subjects.findIndex(
+    (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+  ) === index);
+}
+
+function subjectResolutionKey(subjects: SubjectRefDto[]): string {
+  return subjects.map((subject) => `${subject.kind}:${subject.id}`).join('|');
 }
 
 /* ---------------------------------------------------------------------- Ordner */

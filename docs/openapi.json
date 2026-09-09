@@ -1111,6 +1111,102 @@
         }
       }
     },
+    "/identity-directory/user-tasks/{taskId}/assignees/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects": {
       "get": {
         "tags": [
@@ -1175,6 +1271,102 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
                 }
               }
             }
@@ -1277,6 +1469,103 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
                 }
               }
             }
@@ -3117,6 +3406,94 @@
         }
       }
     },
+    "/identity-directory/workflows/{definitionId}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/identity-directory/folders/{folderId}/subjects": {
       "get": {
         "tags": [
@@ -3174,6 +3551,95 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/folders/{folderId}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "folderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
                 }
               }
             }
@@ -5481,6 +5947,8 @@
         "required": [
           "detail",
           "displayName",
+          "isActive",
+          "isSelectable",
           "subject"
         ],
         "type": "object",
@@ -5495,6 +5963,61 @@
           "detail": {
             "type": "string",
             "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isSelectable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionRequestDto": {
+        "type": "object",
+        "properties": {
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionResultDto": {
+        "required": [
+          "generationId"
+        ],
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorySubjectDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/DirectorySubjectResolutionResultDto"
           }
         },
         "additionalProperties": false

@@ -74,6 +74,54 @@ public sealed class DirectorySubjectSelectionServiceTest
             DirectorySubjectSelectionPolicy.WorkflowModeling)).Should().BeNull();
     }
 
+    // Testzweck: Die reine Anzeigeauflösung erhält deaktivierte Identitäten mit
+    // stabilem Namen, markiert sie aber ausdrücklich als nicht erneut auswählbar.
+    [Test]
+    public async Task ResolveForDisplayAsync_ShouldPreserveInactiveSubjectsWithoutMakingThemSelectable()
+    {
+        var snapshot = CreateSnapshot();
+        var service = new DirectorySubjectSelectionService(new SnapshotStorage(snapshot));
+        var activeUser = snapshot.Users.Single(user => user.Subject == "subject-anna-a");
+        var inactiveUser = snapshot.Users.Single(user => user.Subject == "subject-inactive");
+
+        var result = await service.ResolveForDisplayAsync(
+        [
+            new SubjectRef(DirectorySubjectKind.User, inactiveUser.Id),
+            new SubjectRef(DirectorySubjectKind.User, activeUser.Id),
+            new SubjectRef(DirectorySubjectKind.Group, Guid.NewGuid())
+        ], DirectorySubjectSelectionPolicy.WorkflowModeling,
+        new HashSet<SubjectRef>
+        {
+            new(DirectorySubjectKind.User, inactiveUser.Id),
+            new(DirectorySubjectKind.User, activeUser.Id)
+        });
+
+        result.Should().NotBeNull();
+        result!.Items.Should().HaveCount(2);
+        result.Items.Should().ContainSingle(item => item.Subject.Id == inactiveUser.Id)
+            .Which.Should().Match<DirectorySubjectResult>(item => !item.IsActive && !item.IsSelectable);
+        result.Items.Should().ContainSingle(item => item.Subject.Id == activeUser.Id)
+            .Which.Should().Match<DirectorySubjectResult>(item => item.IsActive && item.IsSelectable);
+    }
+
+    // Testzweck: Auch eine existierende stabile UUID gibt ohne Bindung an den
+    // fachlichen Kontext keinerlei Directory-Projektion preis.
+    [Test]
+    public async Task ResolveForDisplayAsync_ShouldIgnoreExistingButUnboundSubject()
+    {
+        var snapshot = CreateSnapshot();
+        var service = new DirectorySubjectSelectionService(new SnapshotStorage(snapshot));
+        var known = snapshot.Users.Single(user => user.Subject == "subject-inactive");
+
+        var result = await service.ResolveForDisplayAsync(
+            [new SubjectRef(DirectorySubjectKind.User, known.Id)],
+            DirectorySubjectSelectionPolicy.WorkflowModeling,
+            new HashSet<SubjectRef>());
+
+        result.Should().NotBeNull();
+        result!.Items.Should().BeEmpty();
+    }
+
     // Testzweck: Der Modeler muss bereits gespeicherte aktive Referenzen nach einem erneuten
     // Öffnen eindeutig darstellen können, ohne dafür ein ungeschütztes Vollverzeichnis zu laden.
     [Test]

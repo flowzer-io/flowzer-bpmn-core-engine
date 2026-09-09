@@ -2,6 +2,7 @@ import { completionOptions, FlowzerTransport } from './transport.js';
 import type {
   CompleteUserTaskCommand,
   CreateFormSectionCommand,
+  DirectorySubjectResolutionResult,
   DirectorySubjectSearchOptions,
   DirectorySubjectSearchResult,
   ExtendedUserTask,
@@ -21,6 +22,8 @@ import type {
   ReleaseUserTaskCommand,
   SaveFormSectionAuthoringDraftCommand,
   SaveUserTaskDraftCommand,
+  SubjectRef,
+  TaskAssigneeResolutionOptions,
   TaskAssigneeSearchOptions,
   TransferUserTaskCommand,
   UserTaskDraft,
@@ -125,6 +128,19 @@ export class FlowzerClient {
       },
     ),
 
+    resolveAssignees: (
+      userTaskId: string,
+      options: TaskAssigneeResolutionOptions,
+    ): Promise<DirectorySubjectResolutionResult> => this.transport.statusResult(
+      `/identity-directory/user-tasks/${segment(userTaskId)}/assignees/resolve`,
+      {
+        method: 'POST',
+        query: { action: options.action },
+        body: { subjects: options.subjects },
+        signal: options.signal,
+      },
+    ),
+
     searchFormSubjects: (
       userTaskId: string,
       fieldKey: string,
@@ -133,6 +149,20 @@ export class FlowzerClient {
       `/identity-directory/user-tasks/${segment(userTaskId)}/fields/${segment(fieldKey)}/subjects`,
       {
         query: { query: options.query, kind: options.kind, limit: options.limit },
+        signal: options.signal,
+      },
+    ),
+
+    resolveFormSubjects: (
+      userTaskId: string,
+      fieldKey: string,
+      subjects: readonly SubjectRef[],
+      options: FlowzerCallOptions = {},
+    ): Promise<DirectorySubjectResolutionResult> => this.transport.statusResult(
+      `/identity-directory/user-tasks/${segment(userTaskId)}/fields/${segment(fieldKey)}/subjects/resolve`,
+      {
+        method: 'POST',
+        body: { subjects },
         signal: options.signal,
       },
     ),

@@ -1012,6 +1012,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/user-tasks/{taskId}/assignees/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: {
+                    action?: string;
+                };
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects": {
         parameters: {
             query?: never;
@@ -1083,6 +1157,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    definitionId: string;
+                    fieldKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects": {
         parameters: {
             query?: never;
@@ -1148,6 +1295,79 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: string;
+                    fieldKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2607,6 +2827,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/workflows/{definitionId}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    definitionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/folders/{folderId}/subjects": {
         parameters: {
             query?: never;
@@ -2671,6 +2963,78 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/identity-directory/folders/{folderId}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -4390,6 +4754,21 @@ export interface components {
             subject: components["schemas"]["SubjectRefDto"];
             displayName: string | null;
             detail: string | null;
+            isActive: boolean;
+            isSelectable: boolean;
+        };
+        DirectorySubjectResolutionRequestDto: {
+            subjects?: components["schemas"]["SubjectRefDto"][] | null;
+        };
+        DirectorySubjectResolutionResultDto: {
+            /** Format: uuid */
+            generationId: string;
+            items?: components["schemas"]["DirectorySubjectDto"][] | null;
+        };
+        DirectorySubjectResolutionResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["DirectorySubjectResolutionResultDto"];
         };
         DirectorySubjectSearchResultDto: {
             /** Format: uuid */

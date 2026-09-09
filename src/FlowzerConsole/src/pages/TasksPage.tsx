@@ -85,8 +85,10 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
     error: workspace.error,
   };
   const formDirectoryAdapter = useMemo(
-    () => activeId ? createTaskFormDirectoryAdapter(activeId, workspace.searchSubjects) : undefined,
-    [activeId, workspace.searchSubjects],
+    () => activeId
+      ? createTaskFormDirectoryAdapter(activeId, workspace.searchSubjects, workspace.resolveSubjects)
+      : undefined,
+    [activeId, workspace.resolveSubjects, workspace.searchSubjects],
   );
   const lifecycleAssigneeSearch = useMemo(
     () => lifecycleDialog && lifecycleDialog.action !== 'release'

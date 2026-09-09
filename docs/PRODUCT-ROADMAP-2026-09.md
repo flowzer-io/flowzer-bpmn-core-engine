@@ -145,10 +145,11 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 - [x] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
-- [ ] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. Stabile Historie und Filterung neuer workflowgebundener Suchen
-  sind in #190/#192 umgesetzt; die kontextgebundene historische Anzeige und explizite
-  Klärung mehrdeutiger Bestandszuweisungen folgen mit den konsumierenden Feldern.
+- [x] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
+  Auswahlen entfernen. #190/#192 bewahren die stabile Historie und aktive Suche; #234
+  ergänzt exakte, auf gespeicherte Workflow-, Ordner-, Formular- und Lifecycle-Referenzen
+  begrenzte Batch-Auflösungen samt `isActive`/`isSelectable`. Manipulierte IDs bleiben
+  ohne Treffer, inaktive Referenzen sichtbar, aber nicht erneut einreichbar.
 - [x] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.
@@ -173,6 +174,8 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194 / PR #195
   umgesetzt. #196 ergänzt die Auswahl in Diagramm und Gliederung einschließlich stabiler
   XML-Roundtrips, ID-Auflösung, Lade-/Fehlerzuständen und historischen Warn-Chips.
+  #234 trennt diese Anzeigeauflösung nun vollständig von der aktiven Suche und bindet
+  jeden Treffer an eine bereits gespeicherte Referenz des berechtigten Fachkontexts.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.

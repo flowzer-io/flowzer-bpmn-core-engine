@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -121,6 +122,43 @@ describe('DirectorySubjectPicker', () => {
     ] satisfies DirectorySubjectSelection[]);
   });
 
+  // Testzweck: Ein gerade über die aktive Suche gewählter Treffer behält seine
+  // serverseitige Anzeigeprojektion auch dann, wenn der Parent nur die UUID ins
+  // noch ungespeicherte Modell zurückschreibt und die historische Auflösung ihn
+  // deshalb bewusst noch nicht zurückliefert.
+  it('bewahrt Suchprojektionen für noch nicht gespeicherte Referenzen im Kontextcache', async () => {
+    searchMock.mockReturnValue(
+      searchResult([{ subject: userSubject, displayName: 'Anna Beispiel', detail: 'subject-anna' }]),
+    );
+    function Harness() {
+      const [ids, setIds] = useState<string[]>([]);
+      return (
+        <DirectorySubjectPicker
+          definitionId="workflow-1"
+          kind="user"
+          selected={ids.map((id) => ({
+            subject: { kind: 'user', id },
+            displayName: id,
+            detail: 'Stabile Verzeichnis-ID',
+            available: false,
+          }))}
+          multiple
+          label="Benutzer"
+          onChange={(selection) => setIds(selection.map((entry) => entry.subject.id))}
+        />
+      );
+    }
+    const user = userEvent.setup();
+    render(<Harness />);
+
+    await user.type(screen.getByRole('searchbox', { name: 'Benutzer suchen' }), 'an');
+    await waitFor(() => expect(screen.getByRole('option', { name: /Anna Beispiel/ })).toBeInTheDocument());
+    await user.click(screen.getByRole('option', { name: /Anna Beispiel/ }));
+
+    expect(screen.getByRole('button', { name: 'Anna Beispiel entfernen' })).toBeInTheDocument();
+    expect(screen.queryByText(/Nicht auflösbar/)).not.toBeInTheDocument();
+  });
+
   // Testzweck: Eine gespeicherte, nicht mehr aktive Referenz bleibt sichtbar und entfernbar,
   // damit ein erneutes Öffnen des Modelers keine Datenverluste durch die aktive Suche verursacht.
   it('zeigt unbekannte Referenzen als Warn-Chip', () => {
@@ -147,7 +185,13 @@ describe('DirectorySubjectPicker', () => {
   // dadurch nach dem erneuten Öffnen mit eindeutigem Anzeigenamen statt nur als UUID gezeigt.
   it('zeigt eine aufgelöste gespeicherte Referenz mit Namen und Detail', () => {
     resolutionMock.mockReturnValue({
-      data: [{ subject: userSubject, displayName: 'Anna Beispiel', detail: 'subject-anna' }],
+      data: [{
+        subject: userSubject,
+        displayName: 'Anna Beispiel',
+        detail: 'subject-anna',
+        isActive: true,
+        isSelectable: true,
+      }],
       isPending: false,
       isFetching: false,
       error: null,
@@ -160,6 +204,32 @@ describe('DirectorySubjectPicker', () => {
     expect(screen.getByText('Anna Beispiel')).toBeInTheDocument();
     expect(screen.getByText(/subject-anna/)).toBeInTheDocument();
     expect(resolutionMock).toHaveBeenLastCalledWith('workflow-1', [userSubject], true);
+  });
+
+  // Testzweck: Eine serverseitig historisch aufgelöste, aber deaktivierte Identität
+  // behält ihren eindeutigen Namen und zeigt zugleich sichtbar, dass sie nicht erneut
+  // auswählbar ist.
+  it('kennzeichnet deaktivierte aufgelöste Referenzen als nicht auswählbar', () => {
+    resolutionMock.mockReturnValue({
+      data: [{
+        subject: userSubject,
+        displayName: 'Anna Ehemalig',
+        detail: 'subject-anna',
+        isActive: false,
+        isSelectable: false,
+      }],
+      isPending: false,
+      isFetching: false,
+      error: null,
+    });
+
+    renderPicker({
+      selected: [{ subject: userSubject, displayName: 'user-1', detail: '', available: false }],
+    });
+
+    expect(screen.getByText(/Anna Ehemalig/)).toBeInTheDocument();
+    expect(screen.getByText(/Deaktiviert/)).toBeInTheDocument();
+    expect(screen.getByText(/Anna Ehemalig/).parentElement).toHaveClass('text-fail');
   });
 
   // Testzweck: Read-only darf bestehende Werte darstellen, aber weder den Such-Hook aktivieren

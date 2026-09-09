@@ -234,6 +234,46 @@ public sealed class UserTaskLifecycleIntegrationTest
         (await ListTasksAsync(anna)).Should().Contain(task.Id);
     }
 
+    // Testzweck: Die Lifecycle-Auflösung beschriftet eine inzwischen deaktivierte
+    // stabile Benutzerreferenz weiterhin, macht sie aber weder für Delegation noch
+    // Zuweisung erneut auswählbar und verbirgt den Task vor fremden Benutzern.
+    [Test]
+    public async Task AssigneeResolution_ShouldKeepInactiveReferenceDisplayOnlyInAuthorizedActionContext()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var annaSubject = Guid.NewGuid();
+        var directory = await PublishDirectoryAsync(
+            context, annaSubject, annaInCandidateGroup: true);
+        var assignment = $"<flowzer:taskAssignment mode=\"directory\" candidateUserIds=\"{directory.BertId}\" />";
+        var task = await context.StartAsync("", assignmentExtensionXml: assignment);
+        using var operation = context.CreateClient(isOperator: true, username: "operation");
+        using var foreign = context.CreateClient(userId: Guid.NewGuid(), username: "foreign");
+        (await operation.PostAsJsonAsync($"/usertask/{task.Id}/assign", new
+        {
+            expectedRevision = 0,
+            assignee = new { kind = "user", id = directory.AnnaId },
+            reason = "Vertretung"
+        }))
+            .EnsureSuccessStatusCode();
+        await PublishDirectoryAsync(
+            context, annaSubject, annaInCandidateGroup: true, annaActive: false);
+        var body = new { subjects = new[] { new { kind = "user", id = directory.AnnaId } } };
+
+        using var resolved = await operation.PostAsJsonAsync(
+            $"/identity-directory/user-tasks/{task.Id}/assignees/resolve?action=assign", body);
+        using var hidden = await foreign.PostAsJsonAsync(
+            $"/identity-directory/user-tasks/{task.Id}/assignees/resolve?action=assign", body);
+
+        resolved.StatusCode.Should().Be(HttpStatusCode.OK);
+        hidden.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var item = Result(await resolved.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("items").EnumerateArray().Single();
+        item.GetProperty("subject").GetProperty("id").GetGuid().Should().Be(directory.AnnaId);
+        item.GetProperty("displayName").GetString().Should().Be("Anna");
+        item.GetProperty("isActive").GetBoolean().Should().BeFalse();
+        item.GetProperty("isSelectable").GetBoolean().Should().BeFalse();
+    }
+
     private static async Task<Guid[]> ListTasksAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/usertask");
@@ -254,7 +294,8 @@ public sealed class UserTaskLifecycleIntegrationTest
     private static async Task<(Guid BertId, Guid AnnaId, Guid GroupId)> PublishDirectoryAsync(
         AuthenticatedWorkflowTestContext context,
         Guid annaSubject,
-        bool annaInCandidateGroup)
+        bool annaInCandidateGroup,
+        bool annaActive = true)
     {
         var importedBert = Guid.NewGuid();
         var importedAnna = Guid.NewGuid();
@@ -268,7 +309,7 @@ public sealed class UserTaskLifecycleIntegrationTest
             Users =
             [
                 User(importedBert, AuthenticatedWorkflowTestContext.UserId, "Bert"),
-                User(importedAnna, annaSubject, "Anna")
+                User(importedAnna, annaSubject, "Anna", annaActive)
             ],
             Groups =
             [
@@ -302,13 +343,13 @@ public sealed class UserTaskLifecycleIntegrationTest
             published.Groups.Single(group => group.ExternalId == "review").Id);
     }
 
-    private static DirectoryUser User(Guid id, Guid subject, string displayName) => new()
+    private static DirectoryUser User(Guid id, Guid subject, string displayName, bool active = true) => new()
     {
         Id = id,
         SourceKind = DirectorySourceKind.Keycloak,
         Issuer = AuthenticatedWorkflowTestContext.Issuer,
         Subject = subject.ToString(),
         DisplayName = displayName,
-        IsActive = true
+        IsActive = active
     };
 }

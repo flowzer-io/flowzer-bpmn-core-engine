@@ -86,6 +86,7 @@ builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new Keycl
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
 builder.Services.AddSingleton<DirectorySubjectSelectionService>();
+builder.Services.AddSingleton<DirectorySubjectResolutionContext>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<IdentityDirectoryBackgroundService>());
 builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
                               ?? new FlowzerWebhookOptions());

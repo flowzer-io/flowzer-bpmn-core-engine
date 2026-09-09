@@ -174,6 +174,38 @@ describe('@flowzer/react', () => {
     ]));
   });
 
+  // Testzweck: Der React-Arbeitsbereich und die Lifecycle-Aktionen reichen die
+  // historische Batch-Auflösung an den gebundenen SDK-Kontext weiter, ohne einen
+  // globalen Directory-Query oder eigene Filterentscheidung einzuführen.
+  it('stellt gebundene Auflösungen für Formularfelder und Lifecycle-Aktionen bereit', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 0, data: {} });
+      if (url.includes('/subjects/resolve') || url.includes('/assignees/resolve')) {
+        return response({ generationId: 'generation-1', items: [] });
+      }
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => ({
+      workspace: useUserTaskWorkspace('task-1'),
+      actions: useUserTaskActions('task-1'),
+    }), { wrapper });
+    await waitFor(() => expect(result.current.workspace.form?.id).toBe('form-1'));
+    const subjects = [{ kind: 'user' as const, id: 'retired-user' }];
+
+    await act(async () => {
+      await result.current.workspace.resolveSubjects('representative', subjects);
+      await result.current.actions.resolveAssignees({ action: 'delegate', subjects });
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      '/api/identity-directory/user-tasks/task-1/fields/representative/subjects/resolve',
+      '/api/identity-directory/user-tasks/task-1/assignees/resolve?action=delegate',
+    ]));
+  });
+
   // Testzweck: Entzieht der Server bei einem Refetch das Arbeitsrecht, verschwinden
   // bereits geladene Formular-/Entwurfsdaten und werden nicht noch einmal angefragt.
   it('entfernt geschützte Arbeitsdaten nach einem Rechteentzug', async () => {

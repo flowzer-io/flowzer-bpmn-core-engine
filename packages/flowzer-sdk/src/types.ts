@@ -8,7 +8,9 @@ export type UserTaskWorkState = components['schemas']['UserTaskWorkStateDto'];
 export type ProcessInstance = components['schemas']['ProcessInstanceInfoDto'];
 export type RuntimeDiagram = components['schemas']['RuntimeDiagramDto'];
 export type SubjectRef = components['schemas']['SubjectRefDto'];
+export type DirectorySubject = components['schemas']['DirectorySubjectDto'];
 export type DirectorySubjectSearchResult = components['schemas']['DirectorySubjectSearchResultDto'];
+export type DirectorySubjectResolutionResult = components['schemas']['DirectorySubjectResolutionResultDto'];
 
 export type ProcessVariables = Record<string, unknown>;
 
@@ -139,6 +141,12 @@ export interface TaskAssigneeSearchOptions extends FlowzerCallOptions {
   action: 'assign' | 'delegate';
   query: string;
   limit?: number | undefined;
+}
+
+/** Begrenzte historische Anzeigeauflösung im Kontext einer Lifecycle-Aktion. */
+export interface TaskAssigneeResolutionOptions extends FlowzerCallOptions {
+  action: 'assign' | 'delegate';
+  subjects: readonly SubjectRef[];
 }
 
 export interface FlowzerCompletionOptions extends FlowzerCallOptions {

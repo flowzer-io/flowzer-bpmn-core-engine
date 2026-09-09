@@ -26,7 +26,9 @@ import type {
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
   DirectorySubjectSearchResultDto,
+  DirectorySubjectResolutionResultDto,
   FormDirectorySearchContext,
+  SubjectRefDto,
   FormSectionMetadataDto,
   FormSectionVersionSummaryDto,
   FormSectionVersionDto,
@@ -157,6 +159,16 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
+  /** Löst nur die genannten stabilen IDs im bearbeitbaren Workflowkontext auf. */
+  resolveSubjects: (
+    definitionId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
+
   /** Sucht aktive Identitäten, die am konkreten Workflow-Ordner delegiert werden dürfen. */
   searchFolderSubjects: (
     folderId: string,
@@ -168,6 +180,16 @@ export const identityDirectoryApi = {
       `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects`,
       { query: { query, kind, limit: 20 }, signal },
     ),
+
+  /** Historische Anzeigeauflösung im delegierbaren Ordnerkontext. */
+  resolveFolderSubjects: (
+    folderId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
 
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
@@ -183,6 +205,22 @@ export const identityDirectoryApi = {
     return requestStatusResult<DirectorySubjectSearchResultDto>(
       `${path}/fields/${encodeURIComponent(fieldKey)}/subjects`,
       { query: { query, kind, limit: 20 }, signal },
+    );
+  },
+
+  /** Löst historische Werte nur gegen das serverseitig gebundene Formularfeld auf. */
+  resolveFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectResolutionResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects/resolve`,
+      { method: 'POST', body: { subjects }, signal },
     );
   },
 };
