@@ -2,7 +2,7 @@
 
 ## Ergebnis
 
-Fünfundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+Siebenundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
 implementiert und lokal sowie in CI getestet.
 Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
 Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
@@ -36,8 +36,9 @@ produktiver Benutzer oder Datenbanken.
 | CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | [#223](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/223) |
 | Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR #225 |
 | Task-Vorgangshistorie | Die append-only Lifecycle-Auditspur ist nach Instanz indexiert, objektberechtigt, datensparsam und über API, SDK, React-Schicht sowie Console lesbar. | #226 / PR #227 |
+| BPMN-Fähigkeiten | Der versionierte, hostneutrale Vertrag trennt modellierbar, parsebar und ausführbar; Vorabprüfung, Save und Deploy erzwingen dieselben Graph-/Konfigurationsregeln, Diagramm und Gliederung machen Befunde anwählbar. | #228 / PR folgt |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -45,10 +46,11 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Aktuelle lokale .NET-Suite einschließlich #226: **111 Engine + 680 API-/Storage-Tests bestanden**,
-  keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
+- Aktuelle lokale .NET-Suite einschließlich #228: **139 Engine- und 687 API-/Storage-Tests
+  bestanden**, keine übersprungenen Tests; der lange API-Lauf wurde vollständig in vier
+  disjunkten Fixture-Gruppen ausgeführt. Einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Vorgangshistorie: **302 Tests**, Typecheck
+- React-Konsole einschließlich Modellierungsdiagnosen: **311 Tests**, Typecheck
   und Build erfolgreich; Lint ohne Fehler und sieben bestehende Warnungen. Ein frischer
   `Dockerfile.console`-Build einschließlich lokaler SDK-/React-Pakete ist erfolgreich.
 - Headless-SDK: **14 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,

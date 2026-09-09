@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { BpmnModeler, type BpmnModelerHandle } from '@/components/bpmn/BpmnModeler';
+import { BpmnDiagnosticsPanel } from '@/components/bpmn/BpmnDiagnosticsPanel';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
@@ -18,13 +19,17 @@ import {
   useLatestDefinition,
   useSaveDefinition,
   useUpdateDefinitionMeta,
+  useValidateDefinition,
+  useBpmnCapabilities,
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
+import { normalizeBpmnDiagnostics, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 import { useCan } from '@/stores/session';
 
 interface ModelerPageProps {
   definitionId: string;
+  focusElementId?: string;
 }
 
 /**
@@ -35,7 +40,7 @@ interface ModelerPageProps {
  * zeigt seine Werte, nimmt aber keine an. Sonst entstünden Änderungen, die sich nicht
  * speichern lassen — und beim Verlassen der Seite eine Warnung davor.
  */
-export function ModelerPage({ definitionId }: ModelerPageProps) {
+export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) {
   const navigate = useNavigate();
   const modelerRef = useRef<BpmnModelerHandle>(null);
 
@@ -45,6 +50,8 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
 
   const saveDefinition = useSaveDefinition();
   const deployDefinition = useDeployDefinition();
+  const validateDefinition = useValidateDefinition();
+  const capabilitiesQuery = useBpmnCapabilities();
   // Lesen darf jeder Zugelassene; Veroeffentlichen verlangt die Modelliererrolle.
   // Was die API ablehnen wuerde, bietet die Oberflaeche gar nicht erst an.
   const mayPublish = useCan()('modeler');
@@ -56,6 +63,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
   const [zoom, setZoom] = useState(100);
   const [renaming, setRenaming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<BpmnDiagnostic[]>([]);
 
   const definition = definitionsQuery.data?.find((entry) => entry.definitionId === definitionId);
   const name = definition?.name ?? definitionId;
@@ -95,42 +103,62 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
     const xml = await currentXml();
     if (!xml) return;
 
-    saveDefinition.mutate(
-      { xml, previousGuid: latestQuery.data?.id },
-      {
-        onSuccess: (saved) => {
-          setDirty(false);
-          toast.success(`Version v${saved.version.major}.${saved.version.minor} gespeichert`);
-          void latestQuery.refetch();
-        },
-        onError: (error) =>
-          toast.error('Speichern fehlgeschlagen', {
-            description: error instanceof Error ? error.message : undefined,
-          }),
+    validateDefinition.mutate(xml, {
+      onSuccess: () => {
+        saveDefinition.mutate(
+          { xml, previousGuid: latestQuery.data?.id },
+          {
+            onSuccess: (saved) => {
+              setDirty(false);
+              setDiagnostics([]);
+              toast.success(`Version v${saved.version.major}.${saved.version.minor} gespeichert`);
+              void latestQuery.refetch();
+            },
+            onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
+          },
+        );
       },
-    );
+      onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
+    });
   }
 
   async function handleDeploy() {
     const xml = await currentXml();
     if (!xml) return;
 
-    deployDefinition.mutate(
-      { xml, previousGuid: latestQuery.data?.id },
-      {
-        onSuccess: (deployed) => {
-          setDirty(false);
-          toast.success(`v${deployed.version.major}.${deployed.version.minor} ist aktiv`, {
-            description: 'Neue Instanzen laufen ab sofort gegen diese Version.',
-          });
-          void latestQuery.refetch();
-        },
-        onError: (error) =>
-          toast.error('Deploy fehlgeschlagen', {
-            description: error instanceof Error ? error.message : undefined,
-          }),
+    validateDefinition.mutate(xml, {
+      onSuccess: () => {
+        deployDefinition.mutate(
+          { xml, previousGuid: latestQuery.data?.id },
+          {
+            onSuccess: (deployed) => {
+              setDirty(false);
+              setDiagnostics([]);
+              toast.success(`v${deployed.version.major}.${deployed.version.minor} ist aktiv`, {
+                description: 'Neue Instanzen laufen ab sofort gegen diese Version.',
+              });
+              void latestQuery.refetch();
+            },
+            onError: (error) => handleMutationError('Deploy fehlgeschlagen', error),
+          },
+        );
       },
-    );
+      onError: (error) => handleMutationError('Deploy fehlgeschlagen', error),
+    });
+  }
+
+  function handleMutationError(title: string, error: unknown) {
+    const nextDiagnostics = normalizeBpmnDiagnostics(error);
+    if (nextDiagnostics.length > 0) {
+      setDiagnostics(nextDiagnostics);
+      return;
+    }
+
+    // Unbekannte und alte Fehler bleiben bewusst als Toast sichtbar; nur der
+    // versionierte BPMN-Vertrag darf ein scheinbar sicheres Sprungziel erzeugen.
+    toast.error(title, {
+      description: error instanceof Error ? error.message : undefined,
+    });
   }
 
   function handleRename(nextName: string) {
@@ -307,7 +335,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
               <span className="sr-only">Löschen</span>
             </Button>
 
-            <Button size="sm" icon="save" loading={saveDefinition.isPending} onClick={() => void handleSave()}>
+            <Button size="sm" icon="save" loading={saveDefinition.isPending || validateDefinition.isPending} onClick={() => void handleSave()}>
               Speichern
             </Button>
 
@@ -315,7 +343,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
               size="sm"
               variant="primary"
               icon="rocket_launch"
-              loading={deployDefinition.isPending}
+              loading={deployDefinition.isPending || validateDefinition.isPending}
               onClick={() => void handleDeploy()}
             >
               Deployen
@@ -339,14 +367,28 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
       )}
 
       {!loadingDiagram && !xmlQuery.error && (
-        <BpmnModeler
-          ref={modelerRef}
-          definitionId={definitionId}
-          xml={xmlQuery.data}
-          readOnly={!mayPublish}
-          onChange={() => setDirty(true)}
-          onZoomChange={setZoom}
-        />
+        <>
+          <BpmnDiagnosticsPanel
+            diagnostics={diagnostics}
+            contractVersion={capabilitiesQuery.data?.contractVersion}
+            onSelectElement={(elementId) => modelerRef.current?.selectElement(elementId)}
+          />
+          <BpmnModeler
+            ref={modelerRef}
+            definitionId={definitionId}
+            xml={xmlQuery.data}
+            focusElementId={focusElementId}
+            diagnostics={diagnostics}
+            readOnly={!mayPublish}
+            onChange={() => {
+              setDirty(true);
+              // Ein neuer Modellierungsschritt macht den letzten Serverbefund potenziell
+              // veraltet; die nächste Prüfung liefert den aktuellen Elementbezug.
+              setDiagnostics([]);
+            }}
+            onZoomChange={setZoom}
+          />
+        </>
       )}
 
       <StartWorkflowDialog {...startWorkflow.dialog} />

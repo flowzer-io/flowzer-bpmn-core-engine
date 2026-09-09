@@ -2,6 +2,7 @@ import { request, requestOptionalStatusResult, requestStatus, requestStatusResul
 import { normalizeInstance } from './normalize';
 import type {
   BpmnDefinitionDto,
+  BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
@@ -30,6 +31,18 @@ import type {
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
 
 export const definitionsApi = {
+  /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
+  capabilities: (signal?: AbortSignal) =>
+    requestStatusResult<BpmnCapabilityContract>('/definition/capabilities', { signal }),
+
+  /** `POST /definition/validate` — prüft XML vor einer schreibenden Mutation. */
+  validate: (xml: string) =>
+    requestStatusResult<BpmnCapabilityContract>('/definition/validate', {
+      method: 'POST',
+      rawBody: xml,
+      contentType: 'application/xml',
+    }),
+
   /** `GET /definition/meta` — Katalog aller Prozessdefinitionen. */
   listMeta: (signal?: AbortSignal) =>
     requestStatusResult<ExtendedBpmnMetaDefinitionDto[]>('/definition/meta', { signal }),

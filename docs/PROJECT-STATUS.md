@@ -1,8 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#220 sowie der laufende Security-Slice #222 liegen in noch nicht nach `main`
-gemergten, gestapelten Arbeitsständen.
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis #228
+liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -265,6 +264,16 @@ Begründungs-, Korrelations-, Variablen- und Formulardaten verlassen den Server 
 Sichtbarkeit verwendet die zentrale Instanz-Objektberechtigung. SDK, React-Schicht und
 Console nutzen denselben hostneutralen Vertrag. Details:
 [Append-only Vorgangshistorie](PROCESS-HISTORY.md).
+
+## Zentrale BPMN-Fähigkeiten – #228 / PR folgt (noch nicht gemergt)
+
+`flowzer.bpmn-capabilities/1` trennt modellierbare, parsebare und tatsächlich
+ausführbare BPMN-Elementarten. Vorabprüfung, Save und Deploy erzwingen dieselbe
+serverseitige Matrix samt Graph-, Referenz- und Pflichtkonfiguration; laufende
+Instanzen werden nicht rückwirkend neu bewertet. `422`-Befunde tragen stabile Codes,
+Element-ID und Eigenschaftspfad. Diagramm und Gliederung zeigen sie dauerhaft,
+markieren beziehungsweise öffnen den betroffenen Knoten. Details:
+[BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
 
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 

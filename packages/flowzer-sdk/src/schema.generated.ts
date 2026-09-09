@@ -281,6 +281,15 @@ export interface paths {
                         "text/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                     };
                 };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -318,6 +327,98 @@ export interface paths {
                         "text/plain": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                         "application/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                         "text/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Definition/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Definition/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
                     };
                 };
             };
@@ -3664,6 +3765,41 @@ export interface components {
             email?: string | null;
             capabilities?: string[] | null;
         };
+        BpmnCapabilityContract: {
+            contractVersion?: string | null;
+            elements?: components["schemas"]["BpmnElementCapability"][] | null;
+        };
+        BpmnCapabilityContractApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["BpmnCapabilityContract"];
+        };
+        BpmnCapabilityIssueDto: {
+            code?: string | null;
+            severity?: string | null;
+            elementId?: string | null;
+            propertyPath?: string | null;
+            message?: string | null;
+        };
+        BpmnCapabilityProblemDetails: {
+            type?: string | null;
+            title?: string | null;
+            /** Format: int32 */
+            status?: number | null;
+            detail?: string | null;
+            instance?: string | null;
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            readonly successful?: boolean;
+            readonly errorMessage?: string | null;
+            code?: string | null;
+            issues?: components["schemas"]["BpmnCapabilityIssueDto"][] | null;
+            capabilityContractVersion?: string | null;
+            traceId?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         BpmnDefinitionDto: {
             /** Format: uuid */
             id: string;
@@ -3690,6 +3826,12 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["BpmnDefinitionDto"][] | null;
+        };
+        BpmnElementCapability: {
+            elementType?: string | null;
+            modelable?: boolean;
+            parsable?: boolean;
+            executable?: boolean;
         };
         BpmnMetaDefinitionDto: {
             definitionId: string | null;

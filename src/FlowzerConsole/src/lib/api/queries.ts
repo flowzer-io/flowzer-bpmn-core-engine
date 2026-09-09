@@ -18,6 +18,7 @@ import {
 } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
+  BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
   DirectorySubjectDto,
   FolderAssignmentDto,
@@ -42,6 +43,7 @@ import type {
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
 export const queryKeys = {
   definitions: ['definitions'] as const,
+  definitionCapabilities: ['definitions', 'capabilities'] as const,
   definitionMeta: () => [...queryKeys.definitions, 'meta'] as const,
   definitionLatest: (definitionId: string) => [...queryKeys.definitions, 'latest', definitionId] as const,
   definitionXml: (versionGuid: string) => [...queryKeys.definitions, 'xml', versionGuid] as const,
@@ -90,6 +92,22 @@ export function useDefinitions(options?: QueryTuning<ExtendedBpmnMetaDefinitionD
     queryFn: ({ signal }) => definitionsApi.listMeta(signal),
     staleTime: 15_000,
     ...options,
+  });
+}
+
+/** Der Vertrag ist versioniert und kann deshalb für die Sitzung gecacht werden. */
+export function useBpmnCapabilities() {
+  return useQuery<BpmnCapabilityContract>({
+    queryKey: queryKeys.definitionCapabilities,
+    queryFn: ({ signal }) => definitionsApi.capabilities(signal),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Prüft das aktuelle Modell vor Save oder Deploy, ohne eine Version anzulegen. */
+export function useValidateDefinition() {
+  return useMutation({
+    mutationFn: (xml: string) => definitionsApi.validate(xml),
   });
 }
 

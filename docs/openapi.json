@@ -241,6 +241,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
+            }
           }
         }
       },
@@ -304,6 +314,84 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BpmnDefinitionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Definition/capabilities": {
+      "get": {
+        "tags": [
+          "Definition"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Definition/validate": {
+      "post": {
+        "tags": [
+          "Definition"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
                 }
               }
             }
@@ -4414,6 +4502,130 @@
         },
         "additionalProperties": false
       },
+      "BpmnCapabilityContract": {
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnElementCapability"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityContractApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/BpmnCapabilityContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityIssueDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "nullable": true
+          },
+          "elementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnCapabilityIssueDto"
+            },
+            "nullable": true
+          },
+          "capabilityContractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      },
       "BpmnDefinitionDto": {
         "required": [
           "definitionId",
@@ -4497,6 +4709,25 @@
               "$ref": "#/components/schemas/BpmnDefinitionDto"
             },
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnElementCapability": {
+        "type": "object",
+        "properties": {
+          "elementType": {
+            "type": "string",
+            "nullable": true
+          },
+          "modelable": {
+            "type": "boolean"
+          },
+          "parsable": {
+            "type": "boolean"
+          },
+          "executable": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false

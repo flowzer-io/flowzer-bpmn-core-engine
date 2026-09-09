@@ -182,6 +182,39 @@ public class OpenApiContractTest
         ]);
     }
 
+    // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
+    // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
+    [Test]
+    public async Task DefinitionEndpoints_ShouldExposeTheSharedBpmnCapabilityContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var paths = document.RootElement.GetProperty("paths");
+
+        var capabilities = GetOperation(paths, "/Definition/capabilities", "get");
+        GetResponseSchema(capabilities, "200").Should()
+            .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
+
+        var validation = GetOperation(paths, "/Definition/validate", "post");
+        GetResponseSchema(validation, "200").Should()
+            .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
+        GetProblemResponse(validation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+
+        foreach (var path in new[] { "/Definition", "/Definition/deploy" })
+        {
+            var mutation = GetOperation(paths, path, "post");
+            GetResponseSchema(mutation, "200").Should()
+                .Be("#/components/schemas/BpmnDefinitionDtoApiStatusResult");
+            GetProblemResponse(mutation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+        }
+
+        var problemProperties = document.RootElement.GetProperty("components").GetProperty("schemas")
+            .GetProperty("BpmnCapabilityProblemDetails").GetProperty("properties");
+        problemProperties.TryGetProperty("code", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("issues", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("capabilityContractVersion", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("traceId", out _).Should().BeTrue();
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

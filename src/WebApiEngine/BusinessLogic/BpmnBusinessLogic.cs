@@ -82,6 +82,9 @@ public partial class BpmnBusinessLogic(
 
 
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
+            // Dieser zweite Check schützt auch interne Deploy-Aufrufer, die den HTTP-Upload
+            // umgehen. Bereits laufende Versionen werden dabei nie erneut validiert.
+            BpmnCapabilityMatrix.ValidateForDeployment(xmlData);
             var model = ModelParser.ParseModel(xmlData);
             var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
             DirectorySnapshot? directorySnapshot = null;

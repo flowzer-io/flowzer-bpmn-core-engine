@@ -79,6 +79,16 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--fail) 45%, transparent));
 }
 
+/* Elementbezogene Modellfehler bleiben auch neben der Diagnoseliste sichtbar. */
+.bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--fail) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--fail) 14%, var(--surface)) !important;
+}
+
 /* Der pulsierende Token-Punkt am aktiven Element. */
 .flowzer-token {
   width: 18px;

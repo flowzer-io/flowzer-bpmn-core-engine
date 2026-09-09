@@ -742,6 +742,16 @@ npm --prefix tests/ui-smoke run test
 
 Der `npm test`-Pfad enthält zusätzlich den Prozesswächter für verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse.
 
+### BPMN-Fähigkeiten und Vorabprüfung
+
+Modellieroberflächen können den installierten, hostneutralen Vertrag über
+`GET /definition/capabilities` lesen und BPMN-XML ohne Speicherung mit
+`POST /definition/validate` prüfen. Save und Deploy erzwingen denselben Vertrag erneut;
+die Vorabprüfung darf deshalb nicht als alleinige Sicherheitsgrenze behandelt werden.
+Ein `422` mit `code=bpmn.model.invalid` enthält nur Modellstruktur, stabile Fehlercodes
+und eine Trace-ID, keine Prozessvariablen oder Secrets. Vertrag und Grenzen:
+[Versionierter BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
+
 Ohne diese Variablen startet Playwright API und Konsole selbst. Die Smokes laufen bewusst gegen
 den Vite-Entwicklungsserver: Nur dort meldet die Konsole ohne Identity Provider einen
 technischen Benutzer an; ein Produktionsbündel zeigte stattdessen die Anmeldeseite.

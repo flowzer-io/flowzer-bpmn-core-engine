@@ -2,8 +2,8 @@
 
 Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, React-Oberfläche und ersten Beispielprozessen.
 
-> **Stand: 8. September 2026**
-> Das Repository ist arbeitsfähig, die Kernpfade sind getestet. Der laufende, noch nicht nach `main` gemergte M0-BFF-Slice verlagert die Browser-Anmeldung in die Web-API; externe Bearer-Clients bleiben kompatibel. Die Oberfläche ist die **React-Konsole** in `src/FlowzerConsole`; die frühere Blazor-Oberfläche wurde entfernt. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
+> **Stand: 9. September 2026**
+> Das Repository ist arbeitsfähig, die Kernpfade sind getestet. Die Roadmap-Slices liegen bis zur finalen Gesamtprüfung in gestapelten PRs; dazu gehören BFF, Directory, Form-/Human-Task-Verträge und eine zentrale BPMN-Fähigkeitsprüfung. Externe Bearer-Clients bleiben kompatibel. Die Oberfläche ist die **React-Konsole** in `src/FlowzerConsole`; die frühere Blazor-Oberfläche wurde entfernt. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
 ## Warum das Projekt spannend ist
 
@@ -169,6 +169,15 @@ in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
 [packages/flowzer-react/README.md](packages/flowzer-react/README.md) und
 [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md).
 
+## BPMN-Fähigkeitsvertrag
+
+`contracts/bpmn-capabilities/v1.json` beschreibt maschinenlesbar, welche BPMN-
+Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
+sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
+Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
+der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
+[docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md).
+
 ## Release und Deployment
 
 `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
@@ -183,6 +192,7 @@ in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
+- [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen

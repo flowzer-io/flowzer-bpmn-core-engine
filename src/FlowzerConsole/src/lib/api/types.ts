@@ -126,6 +126,19 @@ export interface BpmnDefinitionDto {
   version: VersionDto;
 }
 
+/** Versionierter, hostneutraler Vertrag für unterstützte BPMN-Elementarten. */
+export interface BpmnCapabilityContract {
+  contractVersion: string;
+  elements: BpmnElementCapability[];
+}
+
+export interface BpmnElementCapability {
+  elementType: string;
+  modelable: boolean;
+  parsable: boolean;
+  executable: boolean;
+}
+
 /** Entspricht `BpmnMetaDefinitionDto`. */
 export interface BpmnMetaDefinitionDto {
   definitionId: string;

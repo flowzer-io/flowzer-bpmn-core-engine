@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stand: 8. September 2026**
+**Stand: 9. September 2026**
 
 Die freigegebene, führende Produkt-Roadmap steht in
 [PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
@@ -42,8 +42,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
    React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
    genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
-   Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
-   folgen. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
+   Transport. #228 ergänzt die zentrale versionierte BPMN-Fähigkeitsmatrix, gemeinsame
+   Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. Laufzeitdiagramm
+   und vollständiger UX-Audit folgen. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
    Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
@@ -71,6 +72,10 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 - [x] **#226 / PR #227 – Human-Task-Vorgangshistorie:** Die bestehende append-only Auditspur
   ist nach Instanz indexiert, objektberechtigt und über SDK sowie Console als
   datensparsame Minimalprojektion verfügbar. Vollständige Engine-Historie folgt.
+- [x] **#228 – BPMN-Fähigkeiten und Modellprüfung:** Ein versionierter, hostneutraler
+  Vertrag trennt modellierbar, parsebar und ausführbar. API, Save und Deploy verwenden
+  denselben Validator; Diagramm und Gliederung zeigen stabile, anwählbare Befunde.
+  Laufzeitdiagramm, Error-/Escalation-Semantik und lokale Call Activities folgen separat.
 
 ## Vorhandenes nicht neu bauen
 

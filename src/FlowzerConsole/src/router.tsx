@@ -53,12 +53,20 @@ const workflowsIndexRoute = createRoute({
 const workflowDetailRoute = createRoute({
   getParentRoute: () => workflowsRoute,
   path: '$definitionId',
+  validateSearch: (search: Record<string, unknown>): WorkflowDetailSearch => ({
+    element: typeof search.element === 'string' ? search.element : undefined,
+  }),
   component: WorkflowDetailRoute,
 });
 
+interface WorkflowDetailSearch {
+  element?: string;
+}
+
 function WorkflowDetailRoute() {
   const { definitionId } = useParams({ from: workflowDetailRoute.id });
-  return <ModelerPage definitionId={decodeURIComponent(definitionId)} />;
+  const { element } = useSearch({ from: workflowDetailRoute.id });
+  return <ModelerPage definitionId={decodeURIComponent(definitionId)} focusElementId={element} />;
 }
 
 /**

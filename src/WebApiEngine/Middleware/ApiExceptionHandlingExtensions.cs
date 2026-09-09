@@ -131,6 +131,30 @@ public static class ApiExceptionHandlingExtensions
                         problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is BpmnCapabilityValidationException capabilityFailure)
+                {
+                    var problem = new BpmnCapabilityProblemDetails
+                    {
+                        Status = StatusCodes.Status422UnprocessableEntity,
+                        Title = "The BPMN model contains an unsupported capability.",
+                        Detail = capabilityFailure.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path,
+                        CapabilityContractVersion = capabilityFailure.ContractVersion,
+                        TraceId = context.TraceIdentifier,
+                        Issues =
+                        [
+                            new BpmnCapabilityIssueDto(
+                                capabilityFailure.Code,
+                                "error",
+                                capabilityFailure.ElementId,
+                                capabilityFailure.PropertyPath,
+                                capabilityFailure.Message)
+                        ]
+                    };
+                    await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (context.Response.StatusCode == StatusCodes.Status422UnprocessableEntity)
                 {
                     var fields = exception is FormSubmissionException form

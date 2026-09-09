@@ -17,6 +17,9 @@ public class DefinitionBusinessLogic(
     {
         // Definition und XML gehoeren zusammen: eine Transaktion, ein Commit.
         using var storageSystem = storageProvider.GetTransactionalStorage();
+        // Der Parser liest aus Kompatibilitaetsgruenden auch historische, nicht ausführbare
+        // Typen. Neue Uploads duerfen sie jedoch nicht als startbare Workflow-Version ablegen.
+        BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
         var model = ModelParser.ParseModel(rawContent);
 
         // Die Kennung stammt aus dem hochgeladenen XML (definitions/@id) und wird in der
