@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247, #250 / PR #251 und #252 / PR #253**
+**Stand: 9. September 2026 · #242–#254**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -21,6 +21,7 @@ zweiten Prozessstandard und keine Abhängigkeit von einer einbettenden Anwendung
                      timeoutSeconds="60">
       <flowzer:instruction>Classify the request.</flowzer:instruction>
       <flowzer:resultSchema>{"type":"object","properties":{},"additionalProperties":false}</flowzer:resultSchema>
+      <flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />
     </flowzer:aiTask>
     <zeebe:ioMapping>
       <zeebe:input source="=request" target="request" />
@@ -39,6 +40,9 @@ zweiten Prozessstandard und keine Abhängigkeit von einer einbettenden Anwendung
   und an der Wurzel `type: "object"` verwenden.
 - Grenzen sind verbindlich: 1–128.000 Eingabetokens, 1–32.768 Ausgabetokens und
   1–300 Sekunden.
+- Werkzeugreferenzen verwenden ausschließlich eine registrierte ID, eine positive
+  Version und `automatic`, `human` oder `preApproved` als Freigabemodus. Pro Task
+  sind höchstens 20 eindeutige Werkzeug-IDs erlaubt.
 
 Unbekannte Attribute oder Kinder werden abgelehnt. Das gilt ausdrücklich auch für
 `secretReference`: Weder Secret-Werte noch Secret-Referenzen gehören in BPMN, Exporte,
@@ -58,6 +62,27 @@ Definitions-Snapshot. Spätere administrative Änderungen wirken daher nur auf n
 Workflowversionen und verändern deren gebundene Ausführungskonfiguration nicht. Der aktuelle
 Aktivstatus bleibt davon getrennt ein administrativer Kill-Switch und stoppt auch alte
 Bindungen vor Secret- oder Netzwerkzugriff.
+
+### Werkzeugverträge in Autorenständen
+
+#254 ergänzt eine geschlossene `IAiTool`-Registry. Jede Installation stellt damit einen
+rein lesbaren Katalog stabiler Werkzeug-IDs und -Versionen mit Ein-/Ausgabeschema,
+Außenwirkung und Vertragshash bereit. Es gibt keine dynamisch aus BPMN, Prompt oder
+Modellantwort erzeugten Handler, Zieladressen, Shell- oder SQL-Aufrufe.
+
+Eine Verbindung enthält eine administrativ gepflegte Allowlist konkreter Werkzeugversionen.
+Der Autorenvertrag darf nur die Schnittmenge aus Registry und Verbindung auswählen. Eine
+automatische Ausführung ist ausschließlich für als `ReadOnly` registrierte Werkzeuge
+modellierbar. `preApproved` verlangt zusätzlich, dass sowohl der Werkzeugvertrag als auch
+die Verbindung diese Möglichkeit ausdrücklich erlauben. Beim Deployment werden Version,
+Vertragshash, Außenwirkung und Freigabemodus unveränderlich gebunden.
+
+Werkzeugreferenzen sind in diesem Slice bewusst **nur modellier- und speicherbar**. Solange
+das persistente Aktionsjournal und parametergebundene Freigaben fehlen, antwortet die
+Deploymentprüfung stabil mit `bpmn.ai_task.tools_runtime_unavailable`. KI-Aufgaben ohne
+Werkzeugreferenz bleiben unverändert ausführbar. Damit entsteht keine nur scheinbar sichere
+Außenwirkung. Die mitgelieferte Installation registriert noch kein konkretes Werkzeug;
+der Katalog ist daher bis zu einer expliziten Erweiterung leer.
 
 ## Portables Ergebnisschema
 
@@ -179,10 +204,14 @@ Prozesses, kann aber Instanz-, Historien- und Laufdateien nicht gemeinsam zurüc
   KI-Felder entfernt.
 - Diagramm und Gliederung pflegen Verbindung, Modell, Anweisung, Schema, Limits sowie
   Ein-/Ausgangszuordnungen. Beide serialisieren denselben XML-Vertrag.
+- Die Verbindungsverwaltung pflegt die erlaubten Werkzeugversionen. Der Modeler zeigt
+  anschließend nur diese Schnittmenge und lässt veraltete beziehungsweise entzogene
+  Referenzen ausdrücklich entfernen, statt sie still umzudeuten.
 
 ## Noch offen
 
-1. Typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal.
+1. Persistentes Werkzeug-Aktionsjournal, parametergebundene Freigaben und tatsächliche
+   Ausführung der bereits typisiert gebundenen Verträge.
 2. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
 3. Bedienbares Störungszentrum sowie detaillierte Laufzeit-/Tokenhistorie.
 4. Kostenanzeige ausschließlich mit versionierter, nachvollziehbarer Preisgrundlage.

@@ -286,7 +286,8 @@ und Abschluss bleiben identisch.
   Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag; #252 / PR #253 bindet
   Verbindungsrevision und Modell beim Deployment und gibt ihn mit
   `flowzer.bpmn-capabilities/3` als ausführbar frei. Die historischen Fähigkeitsverträge
-  bleiben unverändert. Werkzeuge und Freigaben bleiben Folgeslices.
+  bleiben unverändert. #254 ergänzt den typisierten Autorenvertrag für Werkzeuge; die
+  tatsächliche Ausführung und Freigaben bleiben Folgeslices.
 - [x] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
   Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen. #244 / PR #245 implementiert
   feste Standardziele, einen expliziten strukturierten Ausgabevertrag und keinen Provider-
@@ -316,8 +317,10 @@ und Abschluss bleiben identisch.
   folgt mit #250 / PR #251 bis zum validierten `ResultReady`. #252 / PR #253 erzeugt den Lauf aus dem
   BPMN-Token und committed das Ergebnis zusammen mit Instanz, Subscriptions und Historie;
   die vollständige Störungsbedienung bleibt offen.
-- [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
-  Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
+- [x] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. #254 bindet
+  registrierte Version, Vertragshash, Außenwirkung und Verbindungserlaubnis, stellt den
+  sicheren Katalog über API/SDK bereit und führt weder freie Shell-/SQL-Ausführung noch
+  beliebige HTTP-Ziele ein. Die Runtime ist noch bewusst blockiert.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,
   Task-Werkzeugliste und fachlichem Kontext, niemals aus dem Prompt.
 - [ ] Außenwirkung standardmäßig mit menschlicher Freigabe; administrative

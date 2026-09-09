@@ -31,4 +31,5 @@ public sealed record AiConnection(
     bool Enabled,
     long Revision,
     DateTimeOffset UpdatedAtUtc,
-    Guid UpdatedByUserId);
+    Guid UpdatedByUserId,
+    AiToolPermission[]? AllowedTools = null);

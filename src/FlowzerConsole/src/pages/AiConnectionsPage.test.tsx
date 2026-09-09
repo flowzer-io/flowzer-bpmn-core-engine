@@ -17,6 +17,18 @@ const mocks = vi.hoisted(() => ({
     ready: true,
     revision: 7,
     updatedAtUtc: '2026-09-09T16:00:00Z',
+    allowedTools: [],
+  },
+  tool: {
+    id: 'flowzer.directory.lookup',
+    version: 1,
+    name: 'Verzeichnissuche',
+    description: 'Liest einen begrenzten Verzeichniseintrag.',
+    inputSchema: '{"type":"object"}',
+    outputSchema: '{"type":"object"}',
+    sideEffect: 'ReadOnly' as const,
+    allowsPreApproval: true,
+    contractHash: 'A'.repeat(64),
   },
 }));
 
@@ -29,6 +41,7 @@ vi.mock('@/lib/api/queries', () => ({
     error: null,
     refetch: vi.fn(),
   }),
+  useAiTools: () => ({ data: [mocks.tool], isPending: false, isError: false }),
   useCreateAiConnection: () => ({ mutate: mocks.create, isPending: false }),
   useUpdateAiConnection: () => ({ mutate: mocks.update, isPending: false }),
   useSetAiConnectionEnabled: () => ({ mutate: mocks.setEnabled, isPending: false }),
@@ -64,5 +77,25 @@ describe('KI-Verbindungsverwaltung', () => {
 
     expect((screen.getByLabelText('Secret-Referenz') as HTMLInputElement).value).toBe('');
     expect(screen.getByPlaceholderText('env:FLOWZER_AI_OPENAI')).toBeInTheDocument();
+  });
+
+  // Testzweck: Die Verwaltung uebertraegt nur explizit ausgewaehlte registrierte
+  // Werkzeugversionen und die getrennte administrative Vorabfreigabegrenze.
+  it('speichert die Werkzeug-Allowlist mit expliziter Vorabfreigabe', async () => {
+    render(<AiConnectionsPage />);
+    await screen.findByDisplayValue('OpenAI EU');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Verzeichnissuche/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Vorabfreigabe erlauben' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Speichern' }));
+
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+    expect(mocks.update.mock.calls[0]![0].input.allowedTools).toEqual([
+      {
+        toolId: 'flowzer.directory.lookup',
+        toolVersion: 1,
+        allowPreApproval: true,
+      },
+    ]);
   });
 });

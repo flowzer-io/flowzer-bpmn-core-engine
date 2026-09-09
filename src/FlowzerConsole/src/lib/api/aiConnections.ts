@@ -8,9 +8,10 @@ import {
   type UpdateAiConnectionInput,
 } from './types';
 
-type RawAiConnectionDto = Omit<AiConnectionDto, 'provider' | 'location'> & {
+type RawAiConnectionDto = Omit<AiConnectionDto, 'provider' | 'location' | 'allowedTools'> & {
   provider: AiProviderKind | number;
   location: AiProcessingLocation | number;
+  allowedTools?: AiConnectionDto['allowedTools'];
 };
 
 /** Normalisiert die numerischen .NET-Enums einmalig am API-Rand. */
@@ -19,6 +20,7 @@ export function normalizeAiConnection(connection: RawAiConnectionDto): AiConnect
     ...connection,
     provider: enumName(connection.provider, AI_PROVIDER_KINDS, 'Provider'),
     location: enumName(connection.location, AI_PROCESSING_LOCATIONS, 'Verarbeitungsort'),
+    allowedTools: connection.allowedTools ?? [],
   };
 }
 

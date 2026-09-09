@@ -15,6 +15,9 @@ export type DirectorySubjectResolutionResult = components['schemas']['DirectoryS
 export type AiConnection = components['schemas']['AiConnectionDto'];
 export type AiProviderKind = components['schemas']['AiProviderKindDto'];
 export type AiProcessingLocation = components['schemas']['AiProcessingLocationDto'];
+export type AiTool = components['schemas']['AiToolDto'];
+export type AiToolPermission = components['schemas']['AiToolPermissionDto'];
+export type AiToolSideEffect = components['schemas']['AiToolSideEffectDto'];
 
 /** Eingabevertrag zum Anlegen einer KI-Verbindung; Secret-Referenzen sind nur schreibbar. */
 export interface CreateAiConnectionCommand {
@@ -24,6 +27,7 @@ export interface CreateAiConnectionCommand {
   baseAddress?: string | null;
   defaultModel: string;
   secretReference: string;
+  allowedTools?: AiToolPermission[];
 }
 
 /** Revisionsgebundener Eingabevertrag; eine fehlende Secret-Referenz behält die bisherige bei. */
@@ -35,6 +39,7 @@ export interface UpdateAiConnectionCommand {
   baseAddress?: string | null;
   defaultModel: string;
   secretReference?: string | null;
+  allowedTools?: AiToolPermission[];
 }
 
 export interface SetAiConnectionEnabledCommand {

@@ -136,6 +136,7 @@ describe('readOutline — KI-Aufgabe', () => {
           model="model-a" instructionVersion="2" maxInputTokens="4096" maxOutputTokens="1024" timeoutSeconds="60">
           <flowzer:instruction>Classify the request.</flowzer:instruction>
           <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+          <flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />
         </flowzer:aiTask>
         <zeebe:ioMapping>
           <zeebe:input source="=request" target="request" />
@@ -163,11 +164,15 @@ describe('readOutline — KI-Aufgabe', () => {
       maxInputTokens: '4096',
       maxOutputTokens: '1024',
       timeoutSeconds: '60',
+      tools: [{ toolId: 'flowzer.directory.lookup', toolVersion: '1', approval: 'automatic' }],
     });
 
     const written = writeOutlineXml(read.document!);
     expect(hasBlocker(written.issues)).toBe(false);
     expect(written.xml).toContain('<flowzer:aiTask contractVersion="1"');
+    expect(written.xml).toContain(
+      '<flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />',
+    );
     expect(written.xml).toContain('<flowzer:instruction>Classify the request.</flowzer:instruction>');
     expect(written.xml).toContain('<flowzer:resultSchema>{&quot;type&quot;:&quot;object&quot;}</flowzer:resultSchema>');
   });

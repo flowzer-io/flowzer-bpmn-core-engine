@@ -147,6 +147,9 @@ describe('readElementProperties für eine KI-Aufgabe', () => {
           timeoutSeconds: '45',
           instruction: { $type: 'flowzer:Instruction', body: 'Classify the request.' },
           resultSchema: { $type: 'flowzer:ResultSchema', body: '{"type":"object"}' },
+          tools: [
+            { $type: 'flowzer:Tool', id: 'flowzer.directory.lookup', version: '1', approval: 'automatic' },
+          ],
         } as ModdleElement,
       ),
     });
@@ -164,6 +167,7 @@ describe('readElementProperties für eine KI-Aufgabe', () => {
       maxInputTokens: '4096',
       maxOutputTokens: '512',
       timeoutSeconds: '45',
+      tools: [{ toolId: 'flowzer.directory.lookup', toolVersion: '1', approval: 'automatic' }],
     });
   });
 });

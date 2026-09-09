@@ -32,6 +32,7 @@ export function createAiTaskBusinessObject(factory: BpmnFactoryLike): ModdleElem
     model: undefined,
     instruction: undefined,
     resultSchema: undefined,
+    tools: undefined,
   });
   const instruction = factory.create('flowzer:Instruction', { body: DEFAULT_AI_TASK.instruction });
   const resultSchema = factory.create('flowzer:ResultSchema', { body: DEFAULT_AI_TASK.resultSchema });

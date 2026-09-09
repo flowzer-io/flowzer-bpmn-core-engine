@@ -277,6 +277,68 @@ public class BpmnCapabilityMatrixTest
         action.Should().NotThrow();
     }
 
+    // Testzweck: Werkzeugreferenzen duerfen bereits verlustfrei als Autorenvertrag gespeichert
+    // werden, bleiben aber bis zur dauerhaften Tool-Call- und Freigabe-Runtime nicht deploybar.
+    [Test]
+    public void Validation_ShouldKeepToolEnabledAiTaskAuthorableButNotDeployable()
+    {
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            "<flowzer:tool id=\"flowzer.directory.lookup\" version=\"1\" approval=\"automatic\" /></flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(xml);
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.ai_task.tools_runtime_unavailable");
+        exception.ElementId.Should().Be("Ai_1");
+        exception.PropertyPath.Should().Be("extensionElements.aiTask.tool");
+    }
+
+    // Testzweck: Mehrdeutige oder ungueltige Werkzeugreferenzen werden bereits vor dem
+    // Speichern mit einem stabilen feldbezogenen Fehlervertrag abgelehnt.
+    [TestCase("FLOWZER.BAD", "1", "automatic", "bpmn.ai_task.tool_id_invalid")]
+    [TestCase("flowzer.good", "0", "automatic", "bpmn.ai_task.tool_version_invalid")]
+    [TestCase("flowzer.good", "1", "silent", "bpmn.ai_task.tool_approval_invalid")]
+    public void ValidateForAuthoring_ShouldRejectInvalidAiToolReference(
+        string id,
+        string version,
+        string approval,
+        string expectedCode)
+    {
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            $"<flowzer:tool id=\"{id}\" version=\"{version}\" approval=\"{approval}\" /></flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(expectedCode);
+        exception.PropertyPath.Should().StartWith("extensionElements.aiTask.tool");
+    }
+
+    // Testzweck: Ein KI-Task kann dieselbe Werkzeug-ID nicht mehrfach oder in mehreren
+    // Versionen anfordern; die effektive Berechtigung muss eindeutig bleiben.
+    [Test]
+    public void ValidateForAuthoring_ShouldRejectDuplicateAiToolId()
+    {
+        var tools = """
+            <flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />
+            <flowzer:tool id="flowzer.directory.lookup" version="2" approval="human" />
+            """;
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            $"{tools}</flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+
+        action.Should().Throw<BpmnCapabilityValidationException>()
+            .Which.Code.Should().Be("bpmn.ai_task.tool_duplicate");
+    }
+
     // Testzweck: Der reservierte KI-Auftragstyp darf nicht ohne den zugehörigen Vertrag
     // gespeichert werden; sonst sähe das Diagramm wie ein KI-Schritt aus, wäre aber unbestimmt.
     [Test]

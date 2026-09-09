@@ -1,6 +1,6 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245, #248 / PR #249 und #252 / PR #253
+**Stand:** 9. September 2026 · Issues #240–#254
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
 eine ausschließlich interne Provideraufrufschicht; #252 / PR #253 bindet eine konkrete, unveränderliche
@@ -16,7 +16,9 @@ Flowzer speichert ausschließlich:
 - expliziten Verarbeitungsort (`Cloud` oder `Local`),
 - bei kompatiblen Providern die administrierte Basisadresse,
 - Standardmodell, Aktivstatus, Revision und Aenderungsakteur,
-- eine opake Secret-Referenz wie `env:FLOWZER_AI_PRIMARY`.
+- eine opake Secret-Referenz wie `env:FLOWZER_AI_PRIMARY`,
+- eine kanonisch sortierte Allowlist konkreter Werkzeug-IDs und -Versionen sowie die
+  administrative Erlaubnis, eine Version in engen Grenzen vorab freizugeben.
 
 Ein API-Key oder anderer geheimer Wert steht **nicht** im Datensatz. Deaktivieren ist eine
 revisionierte Zustandsaenderung und kein Loeschen. Jede erfolgreiche Fassung wird zusätzlich
@@ -91,6 +93,7 @@ Ein leerer Rollenname verweigert die jeweilige neue Faehigkeit. Im ausdrücklich
 - `POST /ai/connection`
 - `PUT /ai/connection/{connectionId}`
 - `PUT /ai/connection/{connectionId}/enabled`
+- `GET /ai/tool` – sicherer, nur lesbarer Katalog der installierten Werkzeugverträge
 
 Antworten enthalten `ready`, aber weder `secretReference` noch ein Secret. `ready` ist nur
 dann wahr, wenn der Eintrag aktiv und die referenzierte Laufzeitvariable aktuell gesetzt
@@ -105,6 +108,9 @@ eingecheckten Deployment-Override in den API-Prozess.
 Die React-Konsole bietet den Bereich nur der Verwaltungsrolle an. Bei einem vorhandenen
 Eintrag bleibt das Feld fuer eine neue Secret-Referenz bewusst leer. Leer speichern behaelt
 die bisherige Referenz serverseitig, anstatt sie zum Browser zurueckzuliefern.
+Die Oberfläche kann ausschließlich Werkzeugversionen aus dem serverseitigen Katalog
+freigeben. Der Server prüft Registry, Version und Vorabfreigabefähigkeit erneut; ein
+manipulierter Browser kann die Allowlist nicht erweitern.
 
 ## Persistenzgrenzen
 
@@ -123,5 +129,7 @@ Rollbackversprechen.
 
 Provideradapter, portables Ergebnisschema, KI-Task-Erweiterung, dauerhafter Laufzustand
 (#246 / PR #247), DNS-/Socketbindung (#248 / PR #249), Provider-Executor (#250 / PR #251)
-und atomare Engine-Anbindung (#252 / PR #253) liegen als getrennte Slices vor. Werkzeugregistry,
-Freigaben, Kosten, Testmodus und Störungsbedienung folgen in eigenen Paketen.
+und atomare Engine-Anbindung (#252 / PR #253) liegen als getrennte Slices vor. #254 ergänzt
+die typisierte Registry, Verbindungs-Allowlist und unveränderliche Deploymentbindung. Die
+tatsächliche Werkzeugausführung, parametergebundene Freigaben, Kosten, Testmodus und
+Störungsbedienung folgen in eigenen Paketen.

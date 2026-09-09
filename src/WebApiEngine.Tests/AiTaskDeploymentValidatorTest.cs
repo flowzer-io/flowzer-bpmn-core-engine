@@ -3,6 +3,7 @@ using BPMN.Flowzer;
 using core_engine.Exceptions;
 using FluentAssertions;
 using Model;
+using System.Text.Json;
 using StorageSystem;
 using WebApiEngine.Ai;
 using Task = System.Threading.Tasks.Task;
@@ -110,6 +111,91 @@ public sealed class AiTaskDeploymentValidatorTest
         bindings["Ai_1"].Model.Should().Be("model-task");
     }
 
+    // Testzweck: Die effektiven Werkzeugrechte sind die Schnittmenge aus Registry,
+    // Verbindungs-Allowlist und Taskvertrag; eine manipulierte Taskreferenz kann sie nicht erweitern.
+    [TestCase(false, true, "bpmn.ai_task.tool_not_allowed")]
+    [TestCase(true, false, "bpmn.ai_task.tool_not_registered")]
+    public async Task BindAsync_ShouldRejectToolOutsideRegistryOrConnection(
+        bool connectionAllows,
+        bool registerTool,
+        string expectedCode)
+    {
+        var task = ToolTask(AiToolApprovalMode.Automatic);
+        var connection = Connection(enabled: true) with
+        {
+            AllowedTools = connectionAllows
+                ? [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+                : []
+        };
+        var registry = new AiToolRegistry(registerTool
+            ? [Tool("flowzer.directory.lookup", AiToolSideEffect.ReadOnly, false)]
+            : []);
+
+        var action = () => AiTaskDeploymentValidator.BindAsync(
+            [task], new ConnectionStorage(connection), new SecretStore(exists: true), registry);
+
+        var exception = (await action.Should().ThrowAsync<BpmnCapabilityValidationException>()).Which;
+        exception.Code.Should().Be(expectedCode);
+        exception.PropertyPath.Should().StartWith("extensionElements.aiTask.tool");
+    }
+
+    // Testzweck: Schreibende oder versendende Werkzeuge duerfen nie durch den automatischen
+    // Modus laufen; eine Vorabfreigabe braucht zusaetzlich Registry- und Verbindungsfreigabe.
+    [TestCase(AiToolApprovalMode.Automatic, AiToolSideEffect.Write, true, true, "bpmn.ai_task.tool_approval_required")]
+    [TestCase(AiToolApprovalMode.PreApproved, AiToolSideEffect.Send, false, true, "bpmn.ai_task.tool_preapproval_not_allowed")]
+    [TestCase(AiToolApprovalMode.PreApproved, AiToolSideEffect.Send, true, false, "bpmn.ai_task.tool_preapproval_not_allowed")]
+    public async Task BindAsync_ShouldRejectUnsafeToolApproval(
+        AiToolApprovalMode approval,
+        AiToolSideEffect sideEffect,
+        bool registryAllows,
+        bool connectionAllows,
+        string expectedCode)
+    {
+        var connection = Connection(enabled: true) with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, connectionAllows)]
+        };
+        var registry = new AiToolRegistry([
+            Tool("flowzer.directory.lookup", sideEffect, registryAllows)
+        ]);
+
+        var action = () => AiTaskDeploymentValidator.BindAsync(
+            [ToolTask(approval)], new ConnectionStorage(connection), new SecretStore(exists: true), registry);
+
+        (await action.Should().ThrowAsync<BpmnCapabilityValidationException>())
+            .Which.Code.Should().Be(expectedCode);
+    }
+
+    // Testzweck: Ein erlaubtes Werkzeug bindet ID, Version, Vertragshash, Seiteneffekt und
+    // Freigabemodus unveraenderlich an genau diese Workflow-Version.
+    [Test]
+    public async Task BindAsync_ShouldCaptureEffectiveToolContract()
+    {
+        var connection = Connection(enabled: true) with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        };
+        var registry = new AiToolRegistry([
+            Tool("flowzer.directory.lookup", AiToolSideEffect.ReadOnly, false)
+        ]);
+
+        var bindings = await AiTaskDeploymentValidator.BindAsync(
+            [ToolTask(AiToolApprovalMode.Automatic)],
+            new ConnectionStorage(connection),
+            new SecretStore(exists: true),
+            registry);
+
+        var tool = bindings["Ai_1"].Tools.Should().ContainSingle().Subject;
+        tool.ToolId.Should().Be("flowzer.directory.lookup");
+        tool.ToolVersion.Should().Be(1);
+        tool.SideEffect.Should().Be(AiToolSideEffect.ReadOnly);
+        tool.ApprovalMode.Should().Be(AiToolApprovalMode.Automatic);
+        tool.ContractHash.Should().MatchRegex("^[A-F0-9]{64}$");
+        var validation = () => AiTaskDeploymentValidator.ValidateBindings(
+            [ToolTask(AiToolApprovalMode.Automatic)], bindings, registry);
+        validation.Should().NotThrow();
+    }
+
     private static ServiceTask BuildTask() => new()
     {
         Id = "Ai_1",
@@ -126,6 +212,35 @@ public sealed class AiTaskDeploymentValidatorTest
             1024,
             60)
     };
+
+    private static ServiceTask ToolTask(AiToolApprovalMode approval) => BuildTask() with
+    {
+        FlowzerAiTask = BuildTask().FlowzerAiTask! with
+        {
+            Tools = [new AiTaskToolReference("flowzer.directory.lookup", 1, approval)]
+        }
+    };
+
+    private static IAiTool Tool(string id, AiToolSideEffect sideEffect, bool allowsPreApproval) =>
+        new FakeTool(new AiToolDefinition(
+            id,
+            1,
+            "Directory lookup",
+            "Reads a bounded directory entry.",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            sideEffect,
+            allowsPreApproval));
+
+    private sealed class FakeTool(AiToolDefinition definition) : IAiTool
+    {
+        public AiToolDefinition Definition { get; } = definition;
+
+        public ValueTask<AiToolExecutionResult> ExecuteAsync(
+            AiToolExecutionRequest request,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new AiToolExecutionResult(JsonDocument.Parse("{}").RootElement.Clone()));
+    }
 
     private static AiConnection Connection(bool enabled) => new(
         ConnectionId,

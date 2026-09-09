@@ -51,6 +51,7 @@ builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddSingleton<AiToolRegistry>();
 builder.Services.AddScoped<AiConnectionService>();
 builder.Services.AddOptions<FlowzerAiOptions>()
     .Bind(builder.Configuration.GetSection(FlowzerAiOptions.SectionName))

@@ -1,6 +1,7 @@
 import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
 import { normalizeInstance } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
+import { normalizeAiTool } from './aiTools';
 import type {
   BpmnDefinitionDto,
   BpmnCapabilityContract,
@@ -36,6 +37,7 @@ import type {
   FormSectionAuthoringDraftDto,
   SaveFormSectionAuthoringDraftRequestDto,
   AiConnectionDto,
+  AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
 } from './types';
@@ -441,6 +443,16 @@ export const aiConnectionsApi = {
       body: { expectedRevision, enabled },
     }),
   ),
+};
+
+/** Ausschliesslich installierte, typisierte Werkzeugvertraege ohne Handlerdetails. */
+export const aiToolsApi = {
+  list: async (signal?: AbortSignal) => {
+    const items = await requestStatusResult<Array<Omit<AiToolDto, 'sideEffect'> & {
+      sideEffect: AiToolDto['sideEffect'] | number;
+    }>>('/ai/tool', { signal });
+    return items.map(normalizeAiTool);
+  },
 };
 
 export const messagesApi = {

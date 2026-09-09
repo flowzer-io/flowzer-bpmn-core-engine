@@ -118,6 +118,7 @@ describe('setServiceTaskMode', () => {
       connectionId: '118adeb6-65a4-4e57-a03b-d3b0a3300ac9',
       instruction: 'Classify the request.',
       resultSchema: '{"type":"object"}',
+      tools: [{ toolId: 'flowzer.directory.lookup', toolVersion: '1', approval: 'automatic' }],
     });
 
     const aiTask = extensionOf(businessObject, 'flowzer:AiTask')!;
@@ -125,6 +126,15 @@ describe('setServiceTaskMode', () => {
     expect(aiTask.maxInputTokens).toBe('4096');
     expect((aiTask.instruction as ModdleElement).body).toBe('Classify the request.');
     expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object"}');
+    expect(aiTask.tools).toEqual([
+      expect.objectContaining({
+        $type: 'flowzer:Tool',
+        id: 'flowzer.directory.lookup',
+        version: '1',
+        approval: 'automatic',
+        $parent: aiTask,
+      }),
+    ]);
   });
 
   it('entfernt beim Wechsel zum normalen Worker den KI-Vertrag und den reservierten Typ', () => {

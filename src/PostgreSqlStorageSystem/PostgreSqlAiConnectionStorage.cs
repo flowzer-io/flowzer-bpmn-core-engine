@@ -157,7 +157,7 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
         existingCommand.Parameters.AddWithValue("id", item.Id);
         existingCommand.Parameters.AddWithValue("revision", item.Revision);
         var existing = await existingCommand.ExecuteScalarAsync() as string;
-        if (existing is null || StorageJson.Deserialize<AiConnection>(existing) != item)
+        if (existing is null || !AiToolPermissionRules.Same(StorageJson.Deserialize<AiConnection>(existing), item))
             throw new InvalidDataException("An immutable AI connection revision already contains different data.");
     }
 
@@ -191,6 +191,7 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
         ArgumentException.ThrowIfNullOrWhiteSpace(item.Name);
         ArgumentException.ThrowIfNullOrWhiteSpace(item.DefaultModel);
         ArgumentException.ThrowIfNullOrWhiteSpace(item.SecretReference);
+        AiToolPermissionRules.Validate(item.AllowedTools);
         if (item.UpdatedByUserId == Guid.Empty)
             throw new ArgumentException("Updating user ID is required.", nameof(item));
     }

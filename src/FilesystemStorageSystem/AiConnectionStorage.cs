@@ -122,7 +122,7 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
         catch (IOException)
         {
             var persisted = await StorageFile.ReadAllTextIfExistsAsync(path);
-            if (persisted is null || Deserialize(persisted) != connection)
+            if (persisted is null || !AiToolPermissionRules.Same(Deserialize(persisted), connection))
                 throw new InvalidDataException("An immutable AI connection revision already contains different data.");
         }
     }
@@ -141,6 +141,7 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
         ArgumentException.ThrowIfNullOrWhiteSpace(connection.Name);
         ArgumentException.ThrowIfNullOrWhiteSpace(connection.DefaultModel);
         ArgumentException.ThrowIfNullOrWhiteSpace(connection.SecretReference);
+        AiToolPermissionRules.Validate(connection.AllowedTools);
         if (connection.UpdatedByUserId == Guid.Empty)
             throw new ArgumentException("Updating user ID is required.", nameof(connection));
     }

@@ -26,7 +26,8 @@ public class DefinitionController(
     FolderBusinessLogic folderBusinessLogic,
     FormKeyResolver formKeyResolver,
     InstanceAccessService instanceAccess,
-    IAiSecretStore aiSecretStore) : FlowzerControllerBase
+    IAiSecretStore aiSecretStore,
+    AiToolRegistry aiToolRegistry) : FlowzerControllerBase
 {
     /// <summary>
     /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
@@ -147,7 +148,11 @@ public class DefinitionController(
 
         validateCapabilities(rawContent);
         var model = ModelParser.ParseModel(rawContent);
-        await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
+        await AiTaskDeploymentValidator.ValidateAsync(
+            model,
+            storageSystem.AiConnectionStorage,
+            aiSecretStore,
+            aiToolRegistry);
         return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
     }
 

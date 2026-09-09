@@ -60,6 +60,53 @@ public class DefinitionControllerIntegrationTest
             .Should().Be(new BoundAiTask(ReadyAiConnection().Id, 1, "model-a"));
     }
 
+    // Testzweck: Ein Werkzeug darf nur aus der serverseitigen Registry und der Allowlist der
+    // Verbindung modelliert werden. Solange die Werkzeug-Runtime fehlt, bleibt der Entwurf
+    // speicherbar, der Deploy wird jedoch mit einem stabilen Fähigkeitsfehler verhindert.
+    [Test]
+    public async Task AiToolTask_ShouldBeAuthorableButNotDeployableBeforeRuntimeExists()
+    {
+        const string definitionId = "workflow-ai-tool-draft";
+        var storage = TestStorage.Create();
+        storage.AiConnections.Items.Add(ReadyAiConnection() with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        });
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "AI tool workflow"
+        });
+        await using var factory = new TestWebApplicationFactory(storage, new DirectoryLookupTool());
+        using var client = factory.CreateClient();
+        var xml = CreateAiTaskXml(definitionId).Replace(
+            "</flowzer:aiTask>",
+            "<flowzer:tool id=\"flowzer.directory.lookup\" version=\"1\" approval=\"automatic\" /></flowzer:aiTask>",
+            StringComparison.Ordinal);
+
+        using var authoringValidation = await client.PostAsync(
+            "/definition/validate",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var save = await client.PostAsync(
+            "/definition",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploymentValidation = await client.PostAsync(
+            "/definition/validate/deployment",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploy = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+
+        authoringValidation.StatusCode.Should().Be(HttpStatusCode.OK);
+        save.StatusCode.Should().Be(HttpStatusCode.OK);
+        deploymentValidation.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        deploy.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await deploy.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("issues")[0].GetProperty("code").GetString()
+            .Should().Be("bpmn.ai_task.tools_runtime_unavailable");
+        storage.DefinitionStorageSeed.Definitions.Should().ContainSingle(definition => !definition.IsActive);
+    }
+
     // Testzweck: Auch die Autorenprüfung bindet die stabile Verbindungs-ID serverseitig;
     // manipuliertes XML mit einer unbekannten ID darf keine Definition anlegen.
     [Test]
@@ -643,7 +690,8 @@ public class DefinitionControllerIntegrationTest
             ServiceSubscriptionCount = 0
         };
 
-    private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
+    private sealed class TestWebApplicationFactory(TestStorage storage, IAiTool? aiTool = null)
+        : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -666,6 +714,7 @@ public class DefinitionControllerIntegrationTest
                 services.AddSingleton<ITransactionalStorageProvider>(new TestTransactionalStorageProvider(storage));
                 services.AddSingleton<ICurrentUserContextAccessor>(new StubCurrentUserContextAccessor());
                 services.AddSingleton<IAiSecretStore>(new ReadySecretStore());
+                if (aiTool is not null) services.AddSingleton(aiTool);
             });
         }
     }
@@ -757,6 +806,24 @@ public class DefinitionControllerIntegrationTest
 
         public ValueTask<AiSecretValue?> ResolveAsync(string reference, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("Die Autorenprüfung darf Secrets nicht auflösen.");
+    }
+
+    private sealed class DirectoryLookupTool : IAiTool
+    {
+        public AiToolDefinition Definition { get; } = new(
+            "flowzer.directory.lookup",
+            1,
+            "Directory lookup",
+            "Reads one bounded directory entry.",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            AiToolSideEffect.ReadOnly,
+            AllowsPreApproval: false);
+
+        public ValueTask<AiToolExecutionResult> ExecuteAsync(
+            AiToolExecutionRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Die Autorenprüfung darf Werkzeuge nicht ausführen.");
     }
 
     private static AiConnection ReadyAiConnection() => new(

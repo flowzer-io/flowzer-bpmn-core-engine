@@ -55,7 +55,10 @@ Parser XML lesen kann.
 `serviceTask.aiTask` ist modellierbar, parsebar und ausführbar. Beim Deployment bindet
 Flowzer die konkrete Verbindungsrevision und das effektive Modell unveränderlich an die
 Definition. Seine vollständigen Vertrags-, Lauf- und Sicherheitsregeln stehen in
-[AI-TASKS.md](AI-TASKS.md).
+[AI-TASKS.md](AI-TASKS.md). Der Autorenvertrag kann seit #254 zusätzlich typisierte
+Werkzeugreferenzen speichern. Eine solche Referenz blockiert das Deployment noch mit
+`bpmn.ai_task.tools_runtime_unavailable`, bis Aktionsjournal und parametergebundene
+Freigaben denselben Ausführungsschutz belegen. KI-Tasks ohne Werkzeuge bleiben ausführbar.
 
 ## Statische Prüfungen
 

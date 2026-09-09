@@ -8,4 +8,5 @@ namespace Model;
 public sealed record BoundAiTask(
     Guid ConnectionId,
     long ConnectionRevision,
-    string Model);
+    string Model,
+    BoundAiTool[]? Tools = null);

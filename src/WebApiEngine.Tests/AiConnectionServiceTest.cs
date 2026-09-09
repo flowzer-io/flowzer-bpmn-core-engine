@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Model;
+using System.Text.Json;
 using StorageSystem;
 using WebApiEngine.Ai;
 using WebApiEngine.Auth;
@@ -37,6 +38,79 @@ public sealed class AiConnectionServiceTest
         typeof(AiConnectionDto).GetProperty("SecretReference").Should().BeNull();
         context.Storage.Items[created.Id].SecretReference.Should().Be("env:FLOWZER_AI_OPENAI");
         context.Storage.Items[created.Id].UpdatedByUserId.Should().Be(ActorId);
+    }
+
+    // Testzweck: Ein Administrator kann nur konkrete registrierte Werkzeugversionen fuer eine
+    // Verbindung erlauben; dieselbe nicht geheime Allowlist wird sicher an Modellierung und API ausgegeben.
+    [Test]
+    public async Task Create_ShouldPersistValidatedToolPermissions()
+    {
+        var context = new TestContext(
+            cloudEnabled: true,
+            tools: [Tool("flowzer.directory.lookup", allowsPreApproval: true)]);
+
+        var created = await context.Service.CreateAsync(new CreateAiConnectionRequestDto
+        {
+            Name = "OpenAI",
+            Provider = AiProviderKindDto.OpenAi,
+            Location = AiProcessingLocationDto.Cloud,
+            DefaultModel = "gpt-example",
+            SecretReference = "env:FLOWZER_AI_OPENAI",
+            AllowedTools =
+            [
+                new AiToolPermissionDto
+                {
+                    ToolId = "flowzer.directory.lookup",
+                    ToolVersion = 1,
+                    AllowPreApproval = true
+                }
+            ]
+        });
+
+        created.AllowedTools.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new AiToolPermissionDto
+            {
+                ToolId = "flowzer.directory.lookup",
+                ToolVersion = 1,
+                AllowPreApproval = true
+            });
+        context.Storage.Items[created.Id].AllowedTools.Should().ContainSingle()
+            .Which.Should().Be(new AiToolPermission("flowzer.directory.lookup", 1, true));
+    }
+
+    // Testzweck: Ein manipulierter Browser kann weder unbekannte Werkzeuge erlauben noch die
+    // serverseitige Vorabfreigabegrenze einer registrierten Implementierung erweitern.
+    [TestCase("flowzer.unknown", false)]
+    [TestCase("flowzer.directory.lookup", true)]
+    public async Task Create_ShouldRejectUnknownOrOverprivilegedToolPermission(
+        string toolId,
+        bool allowPreApproval)
+    {
+        var context = new TestContext(
+            cloudEnabled: true,
+            tools: [Tool("flowzer.directory.lookup", allowsPreApproval: false)]);
+        var request = new CreateAiConnectionRequestDto
+        {
+            Name = "OpenAI",
+            Provider = AiProviderKindDto.OpenAi,
+            Location = AiProcessingLocationDto.Cloud,
+            DefaultModel = "gpt-example",
+            SecretReference = "env:FLOWZER_AI_OPENAI",
+            AllowedTools =
+            [
+                new AiToolPermissionDto
+                {
+                    ToolId = toolId,
+                    ToolVersion = 1,
+                    AllowPreApproval = allowPreApproval
+                }
+            ]
+        };
+
+        var action = () => context.Service.CreateAsync(request);
+
+        await action.Should().ThrowAsync<ArgumentException>().WithMessage("*tool*");
+        context.Storage.Items.Should().BeEmpty();
     }
 
     // Testzweck: Cloud-Verarbeitung ist installationsweit opt-in und darf nicht allein durch
@@ -244,7 +318,10 @@ public sealed class AiConnectionServiceTest
 
     private sealed class TestContext
     {
-        public TestContext(bool cloudEnabled = false, bool localEnabled = true)
+        public TestContext(
+            bool cloudEnabled = false,
+            bool localEnabled = true,
+            IReadOnlyList<IAiTool>? tools = null)
         {
             Storage = new InMemoryAiConnectionStorage();
             Secrets = new FakeSecretStore();
@@ -259,7 +336,8 @@ public sealed class AiConnectionServiceTest
                     AllowLocalEndpoints = localEnabled,
                     SecretEnvironmentVariablePrefix = "FLOWZER_AI_"
                 }),
-                Secrets);
+                Secrets,
+                new AiToolRegistry(tools ?? []));
         }
 
         public static TimeProvider TimeProvider { get; } = new FixedTimeProvider(
@@ -327,6 +405,26 @@ public sealed class AiConnectionServiceTest
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private static IAiTool Tool(string id, bool allowsPreApproval) => new FakeTool(new AiToolDefinition(
+        id,
+        1,
+        "Directory lookup",
+        "Reads one bounded directory record.",
+        "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+        "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+        AiToolSideEffect.ReadOnly,
+        allowsPreApproval));
+
+    private sealed class FakeTool(AiToolDefinition definition) : IAiTool
+    {
+        public AiToolDefinition Definition { get; } = definition;
+
+        public ValueTask<AiToolExecutionResult> ExecuteAsync(
+            AiToolExecutionRequest request,
+            CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(new AiToolExecutionResult(JsonDocument.Parse("{}").RootElement.Clone()));
     }
 
     private sealed class SingleStorageProvider(IAiConnectionStorage connections) : ITransactionalStorageProvider

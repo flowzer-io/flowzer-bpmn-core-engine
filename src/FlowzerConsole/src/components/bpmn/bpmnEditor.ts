@@ -229,6 +229,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
       model: undefined,
       instruction: undefined,
       resultSchema: undefined,
+      tools: undefined,
     });
     const instruction = factory().create('flowzer:Instruction', { body: DEFAULT_AI_TASK.instruction });
     const resultSchema = factory().create('flowzer:ResultSchema', { body: DEFAULT_AI_TASK.resultSchema });
@@ -438,6 +439,19 @@ export function createBpmnEditor(modeler: ModelerLike) {
         } else if (patch[property] !== undefined) {
           modeling().updateModdleProperties(element, child, { body: patch[property].trim() });
         }
+      }
+
+      if (patch.tools !== undefined) {
+        const tools = patch.tools.map((tool) => {
+          const child = factory().create('flowzer:Tool', {
+            id: tool.toolId,
+            version: tool.toolVersion,
+            approval: tool.approval,
+          });
+          child.$parent = current;
+          return child;
+        });
+        modeling().updateModdleProperties(element, current, { tools });
       }
     },
 

@@ -24,16 +24,16 @@ public static class BpmnCapabilityMatrix
     /// Vertrag klein und jede Modellieransicht kann nach einer Korrektur deterministisch erneut prüfen.
     /// </summary>
     public static void ValidateForDeployment(string xml)
-        => Validate(xml);
+        => Validate(xml, allowToolAuthoring: false);
 
     /// <summary>
     /// Prüft einen Autorenentwurf gegen denselben ausführbaren Elementvertrag. Zusätzliche
     /// fachliche Pflichtwerte werden danach von den spezialisierten Vertragsprüfern validiert.
     /// </summary>
     public static void ValidateForAuthoring(string xml)
-        => Validate(xml);
+        => Validate(xml, allowToolAuthoring: true);
 
-    private static void Validate(string xml)
+    private static void Validate(string xml, bool allowToolAuthoring)
     {
         XDocument document;
         try
@@ -60,11 +60,11 @@ public static class BpmnCapabilityMatrix
 
         foreach (var process in executableProcesses)
         {
-            ValidateContainer(process);
+            ValidateContainer(process, allowToolAuthoring);
         }
     }
 
-    private static void ValidateContainer(XElement container)
+    private static void ValidateContainer(XElement container, bool allowToolAuthoring)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -77,7 +77,7 @@ public static class BpmnCapabilityMatrix
         foreach (var element in flowElements)
         {
             ValidateUniqueElementId(element, uniqueIds);
-            ValidateElement(element, knownIds);
+            ValidateElement(element, knownIds, allowToolAuthoring);
         }
 
         ValidateFlowGraph(flowElements);
@@ -86,7 +86,7 @@ public static class BpmnCapabilityMatrix
         {
             if (element.Name.LocalName == "subProcess")
             {
-                ValidateContainer(element);
+                ValidateContainer(element, allowToolAuthoring);
             }
         }
     }
@@ -202,7 +202,7 @@ public static class BpmnCapabilityMatrix
         }
     }
 
-    private static void ValidateElement(XElement element, ISet<string> knownIds)
+    private static void ValidateElement(XElement element, ISet<string> knownIds, bool allowToolAuthoring)
     {
         var elementId = element.Attribute("id")?.Value;
         if (string.IsNullOrWhiteSpace(elementId))
@@ -227,7 +227,7 @@ public static class BpmnCapabilityMatrix
                 $"The BPMN element '{element.Name.LocalName}' is parsed but not executable in capability contract v{Contract.ContractVersion}.");
         }
 
-        ValidateRequiredConfiguration(element, elementId, knownIds);
+        ValidateRequiredConfiguration(element, elementId, knownIds, allowToolAuthoring);
     }
 
     private static string GetCapabilityType(XElement element, string elementId)
@@ -260,7 +260,11 @@ public static class BpmnCapabilityMatrix
         return $"{elementType}.{eventDefinitions[0]}";
     }
 
-    private static void ValidateRequiredConfiguration(XElement element, string elementId, ISet<string> knownIds)
+    private static void ValidateRequiredConfiguration(
+        XElement element,
+        string elementId,
+        ISet<string> knownIds,
+        bool allowToolAuthoring)
     {
         switch (element.Name.LocalName)
         {
@@ -269,6 +273,10 @@ public static class BpmnCapabilityMatrix
                 break;
             case "serviceTask":
                 var aiTask = AiTaskContractParser.Parse(element);
+                if (aiTask is { Tools.Count: > 0 } && !allowToolAuthoring)
+                    throw Failure("bpmn.ai_task.tools_runtime_unavailable", elementId,
+                        "extensionElements.aiTask.tool",
+                        "AI tools cannot be deployed before durable approvals and execution are available.");
                 if (aiTask is null && !HasTaskDefinitionType(element))
                     throw Failure("bpmn.service_task.implementation_required", elementId,
                         "extensionElements.taskDefinition.type",

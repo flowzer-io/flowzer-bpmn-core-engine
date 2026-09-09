@@ -485,6 +485,7 @@ public class AuthenticationAndCorsIntegrationTest
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer", CreateToken([new Claim("sub", Guid.NewGuid().ToString())]));
         (await client.GetAsync("/ai/connection")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await client.GetAsync("/ai/tool")).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
             "Bearer", CreateToken([
@@ -492,6 +493,7 @@ public class AuthenticationAndCorsIntegrationTest
                 new Claim("roles", "ai-user")
             ]));
         (await client.GetAsync("/ai/connection")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.GetAsync("/ai/tool")).StatusCode.Should().Be(HttpStatusCode.OK);
         var deniedWrite = await client.PostAsJsonAsync("/ai/connection", new CreateAiConnectionRequestDto
         {
             Name = "Nicht erlaubt",

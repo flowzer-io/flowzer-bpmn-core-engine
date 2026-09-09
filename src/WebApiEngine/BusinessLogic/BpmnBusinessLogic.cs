@@ -23,7 +23,8 @@ public partial class BpmnBusinessLogic(
     ITransactionalStorageProvider storageProvider,
     ILogger<BpmnBusinessLogic>? logger = null,
     UserTaskDeadlinePolicy? userTaskDeadlinePolicy = null,
-    IAiSecretStore? aiSecretStore = null)
+    IAiSecretStore? aiSecretStore = null,
+    AiToolRegistry? aiToolRegistry = null)
 {
     private readonly UserTaskDeadlinePolicy _userTaskDeadlinePolicy =
         userTaskDeadlinePolicy ?? UserTaskDeadlinePolicy.Default;
@@ -123,8 +124,9 @@ public partial class BpmnBusinessLogic(
                 ?? await AiTaskDeploymentValidator.BindAsync(
                     aiTasks,
                     storageSystem.AiConnectionStorage,
-                    aiSecretStore);
-            AiTaskDeploymentValidator.ValidateBindings(aiTasks, definition.AiTaskBindings);
+                    aiSecretStore,
+                    aiToolRegistry);
+            AiTaskDeploymentValidator.ValidateBindings(aiTasks, definition.AiTaskBindings, aiToolRegistry);
 
             if (storedDefinition.FormBindings is null && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
                 throw new InvalidOperationException("The historical workflow has no verified form bindings. Deploy a new workflow version.");

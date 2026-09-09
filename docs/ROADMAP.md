@@ -66,8 +66,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 / PR #253 bindet Verbindungsrevision und
    Modell beim Deployment, erzeugt pro KI-Token genau einen Lauf und committed validierte
    Ergebnisse atomar mit der BPMN-Instanz. `flowzer.bpmn-capabilities/3` gibt den Task damit
-   erstmals als ausführbar frei. Als Nächstes folgen typisierte Werkzeuge,
-   parametergebundene Freigaben, Testmodus und Störungsbedienung.
+   erstmals als ausführbar frei. #254 ergänzt typisierte Werkzeugverträge, Registry,
+   Verbindungs-Allowlist und unveränderliche Deploymentbindung; der Deploy bleibt für
+   Werkzeugreferenzen bis zum Ausführungsjournal und parametergebundenen Freigaben gesperrt.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
@@ -139,6 +140,12 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Verbindungsrevision, Lease-Heartbeat, fester Retry-Allowlist und konservativer Recovery
   bis `ResultReady` verarbeitet. Der Dienst ist standardmäßig aus; Erzeugung und atomarer
   Engine-Commit folgen vor dem Entfernen des Deploymentblockers.
+- [x] **#252 / PR #253 – Atomare Engine-Anbindung:** KI-Tokens erzeugen genau einen
+  internen Lauf; validierte Ergebnisse werden transaktional mit der Instanz fortgesetzt.
+- [x] **#254 – Typisierte Werkzeugverträge:** Eine geschlossene Registry, sichere Katalog-API,
+  Verbindungs-Allowlist und Taskreferenzen binden Version, Schemahash, Außenwirkung und
+  Freigabemodus. Die Autorenoberfläche ist vollständig; Deployments mit Werkzeugen bleiben
+  bis zum nächsten Runtime-Slice bewusst gesperrt.
 
 ## Vorhandenes nicht neu bauen
 

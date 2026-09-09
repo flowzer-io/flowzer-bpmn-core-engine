@@ -448,6 +448,11 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
           maxInputTokens: text(aiTask, 'maxInputTokens'),
           maxOutputTokens: text(aiTask, 'maxOutputTokens'),
           timeoutSeconds: text(aiTask, 'timeoutSeconds'),
+          tools: ((aiTask.tools as ModdleElement[] | undefined) ?? []).map((tool) => ({
+            toolId: text(tool, 'id'),
+            toolVersion: text(tool, 'version'),
+            approval: text(tool, 'approval') as AiTaskConfiguration['tools'][number]['approval'],
+          })),
         }
       : null,
     needsJobType: needsJobType(businessObject),

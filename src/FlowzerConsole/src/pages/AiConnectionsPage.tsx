@@ -10,12 +10,14 @@ import { ErrorState, LoadingRows } from '@/components/ui/States';
 import { ApiError } from '@/lib/api/client';
 import {
   useAiConnections,
+  useAiTools,
   useCreateAiConnection,
   useSetAiConnectionEnabled,
   useUpdateAiConnection,
 } from '@/lib/api/queries';
 import type {
   AiConnectionDto,
+  AiToolPermissionDto,
   AiProcessingLocation,
   AiProviderKind,
 } from '@/lib/api/types';
@@ -32,6 +34,7 @@ interface EditorState {
   baseAddress: string;
   defaultModel: string;
   secretReference: string;
+  allowedTools: AiToolPermissionDto[];
 }
 
 const EMPTY_EDITOR: EditorState = {
@@ -41,12 +44,14 @@ const EMPTY_EDITOR: EditorState = {
   baseAddress: '',
   defaultModel: '',
   secretReference: '',
+  allowedTools: [],
 };
 
 /** Verwaltung sicherer KI-Verbindungsmetadaten ohne Rueckgabe von Secret-Referenzen. */
 export function AiConnectionsPage() {
   const mayManage = useCan()('aiConnectionManage');
   const connectionsQuery = useAiConnections({ enabled: mayManage });
+  const toolsQuery = useAiTools({ enabled: mayManage });
   const createConnection = useCreateAiConnection();
   const updateConnection = useUpdateAiConnection();
   const setEnabled = useSetAiConnectionEnabled();
@@ -83,6 +88,7 @@ export function AiConnectionsPage() {
       // Absichtlich immer leer: Die API liefert die Referenz nicht, und die Console
       // rekonstruiert sie auch nicht aus Namen oder Status.
       secretReference: '',
+      allowedTools: selected.allowedTools,
     });
   }, [selected, selection]);
 
@@ -118,6 +124,7 @@ export function AiConnectionsPage() {
       location: editor.location,
       baseAddress: editor.baseAddress.trim() || undefined,
       defaultModel: editor.defaultModel.trim(),
+      allowedTools: editor.allowedTools,
     };
     if (!common.name || !common.defaultModel) {
       toast.error('Name und Standardmodell sind erforderlich.');
@@ -161,6 +168,32 @@ export function AiConnectionsPage() {
         onError: (error) => toast.error('Verbindung konnte nicht gespeichert werden', { description: message(error) }),
       },
     );
+  }
+
+  function toggleTool(toolId: string, toolVersion: number) {
+    setEditor((current) => {
+      const selectedTool = current.allowedTools.some(
+        (permission) => permission.toolId === toolId && permission.toolVersion === toolVersion,
+      );
+      return {
+        ...current,
+        allowedTools: selectedTool
+          ? current.allowedTools.filter(
+            (permission) => permission.toolId !== toolId || permission.toolVersion !== toolVersion,
+          )
+          : [...current.allowedTools, { toolId, toolVersion, allowPreApproval: false }],
+      };
+    });
+  }
+
+  function togglePreApproval(toolId: string, toolVersion: number) {
+    setEditor((current) => ({
+      ...current,
+      allowedTools: current.allowedTools.map((permission) =>
+        permission.toolId === toolId && permission.toolVersion === toolVersion
+          ? { ...permission, allowPreApproval: !permission.allowPreApproval }
+          : permission),
+    }));
   }
 
   function toggleEnabled(connection: AiConnectionDto) {
@@ -338,6 +371,53 @@ export function AiConnectionsPage() {
                   Nur die Referenz wird gespeichert. Der geheime Wert wird weder geladen noch im Browser angezeigt.
                 </p>
               </Field>
+
+              <div className="sm:col-span-2">
+                <FieldLabel>Erlaubte Werkzeuge</FieldLabel>
+                <p className="text-muted mb-2 text-xs">
+                  Nur ausgewählte, serverseitig registrierte Werkzeugversionen dürfen später in Workflows verwendet werden.
+                </p>
+                {toolsQuery.isPending ? (
+                  <p className="text-muted text-sm">Werkzeugkatalog wird geladen …</p>
+                ) : toolsQuery.isError ? (
+                  <p className="text-danger text-sm">Werkzeugkatalog konnte nicht geladen werden.</p>
+                ) : (toolsQuery.data ?? []).length === 0 ? (
+                  <p className="text-muted text-sm">In dieser Installation sind keine Werkzeuge registriert.</p>
+                ) : (
+                  <div className="border-border divide-border divide-y rounded-[var(--r-sm)] border">
+                    {(toolsQuery.data ?? []).map((tool) => {
+                      const permission = editor.allowedTools.find(
+                        (item) => item.toolId === tool.id && item.toolVersion === tool.version,
+                      );
+                      return (
+                        <div key={`${tool.id}:${tool.version}`} className="grid gap-2 p-3 sm:grid-cols-[1fr_auto]">
+                          <label className="flex min-w-0 cursor-pointer gap-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(permission)}
+                              onChange={() => toggleTool(tool.id, tool.version)}
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-sm font-semibold">{tool.name} · v{tool.version}</span>
+                              <span className="text-muted block text-xs">{tool.description}</span>
+                            </span>
+                          </label>
+                          {permission && tool.allowsPreApproval && (
+                            <label className="text-muted flex cursor-pointer items-center gap-2 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={permission.allowPreApproval}
+                                onChange={() => togglePreApproval(tool.id, tool.version)}
+                              />
+                              Vorabfreigabe erlauben
+                            </label>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {selected && (
                 <div className="text-muted sm:col-span-2 text-xs">

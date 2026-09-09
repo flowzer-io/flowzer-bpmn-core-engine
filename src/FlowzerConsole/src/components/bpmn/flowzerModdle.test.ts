@@ -45,6 +45,7 @@ const AI_XML = `<?xml version="1.0" encoding="UTF-8"?>
           maxInputTokens="4096" maxOutputTokens="1024" timeoutSeconds="60">
           <flowzer:instruction>Classify the request.</flowzer:instruction>
           <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+          <flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />
         </flowzer:aiTask>
       </bpmn:extensionElements>
     </bpmn:serviceTask>
@@ -80,7 +81,11 @@ describe('Flowzer-Moddle-Vertrag', () => {
     const definitions = parsed.rootElement as unknown as ParsedDefinitions;
     const values = definitions.rootElements?.[0]?.flowElements?.[0]?.extensionElements?.values ?? [];
     const aiTask = values.find((value) => value.$type === 'flowzer:AiTask') as
-      | (Record<string, unknown> & { instruction?: { body?: string }; resultSchema?: { body?: string } })
+      | (Record<string, unknown> & {
+          instruction?: { body?: string };
+          resultSchema?: { body?: string };
+          tools?: Array<{ id?: string; version?: string; approval?: string }>;
+        })
       | undefined;
 
     expect(aiTask).toMatchObject({
@@ -94,11 +99,17 @@ describe('Flowzer-Moddle-Vertrag', () => {
     });
     expect(aiTask?.instruction?.body).toBe('Classify the request.');
     expect(aiTask?.resultSchema?.body).toBe('{"type":"object"}');
+    expect(aiTask?.tools).toEqual([
+      expect.objectContaining({ id: 'flowzer.directory.lookup', version: '1', approval: 'automatic' }),
+    ]);
 
     const serialized = await moddle.toXML(parsed.rootElement, { format: true });
     expect(serialized.xml).toContain('<flowzer:aiTask');
     expect(serialized.xml).toContain('<flowzer:instruction>Classify the request.</flowzer:instruction>');
     expect(serialized.xml).toContain('<flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>');
+    expect(serialized.xml).toContain(
+      '<flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />',
+    );
   });
 
   it('liest und schreibt stabile Verzeichnisreferenzen semantisch unverändert', async () => {

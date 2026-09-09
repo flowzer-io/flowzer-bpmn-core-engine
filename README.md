@@ -198,7 +198,9 @@ Verbindungsrevision und ein Modell an jeden KI-Schritt. Pro wartendem Engine-Tok
 ein interner, persistenter Lauf; der optional aktivierte Hintergrunddienst führt ihn ohne
 Provider- oder Cloud-Fallback aus und übernimmt ein erneut schema-validiertes Ergebnis
 atomar in die Prozessinstanz. PostgreSQL serialisiert konkurrierende Mutationen derselben
-Instanz; Werkzeugaufrufe und Freigaben bleiben bewusst eigene Ausbaustufen.
+Instanz. Typisierte Werkzeugversionen können über eine serverseitige Registry und eine
+Verbindungs-Allowlist bereits sicher modelliert werden; ihr Deployment bleibt bis zum
+persistenten Aktionsjournal und parametergebundenen Freigaben bewusst gesperrt.
 Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 [docs/AI-TASKS.md](docs/AI-TASKS.md).
 

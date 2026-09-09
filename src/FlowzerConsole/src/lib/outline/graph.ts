@@ -211,9 +211,10 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
       'maxOutputTokens',
       'timeoutSeconds',
     ],
-    children: ['instruction', 'resultSchema'],
+    children: ['instruction', 'resultSchema', 'tool'],
     single: ['instruction', 'resultSchema'],
   },
+  tool: { namespace: FLOWZER_NS, attributes: ['id', 'version', 'approval'], children: [] },
   instruction: { namespace: FLOWZER_NS, attributes: [], children: [] },
   resultSchema: { namespace: FLOWZER_NS, attributes: [], children: [] },
   ioMapping: { namespace: ZEEBE_NS, attributes: [], children: ['input', 'output'] },
@@ -367,6 +368,11 @@ function readTaskProperties(task: Element): TaskProperties {
           maxInputTokens: attribute(aiTask, 'maxInputTokens') ?? '',
           maxOutputTokens: attribute(aiTask, 'maxOutputTokens') ?? '',
           timeoutSeconds: attribute(aiTask, 'timeoutSeconds') ?? '',
+          tools: children(aiTask, 'tool').map((tool) => ({
+            toolId: attribute(tool, 'id') ?? '',
+            toolVersion: attribute(tool, 'version') ?? '',
+            approval: (attribute(tool, 'approval') ?? 'human') as AiTaskConfiguration['tools'][number]['approval'],
+          })),
         }
       : undefined,
     inputs: readIoMappings(task, 'input'),

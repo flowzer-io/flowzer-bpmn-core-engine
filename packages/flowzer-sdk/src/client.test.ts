@@ -439,6 +439,43 @@ describe('FlowzerClient', () => {
     expect(connection).not.toHaveProperty('secretReference');
   });
 
+  // Testzweck: Modellierungsoberflächen erhalten Werkzeugverträge über einen eigenen
+  // rein lesbaren SDK-Pfad; die Verbindung referenziert nur die erlaubte stabile Version.
+  it('lädt KI-Werkzeuge und bindet ihre Version an eine Verbindung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(jsonResponse({
+        successful: true,
+        result: [{
+          id: 'flowzer.directory.lookup', version: 1, name: 'Directory lookup',
+          description: 'Reads one entry.', inputSchema: '{}', outputSchema: '{}',
+          sideEffect: 0, allowsPreApproval: false, contractHash: 'ABC',
+        }],
+      }))
+      .mockResolvedValueOnce(jsonResponse({ successful: true, result: {} }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.aiTools.list()).resolves.toMatchObject([
+      { id: 'flowzer.directory.lookup', version: 1 },
+    ]);
+    await client.aiConnections.create({
+      name: 'Cloud',
+      provider: 0,
+      location: 0,
+      defaultModel: 'model-1',
+      secretReference: 'env:FLOWZER_AI_KEY',
+      allowedTools: [{
+        toolId: 'flowzer.directory.lookup',
+        toolVersion: 1,
+        allowPreApproval: false,
+      }],
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/ai/tool');
+    expect(JSON.parse(String(fetch.mock.calls[1]![1]?.body))).toMatchObject({
+      allowedTools: [{ toolId: 'flowzer.directory.lookup', toolVersion: 1 }],
+    });
+  });
+
   // Testzweck: Änderungen und Aktivierung bleiben revisionsgebunden und IDs
   // werden auch bei ungewöhnlichen Hostwerten als einzelnes Pfadsegment kodiert.
   it('ändert und aktiviert KI-Verbindungen mit Compare-and-Swap', async () => {

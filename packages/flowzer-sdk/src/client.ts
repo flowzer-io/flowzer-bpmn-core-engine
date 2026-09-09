@@ -1,6 +1,7 @@
 import { completionOptions, FlowzerTransport } from './transport.js';
 import type {
   AiConnection,
+  AiTool,
   CompleteUserTaskCommand,
   CreateAiConnectionCommand,
   CreateFormSectionCommand,
@@ -236,6 +237,12 @@ export class FlowzerClient {
         method: 'PUT', body: command, signal: options.signal,
       });
     },
+  };
+
+  /** Nur lesbarer Katalog der serverseitig installierten, typisierten Werkzeugversionen. */
+  readonly aiTools = {
+    list: async (options: FlowzerCallOptions = {}): Promise<AiTool[]> =>
+      (await this.transport.status<AiTool[]>('/ai/tool', options)) ?? [],
   };
 
   /**

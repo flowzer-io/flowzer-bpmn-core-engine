@@ -255,6 +255,32 @@ public class OpenApiContractTest
         root.GetProperty("components").GetProperty("schemas")
             .GetProperty("CreateAiConnectionRequestDto").GetProperty("properties")
             .TryGetProperty("secretReference", out _).Should().BeTrue();
+        responseProperties.TryGetProperty("allowedTools", out _).Should().BeTrue();
+        root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("CreateAiConnectionRequestDto").GetProperty("properties")
+            .TryGetProperty("allowedTools", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Der Werkzeugkatalog ist ein rein lesbarer, versionierter OpenAPI-Vertrag
+    // ohne Handler- oder Zielsystemdetails und kann deshalb von generischen Clients verwendet werden.
+    [Test]
+    public async Task AiTools_ShouldExposeOnlySafeVersionedContracts()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(root.GetProperty("paths"), "/ai/tool", "get");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/AiToolDtoArrayApiStatusResult");
+        var properties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("AiToolDto").GetProperty("properties");
+        properties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "version", "name", "description", "inputSchema", "outputSchema",
+            "sideEffect", "allowsPreApproval", "contractHash"
+        ]);
+        properties.TryGetProperty("implementation", out _).Should().BeFalse();
+        properties.TryGetProperty("secretReference", out _).Should().BeFalse();
+        properties.TryGetProperty("baseAddress", out _).Should().BeFalse();
     }
 
     // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben

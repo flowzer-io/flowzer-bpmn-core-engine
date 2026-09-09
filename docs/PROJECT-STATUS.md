@@ -465,6 +465,27 @@ Instanzansichten bleiben vom Schreib-Lock getrennt. Abgebrochene oder fehlgeschl
 KI-Token stornieren offene Läufe und entziehen vorhandene Leases. Die Dateiablage bleibt ein
 ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollback.
 
+## Typisierte KI-Werkzeugverträge – #254 (noch nicht gemergt)
+
+Eine geschlossene `IAiTool`-Registry validiert stabile ID und Version, portable Ein-/
+Ausgabeschemas, Außenwirkung und Vorabfreigabefähigkeit. Der neue, rollenberechtigte
+Katalog `GET /ai/tool` projiziert ausschließlich diese nicht geheimen Vertragsdaten und
+einen deterministischen SHA-256-Vertragshash. Es sind noch keine konkreten Werkzeuge in
+der Standardinstallation registriert.
+
+KI-Verbindungen speichern eine revisionsgeschützte Allowlist konkreter Werkzeugversionen.
+Registry und Verbindungsgrenze werden serverseitig geprüft; automatische Freigabe ist nur
+für `ReadOnly` möglich und eine Vorabfreigabe benötigt die ausdrückliche Erlaubnis von
+Werkzeug und Verbindung. Der BPMN-Autorenvertrag bindet diese Referenzen in Diagramm und
+Gliederung. Beim Deployment werden ID, Version, Hash, Außenwirkung und Freigabemodus
+unveränderlich festgehalten.
+
+Solange persistentes Aktionsjournal und parametergebundene Freigaben fehlen, bleiben
+Werkzeugreferenzen bewusst nicht ausführbar. Autorenprüfung und Speichern sind erlaubt,
+Deploymentprüfung und Deploy antworten dagegen strukturiert mit
+`bpmn.ai_task.tools_runtime_unavailable`. OpenAPI, SDK und React-Konsole verwenden denselben
+Vertrag. Die tatsächliche Ausführung ist damit nicht vorgetäuscht und folgt als eigener Slice.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -491,9 +512,9 @@ ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollb
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
    persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
-   der Provider-Executor (#250 / PR #251) sowie die atomare Engine-Anbindung (#252 / PR #253) liegen
-   vor; Werkzeugregistry, parametergebundene Freigaben, Testmodus und Störungsbedienung
-   bleiben offen.
+   der Provider-Executor (#250 / PR #251), die atomare Engine-Anbindung (#252 / PR #253)
+   sowie die Werkzeug-Vertragsgrenze (#254) liegen vor. Persistentes Aktionsjournal,
+   parametergebundene Freigaben, Testmodus und Störungsbedienung bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 

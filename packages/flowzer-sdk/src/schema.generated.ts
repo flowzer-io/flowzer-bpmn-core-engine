@@ -262,6 +262,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/tool": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AiToolDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["AiToolDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["AiToolDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/bff/login": {
         parameters: {
             query?: never;
@@ -5010,6 +5047,7 @@ export interface components {
             revision: number;
             /** Format: date-time */
             updatedAtUtc: string;
+            allowedTools: components["schemas"]["AiToolPermissionDto"][] | null;
         };
         AiConnectionDtoApiStatusResult: {
             successful?: boolean;
@@ -5031,6 +5069,34 @@ export interface components {
          * @enum {integer}
          */
         AiProviderKindDto: 0 | 1 | 2;
+        AiToolDto: {
+            id: string | null;
+            /** Format: int32 */
+            version: number;
+            name: string | null;
+            description: string | null;
+            inputSchema: string | null;
+            outputSchema: string | null;
+            sideEffect: components["schemas"]["AiToolSideEffectDto"];
+            allowsPreApproval: boolean;
+            contractHash: string | null;
+        };
+        AiToolDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["AiToolDto"][] | null;
+        };
+        AiToolPermissionDto: {
+            toolId: string | null;
+            /** Format: int32 */
+            toolVersion: number;
+            allowPreApproval: boolean;
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        AiToolSideEffectDto: 0 | 1 | 2;
         ApiProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -5165,6 +5231,7 @@ export interface components {
             baseAddress?: string | null;
             defaultModel: string | null;
             secretReference: string | null;
+            allowedTools?: components["schemas"]["AiToolPermissionDto"][] | null;
         };
         CreateFormSectionRequestDto: {
             name: string | null;
@@ -5922,6 +5989,7 @@ export interface components {
             location: components["schemas"]["AiProcessingLocationDto"];
             baseAddress?: string | null;
             defaultModel: string | null;
+            allowedTools?: components["schemas"]["AiToolPermissionDto"][] | null;
             secretReference?: string | null;
         };
         UserTaskClaimRequestDto: {

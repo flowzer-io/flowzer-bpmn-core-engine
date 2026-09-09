@@ -41,7 +41,10 @@ public partial class PostgreSqlStorageIntegrationTest
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var id = Guid.NewGuid();
-        var initial = CreateAiConnection(id, "Revisioniert", 1, "env:FLOWZER_AI_FIRST");
+        var initial = CreateAiConnection(id, "Revisioniert", 1, "env:FLOWZER_AI_FIRST") with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        };
         await storage.AiConnectionStorage.TryCreate(initial);
         var updated = initial with
         {
@@ -51,8 +54,8 @@ public partial class PostgreSqlStorageIntegrationTest
         };
         await storage.AiConnectionStorage.TryUpdate(updated, 1);
 
-        (await storage.AiConnectionStorage.Get(id, 1)).Should().Be(initial);
-        (await storage.AiConnectionStorage.Get(id, 2)).Should().Be(updated);
+        (await storage.AiConnectionStorage.Get(id, 1)).Should().BeEquivalentTo(initial);
+        (await storage.AiConnectionStorage.Get(id, 2)).Should().BeEquivalentTo(updated);
         (await storage.AiConnectionStorage.Get(id))!.Revision.Should().Be(2);
     }
 

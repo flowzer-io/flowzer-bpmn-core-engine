@@ -16,7 +16,10 @@ public sealed class AiConnectionStorageTest
     public async Task FilesystemStorage_ShouldCompareAndSwapAiConnections()
     {
         using var context = new Context();
-        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST");
+        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST") with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        };
 
         (await context.Storage.AiConnectionStorage.TryCreate(initial)).Status.Should().Be(AiConnectionWriteStatus.Written);
         var updated = initial with { Name = "OpenAI EU", Revision = 2, SecretReference = "env:FLOWZER_AI_SECOND" };
@@ -26,7 +29,7 @@ public sealed class AiConnectionStorageTest
 
         stale.Status.Should().Be(AiConnectionWriteStatus.Conflict);
         stale.CurrentRevision.Should().Be(2);
-        (await context.Storage.AiConnectionStorage.Get(context.Id))!.Should().Be(updated);
+        (await context.Storage.AiConnectionStorage.Get(context.Id))!.Should().BeEquivalentTo(updated);
     }
 
     // Testzweck: Eine deployte Workflow-Version kann ihre exakt gebundene Verbindung auch
@@ -36,7 +39,10 @@ public sealed class AiConnectionStorageTest
     public async Task FilesystemStorage_ShouldKeepImmutableConnectionRevisions()
     {
         using var context = new Context();
-        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST");
+        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST") with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        };
         await context.Storage.AiConnectionStorage.TryCreate(initial);
         var updated = initial with
         {
@@ -46,8 +52,8 @@ public sealed class AiConnectionStorageTest
         };
         await context.Storage.AiConnectionStorage.TryUpdate(updated, 1);
 
-        (await context.Storage.AiConnectionStorage.Get(context.Id, 1)).Should().Be(initial);
-        (await context.Storage.AiConnectionStorage.Get(context.Id, 2)).Should().Be(updated);
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 1)).Should().BeEquivalentTo(initial);
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 2)).Should().BeEquivalentTo(updated);
         (await context.Storage.AiConnectionStorage.Get(context.Id, 3)).Should().BeNull();
     }
 

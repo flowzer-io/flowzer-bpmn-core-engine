@@ -13,6 +13,13 @@ public enum AiProcessingLocationDto
     Local
 }
 
+public sealed record AiToolPermissionDto
+{
+    public required string ToolId { get; init; }
+    public required int ToolVersion { get; init; }
+    public required bool AllowPreApproval { get; init; }
+}
+
 /// <summary>
 /// Sichere Browser- und Modellierprojektion einer KI-Verbindung. Weder Secret-Wert noch
 /// Secret-Referenz sind Teil dieses Antwortvertrags.
@@ -29,6 +36,7 @@ public sealed record AiConnectionDto
     public required bool Ready { get; init; }
     public required long Revision { get; init; }
     public required DateTimeOffset UpdatedAtUtc { get; init; }
+    public required IReadOnlyList<AiToolPermissionDto> AllowedTools { get; init; }
 }
 
 public sealed record CreateAiConnectionRequestDto
@@ -39,6 +47,7 @@ public sealed record CreateAiConnectionRequestDto
     public string? BaseAddress { get; init; }
     public required string DefaultModel { get; init; }
     public required string SecretReference { get; init; }
+    public IReadOnlyList<AiToolPermissionDto> AllowedTools { get; init; } = [];
 }
 
 public sealed record UpdateAiConnectionRequestDto
@@ -49,6 +58,7 @@ public sealed record UpdateAiConnectionRequestDto
     public required AiProcessingLocationDto Location { get; init; }
     public string? BaseAddress { get; init; }
     public required string DefaultModel { get; init; }
+    public IReadOnlyList<AiToolPermissionDto> AllowedTools { get; init; } = [];
 
     /// <summary>Leer beziehungsweise nicht gesetzt behaelt die bestehende Referenz.</summary>
     public string? SecretReference { get; init; }

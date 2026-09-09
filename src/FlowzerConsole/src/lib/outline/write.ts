@@ -387,6 +387,11 @@ function extensionXml(node: GraphNode, indent: string): string {
       })}>`,
       `${indent}    <flowzer:instruction>${escape(ai.instruction)}</flowzer:instruction>`,
       `${indent}    <flowzer:resultSchema>${escape(ai.resultSchema)}</flowzer:resultSchema>`,
+      ...ai.tools.map((tool) => `${indent}    <flowzer:tool${attributes({
+        id: tool.toolId,
+        version: tool.toolVersion,
+        approval: tool.approval,
+      })} />`),
       `${indent}  </flowzer:aiTask>`,
     );
   }

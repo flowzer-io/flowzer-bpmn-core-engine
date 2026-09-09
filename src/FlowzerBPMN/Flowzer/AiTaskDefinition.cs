@@ -14,4 +14,10 @@ public sealed record AiTaskDefinition(
     string ResultSchema,
     int MaxInputTokens,
     int MaxOutputTokens,
-    int TimeoutSeconds);
+    int TimeoutSeconds)
+{
+    /// <summary>
+    /// Explizit angeforderte Werkzeuge. Leer ist der vollständig kompatible bisherige Vertrag.
+    /// </summary>
+    public IReadOnlyList<AiTaskToolReference> Tools { get; init; } = [];
+}

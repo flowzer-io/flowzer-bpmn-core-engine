@@ -48,7 +48,7 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalCatchEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalThrowEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateTimerCatchEvent>(process, 1);
-            
+
             AssertFlowNodeOfTypes<SequenceFlow>(process, 21);
         });
 
@@ -349,6 +349,8 @@ public class ModelParserTest
                                      timeoutSeconds="45">
                       <flowzer:instruction>Classify the request.</flowzer:instruction>
                       <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+                      <flowzer:tool id="flowzer.directory.lookup" version="2" approval="automatic" />
+                      <flowzer:tool id="flowzer.message.send" version="1" approval="human" />
                     </flowzer:aiTask>
                     <zeebe:ioMapping>
                       <zeebe:input source="=request" target="request" />
@@ -376,6 +378,9 @@ public class ModelParserTest
             task.FlowzerAiTask.MaxInputTokens.Should().Be(4096);
             task.FlowzerAiTask.MaxOutputTokens.Should().Be(512);
             task.FlowzerAiTask.TimeoutSeconds.Should().Be(45);
+            task.FlowzerAiTask.Tools.Should().Equal(
+                new AiTaskToolReference("flowzer.directory.lookup", 2, AiToolApprovalMode.Automatic),
+                new AiTaskToolReference("flowzer.message.send", 1, AiToolApprovalMode.HumanRequired));
         }
     }
 

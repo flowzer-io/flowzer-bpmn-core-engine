@@ -12,7 +12,8 @@ namespace WebApiEngine.BusinessLogic;
 public class DefinitionBusinessLogic(
     ITransactionalStorageProvider storageProvider,
     ICurrentUserContextAccessor currentUserContextAccessor,
-    IAiSecretStore aiSecretStore)
+    IAiSecretStore aiSecretStore,
+    AiToolRegistry aiToolRegistry)
 {
     
     public async Task<BpmnDefinition> StoreDefinition(string rawContent, Guid? previousGuid, bool deploy = false)
@@ -36,7 +37,11 @@ public class DefinitionBusinessLogic(
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
 
-        await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
+        await AiTaskDeploymentValidator.ValidateAsync(
+            model,
+            storageSystem.AiConnectionStorage,
+            aiSecretStore,
+            aiToolRegistry);
 
         if (deploy)
         {

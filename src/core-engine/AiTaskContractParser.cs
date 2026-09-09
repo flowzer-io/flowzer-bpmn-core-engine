@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using BPMN.Flowzer;
 using core_engine.Exceptions;
@@ -16,6 +17,9 @@ internal static class AiTaskContractParser
     internal const string Namespace = "https://flowzer.io/schema/bpmn/1.0";
 
     private static readonly XNamespace FlowzerNamespace = Namespace;
+    private static readonly Regex ToolIdPattern = new(
+        "^[a-z0-9][a-z0-9._-]{0,99}$",
+        RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
     private static readonly HashSet<string> SupportedAttributes = new(StringComparer.Ordinal)
     {
         "contractVersion",
@@ -84,6 +88,7 @@ internal static class AiTaskContractParser
             "bpmn.ai_task.limit_invalid", elementId);
         var instruction = RequiredChildText(aiTask, "instruction", 20_000, elementId);
         var resultSchema = RequiredChildText(aiTask, "resultSchema", 50_000, elementId);
+        var tools = ParseTools(aiTask, elementId);
         ValidateResultSchema(resultSchema, elementId);
         ValidateMappings(extensionElements!, elementId);
 
@@ -96,7 +101,10 @@ internal static class AiTaskContractParser
             resultSchema,
             maxInputTokens,
             maxOutputTokens,
-            timeoutSeconds);
+            timeoutSeconds)
+        {
+            Tools = tools
+        };
     }
 
     private static string? TaskDefinitionType(XElement? extensionElements) => extensionElements?.Elements()
@@ -158,7 +166,7 @@ internal static class AiTaskContractParser
     {
         var unsupportedChild = aiTask.Elements()
             .FirstOrDefault(child => child.Name.Namespace != FlowzerNamespace
-                || child.Name.LocalName is not ("instruction" or "resultSchema"));
+                || child.Name.LocalName is not ("instruction" or "resultSchema" or "tool"));
         if (unsupportedChild is not null)
             throw Failure("bpmn.ai_task.child_unsupported", elementId,
                 $"extensionElements.aiTask.{unsupportedChild.Name.LocalName}",
@@ -179,6 +187,55 @@ internal static class AiTaskContractParser
                 $"extensionElements.aiTask.{childName}",
                 "The AI task value exceeds its supported length.");
         return value;
+    }
+
+    private static IReadOnlyList<AiTaskToolReference> ParseTools(XElement aiTask, string? elementId)
+    {
+        var elements = aiTask.Elements(FlowzerNamespace + "tool").ToArray();
+        if (elements.Length > 20)
+            throw Failure("bpmn.ai_task.tool_limit", elementId, "extensionElements.aiTask.tool",
+                "The AI task exceeds the supported tool reference limit.");
+
+        var tools = new List<AiTaskToolReference>(elements.Length);
+        var seenIds = new HashSet<string>(StringComparer.Ordinal);
+        for (var index = 0; index < elements.Length; index++)
+        {
+            var tool = elements[index];
+            var path = $"extensionElements.aiTask.tool[{index}]";
+            var unsupportedAttribute = tool.Attributes().FirstOrDefault(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && (attribute.Name.Namespace != XNamespace.None
+                    || attribute.Name.LocalName is not ("id" or "version" or "approval")));
+            if (unsupportedAttribute is not null || tool.HasElements || !string.IsNullOrWhiteSpace(tool.Value))
+                throw Failure("bpmn.ai_task.tool_contract_unsupported", elementId, path,
+                    "The AI tool reference contains unsupported data.");
+
+            var id = tool.Attribute("id")?.Value?.Trim();
+            if (id is null || !ToolIdPattern.IsMatch(id))
+                throw Failure("bpmn.ai_task.tool_id_invalid", elementId, $"{path}.id",
+                    "The AI tool id is invalid.");
+            if (!seenIds.Add(id))
+                throw Failure("bpmn.ai_task.tool_duplicate", elementId, $"{path}.id",
+                    "The AI task must not reference the same tool id more than once.");
+
+            if (!int.TryParse(tool.Attribute("version")?.Value, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out var version)
+                || version < 1)
+                throw Failure("bpmn.ai_task.tool_version_invalid", elementId, $"{path}.version",
+                    "The AI tool version must be a positive integer.");
+
+            var approval = tool.Attribute("approval")?.Value switch
+            {
+                "automatic" => AiToolApprovalMode.Automatic,
+                "human" => AiToolApprovalMode.HumanRequired,
+                "preApproved" => AiToolApprovalMode.PreApproved,
+                _ => throw Failure("bpmn.ai_task.tool_approval_invalid", elementId, $"{path}.approval",
+                    "The AI tool approval mode is invalid.")
+            };
+            tools.Add(new AiTaskToolReference(id, version, approval));
+        }
+
+        return tools;
     }
 
     private static void ValidateResultSchema(string schema, string? elementId)

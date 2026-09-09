@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Icon } from '@/components/ui/Icon';
-import { useAiConnections, useForms } from '@/lib/api/queries';
+import { useAiConnections, useAiTools, useForms } from '@/lib/api/queries';
 import { nodeTypeIcon, nodeTypeLabel } from '@/lib/bpmnModel';
 import { parseFormKey } from '@/lib/formKey';
 
@@ -70,6 +70,7 @@ export function BpmnProperties({
 
   const properties = editor && selectedId ? editor.read(selectedId) : null;
   const aiConnectionsQuery = useAiConnections({ enabled: properties?.serviceTaskMode === 'ai' });
+  const aiToolsQuery = useAiTools({ enabled: properties?.serviceTaskMode === 'ai' });
   const embeddedForms = editor?.listEmbeddedForms() ?? [];
   const formOwners = editor?.listFormOwners() ?? [];
   const storedFormNames = (formsQuery.data ?? []).map((form) => form.name);
@@ -150,6 +151,8 @@ export function BpmnProperties({
               {...section}
               connections={aiConnectionsQuery.data ?? []}
               connectionsUnavailable={aiConnectionsQuery.isError}
+              tools={aiToolsQuery.data ?? []}
+              toolsUnavailable={aiToolsQuery.isError}
             />
           )}
 

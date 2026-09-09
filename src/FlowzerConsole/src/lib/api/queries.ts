@@ -16,6 +16,7 @@ import {
   operationsApi,
   notificationsApi,
   aiConnectionsApi,
+  aiToolsApi,
 } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
@@ -46,6 +47,7 @@ import type {
   FormSectionVersionDto,
   SaveFormSectionAuthoringDraftRequestDto,
   AiConnectionDto,
+  AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
 } from './types';
@@ -94,6 +96,8 @@ export const queryKeys = {
 
   aiConnections: ['aiConnections'] as const,
   aiConnectionList: () => [...queryKeys.aiConnections, 'list'] as const,
+  aiTools: ['aiTools'] as const,
+  aiToolList: () => [...queryKeys.aiTools, 'list'] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -724,6 +728,15 @@ export function useAiConnections(options?: QueryTuning<AiConnectionDto[]>) {
     queryKey: queryKeys.aiConnectionList(),
     queryFn: ({ signal }) => aiConnectionsApi.list(signal),
     staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useAiTools(options?: QueryTuning<AiToolDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.aiToolList(),
+    queryFn: ({ signal }) => aiToolsApi.list(signal),
+    staleTime: 5 * 60_000,
     ...options,
   });
 }

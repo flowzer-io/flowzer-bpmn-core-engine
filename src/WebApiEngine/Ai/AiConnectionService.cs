@@ -15,7 +15,8 @@ public sealed class AiConnectionService(
     ICurrentUserContextAccessor currentUserAccessor,
     TimeProvider timeProvider,
     IOptions<FlowzerAiOptions> options,
-    IAiSecretStore secretStore)
+    IAiSecretStore secretStore,
+    AiToolRegistry toolRegistry)
 {
     private const int MaximumNameLength = 200;
     private const int MaximumModelLength = 200;
@@ -57,6 +58,7 @@ public sealed class AiConnectionService(
             request.BaseAddress,
             request.DefaultModel,
             request.SecretReference,
+            request.AllowedTools,
             enabled: true,
             revision: 1,
             actor);
@@ -92,6 +94,7 @@ public sealed class AiConnectionService(
             string.IsNullOrWhiteSpace(request.SecretReference)
                 ? current.SecretReference
                 : request.SecretReference,
+            request.AllowedTools,
             current.Enabled,
             checked(request.ExpectedRevision + 1),
             actor);
@@ -142,6 +145,7 @@ public sealed class AiConnectionService(
         string? baseAddress,
         string defaultModel,
         string secretReference,
+        IReadOnlyList<AiToolPermissionDto> allowedTools,
         bool enabled,
         long revision,
         Guid actor)
@@ -152,6 +156,7 @@ public sealed class AiConnectionService(
         var location = (AiProcessingLocation)locationDto;
         if (!EnvironmentAiSecretStore.IsValidReference(secretReference, _options))
             throw new ArgumentException("SecretReference is outside the configured environment namespace.", nameof(secretReference));
+        var permissions = NormalizeToolPermissions(allowedTools);
 
         return new AiConnection(
             RequireId(id),
@@ -164,7 +169,8 @@ public sealed class AiConnectionService(
             enabled,
             revision,
             timeProvider.GetUtcNow(),
-            actor);
+            actor,
+            permissions);
     }
 
     private async Task<AiConnectionDto> ToDto(AiConnection connection) => new()
@@ -178,8 +184,44 @@ public sealed class AiConnectionService(
         Enabled = connection.Enabled,
         Ready = connection.Enabled && await secretStore.ExistsAsync(connection.SecretReference),
         Revision = connection.Revision,
-        UpdatedAtUtc = connection.UpdatedAtUtc
+        UpdatedAtUtc = connection.UpdatedAtUtc,
+        AllowedTools = AiToolPermissionRules.Effective(connection)
+            .Select(permission => new AiToolPermissionDto
+            {
+                ToolId = permission.ToolId,
+                ToolVersion = permission.ToolVersion,
+                AllowPreApproval = permission.AllowPreApproval
+            })
+            .ToArray()
     };
+
+    private AiToolPermission[] NormalizeToolPermissions(
+        IReadOnlyList<AiToolPermissionDto>? requested)
+    {
+        var permissions = requested ?? [];
+        if (permissions.Count > 50)
+            throw new ArgumentException("The AI connection exceeds the supported tool permission limit.", nameof(requested));
+
+        var normalized = new List<AiToolPermission>(permissions.Count);
+        var seen = new HashSet<(string, int)>();
+        foreach (var permission in permissions)
+        {
+            ArgumentNullException.ThrowIfNull(permission);
+            var registered = toolRegistry.Find(permission.ToolId, permission.ToolVersion)
+                ?? throw new ArgumentException("The AI tool is not registered.", nameof(requested));
+            var key = (registered.Definition.Id, registered.Definition.Version);
+            if (!seen.Add(key))
+                throw new ArgumentException("The AI tool permission is duplicated.", nameof(requested));
+            if (permission.AllowPreApproval && !registered.Definition.AllowsPreApproval)
+                throw new ArgumentException("The AI tool does not allow pre-approval.", nameof(requested));
+            normalized.Add(new AiToolPermission(key.Id, key.Version, permission.AllowPreApproval));
+        }
+
+        return normalized
+            .OrderBy(permission => permission.ToolId, StringComparer.Ordinal)
+            .ThenBy(permission => permission.ToolVersion)
+            .ToArray();
+    }
 
     private static string Normalize(string value, int maximumLength, string parameterName)
     {
