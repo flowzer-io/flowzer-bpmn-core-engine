@@ -380,7 +380,7 @@ explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
 [Versionierter KI-Aufgabenvertrag](AI-TASKS.md).
 
 Die additive Elementart erschien erstmals in `flowzer.bpmn-capabilities/2`; Version 3
-aktiviert später die durch #252 belegte Runtime. Beide historischen Verträge bleiben
+aktiviert später die durch #252 / PR #253 belegte Runtime. Beide historischen Verträge bleiben
 unverändert im Repository.
 
 ## Provideradapter und Ergebnisschema – #244 / PR #245 (noch nicht gemergt)
@@ -401,7 +401,7 @@ lehnt ein Ziel strukturierte Ausgabe ab, erfolgt insbesondere kein Wechsel auf e
 Modell oder in die Cloud.
 
 Dieser damalige Baustein führte noch keinen Provideraufruf aus einem BPMN-Prozess aus. Der
-nachfolgende Slice #252 verbindet inzwischen persistente Läufe, Recovery und
+nachfolgende Slice #252 / PR #253 verbindet inzwischen persistente Läufe, Recovery und
 Engine-Fortschritt und hebt den Deployment-Blocker kontrolliert auf.
 
 ## Persistente KI-Laufzustände – #246 / PR #247 (noch nicht gemergt)
@@ -443,9 +443,9 @@ werden erneut validiert und samt Modell- und Tokenmessung als `ResultReady` gesp
 Nur feste temporäre Fehlercodes erhalten innerhalb des Laufbudgets einen begrenzten Retry;
 alle anderen Ausgänge werden Störungen. Lease-Verlust und Hostabbruch nach Aufrufmarkierung
 führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit waren in diesem
-Slice noch getrennt und folgen mit #252.
+Slice noch getrennt und folgen mit #252 / PR #253.
 
-## Atomare KI-Engine-Anbindung – #252 (in Umsetzung)
+## Atomare KI-Engine-Anbindung – #252 / PR #253 (noch nicht gemergt)
 
 Der BPMN-Fähigkeitsvertrag Version 3 gibt KI-Service-Tasks erst frei, nachdem das Deployment
 die aktuelle Verbindungsrevision und das effektive Modell unveränderlich an die Definition
@@ -491,7 +491,7 @@ ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollb
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
    persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
-   der Provider-Executor (#250 / PR #251) sowie die atomare Engine-Anbindung (#252) liegen
+   der Provider-Executor (#250 / PR #251) sowie die atomare Engine-Anbindung (#252 / PR #253) liegen
    vor; Werkzeugregistry, parametergebundene Freigaben, Testmodus und Störungsbedienung
    bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,

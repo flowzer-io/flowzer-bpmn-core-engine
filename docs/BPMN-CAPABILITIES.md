@@ -11,7 +11,7 @@ bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag un
 
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
 Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
-nicht ausführbar abgelehnt. KI-Service-Tasks sind seit #252 ausführbar, weil Deployment,
+nicht ausführbar abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
 persistenter Lauf, Recovery und Engine-Fortschritt nun denselben geprüften Vertrag verwenden.
 
 ## Öffentliche API

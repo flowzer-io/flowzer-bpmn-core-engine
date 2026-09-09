@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247, #250 / PR #251 und #252**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247, #250 / PR #251 und #252 / PR #253**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -114,7 +114,7 @@ statt eines blinden Retries eine Störung. Ein bereits validiertes Ergebnis samt
 Tokenmessung bleibt für die spätere Fortsetzung erhalten.
 
 Die Ablage wird durch #250 / PR #251 vom optionalen Hintergrund-Executor bis zum dauerhaft
-validierten Providerergebnis verwendet. #252 verbindet denselben Laufvertrag mit der
+validierten Providerergebnis verwendet. #252 / PR #253 verbindet denselben Laufvertrag mit der
 BPMN-Engine und entfernt erst damit den früheren Deployment-Blocker.
 
 ## Provider-Executor
@@ -145,7 +145,7 @@ verwenden ausschließlich simulierte HTTP-Handler und lösen keine abrechenbaren
 
 ## Engine-Anbindung und Atomizität
 
-#252 schließt den Laufzustand vertikal an die BPMN-Runtime an:
+#252 / PR #253 schließt den Laufzustand vertikal an die BPMN-Runtime an:
 
 - Jeder aktive KI-Token erzeugt genau einen internen `AiRun`; ein KI-Task erscheint niemals
   als Auftrag in der externen Worker-API.

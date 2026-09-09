@@ -63,7 +63,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
    Gliederung pflegbaren KI-Aufgabenvertrag. #244 / PR #245 liefert die providerneutrale
    HTTP-Aufrufschicht und das portable serverseitige Ergebnisschema; #246 bis #251 ergänzen
-   Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 bindet Verbindungsrevision und
+   Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 / PR #253 bindet Verbindungsrevision und
    Modell beim Deployment, erzeugt pro KI-Token genau einen Lauf und committed validierte
    Ergebnisse atomar mit der BPMN-Instanz. `flowzer.bpmn-capabilities/3` gibt den Task damit
    erstmals als ausführbar frei. Als Nächstes folgen typisierte Werkzeuge,

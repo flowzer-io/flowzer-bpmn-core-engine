@@ -283,7 +283,7 @@ und Abschluss bleiben identisch.
 
 - [x] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
   Verbindung, Modell, versionierte Anweisung, deklarierte Ein-/Ausgaben,
-  Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag; #252 bindet
+  Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag; #252 / PR #253 bindet
   Verbindungsrevision und Modell beim Deployment und gibt ihn mit
   `flowzer.bpmn-capabilities/3` als ausführbar frei. Die historischen Fähigkeitsverträge
   bleiben unverändert. Werkzeuge und Freigaben bleiben Folgeslices.
@@ -307,13 +307,13 @@ und Abschluss bleiben identisch.
   lokale Endpunkte nur mit expliziter administrativer Freigabe. #240 / PR #241 hält Secret-Wert
   und -Referenz bereits aus allen API-/Browserantworten und erlaubt lokale Ziele nur
   nach Installations-Opt-in. #242 / PR #243 lehnt Secret-Attribute im BPMN-Vertrag ab; die
-  #252 speichert auch in Definition und Lauf ausschließlich die opake Verbindungskennung
+  #252 / PR #253 speichert auch in Definition und Lauf ausschließlich die opake Verbindungskennung
   und Revision; die Secret-Referenz bleibt in der internen Verbindungshistorie und wird erst
   unmittelbar vor dem Provideraufruf aufgelöst. Werkzeuge bleiben ein eigener Folgeslice.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
   (#238; PR #239). #246 / PR #247 ergänzt dauerhafte KI-Laufzustände mit getrennten Provider-/
   Ergebnis-Claims, Revisionen und konservativer Recovery; der ausführende Hintergrunddienst
-  folgt mit #250 / PR #251 bis zum validierten `ResultReady`. #252 erzeugt den Lauf aus dem
+  folgt mit #250 / PR #251 bis zum validierten `ResultReady`. #252 / PR #253 erzeugt den Lauf aus dem
   BPMN-Token und committed das Ergebnis zusammen mit Instanz, Subscriptions und Historie;
   die vollständige Störungsbedienung bleibt offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
