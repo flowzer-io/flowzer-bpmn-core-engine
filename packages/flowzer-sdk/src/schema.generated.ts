@@ -2207,6 +2207,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/{instanceId}/subscription/messages": {
         parameters: {
             query?: never;
@@ -4003,6 +4051,28 @@ export interface components {
             instance?: string | null;
         } & {
             [key: string]: unknown;
+        };
+        ProcessHistoryDto: {
+            /** Format: uuid */
+            instanceId: string;
+            events: components["schemas"]["ProcessHistoryEventDto"][] | null;
+        };
+        ProcessHistoryDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ProcessHistoryDto"];
+        };
+        ProcessHistoryEventDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userTaskId: string;
+            flowNodeId: string | null;
+            action: string | null;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            occurredAtUtc: string;
         };
         ProcessInstanceInfoDto: {
             /** Format: uuid */

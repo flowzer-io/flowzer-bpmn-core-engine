@@ -275,8 +275,9 @@ Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application
 
 Objektbezogene Instanzprojektionen beschränken Antragsteller und aktuell berechtigte
 Bearbeiter auf den benötigten Kontext; Diagnose verlangt die konfigurierte
-Operator-Fähigkeit. Weitere feldbezogene Rechte, Aufgabenrevisionen und belastbare
-Historie bleiben offene Pakete. Was jemand am Katalog *ändern* darf, richtet sich
+Operator-Fähigkeit. Die erste belastbare Vorgangshistorie liefert ausschließlich
+datensparsame Human-Task-Lifecycle-Fakten; weitere Ereignisarten und feldbezogene
+Rechte bleiben offene Pakete. Was jemand am Katalog *ändern* darf, richtet sich
 zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei
 konfigurierter `RequiredRole` der Identity Provider über die Rollenzuweisung. Ohne
 `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit
@@ -309,8 +310,9 @@ bestehenden JSON-Token-Dokumenten erforderlich.
 Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
 eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
 ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
-die direkten HTTP-Starts und -Abschlüsse; eine append-only Audit-Historie und der
-allgemeine Mehrprozessschutz bleiben weitere M0/M6-Pakete. Instanzrechte und das
+die direkten HTTP-Starts und -Abschlüsse. Der Human-Task-Lifecycle besitzt eine
+append-only Auditspur mit objektberechtigter Minimalprojektion; der allgemeine
+Mehrprozessschutz bleibt ein weiteres M6-Paket. Instanzrechte und das
 begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
 `Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
 Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
@@ -770,6 +772,8 @@ derselben Transaktion geschrieben; beim Taskende wird nur der aktuelle Zustand k
 die Auditspur bleibt erhalten. Die Dateiablage bietet dafür ebenfalls nur
 Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Grenzen:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+Die indexierte, datensparsame Instanzabfrage ist unter
+[Append-only Vorgangshistorie](PROCESS-HISTORY.md) dokumentiert.
 
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 

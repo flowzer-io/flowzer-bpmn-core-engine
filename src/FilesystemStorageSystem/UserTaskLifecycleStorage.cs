@@ -80,6 +80,28 @@ internal sealed class UserTaskLifecycleStorage(Storage storage) : IUserTaskLifec
         return result.OrderBy(item => item.Revision).ToArray();
     }
 
+    public async Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId)
+    {
+        // Die Dateiablage ist nur der Entwicklungsadapter. Sie hat keinen sekundären Index und
+        // liest daher die unveränderlichen Eventdateien einmal ein; PostgreSQL nutzt dafür eine
+        // indexierte Instanzspalte.
+        var result = new List<UserTaskAssignmentEvent>();
+        foreach (var file in Directory.EnumerateFiles(_path, "event_*.json"))
+        {
+            var content = await File.ReadAllTextAsync(file);
+            var item = JsonConvert.DeserializeObject<UserTaskAssignmentEvent>(content, storage.NewtonSoftDefaultSettings)
+                       ?? throw new InvalidDataException("Stored user-task audit event is empty.");
+            if (item.ProcessInstanceId == processInstanceId) result.Add(item);
+        }
+
+        return result
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.UserTaskId)
+            .ThenBy(item => item.Revision)
+            .ThenBy(item => item.Id)
+            .ToArray();
+    }
+
     internal void DeleteState(Guid userTaskId) => StorageFile.DeleteIfExists(StateFile(userTaskId));
 
     private bool TaskExists(Guid userTaskId) =>

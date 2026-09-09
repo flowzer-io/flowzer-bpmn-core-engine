@@ -43,7 +43,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
    genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
    Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
-   folgen.
+   folgen. #226 stellt als ersten Historienbaustein die vorhandene append-only
+   Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
+   Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
@@ -66,6 +68,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Tasks die öffentlichen Pakete; BFF, Form.io und Development-Details bleiben
   ausschließlich Console-Adapter. Ein konkreter externer Host ist nicht Bestandteil
   von Flowzer.
+- [x] **#226 – Human-Task-Vorgangshistorie:** Die bestehende append-only Auditspur
+  ist nach Instanz indexiert, objektberechtigt und über SDK sowie Console als
+  datensparsame Minimalprojektion verfügbar. Vollständige Engine-Historie folgt.
 
 ## Vorhandenes nicht neu bauen
 

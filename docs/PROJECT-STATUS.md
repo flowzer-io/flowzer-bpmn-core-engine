@@ -256,6 +256,16 @@ PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Audi
 dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
 
+## Append-only Human-Task-Vorgangshistorie – #226 (noch nicht gemergt)
+
+Die vorhandene Lifecycle-Auditspur lässt sich indexiert nach Prozessinstanz lesen und
+bleibt auch nach dem Taskende erhalten. Der neue History-Vertrag veröffentlicht nur
+Ereignis-/Task-ID, Flow-Node, Aktion, Revision und Zeitpunkt; interne Personen-,
+Begründungs-, Korrelations-, Variablen- und Formulardaten verlassen den Server nicht.
+Sichtbarkeit verwendet die zentrale Instanz-Objektberechtigung. SDK, React-Schicht und
+Console nutzen denselben hostneutralen Vertrag. Details:
+[Append-only Vorgangshistorie](PROCESS-HISTORY.md).
+
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
@@ -293,8 +303,8 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
    serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
    Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
-   vor (#202–#224). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
-   Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   vor (#202–#226). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
+   Engine-Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
@@ -303,7 +313,7 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
 
 Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 111 Engine-,
-674 API-/Storage-, 301 Konsolen-, 13 SDK- und 15 React-Pakettests. Der vollständige UX-Audit und die erste
+680 API-/Storage-, 302 Konsolen-, 14 SDK- und 16 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

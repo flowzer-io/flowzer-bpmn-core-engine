@@ -11,6 +11,24 @@ export type DirectorySubjectSearchResult = components['schemas']['DirectorySubje
 
 export type ProcessVariables = Record<string, unknown>;
 
+/** Ein datensparsamer, serverseitig autorisierter Eintrag im Prozessverlauf. */
+export type ProcessHistoryAction = 'claim' | 'release' | 'assign' | 'delegate' | 'complete';
+
+export interface ProcessHistoryEntry {
+  id: string;
+  userTaskId: string;
+  flowNodeId: string;
+  action: ProcessHistoryAction;
+  revision: number;
+  occurredAtUtc: string;
+}
+
+/** Öffentliche History-Projektion einer Prozessinstanz. */
+export interface ProcessHistory {
+  instanceId: string;
+  events: ProcessHistoryEntry[];
+}
+
 /** Eingabe für den idempotenten Abschluss einer offenen Human Task. */
 export interface CompleteUserTaskCommand {
   flowNodeId: string;

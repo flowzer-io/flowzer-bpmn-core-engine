@@ -14,6 +14,7 @@ import type {
   FlowzerCompletionOptions,
   FlowzerForm,
   ProcessInstance,
+  ProcessHistory,
   ReleaseUserTaskCommand,
   SaveUserTaskDraftCommand,
   TaskAssigneeSearchOptions,
@@ -102,6 +103,27 @@ export function useInstanceStatus(instanceId: string, options: FlowzerQueryOptio
       ? {}
       : { refetchInterval: options.refetchInterval }),
   });
+}
+
+/** Lädt die datensparsame History erst, wenn die einbettende Oberfläche sie freischaltet. */
+export function useInstanceHistory(instanceId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const enabled = Boolean(instanceId) && (options.enabled ?? true);
+  const query = useQuery<ProcessHistory, Error>({
+    queryKey: flowzerQueryKeys.instanceHistory(cacheNamespace, sessionScope, instanceId),
+    queryFn: ({ signal }) => client.instances.history(instanceId, { signal }),
+    enabled,
+    ...(options.refetchInterval === undefined ? {} : { refetchInterval: options.refetchInterval }),
+  });
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!enabled) queryClient.removeQueries({
+      queryKey: flowzerQueryKeys.instanceHistory(cacheNamespace, sessionScope, instanceId),
+    });
+  }, [cacheNamespace, enabled, instanceId, queryClient, sessionScope]);
+  // Deaktivierte Observer können ihren letzten Wert noch bis zum nächsten internen
+  // Query-Update halten. Die öffentliche Projektion schließt deshalb synchron fail-closed.
+  return enabled ? query : { ...query, data: undefined };
 }
 
 /** Lädt zuerst den sichtbaren Task und erst danach dessen arbeitsberechtigte Inhalte. */

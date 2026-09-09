@@ -36,6 +36,29 @@ public class InstancePrivacyIntegrationTest
         (await foreign.Content.ReadAsStringAsync()).Should().Be(await missing.Content.ReadAsStringAsync());
     }
 
+    // Testzweck: Der neue Historienvertrag verwendet Problem Details, verrät aber
+    // anhand von Status, Titel und Detail nicht, ob eine fremde Instanz existiert.
+    [Test]
+    public async Task ForeignHistory_ShouldBeIndistinguishableFromMissingHistory()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var task = await context.StartAsync("assignee=\"anna\"");
+        using var client = context.CreateClient();
+
+        using var foreign = await client.GetAsync($"/instance/{task.ProcessInstanceId}/history");
+        using var missing = await client.GetAsync($"/instance/{Guid.NewGuid()}/history");
+
+        foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        missing.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        foreign.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        var foreignProblem = await foreign.Content.ReadFromJsonAsync<JsonElement>();
+        var missingProblem = await missing.Content.ReadFromJsonAsync<JsonElement>();
+        foreignProblem.GetProperty("title").GetString().Should()
+            .Be(missingProblem.GetProperty("title").GetString());
+        foreignProblem.GetProperty("detail").GetString().Should()
+            .Be(missingProblem.GetProperty("detail").GetString());
+    }
+
     // Testzweck: Listen dürfen keine fremden Vorgänge und keine durch Modellierungsrechte
     // erschlichenen Personalvorgänge enthalten.
     [TestCase(false)]
@@ -133,6 +156,71 @@ public class InstancePrivacyIntegrationTest
         completion.EnsureSuccessStatusCode();
         using var after = await client.GetAsync($"/instance/{task.ProcessInstanceId}");
         after.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        using var history = await client.GetAsync($"/instance/{task.ProcessInstanceId}/history");
+        history.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // Testzweck: Die erste append-only Vorgangshistorie liefert nur stabile,
+    // datensparsame Task-Lifecycle-Fakten und keinerlei interne Personen- oder Formulardaten.
+    [Test]
+    public async Task History_ShouldReturnMinimalLifecycleEventsAfterTaskCompletion()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var task = await context.StartAsync("candidateGroups=\"review\"");
+        using var worker = context.CreateClient(username: "bert");
+        using var operation = context.CreateClient(isOperator: true, username: "operator");
+        (await worker.PostAsJsonAsync($"/usertask/{task.Id}/claim", new { expectedRevision = 0 }))
+            .EnsureSuccessStatusCode();
+        (await worker.PostAsJsonAsync($"/usertask/{task.Id}/release", new
+        {
+            expectedRevision = 1,
+            reason = "Vertraulicher interner Grund"
+        })).EnsureSuccessStatusCode();
+        (await worker.PostAsJsonAsync($"/usertask/{task.Id}/claim", new { expectedRevision = 2 }))
+            .EnsureSuccessStatusCode();
+        var completion = ResultFor(task);
+        completion.ExpectedTaskRevision = 3;
+        (await worker.PostAsJsonAsync("/usertask", completion)).EnsureSuccessStatusCode();
+
+        using var response = await operation.GetAsync($"/instance/{task.ProcessInstanceId}/history");
+
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync();
+        var payload = JsonSerializer.Deserialize<JsonElement>(json).GetProperty("result");
+        payload.GetProperty("instanceId").GetGuid().Should().Be(task.ProcessInstanceId!.Value);
+        var events = payload.GetProperty("events").EnumerateArray().ToArray();
+        events.Select(item => item.GetProperty("action").GetString())
+            .Should().Equal("claim", "release", "claim", "complete");
+        events.Should().OnlyContain(item =>
+            item.GetProperty("userTaskId").GetGuid() == task.Id
+            && item.GetProperty("flowNodeId").GetString() == "Review");
+        json.Should().NotContain("Vertraulicher interner Grund")
+            .And.NotContain("actorUserId")
+            .And.NotContain("ownerKey")
+            .And.NotContain("displayName")
+            .And.NotContain("correlationId")
+            .And.NotContain("variables")
+            .And.NotContain("formData");
+    }
+
+    // Testzweck: Ein verifizierter Initiator darf die minimale fachliche Historie
+    // seines abgeschlossenen Vorgangs lesen, ohne dadurch technische Tokens zu erhalten.
+    [Test]
+    public async Task Initiator_ShouldKeepMinimalHistoryAfterCompletion()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await context.DeployAsync("assignee=\"anna\"");
+        using var owner = context.CreateClient();
+        var instanceId = await StartWithAsync(owner);
+        var task = (await context.Storage.SubscriptionStorage.GetAllUserTasks(instanceId)).Single();
+        using var operation = context.CreateClient(isOperator: true, username: "operator");
+        (await operation.PostAsJsonAsync("/usertask", ResultFor(task))).EnsureSuccessStatusCode();
+
+        var history = await owner.GetFromJsonAsync<ApiStatusResult<ProcessHistoryDto>>(
+            $"/instance/{instanceId}/history");
+
+        history!.Result!.InstanceId.Should().Be(instanceId);
+        history.Result.Events.Should().ContainSingle().Which.Action.Should().Be("complete");
     }
 
     // Testzweck: Technische und historische Instanzen ohne verifizierten Initiator dürfen

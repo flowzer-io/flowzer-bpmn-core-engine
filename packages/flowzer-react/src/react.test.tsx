@@ -9,6 +9,7 @@ import {
   clearFlowzerScope,
   flowzerQueryKeys,
   useFlowzer,
+  useInstanceHistory,
   useTaskFormData,
   useUserTaskActions,
   useUserTasks,
@@ -70,6 +71,32 @@ describe('@flowzer/react', () => {
 
     expect(queryClient.getQueryData(oldKey)).toBeUndefined();
     expect(queryClient.getQueryData(otherKey)).toEqual([{ id: 'other' }]);
+  });
+
+  // Testzweck: Die Historie wird erst nach Freischaltung durch die einbettende Oberfläche
+  // geladen und bei einem Entzug vollständig aus dem Sitzungscache entfernt.
+  it('lädt die History nur nach Freischaltung und entfernt sie bei Entzug', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      instanceId: 'instance-1',
+      events: [],
+    }));
+    const { queryClient, wrapper } = setup(fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useInstanceHistory('instance-1', { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(result.current.isFetching).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.instanceId).toBe('instance-1'));
+    expect(fetch).toHaveBeenCalledOnce();
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(
+      flowzerQueryKeys.instanceHistory('installation-a', 'session-a', 'instance-1'),
+    )).toBeUndefined());
   });
 
   // Testzweck: Ohne serverseitiges Arbeitsrecht lädt der Arbeitsbereich weder

@@ -155,6 +155,28 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
   });
 
+  // Testzweck: Die History bleibt eine minimale, serverseitig berechtigte Projektion
+  // und wird als eigener, hostneutraler Vertrag über den Instanzpfad geladen.
+  it('lädt die Prozesshistorie mit sicher kodierter Instanz-ID', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        instanceId: 'instance/id', events: [{
+          id: 'history-1', userTaskId: 'task-1', flowNodeId: 'Review',
+          action: 'complete', revision: 3, occurredAtUtc: '2026-09-09T10:00:00Z',
+        }],
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await expect(client.instances.history('instance/id', { signal: controller.signal })).resolves.toMatchObject({
+      events: [{ flowNodeId: 'Review', revision: 3 }],
+    });
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance%2Fid/history');
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
   // Testzweck: Der SDK erzeugt niemals stillschweigend einen Ersatzschlüssel und
   // verwirft ungültige Idempotenzwerte, bevor eine Mutation den Server erreicht.
   it('weist ungültige Idempotenzschlüssel vor dem Request zurück', async () => {

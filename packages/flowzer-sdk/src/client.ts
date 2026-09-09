@@ -9,6 +9,7 @@ import type {
   FlowzerCompletionOptions,
   FlowzerForm,
   ProcessInstance,
+  ProcessHistory,
   ReleaseUserTaskCommand,
   SaveUserTaskDraftCommand,
   TaskAssigneeSearchOptions,
@@ -127,6 +128,10 @@ export class FlowzerClient {
 
     get: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessInstance> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}`, options),
+
+    /** Lädt die serverseitig berechtigte, datensparsame Prozesshistorie. */
+    history: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessHistory> =>
+      this.transport.statusResult(`/instance/${segment(instanceId)}/history`, options),
   };
 
   private taskAction<TCommand>(

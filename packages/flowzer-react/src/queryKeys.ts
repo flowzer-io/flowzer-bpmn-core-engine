@@ -15,6 +15,8 @@ export const flowzerQueryKeys = {
     [...flowzerQueryKeys.scope(cacheNamespace, sessionScope), 'instances'] as const,
   instance: (cacheNamespace: string, sessionScope: string, instanceId: string) =>
     [...flowzerQueryKeys.instances(cacheNamespace, sessionScope), instanceId] as const,
+  instanceHistory: (cacheNamespace: string, sessionScope: string, instanceId: string) =>
+    [...flowzerQueryKeys.instance(cacheNamespace, sessionScope, instanceId), 'history'] as const,
 };
 
 /** Entfernt beim Host-Logout die Daten genau einer früheren Sitzung aus dem QueryClient. */

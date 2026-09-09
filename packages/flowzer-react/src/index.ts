@@ -17,6 +17,7 @@ export { useTaskFormData } from './formState.js';
 export type { TaskFormDataState } from './formState.js';
 export {
   useInstanceStatus,
+  useInstanceHistory,
   useUserTask,
   useUserTaskActions,
   useUserTasks,

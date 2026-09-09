@@ -103,14 +103,32 @@ internal sealed class PostgreSqlUserTaskLifecycleStorage(PostgreSqlSession sessi
             return result;
         });
 
+    public Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId) =>
+        session.RunAsync<IReadOnlyList<UserTaskAssignmentEvent>>(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction, """
+                SELECT body FROM {schema}.user_task_assignment_events
+                WHERE process_instance_id = @processInstanceId
+                ORDER BY occurred_at, user_task_id, revision, id
+                """);
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            await using var reader = await command.ExecuteReaderAsync();
+            var result = new List<UserTaskAssignmentEvent>();
+            while (await reader.ReadAsync()) result.Add(StorageJson.Deserialize<UserTaskAssignmentEvent>(reader.GetString(0)));
+            return result;
+        });
+
     private async Task InsertEvent(NpgsqlConnection connection, NpgsqlTransaction? transaction, UserTaskAssignmentEvent item)
     {
         await using var command = session.CreateCommand(connection, transaction, """
-            INSERT INTO {schema}.user_task_assignment_events (id, user_task_id, revision, occurred_at, body)
-            VALUES (@id, @taskId, @revision, @occurredAt, @body)
+            INSERT INTO {schema}.user_task_assignment_events
+                (id, user_task_id, process_instance_id, revision, occurred_at, body)
+            VALUES (@id, @taskId, @processInstanceId, @revision, @occurredAt, @body)
             """);
         command.Parameters.AddWithValue("id", item.Id);
         command.Parameters.AddWithValue("taskId", item.UserTaskId);
+        command.Parameters.AddWithValue("processInstanceId", NpgsqlDbType.Uuid,
+            item.ProcessInstanceId is { } processInstanceId ? processInstanceId : DBNull.Value);
         command.Parameters.AddWithValue("revision", item.Revision);
         command.Parameters.AddWithValue("occurredAt", item.OccurredAtUtc);
         command.Parameters.AddWithValue("body", StorageJson.Serialize(item));
