@@ -30,6 +30,20 @@ describe('FlowzerClient', () => {
     expect(init?.credentials).toBe('omit');
   });
 
+  // Testzweck: Auch eine sehr lange Folge abschließender Schrägstriche wird linear
+  // normalisiert und landet nicht in einem rückverfolgenden regulären Ausdruck.
+  it('normalisiert viele abschließende Schrägstriche ohne den Requestpfad zu verändern', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: [],
+    }));
+    const client = new FlowzerClient({ baseUrl: `/api${'/'.repeat(20_000)}`, fetch });
+
+    await client.userTasks.list();
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask');
+  });
+
   // Testzweck: Cookiegebundene Einbettungen senden bei Mutationen nur den vom Host
   // gelieferten CSRF-Header und niemals zusätzlich einen Bearer-Token.
   it('schützt Cookie-Mutationen mit einem hostseitigen CSRF-Callback', async () => {

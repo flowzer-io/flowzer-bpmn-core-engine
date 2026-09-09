@@ -13,7 +13,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    gestapelte PRs umgesetzt. #188 ist der laufende, noch nicht nach `main` gemergte
    BFF-Slice: vertraulicher OIDC-Code-Flow, `HttpOnly`/`Secure`-Cookies,
    `X-Flowzer-CSRF`, persistenter API-Keyring und kompatibler externer Bearer-Vertrag.
-   Bis Merge und HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
+   #222 härtet zusätzlich die offenen CodeQL-Befunde, konkrete Storage-Dokumente,
+   Logausgaben und Codegeneratoren ohne Suppression. Bis Merge, grünem CodeQL und
+   HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
 2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
    generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe. Der erste
    M1-Slice #190 / PR #191 implementiert den atomaren, lesenden Keycloak-Abgleich samt

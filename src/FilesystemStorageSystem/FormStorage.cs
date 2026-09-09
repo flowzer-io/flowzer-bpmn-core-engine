@@ -1,5 +1,4 @@
 using Model;
-using Newtonsoft.Json;
 using StorageSystem;
 using System.Collections.Concurrent;
 using Version = Model.Version;
@@ -48,7 +47,7 @@ public class FormStorage : IFormStorage
     {
         EnsureDirectoryCreated();
         var fullFileName = GetMetaFilePath(formMetadata.FormId);
-        var data = JsonConvert.SerializeObject(formMetadata, _storage.NewtonSoftDefaultSettings);
+        var data = SafeStorageJson.Serialize(formMetadata);
         await StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
@@ -57,7 +56,7 @@ public class FormStorage : IFormStorage
         EnsureDirectoryCreated();
         var fullFileName = GetMetaFilePath(formId);
         var data = File.ReadAllText(fullFileName);
-        return Task.FromResult(JsonConvert.DeserializeObject<FormMetadata>(data, _storage.NewtonSoftDefaultSettings)!);
+        return Task.FromResult(SafeStorageJson.Deserialize<FormMetadata>(data));
     }
 
     public Task<IEnumerable<FormMetadata>> GetFormMetadatas()
@@ -65,7 +64,7 @@ public class FormStorage : IFormStorage
         EnsureDirectoryCreated();
 
         var metadatas = StorageFile.ReadExistingFiles(_metaPath, "*.json")
-            .Select(entry => JsonConvert.DeserializeObject<FormMetadata>(entry.Content, _storage.NewtonSoftDefaultSettings)!)
+            .Select(entry => SafeStorageJson.Deserialize<FormMetadata>(entry.Content))
             .ToList();
 
         return Task.FromResult<IEnumerable<FormMetadata>>(metadatas);
@@ -116,7 +115,7 @@ public class FormStorage : IFormStorage
                     $"Published form '{form.FormId}' already contains ID '{form.Id}' or version {form.Version}.");
 
             var fullFileName = Path.Combine(_basePath, $"{form.FormId}_{form.Id}.json");
-            var data = JsonConvert.SerializeObject(form, _storage.NewtonSoftDefaultSettings);
+            var data = SafeStorageJson.Serialize(form);
             await StorageFile.WriteAllTextNewAtomicAsync(fullFileName, data);
         }
         catch (IOException)
@@ -135,14 +134,14 @@ public class FormStorage : IFormStorage
             throw new FileNotFoundException("Form not found with id: " + id);
 
         var data = File.ReadAllText(fullFileName);
-        return Task.FromResult(JsonConvert.DeserializeObject<Form>(data, _storage.NewtonSoftDefaultSettings)!);
+        return Task.FromResult(SafeStorageJson.Deserialize<Form>(data));
     }
 
     public Task<IEnumerable<Form>> GetForms(Guid formId)
     {
         EnsureDirectoryCreated();
         var forms = StorageFile.ReadExistingFiles(_basePath, GetFormSearchPattern(formId))
-            .Select(entry => JsonConvert.DeserializeObject<Form>(entry.Content, _storage.NewtonSoftDefaultSettings)!)
+            .Select(entry => SafeStorageJson.Deserialize<Form>(entry.Content))
             .ToList();
 
         return Task.FromResult<IEnumerable<Form>>(forms);

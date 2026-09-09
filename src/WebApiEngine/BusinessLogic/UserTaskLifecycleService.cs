@@ -39,7 +39,7 @@ public sealed class UserTaskLifecycleService(
         string? reason,
         SubjectRefDto? target)
     {
-        if (expectedRevision < 0) throw Validation("expectedRevision", "revision.invalid");
+        ValidateExpectedRevision(expectedRevision);
         var currentUser = currentUserAccessor.GetCurrentUser();
         currentUser.RequireResolvedUserId("changing a user-task assignment");
         var principal = httpContextAccessor.HttpContext?.User
@@ -238,6 +238,20 @@ public sealed class UserTaskLifecycleService(
 
     private static FormSubmissionException Validation(string field, string code) =>
         new(new Dictionary<string, string[]> { [field] = [code] });
+
+    private static void ValidateExpectedRevision(long expectedRevision)
+    {
+        try
+        {
+            // Der Standard-Guard verhindert einen usergesteuerten Bypass vor der
+            // Autorisierung; die Umwandlung erhaelt den bisherigen 422-Vertrag.
+            ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision, nameof(expectedRevision));
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw Validation("expectedRevision", "revision.invalid");
+        }
+    }
 }
 
 public sealed class UserTaskLifecycleConflictException(long expectedRevision, long currentRevision)

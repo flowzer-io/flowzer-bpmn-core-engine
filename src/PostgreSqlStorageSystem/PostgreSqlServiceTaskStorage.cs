@@ -14,7 +14,7 @@ namespace PostgreSqlStorageSystem;
 /// </summary>
 internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : IServiceTaskStorage
 {
-    private const string JobColumns = "body, locked_until, locked_by, retry_at, retries, last_error";
+    private const string JobColumns = "body, token_id, locked_until, locked_by, retry_at, retries, last_error";
 
     public Task SaveJob(ServiceTaskJob job) => session.RunAsync(async (connection, transaction) =>
     {
@@ -133,7 +133,7 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
             """);
         command.Parameters.AddWithValue("id", webhook.Id);
         command.Parameters.AddWithValue("type", webhook.Type);
-        command.Parameters.AddWithValue("body", StorageJson.Serialize(webhook));
+        command.Parameters.AddWithValue("body", StorageJson.SerializeConcrete(webhook));
         await command.ExecuteNonQueryAsync();
     });
 
@@ -142,7 +142,9 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
         await using var command = session.CreateCommand(connection, transaction,
             "SELECT body FROM {schema}.service_task_webhooks WHERE id = @id");
         command.Parameters.AddWithValue("id", webhookId);
-        return await command.ExecuteScalarAsync() is string body ? StorageJson.Deserialize<ServiceTaskWebhook>(body) : null;
+        return await command.ExecuteScalarAsync() is string body
+            ? StorageJson.DeserializeConcrete<ServiceTaskWebhook>(body)
+            : null;
     });
 
     public Task<IEnumerable<ServiceTaskWebhook>> GetWebhooks() => session.RunAsync(async (connection, transaction) =>
@@ -153,7 +155,7 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            webhooks.Add(StorageJson.Deserialize<ServiceTaskWebhook>(reader.GetString(0)));
+            webhooks.Add(StorageJson.DeserializeConcrete<ServiceTaskWebhook>(reader.GetString(0)));
         }
 
         return (IEnumerable<ServiceTaskWebhook>)webhooks;
@@ -172,14 +174,14 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
         command.Parameters.AddWithValue("id", job.Id);
         command.Parameters.AddWithValue("type", job.Type);
         command.Parameters.AddWithValue("instanceId", job.ProcessInstanceId);
-        command.Parameters.AddWithValue("tokenId", job.Token.Id);
+        command.Parameters.AddWithValue("tokenId", job.TokenId);
         AddTimestamp(command, "createdAt", job.CreatedAt);
         AddTimestamp(command, "lockedUntil", job.LockedUntil);
         command.Parameters.AddWithValue("lockedBy", (object?)job.LockedBy ?? DBNull.Value).NpgsqlDbType = NpgsqlDbType.Text;
         AddTimestamp(command, "retryAt", job.RetryAt);
         command.Parameters.AddWithValue("retries", job.Retries);
         command.Parameters.AddWithValue("lastError", (object?)job.LastErrorMessage ?? DBNull.Value).NpgsqlDbType = NpgsqlDbType.Text;
-        command.Parameters.AddWithValue("body", StorageJson.Serialize(job));
+        command.Parameters.AddWithValue("body", StorageJson.SerializeConcrete(job));
     }
 
     /// <summary>Der Vergabezustand kommt aus den Spalten, nicht aus dem gespeicherten Koerper.</summary>
@@ -189,12 +191,17 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var job = StorageJson.Deserialize<ServiceTaskJob>(reader.GetString(0));
-            job.LockedUntil = reader.IsDBNull(1) ? null : reader.GetDateTime(1);
-            job.LockedBy = reader.IsDBNull(2) ? null : reader.GetString(2);
-            job.RetryAt = reader.IsDBNull(3) ? null : reader.GetDateTime(3);
-            job.Retries = reader.GetInt32(4);
-            job.LastErrorMessage = reader.IsDBNull(5) ? null : reader.GetString(5);
+            var body = reader.GetString(0);
+            var job = StorageJson.DeserializeConcrete<ServiceTaskJob>(body);
+            job.TokenId = reader.GetGuid(1);
+            if (string.IsNullOrWhiteSpace(job.FlowNodeId))
+                job.FlowNodeId = StorageJson.ReadLegacyString(body, "Token", "CurrentBaseElement", "Id")
+                                 ?? string.Empty;
+            job.LockedUntil = reader.IsDBNull(2) ? null : reader.GetDateTime(2);
+            job.LockedBy = reader.IsDBNull(3) ? null : reader.GetString(3);
+            job.RetryAt = reader.IsDBNull(4) ? null : reader.GetDateTime(4);
+            job.Retries = reader.GetInt32(5);
+            job.LastErrorMessage = reader.IsDBNull(6) ? null : reader.GetString(6);
             jobs.Add(job);
         }
 

@@ -33,6 +33,33 @@ public class UserTaskStorageTest
         single.DefinitionVersion.Should().Be(fromList.DefinitionVersion);
     }
 
+    // Testzweck: Die Datei einer User-Task speichert nur skalare Subscriptiondaten und
+    // stabile Tokenreferenzen; polymorphe CLR-Typnamen dürfen nicht erneut hineingelangen.
+    [Test]
+    public async Task UserTaskDocument_ShouldRoundTripWithoutPolymorphicTypeMetadata()
+    {
+        using var context = new UserTaskStorageTestContext();
+        var wanted = await context.AddUserTask("Freigabe");
+
+        var path = Path.Combine(
+            context.StorageRoot,
+            "FileStorage",
+            "MessageSubscriptions",
+            $"usertask_{wanted.Id}.json");
+        var persisted = await File.ReadAllTextAsync(path);
+        var instance = await context.Storage.InstanceStorage.GetProcessInstance(
+            wanted.ProcessInstanceId!.Value);
+        var restored = await context.SubscriptionStorage.GetUserTaskExtended(wanted.Id);
+
+        persisted.Should().NotContain("$type");
+        instance.Tokens.Should().ContainSingle(token => token.Id == wanted.Token.Id);
+        instance.Tokens.Single().CurrentFlowNode.Should().BeOfType<UserTask>();
+        restored.Should().NotBeNull();
+        restored!.Token.Id.Should().Be(wanted.Token.Id);
+        restored.Token.CurrentFlowNode.Should().BeOfType<UserTask>()
+            .Which.Implementation.Should().Be("Formular");
+    }
+
     // Testzweck: Eine unbekannte Id ist kein Fehler, sondern schlicht kein Treffer.
     [Test]
     public async Task GetUserTaskExtended_ShouldReturnNull_WhenTheTaskDoesNotExist()
@@ -63,6 +90,7 @@ public class UserTaskStorageTest
         }
 
         public Storage Storage { get; }
+        public string StorageRoot => _storageRoot;
         public StorageSystem.IMessageSubscriptionStorage SubscriptionStorage { get; }
 
         public async Task<UserTaskSubscription> AddUserTask(string name)
@@ -71,23 +99,39 @@ public class UserTaskStorageTest
 
             var userTask = new UserTask { Id = "UserTask_1", Name = name, Implementation = "Formular" };
             var process = new Process { Id = "Process_1", Name = "P", DefinitionsId = "D", IsExecutable = true, FlowElements = [userTask] };
+            var instanceId = Guid.NewGuid();
             var subscription = new UserTaskSubscription
             {
                 Id = Guid.NewGuid(),
                 Name = name,
                 Token = new Token
                 {
-                    ProcessInstanceId = Guid.NewGuid(),
+                    ProcessInstanceId = instanceId,
                     CurrentBaseElement = userTask,
                     ActiveBoundaryEvents = [],
                     State = FlowNodeState.Active
                 },
                 MetaDefinitionId = MetaDefinitionId,
                 DefinitionId = _definitionId,
-                ProcessId = process.Id
+                ProcessId = process.Id,
+                ProcessInstanceId = instanceId
             };
 
             await SubscriptionStorage.AddUserTaskSubscription(subscription);
+            await Storage.InstanceStorage.AddOrUpdateInstance(new StorageSystem.ProcessInstanceInfo
+            {
+                InstanceId = subscription.Token.ProcessInstanceId,
+                metaDefinitionId = MetaDefinitionId,
+                DefinitionId = _definitionId,
+                ProcessId = process.Id,
+                Tokens = [subscription.Token],
+                IsFinished = false,
+                State = ProcessInstanceState.Waiting,
+                MessageSubscriptionCount = 0,
+                SignalSubscriptionCount = 0,
+                UserTaskSubscriptionCount = 1,
+                ServiceSubscriptionCount = 0
+            });
             return subscription;
         }
 

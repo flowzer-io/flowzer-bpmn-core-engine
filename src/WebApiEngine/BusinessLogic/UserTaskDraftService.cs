@@ -34,8 +34,7 @@ public sealed class UserTaskDraftService(
         SaveUserTaskDraftRequestDto requestDto)
     {
         ArgumentNullException.ThrowIfNull(requestDto);
-        if (requestDto.ExpectedRevision < 0)
-            throw new ArgumentException("ExpectedRevision must not be negative.", nameof(requestDto));
+        ValidateExpectedRevision(requestDto.ExpectedRevision, nameof(requestDto));
 
         var request = await GetRequestContext();
         using var storage = storageProvider.GetTransactionalStorage();
@@ -79,8 +78,7 @@ public sealed class UserTaskDraftService(
         long expectedRevision,
         long? expectedTaskRevision = null)
     {
-        if (expectedRevision < 0)
-            throw new ArgumentException("ExpectedRevision must not be negative.", nameof(expectedRevision));
+        ValidateExpectedRevision(expectedRevision, nameof(expectedRevision));
         var request = await GetRequestContext();
         using var storage = storageProvider.GetTransactionalStorage();
         if (!await LockTaskIfSupported(storage, userTaskId)) return false;
@@ -96,6 +94,20 @@ public sealed class UserTaskDraftService(
             throw new UserTaskDraftConflictException(expectedRevision, result.CurrentRevision);
         storage.CommitChanges();
         return true;
+    }
+
+    private static void ValidateExpectedRevision(long expectedRevision, string parameterName)
+    {
+        try
+        {
+            // Der Standard-Guard ist fuer die Eingabegrenze statisch erkennbar; die
+            // Umwandlung bewahrt den bestehenden HTTP-Fehlervertrag fuer Entwuerfe.
+            ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision, parameterName);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new ArgumentException("ExpectedRevision must not be negative.", parameterName);
+        }
     }
 
     private async Task<(CurrentUserContext User, bool CanOperate)> GetRequestContext()

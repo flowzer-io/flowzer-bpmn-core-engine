@@ -42,7 +42,9 @@ export class FlowzerTransport {
     if (!options.baseUrl || options.baseUrl.trim().length === 0) {
       throw new TypeError('baseUrl is required.');
     }
-    this.baseUrl = options.baseUrl.replace(/\/+$/, '');
+    let baseUrlEnd = options.baseUrl.length;
+    while (baseUrlEnd > 0 && options.baseUrl[baseUrlEnd - 1] === '/') baseUrlEnd -= 1;
+    this.baseUrl = options.baseUrl.slice(0, baseUrlEnd);
     this.fetch = options.fetch ?? globalThis.fetch;
     if (typeof this.fetch !== 'function') throw new TypeError('A fetch implementation is required.');
     this.auth = options.auth;

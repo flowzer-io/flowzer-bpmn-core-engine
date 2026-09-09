@@ -48,7 +48,12 @@ public sealed class ServiceTaskJobService(
 
             if (claimed.Count > 0)
             {
-                logger.LogInformation("{Count} Auftraege vom Typ {Type} an Worker {Worker} vergeben.", claimed.Count, type, workerId);
+                // Typ und Worker-Kennung stammen aus Eingaben. Sie werden bewusst nicht
+                // protokolliert; Job- und Benutzerkennung genuegen zur Korrelation.
+                logger.LogInformation(
+                    "{Count} Auftraege an Benutzer {WorkerUserId} vergeben.",
+                    claimed.Count,
+                    userId);
             }
 
             return claimed;
@@ -123,9 +128,12 @@ public sealed class ServiceTaskJobService(
             await storage.ServiceTaskStorage.SaveJob(job);
             storage.CommitChanges();
 
+            // Die vollstaendige Worker-Meldung bleibt in der geschuetzten Betriebssicht.
+            // Freitext gehoert weder wegen Log-Forging noch wegen Datenminimierung ins Log.
             logger.LogWarning(
-                "Auftrag {JobId} vom Typ {Type} gescheitert ({Retries} Versuche verbleiben): {Error}",
-                job.Id, job.Type, job.Retries, errorMessage);
+                "Auftrag {JobId} gescheitert ({Retries} Versuche verbleiben).",
+                job.Id,
+                job.Retries);
 
             return JobOperationResult.Ok;
         }

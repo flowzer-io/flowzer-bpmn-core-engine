@@ -3,9 +3,10 @@
 ## Ergebnis
 
 Dreiundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
-implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
-umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
-kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
+implementiert und lokal getestet; ein vierundzwanzigster Security-Slice ist in Arbeit.
+Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
+Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
+produktiver Benutzer oder Datenbanken.
 
 | Teilpaket | Ergebnis | PR |
 | --- | --- | --- |
@@ -32,6 +33,7 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Entscheidungsaktionen | `flowzer.forms/4` bindet fachliche Human-Task-Aktionen an den veröffentlichten Snapshot; Browserwerte können feste Belegungen nicht ändern, die Konsole rendert und pflegt den Vertrag. | [#217](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/217) |
 | Headless-TypeScript-SDK | `@flowzer/sdk` kapselt Aufgaben, Formulare, Entwürfe, Aktionen, gebundene Verzeichnissuche und Vorgangsstatus ohne Host- oder UI-Abhängigkeit; ein objektberechtigter Task-Deep-Link ergänzt den OpenAPI-Vertrag. | [#219](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/219) |
 | React-Integrationsbausteine | `@flowzer/react` ergänzt darstellungsfreie Hooks und Controller mit sicheren Installations-/Sitzungs-Caches, bewusst nicht wiederholten Task-Mutationen und neutralem Formularadapter; eine unabhängige Host-Fixture kompiliert ausschließlich gegen öffentliche Pakete. | [#221](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/221) |
+| CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | #222, PR folgt |
 
 Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
@@ -41,12 +43,12 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Aktuelle lokale .NET-Suite einschließlich #218: **111 Engine + 661 API-/Storage-Tests bestanden**,
+- Aktuelle lokale .NET-Suite einschließlich #222: **111 Engine + 674 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Profil 4: **288 Tests**, Typecheck und Build erfolgreich;
+- React-Konsole einschließlich Security-Codegenerator: **289 Tests**, Typecheck und Build erfolgreich;
   Lint ohne Fehler, acht bestehende Warnungen.
-- Headless-SDK: **12 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
+- Headless-SDK: **13 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
   Paket-Trockenlauf und npm-Audit ohne Befund erfolgreich.
 - React-Integrationspaket: **9 Tests**, Typecheck, Build, Paket-Trockenlauf und
   npm-Audit ohne Befund; eine unabhängige Host-Fixture kompiliert erfolgreich gegen
@@ -58,19 +60,17 @@ abschließenden Astra-/High-Gesamtreview.
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
   `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
   Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
-- Der verlangte abschließende **Astra-/High-Review** lief direkt als strikt lesender
-  Subagent. Drei Befunde wurden umgesetzt: unklare Datei-Commits behalten ihre offene
-  Reservierung, mathematisch gleiche JSON-Zahlen erhalten denselben Hash und der
-  Projektstatus unterscheidet korrekt zwischen Wiederholungen mit/ohne Header.
-  Zusätzliche Fault-Injection-, PostgreSQL-Rollback- und Retentionstests sichern die
-  Korrekturen. Der Re-Review meldete **keine blockierenden Findings**. Als spätere
-  Härtung bleiben weitere Zahlenvektoren/-größenlimits und ein auditierter Klärungsweg
-  für offene Reservierungen dokumentiert.
-- Ein zusätzlich verlangter direkter **Astra-/High-Review des BFF-Slices** fand und
+- Frühere gezielte Astra-/High-Teilreviews prüften Idempotenz und den BFF-Slice.
+  Beim Idempotenzpfad wurden offene Dateireservierungen, mathematisch gleiche
+  JSON-Zahlen sowie der Projektstatus korrigiert und durch Fault-Injection-,
+  PostgreSQL-Rollback- und Retentionstests abgesichert. Der BFF-Teilreview fand und
   behob die an das Access-Token gebundene, nicht gleitende Sitzungsdauer, Logout für
   angemeldete Konten ohne Fachrolle, fehlgeschlagene Logout-Anzeige sowie abgeschaltete
   BFF-Routen. Negativtests decken Signatur und CSRF ab. Unmittelbarer Provider-Widerruf
   vor Tokenablauf, echter Keycloak-Code-Flow und Keyring-Restore bleiben Abnahmen.
+- Der vereinbarte **finale Astra-/High-Gesamtreview aller M0–M6-Punkte ist noch nicht
+  erfolgt**. Er findet erst nach Abschluss der Implementierung statt und darf nicht
+  durch die früheren Teilreviews ersetzt werden.
 
 ## Bewahrte Produktentscheidungen
 

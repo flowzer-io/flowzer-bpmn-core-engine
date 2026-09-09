@@ -277,7 +277,7 @@ public partial class BpmnBusinessLogic(
 
         // Auftraege zu Tokens, die nicht mehr warten, sind erledigt oder abgebrochen.
         var activeTokenIds = activeTokens.Select(token => token.Id).ToHashSet();
-        foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.Token.Id)))
+        foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.TokenId)))
         {
             await storageSystem.ServiceTaskStorage.RemoveJob(obsolete.Id);
         }
@@ -293,7 +293,7 @@ public partial class BpmnBusinessLogic(
 
         foreach (var token in activeTokens)
         {
-            if (existing.Any(job => job.Token.Id == token.Id))
+            if (existing.Any(job => job.TokenId == token.Id))
             {
                 continue;
             }
@@ -304,7 +304,8 @@ public partial class BpmnBusinessLogic(
                 Id = Guid.NewGuid(),
                 Type = serviceTask.Implementation,
                 Name = serviceTask.Name,
-                Token = token,
+                TokenId = token.Id,
+                FlowNodeId = serviceTask.Id,
                 ProcessInstanceId = processInstanceId.Value,
                 MetaDefinitionId = metaDefinitionId,
                 DefinitionId = definitionId,
@@ -518,11 +519,11 @@ public partial class BpmnBusinessLogic(
             var instance = new InstanceEngine(processInstance.Tokens);
             instance.InstanceId = job.ProcessInstanceId;
 
-            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.Token.Id);
+            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.TokenId);
             if (activeToken is null)
             {
                 throw new ArgumentException(
-                    $"The service task token \"{job.Token.Id}\" is not active for process instance \"{job.ProcessInstanceId}\".",
+                    $"The service task token \"{job.TokenId}\" is not active for process instance \"{job.ProcessInstanceId}\".",
                     nameof(job));
             }
 

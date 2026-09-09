@@ -1,7 +1,8 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
 **Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#218 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+#220 sowie der laufende Security-Slice #222 liegen in noch nicht nach `main`
+gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -25,6 +26,17 @@ keine aktuelle Liste noch fehlender Funktionen.
 - Eingebettete/externe Aufgabenformulare, Startformulare und BPMN-Gliederungsansicht.
 - Reproduzierbare .NET-/Frontend-CI, OpenAPI-Snapshot, Testzweckprüfung,
   Container-/Compose-Setup, Health-/Diagnose- und Telemetriegrundlagen.
+
+## CodeQL- und Storage-Härtung – #222 (laufend, noch nicht gemergt)
+
+Der Slice beseitigt die offenen CodeQL-Befunde ohne Suppression: konkrete
+Dateidokumente lesen keine CLR-Typnamen mehr, Worker-Jobs duplizieren keinen
+polymorphen Token, SDK-URL-Normalisierung und Icon-Codegenerierung sind gegen
+pathologische beziehungsweise ausbrechende Eingaben abgesichert und Betriebslogs
+übernehmen keine freien Worker-/Pfadinhalte. Negative Revisionswerte behalten ihre
+bisherigen HTTP-Fehlerverträge. Prozessinstanzen und BPMN-Definitionen verbleiben
+vorerst in einer gesonderten polymorphen Legacy-Grenze; die Dateiablage bleibt
+Einzelprozess-Entwicklung. Details: [CodeQL- und Storage-Härtung](CODEQL-STORAGE-HARDENING.md).
 
 ## Aktuelles M0-Teilpaket – PR #177
 
