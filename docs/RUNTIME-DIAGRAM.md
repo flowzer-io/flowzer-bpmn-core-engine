@@ -1,7 +1,7 @@
 # Objektberechtigtes Laufzeitdiagramm
 
 **Stand:** 9. September 2026  
-**Issue/PR:** #232 / #233 sowie #235 / noch ohne PR
+**Issue/PR:** #232 / #233 sowie #235 / #236
 
 ## Zweck und Sicherheitsgrenze
 

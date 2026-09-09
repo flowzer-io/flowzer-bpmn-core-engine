@@ -46,7 +46,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Transport. #228 / PR #229 ergänzt die zentrale versionierte BPMN-Fähigkeitsmatrix, gemeinsame
    Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. #232 / PR #233 ergänzt
    das objektberechtigte Laufzeitdiagramm mit exakt gebundener, bereinigter BPMN-Version
-   und append-only Engine-Ereignisspur. #235 ergänzt gezählte statt überlagerter
+   und append-only Engine-Ereignisspur. #235 / PR #236 ergänzt gezählte statt überlagerter
    Laufzeitmarker sowie den getrennten Blick auf Prozessvariablen und persistierte
    Knotenein-/ausgaben. Der vollständige UX-Audit folgt. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
@@ -85,7 +85,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   von Ausführungsdaten bereinigte BPMN-Version, verdichtete Knotenstatus sowie eine
   echte Zeitleiste über API, SDK, React-Schicht und responsive Console. Eine lineare
   „Schritt x von y“-Anzeige wird nicht mehr behauptet.
-- [x] **#235 – Markerzählung und technische Instanzdaten:** Parallele Token am selben
+- [x] **#235 / PR #236 – Markerzählung und technische Instanzdaten:** Parallele Token am selben
   aktiven Knoten erscheinen als ein Kreis mit Anzahl. Der Master-Token liefert den
   aktuellen Prozessscope; pro ausgewähltem Knoten bleiben gebundene Input- und
   Output-Snapshots aller Ausführungen getrennt sichtbar. Fehlende historische

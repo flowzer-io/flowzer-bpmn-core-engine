@@ -300,7 +300,7 @@ zeigt Diagramm, Statuslegende, tastaturbedienbare Knotenliste und echte
 Ereigniszeitleiste responsiv; die fachlich falsche lineare Fortschrittsanzeige ist
 entfernt. Details: [Laufzeitdiagramm](RUNTIME-DIAGRAM.md).
 
-## Gezählt markierte Ausführungen und Instanzdaten – #235 (noch ohne PR)
+## Gezählt markierte Ausführungen und Instanzdaten – #235 / PR #236 (noch nicht gemergt)
 
 Mehrere Token am selben aktiven BPMN-Knoten werden in Diagramm und Klartextliste
 als eine verdichtete Anzahl angezeigt, statt deckungsgleiche Punkte zu zeichnen.
