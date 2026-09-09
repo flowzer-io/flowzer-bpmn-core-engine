@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245 und #246**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245 und #246 / PR #247**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -100,7 +100,7 @@ Budgets nicht nachweisen und verwirft die Antwort als unvollständig.
 
 ## Persistenter Laufzustand
 
-#246 ergänzt vor der eigentlichen Ausführung einen dauerhaften Zustandsvertrag. Genau ein
+#246 / PR #247 ergänzt vor der eigentlichen Ausführung einen dauerhaften Zustandsvertrag. Genau ein
 Lauf gehört zu einem Prozessinstanz-/Tokenpaar. Sein unveränderlicher Snapshot bindet
 Verbindungsrevision, Modell, Anweisungsversion, deklarierte Eingaben, Ergebnisschema und
 Limits, enthält aber weder Secret-Wert noch Secret-Referenz.

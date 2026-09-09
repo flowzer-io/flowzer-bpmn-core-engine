@@ -404,7 +404,7 @@ Dieser Baustein führt noch keinen Provideraufruf aus einem BPMN-Prozess aus. KI
 bleiben nicht deploybar, bis persistente Läufe, Recovery und Engine-Fortschritt gemeinsam
 implementiert sind.
 
-## Persistente KI-Laufzustände – #246 (noch nicht gemergt)
+## Persistente KI-Laufzustände – #246 / PR #247 (noch nicht gemergt)
 
 Ein stabiler Lauf wird eindeutig an Prozessinstanz und Engine-Token gebunden. Der
 unveränderliche Snapshot enthält Verbindung und Revision, Modell, Anweisungsversion,
@@ -449,7 +449,7 @@ des Deployment-Blockers.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
-   persistente Laufzustand (#246) liegen vor; Executor und Werkzeugfreigaben bleiben offen.
+   persistente Laufzustand (#246 / PR #247) liegen vor; Executor und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 

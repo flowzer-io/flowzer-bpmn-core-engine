@@ -106,7 +106,7 @@ Entwicklungsweg ohne Mehrprozess- oder Rollbackversprechen.
 ## Folgeschritte
 
 Provideradapter, ein portables Ergebnisschema, die KI-Task-Erweiterung und der dauerhafte
-Laufzustand (#246) liegen als getrennte Slices vor. DNS-Auflösungsschutz für
+Laufzustand (#246 / PR #247) liegen als getrennte Slices vor. DNS-Auflösungsschutz für
 benutzerdefinierte Cloudziele, Hintergrund-Executor, Werkzeugregistry, Freigaben, Kosten
 und Testmodus folgen in eigenen Paketen. Erst diese Bausteine ergeben gemeinsam eine
 ausführbare KI-Task-Runtime.

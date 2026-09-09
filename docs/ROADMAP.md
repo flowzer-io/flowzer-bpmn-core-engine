@@ -123,7 +123,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Installations-Opt-in und Secret werden ohne Fallback erneut geprüft. Fremde Antworten
   müssen das begrenzte Schema-Profil `flowzer.ai-result-schema/1` serverseitig erfüllen.
   Die persistente KI-Laufzeit bleibt der nächste notwendige Slice.
-- [x] **#246 – Persistente KI-Laufzustände:** Ein unveränderlicher Auftragssnapshot,
+- [x] **#246 / PR #247 – Persistente KI-Laufzustände:** Ein unveränderlicher Auftragssnapshot,
   eindeutige Tokenbindung, Revisionen, atomare Provider-/Ergebnis-Claims, Lease-Verlängerung
   und konservative Recovery liegen in Dateiablage und PostgreSQL vor. Unklare Provider-
   oder Engine-Ausgänge werden angehalten statt blind wiederholt. Der Executor und damit die
