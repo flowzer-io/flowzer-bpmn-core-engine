@@ -36,7 +36,7 @@ produktiver Benutzer oder Datenbanken.
 | CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | [#223](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/223) |
 | Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR #225 |
 | Task-Vorgangshistorie | Die append-only Lifecycle-Auditspur ist nach Instanz indexiert, objektberechtigt, datensparsam und über API, SDK, React-Schicht sowie Console lesbar. | #226 / PR #227 |
-| BPMN-Fähigkeiten | Der versionierte, hostneutrale Vertrag trennt modellierbar, parsebar und ausführbar; Vorabprüfung, Save und Deploy erzwingen dieselben Graph-/Konfigurationsregeln, Diagramm und Gliederung machen Befunde anwählbar. | #228 / PR folgt |
+| BPMN-Fähigkeiten | Der versionierte, hostneutrale Vertrag trennt modellierbar, parsebar und ausführbar; Vorabprüfung, Save und Deploy erzwingen dieselben Graph-/Konfigurationsregeln, Diagramm und Gliederung machen Befunde anwählbar. | #228 / PR #229 |
 
 Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und

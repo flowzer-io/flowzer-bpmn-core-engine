@@ -40,7 +40,7 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #228 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
+**Aktiver Slice:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
 dieselbe serverseitige Vorab-/Save-/Deploy-Prüfung. Diagramm und Gliederung zeigen
 strukturierte Befunde dauerhaft und springen zum betroffenen Element. Die bereits
 umgesetzten SDK-/React-Pakete und die Flowzer-Konsole bleiben frei von konkreten Hosts.
@@ -253,13 +253,13 @@ und Abschluss bleiben identisch.
   Formularpflege, Modellierung und Störungsbehandlung, mit visueller Evidenz.
 - [ ] BPMN bleibt führend; Gliederung und Diagramm verwenden gemeinsame Eigenschaften
   für Formulare, Identitäten, Fristen, Datenzuordnung, Konnektoren und KI.
-- [x] Unterstützte Teilmenge zentral deklarieren; #228 trennt modellierbare, parsebare
+- [x] Unterstützte Teilmenge zentral deklarieren; #228 / PR #229 trennt modellierbare, parsebare
   und ausführbare Elemente in `flowzer.bpmn-capabilities/1` und erzwingt den Vertrag
   vor Save und Deployment. Verlustbehaftete Gliederungsänderungen bleiben zusätzlich
   durch deren bestehende Teilmengenprüfung blockiert.
 - [x] Anwählbare Validierungsfehler für unerreichbare Schritte, ungültige Referenzen,
   Exclusive-Gateway-Bedingungen sowie fehlende User-/Service-/Timer-Konfiguration.
-  Diagramm und Gliederung verwenden denselben stabilen 422-Vertrag aus #228.
+  Diagramm und Gliederung verwenden denselben stabilen 422-Vertrag aus #228 / PR #229.
 - [ ] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
   abgebrochene und gestörte Schritte. Kein scheinexaktes „Schritt x von y“ bei
   offenen Verzweigungen.

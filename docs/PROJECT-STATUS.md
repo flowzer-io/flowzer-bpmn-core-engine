@@ -265,7 +265,7 @@ Sichtbarkeit verwendet die zentrale Instanz-Objektberechtigung. SDK, React-Schic
 Console nutzen denselben hostneutralen Vertrag. Details:
 [Append-only Vorgangshistorie](PROCESS-HISTORY.md).
 
-## Zentrale BPMN-Fähigkeiten – #228 / PR folgt (noch nicht gemergt)
+## Zentrale BPMN-Fähigkeiten – #228 / PR #229 (noch nicht gemergt)
 
 `flowzer.bpmn-capabilities/1` trennt modellierbare, parsebare und tatsächlich
 ausführbare BPMN-Elementarten. Vorabprüfung, Save und Deploy erzwingen dieselbe
