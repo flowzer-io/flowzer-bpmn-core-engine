@@ -293,7 +293,7 @@ und Abschluss bleiben identisch.
 - [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
   lokale Endpunkte nur mit expliziter administrativer Freigabe.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
-  (#238; PR folgt). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
+  (#238; PR #239). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
   Störungsbehandlung bleiben offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
   Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.

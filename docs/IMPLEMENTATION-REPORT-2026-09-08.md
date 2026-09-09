@@ -41,9 +41,9 @@ produktiver Benutzer oder Datenbanken.
 | Laufzeitdiagramm | Die objektberechtigte Betriebssicht liefert gebundene, bereinigte BPMN-Struktur, verdichtete Knotenstatus und append-only Engine-Ereignisse ohne scheinexakte lineare Fortschrittszahl. | #232 / PR #233 |
 | Marker und technische Schrittdaten | Mehrere aktive Token am selben Knoten werden gezählt; Prozessvariablen sowie persistierte Ein-/Ausgaben einzelner Knotenausführungen sind getrennt in der Operatoransicht sichtbar. | #235 / PR #236 |
 | Historische Identitätsauflösung | Gespeicherte Benutzer-/Gruppenreferenzen werden nur im autorisierten Kontext als begrenzter Batch aufgelöst; Aktivität und heutige Auswählbarkeit bleiben getrennt. | #234 / PR #237 |
-| Worker-Lease-Verlängerung | Lang laufende Service-Task-Worker verlängern ihre noch gültige Lease besitzergebunden; PostgreSQL prüft und aktualisiert atomar, abgelaufene oder fremde Leases bleiben gesperrt. | #238 / PR folgt |
+| Worker-Lease-Verlängerung | Lang laufende Service-Task-Worker verlängern ihre noch gültige Lease besitzergebunden; PostgreSQL prüft und aktualisiert atomar, abgelaufene oder fremde Leases bleiben gesperrt. | #238 / PR #239 |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → PR zu #238**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → 239**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem

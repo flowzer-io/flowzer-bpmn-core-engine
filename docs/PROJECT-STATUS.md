@@ -338,7 +338,7 @@ Der Slice liefert keine E-Mail-/Push-/Chat-Zustellung, keine automatische Delega
 und keine BPMN-Eskalationspropagation. Der eigene Operations-Diagnoseblock für den
 Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme bleiben offen.
 
-## Verlängerbare Worker-Leases – #238 (PR folgt)
+## Verlängerbare Worker-Leases – #238 ([PR #239](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/239))
 
 Lang laufende Service-Task-Worker können ihre noch gültige Lease über einen eigenen
 Heartbeat verlängern. Der Besitz bleibt an authentifizierte Person und Worker-Kennung
