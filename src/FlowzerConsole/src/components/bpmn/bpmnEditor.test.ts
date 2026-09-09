@@ -105,7 +105,9 @@ describe('setServiceTaskMode', () => {
       timeoutSeconds: '60',
     });
     expect((aiTask.instruction as ModdleElement).body).toBe('');
-    expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object","properties":{}}');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe(
+      '{"type":"object","properties":{},"additionalProperties":false}',
+    );
   });
 
   it('schreibt einzelne KI-Felder und ihre Textkinder, ohne die übrigen Werte zu verlieren', () => {

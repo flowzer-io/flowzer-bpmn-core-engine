@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.Extensions.Options;
 using Model;
 using StorageSystem;
@@ -151,13 +150,6 @@ public sealed class AiConnectionService(
         if (!Enum.IsDefined(locationDto)) throw new ArgumentException("Location is not supported.", nameof(locationDto));
         var provider = (AiProviderKind)providerDto;
         var location = (AiProcessingLocation)locationDto;
-        if (location == AiProcessingLocation.Cloud && !_options.AllowCloudProviders)
-            throw new ArgumentException("Cloud AI providers are not enabled for this installation.", nameof(location));
-        if (location == AiProcessingLocation.Local && !_options.AllowLocalEndpoints)
-            throw new ArgumentException("Local AI endpoints are not enabled for this installation.", nameof(location));
-        if (provider is AiProviderKind.OpenAi or AiProviderKind.Anthropic
-            && location != AiProcessingLocation.Cloud)
-            throw new ArgumentException("This provider is available only as an explicit cloud connection.", nameof(location));
         if (!EnvironmentAiSecretStore.IsValidReference(secretReference, _options))
             throw new ArgumentException("SecretReference is outside the configured environment namespace.", nameof(secretReference));
 
@@ -166,73 +158,13 @@ public sealed class AiConnectionService(
             Normalize(name, MaximumNameLength, nameof(name)),
             provider,
             location,
-            NormalizeBaseAddress(provider, location, baseAddress),
+            AiConnectionSecurityPolicy.ValidateAndNormalizeTarget(provider, location, baseAddress, _options),
             Normalize(defaultModel, MaximumModelLength, nameof(defaultModel)),
             secretReference,
             enabled,
             revision,
             timeProvider.GetUtcNow(),
             actor);
-    }
-
-    private static string? NormalizeBaseAddress(
-        AiProviderKind provider,
-        AiProcessingLocation location,
-        string? value)
-    {
-        if (provider is AiProviderKind.OpenAi or AiProviderKind.Anthropic)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-                throw new ArgumentException("BaseAddress is fixed for this provider.", nameof(value));
-            return null;
-        }
-
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
-            || uri.Scheme is not ("http" or "https")
-            || !string.IsNullOrEmpty(uri.UserInfo)
-            || !string.IsNullOrEmpty(uri.Query)
-            || !string.IsNullOrEmpty(uri.Fragment))
-            throw new ArgumentException("BaseAddress must be an absolute HTTP(S) URL without credentials, query or fragment.", nameof(value));
-
-        if (location == AiProcessingLocation.Cloud)
-        {
-            if (uri.Scheme != Uri.UriSchemeHttps || IsLocalHost(uri.Host))
-                throw new ArgumentException("Cloud BaseAddress must use HTTPS and a non-local host.", nameof(value));
-        }
-
-        return uri.AbsoluteUri.TrimEnd('/');
-    }
-
-    private static bool IsLocalHost(string host)
-    {
-        if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
-            || host.EndsWith(".localhost", StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (!IPAddress.TryParse(host, out var address)) return false;
-        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
-        if (IPAddress.IsLoopback(address)) return true;
-        if (address.Equals(IPAddress.Any)
-            || address.Equals(IPAddress.IPv6Any)
-            || address.Equals(IPAddress.None)
-            || address.Equals(IPAddress.IPv6None)
-            || address.IsIPv6Multicast)
-            return true;
-        var bytes = address.GetAddressBytes();
-        return address.AddressFamily switch
-        {
-            System.Net.Sockets.AddressFamily.InterNetwork =>
-                bytes[0] == 10
-                || bytes[0] == 127
-                || bytes[0] == 169 && bytes[1] == 254
-                || bytes[0] == 172 && bytes[1] is >= 16 and <= 31
-                || bytes[0] == 192 && bytes[1] == 168,
-            System.Net.Sockets.AddressFamily.InterNetworkV6 =>
-                address.IsIPv6LinkLocal
-                || address.IsIPv6SiteLocal
-                // RFC 4193 Unique Local Addresses (fc00::/7).
-                || (bytes[0] & 0xfe) == 0xfc,
-            _ => true
-        };
     }
 
     private async Task<AiConnectionDto> ToDto(AiConnection connection) => new()

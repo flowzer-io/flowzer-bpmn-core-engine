@@ -357,6 +357,7 @@ public class BpmnCapabilityMatrixTest
     // das spätere Providerantworten deterministisch prüfen kann.
     [TestCase("not-json", "bpmn.ai_task.result_schema_invalid")]
     [TestCase("{&quot;type&quot;:&quot;string&quot;}", "bpmn.ai_task.result_schema_object_required")]
+    [TestCase("{&quot;type&quot;:&quot;object&quot;,&quot;$ref&quot;:&quot;https://example.test/schema&quot;}", "bpmn.ai_task.result_schema_unsupported")]
     public void ValidateForDeployment_ShouldRejectInvalidAiTaskResultSchema(string schema, string code)
     {
         var xml = AiTask().Replace(

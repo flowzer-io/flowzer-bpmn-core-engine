@@ -61,8 +61,10 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
    getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
    Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
-   Gliederung pflegbaren KI-Aufgabenvertrag. Er ist bis zum Provider-/Runtime-Slice
-   bewusst speicherbar, aber nicht deploybar.
+   Gliederung pflegbaren KI-Aufgabenvertrag. Er ist bis zur persistenten Runtime bewusst
+   speicherbar, aber nicht deploybar. #244 ergänzt bereits die providerneutrale HTTP-
+   Aufrufschicht und das portable serverseitige Ergebnisschema, ohne diesen Blocker zu
+   verfrüht zu entfernen.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
@@ -115,6 +117,12 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   deklarierte I/O-Zuordnungen und harte Limits werden serverseitig und in beiden
   Modellieransichten gleich behandelt. Geheimnisattribute werden abgelehnt. Bis eine
   dauerhafte Provider-Runtime folgt, blockiert der Fähigkeitsvertrag das Deployment.
+- [x] **#244 – Provideradapter und Ergebnisschema:** OpenAI Responses, Anthropic Messages
+  und administrativ gebundene OpenAI-kompatible Chat-Completions laufen über einen
+  gemeinsamen, timeout- und größenbegrenzten Gateway-Vertrag. Providerfähigkeit, Ziel,
+  Installations-Opt-in und Secret werden ohne Fallback erneut geprüft. Fremde Antworten
+  müssen das begrenzte Schema-Profil `flowzer.ai-result-schema/1` serverseitig erfüllen.
+  Die persistente KI-Laufzeit bleibt der nächste notwendige Slice.
 
 ## Vorhandenes nicht neu bauen
 

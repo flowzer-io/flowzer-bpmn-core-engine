@@ -193,9 +193,12 @@ Flowzer verwaltet revisionsgeschützte, hostneutrale Metadaten für OpenAI, Anth
 und OpenAI-kompatible Cloud-/lokale Endpunkte. Cloud und lokale Verarbeitung sind
 getrennte Installations-Opt-ins; Verwenden und Verwalten besitzen getrennte Rollen.
 Secret-Referenzen sind nur schreibbar, Secret-Werte bleiben ausschließlich im
-serverseitigen `IAiSecretStore`. Die Verwaltungsbasis führt noch keine Provideraufrufe
-aus. Der versionierte KI-Aufgabenvertrag kann bereits in Diagramm und Gliederung
-gespeichert werden, bleibt bis zum Runtime-Slice aber ausdrücklich nicht deploybar.
+serverseitigen `IAiSecretStore`. Eine interne, noch nicht öffentlich auslösbare
+Aufrufschicht bindet OpenAI, Anthropic und OpenAI-kompatible Endpunkte ohne Fallback an,
+begrenzt Transport und Timeout und prüft strukturierte Antworten erneut gegen das
+portable Flowzer-Schemaprofil. Der versionierte KI-Aufgabenvertrag kann bereits in
+Diagramm und Gliederung gespeichert werden, bleibt bis zur persistenten Runtime aber
+ausdrücklich nicht deploybar.
 Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 [docs/AI-TASKS.md](docs/AI-TASKS.md).
 

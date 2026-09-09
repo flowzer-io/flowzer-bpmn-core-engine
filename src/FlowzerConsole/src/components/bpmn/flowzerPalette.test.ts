@@ -26,7 +26,9 @@ describe('Flowzer KI-Palette', () => {
       maxOutputTokens: '1024',
       timeoutSeconds: '60',
     });
-    expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object","properties":{}}');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe(
+      '{"type":"object","properties":{},"additionalProperties":false}',
+    );
     expect(aiTask.$parent).toBe(extensions);
   });
 });

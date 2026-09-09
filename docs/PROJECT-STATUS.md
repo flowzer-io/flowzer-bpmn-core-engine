@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #243
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis Issue #244
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -383,6 +383,27 @@ explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
 Die additive Elementart erscheint in `flowzer.bpmn-capabilities/2`; der historische
 Version-1-Vertrag bleibt unverändert im Repository.
 
+## Provideradapter und Ergebnisschema – #244 (noch nicht gemergt)
+
+Ein interner, nicht öffentlich auslösbarer Gateway bindet den gespeicherten Provider ohne
+Fallback an OpenAI Responses, Anthropic Messages oder den administrierten
+OpenAI-kompatiblen Chat-Completions-Endpunkt. Feste Standardziele, erneut geprüfte
+Installationsgrenzen, deaktivierte Weiterleitungen, aufgabengebundene Timeouts,
+Envelope-Größe, kurzlebige Secret-Auflösung und redigierte Auth-Header bilden die
+gemeinsame Transportgrenze. Automatische Retries finden nicht statt.
+
+`flowzer.ai-result-schema/1` begrenzt unterstützte Typen und Validierungsregeln, verbietet
+externe Referenzen und prüft jede Providerantwort erneut lokal. Stabile Fehlerklassen
+unterscheiden Authentifizierung, Rate Limit, Timeout, Transport, Providerablehnung,
+ungültige Antwort, Schemaverletzung und Budgetüberschreitung, ohne fremde Rohantworten zu
+übernehmen. Die explizite Adapterfähigkeit ersetzt keine unzuverlässige Modellannahme:
+lehnt ein Ziel strukturierte Ausgabe ab, erfolgt insbesondere kein Wechsel auf ein anderes
+Modell oder in die Cloud.
+
+Dieser Baustein führt noch keinen Provideraufruf aus einem BPMN-Prozess aus. KI-Aufgaben
+bleiben nicht deploybar, bis persistente Läufe, Recovery und Engine-Fortschritt gemeinsam
+implementiert sind.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -406,16 +427,17 @@ Version-1-Vertrag bleibt unverändert im Repository.
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
-   Worker-Lease-Verlängerung (#238) und sichere Verbindungsverwaltung (#240 / PR #241) liegen vor;
-   Provideradapter, Task-Vertrag, dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
+   Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
+   Task-Vertrag (#242 / PR #243) sowie Provider-/Schemaschicht (#244) liegen vor;
+   dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 153 Engine-,
-784 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
-33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste
-Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
+805 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
+Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell
 

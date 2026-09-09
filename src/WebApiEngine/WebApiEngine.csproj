@@ -27,6 +27,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <InternalsVisibleTo Include="WebApiEngine.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
       <_ContentIncludedByDefault Remove="Definitions\32158b42-f502-4a59-845f-3eccd2e64758.json" />
     </ItemGroup>
 

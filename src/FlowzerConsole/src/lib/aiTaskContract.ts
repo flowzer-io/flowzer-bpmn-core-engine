@@ -21,7 +21,7 @@ export const DEFAULT_AI_TASK: AiTaskConfiguration = {
   model: '',
   instructionVersion: '1',
   instruction: '',
-  resultSchema: '{"type":"object","properties":{}}',
+  resultSchema: '{"type":"object","properties":{},"additionalProperties":false}',
   maxInputTokens: '4096',
   maxOutputTokens: '1024',
   timeoutSeconds: '60',

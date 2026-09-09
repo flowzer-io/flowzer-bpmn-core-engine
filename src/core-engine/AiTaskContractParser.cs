@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 using System.Xml.Linq;
 using BPMN.Flowzer;
 using core_engine.Exceptions;
@@ -186,20 +185,19 @@ internal static class AiTaskContractParser
     {
         try
         {
-            using var document = JsonDocument.Parse(schema);
-            if (document.RootElement.ValueKind != JsonValueKind.Object
-                || !document.RootElement.TryGetProperty("type", out var type)
-                || type.ValueKind != JsonValueKind.String
-                || !string.Equals(type.GetString(), "object", StringComparison.Ordinal))
-                throw Failure("bpmn.ai_task.result_schema_object_required", elementId,
-                    "extensionElements.aiTask.resultSchema",
-                    "The AI result schema must be a JSON schema with root type 'object'.");
+            AiResultSchemaProfile.ValidateSchema(schema);
         }
-        catch (JsonException)
+        catch (AiResultSchemaException exception)
         {
-            throw Failure("bpmn.ai_task.result_schema_invalid", elementId,
+            var code = exception.Code switch
+            {
+                "ai.result_schema.invalid_json" => "bpmn.ai_task.result_schema_invalid",
+                "ai.result_schema.object_required" => "bpmn.ai_task.result_schema_object_required",
+                _ => "bpmn.ai_task.result_schema_unsupported"
+            };
+            throw Failure(code, elementId,
                 "extensionElements.aiTask.resultSchema",
-                "The AI result schema must contain valid JSON.");
+                "The AI result schema is outside the supported Flowzer profile.");
         }
     }
 

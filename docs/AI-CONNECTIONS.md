@@ -1,10 +1,11 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241
+**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244
 
-Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer spaetere KI-Tasks bereit. Es
-fuehrt **noch keine Provideraufrufe** aus und aktiviert keine KI-Task-Kachel. Damit gibt es
-keinen scheinbar funktionierenden Modellierungspfad ohne belastbare Runtime.
+Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 ergänzt
+eine ausschließlich interne Provideraufrufschicht; es gibt weiterhin keinen öffentlichen
+Testendpunkt und noch keine Verbindung aus einem BPMN-Prozess. Damit wird keine belastbare
+Runtime vorgetäuscht, bevor persistente Läufe und Recovery vorhanden sind.
 
 ## Persistierter Vertrag
 
@@ -47,7 +48,7 @@ Implementierung akzeptiert nur Referenzen im Format `env:NAME`, wobei `NAME` aus
 Grossbuchstaben, Ziffern und Unterstrichen besteht und mit dem konfigurierten Prefix beginnt.
 `env:PATH`, Dateipfade und fremde Namensraeume werden abgewiesen.
 
-Der Wert wird erst unmittelbar vor einem spaeteren Provideraufruf in einen kurzlebigen
+Der Wert wird erst unmittelbar vor einem internen Provideraufruf in einen kurzlebigen
 `AiSecretValue`-Puffer geladen. Der Puffer maskiert seine Textdarstellung und wird beim
 Entsorgen ueberschrieben. Ein Adapter darf ihn weder persistieren noch protokollieren.
 
@@ -104,6 +105,7 @@ Entwicklungsweg ohne Mehrprozess- oder Rollbackversprechen.
 
 ## Folgeschritte
 
-Provideradapter, Modellfaehigkeitspruefung, KI-Task-Erweiterung, dauerhafte Runs,
-Werkzeugregistry, Freigaben, Kosten und Testmodus folgen in eigenen Paketen. Erst diese
-Bausteine ergeben gemeinsam eine ausfuehrbare KI-Task-Runtime.
+Provideradapter, ein portables Ergebnisschema und die KI-Task-Erweiterung liegen als
+getrennte Slices vor. DNS-Auflösungsschutz für benutzerdefinierte Cloudziele, dauerhafte
+Runs, Werkzeugregistry, Freigaben, Kosten und Testmodus folgen in eigenen Paketen. Erst
+diese Bausteine ergeben gemeinsam eine ausführbare KI-Task-Runtime.
