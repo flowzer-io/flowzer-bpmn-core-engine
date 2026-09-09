@@ -1,6 +1,6 @@
 # Historische Identitätsreferenzen
 
-Issue #234 ergänzt die aktive, kontextgebundene Verzeichnissuche um einen getrennten
+Issue #234 / PR #237 ergänzt die aktive, kontextgebundene Verzeichnissuche um einen getrennten
 Anzeigevertrag. Eine bereits gespeicherte `SubjectRef` kann damit nach Deaktivierung oder
 Löschung weiterhin verständlich beschriftet werden, ohne wieder auswählbar zu werden.
 

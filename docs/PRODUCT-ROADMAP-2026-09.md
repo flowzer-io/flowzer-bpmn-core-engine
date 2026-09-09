@@ -146,7 +146,7 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
 - [x] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. #190/#192 bewahren die stabile Historie und aktive Suche; #234
+  Auswahlen entfernen. #190/#192 bewahren die stabile Historie und aktive Suche; #234 / PR #237
   ergänzt exakte, auf gespeicherte Workflow-, Ordner-, Formular- und Lifecycle-Referenzen
   begrenzte Batch-Auflösungen samt `isActive`/`isSelectable`. Manipulierte IDs bleiben
   ohne Treffer, inaktive Referenzen sichtbar, aber nicht erneut einreichbar.
@@ -174,7 +174,7 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194 / PR #195
   umgesetzt. #196 ergänzt die Auswahl in Diagramm und Gliederung einschließlich stabiler
   XML-Roundtrips, ID-Auflösung, Lade-/Fehlerzuständen und historischen Warn-Chips.
-  #234 trennt diese Anzeigeauflösung nun vollständig von der aktiven Suche und bindet
+  #234 / PR #237 trennt diese Anzeigeauflösung nun vollständig von der aktiven Suche und bindet
   jeden Treffer an eine bereits gespeicherte Referenz des berechtigten Fachkontexts.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,

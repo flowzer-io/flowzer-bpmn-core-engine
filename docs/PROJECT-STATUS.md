@@ -242,7 +242,7 @@ serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet aus
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 
-#234 ergänzt einen getrennten, begrenzten Batch-Vertrag für historische Anzeigeauflösung.
+#234 / PR #237 ergänzt einen getrennten, begrenzten Batch-Vertrag für historische Anzeigeauflösung.
 Workflow, Ordner, gebundenes Formular und Task-Lifecycle erlauben nur Referenzen, die im
 jeweiligen berechtigten Kontext bereits gespeichert sind; eine manipulierte bekannte UUID
 bleibt ohne Treffer. Antworten unterscheiden aktuellen Directory-Status (`isActive`) von
