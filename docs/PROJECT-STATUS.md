@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis Issue #244
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #245
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -383,7 +383,7 @@ explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
 Die additive Elementart erscheint in `flowzer.bpmn-capabilities/2`; der historische
 Version-1-Vertrag bleibt unverändert im Repository.
 
-## Provideradapter und Ergebnisschema – #244 (noch nicht gemergt)
+## Provideradapter und Ergebnisschema – #244 / PR #245 (noch nicht gemergt)
 
 Ein interner, nicht öffentlich auslösbarer Gateway bindet den gespeicherten Provider ohne
 Fallback an OpenAI Responses, Anthropic Messages oder den administrierten
@@ -428,7 +428,7 @@ implementiert sind.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
-   Task-Vertrag (#242 / PR #243) sowie Provider-/Schemaschicht (#244) liegen vor;
+   Task-Vertrag (#242 / PR #243) sowie Provider-/Schemaschicht (#244 / PR #245) liegen vor;
    dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.

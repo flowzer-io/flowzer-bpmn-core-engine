@@ -288,12 +288,12 @@ und Abschluss bleiben identisch.
   Version-1-Vertrag den neuen `flowzer.bpmn-capabilities/2`-Stand nicht rückwirkend.
   Werkzeuge und Freigaben bleiben Folgeslices.
 - [x] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
-  Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen. #244 implementiert
+  Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen. #244 / PR #245 implementiert
   feste Standardziele, einen expliziten strukturierten Ausgabevertrag und keinen Provider-
   oder Modellfallback; die BPMN-Runtime bleibt bewusst noch getrennt.
 - [x] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
   von lokalen Modellen in die Cloud. #240 / PR #241 setzt die installationsweiten Opt-ins und
-  die explizite Standortangabe bereits am Verbindungsvertrag durch; #244 erzwingt dieselben
+  die explizite Standortangabe bereits am Verbindungsvertrag durch; #244 / PR #245 erzwingt dieselben
   Grenzen unmittelbar vor jedem internen Provideraufruf erneut.
 - [x] Verbindungen und Secret-Referenzen administrieren; Verwenden und Verwalten
   getrennt berechtigen. #240 / PR #241 implementiert revisionsgeschützte Metadaten in Dateiablage

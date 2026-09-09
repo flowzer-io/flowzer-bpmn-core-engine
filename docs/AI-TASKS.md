@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · Slices #242 und #244**
+**Stand: 9. September 2026 · #242 / PR #243 und #244 / PR #245**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -55,7 +55,7 @@ Der Vertrag ist in diesem Slice **modellierbar und speicherbar, aber noch nicht
 deploybar**. `serviceTask.aiTask` steht deshalb im Fähigkeitsvertrag als nicht ausführbar.
 Die Vorabprüfung erhält mit `deployment=true` denselben Blocker wie das echte Deployment.
 Damit kann kein produktiver Vorgang an einer nur vorgetäuschten KI-Runtime hängenbleiben.
-Die Provider- und Schema-Schicht aus #244 ist intern bereits vorhanden. Das Deployment
+Die Provider- und Schema-Schicht aus #244 / PR #245 ist intern bereits vorhanden. Das Deployment
 bleibt dennoch blockiert, bis ein persistenter KI-Lauf den Provideraufruf, Recovery und
 den Engine-Fortschritt als eine nachvollziehbare Zustandsmaschine verbindet.
 
@@ -77,7 +77,7 @@ fehlende Pflichtwerte und Typ-/Bereichsverletzungen erhalten stabile interne Feh
 
 ## Providerneutrale Aufrufschicht
 
-#244 ergänzt einen internen Gateway-Vertrag und drei Adapter:
+#244 / PR #245 ergänzt einen internen Gateway-Vertrag und drei Adapter:
 
 - OpenAI verwendet ausschließlich die feste Responses-API mit `store: false`;
 - Anthropic verwendet ausschließlich die feste Messages-API;

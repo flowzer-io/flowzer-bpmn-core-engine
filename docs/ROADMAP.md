@@ -62,7 +62,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
    Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
    Gliederung pflegbaren KI-Aufgabenvertrag. Er ist bis zur persistenten Runtime bewusst
-   speicherbar, aber nicht deploybar. #244 ergänzt bereits die providerneutrale HTTP-
+   speicherbar, aber nicht deploybar. #244 / PR #245 ergänzt bereits die providerneutrale HTTP-
    Aufrufschicht und das portable serverseitige Ergebnisschema, ohne diesen Blocker zu
    verfrüht zu entfernen.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
@@ -117,7 +117,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   deklarierte I/O-Zuordnungen und harte Limits werden serverseitig und in beiden
   Modellieransichten gleich behandelt. Geheimnisattribute werden abgelehnt. Bis eine
   dauerhafte Provider-Runtime folgt, blockiert der Fähigkeitsvertrag das Deployment.
-- [x] **#244 – Provideradapter und Ergebnisschema:** OpenAI Responses, Anthropic Messages
+- [x] **#244 / PR #245 – Provideradapter und Ergebnisschema:** OpenAI Responses, Anthropic Messages
   und administrativ gebundene OpenAI-kompatible Chat-Completions laufen über einen
   gemeinsamen, timeout- und größenbegrenzten Gateway-Vertrag. Providerfähigkeit, Ziel,
   Installations-Opt-in und Secret werden ohne Fallback erneut geprüft. Fremde Antworten

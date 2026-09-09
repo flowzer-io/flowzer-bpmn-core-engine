@@ -1,8 +1,8 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244
+**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245
 
-Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 ergänzt
+Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
 eine ausschließlich interne Provideraufrufschicht; es gibt weiterhin keinen öffentlichen
 Testendpunkt und noch keine Verbindung aus einem BPMN-Prozess. Damit wird keine belastbare
 Runtime vorgetäuscht, bevor persistente Läufe und Recovery vorhanden sind.
