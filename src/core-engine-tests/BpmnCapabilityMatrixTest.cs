@@ -9,7 +9,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("2");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("3");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -39,7 +39,7 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("2");
+        exception.ContractVersion.Should().Be("3");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
@@ -267,16 +267,14 @@ public class BpmnCapabilityMatrixTest
         action.Should().NotThrow();
     }
 
-    // Testzweck: Solange kein interner, dauerhaft wiederaufnehmbarer KI-Executor existiert,
-    // darf der neue Modellierungsvertrag nicht als produktiv ausführbar erscheinen.
+    // Testzweck: Seit der dauerhafte KI-Executor Providerergebnis und Engine-Fortschritt
+    // atomar verbindet, ist der vollstaendige KI-Vertrag produktiv deploybar.
     [Test]
-    public void ValidateForDeployment_ShouldRejectAiTaskUntilRuntimeExists()
+    public void ValidateForDeployment_ShouldAcceptAiTaskWithRuntimeContract()
     {
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(AiTask()));
 
-        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
-        exception.Code.Should().Be("bpmn.element.not_executable");
-        exception.ElementId.Should().Be("Ai_1");
+        action.Should().NotThrow();
     }
 
     // Testzweck: Der reservierte KI-Auftragstyp darf nicht ohne den zugehörigen Vertrag

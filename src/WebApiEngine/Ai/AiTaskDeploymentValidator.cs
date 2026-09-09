@@ -31,6 +31,21 @@ public static class AiTaskDeploymentValidator
         IAiSecretStore? secretStore,
         CancellationToken cancellationToken = default)
     {
+        _ = await BindAsync(serviceTasks, connectionStorage, secretStore, cancellationToken);
+    }
+
+    /// <summary>
+    /// Prueft alle KI-Verbindungen und liefert zugleich den unveraenderlichen, nicht geheimen
+    /// Snapshot fuer die deployte Workflow-Version. So kann der Start niemals still die zu
+    /// diesem Zeitpunkt gerade neueste Verbindungsrevision oder ein anderes Modell verwenden.
+    /// </summary>
+    public static async Task<Dictionary<string, BoundAiTask>> BindAsync(
+        IEnumerable<ServiceTask> serviceTasks,
+        IAiConnectionStorage connectionStorage,
+        IAiSecretStore? secretStore,
+        CancellationToken cancellationToken = default)
+    {
+        var bindings = new Dictionary<string, BoundAiTask>(StringComparer.Ordinal);
         foreach (var task in serviceTasks.Where(task => task.FlowzerAiTask is not null))
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -46,6 +61,40 @@ public static class AiTaskDeploymentValidator
                 || !await secretStore.ExistsAsync(connection.SecretReference, cancellationToken))
                 throw Failure("bpmn.ai_task.connection_not_ready", task.Id,
                     "The referenced AI connection is not ready for use.");
+
+            var effectiveModel = string.IsNullOrWhiteSpace(definition.Model)
+                ? connection.DefaultModel.Trim()
+                : definition.Model.Trim();
+            bindings.Add(task.Id, new BoundAiTask(connection.Id, connection.Revision, effectiveModel));
+        }
+
+        return bindings;
+    }
+
+    /// <summary>
+    /// Prueft einen bereits gespeicherten Deployment-Snapshot nur gegen das unveraenderliche
+    /// BPMN. Er wird bewusst nicht erneut gegen die aktuelle Verbindung aufgeloest.
+    /// </summary>
+    public static void ValidateBindings(
+        IEnumerable<ServiceTask> serviceTasks,
+        IReadOnlyDictionary<string, BoundAiTask> bindings)
+    {
+        ArgumentNullException.ThrowIfNull(bindings);
+        var tasks = serviceTasks.Where(task => task.FlowzerAiTask is not null).ToArray();
+        if (bindings.Count != tasks.Length)
+            throw new InvalidDataException("Stored AI task bindings do not match the workflow definition.");
+
+        foreach (var task in tasks)
+        {
+            var contract = task.FlowzerAiTask!;
+            if (!bindings.TryGetValue(task.Id, out var binding)
+                || binding.ConnectionId != contract.ConnectionId
+                || binding.ConnectionRevision < 1
+                || string.IsNullOrWhiteSpace(binding.Model)
+                || binding.Model.Length > 200
+                || contract.Model is not null
+                && !string.Equals(binding.Model, contract.Model.Trim(), StringComparison.Ordinal))
+                throw new InvalidDataException("Stored AI task bindings do not match the workflow definition.");
         }
     }
 

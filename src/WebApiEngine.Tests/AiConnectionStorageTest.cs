@@ -1,6 +1,7 @@
 using FilesystemStorageSystem;
 using FluentAssertions;
 using Model;
+using Newtonsoft.Json;
 using StorageSystem;
 
 namespace WebApiEngine.Tests;
@@ -26,6 +27,55 @@ public sealed class AiConnectionStorageTest
         stale.Status.Should().Be(AiConnectionWriteStatus.Conflict);
         stale.CurrentRevision.Should().Be(2);
         (await context.Storage.AiConnectionStorage.Get(context.Id))!.Should().Be(updated);
+    }
+
+    // Testzweck: Eine deployte Workflow-Version kann ihre exakt gebundene Verbindung auch
+    // nach einem administrativen Update weiter aufloesen; nur die Listenansicht zeigt die
+    // aktuelle Revision.
+    [Test]
+    public async Task FilesystemStorage_ShouldKeepImmutableConnectionRevisions()
+    {
+        using var context = new Context();
+        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST");
+        await context.Storage.AiConnectionStorage.TryCreate(initial);
+        var updated = initial with
+        {
+            DefaultModel = "gpt-new",
+            SecretReference = "env:FLOWZER_AI_SECOND",
+            Revision = 2
+        };
+        await context.Storage.AiConnectionStorage.TryUpdate(updated, 1);
+
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 1)).Should().Be(initial);
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 2)).Should().Be(updated);
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 3)).Should().BeNull();
+    }
+
+    // Testzweck: Ein vorhandener abweichender History-Eintrag darf nach einem partiellen
+    // Dateifehler nicht still überschrieben und als gültige Verbindungsrevision ausgegeben werden.
+    [Test]
+    public async Task FilesystemStorage_ShouldRejectConflictingImmutableRevision()
+    {
+        using var context = new Context();
+        var initial = Connection(context.Id, "OpenAI", revision: 1, "env:FLOWZER_AI_FIRST");
+        await context.Storage.AiConnectionStorage.TryCreate(initial);
+        File.Delete(Path.Combine(context.Root, "FileStorage", "AiConnections", $"{context.Id:N}.json"));
+        var historyPath = Path.Combine(
+            context.Root,
+            "FileStorage",
+            "AiConnections",
+            "History",
+            context.Id.ToString("N"),
+            "1.json");
+        var conflicting = initial with { DefaultModel = "different-model" };
+        await File.WriteAllTextAsync(
+            historyPath,
+            JsonConvert.SerializeObject(conflicting, context.Storage.NewtonSoftDefaultSettings));
+
+        var action = () => context.Storage.AiConnectionStorage.TryCreate(initial);
+
+        await action.Should().ThrowAsync<InvalidDataException>();
+        (await context.Storage.AiConnectionStorage.Get(context.Id, 1)).Should().Be(conflicting);
     }
 
     // Testzweck: Namen sind installationsweit ohne Beachtung der Gross-/Kleinschreibung
@@ -69,6 +119,7 @@ public sealed class AiConnectionStorageTest
         }
 
         public Storage Storage { get; }
+        public string Root => _root;
         public Guid Id { get; } = Guid.NewGuid();
 
         public void Dispose()

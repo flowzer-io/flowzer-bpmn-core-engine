@@ -1,10 +1,12 @@
 using WebApiEngine.Ai;
+using WebApiEngine.BusinessLogic;
 
 namespace WebApiEngine.Background;
 
 /// <summary>Begrenzter Taktgeber fuer die standardmaessig deaktivierte KI-Ausfuehrung.</summary>
 internal sealed class AiRunBackgroundService(
     AiRunExecutor executor,
+    BpmnBusinessLogic businessLogic,
     AiRunExecutionPolicy policy,
     TimeProvider timeProvider,
     ILogger<AiRunBackgroundService> logger) : BackgroundService
@@ -27,6 +29,10 @@ internal sealed class AiRunBackgroundService(
         try
         {
             var result = await executor.RunProviderBatchAsync(stoppingToken);
+            var engine = await businessLogic.CompleteAiRunBatchAsync(
+                timeProvider,
+                policy,
+                stoppingToken);
             if (result.Claimed > 0 || result.Recovered > 0)
             {
                 logger.LogInformation(
@@ -38,6 +44,14 @@ internal sealed class AiRunBackgroundService(
                     result.RetriesScheduled,
                     result.Incidents,
                     result.LeasesLost);
+            }
+            if (engine.Claimed > 0)
+            {
+                logger.LogInformation(
+                    "AI engine result tick claimed {Claimed}, completed {Completed}, and incidented {Incidents} run(s).",
+                    engine.Claimed,
+                    engine.Completed,
+                    engine.Incidents);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

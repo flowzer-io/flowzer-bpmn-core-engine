@@ -39,6 +39,17 @@ public interface IAiRunStorage
         string leaseOwner,
         DateTime nowUtc);
 
+    /// <summary>
+    /// Storniert noch offene Laeufe, deren Token den KI-Schritt verlassen hat. Eine
+    /// Implementierung muss auch bestehende Leases atomar entziehen, damit ein spaetes
+    /// Providerergebnis nicht mehr gespeichert werden kann.
+    /// </summary>
+    Task<int> CancelObsoleteRuns(
+        Guid processInstanceId,
+        IReadOnlyCollection<Guid> protectedTokenIds,
+        DateTime nowUtc) =>
+        throw new NotSupportedException($"{GetType().Name} does not support AI run cancellation.");
+
     Task<IReadOnlyList<AiRun>> RecoverExpiredLeases(DateTime nowUtc, int maxRuns);
 }
 
@@ -341,6 +352,7 @@ internal sealed class UnsupportedAiRunStorage : IAiRunStorage
     public Task<IReadOnlyList<AiRun>> ClaimResultRuns(string leaseOwner, DateTime nowUtc, DateTime leaseExpiresAtUtc, int maxRuns) => throw Unsupported();
     public Task<AiRun?> RenewLease(Guid id, long expectedRevision, string leaseOwner, DateTime nowUtc, DateTime leaseExpiresAtUtc) => throw Unsupported();
     public Task<AiRunWriteResult> TryUpdate(AiRun updated, long expectedRevision, string leaseOwner, DateTime nowUtc) => throw Unsupported();
+    public Task<int> CancelObsoleteRuns(Guid processInstanceId, IReadOnlyCollection<Guid> protectedTokenIds, DateTime nowUtc) => throw Unsupported();
     public Task<IReadOnlyList<AiRun>> RecoverExpiredLeases(DateTime nowUtc, int maxRuns) => throw Unsupported();
 
     private static NotSupportedException Unsupported() =>

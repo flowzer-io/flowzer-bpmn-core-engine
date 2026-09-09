@@ -374,13 +374,14 @@ existieren, aktiv und serverseitig einsatzbereit sein.
 
 Diagramm und Gliederung pflegen denselben Vertrag; die Diagrammpalette besitzt eine eigene
 KI-Kachel. Der freie Worker-Textmodus normaler Service-Tasks bleibt erhalten. Mangels
-Provideradapter und dauerhaftem KI-Lauf ist `serviceTask.aiTask` bewusst noch nicht
-deploybar. Die Save- und Deployment-Vorabprüfungen unterscheiden diesen Zustand
+Provideradapter und dauerhaftem KI-Lauf war `serviceTask.aiTask` in diesem Autoren-Slice
+bewusst nicht deploybar. Die damaligen Save- und Deployment-Vorabprüfungen unterschieden diesen Zustand
 explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
 [Versionierter KI-Aufgabenvertrag](AI-TASKS.md).
 
-Die additive Elementart erscheint in `flowzer.bpmn-capabilities/2`; der historische
-Version-1-Vertrag bleibt unverändert im Repository.
+Die additive Elementart erschien erstmals in `flowzer.bpmn-capabilities/2`; Version 3
+aktiviert später die durch #252 belegte Runtime. Beide historischen Verträge bleiben
+unverändert im Repository.
 
 ## Provideradapter und Ergebnisschema – #244 / PR #245 (noch nicht gemergt)
 
@@ -399,9 +400,9 @@ ungültige Antwort, Schemaverletzung und Budgetüberschreitung, ohne fremde Roha
 lehnt ein Ziel strukturierte Ausgabe ab, erfolgt insbesondere kein Wechsel auf ein anderes
 Modell oder in die Cloud.
 
-Dieser Baustein führt noch keinen Provideraufruf aus einem BPMN-Prozess aus. KI-Aufgaben
-bleiben nicht deploybar, bis persistente Läufe, Recovery und Engine-Fortschritt gemeinsam
-implementiert sind.
+Dieser damalige Baustein führte noch keinen Provideraufruf aus einem BPMN-Prozess aus. Der
+nachfolgende Slice #252 verbindet inzwischen persistente Läufe, Recovery und
+Engine-Fortschritt und hebt den Deployment-Blocker kontrolliert auf.
 
 ## Persistente KI-Laufzustände – #246 / PR #247 (noch nicht gemergt)
 
@@ -441,7 +442,28 @@ Die gespeicherte Verbindungsrevision wird vor Secret und Netzwerk exakt geprüft
 werden erneut validiert und samt Modell- und Tokenmessung als `ResultReady` gespeichert.
 Nur feste temporäre Fehlercodes erhalten innerhalb des Laufbudgets einen begrenzten Retry;
 alle anderen Ausgänge werden Störungen. Lease-Verlust und Hostabbruch nach Aufrufmarkierung
-führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit fehlen weiterhin.
+führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit waren in diesem
+Slice noch getrennt und folgen mit #252.
+
+## Atomare KI-Engine-Anbindung – #252 (in Umsetzung)
+
+Der BPMN-Fähigkeitsvertrag Version 3 gibt KI-Service-Tasks erst frei, nachdem das Deployment
+die aktuelle Verbindungsrevision und das effektive Modell unveränderlich an die Definition
+gebunden hat. Jede erfolgreiche Verbindungsfassung bleibt intern historisiert; API und
+Browser erhalten weiterhin weder Secret-Wert noch Secret-Referenz.
+
+Ein aktiver KI-Token erzeugt genau einen internen Lauf und keinen extern claimbaren
+Workerauftrag. Der Snapshot enthält nur deklarierte Eingaben. `ResultReady` wird auf
+Definition, Token und Bindung geprüft und zusammen mit Instanz, Subscriptions, Historie und
+Laufstatus in einer PostgreSQL-Transaktion fortgesetzt. Ein Rollback lässt Lauf und Instanz
+unverändert wiederholbar; ein zweiter Abschluss findet keinen offenen Claim mehr.
+
+PostgreSQL serialisiert Mutationen derselben Prozessinstanz mit einem transaktionsgebundenen
+Advisory Lock. Damit überschreiben parallele KI-Ergebnisse aus mehreren API-Prozessen keine
+gegenseitigen Tokenfortschritte; ein Batch claimt höchstens ein Ergebnis je Instanz. Reine
+Instanzansichten bleiben vom Schreib-Lock getrennt. Abgebrochene oder fehlgeschlagene
+KI-Token stornieren offene Läufe und entziehen vorhandene Leases. Die Dateiablage bleibt ein
+ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollback.
 
 ## Verbleibende Risiken und Reihenfolge
 
@@ -469,13 +491,15 @@ führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit fehle
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
    persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
-   der Provider-Executor (#250 / PR #251) liegen vor; Engine-Commit und Werkzeugfreigaben bleiben offen.
+   der Provider-Executor (#250 / PR #251) sowie die atomare Engine-Anbindung (#252) liegen
+   vor; Werkzeugregistry, parametergebundene Freigaben, Testmodus und Störungsbedienung
+   bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
-851 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+871 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
 33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
 Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 

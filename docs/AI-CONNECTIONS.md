@@ -1,11 +1,11 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245 und #248 / PR #249
+**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245, #248 / PR #249 und #252
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
-eine ausschließlich interne Provideraufrufschicht; es gibt weiterhin keinen öffentlichen
-Testendpunkt und noch keine Verbindung aus einem BPMN-Prozess. Damit wird keine belastbare
-Runtime vorgetäuscht, bevor persistente Läufe und Recovery vorhanden sind.
+eine ausschließlich interne Provideraufrufschicht; #252 bindet eine konkrete, unveränderliche
+Verbindungsrevision beim Deployment und verwendet sie im persistenten BPMN-Lauf. Es gibt
+weiterhin keinen öffentlichen Test- oder frei auslösbaren Providerendpunkt.
 
 ## Persistierter Vertrag
 
@@ -19,8 +19,11 @@ Flowzer speichert ausschließlich:
 - eine opake Secret-Referenz wie `env:FLOWZER_AI_PRIMARY`.
 
 Ein API-Key oder anderer geheimer Wert steht **nicht** im Datensatz. Deaktivieren ist eine
-revisionierte Zustandsaenderung und kein Loeschen. Dadurch bleiben historische
-Workflowfassungen spaeter erklaerbar, ohne die Verbindung fuer neue Ausfuehrungen anzubieten.
+revisionierte Zustandsaenderung und kein Loeschen. Jede erfolgreiche Fassung wird zusätzlich
+unveränderlich historisiert. Dadurch bleiben bereits gebundene Workflowfassungen ausführbar
+und erklaerbar, ohne neue Konfiguration still zu übernehmen. Der Aktivstatus der aktuellen
+Fassung bleibt ein Kill-Switch: Eine deaktivierte Verbindung stoppt auch historisch gebundene
+Läufe vor Secret- oder Netzwerkzugriff.
 
 ## Installationsgrenzen
 
@@ -106,12 +109,19 @@ die bisherige Referenz serverseitig, anstatt sie zum Browser zurueckzuliefern.
 ## Persistenzgrenzen
 
 PostgreSQL erzwingt Revision und case-insensitiv eindeutige Namen auch ueber mehrere
-API-Prozesse. Die Dateiablage serialisiert dies nur innerhalb eines Prozesses und bleibt der
-Entwicklungsweg ohne Mehrprozess- oder Rollbackversprechen.
+API-Prozesse. Migration `015_ai_connection_revisions.sql` speichert jede erfolgreiche
+Verbindungsfassung unveränderlich unter `(id, revision)` und übernimmt vorhandene aktuelle
+Einträge. Die Runtime löst exakt die in der Workflowdefinition gebundene Revision auf. Die
+aktuelle Liste bleibt davon getrennt und kann deaktiviert oder weiterentwickelt werden.
+
+Die Dateiablage führt dieselbe Historie unter
+`FileStorage/AiConnections/History/<id>/<revision>.json`, serialisiert Schreibzugriffe aber
+nur innerhalb eines Prozesses und bleibt der Entwicklungsweg ohne Mehrprozess- oder
+Rollbackversprechen.
 
 ## Folgeschritte
 
-Provideradapter, ein portables Ergebnisschema, die KI-Task-Erweiterung, der dauerhafte
-Laufzustand (#246 / PR #247) und die DNS-/Socketbindung (#248 / PR #249) liegen als getrennte Slices
-vor. Hintergrund-Executor, Werkzeugregistry, Freigaben, Kosten und Testmodus folgen in
-eigenen Paketen. Erst diese Bausteine ergeben gemeinsam eine ausführbare KI-Task-Runtime.
+Provideradapter, portables Ergebnisschema, KI-Task-Erweiterung, dauerhafter Laufzustand
+(#246 / PR #247), DNS-/Socketbindung (#248 / PR #249), Provider-Executor (#250 / PR #251)
+und atomare Engine-Anbindung (#252) liegen als getrennte Slices vor. Werkzeugregistry,
+Freigaben, Kosten, Testmodus und Störungsbedienung folgen in eigenen Paketen.

@@ -212,10 +212,11 @@ Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. De
 Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
 serverseitig aufgeloeste Secret-Referenzen ist in [AI-CONNECTIONS.md](AI-CONNECTIONS.md)
 dokumentiert. Cloud- und lokale Verarbeitung sind getrennte Installations-Opt-ins. Das
-aktuelle Paket kann bei ausdrücklicher Aktivierung ausschließlich bereits persistierte
-KI-Läufe bis zum validierten Providerergebnis ausführen; BPMN-Prozesse erzeugen diese Läufe
-noch nicht. Die Use-Rolle sieht nur aktive Verbindungen; die Manage-Rolle darf auch
-deaktivierte historische Metadaten pflegen.
+aktuelle Paket bindet beim Workflow-Deployment eine unveränderliche Verbindungsrevision,
+erzeugt pro aktivem KI-Token genau einen internen Lauf und führt ihn bei ausdrücklicher
+Aktivierung bis zum atomaren BPMN-Ergebniscommit aus. Die Use-Rolle sieht nur aktive
+Verbindungen; die Manage-Rolle darf auch deaktivierte aktuelle Metadaten pflegen. Historische
+Revisionen sind ausschließlich ein interner Runtimevertrag.
 
 Der Executor ist standardmäßig abgeschaltet:
 
@@ -830,8 +831,14 @@ Die indexierte, datensparsame Instanzabfrage ist unter
 KI-Läufe verwenden ab Migration `014_ai_runs.sql` eine eigene Tabelle. Prozessinstanz und
 Token sind gemeinsam eindeutig; Zustandsrevision, Lease, Wiederaufnahmezeit und
 Providerergebnis liegen in querybaren Spalten. PostgreSQL claimt Provider- und
-Engine-Fortsetzungen atomar. Ein abgelaufener Claim nach bereits markiertem externem Aufruf
-wird als unklarer Ausgang angehalten. `FileStorage/AiRuns` besitzt dagegen nur eine
+Engine-Fortsetzungen atomar. Migration `015_ai_connection_revisions.sql` ergänzt die
+unveränderliche Historie der beim Deployment gebundenen Verbindungsrevisionen. Der
+Engine-Commit speichert Lauf, Instanz, Subscriptions und Historie in derselben Transaktion;
+ein pro Instanz verwendeter PostgreSQL-Advisory-Lock verhindert verlorene Fortschritte bei
+parallelen Mutationen. Alle Engine-Schreiber nehmen ihn vor weiteren Zeilensperren; reine
+Instanzansichten bleiben davon getrennt. Ein Engine-Batch claimt höchstens ein KI-Ergebnis je
+Instanz. Ein abgelaufener Claim nach bereits markiertem externem Aufruf wird
+als unklarer Ausgang angehalten. `FileStorage/AiRuns` besitzt dagegen nur eine
 prozesslokale Sperre und ist kein Mehrprozess- oder Rollbackversprechen.
 
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
@@ -857,6 +864,7 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 - runtime-nahe Containerdaten: `.data/runtime-storage`
 - Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
 - persistente KI-Laufzustände liegen darunter in `FileStorage/AiRuns`.
+- historische KI-Verbindungsrevisionen liegen unter `FileStorage/AiConnections/History`.
 
 ### Sicheres Backup
 

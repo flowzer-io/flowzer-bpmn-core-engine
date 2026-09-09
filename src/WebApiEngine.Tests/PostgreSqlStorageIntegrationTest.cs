@@ -70,7 +70,7 @@ public partial class PostgreSqlStorageIntegrationTest
             "message_subscriptions", "signal_subscriptions", "user_task_drafts",
             "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
-            "runtime_node_events", "ai_runs", "ai_connections",
+            "runtime_node_events", "ai_runs", "ai_connection_revisions", "ai_connections",
             "timer_subscriptions", "form_section_authoring_drafts", "form_section_versions",
             "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
@@ -220,6 +220,45 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.InstanceStorage.GetAllActiveInstances()).Select(i => i.InstanceId).Should().Equal(active.InstanceId);
         (await storage.InstanceStorage.GetAllInstances()).Should().HaveCount(2);
         await storage.InstanceStorage.Invoking(s => s.GetProcessInstance(Guid.NewGuid())).Should().ThrowAsync<FileNotFoundException>();
+    }
+
+    // Testzweck: Eine lange Engine-Mutation darf die objektberechtigte reine Instanzansicht
+    // nicht blockieren; nur weitere Schreiber derselben Prozessinstanz werden serialisiert.
+    [Test]
+    public async Task InstanceStorage_ShouldKeepReadAccessSeparateFromMutationLock()
+    {
+        var instance = CreateInstance(finished: false);
+        var writer = new PostgreSqlStorage(_dataSource!, Schema);
+        await writer.InstanceStorage.AddOrUpdateInstance(instance);
+        using var mutation = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        await mutation.InstanceStorage.LockForMutation(instance.InstanceId);
+
+        var read = new PostgreSqlStorage(_dataSource!, Schema)
+            .InstanceStorage.GetProcessInstance(instance.InstanceId);
+        var first = await Task.WhenAny(read, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        first.Should().Be(read);
+        (await read).InstanceId.Should().Be(instance.InstanceId);
+        mutation.RollbackTransaction();
+    }
+
+    // Testzweck: Zwei Engine-Schreiber derselben Instanz werden über getrennte
+    // PostgreSQL-Transaktionen serialisiert und erst nach Freigabe nacheinander zugelassen.
+    [Test]
+    public async Task InstanceStorage_ShouldSerializeMutationLocksPerProcessInstance()
+    {
+        var instanceId = Guid.NewGuid();
+        using var first = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        using var second = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        await first.InstanceStorage.LockForMutation(instanceId);
+
+        var competingLock = second.InstanceStorage.LockForMutation(instanceId);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        competingLock.IsCompleted.Should().BeFalse();
+
+        first.CommitChanges();
+        await competingLock.WaitAsync(TimeSpan.FromSeconds(2));
+        second.RollbackTransaction();
     }
 
     // Testzweck: Message-, Signal-, User-Task- und Timer-Subscriptions werden gezielt gefunden
@@ -422,7 +461,10 @@ public partial class PostgreSqlStorageIntegrationTest
         // als verdecktes Update mit anderem Inhalt benutzt werden.
         var immutable = new Form
         {
-            Id = Guid.NewGuid(), FormId = Guid.NewGuid(), Version = new Model.Version(1, 0), FormData = "{}"
+            Id = Guid.NewGuid(),
+            FormId = Guid.NewGuid(),
+            Version = new Model.Version(1, 0),
+            FormData = "{}"
         };
         await storage.FormStorage.SaveForm(immutable);
         immutable.FormData = "{\"changed\":true}";

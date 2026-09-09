@@ -179,7 +179,8 @@ public sealed class AiInferenceGatewayTest
     }
 
     // Testzweck: Ein Lauf bleibt an die beim Erstellen gespeicherte Verbindungsrevision
-    // gebunden; eine spaetere Aenderung stoppt vor Secret-Aufloesung und Providerzugriff.
+    // gebunden; wenn die Ablage diese historische Revision nicht kennt, stoppt er vor
+    // Secret-Aufloesung und Providerzugriff.
     [Test]
     public async Task Execute_ShouldRejectChangedConnectionRevisionBeforeSecretOrProvider()
     {
@@ -192,6 +193,56 @@ public sealed class AiInferenceGatewayTest
         var exception = (await action.Should().ThrowAsync<AiProviderCallException>()).Which;
         exception.Code.Should().Be("ai.connection.revision_changed");
         exception.Retryable.Should().BeFalse();
+        secrets.ResolveCalls.Should().Be(0);
+        adapter.Calls.Should().Be(0);
+    }
+
+    // Testzweck: Bewahrt die Ablage eine gebundene historische Revision auf, verwendet der
+    // Lauf deren Modell- und Secret-Konfiguration statt der inzwischen aktuellen Fassung.
+    [Test]
+    public async Task Execute_ShouldUseBoundHistoricalConnectionRevision()
+    {
+        var initial = Connection(AiProviderKind.OpenAi);
+        var current = initial with
+        {
+            Revision = 2,
+            DefaultModel = "new-model",
+            SecretReference = "env:FLOWZER_AI_NEW"
+        };
+        var secrets = new TrackingSecretStore("historic-secret");
+        var adapter = new FakeAdapter(AiProviderKind.OpenAi);
+        var gateway = new AiInferenceGateway(
+            new VersionedConnectionStorage(current, initial),
+            secrets,
+            new AiProviderRegistry([adapter]),
+            Options.Create(new FlowzerAiOptions { AllowCloudProviders = true }));
+
+        await gateway.ExecuteAsync(Command(), default);
+
+        adapter.LastRequest!.Connection.Revision.Should().Be(1);
+        adapter.LastRequest.Model.Should().Be("connection-model");
+        adapter.LastSecret.Should().Be("historic-secret");
+    }
+
+    // Testzweck: Der unveränderliche historische Snapshot bewahrt die Ausführungskonfiguration,
+    // umgeht aber nicht den aktuellen administrativen Deaktivierungsschalter der Verbindung.
+    [Test]
+    public async Task Execute_ShouldRejectDisabledCurrentConnectionBeforeUsingHistoricalRevision()
+    {
+        var initial = Connection(AiProviderKind.OpenAi);
+        var current = initial with { Revision = 2, Enabled = false };
+        var secrets = new TrackingSecretStore("historic-secret");
+        var adapter = new FakeAdapter(AiProviderKind.OpenAi);
+        var gateway = new AiInferenceGateway(
+            new VersionedConnectionStorage(current, initial),
+            secrets,
+            new AiProviderRegistry([adapter]),
+            Options.Create(new FlowzerAiOptions { AllowCloudProviders = true }));
+
+        var action = () => gateway.ExecuteAsync(Command(), default);
+
+        var exception = (await action.Should().ThrowAsync<AiProviderCallException>()).Which;
+        exception.Code.Should().Be("ai.connection.disabled");
         secrets.ResolveCalls.Should().Be(0);
         adapter.Calls.Should().Be(0);
     }
@@ -296,5 +347,22 @@ public sealed class AiInferenceGatewayTest
 
         public Task<AiConnectionWriteResult> TryUpdate(AiConnection updated, long expectedRevision) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class VersionedConnectionStorage(
+        AiConnection current,
+        params AiConnection[] history) : IAiConnectionStorage
+    {
+        public Task<IReadOnlyList<AiConnection>> List() =>
+            Task.FromResult<IReadOnlyList<AiConnection>>([current]);
+
+        public Task<AiConnection?> Get(Guid id) =>
+            Task.FromResult<AiConnection?>(id == current.Id ? current : null);
+
+        public Task<AiConnection?> Get(Guid id, long revision) =>
+            Task.FromResult(history.SingleOrDefault(item => item.Id == id && item.Revision == revision));
+
+        public Task<AiConnectionWriteResult> TryCreate(AiConnection created) => throw new NotSupportedException();
+        public Task<AiConnectionWriteResult> TryUpdate(AiConnection updated, long expectedRevision) => throw new NotSupportedException();
     }
 }

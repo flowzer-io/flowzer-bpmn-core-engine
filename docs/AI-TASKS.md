@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247 und #250 / PR #251**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247, #250 / PR #251 und #252**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -46,18 +46,18 @@ Prompts oder Browserantworten.
 
 ## Prüfung und aktueller Ausführungsstatus
 
-Parser, Autorenprüfung und spätere Runtime verwenden denselben serverseitigen Vertrag.
+Parser, Autorenprüfung und Runtime verwenden denselben serverseitigen Vertrag.
 Die Autorenprüfung kontrolliert zusätzlich, dass die referenzierte Verbindung existiert,
 aktiv ist und ihr Secret serverseitig verfügbar ist. Browserfilter oder manipuliertes XML
 können diese Bindung nicht erweitern.
 
-Der Vertrag ist in diesem Slice **modellierbar und speicherbar, aber noch nicht
-deploybar**. `serviceTask.aiTask` steht deshalb im Fähigkeitsvertrag als nicht ausführbar.
-Die Vorabprüfung über `POST /definition/validate/deployment` erhält denselben Blocker wie das echte Deployment.
-Damit kann kein produktiver Vorgang an einer nur vorgetäuschten KI-Runtime hängenbleiben.
-Die Provider- und Schema-Schicht aus #244 / PR #245 ist intern bereits vorhanden. Das Deployment
-bleibt dennoch blockiert, bis ein persistenter KI-Lauf den Provideraufruf, Recovery und
-den Engine-Fortschritt als eine nachvollziehbare Zustandsmaschine verbindet.
+Der Vertrag ist **modellierbar, speicherbar und deploybar**. Vorabprüfung und echtes
+Deployment erzwingen dieselben Regeln. Das Deployment löst die aktuelle Verbindung genau
+einmal auf und speichert ihre Revision sowie das effektive Modell als unveränderlichen
+Definitions-Snapshot. Spätere administrative Änderungen wirken daher nur auf neue
+Workflowversionen und verändern deren gebundene Ausführungskonfiguration nicht. Der aktuelle
+Aktivstatus bleibt davon getrennt ein administrativer Kill-Switch und stoppt auch alte
+Bindungen vor Secret- oder Netzwerkzugriff.
 
 ## Portables Ergebnisschema
 
@@ -113,9 +113,9 @@ Aufruf bereits als begonnen gespeichert oder ging der Engine-Commit unklar aus, 
 statt eines blinden Retries eine Störung. Ein bereits validiertes Ergebnis samt Modell- und
 Tokenmessung bleibt für die spätere Fortsetzung erhalten.
 
-Die Ablage allein startet noch keinen Hintergrund-Executor und ändert den Deployment-Blocker
-nicht. #250 / PR #251 verbindet den gespeicherten Lauf im nächsten getrennten Schritt zunächst nur bis
-zum dauerhaft validierten Providerergebnis; der Engine-Commit bleibt danach separat.
+Die Ablage wird durch #250 / PR #251 vom optionalen Hintergrund-Executor bis zum dauerhaft
+validierten Providerergebnis verwendet. #252 verbindet denselben Laufvertrag mit der
+BPMN-Engine und entfernt erst damit den früheren Deployment-Blocker.
 
 ## Provider-Executor
 
@@ -132,15 +132,43 @@ Versuchslimits einen exponentiell begrenzten Retrytermin erzeugen; alle anderen 
 erschöpften Fehler werden datenarm als `Incident` angehalten. Vor jedem Takt läuft die
 konservative Recovery des Laufzustands.
 
-Der Hintergrunddienst ist standardmäßig deaktiviert und kann ausschließlich bereits
-persistierte Läufe verarbeiten. Da die BPMN-Runtime in diesem Slice weder Läufe erzeugt noch
-Ergebnisse in die Engine schreibt, bleibt die KI-Aufgabe weiterhin nicht deploybar.
+Der Hintergrunddienst ist standardmäßig deaktiviert und verarbeitet ausschließlich intern
+persistierte Läufe. Nach dem Providerdurchgang claimt er bereitliegende Ergebnisse getrennt
+für den Engine-Commit. Ein deaktivierter Dienst lässt deployte Prozesse nachvollziehbar am
+KI-Token warten, statt unkontrolliert Netzwerkaufrufe auszulösen.
 
 Die Requestformen orientieren sich an den offiziellen Verträgen der
 [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses/create),
 der [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
 und der [Anthropic Messages API](https://docs.anthropic.com/en/api/messages). Normale Tests
 verwenden ausschließlich simulierte HTTP-Handler und lösen keine abrechenbaren Aufrufe aus.
+
+## Engine-Anbindung und Atomizität
+
+#252 schließt den Laufzustand vertikal an die BPMN-Runtime an:
+
+- Jeder aktive KI-Token erzeugt genau einen internen `AiRun`; ein KI-Task erscheint niemals
+  als Auftrag in der externen Worker-API.
+- Der Lauf verwendet ausschließlich die deklarierten Eingabezuordnungen und bindet
+  Definitions-ID, Token, Verbindung, Verbindungsrevision, Modell, Anweisung, Schema und
+  Grenzen unveränderlich. Semantisch gleiche JSON-Objekte bleiben trotz anderer
+  Eigenschaftsreihenfolge derselbe Snapshot.
+- Datei- und PostgreSQL-Ablage behalten historische Verbindungsrevisionen. Der Gateway löst
+  exakt die beim Deployment gebundene Revision und deren Secret-Referenz auf; die öffentliche
+  API liefert diese Referenz weiterhin nicht aus.
+- Ein `ResultReady` wird geleast, auf die aktive Definition und den aktiven Token geprüft,
+  über das deklarierte Output-Mapping angewendet und zusammen mit Instanz, Subscriptions,
+  Historie und Laufstatus in **einer PostgreSQL-Transaktion** committed.
+- PostgreSQL verwendet pro Prozessinstanz einen transaktionsgebundenen Advisory Lock. Zwei
+  API-Prozesse können dadurch parallele Ergebnisse derselben Instanz nicht aus veralteten
+  Snapshots überschreiben. Ein Engine-Batch claimt höchstens ein Ergebnis je Instanz; reine
+  Instanzansichten benötigen den Schreib-Lock nicht und bleiben währenddessen lesbar.
+- Verlässt ein Token seinen KI-Schritt durch Abbruch oder Fehler, werden offene Läufe samt
+  Lease storniert. Eine verspätete Providerantwort darf den Prozess danach nicht fortsetzen.
+- Technische KI-Abschlüsse erhalten keinen erfundenen menschlichen Akteur.
+
+Die dateibasierte Ablage bleibt Entwicklungsbetrieb: Sie serialisiert innerhalb eines
+Prozesses, kann aber Instanz-, Historien- und Laufdateien nicht gemeinsam zurückrollen.
 
 ## Oberflächen
 
@@ -154,7 +182,7 @@ verwenden ausschließlich simulierte HTTP-Handler und lösen keine abrechenbaren
 
 ## Noch offen
 
-1. Atomarer Engine-Commit, der KI-Läufe erzeugt und `ResultReady` exakt einmal fortsetzt.
-2. Typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal.
-3. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
-4. Nachvollziehbare Laufzeit-/Tokenhistorie und Kosten nur mit versionierter Preisgrundlage.
+1. Typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal.
+2. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
+3. Bedienbares Störungszentrum sowie detaillierte Laufzeit-/Tokenhistorie.
+4. Kostenanzeige ausschließlich mit versionierter, nachvollziehbarer Preisgrundlage.

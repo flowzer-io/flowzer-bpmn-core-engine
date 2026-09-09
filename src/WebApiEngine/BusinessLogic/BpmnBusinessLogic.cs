@@ -6,6 +6,8 @@ using BPMN.Flowzer.Events;
 using BPMN.Events;
 using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
@@ -88,7 +90,6 @@ public partial class BpmnBusinessLogic(
             // umgehen. Bereits laufende Versionen werden dabei nie erneut validiert.
             BpmnCapabilityMatrix.ValidateForDeployment(xmlData);
             var model = ModelParser.ParseModel(xmlData);
-            await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
             var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
             DirectorySnapshot? directorySnapshot = null;
             if (userTasks.Any(task => task.FlowzerAssignmentMode == UserTaskAssignmentMode.Directory))
@@ -108,6 +109,23 @@ public partial class BpmnBusinessLogic(
             // Nur neue Versionen dürfen auflösen. Ein alter Aufrufer kann eine bereits
             // gebundene Version nicht durch einen fehlenden/stalen Snapshot neu binden.
             var storedDefinition = await storageSystem.DefinitionStorage.GetDefinitionById(definition.Id);
+            var aiTasks = model.GetProcesses()
+                .SelectMany(process => AlleFlowElemente(process))
+                .OfType<BPMN.Activities.ServiceTask>()
+                .Where(task => task.FlowzerAiTask is not null)
+                .ToArray();
+            if (storedDefinition.AiTaskBindings is null
+                && aiTasks.Length > 0
+                && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
+                throw new InvalidOperationException(
+                    "The historical workflow has no verified AI task bindings. Deploy a new workflow version.");
+            definition.AiTaskBindings = storedDefinition.AiTaskBindings
+                ?? await AiTaskDeploymentValidator.BindAsync(
+                    aiTasks,
+                    storageSystem.AiConnectionStorage,
+                    aiSecretStore);
+            AiTaskDeploymentValidator.ValidateBindings(aiTasks, definition.AiTaskBindings);
+
             if (storedDefinition.FormBindings is null && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
                 throw new InvalidOperationException("The historical workflow has no verified form bindings. Deploy a new workflow version.");
             definition.FormBindings = storedDefinition.FormBindings ?? await new FormKeyResolver(storageSystem).BindAsync(
@@ -276,13 +294,20 @@ public partial class BpmnBusinessLogic(
             return;
         }
 
-        var activeTokens = catchHandler.ActiveServiceTasks();
+        var activeTokens = catchHandler.ActiveServiceTasks().ToArray();
+        var normalTokens = activeTokens
+            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is null)
+            .ToArray();
+        var aiTokens = activeTokens
+            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is not null)
+            .ToArray();
         var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
             .Where(job => job.ProcessInstanceId == processInstanceId.Value)
             .ToList();
 
         // Auftraege zu Tokens, die nicht mehr warten, sind erledigt oder abgebrochen.
-        var activeTokenIds = activeTokens.Select(token => token.Id).ToHashSet();
+        // KI-Tasks gehoeren nie in die externe Worker-Warteschlange.
+        var activeTokenIds = normalTokens.Select(token => token.Id).ToHashSet();
         foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.TokenId)))
         {
             await storageSystem.ServiceTaskStorage.RemoveJob(obsolete.Id);
@@ -297,7 +322,7 @@ public partial class BpmnBusinessLogic(
             ? engine.MasterToken.Variables
             : null);
 
-        foreach (var token in activeTokens)
+        foreach (var token in normalTokens)
         {
             if (existing.Any(job => job.TokenId == token.Id))
             {
@@ -321,6 +346,116 @@ public partial class BpmnBusinessLogic(
                 Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
                 Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
+        }
+
+        var persistedAiTokens = catchHandler is InstanceEngine instanceEngine
+            ? instanceEngine.Tokens
+                .Where(token => token.CurrentFlowNode is BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
+                .ToArray()
+            : aiTokens;
+        if (persistedAiTokens.Length == 0)
+        {
+            return;
+        }
+
+        var deployedDefinition = await storageSystem.DefinitionStorage.GetDefinitionById(definitionId);
+        if (deployedDefinition.AiTaskBindings is null)
+            throw new InvalidDataException("The deployed workflow has no verified AI task bindings.");
+
+        foreach (var token in aiTokens)
+        {
+            var task = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            var contract = task.FlowzerAiTask!;
+            if (!deployedDefinition.AiTaskBindings.TryGetValue(task.Id, out var binding)
+                || binding.ConnectionId != contract.ConnectionId)
+                throw new InvalidDataException("The deployed AI task binding is inconsistent.");
+            if (token.Variables is null)
+                throw new InvalidDataException("The AI task has no mapped input variables.");
+
+            var nowUtc = DateTime.UtcNow;
+            var run = new AiRun
+            {
+                Id = Guid.NewGuid(),
+                ProcessInstanceId = processInstanceId.Value,
+                TokenId = token.Id,
+                FlowNodeId = task.Id,
+                MetaDefinitionId = metaDefinitionId,
+                DefinitionId = definitionId,
+                ProcessId = processId,
+                ConnectionId = binding.ConnectionId,
+                ConnectionRevision = binding.ConnectionRevision,
+                Model = binding.Model,
+                InstructionVersion = contract.InstructionVersion,
+                Instruction = contract.Instruction,
+                InputsJson = JsonConvert.SerializeObject(token.Variables, Formatting.None),
+                ResultSchema = contract.ResultSchema,
+                MaxInputTokens = contract.MaxInputTokens,
+                MaxOutputTokens = contract.MaxOutputTokens,
+                TimeoutSeconds = contract.TimeoutSeconds,
+                MaximumAttempts = task.FlowzerRetries > 0 ? task.FlowzerRetries : 1,
+                Status = AiRunStatus.Pending,
+                Attempt = 0,
+                Revision = 1,
+                CreatedAtUtc = nowUtc,
+                UpdatedAtUtc = nowUtc
+            };
+            var created = await storageSystem.AiRunStorage.TryCreate(run);
+            if (created.Status == AiRunWriteStatus.Written)
+            {
+                continue;
+            }
+
+            if (created.Status != AiRunWriteStatus.Conflict
+                || created.Current is null
+                || !SameAiRunSnapshot(created.Current, run))
+                throw new InvalidDataException("The persisted AI run does not match its active token.");
+        }
+
+        // Ein gerade erfolgreich angewendetes Ergebnis besitzt hier bereits einen Completed-
+        // Token, waehrend sein Lauf noch in derselben Transaktion auf Completed gesetzt wird.
+        // Dieser Token bleibt deshalb geschuetzt. Terminierte/fehlgeschlagene Tokens entziehen
+        // dagegen auch einer laufenden Providerlease die Schreibberechtigung.
+        var protectedAiTokenIds = persistedAiTokens
+            .Where(token => token.State is FlowNodeState.Active or FlowNodeState.Completed)
+            .Select(token => token.Id)
+            .ToArray();
+        await storageSystem.AiRunStorage.CancelObsoleteRuns(
+            processInstanceId.Value,
+            protectedAiTokenIds,
+            DateTime.UtcNow);
+    }
+
+    internal static bool SameAiRunSnapshot(AiRun current, AiRun expected) =>
+        current.ProcessInstanceId == expected.ProcessInstanceId
+        && current.TokenId == expected.TokenId
+        && current.FlowNodeId == expected.FlowNodeId
+        && current.MetaDefinitionId == expected.MetaDefinitionId
+        && current.DefinitionId == expected.DefinitionId
+        && current.ProcessId == expected.ProcessId
+        && current.ConnectionId == expected.ConnectionId
+        && current.ConnectionRevision == expected.ConnectionRevision
+        && current.Model == expected.Model
+        && current.InstructionVersion == expected.InstructionVersion
+        && current.Instruction == expected.Instruction
+        && SameJsonValue(current.InputsJson, expected.InputsJson)
+        && current.ResultSchema == expected.ResultSchema
+        && current.MaxInputTokens == expected.MaxInputTokens
+        && current.MaxOutputTokens == expected.MaxOutputTokens
+        && current.TimeoutSeconds == expected.TimeoutSeconds
+        && current.MaximumAttempts == expected.MaximumAttempts;
+
+    private static bool SameJsonValue(string current, string expected)
+    {
+        try
+        {
+            return JToken.DeepEquals(JToken.Parse(current), JToken.Parse(expected));
+        }
+        catch (JsonReaderException)
+        {
+            // Ungültige Snapshots werden nicht als kompatibel akzeptiert. Der Aufrufer
+            // behandelt dies als Persistenzkonflikt statt mit einem Lauf fortzufahren,
+            // dessen deklarierte Eingaben nicht mehr sicher vergleichbar sind.
+            return false;
         }
     }
 
@@ -433,7 +568,8 @@ public partial class BpmnBusinessLogic(
 
             foreach (var dueInstanceTimerGroup in dueTimers
                          .Where(subscription => subscription.ProcessInstanceId != null)
-                         .GroupBy(subscription => subscription.ProcessInstanceId!.Value))
+                         .GroupBy(subscription => subscription.ProcessInstanceId!.Value)
+                         .OrderBy(group => group.Key))
             {
                 try
                 {
@@ -481,9 +617,18 @@ public partial class BpmnBusinessLogic(
             InstanceEngine instance;
             if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
             {
-                var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(messageSubscription.ProcessInstanceId.Value);
+                var instanceId = messageSubscription.ProcessInstanceId.Value;
+                await storageSystem.InstanceStorage.LockForMutation(instanceId);
+                // Nach einem möglichen Warten unter der Instanzsperre erneut lesen. Eine
+                // konkurrierende Mutation darf keine inzwischen entfernte Subscription beleben.
+                var selectedSubscription = messageSubscription;
+                messageSubscription = (await storageSystem.SubscriptionStorage
+                        .GetMessageSubscription(message.Name, message.CorrelationKey, message.InstanceId))
+                    .FirstOrDefault(candidate => candidate == selectedSubscription)
+                    ?? throw new ArgumentException("The selected message subscription is no longer active.");
+                var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
                 instance = new InstanceEngine(processInstance.Tokens);
-                instance.InstanceId = messageSubscription.ProcessInstanceId.Value;
+                instance.InstanceId = instanceId;
                 instance.HandleMessage(message);
             }
             else //the message is for a new instance, so create a new one
@@ -521,6 +666,7 @@ public partial class BpmnBusinessLogic(
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
             var instance = new InstanceEngine(processInstance.Tokens);
             instance.InstanceId = job.ProcessInstanceId;
@@ -557,6 +703,7 @@ public partial class BpmnBusinessLogic(
         try
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
+            await storageSystem.InstanceStorage.LockForMutation(instanceId);
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
             if (processInstance.IsFinished)
             {
@@ -849,6 +996,7 @@ public partial class BpmnBusinessLogic(
 
     private async Task HandleInstanceTimers(ITransactionalStorage storageSystem, Guid instanceId, DateTime time)
     {
+        await storageSystem.InstanceStorage.LockForMutation(instanceId);
         var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var instance = new InstanceEngine(processInstance.Tokens);
         instance.InstanceId = processInstance.InstanceId;

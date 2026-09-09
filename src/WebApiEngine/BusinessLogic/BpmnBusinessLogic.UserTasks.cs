@@ -32,6 +32,9 @@ public partial class BpmnBusinessLogic
         try
         {
             using var storage = storageProvider.GetTransactionalStorage();
+            // Instanz vor Task-/Idempotenzzeilen sperren. Derselbe globale Lock-Ablauf
+            // verhindert Deadlocks mit KI-, Timer-, Worker- und Abbruchmutationen.
+            await storage.InstanceStorage.LockForMutation(instanceId);
             var acquisition = await IdempotencyExecution.Acquire(storage, idempotency);
             if (acquisition.IsReplay) return UserTaskCompletionOutcome.Completed;
             async Task<UserTaskCompletionOutcome> NotFound()

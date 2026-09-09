@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v2.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v3.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -24,17 +24,16 @@ public static class BpmnCapabilityMatrix
     /// Vertrag klein und jede Modellieransicht kann nach einer Korrektur deterministisch erneut prüfen.
     /// </summary>
     public static void ValidateForDeployment(string xml)
-        => Validate(xml, allowCompleteAiTaskDraft: false);
+        => Validate(xml);
 
     /// <summary>
-    /// Prüft einen Autorenentwurf. Vollständig konfigurierte KI-Aufgaben dürfen bereits
-    /// gespeichert werden, bleiben aber bis zum Runtime-Slice ausdrücklich nicht deploybar.
-    /// Alle anderen nicht ausführbaren BPMN-Konstrukte behalten ihr bisheriges Save-Verbot.
+    /// Prüft einen Autorenentwurf gegen denselben ausführbaren Elementvertrag. Zusätzliche
+    /// fachliche Pflichtwerte werden danach von den spezialisierten Vertragsprüfern validiert.
     /// </summary>
     public static void ValidateForAuthoring(string xml)
-        => Validate(xml, allowCompleteAiTaskDraft: true);
+        => Validate(xml);
 
-    private static void Validate(string xml, bool allowCompleteAiTaskDraft)
+    private static void Validate(string xml)
     {
         XDocument document;
         try
@@ -61,11 +60,11 @@ public static class BpmnCapabilityMatrix
 
         foreach (var process in executableProcesses)
         {
-            ValidateContainer(process, allowCompleteAiTaskDraft);
+            ValidateContainer(process);
         }
     }
 
-    private static void ValidateContainer(XElement container, bool allowCompleteAiTaskDraft)
+    private static void ValidateContainer(XElement container)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -78,7 +77,7 @@ public static class BpmnCapabilityMatrix
         foreach (var element in flowElements)
         {
             ValidateUniqueElementId(element, uniqueIds);
-            ValidateElement(element, knownIds, allowCompleteAiTaskDraft);
+            ValidateElement(element, knownIds);
         }
 
         ValidateFlowGraph(flowElements);
@@ -87,7 +86,7 @@ public static class BpmnCapabilityMatrix
         {
             if (element.Name.LocalName == "subProcess")
             {
-                ValidateContainer(element, allowCompleteAiTaskDraft);
+                ValidateContainer(element);
             }
         }
     }
@@ -203,7 +202,7 @@ public static class BpmnCapabilityMatrix
         }
     }
 
-    private static void ValidateElement(XElement element, ISet<string> knownIds, bool allowCompleteAiTaskDraft)
+    private static void ValidateElement(XElement element, ISet<string> knownIds)
     {
         var elementId = element.Attribute("id")?.Value;
         if (string.IsNullOrWhiteSpace(elementId))
@@ -222,8 +221,7 @@ public static class BpmnCapabilityMatrix
                 $"The BPMN element '{element.Name.LocalName}' is not supported by capability contract v{Contract.ContractVersion}.");
         }
 
-        if (!capability.Executable
-            && !(allowCompleteAiTaskDraft && capabilityType == "serviceTask.aiTask"))
+        if (!capability.Executable)
         {
             throw Failure("bpmn.element.not_executable", elementId, null,
                 $"The BPMN element '{element.Name.LocalName}' is parsed but not executable in capability contract v{Contract.ContractVersion}.");

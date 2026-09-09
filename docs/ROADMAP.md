@@ -61,10 +61,13 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
    getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
    Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
-   Gliederung pflegbaren KI-Aufgabenvertrag. Er ist bis zur persistenten Runtime bewusst
-   speicherbar, aber nicht deploybar. #244 / PR #245 ergänzt bereits die providerneutrale HTTP-
-   Aufrufschicht und das portable serverseitige Ergebnisschema, ohne diesen Blocker zu
-   verfrüht zu entfernen.
+   Gliederung pflegbaren KI-Aufgabenvertrag. #244 / PR #245 liefert die providerneutrale
+   HTTP-Aufrufschicht und das portable serverseitige Ergebnisschema; #246 bis #251 ergänzen
+   Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 bindet Verbindungsrevision und
+   Modell beim Deployment, erzeugt pro KI-Token genau einen Lauf und committed validierte
+   Ergebnisse atomar mit der BPMN-Instanz. `flowzer.bpmn-capabilities/3` gibt den Task damit
+   erstmals als ausführbar frei. Als Nächstes folgen typisierte Werkzeuge,
+   parametergebundene Freigaben, Testmodus und Störungsbedienung.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 

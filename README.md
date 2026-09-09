@@ -180,7 +180,7 @@ kennt dabei keine konkrete Host-Anwendung. Details stehen in
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v2.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v3.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
@@ -193,12 +193,12 @@ Flowzer verwaltet revisionsgeschützte, hostneutrale Metadaten für OpenAI, Anth
 und OpenAI-kompatible Cloud-/lokale Endpunkte. Cloud und lokale Verarbeitung sind
 getrennte Installations-Opt-ins; Verwenden und Verwalten besitzen getrennte Rollen.
 Secret-Referenzen sind nur schreibbar, Secret-Werte bleiben ausschließlich im
-serverseitigen `IAiSecretStore`. Eine interne, noch nicht öffentlich auslösbare
-Aufrufschicht bindet OpenAI, Anthropic und OpenAI-kompatible Endpunkte ohne Fallback an,
-begrenzt Transport und Timeout und prüft strukturierte Antworten erneut gegen das
-portable Flowzer-Schemaprofil. Der versionierte KI-Aufgabenvertrag kann bereits in
-Diagramm und Gliederung gespeichert werden, bleibt bis zur persistenten Runtime aber
-ausdrücklich nicht deploybar.
+serverseitigen `IAiSecretStore`. Beim Deployment bindet Flowzer eine unveränderliche
+Verbindungsrevision und ein Modell an jeden KI-Schritt. Pro wartendem Engine-Token entsteht
+ein interner, persistenter Lauf; der optional aktivierte Hintergrunddienst führt ihn ohne
+Provider- oder Cloud-Fallback aus und übernimmt ein erneut schema-validiertes Ergebnis
+atomar in die Prozessinstanz. PostgreSQL serialisiert konkurrierende Mutationen derselben
+Instanz; Werkzeugaufrufe und Freigaben bleiben bewusst eigene Ausbaustufen.
 Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 [docs/AI-TASKS.md](docs/AI-TASKS.md).
 

@@ -111,6 +111,40 @@ internal sealed class PostgreSqlAiRunStorage(PostgreSqlSession session) : IAiRun
         return session.RunAsync<IReadOnlyList<AiRun>>(async (connection, transaction) =>
         {
             await using var command = session.CreateCommand(connection, transaction, $$"""
+                WITH candidate_instances AS MATERIALIZED (
+                    SELECT process_instance_id, MIN(updated_at) AS oldest_result
+                    FROM {schema}.ai_runs
+                    WHERE status = @resultReady
+                      AND lease_owner IS NULL
+                      AND lease_expires_at IS NULL
+                    GROUP BY process_instance_id
+                    ORDER BY MIN(updated_at), process_instance_id
+                    LIMIT @maxRuns
+                ),
+                locked_instances AS MATERIALIZED (
+                    SELECT process_instance_id, oldest_result
+                    FROM candidate_instances
+                    WHERE pg_try_advisory_xact_lock(
+                        hashtextextended(process_instance_id::text, 624529181))
+                    ORDER BY oldest_result, process_instance_id
+                ),
+                candidate_runs AS MATERIALIZED (
+                    SELECT candidate.id
+                    FROM locked_instances AS locked
+                    CROSS JOIN LATERAL (
+                        SELECT run.id, run.updated_at
+                        FROM {schema}.ai_runs AS run
+                        WHERE run.process_instance_id = locked.process_instance_id
+                          AND run.status = @resultReady
+                          AND run.lease_owner IS NULL
+                          AND run.lease_expires_at IS NULL
+                        ORDER BY run.updated_at, run.id
+                        LIMIT 1
+                        FOR UPDATE OF run SKIP LOCKED
+                    ) AS candidate
+                    ORDER BY candidate.updated_at, candidate.id
+                    LIMIT @maxRuns
+                )
                 UPDATE {schema}.ai_runs AS target
                 SET status = @completing,
                     lease_owner = @leaseOwner,
@@ -118,16 +152,7 @@ internal sealed class PostgreSqlAiRunStorage(PostgreSqlSession session) : IAiRun
                     next_attempt_at = NULL,
                     revision = target.revision + 1,
                     updated_at = @now
-                WHERE target.id IN (
-                    SELECT candidate.id
-                    FROM {schema}.ai_runs AS candidate
-                    WHERE candidate.status = @resultReady
-                      AND candidate.lease_owner IS NULL
-                      AND candidate.lease_expires_at IS NULL
-                    ORDER BY candidate.updated_at, candidate.id
-                    LIMIT @maxRuns
-                    FOR UPDATE SKIP LOCKED
-                )
+                WHERE target.id IN (SELECT id FROM candidate_runs)
                 RETURNING {{Columns}}
                 """);
             AddClaimParameters(command, leaseOwner, nowUtc, leaseExpiresAtUtc, maxRuns);
@@ -265,6 +290,46 @@ internal sealed class PostgreSqlAiRunStorage(PostgreSqlSession session) : IAiRun
                 recovered.Add(written);
             }
             return recovered;
+        });
+    }
+
+    public Task<int> CancelObsoleteRuns(
+        Guid processInstanceId,
+        IReadOnlyCollection<Guid> protectedTokenIds,
+        DateTime nowUtc)
+    {
+        if (processInstanceId == Guid.Empty)
+            throw new ArgumentException("Process instance ID is required.", nameof(processInstanceId));
+        ArgumentNullException.ThrowIfNull(protectedTokenIds);
+        EnsureUtc(nowUtc);
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction, """
+                UPDATE {schema}.ai_runs
+                SET status = @cancelled,
+                    revision = revision + 1,
+                    updated_at = GREATEST(updated_at, @now),
+                    next_attempt_at = NULL,
+                    lease_owner = NULL,
+                    lease_expires_at = NULL,
+                    failure_code = NULL
+                WHERE process_instance_id = @instanceId
+                  AND NOT (token_id = ANY(@protectedTokenIds))
+                  AND status IN (@pending, @running, @retryScheduled, @resultReady, @completing)
+                """);
+            command.Parameters.AddWithValue("instanceId", processInstanceId);
+            var protectedParameter = command.Parameters.AddWithValue(
+                "protectedTokenIds",
+                protectedTokenIds.ToArray());
+            protectedParameter.NpgsqlDbType = NpgsqlDbType.Array | NpgsqlDbType.Uuid;
+            AddTimestamp(command, "now", nowUtc);
+            AddStatus(command, "cancelled", AiRunStatus.Cancelled);
+            AddStatus(command, "pending", AiRunStatus.Pending);
+            AddStatus(command, "running", AiRunStatus.Running);
+            AddStatus(command, "retryScheduled", AiRunStatus.RetryScheduled);
+            AddStatus(command, "resultReady", AiRunStatus.ResultReady);
+            AddStatus(command, "completing", AiRunStatus.Completing);
+            return await command.ExecuteNonQueryAsync();
         });
     }
 

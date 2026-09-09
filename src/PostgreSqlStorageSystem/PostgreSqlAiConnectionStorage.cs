@@ -28,6 +28,18 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
         return body is null ? null : StorageJson.Deserialize<AiConnection>(body);
     });
 
+    public Task<AiConnection?> Get(Guid id, long revision) => session.RunAsync(async (connection, transaction) =>
+    {
+        ValidateId(id);
+        if (revision < 1) throw new ArgumentOutOfRangeException(nameof(revision));
+        await using var command = session.CreateCommand(connection, transaction,
+            "SELECT body FROM {schema}.ai_connection_revisions WHERE id = @id AND revision = @revision");
+        command.Parameters.AddWithValue("id", id);
+        command.Parameters.AddWithValue("revision", revision);
+        var body = await command.ExecuteScalarAsync() as string;
+        return body is null ? null : StorageJson.Deserialize<AiConnection>(body);
+    });
+
     public Task<AiConnectionWriteResult> TryCreate(AiConnection item) =>
         session.RunAsync(async (connection, transaction) =>
         {
@@ -43,10 +55,13 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
             AddParameters(command, item);
             var body = await command.ExecuteScalarAsync() as string;
             if (body is not null)
+            {
+                await StoreRevision(connection, transaction, item);
                 return new AiConnectionWriteResult(
                     AiConnectionWriteStatus.Written,
                     StorageJson.Deserialize<AiConnection>(body),
                     item.Revision);
+            }
 
             var current = await ReadCurrent(connection, transaction, item.Id);
             return new AiConnectionWriteResult(
@@ -79,10 +94,13 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
             command.Parameters.AddWithValue("expectedRevision", expectedRevision);
             var body = await command.ExecuteScalarAsync() as string;
             if (body is not null)
+            {
+                await StoreRevision(connection, transaction, item);
                 return new AiConnectionWriteResult(
                     AiConnectionWriteStatus.Written,
                     StorageJson.Deserialize<AiConnection>(body),
                     item.Revision);
+            }
 
             var current = await ReadCurrent(connection, transaction, item.Id);
             return current is null
@@ -114,6 +132,33 @@ internal sealed class PostgreSqlAiConnectionStorage(PostgreSqlSession session) :
         command.Parameters.AddWithValue("id", id);
         var body = await command.ExecuteScalarAsync() as string;
         return body is null ? null : StorageJson.Deserialize<AiConnection>(body);
+    }
+
+    private async Task StoreRevision(
+        NpgsqlConnection connection,
+        NpgsqlTransaction? transaction,
+        AiConnection item)
+    {
+        await using var command = session.CreateCommand(connection, transaction, """
+            INSERT INTO {schema}.ai_connection_revisions (id, revision, body)
+            VALUES (@id, @revision, @body)
+            ON CONFLICT (id, revision) DO NOTHING
+            RETURNING body
+            """);
+        command.Parameters.AddWithValue("id", item.Id);
+        command.Parameters.AddWithValue("revision", item.Revision);
+        command.Parameters.AddWithValue("body", StorageJson.Serialize(item));
+        var inserted = await command.ExecuteScalarAsync() as string;
+        if (inserted is not null)
+            return;
+
+        await using var existingCommand = session.CreateCommand(connection, transaction,
+            "SELECT body FROM {schema}.ai_connection_revisions WHERE id = @id AND revision = @revision");
+        existingCommand.Parameters.AddWithValue("id", item.Id);
+        existingCommand.Parameters.AddWithValue("revision", item.Revision);
+        var existing = await existingCommand.ExecuteScalarAsync() as string;
+        if (existing is null || StorageJson.Deserialize<AiConnection>(existing) != item)
+            throw new InvalidDataException("An immutable AI connection revision already contains different data.");
     }
 
     private static async Task<IReadOnlyList<AiConnection>> Read(NpgsqlCommand command)

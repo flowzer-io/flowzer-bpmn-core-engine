@@ -54,14 +54,16 @@ internal sealed class AiInferenceGateway(
         ValidateCommand(command);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var connection = await connections.Get(command.ConnectionId)
-                         ?? throw Failure("ai.connection.not_found", "The AI connection was not found.");
-        if (connection.Revision != command.ConnectionRevision)
-            throw Failure(
-                "ai.connection.revision_changed",
-                "The AI connection revision no longer matches the persisted run.");
-        if (!connection.Enabled)
+        // Die aktuelle Fassung ist der administrative Kill-Switch. Ausführungsdetails
+        // stammen anschließend trotzdem aus der beim Deployment gebundenen Historie.
+        var current = await connections.Get(command.ConnectionId)
+                      ?? throw Failure("ai.connection.not_found", "The AI connection was not found.");
+        if (!current.Enabled)
             throw Failure("ai.connection.disabled", "The AI connection is disabled.");
+        var connection = await connections.Get(command.ConnectionId, command.ConnectionRevision)
+                         ?? throw Failure(
+                             "ai.connection.revision_changed",
+                             "The persisted AI connection revision is unavailable.");
 
         try
         {

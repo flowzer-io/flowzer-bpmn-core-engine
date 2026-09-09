@@ -73,6 +73,43 @@ public sealed class AiTaskDeploymentValidatorTest
         secrets.ResolveCalls.Should().Be(0);
     }
 
+    // Testzweck: Das Deployment bindet die exakte Verbindungsrevision und das effektive
+    // Standardmodell. Eine spaetere Aenderung der Verbindung darf den Workflow nicht
+    // unbemerkt auf ein anderes Modell umstellen.
+    [Test]
+    public async Task BindAsync_ShouldCaptureConnectionRevisionAndDefaultModel()
+    {
+        var bindings = await AiTaskDeploymentValidator.BindAsync(
+            [BuildTask()],
+            new ConnectionStorage(Connection(enabled: true) with
+            {
+                Revision = 7,
+                DefaultModel = "model-seven"
+            }),
+            new SecretStore(exists: true));
+
+        bindings.Should().ContainSingle();
+        bindings["Ai_1"].Should().Be(new BoundAiTask(ConnectionId, 7, "model-seven"));
+    }
+
+    // Testzweck: Ein explizites Modell im KI-Task hat Vorrang vor dem Default der gebundenen
+    // Verbindung und wird ebenfalls unveraenderlich in der Workflow-Version gespeichert.
+    [Test]
+    public async Task BindAsync_ShouldCaptureExplicitTaskModel()
+    {
+        var task = BuildTask() with
+        {
+            FlowzerAiTask = BuildTask().FlowzerAiTask! with { Model = "model-task" }
+        };
+
+        var bindings = await AiTaskDeploymentValidator.BindAsync(
+            [task],
+            new ConnectionStorage(Connection(enabled: true)),
+            new SecretStore(exists: true));
+
+        bindings["Ai_1"].Model.Should().Be("model-task");
+    }
+
     private static ServiceTask BuildTask() => new()
     {
         Id = "Ai_1",

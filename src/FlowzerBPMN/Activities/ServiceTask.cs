@@ -9,6 +9,7 @@ public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping
     /// Die Engine behält damit die BPMN-Semantik eines Service-Tasks; Providerdetails bleiben
     /// eine klar abgegrenzte Erweiterung.
     /// </summary>
+    [DoNotTranslate]
     public Flowzer.AiTaskDefinition? FlowzerAiTask { get; init; }
 
     public int FlowzerRetries { get; init; }

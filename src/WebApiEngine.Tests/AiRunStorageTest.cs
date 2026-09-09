@@ -240,6 +240,86 @@ public sealed class AiRunStorageTest
             Now.AddSeconds(4))).Status.Should().Be(AiRunWriteStatus.Written);
     }
 
+    // Testzweck: Ein Engine-Batch claimt höchstens ein Ergebnis je Prozessinstanz; der erste
+    // Fortschritt kann sonst einen zweiten parallelen KI-Token im selben Commit stornieren.
+    [Test]
+    public async Task FilesystemStorage_ShouldClaimAtMostOneReadyResultPerProcessInstance()
+    {
+        using var context = new Context();
+        var first = Run();
+        var second = Run() with { Id = Guid.NewGuid(), TokenId = Guid.NewGuid() };
+        await context.Storage.AiRunStorage.TryCreate(first);
+        await context.Storage.AiRunStorage.TryCreate(second);
+        var providerClaims = await context.Storage.AiRunStorage.ClaimProviderRuns(
+            "provider", Now, Now.AddMinutes(5), 2);
+        foreach (var claim in providerClaims)
+        {
+            var started = MarkStarted(claim, Now.AddSeconds(1));
+            await context.Storage.AiRunStorage.TryUpdate(
+                started, claim.Revision, "provider", Now.AddSeconds(1));
+            await context.Storage.AiRunStorage.TryUpdate(
+                Ready(started, Now.AddSeconds(2)), started.Revision, "provider", Now.AddSeconds(2));
+        }
+
+        var results = await context.Storage.AiRunStorage.ClaimResultRuns(
+            "engine", Now.AddSeconds(3), Now.AddMinutes(5), 10);
+
+        results.Should().ContainSingle();
+    }
+
+    // Testzweck: Verlaesst ein Token seinen KI-Schritt durch Abbruch oder Fehlerpfad, wird
+    // ein noch offener Lauf dauerhaft storniert und kann weder Provider- noch Ergebnisclaimen.
+    [Test]
+    public async Task FilesystemStorage_ShouldCancelOnlyObsoleteOpenRuns()
+    {
+        using var context = new Context();
+        var obsolete = Run();
+        var active = Run() with
+        {
+            Id = Guid.NewGuid(),
+            TokenId = Guid.NewGuid()
+        };
+        await context.Storage.AiRunStorage.TryCreate(obsolete);
+        await context.Storage.AiRunStorage.TryCreate(active);
+
+        var cancelled = await context.Storage.AiRunStorage.CancelObsoleteRuns(
+            obsolete.ProcessInstanceId,
+            [active.TokenId],
+            Now.AddSeconds(1));
+
+        cancelled.Should().Be(1);
+        (await context.Storage.AiRunStorage.Get(obsolete.Id))!.Status.Should().Be(AiRunStatus.Cancelled);
+        (await context.Storage.AiRunStorage.Get(active.Id))!.Status.Should().Be(AiRunStatus.Pending);
+        (await context.Storage.AiRunStorage.ClaimProviderRuns(
+            "provider",
+            Now.AddSeconds(2),
+            Now.AddMinutes(5),
+            10)).Should().ContainSingle().Which.Id.Should().Be(active.Id);
+    }
+
+    // Testzweck: Eine verspätet eintreffende Engine-Zeit darf beim Stornieren eines
+    // veralteten Laufs dessen persistierten Aktualisierungszeitpunkt nicht zurücksetzen.
+    [Test]
+    public async Task FilesystemStorage_ShouldKeepCancellationTimestampMonotonic()
+    {
+        using var context = new Context();
+        var run = Run() with
+        {
+            CreatedAtUtc = Now.AddMinutes(1),
+            UpdatedAtUtc = Now.AddMinutes(1)
+        };
+        await context.Storage.AiRunStorage.TryCreate(run);
+
+        await context.Storage.AiRunStorage.CancelObsoleteRuns(
+            run.ProcessInstanceId,
+            [],
+            Now);
+
+        var cancelled = (await context.Storage.AiRunStorage.Get(run.Id))!;
+        cancelled.Status.Should().Be(AiRunStatus.Cancelled);
+        cancelled.UpdatedAtUtc.Should().Be(Now.AddMinutes(1));
+    }
+
     private static AiRun MarkStarted(AiRun run, DateTime at) => run with
     {
         Attempt = run.Attempt + 1,

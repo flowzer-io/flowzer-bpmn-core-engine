@@ -12,6 +12,7 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
 {
     private static readonly SemaphoreSlim Gate = new(1, 1);
     private readonly string _path = storage.GetBasePath(Path.Combine("FileStorage", "AiConnections"));
+    private readonly string _historyPath = storage.GetBasePath(Path.Combine("FileStorage", "AiConnections", "History"));
 
     public Task<IReadOnlyList<AiConnection>> List()
     {
@@ -30,6 +31,14 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
         return content is null ? null : Deserialize(content);
     }
 
+    public async Task<AiConnection?> Get(Guid id, long revision)
+    {
+        ValidateId(id);
+        if (revision < 1) throw new ArgumentOutOfRangeException(nameof(revision));
+        var content = await StorageFile.ReadAllTextIfExistsAsync(HistoryFile(id, revision));
+        return content is null ? null : Deserialize(content);
+    }
+
     public async Task<AiConnectionWriteResult> TryCreate(AiConnection connection)
     {
         Validate(connection, expectedRevision: 0);
@@ -45,6 +54,7 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
                     current?.Revision ?? 0);
             }
 
+            await SaveHistory(connection);
             await StorageFile.WriteAllTextNewAtomicAsync(File(connection.Id), Serialize(connection));
             return new AiConnectionWriteResult(
                 AiConnectionWriteStatus.Written,
@@ -78,6 +88,10 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
                     current,
                     current.Revision);
 
+            // Historie zuerst: Bricht die nichttransaktionale Entwicklungsablage danach ab,
+            // zeigt der aktuelle Zeiger weiterhin auf die alte gueltige Revision. Ein Retry
+            // kann denselben unveraenderlichen History-Eintrag gefahrlos ueberschreiben.
+            await SaveHistory(connection);
             await StorageFile.WriteAllTextAtomicAsync(File(connection.Id), Serialize(connection));
             return new AiConnectionWriteResult(
                 AiConnectionWriteStatus.Written,
@@ -95,6 +109,23 @@ internal sealed class AiConnectionStorage(Storage storage) : IAiConnectionStorag
     }
 
     private string File(Guid id) => Path.Combine(_path, $"{id:N}.json");
+    private string HistoryFile(Guid id, long revision) =>
+        Path.Combine(_historyPath, id.ToString("N"), $"{revision}.json");
+    private async Task SaveHistory(AiConnection connection)
+    {
+        var path = HistoryFile(connection.Id, connection.Revision);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        try
+        {
+            await StorageFile.WriteAllTextNewAtomicAsync(path, Serialize(connection));
+        }
+        catch (IOException)
+        {
+            var persisted = await StorageFile.ReadAllTextIfExistsAsync(path);
+            if (persisted is null || Deserialize(persisted) != connection)
+                throw new InvalidDataException("An immutable AI connection revision already contains different data.");
+        }
+    }
     private string Serialize(AiConnection connection) =>
         JsonConvert.SerializeObject(connection, storage.NewtonSoftDefaultSettings);
     private AiConnection Deserialize(string content) =>

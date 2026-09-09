@@ -34,6 +34,28 @@ public partial class PostgreSqlStorageIntegrationTest
         (await second.AiConnectionStorage.List()).Should().ContainSingle();
     }
 
+    // Testzweck: PostgreSQL bewahrt jede erfolgreich geschriebene Verbindungsrevision als
+    // unveraenderlichen Laufzeitsnapshot, waehrend Get(id) weiterhin nur den aktuellen Stand liefert.
+    [Test]
+    public async Task AiConnectionStorage_ShouldKeepImmutableRevisions()
+    {
+        var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var id = Guid.NewGuid();
+        var initial = CreateAiConnection(id, "Revisioniert", 1, "env:FLOWZER_AI_FIRST");
+        await storage.AiConnectionStorage.TryCreate(initial);
+        var updated = initial with
+        {
+            DefaultModel = "gpt-new",
+            SecretReference = "env:FLOWZER_AI_SECOND",
+            Revision = 2
+        };
+        await storage.AiConnectionStorage.TryUpdate(updated, 1);
+
+        (await storage.AiConnectionStorage.Get(id, 1)).Should().Be(initial);
+        (await storage.AiConnectionStorage.Get(id, 2)).Should().Be(updated);
+        (await storage.AiConnectionStorage.Get(id))!.Revision.Should().Be(2);
+    }
+
     private static AiConnection CreateAiConnection(Guid id, string name, long revision, string secretReference) => new(
         id,
         name,

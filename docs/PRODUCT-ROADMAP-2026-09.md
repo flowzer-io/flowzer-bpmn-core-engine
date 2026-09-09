@@ -283,10 +283,10 @@ und Abschluss bleiben identisch.
 
 - [x] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
   Verbindung, Modell, versionierte Anweisung, deklarierte Ein-/Ausgaben,
-  Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag und blockiert das
-  Deployment bis zur dauerhaften Runtime. Dafür erweitert der unveränderlich abgelegte
-  Version-1-Vertrag den neuen `flowzer.bpmn-capabilities/2`-Stand nicht rückwirkend.
-  Werkzeuge und Freigaben bleiben Folgeslices.
+  Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag; #252 bindet
+  Verbindungsrevision und Modell beim Deployment und gibt ihn mit
+  `flowzer.bpmn-capabilities/3` als ausführbar frei. Die historischen Fähigkeitsverträge
+  bleiben unverändert. Werkzeuge und Freigaben bleiben Folgeslices.
 - [x] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
   Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen. #244 / PR #245 implementiert
   feste Standardziele, einen expliziten strukturierten Ausgabevertrag und keinen Provider-
@@ -303,16 +303,19 @@ und Abschluss bleiben identisch.
   und PostgreSQL, fail-closed Rollen, einen austauschbaren Secret-Store sowie Konsole,
   OpenAPI und SDK. Deaktivierte Verbindungen bleiben historisch erhalten und sind für
   reine Verwender nicht sichtbar.
-- [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
+- [x] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
   lokale Endpunkte nur mit expliziter administrativer Freigabe. #240 / PR #241 hält Secret-Wert
   und -Referenz bereits aus allen API-/Browserantworten und erlaubt lokale Ziele nur
   nach Installations-Opt-in. #242 / PR #243 lehnt Secret-Attribute im BPMN-Vertrag ab; die
-  Prüfung der späteren Runtime-, Werkzeug- und Exportpfade bleibt offen.
+  #252 speichert auch in Definition und Lauf ausschließlich die opake Verbindungskennung
+  und Revision; die Secret-Referenz bleibt in der internen Verbindungshistorie und wird erst
+  unmittelbar vor dem Provideraufruf aufgelöst. Werkzeuge bleiben ein eigener Folgeslice.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
   (#238; PR #239). #246 / PR #247 ergänzt dauerhafte KI-Laufzustände mit getrennten Provider-/
   Ergebnis-Claims, Revisionen und konservativer Recovery; der ausführende Hintergrunddienst
-  folgt mit #250 / PR #251 bis zum validierten `ResultReady`. Erzeugung, atomarer Engine-Commit und die
-  vollständige Störungsbedienung bleiben offen.
+  folgt mit #250 / PR #251 bis zum validierten `ResultReady`. #252 erzeugt den Lauf aus dem
+  BPMN-Token und committed das Ergebnis zusammen mit Instanz, Subscriptions und Historie;
+  die vollständige Störungsbedienung bleibt offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
   Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,

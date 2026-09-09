@@ -21,13 +21,18 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class DefinitionControllerIntegrationTest
 {
-    // Testzweck: Ein vollständig gebundener KI-Autorenvertrag ist speicherbar, während die
-    // Deployment-Prüfung bis zum eigenen Runtime-Slice denselben Knoten ausdrücklich blockiert.
+    // Testzweck: Ein vollständig gebundener KI-Vertrag ist in Autoren- und Deployment-Prüfung
+    // identisch ausführbar und speichert beim Deploy den unveraenderlichen Verbindungssnapshot.
     [Test]
-    public async Task AiTask_ShouldBeAuthorableButNotDeployableBeforeRuntimeExists()
+    public async Task AiTask_ShouldBeAuthorableAndDeployableWithRuntimeBinding()
     {
         var storage = TestStorage.Create();
         storage.AiConnections.Items.Add(ReadyAiConnection());
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = "workflow-ai-draft",
+            Name = "AI workflow"
+        });
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
         var xml = CreateAiTaskXml("workflow-ai-draft");
@@ -41,15 +46,18 @@ public class DefinitionControllerIntegrationTest
         using var deploymentValidation = await client.PostAsync(
             "/definition/validate/deployment",
             new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploy = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
 
         authoringValidation.StatusCode.Should().Be(HttpStatusCode.OK);
         save.StatusCode.Should().Be(HttpStatusCode.OK);
-        deploymentValidation.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        using var problem = JsonDocument.Parse(await deploymentValidation.Content.ReadAsStringAsync());
-        problem.RootElement.GetProperty("issues")[0].GetProperty("elementId").GetString().Should().Be("Ai_1");
-        problem.RootElement.GetProperty("issues")[0].GetProperty("code").GetString()
-            .Should().Be("bpmn.element.not_executable");
-        storage.DefinitionStorageSeed.Definitions.Should().ContainSingle();
+        deploymentValidation.StatusCode.Should().Be(HttpStatusCode.OK);
+        deploy.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.DefinitionStorageSeed.Definitions.Should().HaveCount(2);
+        storage.DefinitionStorageSeed.Definitions.Single(definition => definition.IsActive)
+            .AiTaskBindings!["Ai_1"]
+            .Should().Be(new BoundAiTask(ReadyAiConnection().Id, 1, "model-a"));
     }
 
     // Testzweck: Auch die Autorenprüfung bindet die stabile Verbindungs-ID serverseitig;
@@ -289,7 +297,7 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("2");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("3");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
                 && !element.GetProperty("executable").GetBoolean());

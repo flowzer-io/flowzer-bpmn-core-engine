@@ -63,7 +63,8 @@ internal sealed class AiRunStorage(Storage storage) : IAiRunStorage
         maxRuns,
         run => run.Status == AiRunStatus.Pending
                || run.Status == AiRunStatus.RetryScheduled && run.NextAttemptAtUtc <= nowUtc,
-        AiRunStatus.Running);
+        AiRunStatus.Running,
+        onePerProcessInstance: false);
 
     public Task<IReadOnlyList<AiRun>> ClaimResultRuns(
         string leaseOwner,
@@ -77,7 +78,8 @@ internal sealed class AiRunStorage(Storage storage) : IAiRunStorage
         run => run.Status == AiRunStatus.ResultReady
                && run.LeaseOwner is null
                && run.LeaseExpiresAtUtc is null,
-        AiRunStatus.Completing);
+        AiRunStatus.Completing,
+        onePerProcessInstance: true);
 
     public async Task<AiRun?> RenewLease(
         Guid id,
@@ -192,19 +194,61 @@ internal sealed class AiRunStorage(Storage storage) : IAiRunStorage
         finally { Gate.Release(); }
     }
 
+    public async Task<int> CancelObsoleteRuns(
+        Guid processInstanceId,
+        IReadOnlyCollection<Guid> protectedTokenIds,
+        DateTime nowUtc)
+    {
+        if (processInstanceId == Guid.Empty)
+            throw new ArgumentException("Process instance ID is required.", nameof(processInstanceId));
+        ArgumentNullException.ThrowIfNull(protectedTokenIds);
+        EnsureUtc(nowUtc);
+        var protectedIds = protectedTokenIds.ToHashSet();
+
+        await Gate.WaitAsync();
+        try
+        {
+            var obsolete = ReadAll()
+                .Where(run => run.ProcessInstanceId == processInstanceId
+                              && !protectedIds.Contains(run.TokenId)
+                              && run.Status is AiRunStatus.Pending
+                                  or AiRunStatus.Running
+                                  or AiRunStatus.RetryScheduled
+                                  or AiRunStatus.ResultReady
+                                  or AiRunStatus.Completing)
+                .ToArray();
+            foreach (var current in obsolete)
+            {
+                await Save(current with
+                {
+                    Status = AiRunStatus.Cancelled,
+                    LeaseOwner = null,
+                    LeaseExpiresAtUtc = null,
+                    NextAttemptAtUtc = null,
+                    FailureCode = null,
+                    Revision = current.Revision + 1,
+                    UpdatedAtUtc = nowUtc > current.UpdatedAtUtc ? nowUtc : current.UpdatedAtUtc
+                });
+            }
+            return obsolete.Length;
+        }
+        finally { Gate.Release(); }
+    }
+
     private async Task<IReadOnlyList<AiRun>> Claim(
         string leaseOwner,
         DateTime nowUtc,
         DateTime leaseExpiresAtUtc,
         int maxRuns,
         Func<AiRun, bool> available,
-        AiRunStatus claimedStatus)
+        AiRunStatus claimedStatus,
+        bool onePerProcessInstance)
     {
         AiRunStorageRules.ValidateLeaseArguments(leaseOwner, nowUtc, leaseExpiresAtUtc, maxRuns);
         await Gate.WaitAsync();
         try
         {
-            var claimed = ReadAll()
+            var candidates = ReadAll()
                 .Where(run => run.LeaseOwner is null
                               && run.LeaseExpiresAtUtc is null
                               && available(run)
@@ -212,6 +256,18 @@ internal sealed class AiRunStorage(Storage storage) : IAiRunStorage
                                   || run.Attempt < run.MaximumAttempts))
                 .OrderBy(run => run.NextAttemptAtUtc ?? run.CreatedAtUtc)
                 .ThenBy(run => run.Id)
+                .ToArray();
+            if (onePerProcessInstance)
+            {
+                candidates = candidates
+                    .GroupBy(run => run.ProcessInstanceId)
+                    .Select(group => group.First())
+                    .OrderBy(run => run.NextAttemptAtUtc ?? run.CreatedAtUtc)
+                    .ThenBy(run => run.Id)
+                    .ToArray();
+            }
+
+            var claimed = candidates
                 .Take(maxRuns)
                 .Select(run => run with
                 {
