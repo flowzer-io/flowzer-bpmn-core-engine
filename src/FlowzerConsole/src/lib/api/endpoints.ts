@@ -47,13 +47,16 @@ export const definitionsApi = {
   capabilities: (signal?: AbortSignal) =>
     requestStatusResult<BpmnCapabilityContract>('/definition/capabilities', { signal }),
 
-  /** `POST /definition/validate` — prüft XML zweckbezogen vor Save oder Deployment. */
+  /** Getrennte feste Pfade verhindern, dass ein Requestparameter die Prüfart abschwächt. */
   validate: (xml: string, deployment: boolean) =>
-    requestStatusResult<BpmnCapabilityContract>(`/definition/validate?deployment=${deployment}`, {
-      method: 'POST',
-      rawBody: xml,
-      contentType: 'application/xml',
-    }),
+    requestStatusResult<BpmnCapabilityContract>(
+      deployment ? '/definition/validate/deployment' : '/definition/validate',
+      {
+        method: 'POST',
+        rawBody: xml,
+        contentType: 'application/xml',
+      },
+    ),
 
   /** `GET /definition/meta` — Katalog aller Prozessdefinitionen. */
   listMeta: (signal?: AbortSignal) =>

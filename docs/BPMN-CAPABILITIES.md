@@ -19,8 +19,8 @@ Anwendung; der Vertrag ist vollständig hostneutral.
 ## Öffentliche API
 
 - `GET /definition/capabilities` liefert den aktuellen Vertrag.
-- `POST /definition/validate?deployment=false` prüft einen speicherbaren Autorenstand,
-  `deployment=true` prüft die strengere ausführbare Teilmenge.
+- `POST /definition/validate` prüft einen speicherbaren Autorenstand,
+- `POST /definition/validate/deployment` prüft denselben Stand für eine Veröffentlichung.
 - `POST /definition` und `POST /definition/deploy` erzwingen die jeweils passende Prüfung innerhalb
   ihres serverseitigen Anwendungsfalls. Eine Browser-Vorprüfung ist daher keine
   Sicherheitsgrenze.
