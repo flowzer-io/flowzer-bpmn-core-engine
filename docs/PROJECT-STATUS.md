@@ -134,7 +134,7 @@ Idempotenzschlüssel gibt es nicht. Flowzer enthält dabei weder Abhängigkeit n
 Laufzeitwissen über eine konkrete konsumierende Fachanwendung. Optionale React-
 Komponenten, Host-Adapter und eine reale Einbettungsabnahme bleiben Folgearbeiten.
 
-## Hostneutrale React-Bausteine – #220 (in Umsetzung)
+## Hostneutrale React-Bausteine – #220 / PR #221 (noch nicht gemergt)
 
 Das optionale Paket `@flowzer/react` setzt ausschließlich auf die öffentliche SDK-API
 und stellt Hooks sowie Render-Prop-Controller für Aufgabenliste, Task-Arbeitsbereich

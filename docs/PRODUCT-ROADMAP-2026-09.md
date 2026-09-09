@@ -40,7 +40,7 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #220 ergänzt auf #218 / PR #219 aufbauende, hostneutrale React-Hooks,
+**Aktiver Slice:** #220 / PR #221 ergänzt auf #218 / PR #219 aufbauende, hostneutrale React-Hooks,
 Render-Prop-Controller und einen neutralen Formularadaptervertrag. Eine unabhängig
 kompilierte Hostfixture belegt die äußere Produktgrenze. Die Migration der Flowzer-
 Konsole auf dieselben Pakete bleibt ein eigener Folgeslice.
@@ -229,7 +229,7 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
   #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
-  Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. #220 ergänzt
+  Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. #220 / PR #221 ergänzt
   darstellungsfreie React-Controller, sichere Cache-Scopes, Mutations- und
   Formularadapter sowie eine unabhängige Hostfixture.
 - [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
