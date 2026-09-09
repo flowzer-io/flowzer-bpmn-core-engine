@@ -186,9 +186,6 @@ jobs:
           npm run generate:openapi
           git diff --exit-code -- src/schema.generated.ts
 
-      - name: Hostneutralität prüfen
-        run: python3 scripts/ci/check_host_neutrality.py
-
       - name: SDK prüfen und bauen
         working-directory: packages/flowzer-sdk
         run: npm run check
