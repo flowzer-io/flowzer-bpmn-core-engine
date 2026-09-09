@@ -404,6 +404,26 @@ Dieser Baustein führt noch keinen Provideraufruf aus einem BPMN-Prozess aus. KI
 bleiben nicht deploybar, bis persistente Läufe, Recovery und Engine-Fortschritt gemeinsam
 implementiert sind.
 
+## Persistente KI-Laufzustände – #246 (noch nicht gemergt)
+
+Ein stabiler Lauf wird eindeutig an Prozessinstanz und Engine-Token gebunden. Der
+unveränderliche Snapshot enthält Verbindung und Revision, Modell, Anweisungsversion,
+deklarierte Eingaben, Ergebnisschema und Grenzen, jedoch keine Secret-Werte oder
+Secret-Referenzen. Pending, Running, RetryScheduled, ResultReady, Completing, Completed,
+Incident und Cancelled sind getrennte, revisionsgeschützte Zustände.
+
+Provider- und Engine-Claims besitzen getrennte Leases. PostgreSQL vergibt sie atomar mit
+Zeilensperren und `SKIP LOCKED`; Revision, Besitzer und Ablauf werden bei jedem Übergang
+erneut geprüft. Ergebnis, tatsächliches Modell und konsistente Tokenmessung überleben einen
+Neustart. Recovery gibt nur einen vor Aufrufbeginn verlorenen Claim erneut frei. Ein
+abgelaufener Lease nach markiertem Provideraufruf oder während des Engine-Commits wird als
+unklarer Ausgang angehalten und nicht blind wiederholt. Der Dateiadapter bleibt ausdrücklich
+auf einen Entwicklungsprozess begrenzt.
+
+Die Ablage allein aktiviert noch keine KI-Aufgabe. Hintergrund-Executor, DNS-Adressbindung
+für benutzerdefinierte Cloudziele und atomarer Engine-Fortschritt folgen vor dem Entfernen
+des Deployment-Blockers.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -428,14 +448,14 @@ implementiert sind.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
-   Task-Vertrag (#242 / PR #243) sowie Provider-/Schemaschicht (#244 / PR #245) liegen vor;
-   dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
+   Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
+   persistente Laufzustand (#246) liegen vor; Executor und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
-805 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+817 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
 33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
 Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 

@@ -52,4 +52,7 @@ public interface IStorageSystem
 
     /// <summary>Revisionierte KI-Verbindungsmetadaten ohne geheime Werte.</summary>
     IAiConnectionStorage AiConnectionStorage => UnsupportedAiConnectionStorage.Instance;
+
+    /// <summary>Dauerhafte, revisions- und leasegeschuetzte KI-Laufzustaende.</summary>
+    IAiRunStorage AiRunStorage => UnsupportedAiRunStorage.Instance;
 }

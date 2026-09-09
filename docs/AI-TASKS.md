@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243 und #244 / PR #245**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245 und #246**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -98,6 +98,24 @@ Providerablehnung und ungültige Antwort werden ohne fremden Rohinhalt stabil kl
 Ein Adapter muss Ein- und Ausgabetokens melden; andernfalls kann Flowzer die gebundenen
 Budgets nicht nachweisen und verwirft die Antwort als unvollständig.
 
+## Persistenter Laufzustand
+
+#246 ergänzt vor der eigentlichen Ausführung einen dauerhaften Zustandsvertrag. Genau ein
+Lauf gehört zu einem Prozessinstanz-/Tokenpaar. Sein unveränderlicher Snapshot bindet
+Verbindungsrevision, Modell, Anweisungsversion, deklarierte Eingaben, Ergebnisschema und
+Limits, enthält aber weder Secret-Wert noch Secret-Referenz.
+
+Provider- und Ergebnis-Claims sind getrennt, revisionsgeschützt und jeweils an einen
+kurzlebigen Lease-Inhaber gebunden. PostgreSQL vergibt sie atomar mit Zeilensperren und
+`SKIP LOCKED`; die Dateiablage serialisiert sie nur innerhalb eines Entwicklungsprozesses.
+Ein verlorener Lease vor dem markierten Provideraufruf wird erneut freigegeben. Ist der
+Aufruf bereits als begonnen gespeichert oder ging der Engine-Commit unklar aus, entsteht
+statt eines blinden Retries eine Störung. Ein bereits validiertes Ergebnis samt Modell- und
+Tokenmessung bleibt für die spätere Fortsetzung erhalten.
+
+Dieser Slice startet noch keinen Hintergrund-Executor und ändert den Deployment-Blocker
+nicht. Die nächste Stufe verbindet den gespeicherten Lauf mit Gateway und Engine.
+
 Die Requestformen orientieren sich an den offiziellen Verträgen der
 [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses/create),
 der [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs)
@@ -116,7 +134,7 @@ verwenden ausschließlich simulierte HTTP-Handler und lösen keine abrechenbaren
 
 ## Noch offen
 
-1. Dauerhafte, nach Neustart fortsetzbare KI-Läufe mit Lease-Verlängerung.
+1. Hintergrund-Executor, der persistente Läufe mit Provider und Engine verbindet.
 2. Typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal.
 3. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
 4. Nachvollziehbare Laufzeit-/Tokenhistorie und Kosten nur mit versionierter Preisgrundlage.

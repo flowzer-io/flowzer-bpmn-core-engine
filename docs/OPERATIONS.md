@@ -809,6 +809,13 @@ Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Gre
 Die indexierte, datensparsame Instanzabfrage ist unter
 [Append-only Vorgangshistorie](PROCESS-HISTORY.md) dokumentiert.
 
+KI-Läufe verwenden ab Migration `014_ai_runs.sql` eine eigene Tabelle. Prozessinstanz und
+Token sind gemeinsam eindeutig; Zustandsrevision, Lease, Wiederaufnahmezeit und
+Providerergebnis liegen in querybaren Spalten. PostgreSQL claimt Provider- und
+Engine-Fortsetzungen atomar. Ein abgelaufener Claim nach bereits markiertem externem Aufruf
+wird als unklarer Ausgang angehalten. `FileStorage/AiRuns` besitzt dagegen nur eine
+prozesslokale Sperre und ist kein Mehrprozess- oder Rollbackversprechen.
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash
@@ -831,6 +838,7 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 - lokale Dev-/Compose-Daten: `.data/flowzer-storage`
 - runtime-nahe Containerdaten: `.data/runtime-storage`
 - Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
+- persistente KI-Laufzustände liegen darunter in `FileStorage/AiRuns`.
 
 ### Sicheres Backup
 

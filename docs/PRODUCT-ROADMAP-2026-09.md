@@ -306,8 +306,9 @@ und Abschluss bleiben identisch.
   nach Installations-Opt-in. #242 / PR #243 lehnt Secret-Attribute im BPMN-Vertrag ab; die
   Prüfung der späteren Runtime-, Werkzeug- und Exportpfade bleibt offen.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
-  (#238; PR #239). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
-  Störungsbehandlung bleiben offen.
+  (#238; PR #239). #246 ergänzt dauerhafte KI-Laufzustände mit getrennten Provider-/
+  Ergebnis-Claims, Revisionen und konservativer Recovery; der ausführende Hintergrunddienst
+  und die vollständige Störungsbedienung bleiben offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
   Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,
