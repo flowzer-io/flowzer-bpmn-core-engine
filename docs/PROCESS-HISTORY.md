@@ -1,6 +1,6 @@
 # Append-only Vorgangshistorie
 
-**Stand:** 9. September 2026 · **Slice:** #226 / PR folgt
+**Stand:** 9. September 2026 · **Slice:** #226 / PR #227
 
 Flowzer stellt die bereits transaktional gespeicherte Human-Task-Auditspur als
 erste echte Vorgangshistorie bereit. Der Vertrag ist absichtlich klein: Er behauptet
@@ -58,4 +58,3 @@ technischen History-Request aus.
 - Personenbezogene Auditdetails und Begründungen bleiben intern.
 - Kommentare, Formularänderungen, Timer, Worker-/KI-Läufe, Störungen und allgemeine
   Prozessschritte benötigen eigene spätere Ereignistypen und Retentionsregeln.
-

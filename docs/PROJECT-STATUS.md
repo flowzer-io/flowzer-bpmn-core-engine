@@ -256,7 +256,7 @@ PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Audi
 dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
 
-## Append-only Human-Task-Vorgangshistorie – #226 (noch nicht gemergt)
+## Append-only Human-Task-Vorgangshistorie – #226 / PR #227 (noch nicht gemergt)
 
 Die vorhandene Lifecycle-Auditspur lässt sich indexiert nach Prozessinstanz lesen und
 bleibt auch nach dem Taskende erhalten. Der neue History-Vertrag veröffentlicht nur
