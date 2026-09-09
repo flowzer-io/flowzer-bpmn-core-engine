@@ -25,12 +25,14 @@ internal abstract class AiHttpProviderAdapter(IAiHttpClientLeaseFactory clientFa
         CancellationToken cancellationToken)
     {
         using var message = BuildRequest(request, secret);
-        using var clientLease = await clientFactory.CreateAsync(request.Connection, cancellationToken);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(request.Timeout);
 
         try
         {
+            // DNS-Aufloesung und der gebundene Socketaufbau gehoeren zum selben Task-Timeout
+            // wie der eigentliche HTTP-Austausch.
+            using var clientLease = await clientFactory.CreateAsync(request.Connection, timeout.Token);
             using var response = await clientLease.Client.SendAsync(
                 message,
                 HttpCompletionOption.ResponseHeadersRead,

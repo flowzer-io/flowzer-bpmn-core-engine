@@ -202,6 +202,26 @@ public sealed class AiProviderAdapterTest
         await cancelled.Should().ThrowAsync<OperationCanceledException>();
     }
 
+    // Testzweck: Der aufgabengebundene Timeout umfasst auch die DNS-/Clientvorbereitung
+    // eines benutzerdefinierten Ziels und nicht erst das spaetere Lesen der HTTP-Antwort.
+    [Test]
+    public async Task OpenAiCompatible_ShouldApplyTaskTimeoutToEndpointPreparation()
+    {
+        var adapter = new OpenAiCompatibleChatAdapter(new DelayedClientLeaseFactory());
+        var action = async () => await adapter.ExecuteAsync(
+                Request(AiProviderKind.OpenAiCompatible, "https://models.example.test/v1") with
+                {
+                    Timeout = TimeSpan.FromMilliseconds(20)
+                },
+                "secret".AsMemory(),
+                default)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+
+        var exception = (await action.Should().ThrowAsync<AiProviderCallException>()).Which;
+        exception.Code.Should().Be("ai.provider.timeout");
+        exception.Retryable.Should().BeTrue();
+    }
+
     // Testzweck: Auch eine erfolgreiche HTTP-Antwort darf das feste Envelope-Limit nicht
     // umgehen und wird ohne Uebernahme ihres Inhalts als ungueltig klassifiziert.
     [Test]
@@ -280,6 +300,17 @@ public sealed class AiProviderAdapterTest
     {
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("Unreachable");
+        }
+    }
+
+    private sealed class DelayedClientLeaseFactory : IAiHttpClientLeaseFactory
+    {
+        public async ValueTask<AiHttpClientLease> CreateAsync(
+            AiConnection connection,
             CancellationToken cancellationToken)
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
