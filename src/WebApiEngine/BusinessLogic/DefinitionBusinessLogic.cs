@@ -4,13 +4,15 @@ using Model;
 using System.Security.Cryptography;
 using System.Text;
 using WebApiEngine.Auth;
+using WebApiEngine.Ai;
 using Version = Model.Version;
 
 namespace WebApiEngine.BusinessLogic;
 
 public class DefinitionBusinessLogic(
     ITransactionalStorageProvider storageProvider,
-    ICurrentUserContextAccessor currentUserContextAccessor)
+    ICurrentUserContextAccessor currentUserContextAccessor,
+    IAiSecretStore aiSecretStore)
 {
     
     public async Task<BpmnDefinition> StoreDefinition(string rawContent, Guid? previousGuid, bool deploy = false)
@@ -19,7 +21,8 @@ public class DefinitionBusinessLogic(
         using var storageSystem = storageProvider.GetTransactionalStorage();
         // Der Parser liest aus Kompatibilitaetsgruenden auch historische, nicht ausführbare
         // Typen. Neue Uploads duerfen sie jedoch nicht als startbare Workflow-Version ablegen.
-        BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        if (deploy) BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        else BpmnCapabilityMatrix.ValidateForAuthoring(rawContent);
         var model = ModelParser.ParseModel(rawContent);
 
         // Die Kennung stammt aus dem hochgeladenen XML (definitions/@id) und wird in der
@@ -32,6 +35,8 @@ public class DefinitionBusinessLogic(
         // unabhängig davon, ob die Meta-Definition existiert.
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
+
+        await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
 
         if (deploy)
         {
@@ -106,4 +111,5 @@ public class DefinitionBusinessLogic(
         var hashBytes = SHA256.HashData(contentBytes);
         return Convert.ToHexString(hashBytes);
     }
+
 }

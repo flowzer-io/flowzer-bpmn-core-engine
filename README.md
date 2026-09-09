@@ -180,7 +180,7 @@ kennt dabei keine konkrete Host-Anwendung. Details stehen in
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v1.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v2.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
@@ -194,8 +194,10 @@ und OpenAI-kompatible Cloud-/lokale Endpunkte. Cloud und lokale Verarbeitung sin
 getrennte Installations-Opt-ins; Verwenden und Verwalten besitzen getrennte Rollen.
 Secret-Referenzen sind nur schreibbar, Secret-Werte bleiben ausschließlich im
 serverseitigen `IAiSecretStore`. Die Verwaltungsbasis führt noch keine Provideraufrufe
-aus und ist keine vorgetäuschte KI-Task-Runtime. Details:
-[docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md).
+aus. Der versionierte KI-Aufgabenvertrag kann bereits in Diagramm und Gliederung
+gespeichert werden, bleibt bis zum Runtime-Slice aber ausdrücklich nicht deploybar.
+Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
+[docs/AI-TASKS.md](docs/AI-TASKS.md).
 
 ## Release und Deployment
 
@@ -214,6 +216,7 @@ aus und ist keine vorgetäuschte KI-Task-Runtime. Details:
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
+- [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation

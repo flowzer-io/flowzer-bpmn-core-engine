@@ -5,6 +5,8 @@
  * senkrechte Folge von Bloecken. Welchen Ausschnitt von BPMN sie abbildet und was
  * mit allem anderen passiert, steht in `docs/GLIEDERUNG-TEILMENGE.md`.
  */
+import type { AiTaskConfiguration, ServiceTaskMode } from '@/lib/aiTaskContract';
+
 
 /**
  * Ein Formular, das im Workflow selbst liegt. Der Form-Key zeigt mit einem
@@ -47,6 +49,8 @@ export interface OutlineStep {
   /** Nur `service`: Typ aus `zeebe:taskDefinition`. */
   readonly workerType?: string;
   readonly retries?: string;
+  readonly serviceTaskMode?: ServiceTaskMode;
+  readonly aiTask?: AiTaskConfiguration;
   readonly inputs: readonly IoMapping[];
   readonly outputs: readonly IoMapping[];
 }

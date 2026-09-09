@@ -60,7 +60,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    folgt auf #237. #240 / PR #241 ergänzt darauf die sichere, revisionsgeschützte Verwaltung von
    Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
    getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
-   Laufzeit-Secret-Store. Provideraufrufe und ausführbare KI-Tasks folgen getrennt.
+   Laufzeit-Secret-Store. #242 ergänzt den serverseitig geprüften, in Diagramm und
+   Gliederung pflegbaren KI-Aufgabenvertrag. Er ist bis zum Provider-/Runtime-Slice
+   bewusst speicherbar, aber nicht deploybar.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
@@ -108,6 +110,11 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   und hostneutrale Verbindungsmetadaten, getrennte Rollen, Installationsgrenzen,
   Secret-Store-Abstraktion, sichere API-/SDK-Verträge und eine Verwaltungsseite liegen vor.
   Kein Provideradapter und keine KI-Task-Runtime werden damit vorgetäuscht.
+- [x] **#242 – versionierter KI-Aufgabenvertrag:** Eigene KI-Kachel als Standard-Service-Task,
+  stabile Verbindungs-ID, Modelloverride, versionierte Anweisung, JSON-Ergebnisschema,
+  deklarierte I/O-Zuordnungen und harte Limits werden serverseitig und in beiden
+  Modellieransichten gleich behandelt. Geheimnisattribute werden abgelehnt. Bis eine
+  dauerhafte Provider-Runtime folgt, blockiert der Fähigkeitsvertrag das Deployment.
 
 ## Vorhandenes nicht neu bauen
 

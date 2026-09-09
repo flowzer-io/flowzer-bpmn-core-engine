@@ -118,6 +118,61 @@ describe('readOutline — einfacher Ablauf', () => {
   });
 });
 
+// Testzweck: Die Gliederung erhält KI-Aufgaben als eigene Dienstvariante vollständig und
+// schreibt den versionierten Vertrag ohne Informationsverlust zurück ins BPMN.
+describe('readOutline — KI-Aufgabe', () => {
+  it('liest und schreibt den KI-Vertrag vollständig', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                  id="Definitions_Ai">
+  <bpmn:process id="Process_Ai" isExecutable="true">
+    <bpmn:startEvent id="Start_1" />
+    <bpmn:serviceTask id="Ai_1" name="Klassifizieren">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="flowzer.ai.v1" retries="2" />
+        <flowzer:aiTask contractVersion="1" connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+          model="model-a" instructionVersion="2" maxInputTokens="4096" maxOutputTokens="1024" timeoutSeconds="60">
+          <flowzer:instruction>Classify the request.</flowzer:instruction>
+          <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+        </flowzer:aiTask>
+        <zeebe:ioMapping>
+          <zeebe:input source="=request" target="request" />
+          <zeebe:output source="=result" target="classification" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_1" />
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Ai_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Ai_1" targetRef="End_1" />
+  </bpmn:process>
+</bpmn:definitions>`;
+
+    const read = readOutline(xml);
+    expect(hasBlocker(read.issues)).toBe(false);
+    const step = read.document!.blocks[0] as OutlineStep;
+    expect(step.serviceTaskMode).toBe('ai');
+    expect(step.aiTask).toEqual({
+      contractVersion: '1',
+      connectionId: '118adeb6-65a4-4e57-a03b-d3b0a3300ac9',
+      model: 'model-a',
+      instructionVersion: '2',
+      instruction: 'Classify the request.',
+      resultSchema: '{"type":"object"}',
+      maxInputTokens: '4096',
+      maxOutputTokens: '1024',
+      timeoutSeconds: '60',
+    });
+
+    const written = writeOutlineXml(read.document!);
+    expect(hasBlocker(written.issues)).toBe(false);
+    expect(written.xml).toContain('<flowzer:aiTask contractVersion="1"');
+    expect(written.xml).toContain('<flowzer:instruction>Classify the request.</flowzer:instruction>');
+    expect(written.xml).toContain('<flowzer:resultSchema>{&quot;type&quot;:&quot;object&quot;}</flowzer:resultSchema>');
+  });
+});
+
 // Testzweck: Das echte Beispiel bricht seit dem abbrechenden Endereignis den ganzen
 // Vorgang ab und liegt damit ausserhalb der Teilmenge. Die Gliederung muss es mit
 // einer Meldung ablehnen, die das Element benennt — und dabei nicht abstuerzen.

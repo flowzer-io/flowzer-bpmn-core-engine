@@ -87,6 +87,55 @@ function extensionOf(owner: ModdleElement, type: string): ModdleElement | undefi
   return extensionsOf(owner).find((value) => value.$type === type);
 }
 
+// Testzweck: Beim Wechsel zwischen Worker- und KI-Aufgabe entstehen keine halben Verträge;
+// der reservierte Auftragstyp und die Flowzer-Erweiterung werden atomar gemeinsam gepflegt.
+describe('setServiceTaskMode', () => {
+  it('legt einen vollständigen KI-Grundvertrag an', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toMatchObject({ type: 'flowzer.ai.v1' });
+    const aiTask = extensionOf(businessObject, 'flowzer:AiTask')!;
+    expect(aiTask).toMatchObject({
+      contractVersion: '1',
+      instructionVersion: '1',
+      maxInputTokens: '4096',
+      maxOutputTokens: '1024',
+      timeoutSeconds: '60',
+    });
+    expect((aiTask.instruction as ModdleElement).body).toBe('');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object","properties":{}}');
+  });
+
+  it('schreibt einzelne KI-Felder und ihre Textkinder, ohne die übrigen Werte zu verlieren', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    editor.setAiTask('Element_1', {
+      connectionId: '118adeb6-65a4-4e57-a03b-d3b0a3300ac9',
+      instruction: 'Classify the request.',
+      resultSchema: '{"type":"object"}',
+    });
+
+    const aiTask = extensionOf(businessObject, 'flowzer:AiTask')!;
+    expect(aiTask.connectionId).toBe('118adeb6-65a4-4e57-a03b-d3b0a3300ac9');
+    expect(aiTask.maxInputTokens).toBe('4096');
+    expect((aiTask.instruction as ModdleElement).body).toBe('Classify the request.');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object"}');
+  });
+
+  it('entfernt beim Wechsel zum normalen Worker den KI-Vertrag und den reservierten Typ', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    editor.setServiceTaskMode('Element_1', 'worker');
+
+    expect(extensionOf(businessObject, 'flowzer:AiTask')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+  });
+});
+
 // Testzweck: Der Form-Key gehoert in `zeebe:formDefinition` und schliesst die beiden anderen
 // Schreibweisen aus. Blieben `formId` oder `externalReference` stehen, entschiede die
 // Lesereihenfolge der Engine, welches Formular gilt.

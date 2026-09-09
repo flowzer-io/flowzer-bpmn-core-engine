@@ -51,6 +51,56 @@ interface TextRowProps {
   monospace?: boolean;
 }
 
+interface TextAreaRowProps extends TextRowProps {
+  rows?: number;
+}
+
+/** Mehrzeilige Variante mit derselben Commit-/Escape-Semantik wie {@link TextRow}. */
+export function TextAreaRow({
+  label,
+  value,
+  onCommit,
+  placeholder,
+  hint,
+  disabled,
+  monospace,
+  rows = 5,
+}: TextAreaRowProps) {
+  const fieldId = useId();
+  const [draft, setDraft] = useState(value);
+
+  useEffect(() => setDraft(value), [value]);
+
+  return (
+    <div>
+      <FieldLabel htmlFor={fieldId}>{label}</FieldLabel>
+      <textarea
+        id={fieldId}
+        value={draft}
+        disabled={disabled}
+        placeholder={placeholder}
+        rows={rows}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft !== value) onCommit(draft);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setDraft(value);
+            event.currentTarget.blur();
+          }
+        }}
+        className={cn(
+          'bg-surface-2 border-border text-text w-full resize-y rounded-[var(--r-sm)] border px-3 py-2',
+          'text-[13.5px] outline-none focus:border-accent disabled:opacity-55',
+          monospace && 'font-mono text-[12px]',
+        )}
+      />
+      {hint && <p className="text-faint mt-1.5 text-[11.5px] leading-normal">{hint}</p>}
+    </div>
+  );
+}
+
 /**
  * Ein Textfeld, das erst beim Verlassen schreibt.
  *

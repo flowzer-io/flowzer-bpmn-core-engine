@@ -532,6 +532,9 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
+    // Die eigene KI-Kachel bleibt ein Service-Task, muss aber als eigener Autorenweg
+    // auffindbar sein und darf nicht hinter dem generischen Worker versteckt bleiben.
+    await expect(page.locator('.djs-palette [data-action="create.flowzer-ai-task"]')).toBeVisible();
   });
 
   // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des

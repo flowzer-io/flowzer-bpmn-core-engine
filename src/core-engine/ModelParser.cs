@@ -490,6 +490,7 @@ public static class ModelParser
                 ?? throw new ModelValidationException(
                     $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
             FlowzerRetries = ParseRetries(taskDefinition),
+            FlowzerAiTask = AiTaskContractParser.Parse(xmlFlowNode),
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
             LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),

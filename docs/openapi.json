@@ -686,6 +686,16 @@
         "tags": [
           "Definition"
         ],
+        "parameters": [
+          {
+            "name": "deployment",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",

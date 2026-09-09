@@ -326,6 +326,59 @@ public class ModelParserTest
         }
     }
 
+    // Testzweck: Der Parser übernimmt den vollständigen, versionierten KI-Vertrag in das
+    // Laufzeitmodell, ohne Secret-Referenzen oder implizite Prozessvariablen zu erfinden.
+    [Test]
+    public void ParseModel_ShouldReadAiTaskContract()
+    {
+        const string xml = """
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                              id="Definitions_Ai">
+              <bpmn:process id="Process_Ai" isExecutable="true">
+                <bpmn:serviceTask id="Ai_1">
+                  <bpmn:extensionElements>
+                    <zeebe:taskDefinition type="flowzer.ai.v1" retries="2" />
+                    <flowzer:aiTask contractVersion="1"
+                                     connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+                                     model="model-a"
+                                     instructionVersion="3"
+                                     maxInputTokens="4096"
+                                     maxOutputTokens="512"
+                                     timeoutSeconds="45">
+                      <flowzer:instruction>Classify the request.</flowzer:instruction>
+                      <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+                    </flowzer:aiTask>
+                    <zeebe:ioMapping>
+                      <zeebe:input source="=request" target="request" />
+                      <zeebe:output source="=result" target="classification" />
+                    </zeebe:ioMapping>
+                  </bpmn:extensionElements>
+                </bpmn:serviceTask>
+              </bpmn:process>
+            </bpmn:definitions>
+            """;
+
+        var task = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<ServiceTask>().Single();
+
+        using (new AssertionScope())
+        {
+            task.Implementation.Should().Be("flowzer.ai.v1");
+            task.FlowzerAiTask.Should().NotBeNull();
+            task.FlowzerAiTask!.ContractVersion.Should().Be(1);
+            task.FlowzerAiTask.ConnectionId.Should().Be(Guid.Parse("118adeb6-65a4-4e57-a03b-d3b0a3300ac9"));
+            task.FlowzerAiTask.Model.Should().Be("model-a");
+            task.FlowzerAiTask.InstructionVersion.Should().Be(3);
+            task.FlowzerAiTask.Instruction.Should().Be("Classify the request.");
+            task.FlowzerAiTask.ResultSchema.Should().Be("{\"type\":\"object\"}");
+            task.FlowzerAiTask.MaxInputTokens.Should().Be(4096);
+            task.FlowzerAiTask.MaxOutputTokens.Should().Be(512);
+            task.FlowzerAiTask.TimeoutSeconds.Should().Be(45);
+        }
+    }
+
     private static void AssertFlowNodeOfTypes<T>(Process process, int? count, string? id = null, string? name = null)
         where T : FlowElement
     {

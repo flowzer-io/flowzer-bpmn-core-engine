@@ -131,7 +131,8 @@ export function useBpmnCapabilities() {
 /** Prüft das aktuelle Modell vor Save oder Deploy, ohne eine Version anzulegen. */
 export function useValidateDefinition() {
   return useMutation({
-    mutationFn: (xml: string) => definitionsApi.validate(xml),
+    mutationFn: ({ xml, deployment }: { xml: string; deployment: boolean }) =>
+      definitionsApi.validate(xml, deployment),
   });
 }
 

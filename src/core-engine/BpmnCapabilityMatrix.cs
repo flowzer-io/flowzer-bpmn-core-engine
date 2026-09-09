@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v1.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v2.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -24,6 +24,17 @@ public static class BpmnCapabilityMatrix
     /// Vertrag klein und jede Modellieransicht kann nach einer Korrektur deterministisch erneut prüfen.
     /// </summary>
     public static void ValidateForDeployment(string xml)
+        => Validate(xml, allowCompleteAiTaskDraft: false);
+
+    /// <summary>
+    /// Prüft einen Autorenentwurf. Vollständig konfigurierte KI-Aufgaben dürfen bereits
+    /// gespeichert werden, bleiben aber bis zum Runtime-Slice ausdrücklich nicht deploybar.
+    /// Alle anderen nicht ausführbaren BPMN-Konstrukte behalten ihr bisheriges Save-Verbot.
+    /// </summary>
+    public static void ValidateForAuthoring(string xml)
+        => Validate(xml, allowCompleteAiTaskDraft: true);
+
+    private static void Validate(string xml, bool allowCompleteAiTaskDraft)
     {
         XDocument document;
         try
@@ -50,11 +61,11 @@ public static class BpmnCapabilityMatrix
 
         foreach (var process in executableProcesses)
         {
-            ValidateContainer(process);
+            ValidateContainer(process, allowCompleteAiTaskDraft);
         }
     }
 
-    private static void ValidateContainer(XElement container)
+    private static void ValidateContainer(XElement container, bool allowCompleteAiTaskDraft)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -67,7 +78,7 @@ public static class BpmnCapabilityMatrix
         foreach (var element in flowElements)
         {
             ValidateUniqueElementId(element, uniqueIds);
-            ValidateElement(element, knownIds);
+            ValidateElement(element, knownIds, allowCompleteAiTaskDraft);
         }
 
         ValidateFlowGraph(flowElements);
@@ -76,7 +87,7 @@ public static class BpmnCapabilityMatrix
         {
             if (element.Name.LocalName == "subProcess")
             {
-                ValidateContainer(element);
+                ValidateContainer(element, allowCompleteAiTaskDraft);
             }
         }
     }
@@ -192,7 +203,7 @@ public static class BpmnCapabilityMatrix
         }
     }
 
-    private static void ValidateElement(XElement element, ISet<string> knownIds)
+    private static void ValidateElement(XElement element, ISet<string> knownIds, bool allowCompleteAiTaskDraft)
     {
         var elementId = element.Attribute("id")?.Value;
         if (string.IsNullOrWhiteSpace(elementId))
@@ -211,7 +222,8 @@ public static class BpmnCapabilityMatrix
                 $"The BPMN element '{element.Name.LocalName}' is not supported by capability contract v{Contract.ContractVersion}.");
         }
 
-        if (!capability.Executable)
+        if (!capability.Executable
+            && !(allowCompleteAiTaskDraft && capabilityType == "serviceTask.aiTask"))
         {
             throw Failure("bpmn.element.not_executable", elementId, null,
                 $"The BPMN element '{element.Name.LocalName}' is parsed but not executable in capability contract v{Contract.ContractVersion}.");
@@ -223,6 +235,10 @@ public static class BpmnCapabilityMatrix
     private static string GetCapabilityType(XElement element, string elementId)
     {
         var elementType = element.Name.LocalName;
+        if (elementType == "serviceTask" && AiTaskContractParser.IsAiTaskCandidate(element))
+        {
+            return "serviceTask.aiTask";
+        }
         if (elementType is not ("startEvent" or "intermediateCatchEvent" or "boundaryEvent" or "endEvent"))
         {
             return elementType;
@@ -253,10 +269,13 @@ public static class BpmnCapabilityMatrix
             case "sequenceFlow":
                 ValidateSequenceFlow(element, elementId, knownIds);
                 break;
-            case "serviceTask" when !HasTaskDefinitionType(element):
-                throw Failure("bpmn.service_task.implementation_required", elementId,
-                    "extensionElements.taskDefinition.type",
-                    $"The service task '{elementId}' requires zeebe:taskDefinition/@type.");
+            case "serviceTask":
+                var aiTask = AiTaskContractParser.Parse(element);
+                if (aiTask is null && !HasTaskDefinitionType(element))
+                    throw Failure("bpmn.service_task.implementation_required", elementId,
+                        "extensionElements.taskDefinition.type",
+                        $"The service task '{elementId}' requires zeebe:taskDefinition/@type.");
+                break;
             case "userTask" when !HasFormKey(element):
                 throw Failure("bpmn.user_task.form_required", elementId,
                     "extensionElements.formDefinition.formKey",

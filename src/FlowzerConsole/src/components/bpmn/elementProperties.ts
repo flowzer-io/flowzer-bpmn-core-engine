@@ -18,6 +18,7 @@ import {
   type DiagramElement,
   type ModdleElement,
 } from './moddle';
+import { AI_WORKER_TYPE, type AiTaskConfiguration, type ServiceTaskMode } from '@/lib/aiTaskContract';
 
 /** Die Elementgruppen, für die das Panel eigene Abschnitte zeigt. */
 export type ElementKind =
@@ -152,6 +153,8 @@ export interface ElementProperties {
   /** Auftrag an einen externen Worker. */
   jobType: string;
   retries: string;
+  serviceTaskMode: ServiceTaskMode;
+  aiTask: AiTaskConfiguration | null;
   /** Ob die Engine an diesem Element einen Auftragstyp auswertet. */
   needsJobType: boolean;
 
@@ -399,6 +402,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
   const assignmentMode = assignmentModeOf(flowzerAssignment);
   const schedule = extension(businessObject, 'zeebe:TaskSchedule');
   const taskDefinition = extension(businessObject, 'zeebe:TaskDefinition');
+  const aiTask = extension(businessObject, 'flowzer:AiTask');
   const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
   const type = businessObject?.$type ?? element.type;
 
@@ -429,6 +433,23 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
 
     jobType: text(taskDefinition, 'type'),
     retries: text(taskDefinition, 'retries'),
+    serviceTaskMode:
+      type === 'bpmn:ServiceTask' && (aiTask || text(taskDefinition, 'type') === AI_WORKER_TYPE)
+        ? 'ai'
+        : 'worker',
+    aiTask: aiTask
+      ? {
+          contractVersion: text(aiTask, 'contractVersion'),
+          connectionId: text(aiTask, 'connectionId'),
+          model: text(aiTask, 'model'),
+          instructionVersion: text(aiTask, 'instructionVersion'),
+          instruction: text(aiTask.instruction as ModdleElement | undefined, 'body'),
+          resultSchema: text(aiTask.resultSchema as ModdleElement | undefined, 'body'),
+          maxInputTokens: text(aiTask, 'maxInputTokens'),
+          maxOutputTokens: text(aiTask, 'maxOutputTokens'),
+          timeoutSeconds: text(aiTask, 'timeoutSeconds'),
+        }
+      : null,
     needsJobType: needsJobType(businessObject),
 
     inputs: ioMappings(element, 'inputParameters'),

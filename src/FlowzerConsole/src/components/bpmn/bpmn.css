@@ -196,6 +196,20 @@
   box-shadow: var(--shadow);
 }
 
+/* Die KI-Kachel bleibt technisch ein Service-Task, ist in der Palette aber als Flowzer-
+   Erweiterung erkennbar statt neben dem normalen Zahnrad identisch auszusehen. */
+.bpmn-surface .djs-palette .flowzer-ai-task-palette::after {
+  content: 'AI';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface);
+  padding: 0 3px;
+  font: 700 7px/12px sans-serif;
+}
+
 .bpmn-surface .djs-popup,
 .bpmn-surface .djs-search-container {
   border-radius: var(--r-sm);

@@ -30,6 +30,27 @@ const DIRECTORY_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </bpmn:process>
 </bpmn:definitions>`;
 
+const AI_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+  id="Definitions_1" targetNamespace="https://flowzer.io/test">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:serviceTask id="Ai_1">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="flowzer.ai.v1" />
+        <flowzer:aiTask contractVersion="1"
+          connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+          model="model-a" instructionVersion="2"
+          maxInputTokens="4096" maxOutputTokens="1024" timeoutSeconds="60">
+          <flowzer:instruction>Classify the request.</flowzer:instruction>
+          <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+        </flowzer:aiTask>
+      </bpmn:extensionElements>
+    </bpmn:serviceTask>
+  </bpmn:process>
+</bpmn:definitions>`;
+
 // Testzweck: Der eigene Moddle-Vertrag muss exakt denselben Namespace und dieselben
 // Attributnamen wie der serverseitige Parser verwenden.
 describe('Flowzer-Moddle-Vertrag', () => {
@@ -40,16 +61,44 @@ describe('Flowzer-Moddle-Vertrag', () => {
       uri: 'https://flowzer.io/schema/bpmn/1.0',
     });
 
-    expect(FLOWZER_MODDLE.types[0]).toMatchObject({
+    const assignment = FLOWZER_MODDLE.types.find((type) => type.name === 'TaskAssignment');
+    expect(assignment).toMatchObject({
       name: 'TaskAssignment',
       superClass: ['Element'],
     });
-    expect(FLOWZER_MODDLE.types[0]?.properties.map((property) => property.name)).toEqual([
+    expect(assignment?.properties.map((property) => property.name)).toEqual([
       'mode',
       'assigneeId',
       'candidateUserIds',
       'candidateGroupIds',
     ]);
+  });
+
+  it('liest und schreibt den KI-Vertrag samt Prompt und Ergebnisschema semantisch unverändert', async () => {
+    const moddle = new BpmnModdle({ zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE });
+    const parsed = await moddle.fromXML(AI_XML);
+    const definitions = parsed.rootElement as unknown as ParsedDefinitions;
+    const values = definitions.rootElements?.[0]?.flowElements?.[0]?.extensionElements?.values ?? [];
+    const aiTask = values.find((value) => value.$type === 'flowzer:AiTask') as
+      | (Record<string, unknown> & { instruction?: { body?: string }; resultSchema?: { body?: string } })
+      | undefined;
+
+    expect(aiTask).toMatchObject({
+      contractVersion: '1',
+      connectionId: '118adeb6-65a4-4e57-a03b-d3b0a3300ac9',
+      model: 'model-a',
+      instructionVersion: '2',
+      maxInputTokens: '4096',
+      maxOutputTokens: '1024',
+      timeoutSeconds: '60',
+    });
+    expect(aiTask?.instruction?.body).toBe('Classify the request.');
+    expect(aiTask?.resultSchema?.body).toBe('{"type":"object"}');
+
+    const serialized = await moddle.toXML(parsed.rootElement, { format: true });
+    expect(serialized.xml).toContain('<flowzer:aiTask');
+    expect(serialized.xml).toContain('<flowzer:instruction>Classify the request.</flowzer:instruction>');
+    expect(serialized.xml).toContain('<flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>');
   });
 
   it('liest und schreibt stabile Verzeichnisreferenzen semantisch unverändert', async () => {

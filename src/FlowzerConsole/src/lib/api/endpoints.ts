@@ -47,9 +47,9 @@ export const definitionsApi = {
   capabilities: (signal?: AbortSignal) =>
     requestStatusResult<BpmnCapabilityContract>('/definition/capabilities', { signal }),
 
-  /** `POST /definition/validate` — prüft XML vor einer schreibenden Mutation. */
-  validate: (xml: string) =>
-    requestStatusResult<BpmnCapabilityContract>('/definition/validate', {
+  /** `POST /definition/validate` — prüft XML zweckbezogen vor Save oder Deployment. */
+  validate: (xml: string, deployment: boolean) =>
+    requestStatusResult<BpmnCapabilityContract>(`/definition/validate?deployment=${deployment}`, {
       method: 'POST',
       rawBody: xml,
       contentType: 'application/xml',

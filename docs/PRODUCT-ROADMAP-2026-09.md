@@ -281,9 +281,12 @@ und Abschluss bleiben identisch.
 
 ## M5 – KI-Tasks und Werkzeuge
 
-- [ ] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
+- [x] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
   Verbindung, Modell, versionierte Anweisung, deklarierte Ein-/Ausgaben,
-  Ergebnisschema, Werkzeuge, Freigaben und Limits.
+  Ergebnisschema und Limits. #242 implementiert den Autorenvertrag und blockiert das
+  Deployment bis zur dauerhaften Runtime. Dafür erweitert der unveränderlich abgelegte
+  Version-1-Vertrag den neuen `flowzer.bpmn-capabilities/2`-Stand nicht rückwirkend.
+  Werkzeuge und Freigaben bleiben Folgeslices.
 - [ ] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
   Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen.
 - [ ] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
@@ -298,7 +301,8 @@ und Abschluss bleiben identisch.
 - [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
   lokale Endpunkte nur mit expliziter administrativer Freigabe. #240 / PR #241 hält Secret-Wert
   und -Referenz bereits aus allen API-/Browserantworten und erlaubt lokale Ziele nur
-  nach Installations-Opt-in; BPMN-/Prompt-/Exportpfade entstehen erst in Folgeslices.
+  nach Installations-Opt-in. #242 lehnt Secret-Attribute im BPMN-Vertrag ab; die
+  Prüfung der späteren Runtime-, Werkzeug- und Exportpfade bleibt offen.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
   (#238; PR #239). Dauerhafte, begrenzt fortsetzbare KI-Läufe und deren
   Störungsbehandlung bleiben offen.

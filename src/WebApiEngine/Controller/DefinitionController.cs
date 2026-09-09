@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
 using WebApiEngine.Idempotency;
+using WebApiEngine.Ai;
 using core_engine.Exceptions;
 
 namespace WebApiEngine.Controller;
@@ -24,7 +25,8 @@ public class DefinitionController(
     BpmnBusinessLogic bpmnBusinessLogic,
     FolderBusinessLogic folderBusinessLogic,
     FormKeyResolver formKeyResolver,
-    InstanceAccessService instanceAccess) : FlowzerControllerBase
+    InstanceAccessService instanceAccess,
+    IAiSecretStore aiSecretStore) : FlowzerControllerBase
 {
     /// <summary>
     /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
@@ -115,7 +117,8 @@ public class DefinitionController(
     [HttpPost("validate")]
     [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition()
+    public async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition(
+        [FromQuery] bool deployment = false)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!permissions.MayEditAnywhere)
@@ -129,7 +132,10 @@ public class DefinitionController(
             return denied;
         }
 
-        BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        if (deployment) BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        else BpmnCapabilityMatrix.ValidateForAuthoring(rawContent);
+        var model = ModelParser.ParseModel(rawContent);
+        await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
         return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
     }
 

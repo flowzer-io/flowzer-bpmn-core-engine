@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
+using WebApiEngine.Ai;
 using WebApiEngine.Idempotency;
 using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Forms;
@@ -19,7 +20,8 @@ namespace WebApiEngine.BusinessLogic;
 public partial class BpmnBusinessLogic(
     ITransactionalStorageProvider storageProvider,
     ILogger<BpmnBusinessLogic>? logger = null,
-    UserTaskDeadlinePolicy? userTaskDeadlinePolicy = null)
+    UserTaskDeadlinePolicy? userTaskDeadlinePolicy = null,
+    IAiSecretStore? aiSecretStore = null)
 {
     private readonly UserTaskDeadlinePolicy _userTaskDeadlinePolicy =
         userTaskDeadlinePolicy ?? UserTaskDeadlinePolicy.Default;
@@ -86,6 +88,7 @@ public partial class BpmnBusinessLogic(
             // umgehen. Bereits laufende Versionen werden dabei nie erneut validiert.
             BpmnCapabilityMatrix.ValidateForDeployment(xmlData);
             var model = ModelParser.ParseModel(xmlData);
+            await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore);
             var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
             DirectorySnapshot? directorySnapshot = null;
             if (userTasks.Any(task => task.FlowzerAssignmentMode == UserTaskAssignmentMode.Directory))

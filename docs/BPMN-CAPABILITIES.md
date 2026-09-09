@@ -1,8 +1,9 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/1` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v1.json` und unterscheidet je Elementart:
+`flowzer.bpmn-capabilities/2` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v2.json` und unterscheidet je Elementart. Version 1 bleibt
+unverändert als historischer Vertrag erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
 - **parsable:** Der bestehende Parser kann das Element lesen, etwa für historische Modelle.
@@ -10,14 +11,17 @@ Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
 
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
 Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
-nicht ausführbar abgelehnt. Flowzer errät keine Fähigkeiten aus einer konsumierenden
+nicht ausführbar abgelehnt. Die einzige vorübergehende, explizite Ausnahme ist der vollständig
+geprüfte KI-Autorenvertrag aus #242: Er darf als Entwurf gespeichert werden, bleibt bis zur
+Runtime jedoch nicht deploybar. Flowzer errät keine Fähigkeiten aus einer konsumierenden
 Anwendung; der Vertrag ist vollständig hostneutral.
 
 ## Öffentliche API
 
 - `GET /definition/capabilities` liefert den aktuellen Vertrag.
-- `POST /definition/validate` prüft BPMN-XML ohne Speicherung.
-- `POST /definition` und `POST /definition/deploy` erzwingen dieselbe Prüfung innerhalb
+- `POST /definition/validate?deployment=false` prüft einen speicherbaren Autorenstand,
+  `deployment=true` prüft die strengere ausführbare Teilmenge.
+- `POST /definition` und `POST /definition/deploy` erzwingen die jeweils passende Prüfung innerhalb
   ihres serverseitigen Anwendungsfalls. Eine Browser-Vorprüfung ist daher keine
   Sicherheitsgrenze.
 
@@ -28,12 +32,12 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 1 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 2 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v1
+## Ausführbares Profil v2
 
 Offiziell ausführbar sind:
 
@@ -50,9 +54,12 @@ Error-/Escalation-Pfade. Diese Grenzen werden erweitert, wenn der jeweilige Runt
 mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der
 Parser XML lesen kann.
 
+`serviceTask.aiTask` ist bereits modellierbar und parsebar, aber noch nicht ausführbar.
+Seine vollständigen Vertrags- und Bindungsregeln stehen in [AI-TASKS.md](AI-TASKS.md).
+
 ## Statische Prüfungen
 
-Neben der Elementmatrix prüft Version 1 vor Save und Deploy:
+Neben der Elementmatrix prüft Version 2 vor Save und Deploy:
 
 - mindestens einen ausführbaren Prozess
 - nichtleere und innerhalb eines Containers eindeutige Element-IDs

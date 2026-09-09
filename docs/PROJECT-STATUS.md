@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #239
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #241
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -364,6 +364,25 @@ sehen keine deaktivierten Verbindungen. Konsole und headless SDK verwenden dense
 hostneutralen Vertrag. Provideraufrufe, KI-Task-Modellierung, Werkzeuge, Freigaben und
 dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
 
+## KI-Aufgabenmodellierung – #242 (noch nicht gemergt)
+
+Der KI-Schritt bleibt technisch ein BPMN-Service-Task und trägt den neuen
+`flowzer:aiTask`-Vertrag in Version 1. Verbindung, optionales Modell, versionierte
+Anweisung, objektförmiges JSON-Ergebnisschema, deklarierte I/O-Zuordnungen sowie Token-
+und Zeitgrenzen werden serverseitig geprüft. Unbekannte Attribute – insbesondere eine
+Secret-Referenz – blockieren das Modell. Die referenzierte Verbindung muss beim Speichern
+existieren, aktiv und serverseitig einsatzbereit sein.
+
+Diagramm und Gliederung pflegen denselben Vertrag; die Diagrammpalette besitzt eine eigene
+KI-Kachel. Der freie Worker-Textmodus normaler Service-Tasks bleibt erhalten. Mangels
+Provideradapter und dauerhaftem KI-Lauf ist `serviceTask.aiTask` bewusst noch nicht
+deploybar. Die Save- und Deployment-Vorabprüfungen unterscheiden diesen Zustand
+explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
+[Versionierter KI-Aufgabenvertrag](AI-TASKS.md).
+
+Die additive Elementart erscheint in `flowzer.bpmn-capabilities/2`; der historische
+Version-1-Vertrag bleibt unverändert im Repository.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -393,8 +412,9 @@ dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-778 API-/Storage-, 335 Konsolen-, 24 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 153 Engine-,
+784 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

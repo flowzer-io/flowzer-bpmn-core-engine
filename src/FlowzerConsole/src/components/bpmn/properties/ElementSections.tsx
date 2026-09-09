@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
+import type { AiConnectionDto } from '@/lib/api/types';
 import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from '@/lib/formKey';
 
 import type {
@@ -21,7 +22,7 @@ import type {
   ScriptDefinition,
   TimerKind,
 } from '../bpmnEditor';
-import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextRow } from './PropertyFields';
+import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextAreaRow, TextRow } from './PropertyFields';
 
 export interface SectionProps {
   properties: ElementProperties;
@@ -309,6 +310,136 @@ export function JobSection({ properties, editor, readOnly }: SectionProps) {
           hint="Wie oft ein fehlgeschlagener Auftrag erneut vergeben wird. Leer bedeutet einmalig."
           onCommit={(value) => editor?.setJob(properties.id, { retries: value })}
         />
+      )}
+    </Section>
+  );
+}
+
+/** Ein Service-Task bleibt BPMN-seitig derselbe Knoten; hier wird seine Ausführungsart gewählt. */
+export function ServiceTaskModeSection({ properties, editor, readOnly }: SectionProps) {
+  return (
+    <Section
+      icon="settings_suggest"
+      title="Ausführungsart"
+      hint="Ein freier Worker-Typ bleibt möglich. KI verwendet den versionierten Flowzer-Vertrag."
+    >
+      <Segmented
+        options={[
+          { value: 'worker' as const, label: 'Worker' },
+          { value: 'ai' as const, label: 'KI' },
+        ]}
+        value={properties.serviceTaskMode}
+        aria-label="Ausführungsart des Service-Tasks"
+        disabled={readOnly}
+        onChange={(mode) => editor?.setServiceTaskMode(properties.id, mode)}
+      />
+    </Section>
+  );
+}
+
+export function AiTaskSection({
+  properties,
+  editor,
+  readOnly,
+  connections,
+  connectionsUnavailable,
+}: SectionProps & {
+  connections: readonly AiConnectionDto[];
+  connectionsUnavailable: boolean;
+}) {
+  const ai = properties.aiTask;
+  if (!ai) {
+    return (
+      <Section icon="psychology" title="KI-Aufgabe">
+        <Notice tone="warn">Der KI-Vertrag ist unvollständig. Wähle die Ausführungsart erneut aus.</Notice>
+      </Section>
+    );
+  }
+
+  const connectionOptions = [
+    { value: '', label: 'Verbindung auswählen …' },
+    ...connections.map((connection) => ({
+      value: connection.id,
+      label: `${connection.name} · ${connection.provider} · ${connection.defaultModel}${connection.ready ? '' : ' · nicht bereit'}`,
+    })),
+  ];
+  if (ai.connectionId && !connections.some((connection) => connection.id === ai.connectionId)) {
+    connectionOptions.push({ value: ai.connectionId, label: `Nicht verfügbare Verbindung · ${ai.connectionId}` });
+  }
+
+  const set = (patch: Parameters<BpmnEditor['setAiTask']>[1]) => editor?.setAiTask(properties.id, patch);
+
+  return (
+    <Section
+      icon="psychology"
+      title="KI-Aufgabe"
+      hint="Nur deklarierte Eingaben werden verarbeitet. Secret-Werte und Secret-Referenzen gehören nie ins BPMN."
+    >
+      <SelectRow
+        label="Verbindung"
+        value={ai.connectionId}
+        options={connectionOptions}
+        disabled={readOnly || connectionsUnavailable}
+        onChange={(connectionId) => set({ connectionId })}
+      />
+      {connectionsUnavailable && (
+        <Notice tone="warn">Die verwendbaren KI-Verbindungen konnten nicht geladen werden oder sind nicht berechtigt.</Notice>
+      )}
+      <TextRow
+        label="Modell (optional)"
+        value={ai.model}
+        disabled={readOnly}
+        placeholder="Leer verwendet das Standardmodell der Verbindung"
+        onCommit={(model) => set({ model })}
+      />
+      <TextRow
+        label="Version der Anweisung"
+        value={ai.instructionVersion}
+        disabled={readOnly}
+        placeholder="1"
+        monospace
+        onCommit={(instructionVersion) => set({ instructionVersion })}
+      />
+      <TextAreaRow
+        label="Anweisung"
+        value={ai.instruction}
+        disabled={readOnly}
+        placeholder="Beschreibe die fachliche Aufgabe und das erwartete Ergebnis."
+        onCommit={(instruction) => set({ instruction })}
+      />
+      <TextAreaRow
+        label="Ergebnisschema (JSON Schema)"
+        value={ai.resultSchema}
+        disabled={readOnly}
+        monospace
+        rows={7}
+        onCommit={(resultSchema) => set({ resultSchema })}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <TextRow
+          label="Max. Eingabetokens"
+          value={ai.maxInputTokens}
+          disabled={readOnly}
+          monospace
+          onCommit={(maxInputTokens) => set({ maxInputTokens })}
+        />
+        <TextRow
+          label="Max. Ausgabetokens"
+          value={ai.maxOutputTokens}
+          disabled={readOnly}
+          monospace
+          onCommit={(maxOutputTokens) => set({ maxOutputTokens })}
+        />
+      </div>
+      <TextRow
+        label="Zeitlimit in Sekunden"
+        value={ai.timeoutSeconds}
+        disabled={readOnly}
+        monospace
+        onCommit={(timeoutSeconds) => set({ timeoutSeconds })}
+      />
+      {(properties.inputs.length === 0 || properties.outputs.length === 0) && (
+        <Notice tone="warn">KI-Aufgaben brauchen mindestens eine vollständige Ein- und Ausgangszuordnung.</Notice>
       )}
     </Section>
   );

@@ -121,6 +121,8 @@ function stepFrom(node: GraphNode): OutlineStep {
     followUpDate: task?.followUpDate,
     workerType: task?.workerType,
     retries: task?.retries,
+    serviceTaskMode: task?.serviceTaskMode,
+    aiTask: task?.aiTask,
     inputs: task?.inputs ?? [],
     outputs: task?.outputs ?? [],
   };
