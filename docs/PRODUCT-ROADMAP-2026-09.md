@@ -201,12 +201,14 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   #202 / PR #203
   PostgreSQL-CAS und FK-Kaskade sichern Konkurrenz und Aufgabenlebenszyklus, die
   Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
-- [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
+- [x] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
   Bedingungen waren bereits Teil von Profil 1. #214 / PR #215 ergänzt Profil 3 für begrenzte
   Datagrids und Plaintext-Hilfetexte. #216 / PR #217 ergänzt Profil 4 mit servergebundenen
-  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche;
-  die versionierte Abschnittsbibliothek bleibt als eigener Folgeslice offen.
+  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche. #230 ergänzt
+  die hostneutrale, revisionsgeschützte Abschnittsbibliothek. Formular-Publish bindet
+  ausschließlich konkrete Versionen und speichert einen eigenständigen Snapshot samt
+  serverseitig erzeugter Bindungsmetadaten; verschachtelte Abschnitte bleiben gesperrt.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
   objektbezogene Downloadrechte und Aufbewahrung.
 - [ ] Dynamische Kunden-/Projekt-/andere Auswahldaten nur über administrativ

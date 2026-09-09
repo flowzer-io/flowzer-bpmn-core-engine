@@ -13,9 +13,15 @@ import type {
   ExtendedUserTask,
   FlowzerCompletionOptions,
   FlowzerForm,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersion,
+  FormSectionVersionSummary,
   ProcessInstance,
   ProcessHistory,
   ReleaseUserTaskCommand,
+  RenameFormSectionCommand,
+  SaveFormSectionAuthoringDraftCommand,
   SaveUserTaskDraftCommand,
   TaskAssigneeSearchOptions,
   TransferUserTaskCommand,
@@ -69,6 +75,14 @@ export interface UserTaskActions {
   searchAssignees: (options: TaskAssigneeSearchOptions) => Promise<DirectorySubjectSearchResult>;
 }
 
+/** Revisionsgebundene Modellierungsaktionen für genau einen Abschnitt. */
+export interface FormSectionActions {
+  rename: UseMutationResult<FormSectionMetadata, Error, RenameFormSectionCommand>;
+  saveDraft: UseMutationResult<FormSectionAuthoringDraft, Error, SaveFormSectionAuthoringDraftCommand>;
+  deleteDraft: UseMutationResult<void, Error, number>;
+  publish: UseMutationResult<FormSectionVersion, Error, number>;
+}
+
 export function useUserTasks(options: FlowzerQueryOptions = {}) {
   const { client, cacheNamespace, sessionScope } = useFlowzer();
   return useQuery<ExtendedUserTask[], Error>({
@@ -99,6 +113,58 @@ export function useInstanceStatus(instanceId: string, options: FlowzerQueryOptio
     queryKey: flowzerQueryKeys.instance(cacheNamespace, sessionScope, instanceId),
     queryFn: ({ signal }) => client.instances.get(instanceId, { signal }),
     enabled: Boolean(instanceId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt ausschließlich den modellierungsberechtigten Abschnittskatalog dieser Sitzung. */
+export function useFormSections(options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionMetadata[], Error>({
+    queryKey: flowzerQueryKeys.formSections(cacheNamespace, sessionScope),
+    queryFn: ({ signal }) => client.formSections.list({ signal }),
+    enabled: options.enabled ?? true,
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt einen Katalogeintrag ohne seinen Entwurf oder publizierte Schema-Inhalte vorwegzunehmen. */
+export function useFormSection(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionMetadata, Error>({
+    queryKey: flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.get(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Listet nur konkrete veröffentlichte Fassungen; der Client löst nie „latest“ auf. */
+export function useFormSectionVersions(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionVersionSummary[], Error>({
+    queryKey: flowzerQueryKeys.formSectionVersions(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.listVersions(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt den serverseitigen Draft erst für einen ausdrücklich gewählten Abschnitt. */
+export function useFormSectionDraft(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionAuthoringDraft, Error>({
+    queryKey: flowzerQueryKeys.formSectionDraft(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.getDraft(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
     ...(options.refetchInterval === undefined
       ? {}
       : { refetchInterval: options.refetchInterval }),
@@ -266,4 +332,65 @@ export function useUserTaskActions(userTaskId: string): UserTaskActions {
   return { claim, release, assign, delegate, saveDraft, deleteDraft, complete, searchAssignees };
 }
 
-export type { ExtendedUserTask, FlowzerForm, ProcessInstance, UserTaskDraft };
+/**
+ * Kapselt Abschnitts-Mutationen ohne Darstellung oder Host-Fachlogik. Alle
+ * Compare-and-Swap-Schreibvorgänge werden absichtlich nicht automatisch wiederholt.
+ */
+export function useFormSectionActions(sectionId: string): FormSectionActions {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const queryClient = useQueryClient();
+  const catalogKey = flowzerQueryKeys.formSections(cacheNamespace, sessionScope);
+  const sectionKey = flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId);
+  const versionsKey = flowzerQueryKeys.formSectionVersions(cacheNamespace, sessionScope, sectionId);
+  const draftKey = flowzerQueryKeys.formSectionDraft(cacheNamespace, sessionScope, sectionId);
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: catalogKey }),
+      queryClient.invalidateQueries({ queryKey: sectionKey }),
+      queryClient.invalidateQueries({ queryKey: versionsKey }),
+      queryClient.invalidateQueries({ queryKey: draftKey }),
+    ]);
+  };
+
+  const rename = useMutation({
+    mutationFn: (command: RenameFormSectionCommand) => client.formSections.rename(sectionId, command),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(sectionKey, saved);
+      void queryClient.invalidateQueries({ queryKey: catalogKey });
+    },
+    onError: refresh,
+  });
+  const saveDraft = useMutation({
+    mutationFn: (command: SaveFormSectionAuthoringDraftCommand) =>
+      client.formSections.saveDraft(sectionId, command),
+    retry: false,
+    onSuccess: (saved) => queryClient.setQueryData(draftKey, saved),
+    onError: refresh,
+  });
+  const deleteDraft = useMutation({
+    mutationFn: (expectedRevision: number) => client.formSections.deleteDraft(sectionId, expectedRevision),
+    retry: false,
+    onSuccess: refresh,
+    onError: refresh,
+  });
+  const publish = useMutation({
+    mutationFn: (expectedRevision: number) => client.formSections.publish(sectionId, expectedRevision),
+    retry: false,
+    onSuccess: refresh,
+    onError: refresh,
+  });
+
+  return { rename, saveDraft, deleteDraft, publish };
+}
+
+export type {
+  ExtendedUserTask,
+  FlowzerForm,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersion,
+  FormSectionVersionSummary,
+  ProcessInstance,
+  UserTaskDraft,
+};

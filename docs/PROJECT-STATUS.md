@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis #228
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis #230
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -118,6 +118,16 @@ dieselbe Struktur- und Feldgrenze; Fehler tragen indexierte, wertefreie Pfade. D
 Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole zeigt
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
+
+## Wiederverwendbare Formularabschnitte – #230 (noch nicht gemergt)
+
+Eine hostneutrale Bibliothek trennt Katalogmetadaten, revisionsgeschützte Entwürfe und
+append-only Abschnittsversionen. Formulare referenzieren nur konkrete Fassungen; beim
+Publish expandiert und validiert der Server sie, verwirft behauptete Browserbindungen
+und speichert einen eigenständigen Formularsnapshot mit nachvollziehbarem Inhalts-Hash.
+Neue Abschnittsversionen ändern keine veröffentlichten Formulare oder laufenden Instanzen.
+PostgreSQL publiziert Fassung und Draft-Löschung atomar, die Dateiablage bleibt
+Einzelprozess-Entwicklung. Details: [Formularabschnitte](FORM-SECTIONS.md).
 
 ## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
 
@@ -306,8 +316,8 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
    private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren, getrennte
    Entwurfs-/Vorschau-/Veröffentlichungszustände, Wiederholgruppen und Entscheidungsaktionen
-   liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
-   Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
+   liegen in #208–#216; die Abschnittsbibliothek folgt mit #230. Anhänge und freigegebene
+   dynamische Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
    Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
    serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die

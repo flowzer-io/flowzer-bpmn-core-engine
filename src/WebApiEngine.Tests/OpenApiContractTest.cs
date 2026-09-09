@@ -215,6 +215,47 @@ public class OpenApiContractTest
         problemProperties.TryGetProperty("traceId", out _).Should().BeTrue();
     }
 
+    // Testzweck: Die Abschnittsbibliothek bleibt ein expliziter hostneutraler Vertrag
+    // mit konkreten Versionen, CAS-Entwuerfen und strukturierten Publish-Fehlern.
+    [Test]
+    public async Task FormSectionEndpoints_ShouldExposeVersionedAuthoringContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+
+        GetResponseSchema(GetOperation(paths, "/form-section", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionMetadataDtoArrayApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section", "post"), "201").Should()
+            .Be("#/components/schemas/FormSectionMetadataDtoApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section/{sectionId}/versions", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionVersionSummaryDtoArrayApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section/{sectionId}/versions/{version}", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionVersionDtoApiStatusResult");
+
+        var saveDraft = GetOperation(paths, "/form-section/{sectionId}/draft", "put");
+        GetResponseSchema(saveDraft, "200").Should()
+            .Be("#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult");
+        GetProblemResponse(saveDraft, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+
+        var publish = GetOperation(paths, "/form-section/{sectionId}/publish", "post");
+        GetResponseSchema(publish, "200").Should()
+            .Be("#/components/schemas/FormSectionVersionDtoApiStatusResult");
+        GetProblemResponse(publish, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(publish, "422").Should().Be("#/components/schemas/ApiValidationProblem");
+
+        var versionProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("FormSectionVersionDto").GetProperty("properties");
+        versionProperties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "sectionId", "version", "sectionData"
+        ]);
+
+        var preview = GetOperation(paths, "/Form/{formId}/preview", "post");
+        GetResponseSchema(preview, "200").Should()
+            .Be("#/components/schemas/FormAuthoringPreviewDtoApiStatusResult");
+        GetProblemResponse(preview, "422").Should().Be("#/components/schemas/ApiValidationProblem");
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

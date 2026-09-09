@@ -21,6 +21,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
+  { key: 'form-sections', label: 'Abschnitte', icon: 'view_agenda', path: '/form-sections', requires: 'modeler' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
 ] as const;
 
@@ -42,6 +43,7 @@ export const PAGE_TITLES: Record<string, string> = {
   workflows: 'Workflows',
   instances: 'Instanzen',
   forms: 'Formulare',
+  'form-sections': 'Formularabschnitte',
   operations: 'Betrieb & Diagnose',
   tasks: 'Meine Aufgaben',
 };

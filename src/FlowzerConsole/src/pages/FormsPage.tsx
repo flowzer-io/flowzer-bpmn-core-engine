@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuilder';
+import { FormSectionPicker } from '@/components/forms/FormSectionPicker';
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
@@ -17,6 +18,7 @@ import {
   useDiscardFormAuthoringDraft,
   useForm,
   useFormAuthoringDraft,
+  useFormAuthoringPreview,
   useFormCompatibilityInventory,
   useForms,
   usePublishFormAuthoringDraft,
@@ -27,6 +29,8 @@ import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { describeCompatibilityIssue, incompatibleCountByForm } from '@/lib/forms/formCompatibility';
 import { iconForLabel } from '@/lib/taskView';
+import { appendSectionReference } from '@/lib/forms/sectionReferences';
+import type { FormSectionVersionSummaryDto } from '@/lib/api/types';
 import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
@@ -107,6 +111,11 @@ export function FormsPage() {
   );
   const sourcePending = mayPublish ? draftQuery.isPending : publishedQuery.isPending;
   const sourceError = mayPublish ? draftQuery.error : publishedQuery.error;
+  const previewQuery = useFormAuthoringPreview(
+    mayPublish ? selectedId ?? undefined : undefined,
+    editorSchema,
+    mayPublish && mode === 'preview',
+  );
   const selectedCompatibility = useMemo(
     () => (compatibilityQuery.data ?? []).filter((item) => item.formId === selectedId),
     [compatibilityQuery.data, selectedId],
@@ -220,8 +229,28 @@ export function FormsPage() {
   }
 
   function handleModeChange(next: Mode) {
-    if (mode === 'edit' && next === 'preview') readEditorSchema();
+    if (mode === 'edit' && next === 'preview' && readEditorSchema() === null) return;
     setMode(next);
+  }
+
+  function insertSection(version: FormSectionVersionSummaryDto, name: string) {
+    const current = readEditorSchema();
+    if (!current) return;
+    try {
+      const next = appendSectionReference(current, {
+        sectionId: version.sectionId,
+        version: version.version,
+        label: name,
+      });
+      setEditorSchema(next);
+      setDirty(next !== draftQuery.data?.formData);
+      setEditorGeneration((generation) => generation + 1);
+      toast.success(`Abschnitt „${name}" v${version.version.major}.${version.version.minor} eingefügt`);
+    } catch (error) {
+      toast.error('Abschnitt konnte nicht eingefügt werden', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   }
 
   return (
@@ -456,21 +485,40 @@ export function FormsPage() {
               </div>
             )}
 
-            {selectedId && sourceData && mode === 'preview' && (
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.isPending && (
+              <InlineSpinner />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.error && (
+              <ErrorState
+                error={previewQuery.error}
+                title="Vorschau konnte nicht erzeugt werden"
+                onRetry={() => void previewQuery.refetch()}
+              />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.data && (
+              <FormRenderer schema={previewQuery.data.formData} />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && !mayPublish && (
               <FormRenderer schema={editorSchema} />
             )}
 
             {mayPublish && selectedId && draftQuery.data && mode === 'edit' && (
-              <FormBuilder
-                key={`edit-${selectedId}-${editorGeneration}`}
-                ref={builderRef}
-                schema={editorSchema}
-                onReadyChange={setBuilderReady}
-                onChange={() => {
-                  const schema = readEditorSchema();
-                  if (schema !== null) setDirty(schema !== draftQuery.data.formData);
-                }}
-              />
+              <>
+                <FormSectionPicker onInsert={insertSection} />
+                <FormBuilder
+                  key={`edit-${selectedId}-${editorGeneration}`}
+                  ref={builderRef}
+                  schema={editorSchema}
+                  onReadyChange={setBuilderReady}
+                  // Form.io besitzt waehrend der Bearbeitung den aktuellen Zustand. Ein
+                  // Zurueckschreiben bei jedem Event wuerde den Builder ueber sein schema-Prop
+                  // zerstoeren und neu aufbauen; gelesen wird erst bei Save/Preview/Insert.
+                  onChange={() => setDirty(true)}
+                />
+              </>
             )}
           </div>
         </Card>

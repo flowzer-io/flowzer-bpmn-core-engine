@@ -169,6 +169,15 @@ in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
 [packages/flowzer-react/README.md](packages/flowzer-react/README.md) und
 [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md).
 
+## Wiederverwendbare Formularabschnitte
+
+Die Modellierungs-API verwaltet deklarative Abschnitte als revisionsgeschützte Entwürfe
+und unveränderliche konkrete Versionen. Beim Formular-Publish expandiert der Server die
+gewählte Fassung, prüft den vollständigen Vertrag und speichert einen eigenständigen
+Snapshot; `latest` und clientseitig behauptete Bindungen sind nicht zulässig. Flowzer
+kennt dabei keine konkrete Host-Anwendung. Details stehen in
+[docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md).
+
 ## BPMN-Fähigkeitsvertrag
 
 `contracts/bpmn-capabilities/v1.json` beschreibt maschinenlesbar, welche BPMN-
@@ -193,6 +202,7 @@ der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
+- [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen

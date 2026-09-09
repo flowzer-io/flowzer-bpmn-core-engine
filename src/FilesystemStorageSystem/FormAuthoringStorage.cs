@@ -66,7 +66,8 @@ internal sealed class FormAuthoringStorage(Storage storage) : IFormAuthoringStor
     public async Task<FormAuthoringPublishResult> TryPublish(
         Guid formId,
         long expectedRevision,
-        Guid publishedFormId)
+        Guid publishedFormId,
+        string? publishedFormData = null)
     {
         if (expectedRevision <= 0) throw new ArgumentOutOfRangeException(nameof(expectedRevision));
         if (publishedFormId == Guid.Empty) throw new ArgumentException("Published form ID is required.", nameof(publishedFormId));
@@ -90,7 +91,7 @@ internal sealed class FormAuthoringStorage(Storage storage) : IFormAuthoringStor
                 Id = publishedFormId,
                 FormId = formId,
                 Version = nextVersion,
-                FormData = draft.FormData
+                FormData = publishedFormData ?? draft.FormData
             };
             var path = Path.Combine(_formPath, $"{formId}_{publishedFormId}.json");
             await StorageFile.WriteAllTextNewAtomicAsync(

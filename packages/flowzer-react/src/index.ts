@@ -1,10 +1,15 @@
 export {
+  FormSectionEditorController,
+  FormSectionListController,
   InstanceStatusController,
   UserTaskListController,
   UserTaskWorkspaceController,
 } from './controllers.js';
 export type {
   AsyncControllerState,
+  FormSectionEditorControllerProps,
+  FormSectionEditorControllerState,
+  FormSectionListControllerProps,
   InstanceStatusControllerProps,
   UserTaskListControllerProps,
   UserTaskWorkspaceControllerProps,
@@ -18,6 +23,11 @@ export type { TaskFormDataState } from './formState.js';
 export {
   useInstanceStatus,
   useInstanceHistory,
+  useFormSection,
+  useFormSectionActions,
+  useFormSectionDraft,
+  useFormSections,
+  useFormSectionVersions,
   useUserTask,
   useUserTaskActions,
   useUserTasks,
@@ -27,6 +37,7 @@ export type {
   CompleteTaskInput,
   DeleteDraftInput,
   FlowzerQueryOptions,
+  FormSectionActions,
   TaskWorkspaceState,
   UserTaskActions,
 } from './hooks.js';

@@ -11,7 +11,11 @@ internal sealed class UnsupportedFormAuthoringStorage : IFormAuthoringStorage
         Unsupported<FormAuthoringWriteResult>();
     public Task<FormAuthoringDeleteResult> TryDelete(Guid formId, long expectedRevision) =>
         Unsupported<FormAuthoringDeleteResult>();
-    public Task<FormAuthoringPublishResult> TryPublish(Guid formId, long expectedRevision, Guid publishedFormId) =>
+    public Task<FormAuthoringPublishResult> TryPublish(
+        Guid formId,
+        long expectedRevision,
+        Guid publishedFormId,
+        string? publishedFormData = null) =>
         Unsupported<FormAuthoringPublishResult>();
 
     private static Task<T> Unsupported<T>() => Task.FromException<T>(

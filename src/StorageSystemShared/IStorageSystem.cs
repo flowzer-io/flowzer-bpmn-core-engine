@@ -23,6 +23,9 @@ public interface IStorageSystem
     /// <summary>Gemeinsame, revisionierte Entwuerfe fuer Katalogformulare.</summary>
     IFormAuthoringStorage FormAuthoringStorage => UnsupportedFormAuthoringStorage.Instance;
 
+    /// <summary>Versionierte, wiederverwendbare Formularabschnitte samt Autorenentwuerfen.</summary>
+    IFormSectionStorage FormSectionStorage => UnsupportedFormSectionStorage.Instance;
+
     /// <summary>Auftraege fuer externe Worker und deren Webhook-Anmeldungen.</summary>
     IServiceTaskStorage ServiceTaskStorage { get; }
 

@@ -11,6 +11,8 @@ import {
   useFlowzer,
   useInstanceHistory,
   useTaskFormData,
+  useFormSectionActions,
+  useFormSectionDraft,
   useUserTaskActions,
   useUserTasks,
   useUserTaskWorkspace,
@@ -268,6 +270,46 @@ describe('@flowzer/react', () => {
     });
 
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  // Testzweck: Der Abschnittseditor liest seinen Entwurf in einem eigenen,
+  // sitzungsgetrennten Cache und vermischt ihn deshalb nicht mit Human-Task-Drafts.
+  it('lädt einen Formularabschnittsentwurf über einen getrennten Query-Key', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 2, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionDraft('section-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.revision).toBe(2));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(flowzerQueryKeys.formSectionDraft('installation-a', 'session-a', 'section-1')).toEqual([
+      'flowzer', 'installation-a', 'session-a', 'form-sections', 'section-1', 'draft',
+    ]);
+  });
+
+  // Testzweck: Der darstellungsfreie Editor überträgt die erwartete Revision
+  // unverändert und deaktiviert automatische Wiederholungen für CAS-Mutationen.
+  it('speichert einen Abschnittsentwurf revisionsgebunden ohne automatische Wiederholung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 3, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionActions('section-1'), { wrapper });
+
+    await act(async () => {
+      await result.current.saveDraft.mutateAsync({
+        expectedRevision: 2,
+        sectionData: '{"components":[]}',
+      });
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 2,
+      sectionData: '{"components":[]}',
+    });
   });
 
   // Testzweck: Ein manueller Abschluss übergibt Task-Revision und den vom Host

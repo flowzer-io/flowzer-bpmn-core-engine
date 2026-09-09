@@ -95,6 +95,17 @@ public class FormController(
         PublishFormAuthoringDraftRequestDto request) =>
         Ok(new ApiStatusResult<FormDto>((await authoringService.PublishAsync(formId, request.ExpectedRevision)).ToDto()));
 
+    /// <summary>Loest einen lokalen Autorenstand serverseitig auf, ohne ihn zu speichern.</summary>
+    [HttpPost("{formId:guid}/preview")]
+    [Authorize(Policy = FlowzerPolicies.Modeler)]
+    [ProducesResponseType<ApiStatusResult<FormAuthoringPreviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<FormAuthoringPreviewDto>>> PreviewDraft(
+        Guid formId,
+        PreviewFormAuthoringRequestDto request) =>
+        Ok(new ApiStatusResult<FormAuthoringPreviewDto>(
+            await authoringService.PreviewAsync(formId, request.FormData)));
+
     [HttpGet("{formId}/{formIdentifier}")]
     public async Task<ActionResult<ApiStatusResult<FormDto>>> GetForm(Guid formId, string formIdentifier)
     {

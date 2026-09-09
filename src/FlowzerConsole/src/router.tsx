@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { FormsPage } from '@/pages/FormsPage';
+import { FormSectionsPage } from '@/pages/FormSectionsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
@@ -113,6 +114,12 @@ const formsRoute = createRoute({
   component: FormsPage,
 });
 
+const formSectionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/form-sections',
+  component: FormSectionsPage,
+});
+
 const operationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/operations',
@@ -171,6 +178,7 @@ const routeTree = rootRoute.addChildren([
     workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
+    formSectionsRoute,
     operationsRoute,
     tasksRoute,
   ]),

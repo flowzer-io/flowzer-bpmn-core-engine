@@ -82,6 +82,45 @@ public static class ApiExceptionHandlingExtensions
                         problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is FormSectionAuthoringConflictException sectionConflict)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The form-section authoring draft has changed.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "form_section_draft.revision_conflict";
+                    problem.Extensions["expectedRevision"] = sectionConflict.ExpectedRevision;
+                    problem.Extensions["currentRevision"] = sectionConflict.CurrentRevision;
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
+                if (exception is FormSectionNotFoundException or FormSectionVersionNotFoundException)
+                {
+                    var isVersion = exception is FormSectionVersionNotFoundException;
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status404NotFound,
+                        Title = isVersion ? "The form section version was not found." : "The form section was not found.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        // Keine angefragten Abschnitts- oder Versionskennungen in der
+                        // Fehlerprojektion; der traceId identifiziert den konkreten Vorgang.
+                        Instance = "/form-section"
+                    };
+                    problem.Extensions["code"] = isVersion
+                        ? "form_section.version_not_found"
+                        : "form_section.not_found";
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(
+                        problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (exception is UserTaskLifecycleConflictException lifecycleConflict)
                 {
                     var problem = new ApiProblemDetails
@@ -196,6 +235,7 @@ public static class ApiExceptionHandlingExtensions
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
             DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
                 or FormAuthoringConflictException
+                or FormSectionAuthoringConflictException
                 or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             UserTaskNotificationUnavailableException => StatusCodes.Status503ServiceUnavailable,

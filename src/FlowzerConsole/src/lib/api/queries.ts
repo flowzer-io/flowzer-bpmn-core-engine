@@ -11,6 +11,7 @@ import {
   definitionsApi,
   foldersApi,
   formsApi,
+  formSectionsApi,
   identityDirectoryApi,
   instancesApi,
   operationsApi,
@@ -27,6 +28,7 @@ import type {
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormAuthoringPreviewDto,
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
@@ -38,6 +40,11 @@ import type {
   SubjectRefDto,
   NotificationDto,
   FormDirectorySearchContext,
+  FormSectionMetadataDto,
+  FormSectionVersionSummaryDto,
+  FormSectionAuthoringDraftDto,
+  FormSectionVersionDto,
+  SaveFormSectionAuthoringDraftRequestDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -68,8 +75,15 @@ export const queryKeys = {
   formList: () => [...queryKeys.forms, 'list'] as const,
   form: (formId: string) => [...queryKeys.forms, 'detail', formId] as const,
   formDraft: (formId: string) => [...queryKeys.forms, 'draft', formId] as const,
+  formPreview: (formId: string, formData: string) =>
+    [...queryKeys.forms, 'preview', formId, formData] as const,
   formCompatibility: (needsMigration?: boolean) =>
     [...queryKeys.forms, 'compatibility', needsMigration ?? null] as const,
+
+  formSections: ['formSections'] as const,
+  formSectionList: () => [...queryKeys.formSections, 'list'] as const,
+  formSectionVersions: (sectionId: string) => [...queryKeys.formSections, 'versions', sectionId] as const,
+  formSectionDraft: (sectionId: string) => [...queryKeys.formSections, 'draft', sectionId] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -555,6 +569,25 @@ export function useFormAuthoringDraft(formId: string | undefined) {
   });
 }
 
+/**
+ * Die Vorschau ist ein read-only POST, weil das unveroeffentlichte Schema zu gross fuer
+ * eine URL sein kann. TanStack Query sorgt trotzdem fuer Abbruch und Server-State-Lebenszyklus.
+ */
+export function useFormAuthoringPreview(
+  formId: string | undefined,
+  formData: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery<FormAuthoringPreviewDto>({
+    queryKey: queryKeys.formPreview(formId ?? '', formData ?? ''),
+    queryFn: ({ signal }) => formsApi.previewDraft(formId!, formData!, signal),
+    enabled: enabled && Boolean(formId) && formData !== undefined,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+  });
+}
+
 export function useFormCompatibilityInventory(enabled = true, needsMigration?: boolean) {
   return useQuery<FormCompatibilityItemDto[]>({
     queryKey: queryKeys.formCompatibility(needsMigration),
@@ -633,6 +666,88 @@ export function useDeleteForm() {
         queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
       });
     },
+  });
+}
+
+/* -------------------------------------------------- Wiederverwendbare Abschnitte */
+
+export function useFormSections(options?: QueryTuning<FormSectionMetadataDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.formSectionList(),
+    queryFn: ({ signal }) => formSectionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useFormSectionVersions(sectionId: string | undefined) {
+  return useQuery<FormSectionVersionSummaryDto[]>({
+    queryKey: queryKeys.formSectionVersions(sectionId ?? ''),
+    queryFn: ({ signal }) => formSectionsApi.listVersions(sectionId!, signal),
+    enabled: Boolean(sectionId),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useFormSectionDraft(sectionId: string | undefined) {
+  return useQuery<FormSectionAuthoringDraftDto>({
+    queryKey: queryKeys.formSectionDraft(sectionId ?? ''),
+    queryFn: ({ signal }) => formSectionsApi.getDraft(sectionId!, signal),
+    enabled: Boolean(sectionId),
+    retry: false,
+  });
+}
+
+export function useSaveFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, draft }: { sectionId: string; draft: SaveFormSectionAuthoringDraftRequestDto }) =>
+      formSectionsApi.saveDraft(sectionId, draft),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.formSectionDraft(saved.sectionId), saved);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() });
+    },
+  });
+}
+
+export function useDiscardFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, expectedRevision }: { sectionId: string; expectedRevision: number }) =>
+      formSectionsApi.deleteDraft(sectionId, expectedRevision),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionDraft(variables.sectionId) });
+    },
+  });
+}
+
+export function usePublishFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation<FormSectionVersionDto, unknown, { sectionId: string; expectedRevision: number }>({
+    mutationFn: ({ sectionId, expectedRevision }) => formSectionsApi.publishDraft(sectionId, expectedRevision),
+    onSuccess: (_published, variables) => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.formSectionDraft(variables.sectionId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.formSectionVersions(variables.sectionId) }),
+      ]);
+    },
+  });
+}
+
+export function useCreateFormSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => formSectionsApi.create(name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() }),
+  });
+}
+
+export function useRenameFormSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, name }: { sectionId: string; name: string }) => formSectionsApi.rename(sectionId, name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() }),
   });
 }
 

@@ -69,7 +69,8 @@ public partial class PostgreSqlStorageIntegrationTest
             "message_subscriptions", "signal_subscriptions", "user_task_drafts",
             "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
-            "timer_subscriptions", "form_authoring_drafts", "forms", "form_metadata",
+            "timer_subscriptions", "form_section_authoring_drafts", "form_section_versions",
+            "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
             "workflow_folders", "idempotency_records", "identity_directory_state"

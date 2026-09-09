@@ -17,6 +17,14 @@ export const flowzerQueryKeys = {
     [...flowzerQueryKeys.instances(cacheNamespace, sessionScope), instanceId] as const,
   instanceHistory: (cacheNamespace: string, sessionScope: string, instanceId: string) =>
     [...flowzerQueryKeys.instance(cacheNamespace, sessionScope, instanceId), 'history'] as const,
+  formSections: (cacheNamespace: string, sessionScope: string) =>
+    [...flowzerQueryKeys.scope(cacheNamespace, sessionScope), 'form-sections'] as const,
+  formSection: (cacheNamespace: string, sessionScope: string, sectionId: string) =>
+    [...flowzerQueryKeys.formSections(cacheNamespace, sessionScope), sectionId] as const,
+  formSectionVersions: (cacheNamespace: string, sessionScope: string, sectionId: string) =>
+    [...flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId), 'versions'] as const,
+  formSectionDraft: (cacheNamespace: string, sessionScope: string, sectionId: string) =>
+    [...flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId), 'draft'] as const,
 };
 
 /** Entfernt beim Host-Logout die Daten genau einer früheren Sitzung aus dem QueryClient. */

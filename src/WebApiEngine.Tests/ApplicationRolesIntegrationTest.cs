@@ -75,6 +75,24 @@ public class ApplicationRolesIntegrationTest
         withRole.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    // Testzweck: Auch reine Lesezugriffe auf die Autorenbibliothek geben Schema- und
+    // Versionsinformationen preis und bleiben deshalb vollständig Modellierern vorbehalten.
+    [Test]
+    public async Task FormSectionLibrary_ShouldRequireTheModelerRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+        var withoutRole = await client.GetAsync("/form-section");
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["modeler"]));
+        var withRole = await client.GetAsync("/form-section");
+
+        withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        withRole.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     // Testzweck: Auch das Anlegen eines Workflows verlangt die Modelliererrolle. Der Endpunkt
     // legt Daten an und war als einziger Schreibpfad des Katalogs ungeschuetzt — mit blosser
     // Zugangsrolle liess sich der Katalog fuellen.

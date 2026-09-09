@@ -5,6 +5,7 @@ import './formioStyles';
 
 import { registerDialogCalendarWidget } from './dialogCalendarWidget';
 import { registerFlowzerSubjectComponent } from './FlowzerSubjectComponent';
+import { registerFormSectionComponent } from './FormSectionComponent';
 
 import type { BoundDirectorySubjectAdapter } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import { InlineSpinner } from '@/components/ui/States';
@@ -125,6 +126,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         // Muss vor dem ersten Formular stehen: Form.io liest das Widget beim Aufbau.
         registerDialogCalendarWidget(Widgets);
         registerFlowzerSubjectComponent(Formio);
+        registerFormSectionComponent(Formio);
         if (disposed) return;
 
         const form = (await Formio.createForm(container, parsed.value, {

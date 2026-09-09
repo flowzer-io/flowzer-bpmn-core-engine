@@ -7,6 +7,7 @@ import type {
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormAuthoringPreviewDto,
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
@@ -26,6 +27,11 @@ import type {
   FolderAssignmentDto,
   DirectorySubjectSearchResultDto,
   FormDirectorySearchContext,
+  FormSectionMetadataDto,
+  FormSectionVersionSummaryDto,
+  FormSectionVersionDto,
+  FormSectionAuthoringDraftDto,
+  SaveFormSectionAuthoringDraftRequestDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -309,6 +315,52 @@ export const formsApi = {
       body: { expectedRevision },
     }),
 
+  /** Lokalen Autorenstand ohne Persistenz wie bei der Veroeffentlichung expandieren. */
+  previewDraft: (formId: string, formData: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringPreviewDto>(`/form/${encodeURIComponent(formId)}/preview`, {
+      method: 'POST',
+      body: { formData },
+      signal,
+    }),
+
+};
+
+/** Hostneutrale Bibliothek versionierter, wiederverwendbarer Formularabschnitte. */
+export const formSectionsApi = {
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<FormSectionMetadataDto[]>('/form-section', { signal }),
+  create: (name: string) =>
+    requestStatusResult<FormSectionMetadataDto>('/form-section', { method: 'POST', body: { name } }),
+  rename: (sectionId: string, name: string) =>
+    requestStatusResult<FormSectionMetadataDto>(`/form-section/${encodeURIComponent(sectionId)}`, {
+      method: 'PUT', body: { name },
+    }),
+  listVersions: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionSummaryDto[]>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions`, { signal },
+    ),
+  getVersion: (sectionId: string, version: VersionDto, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions/${version.major}.${version.minor}`, { signal },
+    ),
+  getDraft: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { signal },
+    ),
+  saveDraft: (sectionId: string, draft: SaveFormSectionAuthoringDraftRequestDto) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { method: 'PUT', body: draft },
+    ),
+  deleteDraft: (sectionId: string, expectedRevision: number) =>
+    request<void>(`/form-section/${encodeURIComponent(sectionId)}/draft`, {
+      method: 'DELETE', query: { expectedRevision },
+    }),
+  publishDraft: (sectionId: string, expectedRevision: number) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/publish`, {
+        method: 'POST', body: { expectedRevision },
+      },
+    ),
 };
 
 export const messagesApi = {

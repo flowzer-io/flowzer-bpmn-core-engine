@@ -33,6 +33,32 @@ public sealed class FormAuthoringStorageTest
         (await context.Storage.FormAuthoringStorage.Get(context.FormId)).Should().BeNull();
     }
 
+    // Testzweck: Der Publish-Schritt darf einen ausschliesslich serverseitig erzeugten
+    // Snapshot speichern, ohne zuvor den unveraenderten Autorenentwurf umzuschreiben.
+    [Test]
+    public async Task FilesystemStorage_ShouldPublishProvidedServerSnapshot()
+    {
+        using var context = new Context();
+        await context.Storage.FormStorage.SaveFormMetaData(
+            new FormMetadata { FormId = context.FormId, Name = "Approval" });
+        const string authoringData = "{\"components\":[{\"type\":\"flowzerSection\"}]}";
+        const string serverSnapshot = "{\"components\":[{\"type\":\"textfield\",\"key\":\"requester\"}]}";
+        (await context.Storage.FormAuthoringStorage.TrySave(context.Draft(authoringData), 0)).Status
+            .Should().Be(FormAuthoringWriteStatus.Written);
+
+        var published = await context.Storage.FormAuthoringStorage.TryPublish(
+            context.FormId,
+            1,
+            Guid.NewGuid(),
+            serverSnapshot);
+
+        published.Status.Should().Be(FormAuthoringPublishStatus.Published);
+        published.PublishedForm!.FormData.Should().Be(serverSnapshot);
+        (await context.Storage.FormStorage.GetForms(context.FormId)).Should()
+            .ContainSingle(form => form.FormData == serverSnapshot);
+        (await context.Storage.FormAuthoringStorage.Get(context.FormId)).Should().BeNull();
+    }
+
     // Testzweck: Beim Loeschen des Katalogeintrags verschwindet auch der nicht
     // veroeffentlichte Autorenentwurf aus der Entwicklungsablage.
     [Test]

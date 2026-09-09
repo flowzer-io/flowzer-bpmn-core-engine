@@ -867,7 +867,11 @@ public class FormControllerIntegrationTest
             finally { _gate.Release(); }
         }
 
-        public async Task<FormAuthoringPublishResult> TryPublish(Guid formId, long expectedRevision, Guid publishedFormId)
+        public async Task<FormAuthoringPublishResult> TryPublish(
+            Guid formId,
+            long expectedRevision,
+            Guid publishedFormId,
+            string? publishedFormData = null)
         {
             await _gate.WaitAsync();
             try
@@ -885,7 +889,7 @@ public class FormControllerIntegrationTest
                     Id = publishedFormId,
                     FormId = formId,
                     Version = (current?.Version ?? new Model.Version()) + 1,
-                    FormData = draft.FormData
+                    FormData = publishedFormData ?? draft.FormData
                 };
                 forms.Forms.Add(published);
                 _drafts.Remove(formId);

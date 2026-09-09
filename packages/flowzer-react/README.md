@@ -47,6 +47,9 @@ diesen Sitzungsbestand.
 - `useUserTaskWorkspace` und `UserTaskWorkspaceController`
 - `useUserTaskActions` für Claim/Release/Assign/Delegate, Draft und Abschluss
 - `useInstanceStatus` und `InstanceStatusController`
+- `useFormSections`, `useFormSectionDraft` und `useFormSectionActions` sowie die
+  darstellungsfreien `FormSectionListController`/`FormSectionEditorController`
+  für modellierungsberechtigte Abschnittsbibliotheken
 - `useTaskFormData` für lokale, durch Refetches nicht überschriebene Eingaben
 - `FlowzerTaskFormAdapterProps` als neutraler Formularadaptervertrag
 - `flowzerQueryKeys` und `clearFlowzerScope` für kontrollierte Cache-Integration
@@ -58,6 +61,10 @@ nicht weiter und entfernt sie aus seinem Sitzungscache.
 Mutationen setzen `retry: false`, auch wenn der Host-`QueryClient` global etwas anderes
 vorgibt. Der Host entscheidet über einen erneuten Versuch und bewahrt dafür denselben
 Idempotenzschlüssel. Fehler bleiben als `FlowzerApiError` aus dem SDK maschinenlesbar.
+
+Abschnittsversionen sind stets konkrete serverseitig veröffentlichte Fassungen. Das
+React-Paket erzeugt keine freie `latest`-Auswahl, rendert kein Schema und kennt keine
+konkrete konsumierende Fachanwendung.
 
 ## Formularadapter
 

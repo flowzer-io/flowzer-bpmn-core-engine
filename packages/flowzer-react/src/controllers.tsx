@@ -1,9 +1,20 @@
 import type { ReactNode } from 'react';
 
-import type { ExtendedUserTask, ProcessInstance } from '@flowzer/sdk';
+import type {
+  ExtendedUserTask,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersionSummary,
+  ProcessInstance,
+} from '@flowzer/sdk';
 
 import {
   useInstanceStatus,
+  useFormSection,
+  useFormSectionActions,
+  useFormSectionDraft,
+  useFormSectionVersions,
+  useFormSections,
   useUserTaskActions,
   useUserTasks,
   useUserTaskWorkspace,
@@ -71,5 +82,62 @@ export function InstanceStatusController({
     isRefreshing: query.isFetching,
     error: query.error,
     reload: async () => { await query.refetch(); },
+  });
+}
+
+export interface FormSectionListControllerProps extends FlowzerQueryOptions {
+  children: (state: AsyncControllerState<FormSectionMetadata[]>) => ReactNode;
+}
+
+/** Darstellungsfreier Katalogcontroller; der Host entscheidet über Navigation und UI. */
+export function FormSectionListController({ children, ...options }: FormSectionListControllerProps) {
+  const query = useFormSections(options);
+  return children({
+    data: query.data ?? [],
+    isPending: query.isPending,
+    isRefreshing: query.isFetching,
+    error: query.error,
+    reload: async () => { await query.refetch(); },
+  });
+}
+
+export interface FormSectionEditorControllerState {
+  section: FormSectionMetadata | undefined;
+  versions: FormSectionVersionSummary[];
+  draft: FormSectionAuthoringDraft | undefined;
+  isPending: boolean;
+  isRefreshing: boolean;
+  error: Error | null;
+  reload: () => Promise<void>;
+  actions: ReturnType<typeof useFormSectionActions>;
+}
+
+export interface FormSectionEditorControllerProps extends FlowzerQueryOptions {
+  sectionId: string;
+  children: (state: FormSectionEditorControllerState) => ReactNode;
+}
+
+/**
+ * Stellt Metadaten, konkrete Versionen und den CAS-Entwurf eines Abschnitts bereit,
+ * ohne ein Schema zu rendern oder konkrete Host-Anwendungsbegriffe zu kennen.
+ */
+export function FormSectionEditorController({
+  sectionId,
+  children,
+  ...options
+}: FormSectionEditorControllerProps) {
+  const section = useFormSection(sectionId, options);
+  const versions = useFormSectionVersions(sectionId, options);
+  const draft = useFormSectionDraft(sectionId, options);
+  const actions = useFormSectionActions(sectionId);
+  return children({
+    section: section.data,
+    versions: versions.data ?? [],
+    draft: draft.data,
+    isPending: section.isPending || versions.isPending || draft.isPending,
+    isRefreshing: section.isFetching || versions.isFetching || draft.isFetching,
+    error: section.error ?? versions.error ?? draft.error,
+    reload: async () => { await Promise.all([section.refetch(), versions.refetch(), draft.refetch()]); },
+    actions,
   });
 }

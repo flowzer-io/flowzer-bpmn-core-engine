@@ -269,4 +269,82 @@ describe('FlowzerClient', () => {
     expect(onUnauthorized).toHaveBeenCalledOnce();
     expect(failure).toMatchObject({ status: 401, traceId: 'trace-auth' });
   });
+
+  // Testzweck: Modellierungsoberflächen laden ausschließlich veröffentlichte,
+  // konkrete Abschnittsversionen; die Version wird nie als freier "latest"-Text
+  // an die API weitergegeben.
+  it('lädt eine konkrete Formularabschnittsversion über ihren kanonischen Pfad', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        id: 'version-1', sectionId: 'section/id', version: { major: 1, minor: 2 }, sectionData: '{}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section/id', { major: 1, minor: 2 }))
+      .resolves.toMatchObject({ id: 'version-1', version: { major: 1, minor: 2 } });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/versions/1.2');
+  });
+
+  // Testzweck: Das revisionsgebundene Speichern eines Abschnittsentwurfs bleibt
+  // als Compare-and-Swap-Vertrag auch für reine JavaScript-Hosts vollständig erhalten.
+  it('speichert einen Formularabschnittsentwurf mit erwarteter Revision', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        sectionId: 'section/id', revision: 4, hasDraft: true, sectionData: '{"components":[]}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.saveDraft('section/id', {
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+  });
+
+  // Testzweck: Das Verwerfen verwendet den gemeinsamen Erfolgsumschlag und bindet
+  // die erwartete Revision als Queryparameter, statt einen 204-Körper zu erfinden.
+  it('verwirft einen Formularabschnittsentwurf revisionsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.deleteDraft('section/id', 3);
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft?expectedRevision=3');
+    expect(fetch.mock.calls[0]![1]?.method).toBe('DELETE');
+  });
+
+  // Testzweck: Eine Veröffentlichung nimmt ausschließlich eine positive
+  // erwartete Revision an und verhindert damit, dass JavaScript-Aufrufer den
+  // serverseitigen Draft-CAS mit einem leeren Standardwert umgehen.
+  it('weist ungültige Abschnittsveröffentlichungen vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.publish('section-1', 0)).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Unvollständige oder nicht-ganzzahlige Versionswerte werden lokal
+  // verworfen; dadurch kann das SDK keine "latest"- oder Pfad-Injection-Semantik
+  // in eine konkrete Abschnittsreferenz einschleusen.
+  it('weist keine unkonkreten Formularabschnittsversionen an die API weiter', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section-1', {
+      major: Number.NaN,
+      minor: 0,
+    })).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

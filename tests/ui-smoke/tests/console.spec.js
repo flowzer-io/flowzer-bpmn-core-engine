@@ -492,6 +492,7 @@ test.describe('Konsole', () => {
     ['/workflows', 'Workflows', (page) => page.getByRole('heading', { name: 'Workflows', level: 1 })],
     ['/instances', 'Instanzen', (page) => page.getByRole('heading', { name: 'Instanzen', level: 1 })],
     ['/forms', 'Formulare', (page) => page.getByRole('heading', { name: 'Formulare', level: 1 })],
+    ['/form-sections', 'Formularabschnitte', (page) => page.getByRole('heading', { name: 'Formularabschnitte', level: 1 })],
     ['/tasks', 'Aufgaben', (page) => page.getByText('Zu erledigen', { exact: true })]
   ]) {
     // Testzweck: Jede Hauptseite zeichnet ihren Inhalt — eine Seite, die beim Laden

@@ -252,6 +252,46 @@ export interface SaveFormAuthoringDraftRequestDto {
   formData: string;
 }
 
+/** Serverseitig expandierter, nicht persistierter Vorschau-Snapshot. */
+export interface FormAuthoringPreviewDto {
+  formData: string;
+  validationProfile: string;
+}
+
+/** Hostneutraler Katalogeintrag eines wiederverwendbaren Formularabschnitts. */
+export interface FormSectionMetadataDto {
+  sectionId: string;
+  name: string;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Abschnittsversion. */
+export interface FormSectionVersionSummaryDto {
+  id: string;
+  sectionId: string;
+  version: VersionDto;
+}
+
+/** Unveränderliche Abschnittsfassung inklusive Form.io-Schema. */
+export interface FormSectionVersionDto extends FormSectionVersionSummaryDto {
+  sectionData: string;
+}
+
+/** Revisionierter Abschnittsentwurf oder veröffentlichte Basis. */
+export interface FormSectionAuthoringDraftDto {
+  sectionId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedSectionId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  sectionData: string;
+}
+
+export interface SaveFormSectionAuthoringDraftRequestDto {
+  expectedRevision: number;
+  sectionData: string;
+}
+
 export type FormCompatibilitySource = 'published' | 'draft';
 
 /** Datensparsamer Inventareintrag; Schema und Scriptinhalt bleiben serverseitig. */
