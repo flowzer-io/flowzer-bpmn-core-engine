@@ -27,7 +27,7 @@ keine aktuelle Liste noch fehlender Funktionen.
 - Reproduzierbare .NET-/Frontend-CI, OpenAPI-Snapshot, Testzweckprüfung,
   Container-/Compose-Setup, Health-/Diagnose- und Telemetriegrundlagen.
 
-## CodeQL- und Storage-Härtung – #222 (laufend, noch nicht gemergt)
+## CodeQL- und Storage-Härtung – #222 / PR #223 (noch nicht gemergt)
 
 Der Slice beseitigt die offenen CodeQL-Befunde ohne Suppression: konkrete
 Dateidokumente lesen keine CLR-Typnamen mehr, Worker-Jobs duplizieren keinen

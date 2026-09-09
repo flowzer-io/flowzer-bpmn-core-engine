@@ -126,7 +126,7 @@ CAS und Lebenszyklus atomar; die Dateiablage bleibt ein Einzelprozess-Entwicklun
 - [x] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
   erzeugt einen Konflikt statt einen weiteren Vorgang.
 - [ ] Offene CodeQL-Befunde ohne Suppression beseitigen und konkrete Arbeitsdaten aus
-  der polymorphen Storage-Grenze lösen. #222 ist implementiert und lokal getestet;
+  der polymorphen Storage-Grenze lösen. #222 / PR #223 ist implementiert und lokal getestet;
   grüner CodeQL-Lauf und Merge stehen noch aus. Prozessinstanzen und Definitionen
   verbleiben dokumentiert in einer gesonderten Legacy-Grenze.
 - [x] Bestandsissues #93–#96 und #98 bereinigt und #176 / PR #177 verknüpft;

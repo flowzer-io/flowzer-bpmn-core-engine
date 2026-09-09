@@ -1,7 +1,7 @@
 # CodeQL- und Storage-Härtung
 
-**Stand:** 9. September 2026, Issue #222. Der Slice ist noch nicht nach `main`
-gemergt.
+**Stand:** 9. September 2026, Issue #222 / PR #223. Der Slice ist noch nicht nach
+`main` gemergt.
 
 ## Ziel
 
