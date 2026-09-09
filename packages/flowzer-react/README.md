@@ -39,7 +39,10 @@ export function FlowzerTasks({ sessionScope }: { sessionScope: string }) {
 `cacheNamespace` unterscheidet Installationen. `sessionScope` muss bei jeder Anmeldung
 wechseln, darf aber selbst kein Token, keine E-Mail und kein anderes Geheimnis enthalten.
 Beim Logout entfernt `clearFlowzerScope(queryClient, namespace, sessionScope)` genau
-diesen Sitzungsbestand.
+diesen Sitzungsbestand. Ein Wechsel von `cacheNamespace` oder `sessionScope` setzt
+zusätzlich den Provider-Teilbaum neu auf: lokale Eingaben und Mutation-Observer
+werden nicht in die nächste Sitzung übernommen. Ein Refetch bei unverändertem
+Scope behält lokale Eingaben dagegen bei.
 
 ## Öffentliche Bausteine
 
@@ -56,7 +59,11 @@ diesen Sitzungsbestand.
 
 Der Arbeitsbereich fragt Formular und privaten Entwurf erst bei serverseitigem
 `workState.canWork` ab. Wird dieses Recht entzogen, gibt er bereits geladene Inhalte
-nicht weiter und entfernt sie aus seinem Sitzungscache.
+nicht weiter und entfernt sie aus seinem Sitzungscache. Das gilt auch bei einem
+HTTP-Rechteverlust (`401`, `403`, `404`) aus Task, Formular oder Entwurf, schon
+während laufender Retries. Der zuvor gecachte Task ist dann kein gültiger
+Arbeitsnachweis mehr. Die Sperre überlebt Navigation/Remount im Sitzungscache und bleibt bis zu einem vollständig erfolgreichen
+expliziten Workspace-Reload bestehen; ein bloßer Entwurfs-Reload hebt sie nicht auf.
 
 Mutationen setzen `retry: false`, auch wenn der Host-`QueryClient` global etwas anderes
 vorgibt. Der Host entscheidet über einen erneuten Versuch und bewahrt dafür denselben

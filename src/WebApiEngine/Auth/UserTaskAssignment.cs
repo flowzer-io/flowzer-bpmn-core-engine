@@ -79,11 +79,12 @@ public static class UserTaskAssignment
     /// </summary>
     public static async Task<DirectorySnapshot?> LoadDirectorySnapshotIfRequiredAsync(
         IIdentityDirectoryStorage storage,
-        IEnumerable<UserTaskSubscription> subscriptions)
+        IEnumerable<UserTaskSubscription> subscriptions,
+        bool requiresDirectoryAssignee = false)
     {
         ArgumentNullException.ThrowIfNull(storage);
         ArgumentNullException.ThrowIfNull(subscriptions);
-        var requiresDirectory = false;
+        var requiresDirectory = requiresDirectoryAssignee;
         foreach (var subscription in subscriptions)
         {
             EnsureAssignmentFromModel(subscription);

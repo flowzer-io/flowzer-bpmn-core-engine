@@ -20,9 +20,11 @@ public static class UserTaskWorkAuthorization
     {
         UserTaskAssignment.EnsureAssignmentFromModel(task);
         var state = await GetState(storage, task.Id);
-        if (state?.AssigneeOwnerKey is { } owner)
+        if (state?.AssigneeOwnerKey is not null)
         {
-            var isAssignee = string.Equals(owner, UserTaskDraftOwnerKey.Create(currentUser), StringComparison.Ordinal);
+            snapshot ??= await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+                storage.IdentityDirectoryStorage, [task], state.DirectoryAssigneeUserId.HasValue);
+            var isAssignee = IsActualAssignee(state, task, currentUser, snapshot);
             return new UserTaskAccess(
                 State: state,
                 CanSee: canOperate || isAssignee,
@@ -46,6 +48,27 @@ public static class UserTaskWorkAuthorization
             CanRelease: false,
             CanAssign: canOperate,
             CanDelegate: false);
+    }
+
+    /// <summary>
+    /// Ein Claim ersetzt die Kandidatenprüfung, aber nicht den aktiven Identitätsnachweis.
+    /// Directory-Zuweisungen bleiben auch bei einem Textmodell an die aktuelle stabile ID
+    /// gebunden. Reine Text-Claims benötigen weiterhin kein synchronisiertes Verzeichnis.
+    /// </summary>
+    public static bool IsActualAssignee(
+        UserTaskWorkState state,
+        UserTaskSubscription task,
+        CurrentUserContext currentUser,
+        DirectorySnapshot? snapshot)
+    {
+        if (!string.Equals(state.AssigneeOwnerKey, UserTaskDraftOwnerKey.Create(currentUser), StringComparison.Ordinal))
+            return false;
+        UserTaskAssignment.EnsureAssignmentFromModel(task);
+        if (state.DirectoryAssigneeUserId is { } id)
+            return DirectoryIdentityAccess.Resolve(currentUser, snapshot)?.Matches(
+                new SubjectRef(DirectorySubjectKind.User, id)) == true;
+        return task.AssignmentMode != BPMN.HumanInteraction.UserTaskAssignmentMode.Directory
+               || DirectoryIdentityAccess.Resolve(currentUser, snapshot) is not null;
     }
 
     public static UserTaskWorkStateDto ToDto(UserTaskAccess access) => new()

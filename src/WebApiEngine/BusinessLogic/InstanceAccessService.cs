@@ -37,9 +37,10 @@ public sealed class InstanceAccessService(
         var taskArray = (await storage.SubscriptionStorage.GetAllUserTasksExtended(user.UserId))
             .Where(task => task.ProcessInstanceId.HasValue)
             .ToArray();
-        var directorySnapshot = await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
-            storage.IdentityDirectoryStorage, taskArray);
         var workStates = await LoadWorkStates(taskArray);
+        var directorySnapshot = await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+            storage.IdentityDirectoryStorage, taskArray,
+            workStates.Values.Any(state => state.DirectoryAssigneeUserId.HasValue));
         var tasks = taskArray.ToLookup(task => task.ProcessInstanceId!.Value);
         var visible = instances.Where(instance =>
             InstanceAccessPolicy.CanReadOverview(
@@ -55,11 +56,12 @@ public sealed class InstanceAccessService(
         var tasks = canInspect
             ? []
             : (await storage.SubscriptionStorage.GetAllUserTasks(instanceId)).ToArray();
+        var workStates = canInspect ? null : await LoadWorkStates(tasks);
         var directorySnapshot = canInspect
             ? null
             : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
-                storage.IdentityDirectoryStorage, tasks);
-        var workStates = canInspect ? null : await LoadWorkStates(tasks);
+                storage.IdentityDirectoryStorage, tasks,
+                workStates!.Values.Any(state => state.DirectoryAssigneeUserId.HasValue));
         return InstanceAccessPolicy.CanReadOverview(
                 instance, user, tasks, directorySnapshot, canInspect: canInspect, workStates)
             ? await instance.ToDtoAsync(storage.DefinitionStorage, canInspect: canInspect)

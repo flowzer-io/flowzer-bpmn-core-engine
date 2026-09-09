@@ -30,7 +30,10 @@ export function FlowzerProvider({
   }
 
   return (
-    <Context.Provider value={{ client, cacheNamespace, sessionScope }}>
+    // Die Scope-Grenze gilt auch für lokalen React-State (Eingaben, Mutationen), nicht
+    // nur für Query-Keys. Ein Scopewechsel verwirft deshalb den gesamten alten Teilbaum.
+    <Context.Provider key={JSON.stringify([cacheNamespace, sessionScope])}
+      value={{ client, cacheNamespace, sessionScope }}>
       {children}
     </Context.Provider>
   );

@@ -274,6 +274,58 @@ public sealed class UserTaskLifecycleIntegrationTest
         item.GetProperty("isSelectable").GetBoolean().Should().BeFalse();
     }
 
+    // Testzweck: Ein weiterhin gültiges JWT darf nach Directory-Deaktivierung keine
+    // bereits beanspruchte oder administrativ zugewiesene Aufgabe mehr öffnen/abschließen.
+    // Das gilt auch bei Textmodellen mit nachträglicher Directory-Zuweisung.
+    [TestCase(false, "/usertask")]
+    [TestCase(false, "/form/result")]
+    [TestCase(true, "/usertask")]
+    [TestCase(true, "/form/result")]
+    public async Task InactiveActualAssignee_ShouldLoseAllTaskAccess(bool textModel, string completionRoute)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var annaSubject = Guid.NewGuid();
+        var directory = await PublishDirectoryAsync(context, annaSubject, annaInCandidateGroup: true);
+        var assignment = textModel ? null
+            : $"<flowzer:taskAssignment mode=\"directory\" candidateGroupIds=\"{directory.GroupId}\" />";
+        var task = await context.StartAsync("", assignmentExtensionXml: assignment);
+        using var anna = context.CreateClient(userId: annaSubject, username: "anna");
+        using var operation = context.CreateClient(isOperator: true);
+        if (textModel)
+            (await operation.PostAsJsonAsync($"/usertask/{task.Id}/assign", new
+            {
+                expectedRevision = 0, assignee = new { kind = "user", id = directory.AnnaId },
+                reason = "Betriebliche Zuweisung"
+            })).EnsureSuccessStatusCode();
+        else
+            (await anna.PostAsJsonAsync($"/usertask/{task.Id}/claim", new { expectedRevision = 0 }))
+                .EnsureSuccessStatusCode();
+
+        (await anna.GetAsync($"/instance/{task.ProcessInstanceId}")).StatusCode.Should().Be(HttpStatusCode.OK);
+        await PublishDirectoryAsync(context, annaSubject, annaInCandidateGroup: true, annaActive: false);
+
+        using (new FluentAssertions.Execution.AssertionScope())
+        {
+            (await ListTasksAsync(anna)).Should().NotContain(task.Id);
+            foreach (var route in new[] { $"/usertask/{task.Id}", $"/usertask/{task.Id}/form",
+                         $"/usertask/{task.Id}/draft", $"/instance/{task.ProcessInstanceId}" })
+                (await anna.GetAsync(route)).StatusCode.Should().Be(HttpStatusCode.NotFound, route);
+            var instances = Result(await anna.GetFromJsonAsync<JsonElement>("/instance"));
+            instances.EnumerateArray().Should().NotContain(item =>
+                item.GetProperty("instanceId").GetGuid() == task.ProcessInstanceId);
+            (await anna.PostAsJsonAsync(completionRoute, Completion(task))).StatusCode
+                .Should().Be(HttpStatusCode.NotFound, completionRoute);
+            (await anna.PostAsJsonAsync($"/usertask/{task.Id}/claim", new
+                { expectedRevision = 1 })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+            (await anna.PostAsJsonAsync($"/usertask/{task.Id}/release", new
+                { expectedRevision = 1, reason = "Freigabe" })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+        await context.AssertStillActiveAsync(task);
+        // Der Betrieb muss die verwaiste Aufgabe weiterhin korrigieren können.
+        (await operation.PostAsJsonAsync($"/usertask/{task.Id}/release", new
+            { expectedRevision = 1, reason = "Deaktiviertes Konto" })).EnsureSuccessStatusCode();
+    }
+
     private static async Task<Guid[]> ListTasksAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/usertask");
