@@ -2,8 +2,8 @@
 
 ## Ergebnis
 
-Dreiundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
-implementiert und lokal getestet; ein vierundzwanzigster Security-Slice ist in Arbeit.
+Vierundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+implementiert und lokal sowie in CI getestet.
 Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
 Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
 produktiver Benutzer oder Datenbanken.
@@ -60,6 +60,9 @@ abschließenden Astra-/High-Gesamtreview.
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
   `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
   Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
+- PR #223 ist in allen .NET-, Console-, Paket-, UI-Smoke- und CodeQL-Prüfungen grün.
+  Die PR-spezifische Code-Scanning-Abfrage enthält keine offenen Befunde; bestehende
+  Hauptbranch-Warnungen werden erst durch die spätere Zusammenführung geschlossen.
 - Frühere gezielte Astra-/High-Teilreviews prüften Idempotenz und den BFF-Slice.
   Beim Idempotenzpfad wurden offene Dateireservierungen, mathematisch gleiche
   JSON-Zahlen sowie der Projektstatus korrigiert und durch Fault-Injection-,
