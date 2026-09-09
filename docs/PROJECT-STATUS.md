@@ -1,6 +1,6 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis #230
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #231
 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
@@ -119,7 +119,7 @@ Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
-## Wiederverwendbare Formularabschnitte – #230 (noch nicht gemergt)
+## Wiederverwendbare Formularabschnitte – #230 / PR #231 (noch nicht gemergt)
 
 Eine hostneutrale Bibliothek trennt Katalogmetadaten, revisionsgeschützte Entwürfe und
 append-only Abschnittsversionen. Formulare referenzieren nur konkrete Fassungen; beim
@@ -316,7 +316,7 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
    private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren, getrennte
    Entwurfs-/Vorschau-/Veröffentlichungszustände, Wiederholgruppen und Entscheidungsaktionen
-   liegen in #208–#216; die Abschnittsbibliothek folgt mit #230. Anhänge und freigegebene
+   liegen in #208–#216; die Abschnittsbibliothek folgt mit #230 / PR #231. Anhänge und freigegebene
    dynamische Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
    Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der

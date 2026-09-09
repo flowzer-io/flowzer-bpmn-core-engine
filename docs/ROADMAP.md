@@ -33,7 +33,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    anhand stabiler, datensparsamer Kompatibilitätscodes.
    #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
    Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
-   #230 ergänzt die hostneutrale Bibliothek unveränderlicher Formularabschnittsversionen
+   #230 / PR #231 ergänzt die hostneutrale Bibliothek unveränderlicher Formularabschnittsversionen
    und vollständige, serverseitig gebundene Formularsnapshots.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.

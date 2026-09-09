@@ -116,7 +116,7 @@ public sealed class FormSectionAuthoringService(
             current?.BasedOnVersion ?? latest?.Version,
             request.SectionData);
         var result = await storage.FormSectionStorage.TrySave(draft, request.ExpectedRevision);
-        if (result.Status == FormSectionAuthoringWriteStatus.SectionNotFound) throw UnknownSection(sectionId);
+        if (result.Status == FormSectionAuthoringWriteStatus.SectionNotFound) throw UnknownSection();
         if (result.Status == FormSectionAuthoringWriteStatus.RevisionConflict)
             throw new FormSectionAuthoringConflictException(request.ExpectedRevision, result.CurrentRevision);
         storage.CommitChanges();
@@ -131,7 +131,7 @@ public sealed class FormSectionAuthoringService(
         using var storage = storageProvider.GetTransactionalStorage();
         var result = await storage.FormSectionStorage.TryDelete(
             RequireSectionId(sectionId), expectedRevision);
-        if (result.Status == FormSectionAuthoringDeleteStatus.SectionNotFound) throw UnknownSection(sectionId);
+        if (result.Status == FormSectionAuthoringDeleteStatus.SectionNotFound) throw UnknownSection();
         if (result.Status == FormSectionAuthoringDeleteStatus.RevisionConflict)
             throw new FormSectionAuthoringConflictException(expectedRevision, result.CurrentRevision);
         storage.CommitChanges();
@@ -155,7 +155,7 @@ public sealed class FormSectionAuthoringService(
         }
 
         var result = await storage.FormSectionStorage.TryPublish(sectionId, expectedRevision, Guid.NewGuid());
-        if (result.Status == FormSectionAuthoringPublishStatus.SectionNotFound) throw UnknownSection(sectionId);
+        if (result.Status == FormSectionAuthoringPublishStatus.SectionNotFound) throw UnknownSection();
         if (result.Status == FormSectionAuthoringPublishStatus.RevisionConflict)
             throw new FormSectionAuthoringConflictException(expectedRevision, result.CurrentRevision);
         storage.CommitChanges();
@@ -211,11 +211,11 @@ public sealed class FormSectionAuthoringService(
     {
         RequireSectionId(sectionId);
         try { _ = await storage.FormSectionStorage.GetMetadata(sectionId); }
-        catch (FileNotFoundException) { throw UnknownSection(sectionId); }
-        catch (InvalidOperationException) { throw UnknownSection(sectionId); }
+        catch (FileNotFoundException) { throw UnknownSection(); }
+        catch (InvalidOperationException) { throw UnknownSection(); }
     }
 
-    private static FormSectionNotFoundException UnknownSection(Guid sectionId) => new();
+    private static FormSectionNotFoundException UnknownSection() => new();
     private static FormSectionVersionNotFoundException UnknownSectionVersion() => new();
 
     private static FormSectionMetadataDto ToDto(FormSectionMetadata metadata) => new()

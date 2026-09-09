@@ -1,6 +1,6 @@
 # Versionierte wiederverwendbare Formularabschnitte
 
-M2-Teilpaket #230. Flowzer verwaltet eine eigene, hostneutrale Bibliothek
+M2-Teilpaket Issue #230 / PR #231. Flowzer verwaltet eine eigene, hostneutrale Bibliothek
 deklarativer Form.io-Abschnitte. Eine konsumierende Anwendung kann diese API und die
 öffentlichen Pakete verwenden; Flowzer enthält weder Abhängigkeiten noch Fachwissen über
 eine konkrete Host-Anwendung.
