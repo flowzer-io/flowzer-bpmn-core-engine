@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247 und #250**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247 und #250 / PR #251**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -114,12 +114,12 @@ statt eines blinden Retries eine Störung. Ein bereits validiertes Ergebnis samt
 Tokenmessung bleibt für die spätere Fortsetzung erhalten.
 
 Die Ablage allein startet noch keinen Hintergrund-Executor und ändert den Deployment-Blocker
-nicht. #250 verbindet den gespeicherten Lauf im nächsten getrennten Schritt zunächst nur bis
+nicht. #250 / PR #251 verbindet den gespeicherten Lauf im nächsten getrennten Schritt zunächst nur bis
 zum dauerhaft validierten Providerergebnis; der Engine-Commit bleibt danach separat.
 
 ## Provider-Executor
 
-#250 claimt wartende beziehungsweise fällige Retry-Läufe atomar und markiert den möglichen
+#250 / PR #251 claimt wartende beziehungsweise fällige Retry-Läufe atomar und markiert den möglichen
 Beginn des externen Aufrufs vor Secret- oder Netzwerkzugriff. Der unveränderliche Snapshot
 wird einschließlich der exakten Verbindungsrevision erneut geprüft. Eine inzwischen geänderte
 Verbindung, ein deaktivierter Eintrag oder ein fehlendes Secret beendet den Lauf ohne Fallback.

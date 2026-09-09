@@ -433,7 +433,7 @@ Antworten werden insgesamt abgelehnt. Ausdrücklich lokale Verbindungen behalten
 Installations-Opt-in ihren privaten beziehungsweise Loopback-Zugriff. Der Slice aktiviert
 noch keine BPMN-KI-Aufgabe.
 
-## Provider-Executor für persistente KI-Läufe – #250 (noch nicht gemergt)
+## Provider-Executor für persistente KI-Läufe – #250 / PR #251 (noch nicht gemergt)
 
 Ein standardmäßig deaktivierter Hintergrunddienst claimt bereits persistierte Läufe,
 markiert den möglichen Provideraufruf vorher dauerhaft und hält die Lease per Heartbeat.
@@ -469,7 +469,7 @@ führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit fehle
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
    persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
-   der Provider-Executor (#250) liegen vor; Engine-Commit und Werkzeugfreigaben bleiben offen.
+   der Provider-Executor (#250 / PR #251) liegen vor; Engine-Commit und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 

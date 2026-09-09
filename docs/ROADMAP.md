@@ -132,7 +132,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   ausschließlich öffentlichen DNS-Ergebnissen zugelassen. Der Socket verwendet danach
   exakt die geprüften Adressen sowie denselben Host und Port; lokale Ziele bleiben an das
   ausdrückliche Installations-Opt-in gebunden. Der Deploymentblocker bleibt bestehen.
-- [x] **#250 – Provider-Executor:** Bereits persistierte Läufe werden mit exakter
+- [x] **#250 / PR #251 – Provider-Executor:** Bereits persistierte Läufe werden mit exakter
   Verbindungsrevision, Lease-Heartbeat, fester Retry-Allowlist und konservativer Recovery
   bis `ResultReady` verarbeitet. Der Dienst ist standardmäßig aus; Erzeugung und atomarer
   Engine-Commit folgen vor dem Entfernen des Deploymentblockers.
