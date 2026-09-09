@@ -652,9 +652,53 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: {
-                    deployment?: boolean;
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                    };
                 };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Definition/validate/deployment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;

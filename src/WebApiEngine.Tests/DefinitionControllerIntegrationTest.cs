@@ -33,13 +33,13 @@ public class DefinitionControllerIntegrationTest
         var xml = CreateAiTaskXml("workflow-ai-draft");
 
         using var authoringValidation = await client.PostAsync(
-            "/definition/validate?deployment=false",
+            "/definition/validate",
             new StringContent(xml, Encoding.UTF8, "application/xml"));
         using var save = await client.PostAsync(
             "/definition",
             new StringContent(xml, Encoding.UTF8, "application/xml"));
         using var deploymentValidation = await client.PostAsync(
-            "/definition/validate?deployment=true",
+            "/definition/validate/deployment",
             new StringContent(xml, Encoding.UTF8, "application/xml"));
 
         authoringValidation.StatusCode.Should().Be(HttpStatusCode.OK);
