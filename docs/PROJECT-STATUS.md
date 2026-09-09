@@ -465,7 +465,7 @@ Instanzansichten bleiben vom Schreib-Lock getrennt. Abgebrochene oder fehlgeschl
 KI-Token stornieren offene Läufe und entziehen vorhandene Leases. Die Dateiablage bleibt ein
 ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollback.
 
-## Typisierte KI-Werkzeugverträge – #254 (noch nicht gemergt)
+## Typisierte KI-Werkzeugverträge – #254 / PR #255 (noch nicht gemergt)
 
 Eine geschlossene `IAiTool`-Registry validiert stabile ID und Version, portable Ein-/
 Ausgabeschemas, Außenwirkung und Vorabfreigabefähigkeit. Der neue, rollenberechtigte
@@ -513,7 +513,7 @@ Vertrag. Die tatsächliche Ausführung ist damit nicht vorgetäuscht und folgt a
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
    persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
    der Provider-Executor (#250 / PR #251), die atomare Engine-Anbindung (#252 / PR #253)
-   sowie die Werkzeug-Vertragsgrenze (#254) liegen vor. Persistentes Aktionsjournal,
+   sowie die Werkzeug-Vertragsgrenze (#254 / PR #255) liegen vor. Persistentes Aktionsjournal,
    parametergebundene Freigaben, Testmodus und Störungsbedienung bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.

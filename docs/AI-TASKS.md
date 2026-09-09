@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242–#254**
+**Stand: 9. September 2026 · #242–#254, zuletzt #254 / PR #255**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -65,7 +65,7 @@ Bindungen vor Secret- oder Netzwerkzugriff.
 
 ### Werkzeugverträge in Autorenständen
 
-#254 ergänzt eine geschlossene `IAiTool`-Registry. Jede Installation stellt damit einen
+#254 / PR #255 ergänzt eine geschlossene `IAiTool`-Registry. Jede Installation stellt damit einen
 rein lesbaren Katalog stabiler Werkzeug-IDs und -Versionen mit Ein-/Ausgabeschema,
 Außenwirkung und Vertragshash bereit. Es gibt keine dynamisch aus BPMN, Prompt oder
 Modellantwort erzeugten Handler, Zieladressen, Shell- oder SQL-Aufrufe.

@@ -1,6 +1,6 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issues #240–#254
+**Stand:** 9. September 2026 · Issues #240–#254, zuletzt PR #255
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
 eine ausschließlich interne Provideraufrufschicht; #252 / PR #253 bindet eine konkrete, unveränderliche
@@ -129,7 +129,7 @@ Rollbackversprechen.
 
 Provideradapter, portables Ergebnisschema, KI-Task-Erweiterung, dauerhafter Laufzustand
 (#246 / PR #247), DNS-/Socketbindung (#248 / PR #249), Provider-Executor (#250 / PR #251)
-und atomare Engine-Anbindung (#252 / PR #253) liegen als getrennte Slices vor. #254 ergänzt
+und atomare Engine-Anbindung (#252 / PR #253) liegen als getrennte Slices vor. #254 / PR #255 ergänzt
 die typisierte Registry, Verbindungs-Allowlist und unveränderliche Deploymentbindung. Die
 tatsächliche Werkzeugausführung, parametergebundene Freigaben, Kosten, Testmodus und
 Störungsbedienung folgen in eigenen Paketen.
