@@ -212,8 +212,26 @@ Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. De
 Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
 serverseitig aufgeloeste Secret-Referenzen ist in [AI-CONNECTIONS.md](AI-CONNECTIONS.md)
 dokumentiert. Cloud- und lokale Verarbeitung sind getrennte Installations-Opt-ins. Das
-aktuelle Paket fuehrt noch keine Provideraufrufe aus. Die Use-Rolle sieht nur aktive
-Verbindungen; die Manage-Rolle darf auch deaktivierte historische Metadaten pflegen.
+aktuelle Paket kann bei ausdrücklicher Aktivierung ausschließlich bereits persistierte
+KI-Läufe bis zum validierten Providerergebnis ausführen; BPMN-Prozesse erzeugen diese Läufe
+noch nicht. Die Use-Rolle sieht nur aktive Verbindungen; die Manage-Rolle darf auch
+deaktivierte historische Metadaten pflegen.
+
+Der Executor ist standardmäßig abgeschaltet:
+
+| Einstellung | Standard | Grenze |
+|---|---:|---:|
+| `AiExecution__Enabled` | `false` | explizites Opt-in |
+| `AiExecution__PollIntervalSeconds` | `5` | 1–3.600 |
+| `AiExecution__BatchSize` | `10` | 1–100 parallele Claims |
+| `AiExecution__LeaseSeconds` | `600` | 10–3.600 |
+| `AiExecution__HeartbeatSeconds` | `30` | 1 bis kleiner als Lease |
+| `AiExecution__RetryBaseSeconds` | `30` | 1–3.600 |
+| `AiExecution__MaximumRetrySeconds` | `900` | Retrybasis bis 86.400 |
+
+Ein aktivierter Dienst führt keine Werkzeuge aus. Er wiederholt nur fest klassifizierte
+temporäre Providerfehler innerhalb des am Lauf gebundenen Versuchslimits. Lease-Verlust und
+unklare Ausgänge bleiben für Recovery beziehungsweise Störungsbearbeitung stehen.
 
 ### Rollen und Zuweisungen
 

@@ -1,7 +1,11 @@
+using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Model;
 using PostgreSqlStorageSystem;
 using StorageSystem;
+using WebApiEngine.Ai;
 
 namespace WebApiEngine.Tests;
 
@@ -142,6 +146,52 @@ public partial class PostgreSqlStorageIntegrationTest
             run.Status == AiRunStatus.Incident && run.FailureCode == "ai.run.outcome_unknown");
     }
 
+    // Testzweck: Zwei getrennte Executor mit eigenen PostgreSQL-Adaptern koennen denselben
+    // Providerlauf auch dann nicht doppelt starten, wenn der erste Aufruf noch aktiv ist.
+    [Test]
+    public async Task AiRunExecutor_ShouldClaimProviderCallOnceAcrossPostgreSqlProcesses()
+    {
+        var firstStorage = new PostgreSqlStorage(_dataSource!, Schema).AiRunStorage;
+        var secondStorage = new PostgreSqlStorage(_dataSource!, Schema).AiRunStorage;
+        var initial = RandomRun();
+        await firstStorage.TryCreate(initial);
+        var gateway = new CoordinatedAiInferenceGateway();
+        var time = new FakeTimeProvider(new DateTimeOffset(AiRunNow));
+        var policy = new AiRunExecutionPolicy(
+            Enabled: true,
+            PollInterval: TimeSpan.FromSeconds(5),
+            BatchSize: 1,
+            LeaseDuration: TimeSpan.FromMinutes(5),
+            HeartbeatInterval: TimeSpan.FromMinutes(1),
+            RetryBaseDelay: TimeSpan.FromMinutes(1),
+            MaximumRetryDelay: TimeSpan.FromMinutes(10));
+        var first = new AiRunExecutor(
+            firstStorage,
+            gateway,
+            time,
+            policy,
+            NullLogger<AiRunExecutor>.Instance,
+            "postgres-a");
+        var second = new AiRunExecutor(
+            secondStorage,
+            gateway,
+            time,
+            policy,
+            NullLogger<AiRunExecutor>.Instance,
+            "postgres-b");
+
+        var firstTick = first.RunProviderBatchAsync(default);
+        await gateway.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var secondTick = await second.RunProviderBatchAsync(default);
+        gateway.Release.TrySetResult();
+        var firstResult = await firstTick;
+
+        firstResult.Claimed.Should().Be(1);
+        secondTick.Claimed.Should().Be(0);
+        gateway.Calls.Should().Be(1);
+        (await secondStorage.Get(initial.Id))!.Status.Should().Be(AiRunStatus.ResultReady);
+    }
+
     private static AiRun RandomRun() => AiRunStorageTest.Run() with
     {
         Id = Guid.NewGuid(),
@@ -150,4 +200,26 @@ public partial class PostgreSqlStorageIntegrationTest
         CreatedAtUtc = AiRunNow,
         UpdatedAtUtc = AiRunNow
     };
+
+    private sealed class CoordinatedAiInferenceGateway : IAiInferenceGateway
+    {
+        private int _calls;
+        public int Calls => Volatile.Read(ref _calls);
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<AiInferenceResult> ExecuteAsync(
+            AiInferenceCommand command,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _calls);
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            using var output = JsonDocument.Parse("{}");
+            return new AiInferenceResult(
+                output.RootElement.Clone(),
+                "result-model",
+                new AiTokenUsage(8, 2, 10));
+        }
+    }
 }

@@ -311,7 +311,8 @@ und Abschluss bleiben identisch.
 - [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
   (#238; PR #239). #246 / PR #247 ergänzt dauerhafte KI-Laufzustände mit getrennten Provider-/
   Ergebnis-Claims, Revisionen und konservativer Recovery; der ausführende Hintergrunddienst
-  und die vollständige Störungsbedienung bleiben offen.
+  folgt mit #250 bis zum validierten `ResultReady`. Erzeugung, atomarer Engine-Commit und die
+  vollständige Störungsbedienung bleiben offen.
 - [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
   Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,

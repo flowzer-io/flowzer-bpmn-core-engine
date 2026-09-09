@@ -1,6 +1,6 @@
 # Versionierter KI-Aufgabenvertrag
 
-**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245 und #246 / PR #247**
+**Stand: 9. September 2026 · #242 / PR #243, #244 / PR #245, #246 / PR #247 und #250**
 
 Flowzer modelliert eine KI-Aufgabe weiterhin als normalen BPMN-Service-Task. Die
 Flowzer-Erweiterung beschreibt ausschließlich den fachlichen Auftrag; sie führt keinen
@@ -53,7 +53,7 @@ können diese Bindung nicht erweitern.
 
 Der Vertrag ist in diesem Slice **modellierbar und speicherbar, aber noch nicht
 deploybar**. `serviceTask.aiTask` steht deshalb im Fähigkeitsvertrag als nicht ausführbar.
-Die Vorabprüfung erhält mit `deployment=true` denselben Blocker wie das echte Deployment.
+Die Vorabprüfung über `POST /definition/validate/deployment` erhält denselben Blocker wie das echte Deployment.
 Damit kann kein produktiver Vorgang an einer nur vorgetäuschten KI-Runtime hängenbleiben.
 Die Provider- und Schema-Schicht aus #244 / PR #245 ist intern bereits vorhanden. Das Deployment
 bleibt dennoch blockiert, bis ein persistenter KI-Lauf den Provideraufruf, Recovery und
@@ -113,8 +113,28 @@ Aufruf bereits als begonnen gespeichert oder ging der Engine-Commit unklar aus, 
 statt eines blinden Retries eine Störung. Ein bereits validiertes Ergebnis samt Modell- und
 Tokenmessung bleibt für die spätere Fortsetzung erhalten.
 
-Dieser Slice startet noch keinen Hintergrund-Executor und ändert den Deployment-Blocker
-nicht. Die nächste Stufe verbindet den gespeicherten Lauf mit Gateway und Engine.
+Die Ablage allein startet noch keinen Hintergrund-Executor und ändert den Deployment-Blocker
+nicht. #250 verbindet den gespeicherten Lauf im nächsten getrennten Schritt zunächst nur bis
+zum dauerhaft validierten Providerergebnis; der Engine-Commit bleibt danach separat.
+
+## Provider-Executor
+
+#250 claimt wartende beziehungsweise fällige Retry-Läufe atomar und markiert den möglichen
+Beginn des externen Aufrufs vor Secret- oder Netzwerkzugriff. Der unveränderliche Snapshot
+wird einschließlich der exakten Verbindungsrevision erneut geprüft. Eine inzwischen geänderte
+Verbindung, ein deaktivierter Eintrag oder ein fehlendes Secret beendet den Lauf ohne Fallback.
+
+Lange Aufrufe verlängern ihre Lease besitzer- und revisionsgebunden. Geht sie verloren, wird
+der Aufruf abgebrochen und kein verspätetes Ergebnis gespeichert. Erfolgreiche, erneut gegen
+das Ergebnisschema geprüfte Antworten werden mit Modell- und Tokenmessung als `ResultReady`
+persistiert. Nur eine feste Allowlist temporärer Fehlercodes darf innerhalb des gebundenen
+Versuchslimits einen exponentiell begrenzten Retrytermin erzeugen; alle anderen oder
+erschöpften Fehler werden datenarm als `Incident` angehalten. Vor jedem Takt läuft die
+konservative Recovery des Laufzustands.
+
+Der Hintergrunddienst ist standardmäßig deaktiviert und kann ausschließlich bereits
+persistierte Läufe verarbeiten. Da die BPMN-Runtime in diesem Slice weder Läufe erzeugt noch
+Ergebnisse in die Engine schreibt, bleibt die KI-Aufgabe weiterhin nicht deploybar.
 
 Die Requestformen orientieren sich an den offiziellen Verträgen der
 [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses/create),
@@ -134,7 +154,7 @@ verwenden ausschließlich simulierte HTTP-Handler und lösen keine abrechenbaren
 
 ## Noch offen
 
-1. Hintergrund-Executor, der persistente Läufe mit Provider und Engine verbindet.
+1. Atomarer Engine-Commit, der KI-Läufe erzeugt und `ResultReady` exakt einmal fortsetzt.
 2. Typisierte Werkzeugregistry, parametergebundene Freigaben und Ausführungsjournal.
 3. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
 4. Nachvollziehbare Laufzeit-/Tokenhistorie und Kosten nur mit versionierter Preisgrundlage.

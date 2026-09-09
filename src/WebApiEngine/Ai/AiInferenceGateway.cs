@@ -9,6 +9,7 @@ namespace WebApiEngine.Ai;
 /// <summary>Providerneutraler, vollstaendig validierter Auftrag fuer einen einzelnen Modellaufruf.</summary>
 internal sealed record AiInferenceCommand(
     Guid ConnectionId,
+    long ConnectionRevision,
     string? Model,
     int InstructionVersion,
     string Instruction,
@@ -24,6 +25,14 @@ internal sealed record AiInferenceResult(
     string Model,
     AiTokenUsage Usage);
 
+/// <summary>Testbarer Port fuer genau einen gebundenen, validierten Provideraufruf.</summary>
+internal interface IAiInferenceGateway
+{
+    Task<AiInferenceResult> ExecuteAsync(
+        AiInferenceCommand command,
+        CancellationToken cancellationToken);
+}
+
 /// <summary>
 /// Verbindet persistierte Metadaten, kurzlebige Secrets und exakt einen Provideradapter. Die
 /// Klasse ist noch keine Laufzeit-Zustandsmaschine und fuehrt von sich aus keine Retries aus.
@@ -32,7 +41,7 @@ internal sealed class AiInferenceGateway(
     IAiConnectionStorage connections,
     IAiSecretStore secrets,
     AiProviderRegistry providers,
-    IOptions<FlowzerAiOptions> options)
+    IOptions<FlowzerAiOptions> options) : IAiInferenceGateway
 {
     private const int MaximumInstructionLength = 20_000;
     private const int MaximumModelLength = 200;
@@ -47,6 +56,10 @@ internal sealed class AiInferenceGateway(
 
         var connection = await connections.Get(command.ConnectionId)
                          ?? throw Failure("ai.connection.not_found", "The AI connection was not found.");
+        if (connection.Revision != command.ConnectionRevision)
+            throw Failure(
+                "ai.connection.revision_changed",
+                "The AI connection revision no longer matches the persisted run.");
         if (!connection.Enabled)
             throw Failure("ai.connection.disabled", "The AI connection is disabled.");
 
@@ -113,6 +126,7 @@ internal sealed class AiInferenceGateway(
     private static void ValidateCommand(AiInferenceCommand command)
     {
         if (command.ConnectionId == Guid.Empty
+            || command.ConnectionRevision < 1
             || command.InstructionVersion < 1
             || string.IsNullOrWhiteSpace(command.Instruction)
             || command.Instruction.Trim().Length > MaximumInstructionLength

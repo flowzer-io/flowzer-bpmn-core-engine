@@ -41,7 +41,8 @@ Ergebnisse öffentliche Unicast-Adressen sind; gemischte öffentliche/private An
 insgesamt abgelehnt. Der anschließende Socketaufbau verwendet ausschließlich diesen geprüften
 Adressvorrat und stimmt Host sowie Port erneut ab. Systemproxys und Weiterleitungen sind für
 diesen Transport abgeschaltet. Ausdrücklich lokale Verbindungen dürfen private und Loopback-
-Adressen nutzen, jedoch keine unspezifizierten oder Multicast-Ziele.
+Adressen nutzen, jedoch keine unspezifizierten oder Multicast-Ziele. Der aufgabengebundene
+Timeout umfasst bereits diese DNS- und Clientvorbereitung.
 
 Es gibt keinen stillen Wechsel von lokal zu Cloud und keinen Modell-Fallback. Eine
 Workflowdefinition darf diese Grenzen spaeter nur weiter einschraenken, nie erweitern.

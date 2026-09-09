@@ -178,6 +178,24 @@ public sealed class AiInferenceGatewayTest
         adapter.Calls.Should().Be(0);
     }
 
+    // Testzweck: Ein Lauf bleibt an die beim Erstellen gespeicherte Verbindungsrevision
+    // gebunden; eine spaetere Aenderung stoppt vor Secret-Aufloesung und Providerzugriff.
+    [Test]
+    public async Task Execute_ShouldRejectChangedConnectionRevisionBeforeSecretOrProvider()
+    {
+        var secrets = new TrackingSecretStore("secret");
+        var adapter = new FakeAdapter(AiProviderKind.OpenAi);
+        var gateway = Gateway(Connection(AiProviderKind.OpenAi) with { Revision = 2 }, secrets, adapter);
+
+        var action = () => gateway.ExecuteAsync(Command() with { ConnectionRevision = 1 }, default);
+
+        var exception = (await action.Should().ThrowAsync<AiProviderCallException>()).Which;
+        exception.Code.Should().Be("ai.connection.revision_changed");
+        exception.Retryable.Should().BeFalse();
+        secrets.ResolveCalls.Should().Be(0);
+        adapter.Calls.Should().Be(0);
+    }
+
     private static AiInferenceGateway Gateway(
         AiConnection connection,
         IAiSecretStore secretStore,
@@ -193,6 +211,7 @@ public sealed class AiInferenceGatewayTest
 
     private static AiInferenceCommand Command(string? model = null) => new(
         Guid.Parse("A1111111-1111-4111-8111-111111111111"),
+        1,
         model,
         3,
         "Classify the workflow input.",

@@ -75,6 +75,19 @@ builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new Anthrop
     serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
 builder.Services.AddSingleton<AiProviderRegistry>();
 builder.Services.AddSingleton<AiInferenceGateway>();
+builder.Services.AddSingleton<IAiInferenceGateway>(serviceProvider =>
+    serviceProvider.GetRequiredService<AiInferenceGateway>());
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().AiRunStorage);
+builder.Services.AddOptions<AiRunExecutionOptions>()
+    .Bind(builder.Configuration.GetSection(AiRunExecutionOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI run execution configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRunExecutionOptions>>()
+        .Value.ToPolicy());
+builder.Services.AddSingleton<AiRunExecutor>();
+builder.Services.AddHostedService<AiRunBackgroundService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()

@@ -433,6 +433,16 @@ Antworten werden insgesamt abgelehnt. Ausdrücklich lokale Verbindungen behalten
 Installations-Opt-in ihren privaten beziehungsweise Loopback-Zugriff. Der Slice aktiviert
 noch keine BPMN-KI-Aufgabe.
 
+## Provider-Executor für persistente KI-Läufe – #250 (noch nicht gemergt)
+
+Ein standardmäßig deaktivierter Hintergrunddienst claimt bereits persistierte Läufe,
+markiert den möglichen Provideraufruf vorher dauerhaft und hält die Lease per Heartbeat.
+Die gespeicherte Verbindungsrevision wird vor Secret und Netzwerk exakt geprüft. Ergebnisse
+werden erneut validiert und samt Modell- und Tokenmessung als `ResultReady` gespeichert.
+Nur feste temporäre Fehlercodes erhalten innerhalb des Laufbudgets einen begrenzten Retry;
+alle anderen Ausgänge werden Störungen. Lease-Verlust und Hostabbruch nach Aufrufmarkierung
+führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit fehlen weiterhin.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -458,14 +468,14 @@ noch keine BPMN-KI-Aufgabe.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
-   persistente Laufzustand (#246 / PR #247) sowie die DNS-/Socketbindung (#248 / PR #249) liegen vor;
-   Executor und Werkzeugfreigaben bleiben offen.
+   persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
+   der Provider-Executor (#250) liegen vor; Engine-Commit und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 33 Browser-Smokes
 sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 167 Engine-,
-839 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
+851 API-/Storage-, 342 Konsolen-, 24 SDK- und 20 React-Pakettests; zusätzlich bestehen
 33 Chromium-Smoke-Tests. Der vollständige UX-Audit und die erste Produktabnahme aus der
 Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
