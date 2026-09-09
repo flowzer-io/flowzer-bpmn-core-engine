@@ -7,16 +7,22 @@ Umsetzungsstand fest. Eine Checkbox wird erst nach belegter Implementierung und
 Verifikation geschlossen. Vorhandene Grundlagen sind kein Nachweis für ein ganzes
 Paket. `docs/ROADMAP.md` verweist auf diesen führenden Plan.
 
-## Aktuelles Arbeitsmandat
+## Aktuelles Arbeitsmandat und Integrationsstand
 
-Am 8. September 2026 hat Christian die autonome Umsetzung aller Pakete beauftragt.
-Terra/Luna dürfen für begrenzte Teilaufgaben unterstützen; vor der finalen
-Zusammenführung prüft Astra mit hoher Reasoning-Stufe den Gesamtstand und erkannte
-Probleme werden behoben. Bis zur belegten Gesamt-Abnahme bleibt die Arbeit in
-Topic-Branches und PRs. Für den danach verifizierten Gesamtstand hat Christian den
-Merge nach `main` und das dadurch ausgelöste Deployment ausdrücklich freigegeben;
-direkte Zwischenstände werden weiterhin weder nach `main` noch `release` geschrieben
-oder produktiv ausgerollt.
+Am 10. September 2026 hat Christian die Gesamtprüfung der vorhandenen Pakete,
+die unmittelbare Korrektur belegter Fehler und eine Strategie für die Restarbeit
+beauftragt. Der aktuelle Auftrag umfasst keinen Merge und kein Deployment.
+Die frühere autonome Implementierungsphase ist nicht mit einer Produktabnahme
+oder einer pauschalen Freigabe für weitere neue Funktionen gleichzusetzen.
+
+Die Detail-PRs sind in sechs kumulativen Checkpoints konsolidiert:
+#189 → #201 → #217 → #227 → #237 → #255. Der aktuelle Gesamtstand einschließlich
+paketübergreifender Reviewkorrekturen liegt am Ende dieser Kette in #255.
+Die früheren Zwischenstände sind keine separat freigegebenen Produktivreleases.
+`main` ist Entwicklung; ausschließlich `release` ist der Produktivrelease-Zweig.
+
+Review, Grenzen und nächste abgegrenzte Pakete stehen in
+[REVIEW-CHECKPOINTS-2026-09.md](REVIEW-CHECKPOINTS-2026-09.md).
 
 ## Ziel und Grenzen
 
@@ -40,14 +46,14 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
+**Historischer Implementierungsschritt:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
 dieselbe serverseitige Vorab-/Save-/Deploy-Prüfung. Diagramm und Gliederung zeigen
 strukturierte Befunde dauerhaft und springen zum betroffenen Element. Die bereits
 umgesetzten SDK-/React-Pakete und die Flowzer-Konsole bleiben frei von konkreten Hosts.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
-**Folgeslice:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
+**Instanzrechte:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
 aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
 Aufgaben-Leseprojektion ersetzt noch keine immutable Formularbindung oder
 serverseitige Submission-Validierung.

@@ -1,10 +1,20 @@
 # Roadmap
 
-**Stand: 9. September 2026**
+**Stand: 10. September 2026**
 
 Die freigegebene, führende Produkt-Roadmap steht in
 [PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
 Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
+
+## Aktuelle Integration und Reststrategie
+
+Die folgenden Einzel-Slice-Verweise dokumentieren die Umsetzungsgeschichte.
+Aktiv sind nur noch die Checkpoints #189, #201, #217, #227, #237 und #255.
+Paketübergreifende Reviewfixes werden am vollständigen Stand in #255 geprüft;
+Zwischenstände erhalten dadurch nicht automatisch eine Releasefreigabe.
+Die nächste Arbeit wird in begrenzte Abnahmepakete statt eine neue kumulative
+Dauerimplementierung aufgeteilt. Details und Prioritäten:
+[Gesamtreview und Folgepakete](REVIEW-CHECKPOINTS-2026-09.md).
 
 ## Reihenfolge
 

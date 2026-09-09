@@ -1,7 +1,9 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #247
-liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+**Stand:** 10. September 2026; Basis `212705a`. Die Implementierung liegt in den
+sechs noch ungemergten Checkpoints #189 → #201 → #217 → #227 → #237 → #255.
+Einzelne unten genannte Slice-PRs sind historische Nachweise, keine zusätzlichen
+Integrationsaufträge.
 
 ## Einordnung
 
@@ -13,6 +15,24 @@ Die erste Produktstufe verwendet getrennte Installationen je Kunde.
 Führend sind die [Produkt-Roadmap](PRODUCT-ROADMAP-2026-09.md) und #98.
 Das [September-Review](REVIEW-2026-09.md) ist eine historische Bestandsaufnahme,
 keine aktuelle Liste noch fehlender Funktionen.
+
+## Aktuelle Gesamtprüfung und nächste Abnahme
+
+Die [Checkpoint-Prüfung mit Folgepaketen](REVIEW-CHECKPOINTS-2026-09.md) ist die
+aktuelle Zusammenfassung. Bestätigte Rechtefehler bei deaktivierten tatsächlichen
+Directory-Bearbeitern und erhaltenen React-Arbeitsdaten nach Rechte-/Sessionwechsel
+wurden mit zunächst roten Regressionstests korrigiert. Zusätzlich wurden sichere
+Compose-Rollen, die Container-API-Wurzeladresse, KI-Opt-ins, exakte XML-Mappinggrenzen
+und die Beschriftung erlaubter Directory-Formularwerte nachgeschärft. Das ist eine kumulative
+Prüfung, keine Behauptung vollständiger Fehlerfreiheit jedes historischen Zwischenstands.
+
+Der lokale .NET-Lauf umfasst 180 Engine- und 892 API-/Storage-Tests ohne Skips,
+einschließlich isolierter PostgreSQL-Fälle. Der genaue Frontend-, Browser- und
+unabhängige Reviewstand steht im verlinkten Bericht. Kein Merge und kein Deployment
+sind Teil dieses Reviewauftrags. Nach der Integration folgen begrenzte Abnahmen
+für Installation/Auth, PostgreSQL-Upgrade/Restore und den generischen Beispielprozess.
+Die KI-Werkzeugausführung bleibt bis Aktionsjournal, konkreter Freigabe und sicherem
+Wiederanlauf gesperrt.
 
 ## Bereits vorhandene Grundlagen
 
