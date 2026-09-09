@@ -423,7 +423,7 @@ Die Ablage allein aktiviert noch keine KI-Aufgabe. Hintergrund-Executor, DNS-Adr
 für benutzerdefinierte Cloudziele und atomarer Engine-Fortschritt folgen vor dem Entfernen
 des Deployment-Blockers.
 
-## Netzwerkbindung benutzerdefinierter KI-Endpunkte – #248 (noch nicht gemergt)
+## Netzwerkbindung benutzerdefinierter KI-Endpunkte – #248 / PR #249 (noch nicht gemergt)
 
 OpenAI-kompatible Cloudziele werden unmittelbar vor dem Aufruf aufgelöst und nur bei
 ausschließlich öffentlichen Unicast-Adressen zugelassen. Der Socketaufbau ist an genau
@@ -458,7 +458,7 @@ noch keine BPMN-KI-Aufgabe.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
    Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
    Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
-   persistente Laufzustand (#246 / PR #247) sowie die DNS-/Socketbindung (#248) liegen vor;
+   persistente Laufzustand (#246 / PR #247) sowie die DNS-/Socketbindung (#248 / PR #249) liegen vor;
    Executor und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.

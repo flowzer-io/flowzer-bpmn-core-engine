@@ -292,7 +292,7 @@ und Abschluss bleiben identisch.
   feste Standardziele, einen expliziten strukturierten Ausgabevertrag und keinen Provider-
   oder Modellfallback; die BPMN-Runtime bleibt bewusst noch getrennt.
 - [x] Benutzerdefinierte Cloudziele nach DNS-Auflösung auf öffentliche Adressen begrenzen
-  und den Socketaufbau an den geprüften Host, Port und Adressvorrat binden (#248). Lokale
+  und den Socketaufbau an den geprüften Host, Port und Adressvorrat binden (#248 / PR #249). Lokale
   private Ziele bleiben nur bei ausdrücklichem Installations-Opt-in erreichbar.
 - [x] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
   von lokalen Modellen in die Cloud. #240 / PR #241 setzt die installationsweiten Opt-ins und

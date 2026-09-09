@@ -1,6 +1,6 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245 und #248
+**Stand:** 9. September 2026 · Issue #240 / PR #241, ergänzt durch #244 / PR #245 und #248 / PR #249
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer KI-Tasks bereit. #244 / PR #245 ergänzt
 eine ausschließlich interne Provideraufrufschicht; es gibt weiterhin keinen öffentlichen
@@ -35,7 +35,7 @@ nur fuer `OpenAiCompatible` moeglich. Cloudziele muessen HTTPS verwenden und due
 eingebetteten Credentials, Queryparameter, Fragmente, Loopback- oder private IP-Adressen
 enthalten. Lokale Ziele benoetigen das gesonderte Installations-Opt-in.
 
-#248 ergänzt die Laufzeitgrenze für benutzerdefinierte Endpunkte: Der Host wird unmittelbar
+#248 / PR #249 ergänzt die Laufzeitgrenze für benutzerdefinierte Endpunkte: Der Host wird unmittelbar
 vor jedem Aufruf genau einmal aufgelöst. Ein Cloudziel wird nur akzeptiert, wenn **alle**
 Ergebnisse öffentliche Unicast-Adressen sind; gemischte öffentliche/private Antworten werden
 insgesamt abgelehnt. Der anschließende Socketaufbau verwendet ausschließlich diesen geprüften
@@ -111,6 +111,6 @@ Entwicklungsweg ohne Mehrprozess- oder Rollbackversprechen.
 ## Folgeschritte
 
 Provideradapter, ein portables Ergebnisschema, die KI-Task-Erweiterung, der dauerhafte
-Laufzustand (#246 / PR #247) und die DNS-/Socketbindung (#248) liegen als getrennte Slices
+Laufzustand (#246 / PR #247) und die DNS-/Socketbindung (#248 / PR #249) liegen als getrennte Slices
 vor. Hintergrund-Executor, Werkzeugregistry, Freigaben, Kosten und Testmodus folgen in
 eigenen Paketen. Erst diese Bausteine ergeben gemeinsam eine ausführbare KI-Task-Runtime.
