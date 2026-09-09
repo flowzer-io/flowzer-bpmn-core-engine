@@ -1,6 +1,6 @@
 # KI-Verbindungen und Secret-Referenzen
 
-**Stand:** 9. September 2026 · Issue #240
+**Stand:** 9. September 2026 · Issue #240 / PR #241
 
 Dieses Teilpaket stellt die sichere Verwaltungsbasis fuer spaetere KI-Tasks bereit. Es
 fuehrt **noch keine Provideraufrufe** aus und aktiviert keine KI-Task-Kachel. Damit gibt es

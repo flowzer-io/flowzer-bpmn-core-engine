@@ -57,7 +57,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme. Der vorgezogene M6-Baustein
    #238 ergänzt bereits die atomare Lease-Verlängerung für lang laufende Worker; der PR
-   folgt auf #237. #240 ergänzt darauf die sichere, revisionsgeschützte Verwaltung von
+   folgt auf #237. #240 / PR #241 ergänzt darauf die sichere, revisionsgeschützte Verwaltung von
    Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
    getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
    Laufzeit-Secret-Store. Provideraufrufe und ausführbare KI-Tasks folgen getrennt.
@@ -104,7 +104,7 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 - [x] **#238 / PR #239 – verlängerbare Worker-Lease:** Ein noch gültiger Job kann seine
   besitzergebundene Lease atomar verlängern; abgelaufene oder fremde Leases werden nicht
   wiederbelebt.
-- [x] **#240 – KI-Verbindungen und Secret-Referenzen:** Persistente, revisionsgeschützte
+- [x] **#240 / PR #241 – KI-Verbindungen und Secret-Referenzen:** Persistente, revisionsgeschützte
   und hostneutrale Verbindungsmetadaten, getrennte Rollen, Installationsgrenzen,
   Secret-Store-Abstraktion, sichere API-/SDK-Verträge und eine Verwaltungsseite liegen vor.
   Kein Provideradapter und keine KI-Task-Runtime werden damit vorgetäuscht.

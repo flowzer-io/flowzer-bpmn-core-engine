@@ -42,9 +42,9 @@ produktiver Benutzer oder Datenbanken.
 | Marker und technische Schrittdaten | Mehrere aktive Token am selben Knoten werden gezählt; Prozessvariablen sowie persistierte Ein-/Ausgaben einzelner Knotenausführungen sind getrennt in der Operatoransicht sichtbar. | #235 / PR #236 |
 | Historische Identitätsauflösung | Gespeicherte Benutzer-/Gruppenreferenzen werden nur im autorisierten Kontext als begrenzter Batch aufgelöst; Aktivität und heutige Auswählbarkeit bleiben getrennt. | #234 / PR #237 |
 | Worker-Lease-Verlängerung | Lang laufende Service-Task-Worker verlängern ihre noch gültige Lease besitzergebunden; PostgreSQL prüft und aktualisiert atomar, abgelaufene oder fremde Leases bleiben gesperrt. | #238 / PR #239 |
-| KI-Verbindungen und Secret-Referenzen | Revisionsgeschützte Provider-Metadaten, getrennte Use-/Manage-Rollen, Installations-Opt-ins und austauschbarer Laufzeit-Secret-Store; API, SDK und Console geben weder Secret-Wert noch -Referenz zurück. | #240 / PR folgt |
+| KI-Verbindungen und Secret-Referenzen | Revisionsgeschützte Provider-Metadaten, getrennte Use-/Manage-Rollen, Installations-Opt-ins und austauschbarer Laufzeit-Secret-Store; API, SDK und Console geben weder Secret-Wert noch -Referenz zurück. | #240 / PR #241 |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → 239 → #240-PR**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227 → 229 → 231 → 233 → 236 → 237 → 239 → 241**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -131,7 +131,7 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
 3. **M3/M4:** Kommentare/Vorgangshistorie, gemeinsame Modellfähigkeiten,
    Laufzeitdiagramme und vollständiger UX-Audit. Flowzer erhält dabei keine Abhängigkeit
    von einer konkreten konsumierenden Fachanwendung.
-4. **M5/M6:** Auf der sicheren Verbindungsverwaltung aus #240 die Provideradapter,
+4. **M5/M6:** Auf der sicheren Verbindungsverwaltung aus #240 / PR #241 die Provideradapter,
    versionierte KI-Tasks, Werkzeuge, Freigaben und Wiederaufnahme aufbauen; nötige
    PostgreSQL-, Runtime-, Betriebs- und Upgrade-Bausteine jeweils vorziehen.
 5. **Finale Abnahme:** Direkter Astra-/High-Subagent prüft alle M0–M6-Punkte und

@@ -348,7 +348,7 @@ Vertrag liefert den tatsächlich gespeicherten UTC-Ablauf zurück und begrenzt j
 angeforderte Dauer auf höchstens eine Stunde. Dieser M6-Baustein bereitet dauerhafte
 KI-Läufe vor, implementiert aber noch keinen Modellanbieter oder KI-Ausführungszustand.
 
-## KI-Verbindungen und Secret-Referenzen – #240 (PR folgt)
+## KI-Verbindungen und Secret-Referenzen – #240 ([PR #241](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/241))
 
 Der erste M5-Verbindungsslice persistiert stabile, revisionsgeschützte Metadaten für
 OpenAI, Anthropic und ausdrücklich OpenAI-kompatible Endpunkte. Cloud- und lokale
@@ -387,7 +387,7 @@ dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
-   Worker-Lease-Verlängerung (#238) und sichere Verbindungsverwaltung (#240) liegen vor;
+   Worker-Lease-Verlängerung (#238) und sichere Verbindungsverwaltung (#240 / PR #241) liegen vor;
    Provideradapter, Task-Vertrag, dauerhafte Läufe und Werkzeugfreigaben bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
