@@ -652,7 +652,9 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    deployment?: boolean;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
