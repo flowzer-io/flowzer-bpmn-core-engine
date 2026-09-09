@@ -686,15 +686,44 @@
         "tags": [
           "Definition"
         ],
-        "parameters": [
-          {
-            "name": "deployment",
-            "in": "query",
-            "schema": {
-              "type": "boolean",
-              "default": false
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
             }
           }
+        }
+      }
+    },
+    "/Definition/validate/deployment": {
+      "post": {
+        "tags": [
+          "Definition"
         ],
         "responses": {
           "200": {
