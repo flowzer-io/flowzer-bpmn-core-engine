@@ -12,14 +12,18 @@ services:
       Authentication__JwtBearer__Authority: ${FLOWZER_AUTH_AUTHORITY:-}
       Authentication__JwtBearer__Audience: ${FLOWZER_AUTH_AUDIENCE:-}
       Authentication__JwtBearer__RequireHttpsMetadata: ${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}
-      # Fuer die neuen Verzeichnisendpunkte zwingend: leer bedeutet dort fail-closed.
-      Authentication__JwtBearer__Roles__Operator: ${FLOWZER_AUTH_ROLE_OPERATOR:-}
+      # Nichtleere Defaults verhindern die historische rollenlose Kompatibilitätsfreigabe.
+      Authentication__JwtBearer__RequiredRole: ${FLOWZER_AUTH_REQUIRED_ROLE:-flowzer-access}
+      Authentication__JwtBearer__Roles__Modeler: ${FLOWZER_AUTH_ROLE_MODELER:-flowzer-modeler}
+      Authentication__JwtBearer__Roles__Operator: ${FLOWZER_AUTH_ROLE_OPERATOR:-flowzer-operator}
+      Authentication__JwtBearer__Roles__Worker: ${FLOWZER_AUTH_ROLE_WORKER:-flowzer-worker}
       Authentication__JwtBearer__Roles__AiConnectionUser: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_USER:-}
       Authentication__JwtBearer__Roles__AiConnectionManager: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_MANAGER:-}
       # Keine Workflowangabe kann diese Installationsgrenzen erweitern.
       Ai__AllowCloudProviders: ${FLOWZER_AI_ALLOW_CLOUD_PROVIDERS:-false}
       Ai__AllowLocalEndpoints: ${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}
       Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
+      AiExecution__Enabled: ${FLOWZER_AI_EXECUTION_ENABLED:-false}
       # Provider-Secrets hier absichtlich nicht auffuehren: `env:FLOWZER_AI_*`-Werte
       # ausschliesslich ueber den Orchestrator bzw. einen Compose-Override injizieren.
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur

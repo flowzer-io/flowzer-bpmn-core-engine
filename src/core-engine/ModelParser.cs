@@ -10,6 +10,8 @@ namespace core_engine;
 public static class ModelParser
 {
     private static readonly XNamespace FlowzerExtensionNamespace = "https://flowzer.io/schema/bpmn/1.0";
+    private static readonly XNamespace BpmnNamespace = "http://www.omg.org/spec/BPMN/20100524/MODEL";
+    private static readonly XNamespace ZeebeExtensionNamespace = "http://camunda.org/schema/zeebe/1.0";
     private const int MaximumDirectoryCandidatesPerKind = 100;
 
     /// <summary>
@@ -768,8 +770,11 @@ public static class ModelParser
 
     private static FlowzerList<FlowzerIoMapping>? ParseIoMappings(XElement xmlFlowNode, string mappingName)
     {
-        var mappings = xmlFlowNode.Descendants()
-            .Where(element => element.Name.LocalName == mappingName)
+        // Keine rekursive LocalName-Suche: Fremde Erweiterungen und verschachtelte
+        // Datenstrukturen sind keine ausführbaren Ein-/Ausgangszuordnungen.
+        var mappings = xmlFlowNode.Elements(BpmnNamespace + "extensionElements")
+            .SelectMany(extension => extension.Elements(ZeebeExtensionNamespace + "ioMapping"))
+            .SelectMany(mapping => mapping.Elements(ZeebeExtensionNamespace + mappingName))
             .Select(element => new FlowzerIoMapping(
                 element.Attribute("source")!.Value,
                 element.Attribute("target")!.Value))

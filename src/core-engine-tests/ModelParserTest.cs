@@ -707,6 +707,27 @@ public class ModelParserTest
             .SetName("Unknown_assignment_attribute");
     }
 
+    // Testzweck: Fremde oder verschachtelte input/output-Elemente werden weder bei
+    // User-Tasks noch über den gemeinsam verwendeten KI-Parser in Laufzeitdaten übernommen.
+    [Test]
+    public void ParseMappings_ShouldReadOnlyDirectZeebeContractChildren()
+    {
+        var task = ParseAssignedUserTask("""
+            <other:ioMapping xmlns:other="urn:untrusted">
+              <other:input source="=privateValue" target="foreign" />
+            </other:ioMapping>
+            <zeebe:ioMapping>
+              <zeebe:input source="=request" target="request" />
+              <other:input xmlns:other="urn:untrusted" source="=privateValue" target="foreignChild" />
+              <zeebe:output source="=result" target="result" />
+              <zeebe:wrapper><zeebe:input source="=privateValue" target="nested" /></zeebe:wrapper>
+            </zeebe:ioMapping>
+            """);
+        task.InputMappings.Should().ContainSingle();
+        task.InputMappings!.Single().Target.Should().Be("request");
+        task.OutputMappings.Should().ContainSingle();
+    }
+
     private static UserTask ParseAssignedUserTask(string assignmentXml)
     {
         var xml = $$"""

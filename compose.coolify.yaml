@@ -32,10 +32,17 @@ services:
       Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
       Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
       Authentication__JwtBearer__RequireHttpsMetadata: "${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}"
-      Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
-      Authentication__JwtBearer__Roles__Modeler: "${FLOWZER_AUTH_ROLE_MODELER:-}"
-      Authentication__JwtBearer__Roles__Operator: "${FLOWZER_AUTH_ROLE_OPERATOR:-}"
-      Authentication__JwtBearer__Roles__Worker: "${FLOWZER_AUTH_ROLE_WORKER:-}"
+      Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-flowzer-access}"
+      Authentication__JwtBearer__Roles__Modeler: "${FLOWZER_AUTH_ROLE_MODELER:-flowzer-modeler}"
+      Authentication__JwtBearer__Roles__Operator: "${FLOWZER_AUTH_ROLE_OPERATOR:-flowzer-operator}"
+      Authentication__JwtBearer__Roles__Worker: "${FLOWZER_AUTH_ROLE_WORKER:-flowzer-worker}"
+      Authentication__JwtBearer__Roles__AiConnectionUser: "${FLOWZER_AUTH_ROLE_AI_CONNECTION_USER:-flowzer-ai-connection-user}"
+      Authentication__JwtBearer__Roles__AiConnectionManager: "${FLOWZER_AUTH_ROLE_AI_CONNECTION_MANAGER:-flowzer-ai-connection-manager}"
+      # Getrennte Opt-ins für erlaubten Datenfluss und tatsächliche Ausführung.
+      Ai__AllowCloudProviders: "${FLOWZER_AI_ALLOW_CLOUD_PROVIDERS:-false}"
+      Ai__AllowLocalEndpoints: "${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}"
+      Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
+      AiExecution__Enabled: "${FLOWZER_AI_EXECUTION_ENABLED:-false}"
       # Der vertrauliche Client-Schluessel ist ein Coolify-Secret und wird ausnahmslos
       # im API-Container verwendet. Der Konsolen-Container erhaelt ihn nicht.
       # Leere Werte bleiben nur fuer den expliziten JwtBearer-Modus erlaubt. Im BFF-Modus

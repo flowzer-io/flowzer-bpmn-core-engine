@@ -6,6 +6,35 @@ Dieses Dokument beschreibt den realistischen Betriebsrahmen des laufenden M0-BFF
 
 > Wichtig: Das ist **noch keine produktionsfertige Deployment-Story**. Ziel dieses Pakets ist ein reproduzierbarer, dokumentierter Start- und Prüfpfad für API und Frontend.
 
+## Sichere Defaults der Installationsvorlagen (September-Review)
+
+`compose.runtime.yml` und `compose.coolify.yaml` setzen auch bei leeren oder fehlenden
+Umgebungswerten `flowzer-access` als Zugangsrolle sowie getrennt `flowzer-modeler`,
+`flowzer-operator` und `flowzer-worker`. Ein gültiges Token allein reicht damit nicht
+für Fachzugriff, Modellierung, Diagnose oder Worker-Aktionen. Die Werte können über
+`FLOWZER_AUTH_REQUIRED_ROLE` und `FLOWZER_AUTH_ROLE_MODELER`/`OPERATOR`/`WORKER`
+ausdrücklich auf installationsspezifische **nichtleere** Rollen abgebildet werden.
+
+**Upgradehinweis:** Vor einem späteren Deployment die entsprechenden Rollen im IdP
+zuordnen oder bestehende Rollennamen konfigurieren. Personen benötigen die Zugangsrolle
+und nur ihre fachlich erforderlichen Zusatzrollen; technische Worker erhalten keine
+Modeler-/Operatorrechte. Leere Umgebungswerte schalten diese Compose-Grenzen nicht ab.
+Die historische rollenlose API-Konfiguration außerhalb dieser Vorlagen bleibt ein
+Kompatibilitätspfad, keine Produktionsfreigabe. `Authentication=None` ist weiterhin
+nur für ausdrücklich lokalen Entwicklungsbetrieb gedacht.
+
+KI-Datenfluss und Ausführung besitzen getrennte Opt-ins in beiden Vorlagen:
+`FLOWZER_AI_ALLOW_CLOUD_PROVIDERS`, `FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS` und
+`FLOWZER_AI_EXECUTION_ENABLED` sind standardmäßig `false`. Das Aktivieren einer
+Verbindung allein startet den Executor nicht. KI-Rollen und Provider-Secrets müssen
+zusätzlich richtig zugeordnet bzw. zur Laufzeit injiziert sein. Es wird kein Secret
+in der Vorlage gespeichert. Diese Dokumentation aktiviert keinen laufenden Dienst.
+
+Die sicheren Defaults, leere Werte, explizite Rollennamen und KI-Opt-ins werden ohne
+Daemonzugriff durch `node --test tests/ui-smoke/runtime-config.test.mjs` mit dem echten
+Compose-Konfigurationsparser geprüft. Dabei werden weder `.env` noch produktive
+Umgebungswerte übernommen. Die Browser-API-Wurzeladresse `/` bleibt unterstützt.
+
 ## Enthaltene Bausteine
 
 - dokumentierte Health-Endpunkte der Web-API

@@ -431,6 +431,44 @@ public class BpmnCapabilityMatrixTest
         exception.PropertyPath.Should().Be("extensionElements.aiTask.resultSchema");
     }
 
+    // Testzweck: Gleiche LocalNames in fremden Namespaces sind kein ausführbarer
+    // Zeebe-Datenvertrag; der KI-Deploymentpfad darf sie nicht als Freigabe akzeptieren.
+    [TestCase("extensionElements", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("ioMapping", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("input", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("output", "bpmn.ai_task.output_mapping_required")]
+    public void AiMappings_ShouldRequireZeebeNamespace(string element, string code)
+    {
+        var xml = AiTask().Replace("<bpmn:serviceTask ",
+            "<bpmn:serviceTask xmlns:other=\"urn:untrusted\" ")
+            .Replace($"{(element == "extensionElements" ? "bpmn" : "zeebe")}:{element}", $"other:{element}");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>().Which.Code.Should().Be(code);
+    }
+
+    // Testzweck: Mehrere gleichrangige Mapping-Verträge dürfen nicht zwischen Validator
+    // (bisher erster Treffer) und Runtime (bisher alle Nachfahren) auseinanderlaufen.
+    [Test]
+    public void AiMappings_ShouldRejectDuplicateContracts()
+    {
+        var xml = AiTask().Replace("</zeebe:ioMapping>",
+            "</zeebe:ioMapping><zeebe:ioMapping><zeebe:input source=\"=privateValue\" target=\"extra\" /></zeebe:ioMapping>");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>();
+    }
+
+    // Testzweck: Ein gültiges Mapping daneben darf unvollständige weitere Einträge nicht
+    // kaschieren und später einen NullReference-Fehler statt einer Deploymentmeldung erzeugen.
+    [TestCase("input", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("output", "bpmn.ai_task.output_mapping_required")]
+    public void AiMappings_ShouldRejectIncompleteAdditionalMapping(string element, string code)
+    {
+        var xml = AiTask().Replace("</zeebe:ioMapping>",
+            $"<zeebe:{element} source=\"=privateValue\" /></zeebe:ioMapping>");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>().Which.Code.Should().Be(code);
+    }
+
     private static string DefaultAiAttribute(string name) => name switch
     {
         "contractVersion" => "1",

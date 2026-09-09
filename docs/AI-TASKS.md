@@ -146,8 +146,10 @@ BPMN-Engine und entfernt erst damit den früheren Deployment-Blocker.
 
 #250 / PR #251 claimt wartende beziehungsweise fällige Retry-Läufe atomar und markiert den möglichen
 Beginn des externen Aufrufs vor Secret- oder Netzwerkzugriff. Der unveränderliche Snapshot
-wird einschließlich der exakten Verbindungsrevision erneut geprüft. Eine inzwischen geänderte
-Verbindung, ein deaktivierter Eintrag oder ein fehlendes Secret beendet den Lauf ohne Fallback.
+wird einschließlich der exakten historischen Verbindungsrevision erneut geprüft. Änderungen
+an der aktuellen Fassung ersetzen die gebundene Konfiguration nicht. Der aktuelle Eintrag
+bleibt jedoch der administrative Kill-Switch: Eine deaktivierte oder entfernte Verbindung,
+eine fehlende historische Revision oder ein fehlendes Secret beendet den Lauf ohne Fallback.
 
 Lange Aufrufe verlängern ihre Lease besitzer- und revisionsgebunden. Geht sie verloren, wird
 der Aufruf abgebrochen und kein verspätetes Ergebnis gespeichert. Erfolgreiche, erneut gegen
@@ -215,3 +217,18 @@ Prozesses, kann aber Instanz-, Historien- und Laufdateien nicht gemeinsam zurüc
 2. Administrativer Verbindungstest und fachlicher Testmodus ohne Außenwirkungen.
 3. Bedienbares Störungszentrum sowie detaillierte Laufzeit-/Tokenhistorie.
 4. Kostenanzeige ausschließlich mit versionierter, nachvollziehbarer Preisgrundlage.
+
+## Nachgeschärfte Mapping-Grenze
+
+Ein KI-Schritt benötigt genau ein direktes `zeebe:ioMapping` im BPMN-`extensionElements`.
+Alle `zeebe:input`- und `zeebe:output`-Einträge darin müssen Quelle und Ziel enthalten;
+beide Richtungen müssen vorhanden sein. Entscheidend ist der Namespace-URI
+`http://camunda.org/schema/zeebe/1.0`, nicht der frei wählbare XML-Präfix. Gleichnamige
+fremde oder verschachtelte Elemente werden von der Runtime nicht ausgeführt. Doppelte
+oder unvollständige KI-Mappingverträge werden vor dem Deployment abgelehnt. Gespeicherte
+laufende Instanzen behalten ihre bereits geparsten Definitionen; eine neue Veröffentlichung
+von fehlerhaften Altdiagrammen verlangt eine explizite Korrektur.
+
+Beide Compose-Vorlagen reichen `FLOWZER_AI_EXECUTION_ENABLED` an den standardmäßig
+gesperrten Executor durch. Die Aktivierung ist ein separates Opt-in nach der
+Installationsabnahme, kein Bestandteil dieses Reviewfixes; siehe [Betrieb](OPERATIONS.md).

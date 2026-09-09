@@ -305,10 +305,15 @@ public sealed class DirectoryFormSubjectController(
         catch (NotSupportedException) { snapshot = null; }
         if (snapshot is null) return DirectoryUnavailable();
 
-        var permitted = DirectorySubjectResolutionContext.PolicySubjects(field.SubjectSelection!);
+        var policy = field.SubjectSelection!;
+        var permitted = DirectorySubjectResolutionContext.PolicySubjects(policy);
+        // Was über denselben Feldfilter heute gesucht/gewählt werden darf, muss auch
+        // nach einem Reload beschriftbar sein. Historische Werte brauchen weiterhin Kontext.
+        permitted.UnionWith(subjects.Where(subject =>
+            DirectorySubjectSelectionService.Resolve(snapshot, subject, policy) is not null));
         if (contextSubjects is not null) permitted.UnionWith(contextSubjects);
         return ResolutionResult(DirectorySubjectSelectionService.ResolveForDisplay(
-            snapshot, subjects, field.SubjectSelection!, permitted));
+            snapshot, subjects, policy, permitted));
     }
 
     private static bool TryGetBoundField(

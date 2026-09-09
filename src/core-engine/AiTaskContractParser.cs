@@ -17,6 +17,8 @@ internal static class AiTaskContractParser
     internal const string Namespace = "https://flowzer.io/schema/bpmn/1.0";
 
     private static readonly XNamespace FlowzerNamespace = Namespace;
+    private static readonly XNamespace BpmnNamespace = "http://www.omg.org/spec/BPMN/20100524/MODEL";
+    private static readonly XNamespace ZeebeNamespace = "http://camunda.org/schema/zeebe/1.0";
     private static readonly Regex ToolIdPattern = new(
         "^[a-z0-9][a-z0-9._-]{0,99}$",
         RegexOptions.CultureInvariant | RegexOptions.NonBacktracking);
@@ -260,20 +262,27 @@ internal static class AiTaskContractParser
 
     private static void ValidateMappings(XElement extensionElements, string? elementId)
     {
-        var mapping = extensionElements.Elements().FirstOrDefault(element => element.Name.LocalName == "ioMapping");
-        if (mapping?.Elements().Any(element => element.Name.LocalName == "input"
-                && !string.IsNullOrWhiteSpace(element.Attribute("source")?.Value)
-                && !string.IsNullOrWhiteSpace(element.Attribute("target")?.Value)) != true)
+        // Validator und Runtime lesen denselben direkten, namensraumgebundenen Vertrag.
+        // Ein zweiter Vertrag oder fremde LocalNames dürfen keine zusätzlichen Daten freigeben.
+        var mappings = extensionElements.Elements(ZeebeNamespace + "ioMapping").ToArray();
+        if (extensionElements.Name != BpmnNamespace + "extensionElements" || mappings.Length != 1)
+            throw Failure("bpmn.ai_task.input_mapping_required", elementId,
+                "extensionElements.ioMapping", "The AI task must declare exactly one Zeebe ioMapping.");
+        var inputs = mappings[0].Elements(ZeebeNamespace + "input").ToArray();
+        var outputs = mappings[0].Elements(ZeebeNamespace + "output").ToArray();
+        if (inputs.Length == 0 || inputs.Any(element => !IsCompleteMapping(element)))
             throw Failure("bpmn.ai_task.input_mapping_required", elementId,
                 "extensionElements.ioMapping.input",
-                "The AI task must declare at least one complete input mapping.");
-        if (mapping.Elements().Any(element => element.Name.LocalName == "output"
-                && !string.IsNullOrWhiteSpace(element.Attribute("source")?.Value)
-                && !string.IsNullOrWhiteSpace(element.Attribute("target")?.Value)) != true)
+                "The AI task must declare complete input mappings.");
+        if (outputs.Length == 0 || outputs.Any(element => !IsCompleteMapping(element)))
             throw Failure("bpmn.ai_task.output_mapping_required", elementId,
                 "extensionElements.ioMapping.output",
-                "The AI task must declare at least one complete output mapping.");
+                "The AI task must declare complete output mappings.");
     }
+
+    private static bool IsCompleteMapping(XElement element) =>
+        !string.IsNullOrWhiteSpace(element.Attribute("source")?.Value)
+        && !string.IsNullOrWhiteSpace(element.Attribute("target")?.Value);
 
     private static string ToSnakeCase(string value) => value switch
     {
