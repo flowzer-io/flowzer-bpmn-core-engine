@@ -78,6 +78,24 @@ vorgesehen und kein Produktionspfad.
 | `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
+### Dienstgrenzen bei Coolify-Compose
+
+Coolify kann jedem Dienst dieselbe generierte `env_file` hinzufügen. Deshalb
+reicht es nicht, Secrets nur in den vorgesehenen `environment`-Abschnitten
+zu referenzieren: Die rohen Interpolationsvariablen würden zusätzlich in allen
+Containern landen. `compose.coolify.yaml` überschreibt diese Aliase über den
+YAML-Anker `flowzer-secret-isolation` in **jedem** Dienst explizit mit Leerwerten.
+Benötigte Werte werden ausschließlich unter den dienstspezifischen Schlüsseln
+weitergereicht: Migrationszugang im Migrationsdienst, Laufzeitzugang und BFF-/
+Verzeichnis-Secret in der API, keine Secrets in der Konsole.
+
+Bei neuen Secret-Variablen den Anker und den Test in
+`tests/ui-smoke/runtime-config.test.mjs` erweitern. Der Test simuliert Coolifys
+zusätzliche gemeinsame `env_file` mit ausschließlich synthetischen Werten und
+prüft die echte Compose-Interpolation. Nach Deployments dieselben Dienstgrenzen
+über reine Präsenz-/Gleichheitsprüfungen verifizieren, niemals `docker inspect`
+oder generierte Compose-Dateien ungefiltert in Logs ausgeben.
+
 ### BFF-Vertrag
 
 Bei `Bff` startet der Browser über `GET /bff/login?returnTo=/…` den serverseitigen

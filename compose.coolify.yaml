@@ -1,6 +1,16 @@
 # Produktions-Stack fuer Coolify (Projekt MIT Tools, Server cool4). Die Images kommen aus der
 # GitHub Container Registry; der Release-Workflow pinnt FLOWZER_IMAGE_TAG auf die Revision und
 # loest das Deployment aus. Geheime Werte liegen ausschliesslich als Coolify-Secrets vor.
+# Coolify ergänzt für jeden Dienst eine gemeinsame env_file. Explizite Leerwerte
+# überschreiben deren rohe Secret-Aliase, ohne die ${...}-Interpolation der unten
+# gezielt zugeordneten Konfigurationsschlüssel zu verändern. Neue Secret-Aliase
+# müssen ebenfalls hier und im Compose-Isolationstest aufgenommen werden.
+x-flowzer-secret-isolation: &flowzer-secret-isolation
+  STORAGE_CONNECTION_STRING: ""
+  STORAGE_MIGRATION_CONNECTION_STRING: ""
+  FLOWZER_BFF_CLIENT_SECRET: ""
+  FLOWZER_DIRECTORY_CLIENT_SECRET: ""
+
 services:
   migrate:
     image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
@@ -8,6 +18,7 @@ services:
     exclude_from_hc: true
     command: ["--migrate"]
     environment:
+      <<: *flowzer-secret-isolation
       ASPNETCORE_ENVIRONMENT: Production
       Storage__Provider: PostgreSql
       Storage__PostgreSql__ConnectionString: "${STORAGE_MIGRATION_CONNECTION_STRING:?STORAGE_MIGRATION_CONNECTION_STRING muss gesetzt sein}"
@@ -23,6 +34,7 @@ services:
     expose:
       - 8080
     environment:
+      <<: *flowzer-secret-isolation
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
       Storage__Provider: PostgreSql
@@ -100,6 +112,7 @@ services:
     expose:
       - 8080
     environment:
+      <<: *flowzer-secret-isolation
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
       FLOWZER_BFF_ENABLED: "true"
