@@ -21,6 +21,8 @@ import type {
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
+  DirectorySubjectSearchResultDto,
+  FormDirectorySearchContext,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -118,6 +120,49 @@ export const definitionsApi = {
       variables === undefined ? { method: 'POST' } : { method: 'POST', body: { variables } },
     );
     return normalizeInstance(instance);
+  },
+};
+
+/** Workflowgebundene Suche nach aktiven, stabil referenzierten Identitäten. */
+export const identityDirectoryApi = {
+  searchSubjects: (
+    definitionId: string,
+    query: string,
+    kind: 'user' | 'group',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
+
+  /** Sucht aktive Identitäten, die am konkreten Workflow-Ordner delegiert werden dürfen. */
+  searchFolderSubjects: (
+    folderId: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
+
+  /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
+  searchFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectSearchResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    );
   },
 };
 

@@ -22,10 +22,20 @@ public class FolderBusinessLogic(
     {
         var folders = await storageSystem.FolderStorage.GetAllFolders();
         var currentUser = currentUserContextAccessor.GetCurrentUser();
-        var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
         var isGlobalModeler = (await authorizationService.AuthorizeAsync(user, FlowzerPolicies.Modeler)).Succeeded;
+        DirectorySnapshot? directorySnapshot = null;
+        if (!isGlobalModeler && folders.SelectMany(folder => folder.Assignments)
+            .Any(assignment => assignment.AssignmentMode == FolderAssignmentMode.Directory))
+        {
+            try { directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot(); }
+            catch (NotSupportedException) { /* Directory-Rechte fallen ohne Snapshot geschlossen aus. */ }
+        }
 
-        return new FolderPermissions(folders, FolderAccess.ResolveRoles(folders, identity), isGlobalModeler);
+        return new FolderPermissions(
+            folders,
+            FolderAccess.ResolveRoles(folders, currentUser, directorySnapshot),
+            isGlobalModeler,
+            directorySnapshot);
     }
 
     /// <summary>

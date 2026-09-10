@@ -129,6 +129,7 @@ public static class FlowzerAuthenticationExtensions
             .AddPolicy(FlowzerPolicies.Session, policy => policy.RequireAuthenticatedUser())
             .AddPolicy(FlowzerPolicies.Access, policy => policy.Combine(BuildBasePolicy(options).Build()));
         AddApplicationRolePolicies(authorization, options);
+        AddStrictIdentityDirectoryPolicy(authorization, options);
 
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, FlowzerAuthorizationResultHandler>();
 
@@ -203,6 +204,23 @@ public static class FlowzerAuthenticationExtensions
         }
     }
 
+    private static void AddStrictIdentityDirectoryPolicy(
+        AuthorizationBuilder authorization,
+        FlowzerAuthenticationOptions options)
+    {
+        var audience = options.JwtBearer.Audience;
+        var operatorRole = options.JwtBearer.Roles.Operator;
+        authorization.AddPolicy(FlowzerPolicies.IdentityDirectoryOperator, policy =>
+        {
+            policy.Combine(BuildBasePolicy(options).Build());
+            // Anders als historische Endpunkte gibt es fuer den neuen administrativen Vertrag
+            // keine rollenlose Kompatibilitaetsfreigabe. Fehlende Konfiguration verweigert alles.
+            policy.RequireAssertion(context =>
+                !string.IsNullOrWhiteSpace(operatorRole)
+                && TokenRoles.HasRole(context.User, audience, operatorRole));
+        });
+    }
+
     /// <summary>
     /// Ohne aktives JWT-Schema gibt es keine Rollen; die Policies muessen trotzdem existieren,
     /// weil die Controller sie benennen.
@@ -215,6 +233,7 @@ public static class FlowzerAuthenticationExtensions
             .AddPolicy(FlowzerPolicies.Access, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Modeler, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Operator, policy => policy.RequireAssertion(_ => true))
+            .AddPolicy(FlowzerPolicies.IdentityDirectoryOperator, policy => policy.RequireAssertion(_ => true))
             .AddPolicy(FlowzerPolicies.Worker, policy => policy.RequireAssertion(_ => true));
 
         return services;

@@ -34,11 +34,15 @@ public sealed class InstanceAccessService(
 
         // Einmal laden, nicht eine vollständige Aufgabenliste je Instanz. Die Zuordnung
         // prüft zusätzlich die tatsächlichen aktiven Tokens der geladenen Instanz.
-        var tasks = (await storage.SubscriptionStorage.GetAllUserTasksExtended(user.UserId))
+        var taskArray = (await storage.SubscriptionStorage.GetAllUserTasksExtended(user.UserId))
             .Where(task => task.ProcessInstanceId.HasValue)
-            .ToLookup(task => task.ProcessInstanceId!.Value);
+            .ToArray();
+        var directorySnapshot = await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+            storage.IdentityDirectoryStorage, taskArray);
+        var tasks = taskArray.ToLookup(task => task.ProcessInstanceId!.Value);
         var visible = instances.Where(instance =>
-            InstanceAccessPolicy.CanReadOverview(instance, user, tasks[instance.InstanceId], canInspect: false));
+            InstanceAccessPolicy.CanReadOverview(
+                instance, user, tasks[instance.InstanceId], directorySnapshot, canInspect: false));
         return await visible.ToDtosAsync(storage.DefinitionStorage, canInspect: false);
     }
 
@@ -47,8 +51,15 @@ public sealed class InstanceAccessService(
         var (user, canInspect) = await GetPermissionsAsync();
         var instance = await FindAsync(instanceId);
         if (instance is null) return null;
-        var tasks = canInspect ? [] : await storage.SubscriptionStorage.GetAllUserTasks(instanceId);
-        return InstanceAccessPolicy.CanReadOverview(instance, user, tasks, canInspect: canInspect)
+        var tasks = canInspect
+            ? []
+            : (await storage.SubscriptionStorage.GetAllUserTasks(instanceId)).ToArray();
+        var directorySnapshot = canInspect
+            ? null
+            : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
+                storage.IdentityDirectoryStorage, tasks);
+        return InstanceAccessPolicy.CanReadOverview(
+                instance, user, tasks, directorySnapshot, canInspect: canInspect)
             ? await instance.ToDtoAsync(storage.DefinitionStorage, canInspect: canInspect)
             : null;
     }

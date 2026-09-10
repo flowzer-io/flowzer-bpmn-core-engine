@@ -9,6 +9,7 @@ const messages = new Map(Object.entries({
   'type.string': 'Bitte Text statt eines strukturierten Werts angeben.',
   'type.scalar': 'Bitte einen einzelnen Wert angeben.',
   'type.array': 'Bitte eine Mehrfachauswahl angeben.',
+  'type.subject_ref': 'Bitte eine gültige Benutzer- oder Gruppenreferenz auswählen.',
   'text.min_length': 'Die Eingabe ist zu kurz.',
   'text.max_length': 'Die Eingabe ist zu lang.',
   'text.pattern': 'Die Eingabe entspricht nicht dem vorgesehenen Format.',
@@ -17,6 +18,7 @@ const messages = new Map(Object.entries({
   'number.min': 'Der Wert unterschreitet das erlaubte Minimum.',
   'number.max': 'Der Wert überschreitet das erlaubte Maximum.',
   'selection.invalid': 'Diese Auswahl ist nicht erlaubt.',
+  'selection.duplicate': 'Dieselbe Benutzer- oder Gruppenreferenz darf nur einmal ausgewählt werden.',
   'selection.min': 'Bitte weitere Einträge auswählen.',
   'selection.max': 'Es sind zu viele Einträge ausgewählt.',
   'date.invalid': 'Bitte ein gültiges Datum angeben.',
@@ -26,6 +28,7 @@ const messages = new Map(Object.entries({
   'field.calculated': 'Dieser Wert wird ausschließlich vom Server berechnet.',
   'field.undeclared': 'Dieses Feld ist im veröffentlichten Formular nicht vorgesehen.',
   'field.inactive': 'Dieses Feld ist unter den aktuellen Bedingungen nicht freigegeben.',
+  'directory.unavailable': 'Die ausgewählte Benutzer- oder Gruppenreferenz ist nicht mehr aktiv verfügbar.',
   'form.binding_missing': 'Der Formularstand muss vom Betrieb geklärt werden.',
   'form.contract_unsupported': 'Dieses Formular benötigt eine unterstützte serverseitige Regeldefinition.',
 }));

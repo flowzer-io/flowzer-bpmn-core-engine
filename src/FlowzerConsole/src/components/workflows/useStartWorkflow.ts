@@ -11,7 +11,7 @@ import {
 } from './startFlow';
 import { definitionsApi } from '@/lib/api/endpoints';
 import { queryKeys, useStartInstance } from '@/lib/api/queries';
-import type { ProcessInstanceInfoDto, ProcessVariables } from '@/lib/api/types';
+import type { FormDirectorySearchContext, ProcessInstanceInfoDto, ProcessVariables } from '@/lib/api/types';
 
 export type { StartStep, StartableWorkflow } from './startFlow';
 
@@ -139,6 +139,9 @@ export function useStartWorkflow() {
       },
       workflowName: pending?.workflow.name ?? '',
       schema: pending?.schema,
+      directoryContext: pending
+        ? ({ kind: 'startForm', definitionId: pending.workflow.definitionId } satisfies FormDirectorySearchContext)
+        : undefined,
       serverError: serverError?.definitionId === pending?.workflow.definitionId ? serverError?.error : undefined,
       busy: pending !== null && state.starting.has(pending.workflow.definitionId),
       onStart: (variables: ProcessVariables) => {

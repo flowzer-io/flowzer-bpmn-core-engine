@@ -565,4 +565,110 @@ public class ModelParserTest
                 .Should().ContainSingle().Which.Should().NotBeOfType<FlowzerTerminateEvent>();
         }
     }
+
+    // Testzweck: Bestehende BPMN-Dateien ohne Flowzer-Erweiterung bleiben im Textmodus und
+    // behalten die bisherigen Zeebe-Zuweisungen unverändert.
+    [Test]
+    public void ParseModel_ShouldKeepLegacyAssignmentsInTextMode()
+    {
+        var task = ParseAssignedUserTask("""
+            <zeebe:assignmentDefinition assignee="anna" candidateUsers="bert,carla" candidateGroups="/team/finance" />
+            """);
+
+        using (new AssertionScope())
+        {
+            task.FlowzerAssignmentMode.Should().Be(UserTaskAssignmentMode.Text);
+            task.FlowzerAssignee.Should().Be("anna");
+            task.FlowzerCandidateUsers.Should().Be("bert,carla");
+            task.FlowzerCandidateGroups.Should().Be("/team/finance");
+            task.FlowzerDirectoryAssigneeUserId.Should().BeNull();
+            task.FlowzerDirectoryCandidateUserIds.Should().BeEmpty();
+            task.FlowzerDirectoryCandidateGroupIds.Should().BeEmpty();
+        }
+    }
+
+    // Testzweck: Der Verzeichnismodus liest stabile Benutzer- und Gruppen-IDs typgerecht,
+    // ohne sie in die weiterhin freien Textfelder zu kopieren.
+    [Test]
+    public void ParseModel_ShouldReadDirectoryAssignmentReferences()
+    {
+        var assignee = Guid.Parse("10000000-0000-0000-0000-000000000001");
+        var candidate = Guid.Parse("10000000-0000-0000-0000-000000000002");
+        var group = Guid.Parse("20000000-0000-0000-0000-000000000001");
+
+        var task = ParseAssignedUserTask($$"""
+            <flowzer:taskAssignment mode="directory" assigneeId="{{assignee}}"
+              candidateUserIds="{{candidate}}" candidateGroupIds="{{group}}" />
+            """);
+
+        using (new AssertionScope())
+        {
+            task.FlowzerAssignmentMode.Should().Be(UserTaskAssignmentMode.Directory);
+            task.FlowzerDirectoryAssigneeUserId.Should().Be(assignee);
+            task.FlowzerDirectoryCandidateUserIds.Should().Equal(candidate);
+            task.FlowzerDirectoryCandidateGroupIds.Should().Equal(group);
+            task.FlowzerAssignee.Should().BeNull();
+            task.FlowzerCandidateUsers.Should().BeNull();
+            task.FlowzerCandidateGroups.Should().BeNull();
+        }
+    }
+
+    // Testzweck: Ungültige, leere, doppelte oder mit Freitext vermischte Verzeichnisverträge
+    // werden bereits beim Parsen verständlich abgelehnt und erreichen die Laufzeit nie.
+    [TestCaseSource(nameof(InvalidDirectoryAssignments))]
+    public void ParseModel_ShouldRejectInvalidAssignmentContracts(string extensionElements)
+    {
+        var action = () => ParseAssignedUserTask(extensionElements);
+
+        action.Should().Throw<ModelValidationException>().WithMessage("*assignment*");
+    }
+
+    private static IEnumerable<TestCaseData> InvalidDirectoryAssignments()
+    {
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="known" assigneeId="10000000-0000-0000-0000-000000000001" />""")
+            .SetName("Unknown_assignment_mode");
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="directory" />""")
+            .SetName("Directory_mode_without_references");
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="directory" assigneeId="not-a-guid" />""")
+            .SetName("Malformed_directory_reference");
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="directory" candidateUserIds="10000000-0000-0000-0000-000000000001,10000000-0000-0000-0000-000000000001" />""")
+            .SetName("Duplicate_directory_reference");
+        yield return new TestCaseData("""
+            <zeebe:assignmentDefinition assignee="anna" />
+            <flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" />
+            """).SetName("Directory_mode_mixed_with_legacy_text");
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="text" assigneeId="10000000-0000-0000-0000-000000000001" />""")
+            .SetName("Text_mode_with_directory_reference");
+        yield return new TestCaseData("""
+            <flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" />
+            <flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000002" />
+            """).SetName("Multiple_assignment_contracts");
+        yield return new TestCaseData("""<other:taskAssignment xmlns:other="https://example.test/wrong" mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" />""")
+            .SetName("Assignment_contract_in_wrong_namespace");
+        yield return new TestCaseData("""<flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" candidateUserId="10000000-0000-0000-0000-000000000002" />""")
+            .SetName("Unknown_assignment_attribute");
+    }
+
+    private static UserTask ParseAssignedUserTask(string assignmentXml)
+    {
+        var xml = $$"""
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                              id="Definitions_Assignment">
+              <bpmn:process id="Process_Assignment" isExecutable="true">
+                <bpmn:startEvent id="Start" />
+                <bpmn:userTask id="Task">
+                  <bpmn:extensionElements>
+                    <zeebe:formDefinition formKey="Approval" />
+                    {{assignmentXml}}
+                  </bpmn:extensionElements>
+                </bpmn:userTask>
+              </bpmn:process>
+            </bpmn:definitions>
+            """;
+
+        return ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<UserTask>().Single();
+    }
 }

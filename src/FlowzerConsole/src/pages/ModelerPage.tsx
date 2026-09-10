@@ -341,6 +341,7 @@ export function ModelerPage({ definitionId }: ModelerPageProps) {
       {!loadingDiagram && !xmlQuery.error && (
         <BpmnModeler
           ref={modelerRef}
+          definitionId={definitionId}
           xml={xmlQuery.data}
           readOnly={!mayPublish}
           onChange={() => setDirty(true)}

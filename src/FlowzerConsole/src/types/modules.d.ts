@@ -17,3 +17,21 @@ declare module 'bpmn-js/lib/Viewer' {
   const Viewer: unknown;
   export default Viewer;
 }
+
+declare module 'bpmn-moddle' {
+  interface ParseResult {
+    rootElement: unknown;
+    warnings: Error[];
+  }
+
+  interface SerializeResult {
+    xml: string;
+  }
+
+  export class BpmnModdle {
+    constructor(packages?: Record<string, unknown>);
+    fromXML(xml: string): Promise<ParseResult>;
+    toXML(element: unknown, options?: { format?: boolean }): Promise<SerializeResult>;
+  }
+
+}

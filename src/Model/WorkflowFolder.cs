@@ -38,6 +38,16 @@ public enum FolderSubjectKind
 }
 
 /// <summary>
+/// Legt fest, ob eine Ordnerzuweisung den bisherigen IdP-Text oder eine stabile lokale
+/// Verzeichnisreferenz auswertet. Der Standardwert bleibt fuer Bestandsdaten <see cref="Text"/>.
+/// </summary>
+public enum FolderAssignmentMode
+{
+    Text = 0,
+    Directory = 1
+}
+
+/// <summary>
 /// Die beiden Rollen, die ein Ordner vergeben kann.
 ///
 /// <see cref="Editor"/> darf die Workflows im Ordner anlegen, aendern, veroeffentlichen und
@@ -54,17 +64,26 @@ public enum FolderRole
 }
 
 /// <summary>
-/// Eine einzelne Zuweisung. <see cref="Subject"/> traegt die Kennung, unter der der Identity
-/// Provider die Person oder Gruppe fuehrt — dieselben Werte, mit denen ein BPMN-Modell
-/// <c>assignee</c> und <c>candidateGroups</c> besetzt.
+/// Eine einzelne Zuweisung. Im Textmodus traegt <see cref="Subject"/> weiterhin die bisherige
+/// IdP-Kennung. Im Directory-Modus ist <see cref="DirectorySubject"/> verbindlich und Subject
+/// nur noch die kompatible Stringprojektion derselben stabilen UUID.
 /// </summary>
 public class FolderAssignment
 {
+    /// <summary>Bestandszuweisungen ohne dieses Feld werden weiterhin als Freitext gelesen.</summary>
+    public FolderAssignmentMode AssignmentMode { get; set; } = FolderAssignmentMode.Text;
+
     public required FolderSubjectKind SubjectKind { get; set; }
 
     public required string Subject { get; set; }
 
     public required FolderRole Role { get; set; }
+
+    /// <summary>
+    /// Ausschliesslich im Directory-Modus gesetzt. <see cref="SubjectKind"/> und
+    /// <see cref="Subject"/> bleiben als additive Kompatibilitaetsprojektion erhalten.
+    /// </summary>
+    public SubjectRef? DirectorySubject { get; set; }
 
     /// <summary>Anzeigename, falls bekannt. Rein fuer die Oberflaeche; geprueft wird <see cref="Subject"/>.</summary>
     public string? DisplayName { get; set; }

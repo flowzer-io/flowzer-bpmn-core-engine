@@ -58,6 +58,90 @@ HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTP
 einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
 kein funktionaler BFF-Testpfad.
 
+## Lesender Keycloak-Verzeichnisabgleich
+
+Der optionale M1-Abgleich uebernimmt Benutzer, Gruppenhierarchie und Mitgliedschaften aus
+Keycloak in einen lokalen, atomar publizierten Snapshot. Keycloak bleibt fuehrend; Flowzer
+ruft ausschließlich Token- und `GET`-Endpunkte der
+[Keycloak Admin REST API](https://www.keycloak.org/docs-api/latest/rest-api/index.html) auf.
+Passwoerter, Credentials, Rollen-Mappings, freie Attribute und E-Mail-Adressen werden nicht
+in das Verzeichnis kopiert.
+
+| Einstellung | Bedeutung |
+|---|---|
+| `IdentityDirectory__Enabled` | Opt-in; Standard ist `false` |
+| `IdentityDirectory__ServerUrl` | technische HTTPS-Basisadresse des Keycloak-Servers, gegebenenfalls intern erreichbar |
+| `IdentityDirectory__Issuer` | exakter, externer `iss`-Wert der Benutzer-Tokens; bildet zusammen mit `sub` die stabile Benutzeridentitaet |
+| `IdentityDirectory__Realm` | zu lesender Realm |
+| `IdentityDirectory__ClientId` | vertrauliches Servicekonto nur fuer die benoetigten Leseoperationen |
+| `IdentityDirectory__ClientSecret` | ausschließlich zur Laufzeit aus dem Secret-Store; nie in `.env`, BPMN, Formularen oder Browserantworten speichern |
+| `IdentityDirectory__SyncIntervalSeconds` | Intervall nach dem sofortigen Startlauf; 10 bis 86.400 Sekunden |
+
+Im authentifizierten Betrieb muss zusaetzlich
+`Authentication__JwtBearer__Roles__Operator` gesetzt sein. Anders als historische
+Kompatibilitaetspolicies sind die neuen Verzeichnisendpunkte bei einem leeren Rollenwert
+vollstaendig gesperrt. Im ausdrücklich lokalen `Authentication__Scheme=None`-Modus bleibt
+die Entwicklungs-API offen.
+
+Weitere begrenzte Einstellungen (`PageSize`, `MaxPages`, `MaxRetries`,
+`RequestTimeoutSeconds`, `SynchronizationTimeoutSeconds`, `LeaseGraceSeconds`,
+`MaxResponseBytes`, `TokenRefreshSkewSeconds`) besitzen sichere Defaults in
+`appsettings.json`. Eine aktivierte, unvollstaendige oder unsichere Konfiguration beendet
+den Hoststart mit einer generischen Validierungsmeldung, die kein Secret wiedergibt.
+
+Das Keycloak-Servicekonto soll ueber feingranulare Rechte nur die verwendeten Benutzer-,
+Gruppen-, Gruppen-Kinder- und Benutzergruppen-Endpunkte lesen duerfen. Nach der Einrichtung
+ist mit einem negativen Test sicherzustellen, dass Schreiboperationen fuer dieses Konto
+abgewiesen werden. Eine pauschale Realm-Administratorrolle ist nicht vorgesehen.
+
+Der Startlauf und jeder Intervalllauf lesen alle Seiten. Erst nach vollstaendigem Erfolg
+werden Snapshot und Status gemeinsam ersetzt. Ein Seiten-, Hierarchie-, Timeout- oder
+Validierungsfehler laesst die letzte aktive Generation unveraendert. Fehlende Identitaeten
+werden erst durch einen erfolgreichen Folgelauf historisch inaktiv; ihre lokalen IDs bleiben
+auflösbar. Eine datenbankgestuetzte Lease verhindert parallele Importe durch mehrere
+API-Prozesse und laesst nach Ablauf einen Neustart zu. Die Keycloak-Offset-Pagination ist
+allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraenderte Realms
+bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
+
+Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
+`POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,
+Generations-IDs, Zaehler und klassifizierte Fehler, aber keine Subjects, Gruppen,
+Provideradresse oder Zugangsdaten. Der manuelle Aufruf stellt einen Lauf mit `202` in eine
+begrenzte Warteschlange; `409` bedeutet, dass lokal bereits ein Lauf aktiv oder vorgemerkt
+ist. Erfolg oder Fehler werden im Status sichtbar, die vorherige vollständige Generation
+bleibt bei einem Fehler aktiv.
+
+### Workflowgebundene Identitätssuche
+
+`GET /identity-directory/workflows/{definitionId}/subjects` ist bewusst kein allgemeines
+Adressbuch. Der Aufruf ist nur erfolgreich, wenn die Person den angegebenen Workflow über
+die globale Modelliererrolle oder eine geerbte Ordnerzuständigkeit bearbeiten darf. Ein
+unbekannter und ein fremder Workflow antworten mit demselben `404`-Problem-Details-Vertrag.
+
+Pflichtparameter `query` enthält 2 bis 100 Zeichen. `kind` ist `all`, `user` oder `group`,
+`limit` liegt zwischen 1 und 50 und ist standardmäßig 20. Weitere Query-Parameter wie ein
+vom Browser erfundenes `includeInactive` erweitern die Auswahl nicht. Ohne erfolgreich
+publizierten Snapshot antwortet die Suche mit `503`.
+
+Jeder Treffer enthält einen Anzeigenamen, eine eindeutige Zusatzinformation und eine
+typisierte stabile Referenz:
+
+```json
+{
+  "subject": { "kind": "user", "id": "b0a4a83f-3a32-40ef-a089-267347279018" },
+  "displayName": "Anna Muster",
+  "detail": "keycloak-subject"
+}
+```
+
+Bei Gruppen steht im Detail der vollständige Hierarchiepfad. Neu angeboten werden nur
+aktive Identitäten. Die lokale ID bleibt über Synchronisationen stabil; Anzeigename und
+Detail sind keine Berechtigungskennungen. Eine spätere Speicherung oder Veröffentlichung
+muss die Referenz erneut gegen den dann aktiven Snapshot und dieselbe Serverpolicy prüfen.
+Der vorhandene Freitextvertrag von `zeebe:assignmentDefinition` bleibt davon unverändert.
+Für neue Aufgaben kann das Modell zusätzlich den ausdrücklich getrennten Directory-Modus
+verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
+
 Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
 auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
 und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor
@@ -130,11 +214,62 @@ Vier Ebenen, die unabhängig voneinander wirken:
 3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
 4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 
-Die Aufgabenliste wertet `zeebe:assignmentDefinition` aus: `assignee`, `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer genannten Gruppe gehört; wer die Operator-Rolle trägt, sieht alle.
+User Tasks besitzen zwei ausdrücklich getrennte Zuweisungsmodi:
 
-Für den Abgleich zählt jede Kennung, die im Token steht: `preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit `/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt keine Rolle, ein Teiltreffer zählt nicht.
+- **Text (kompatibler Standard):** `zeebe:assignmentDefinition` mit `assignee`,
+  `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle
+  Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer
+  genannten Gruppe gehört.
+- **Directory:** eine versionierte Flowzer-Erweiterung mit stabilen lokalen UUIDs. Der direkte
+  Bearbeiter und Benutzerkandidaten sind Benutzerreferenzen, Kandidatengruppen bleiben
+  Gruppenreferenzen:
 
-Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig.
+  ```xml
+  <flowzer:taskAssignment mode="directory"
+      assigneeId="10000000-0000-0000-0000-000000000001"
+      candidateUserIds="10000000-0000-0000-0000-000000000002"
+      candidateGroupIds="20000000-0000-0000-0000-000000000001" />
+  ```
+
+  Das Definitions-Element muss dafür den Namespace
+  `xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"` deklarieren. Directory- und
+  Zeebe-Textwerte dürfen an derselben Aufgabe nicht gemischt werden. Beim Deployment werden
+  alle Referenzen erneut gegen den aktiven Snapshot, ihre Art und ihren Aktivstatus geprüft.
+
+Wer die Operator-Rolle trägt, sieht in beiden Modi alle Aufgaben.
+
+Nur im Textmodus zählt für den Abgleich jede Kennung, die im Token steht:
+`preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus
+dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell
+genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit
+`/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt
+keine Rolle, ein Teiltreffer zählt nicht.
+
+Im Directory-Modus gilt dieser Namensabgleich ausdrücklich **nicht**. Der Server ordnet die
+angemeldete Person ausschließlich über das exakte `(Issuer, Subject)` einem aktiven lokalen
+Benutzer zu und prüft dessen stabile ID beziehungsweise aktuelle direkte Mitgliedschaften.
+Anzeigename, E-Mail, der technische Flowzer-Benutzerwert und Gruppen-Claims sind kein
+Fallback. Fehlt der aktive Snapshot oder wurde die Identität deaktiviert, antworten Liste,
+Formular, Abschluss und Vorgangsübersicht für normale Benutzer geschlossen wie bei einer
+unbekannten Ressource. Laufende Aufgaben behalten ihre gespeicherten Referenzen; aktuelle
+Mitgliedschaften und Aktivstatus entscheiden weiterhin über den Zugriff.
+
+Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die
+Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token
+nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig. Ein fehlender
+`flowzer:taskAssignment` bedeutet immer Textmodus und löst keine automatische Migration
+anhand gleichlautender Verzeichniseinträge aus.
+
+Diagramm und Gliederung zeigen vor der Bearbeitung die Wahl **Freitext** oder **Bekannte
+Benutzer/Gruppen**. Die bekannte Auswahl sucht ausschließlich über
+`GET /identity-directory/workflows/{definitionId}/subjects`; der Server prüft dabei erneut
+die Modellierungsberechtigung des konkreten Workflows und gibt höchstens 20 aktive Treffer
+zurück. Anzeigename und Zusatzinformation werden nur dargestellt, in das BPMN gelangen
+ausschließlich stabile UUIDs. Bereits gespeicherte aktive UUIDs werden über denselben
+workflowgebundenen Pfad einzeln aufgelöst; deaktivierte oder nicht mehr bekannte Werte bleiben
+als warnender ID-Chip sichtbar und werden nicht automatisch ersetzt. Ein Wechsel in den
+Directory-Modus wird erst mit der ersten Auswahl in das Diagramm geschrieben. In der
+Gliederung sperrt ein noch leerer Directory-Entwurf Speichern und Deployment.
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
@@ -198,7 +333,17 @@ Regeln, die im Betrieb zählen:
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
 
-Zuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen (`subjectKind: "group"`) mit denselben Kennungen wie die Zuweisung im Modell — dieselbe Auswertung von `preferred_username`, `email` und `groups`, dieselbe Behandlung von Keycloak-Gruppenpfaden.
+Ordnerzuweisungen besitzen einen expliziten `referenceMode`:
+
+- `text` ist der kompatible Standard für bisherige Kennungen. Er wertet `subjectKind` und
+  `subject` weiterhin gegen `preferred_username`, `email` und `groups` aus.
+- `directory` verlangt zusätzlich `subjectRef` mit `kind` und stabiler lokaler UUID.
+  Die API prüft neue Referenzen gegen den aktiven Snapshot und ersetzt den mitgesendeten
+  Anzeigenamen durch die serverseitige Projektion. Zugriff entsteht nur über das exakte
+  `(Issuer, Subject)` oder eine aktive direkte Gruppenmitgliedschaft.
+
+Beide Modi werden weder automatisch ineinander umgewandelt noch per Anzeigename verknüpft.
+Details und Beispiele stehen in [Ordnerzuweisungen](FOLDER-DIRECTORY-ASSIGNMENTS.md).
 
 Bestehende Katalogeinträge tragen kein `folderId` und liegen damit auf der obersten Ebene; ein Umzug ist nicht nötig.
 
@@ -242,7 +387,8 @@ Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API d
 Objekt `{}` wird anschließend wie jede andere Eingabe validiert.
 
 Pflichtwerte, Typen, statische Auswahlwerte, deklarative Sichtbarkeits- und Datumsregeln
-prüft der Server im [Formular-Prüfprofil 1](FORM-VALIDATION-PROFILE.md). Ungültige Eingaben
+prüft der Server im [Formular-Prüfprofil](FORM-VALIDATION-PROFILE.md). Profil 2 ergänzt
+die gebundene [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Ungültige Eingaben
 liefern `422 application/problem+json` mit feldbezogenen Codes. Nicht unterstützte
 Geschäftsregeln blockieren das Deployment, statt nur im Browser zu gelten.
 Die Konsole zeigt Serverfehler unter Erhalt der Eingaben an. Vollständige Form.io-

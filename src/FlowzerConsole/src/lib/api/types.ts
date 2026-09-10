@@ -143,6 +143,9 @@ export interface BpmnMetaDefinitionDto {
 export const FOLDER_SUBJECT_KINDS = ['user', 'group'] as const;
 export type FolderSubjectKind = (typeof FOLDER_SUBJECT_KINDS)[number];
 
+/** Herkunft einer Ordnerzuweisung. Fehlende Werte bleiben aus Legacy-Antworten `text`. */
+export type FolderReferenceMode = 'text' | 'directory';
+
 /**
  * Die beiden Rollen eines Ordners. `editor` darf die Workflows darin ändern,
  * `steward` — die Fachverantwortung — zusätzlich Unterordner anlegen und delegieren.
@@ -156,6 +159,10 @@ export interface FolderAssignmentDto {
   subject: string;
   role: FolderRole;
   displayName?: string | null;
+  /** Additiver Vertragswert: alte Antworten ohne Wert sind weiterhin Freitext. */
+  referenceMode?: FolderReferenceMode;
+  /** Bei `directory` die stabile, vom Verzeichnis bestätigte Identität. */
+  subjectRef?: SubjectRefDto | null;
 }
 
 /** Entspricht `InheritedFolderAssignmentDto` — eine Zuweisung aus einem übergeordneten Ordner. */
@@ -217,6 +224,30 @@ export interface FormDto {
 }
 
 /** Entspricht `UserTaskSubscriptionDto`. */
+export interface SubjectRefDto {
+  kind: 'user' | 'group';
+  id: string;
+}
+
+/** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
+export interface DirectorySubjectDto {
+  subject: SubjectRefDto;
+  displayName: string;
+  detail: string;
+}
+
+/** Begrenzte Treffer aus genau einer atomar veröffentlichten Verzeichnisgeneration. */
+export interface DirectorySubjectSearchResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
+/** Kontext, in dem ein Formularfeld Directory-Identitäten suchen darf. */
+export type FormDirectorySearchContext =
+  | { kind: 'startForm'; definitionId: string }
+  | { kind: 'userTask'; taskId: string };
+
+/** Entspricht `UserTaskSubscriptionDto`. */
 export interface UserTaskSubscriptionDto {
   id: string;
   name: string;
@@ -224,6 +255,14 @@ export interface UserTaskSubscriptionDto {
   userCandidates: string[];
   userGroups: string[];
   currenAssignedUser?: string | null;
+  /** Legacy-Freitextfelder; im Directory-Modus leer. */
+  assignee?: string | null;
+  candidateUsers: string[];
+  candidateGroups: string[];
+  assignmentMode: 'text' | 'directory';
+  directoryAssignee?: SubjectRefDto | null;
+  directoryCandidateUsers: SubjectRefDto[];
+  directoryCandidateGroups: SubjectRefDto[];
   processInstanceId?: string | null;
   definitionId: string;
   processId: string;

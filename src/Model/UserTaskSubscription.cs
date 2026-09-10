@@ -1,3 +1,5 @@
+using BPMN.HumanInteraction;
+
 namespace Model;
 
 public class UserTaskSubscription
@@ -26,6 +28,21 @@ public class UserTaskSubscription
 
     /// <summary>Kandidatengruppen aus <c>@candidateGroups</c>, bereits in Einzelwerte zerlegt.</summary>
     public List<string> CandidateGroups { get; set; } = [];
+
+    /// <summary>
+    /// Expliziter persistierter Vertrag. <c>null</c> kennzeichnet historische Datensätze,
+    /// deren Modus einmalig aus dem im Token gespeicherten Modellelement nachgezogen wird.
+    /// </summary>
+    public UserTaskAssignmentMode? AssignmentMode { get; set; }
+
+    /// <summary>Direkter Bearbeiter als stabile lokale Verzeichnis-Benutzer-ID.</summary>
+    public Guid? DirectoryAssigneeUserId { get; set; }
+
+    /// <summary>Kandidatenbenutzer als stabile lokale Verzeichnis-IDs.</summary>
+    public List<Guid> DirectoryCandidateUserIds { get; set; } = [];
+
+    /// <summary>Kandidatengruppen als stabile lokale Verzeichnis-IDs.</summary>
+    public List<Guid> DirectoryCandidateGroupIds { get; set; } = [];
 }
 
 

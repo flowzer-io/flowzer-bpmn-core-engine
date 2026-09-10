@@ -172,6 +172,46 @@ public class ManualMappingExtensionsTest
         result.UserGroups.Should().BeEquivalentTo(subscription.UserGroups);
     }
 
+    // Testzweck: Der öffentliche Aufgabenvertrag weist den Directory-Modus und jede stabile
+    // Identitätsart explizit aus, ohne Gruppen unbemerkt in Benutzer zu verwandeln.
+    [Test]
+    public void UserTaskSubscription_ToDto_ShouldKeepTypedDirectoryReferences()
+    {
+        var assigneeId = Guid.NewGuid();
+        var candidateId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var userTask = new UserTask
+        {
+            Id = "Activity_Directory", Name = "Directory approval", Implementation = "approval-form",
+            FlowzerAssignmentMode = UserTaskAssignmentMode.Directory,
+            FlowzerDirectoryAssigneeUserId = assigneeId,
+            FlowzerDirectoryCandidateUserIds = [candidateId],
+            FlowzerDirectoryCandidateGroupIds = [groupId]
+        };
+        var subscription = new UserTaskSubscription
+        {
+            Id = Guid.NewGuid(), Name = userTask.Name,
+            Token = new Token
+            {
+                ProcessInstanceId = Guid.NewGuid(), CurrentBaseElement = userTask,
+                ActiveBoundaryEvents = [], State = FlowNodeState.Active
+            },
+            MetaDefinitionId = "directory", DefinitionId = Guid.NewGuid(), ProcessId = "Process_Directory"
+        };
+
+        var result = subscription.ToDto();
+
+        result.AssignmentMode.Should().Be("directory");
+        result.DirectoryAssignee.Should().BeEquivalentTo(new SubjectRefDto { Kind = "user", Id = assigneeId });
+        result.DirectoryCandidateUsers.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new SubjectRefDto { Kind = "user", Id = candidateId });
+        result.DirectoryCandidateGroups.Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new SubjectRefDto { Kind = "group", Id = groupId });
+        result.Assignee.Should().BeNull();
+        result.CandidateUsers.Should().BeEmpty();
+        result.CandidateGroups.Should().BeEmpty();
+    }
+
     // Testzweck: Deckt den Fall „BPMN Meta Definition DTO To Model And Back Should Preserve Values“ ab.
     [Test]
     public void BpmnMetaDefinitionDto_ToModel_AndBack_ShouldPreserveValues()

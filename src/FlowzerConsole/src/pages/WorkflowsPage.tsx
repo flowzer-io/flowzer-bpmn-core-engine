@@ -752,7 +752,7 @@ function SubjectGroup({
       </span>
       {assignments.map((assignment) => (
         <span
-          key={`${assignment.subjectKind}-${assignment.subject}`}
+          key={`${assignment.subjectKind}-${assignment.subjectRef?.id ?? assignment.subject}`}
           className="bg-surface border-border inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-[11.5px] font-semibold whitespace-nowrap"
         >
           <span

@@ -245,40 +245,6 @@ export function FormSection({
   );
 }
 
-export function AssignmentSection({ properties, editor, readOnly }: SectionProps) {
-  return (
-    <Section
-      icon="person"
-      title="Zuweisung"
-      hint="Leer heißt: Die Aufgabe steht allen offen, die den Workflow bedienen dürfen."
-    >
-      <TextRow
-        label="Zugewiesen an"
-        value={properties.assignee}
-        disabled={readOnly}
-        placeholder="Benutzername oder E-Mail"
-        onCommit={(value) => editor?.setAssignment(properties.id, { assignee: value })}
-      />
-      <TextRow
-        label="Gruppen"
-        value={properties.candidateGroups}
-        disabled={readOnly}
-        placeholder="einkauf, buchhaltung"
-        hint="Mehrere durch Komma getrennt."
-        onCommit={(value) => editor?.setAssignment(properties.id, { candidateGroups: value })}
-      />
-      <TextRow
-        label="Personen"
-        value={properties.candidateUsers}
-        disabled={readOnly}
-        placeholder="anna, bruno"
-        hint="Mehrere durch Komma getrennt."
-        onCommit={(value) => editor?.setAssignment(properties.id, { candidateUsers: value })}
-      />
-    </Section>
-  );
-}
-
 export function ScheduleSection({ properties, editor, readOnly }: SectionProps) {
   return (
     <Section

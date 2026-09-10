@@ -67,6 +67,10 @@ public static class FormContextProjection
             {
                 WritePath(result, key, array);
             }
+            else if (type == "flowzerSubject" && TrySubjectSelection(value, IsTrue(component, "multiple"), out var subjectSelection))
+            {
+                WritePath(result, key, subjectSelection);
+            }
         }
     }
 
@@ -115,6 +119,34 @@ public static class FormContextProjection
             if (!TryScalar(item, out var scalar)) return false;
             result.Add(scalar);
         }
+        return true;
+    }
+
+    private static bool TrySubjectSelection(object? value, bool multiple, out object? result)
+    {
+        result = null;
+        if (!multiple)
+        {
+            if (!DirectorySubjectValue.TryParse(value, out var subject)) return false;
+            result = DirectorySubjectValue.Normalize(subject);
+            return true;
+        }
+
+        IEnumerable<object?>? values = value switch
+        {
+            JsonElement { ValueKind: JsonValueKind.Array } json => json.EnumerateArray().Select(item => (object?)item),
+            System.Collections.IEnumerable sequence when value is not string => sequence.Cast<object?>(),
+            _ => null
+        };
+        if (values is null) return false;
+        List<object?> normalized = [];
+        HashSet<Model.SubjectRef> seen = [];
+        foreach (var item in values)
+        {
+            if (!DirectorySubjectValue.TryParse(item, out var subject) || !seen.Add(subject)) return false;
+            normalized.Add(DirectorySubjectValue.Normalize(subject));
+        }
+        result = normalized;
         return true;
     }
 

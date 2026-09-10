@@ -7,6 +7,7 @@ import { insertAfter, insertBefore, newChoice, newEnd, newParallel, newStep, ren
 import { blockLabel, type OutlineBlock, type OutlineDocument } from '@/lib/outline/model';
 
 interface BlockEditorProps {
+  definitionId: string;
   document: OutlineDocument;
   block: OutlineBlock | undefined;
   editable: boolean;
@@ -21,7 +22,7 @@ const KIND_LABELS: Record<OutlineBlock['kind'], string> = {
 };
 
 /** Die rechte Spalte: alles, was am ausgewaehlten Block einstellbar ist. */
-export function BlockEditor({ document, block, editable, onChange }: BlockEditorProps) {
+export function BlockEditor({ definitionId, document, block, editable, onChange }: BlockEditorProps) {
   if (!block) {
     return (
       <EmptyState
@@ -45,7 +46,9 @@ export function BlockEditor({ document, block, editable, onChange }: BlockEditor
         <p className="text-faint mt-1.5 font-mono text-[11px]">{block.id}</p>
       </div>
 
-      {editable && block.kind === 'step' && <StepFields document={document} step={block} onChange={onChange} />}
+      {editable && block.kind === 'step' && (
+        <StepFields definitionId={definitionId} document={document} step={block} onChange={onChange} />
+      )}
       {editable && (block.kind === 'parallel' || block.kind === 'choice') && (
         <BranchFields document={document} block={block} onChange={onChange} />
       )}

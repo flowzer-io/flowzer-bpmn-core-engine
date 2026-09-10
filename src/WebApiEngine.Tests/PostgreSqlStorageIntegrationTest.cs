@@ -69,7 +69,7 @@ public partial class PostgreSqlStorageIntegrationTest
             "message_subscriptions", "signal_subscriptions", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
-            "workflow_folders", "idempotency_records"
+            "workflow_folders", "idempotency_records", "identity_directory_state"
         }.Select(table => $"DELETE FROM {Schema}.{table}"));
         await command.ExecuteNonQueryAsync();
     }
@@ -141,6 +141,7 @@ public partial class PostgreSqlStorageIntegrationTest
     public async Task FolderStorage_ShouldMirrorFilesystemContract()
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var directoryUserId = Guid.NewGuid();
         var finanzen = new WorkflowFolder
         {
             Id = Guid.NewGuid(),
@@ -149,7 +150,16 @@ public partial class PostgreSqlStorageIntegrationTest
             Assignments =
             [
                 new FolderAssignment { SubjectKind = FolderSubjectKind.Group, Subject = "/abteilungen/einkauf", Role = FolderRole.Steward },
-                new FolderAssignment { SubjectKind = FolderSubjectKind.User, Subject = "anna", Role = FolderRole.Editor, DisplayName = "Anna Weber" }
+                new FolderAssignment { SubjectKind = FolderSubjectKind.User, Subject = "anna", Role = FolderRole.Editor, DisplayName = "Anna Weber" },
+                new FolderAssignment
+                {
+                    AssignmentMode = FolderAssignmentMode.Directory,
+                    SubjectKind = FolderSubjectKind.User,
+                    Subject = directoryUserId.ToString(),
+                    DirectorySubject = new SubjectRef(DirectorySubjectKind.User, directoryUserId),
+                    Role = FolderRole.Editor,
+                    DisplayName = "Anna Stabil"
+                }
             ]
         };
         var beschaffung = new WorkflowFolder { Id = Guid.NewGuid(), Name = "Beschaffung", ParentId = finanzen.Id };
@@ -158,9 +168,11 @@ public partial class PostgreSqlStorageIntegrationTest
         await storage.FolderStorage.StoreFolder(beschaffung);
 
         var gelesen = (await storage.FolderStorage.GetFolder(finanzen.Id))!;
-        gelesen.Assignments.Should().HaveCount(2);
+        gelesen.Assignments.Should().HaveCount(3);
         gelesen.Assignments.Single(assignment => assignment.SubjectKind == FolderSubjectKind.Group)
             .Role.Should().Be(FolderRole.Steward);
+        gelesen.Assignments.Single(assignment => assignment.AssignmentMode == FolderAssignmentMode.Directory)
+            .DirectorySubject.Should().Be(new SubjectRef(DirectorySubjectKind.User, directoryUserId));
         (await storage.FolderStorage.GetAllFolders()).Select(folder => folder.Name)
             .Should().Equal("Beschaffung", "Finanzen");
         (await storage.FolderStorage.GetFolder(Guid.NewGuid())).Should().BeNull();

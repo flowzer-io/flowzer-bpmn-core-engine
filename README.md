@@ -140,7 +140,7 @@ Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-bff-
 
 ## Ordner und Fachverantwortung
 
-Workflows lassen sich in einen Ordnerbaum mit beliebig tiefen Unterordnern einsortieren. An jedem Ordner hängt die Zuständigkeit für alles, was darin liegt: **Bearbeiten** (`editor`) darf die Workflows des Ordners anlegen, ändern, veröffentlichen und löschen; die **Fachverantwortung** (`steward`) darf zusätzlich Unterordner anlegen und die Zuständigkeit selbst weiterreichen. Zuweisungen gelten für alle Unterordner mit und nennen Personen oder Gruppen des Identity Providers.
+Workflows lassen sich in einen Ordnerbaum mit beliebig tiefen Unterordnern einsortieren. An jedem Ordner hängt die Zuständigkeit für alles, was darin liegt: **Bearbeiten** (`editor`) darf die Workflows des Ordners anlegen, ändern, veröffentlichen und löschen; die **Fachverantwortung** (`steward`) darf zusätzlich Unterordner anlegen und die Zuständigkeit selbst weiterreichen. Zuweisungen gelten für alle Unterordner mit. Sie verwenden wahlweise den ausdrücklich erhaltenen Freitextmodus oder stabile Benutzer-/Gruppenreferenzen aus dem synchronisierten Directory.
 
 Damit lässt sich ein Ausschnitt des Katalogs an die Menschen übergeben, die ihn fachlich verantworten, ohne ihnen die globale Rolle fürs Modellieren zu geben. Die oberste Ebene bleibt dieser Rolle vorbehalten, Lesen und Starten stehen weiterhin allen Zugelassenen offen. Regeln und Fehlerbilder in [docs/OPERATIONS.md](docs/OPERATIONS.md#ordner-und-delegation).
 

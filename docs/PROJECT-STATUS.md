@@ -1,6 +1,8 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187. Der BFF-Slice #188 liegt in einem noch nicht nach `main` gemergten PR.
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179,
+#181, #183, #185 und #187. BFF sowie die M1-Verzeichnis-/Zuweisungs-Slices bis PR #195
+liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -101,15 +103,48 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
+## Verzeichnis-Slices #190, #192, #194, #196, #198 und #200 (noch nicht gemergt)
+
+#190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
+Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
+stabile lokale IDs und inaktive Historie bleiben erhalten. Überlappende paginierte IDs,
+unvollständige Hierarchien und Teilfehler werden abgewiesen, ohne die aktive Generation
+zu ersetzen. Operatorstatus und manueller Start geben keine Identitätsdaten aus.
+
+#192 / PR #193 ergänzt `SubjectRef` für bekannte Benutzer und Gruppen sowie eine begrenzte
+Suche. Sie ist an einen tatsächlich bearbeitbaren Workflow gebunden, bietet nur aktive
+Identitäten an und liefert bei fremdem oder unbekanntem Kontext einheitlich `404`.
+Formularfelder und historische Anzeige bleiben Folgepakete. #194 / PR #195 ergänzt
+bereits die durchgängige Task-Zuweisung mit explizitem Text-/Directory-Vertrag, stabilen
+Referenzen, Deployment-Prüfung und identischer Laufzeitberechtigung. #196 ergänzt die
+workflowgebundene Auswahl im Diagramm und in der Gliederung: Freitext bleibt ausdrücklich
+erhalten, bekannte Benutzer/Gruppen werden gesucht, als stabile IDs geschrieben und beim
+erneuten Öffnen ohne allgemeine Verzeichnisliste aufgelöst.
+
+#198 ergänzt `flowzer.forms/2` mit dem typisierten `flowzerSubject`-Feld. Auswahlpolicy,
+aktive Filterreferenzen und Profil werden mit der Workflow-Version gebunden; Start und
+beide Abschlussrouten prüfen stabile Referenzen erneut gegen den aktuellen Snapshot.
+Startformular- und Task-Suche leiten ihre Grenzen ausschließlich aus dem gebundenen Feld ab.
+
+#200 verwendet dieselbe stabile Auswahl für Ordnerberechtigungen. Jede Zuweisung entscheidet
+explizit zwischen unverändertem Freitext und einer Directory-Referenz. Neue Referenzen werden
+serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet ausschließlich das
+exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
+mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
    abnehmen. Idempotenz externer Worker-/Connector-Effekte bleibt in den jeweiligen
    späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
    bleiben im vorhandenen Vertrag permissiv.
-2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
-   unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
-   bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
+2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
+   gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
+   Task-Zuweisungsmodus liegen in #194/#196.
+   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200;
+   Formularentwürfe fehlen weiterhin. Legacy-Namen
+   und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
+   historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
    Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.

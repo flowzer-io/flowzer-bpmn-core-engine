@@ -24,6 +24,8 @@ import {
   startFormAppliesTo,
   timerOf,
   type Assignment,
+  type AssignmentMode,
+  type DirectoryAssignment,
   type EmbeddedForm,
   type CalledProcess,
   type ElementProperties,
@@ -254,6 +256,58 @@ export function createBpmnEditor(modeler: ModelerLike) {
       };
       const isEmpty = Object.values(values).every((value) => value === undefined);
       writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', isEmpty ? null : values);
+    },
+
+    /**
+     * Wechselt den Vertrag ohne eine nicht deploybare leere Directory-Zuweisung zu erzeugen.
+     * Der Wechsel in den Directory-Modus wird erst mit der ersten konkreten Auswahl persistiert.
+     */
+    setAssignmentMode(elementId: string, mode: Exclude<AssignmentMode, 'invalid'>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      if (mode === 'directory') {
+        const current = extension(element.businessObject, 'flowzer:TaskAssignment');
+        if (text(current, 'mode') !== 'directory' || !hasDirectoryReference(current)) return;
+        writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', null);
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
+        mode: 'text',
+        assigneeId: undefined,
+        candidateUserIds: undefined,
+        candidateGroupIds: undefined,
+      });
+    },
+
+    /** Schreibt ausschließlich stabile IDs; Anzeigenamen gehören nie in den BPMN-Vertrag. */
+    setDirectoryAssignment(elementId: string, patch: Partial<DirectoryAssignment>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const current = extension(element.businessObject, 'flowzer:TaskAssignment');
+      const currentDirectory = text(current, 'mode') === 'directory' ? current : undefined;
+      const assigneeId = normalizeId(patch.assigneeId ?? text(currentDirectory, 'assigneeId'));
+      const candidateUserIds = normalizeIds(
+        patch.candidateUserIds ?? commaSeparatedIds(text(currentDirectory, 'candidateUserIds')),
+      );
+      const candidateGroupIds = normalizeIds(
+        patch.candidateGroupIds ?? commaSeparatedIds(text(currentDirectory, 'candidateGroupIds')),
+      );
+
+      writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', null);
+      if (!assigneeId && candidateUserIds.length === 0 && candidateGroupIds.length === 0) {
+        writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', null);
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
+        mode: 'directory',
+        assigneeId: assigneeId || undefined,
+        candidateUserIds: candidateUserIds.length > 0 ? candidateUserIds.join(',') : undefined,
+        candidateGroupIds: candidateGroupIds.length > 0 ? candidateGroupIds.join(',') : undefined,
+      });
     },
 
     setSchedule(elementId: string, patch: Partial<Schedule>): void {
@@ -622,4 +676,28 @@ function formKeyOf(businessObject: ModdleElement): string | null {
 function merge(patched: string | undefined, current: string): string | undefined {
   const value = (patched ?? current).trim();
   return value.length > 0 ? value : undefined;
+}
+
+function commaSeparatedIds(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function normalizeId(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** UUIDs werden kanonisch, eindeutig und stabil sortiert geschrieben. */
+function normalizeIds(values: string[]): string[] {
+  return [...new Set(values.map(normalizeId).filter((value) => value.length > 0))].sort();
+}
+
+function hasDirectoryReference(assignment: ModdleElement | undefined): boolean {
+  return Boolean(
+    normalizeId(text(assignment, 'assigneeId'))
+      || commaSeparatedIds(text(assignment, 'candidateUserIds')).length > 0
+      || commaSeparatedIds(text(assignment, 'candidateGroupIds')).length > 0,
+  );
 }

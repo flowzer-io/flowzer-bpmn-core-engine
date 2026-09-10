@@ -1,16 +1,31 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Forms;
 
 /// <summary>Explizites, begrenztes Prüfprofil; unbekannte Regeln sind keine Freigabe.</summary>
-public sealed record FormContract(IReadOnlyList<FormField> Fields, IReadOnlySet<string> IgnoredKeys, JsonElement Rules)
+public sealed record FormContract(
+    string ValidationProfile,
+    IReadOnlyList<FormField> Fields,
+    IReadOnlySet<string> IgnoredKeys,
+    JsonElement Rules)
 {
-    public const string Profile = "flowzer.forms/1";
+    public const string ProfileV1 = "flowzer.forms/1";
+    public const string ProfileV2 = "flowzer.forms/2";
+
+    public static bool IsSupportedProfile(string? profile) =>
+        profile is null or ProfileV1 or ProfileV2;
 }
 
-public sealed record FormField(string Key, string Type, JsonElement Schema, bool ReadOnly, IReadOnlyList<JsonElement> Conditions);
+public sealed record FormField(
+    string Key,
+    string Type,
+    JsonElement Schema,
+    bool ReadOnly,
+    IReadOnlyList<JsonElement> Conditions,
+    DirectorySubjectSelectionPolicy? SubjectSelection = null);
 
 internal static class FormJson
 {

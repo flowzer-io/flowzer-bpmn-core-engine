@@ -75,6 +75,30 @@ Bearer-API bleibt kompatibel.
 Die Teil-PRs bleiben bis Merge und Abnahme separat; auch der laufende BFF-Slice
 ist kein Produkt- oder vollständiger M0-Abschluss.
 
+**Keycloak-Verzeichnis:** #190 / PR #191 implementiert den opt-in, lesenden und
+vollstaendig paginierten Abgleich als atomaren Snapshot. `(Issuer, Subject)`, externe
+Gruppen-ID, Hierarchie und Mitgliedschaften erhalten stabile lokale IDs; erfolgreiche
+Folgesnapshots deaktivieren fehlende Historie. Teilfehler behalten die vorige Generation,
+HTTP-/Gesamtlaufgrenzen verhindern blockierte Importe und eine PostgreSQL-Lease schuetzt
+vor parallelen API-Prozessen. Operatorstatus und manueller Start geben keine Identitaeten
+oder Secrets aus. Formular-/Task-/Ordnerauswahl ist bewusst der naechste M1-Slice.
+
+**Typisierte Verzeichnissuche:** #192 / PR #193 führt die stabile Referenz
+`{ kind: "user" | "group", id: <lokale UUID> }` und einen begrenzten Such-/Prüfkern
+ein. Die öffentliche Suche verlangt einen konkreten Workflow und dessen tatsächliche
+Modellierungsberechtigung; fremde und unbekannte Kontexte liefern identisch `404`.
+Nur aktive Einträge werden neu angeboten. Dies ist noch kein Formularfeld und ändert
+die bestehende Freitext-Zuweisung nicht.
+
+**Expliziter Aufgabenmodus:** #194 / PR #195 implementiert den serverseitigen Vertrag für `text`
+und `directory` durchgängig von der BPMN-Erweiterung über Parser und Deployment bis zur
+persistierten Subscription und Autorisierung. Der Directory-Modus prüft ausschließlich
+stabile Benutzer-/Gruppen-IDs, exaktes `(Issuer, Subject)` und aktuelle Mitgliedschaften;
+ein Namensfallback ist ausgeschlossen. Legacy-Modelle bleiben Text. Die grafische
+Modellerauswahl folgt in #196: Diagramm und Gliederung bieten Freitext oder workflowgebunden
+gesuchte Benutzer/Gruppen an und schreiben denselben Vertrag. Das generische Formularfeld und
+typisierte Ordnerrechte bleiben davon getrennte M1-Pakete.
+
 ## M0 – Sicherheit und Verträge (zuerst)
 
 - [x] Einheitlicher, transaktionsgebundener autorisierter Aufgabenabschluss für alle
@@ -100,22 +124,28 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 
 ## M1 – Verzeichnis und Auswahl von Benutzern/Gruppen
 
-- [ ] Keycloak bleibt führend; nur lesender, minimal berechtigter Servicezugang über
+- [x] Keycloak bleibt führend; nur lesender, minimal berechtigter Servicezugang über
   die Admin REST API. Keine Passwörter oder unnötigen Profilattribute übernehmen.
-- [ ] Lokales Verzeichnis mit stabiler interner ID, `(Issuer, Subject)`, Anzeigename,
+- [x] Lokales Verzeichnis mit stabiler interner ID, `(Issuer, Subject)`, Anzeigename,
   Benutzerstatus, externer Gruppenkennung, Hierarchie und Mitgliedschaften.
-- [ ] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
+- [x] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
 - [ ] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. Mehrdeutige Bestandszuweisungen explizit klären.
-- [ ] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
+  Auswahlen entfernen. Stabile Historie und Filterung neuer workflowgebundener Suchen
+  sind in #190/#192 umgesetzt; die kontextgebundene historische Anzeige und explizite
+  Klärung mehrdeutiger Bestandszuweisungen folgen mit den konsumierenden Feldern.
+- [x] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.
-- [ ] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
-  Benutzer expandieren. Server leitet erlaubte Werte aus der Formularversion ab.
-- [ ] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden.
-- [ ] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
+- [x] Typisierte `SubjectRef` statt Freitext; ausgewählte Gruppen nicht still in
+  Benutzer expandieren. Der öffentliche Referenz- und Prüfvertrag ist in #192 umgesetzt;
+  #198 ergänzt die Ableitung erlaubter Werte aus der veröffentlichten Formularversion,
+  gebundene Start-/Task-Suche und erneute Submission-Prüfung.
+- [x] Dieselbe Auswahl in Aufgaben-Zuweisungen und Ordnerberechtigungen verwenden. #196
+  integriert den expliziten Task-Modus; #200 ergänzt stabile Ordnerrechte samt bewusst
+  erhaltenem Legacy-Freitextmodus.
+- [x] **Ergänzung vom 8. September 2026:** Task-Zuweisungen behalten zusätzlich den
   freien Textmodus. Vor der Eingabe explizit „Bekannter Benutzer / bekannte Gruppe“
   oder „Text-String“ wählen. Verzeichniswahl speichert eine typisierte stabile
   Referenz; Text bleibt ein explizit als solcher markierter Wert und wird nicht
@@ -126,22 +156,25 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Modell, nicht in den Abschluss-Request. Gruppen bleiben Kandidatengruppen bzw.
   Gruppenreferenzen und werden nicht zum behaupteten individuellen Bearbeiter.
   Modellierer zeigen Modus und eventuelle Mehrdeutigkeit verständlich an.
+  Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194 / PR #195
+  umgesetzt. #196 ergänzt die Auswahl in Diagramm und Gliederung einschließlich stabiler
+  XML-Roundtrips, ID-Auflösung, Lade-/Fehlerzuständen und historischen Warn-Chips.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 ## M2 – Verlässliche und wiederverwendbare Formulare
 
-- [ ] Form.io behalten; versionierter, serverseitig prüfbarer Komponentenvertrag mit
-  gemeinsamen Testvektoren für Typen, Pflichtwerte, Bereiche, Datumsvergleiche,
-  Auswahlregeln und deklarative Bedingungen.
+- [ ] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
+  Pflichtwerte, Bereiche, Datumsvergleiche, Auswahlregeln und deklarative Bedingungen ab;
+  gemeinsame Client-/Server-Testvektoren fehlen noch.
 - [ ] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
-- [ ] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
+- [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
-- [ ] Unveränderliche veröffentlichte Formularversionen beim Deployment binden;
-  laufende Aufgaben behalten ihre gebundene Version. Entwurf/Vorschau/Veröffentlichung
-  klar unterscheiden.
+- [ ] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
+  laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
+  Veröffentlichung in der Formularpflege fehlt noch.
 - [ ] Serverseitige Bearbeitungsentwürfe mit Wiederaufnahme und Konflikterkennung;
   Refetch darf keine ungespeicherten Eingaben zurücksetzen.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte

@@ -26,6 +26,21 @@ describe('Serverseitige Formularfehler', () => {
     expect(screen.queryByText('DO_NOT_ECHO')).not.toBeInTheDocument();
   });
 
+  // Testzweck: Directory-Auswahlen liefern eigene, verständliche Vertragsfehler, ohne
+  // manipulierte IDs oder andere Eingabewerte in die Fehlermeldung zu spiegeln.
+  it('übersetzt SubjectRef- und Directory-Fehler', () => {
+    const error = new ApiError('Invalid input', {
+      status: 422,
+      url: '/start-form',
+      body: { errors: { approvers: ['type.subject_ref', 'selection.duplicate', 'directory.unavailable'] } },
+    });
+    render(<FormValidationErrors error={error} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('gültige Benutzer- oder Gruppenreferenz');
+    expect(screen.getByRole('alert')).toHaveTextContent('nur einmal');
+    expect(screen.getByRole('alert')).toHaveTextContent('nicht mehr aktiv verfügbar');
+    expect(screen.queryByText(/user-|group-/)).not.toBeInTheDocument();
+  });
+
   // Testzweck: Generische Transportfehler werden weiterhin vom Aufrufer behandelt,
   // nicht als scheinbare Feldfehler ausgegeben.
   it('bleibt ohne feldbezogene Problem Details leer', () => {

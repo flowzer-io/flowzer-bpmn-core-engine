@@ -25,4 +25,7 @@ public interface IStorageSystem
 
     /// <summary>Persistente Wiederholungsverträge für direkte HTTP-Mutationen.</summary>
     IIdempotencyStorage IdempotencyStorage => UnsupportedIdempotencyStorage.Instance;
+
+    /// <summary>Aktueller, atomar veröffentlichter Stand des externen Identitätsverzeichnisses.</summary>
+    IIdentityDirectoryStorage IdentityDirectoryStorage => UnsupportedIdentityDirectoryStorage.Instance;
 }

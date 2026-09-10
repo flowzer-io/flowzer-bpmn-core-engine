@@ -24,6 +24,10 @@ export interface TaskProperties {
   readonly assignee?: string;
   readonly candidateGroups?: string;
   readonly candidateUsers?: string;
+  readonly assignmentMode?: 'text' | 'directory';
+  readonly directoryAssigneeId?: string;
+  readonly directoryCandidateUserIds?: readonly string[];
+  readonly directoryCandidateGroupIds?: readonly string[];
   readonly dueDate?: string;
   readonly followUpDate?: string;
   readonly workerType?: string;
@@ -86,6 +90,7 @@ export interface BpmnGraph {
 
 const BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL';
 const ZEEBE_NS = 'http://camunda.org/schema/zeebe/1.0';
+const FLOWZER_NS = 'https://flowzer.io/schema/bpmn/1.0';
 
 interface ElementRule {
   /** Namensraum, in dem das Element stehen muss. */
@@ -175,13 +180,18 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
   extensionElements: {
     namespace: BPMN_NS,
     attributes: [],
-    children: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
-    single: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
+    children: ['formDefinition', 'assignmentDefinition', 'taskAssignment', 'taskSchedule', 'taskDefinition', 'ioMapping'],
+    single: ['formDefinition', 'assignmentDefinition', 'taskAssignment', 'taskSchedule', 'taskDefinition', 'ioMapping'],
   },
   formDefinition: { namespace: ZEEBE_NS, attributes: ['formKey', 'formId'], children: [] },
   assignmentDefinition: {
     namespace: ZEEBE_NS,
     attributes: ['assignee', 'candidateGroups', 'candidateUsers'],
+    children: [],
+  },
+  taskAssignment: {
+    namespace: FLOWZER_NS,
+    attributes: ['mode', 'assigneeId', 'candidateUserIds', 'candidateGroupIds'],
     children: [],
   },
   taskSchedule: { namespace: ZEEBE_NS, attributes: ['dueDate', 'followUpDate'], children: [] },
@@ -300,6 +310,8 @@ function readTaskProperties(task: Element): TaskProperties {
   const extensions = firstChild(task, 'extensionElements');
   const form = extensions && firstChild(extensions, 'formDefinition');
   const assignment = extensions && firstChild(extensions, 'assignmentDefinition');
+  const flowzerAssignment = extensions && firstChild(extensions, 'taskAssignment');
+  const flowzerMode = flowzerAssignment && attribute(flowzerAssignment, 'mode');
   const schedule = extensions && firstChild(extensions, 'taskSchedule');
   const definition = extensions && firstChild(extensions, 'taskDefinition');
 
@@ -309,6 +321,10 @@ function readTaskProperties(task: Element): TaskProperties {
     assignee: assignment && attribute(assignment, 'assignee'),
     candidateGroups: assignment && attribute(assignment, 'candidateGroups'),
     candidateUsers: assignment && attribute(assignment, 'candidateUsers'),
+    assignmentMode: flowzerMode === 'directory' || flowzerMode === 'text' ? flowzerMode : undefined,
+    directoryAssigneeId: flowzerAssignment && attribute(flowzerAssignment, 'assigneeId'),
+    directoryCandidateUserIds: commaSeparated(flowzerAssignment && attribute(flowzerAssignment, 'candidateUserIds')),
+    directoryCandidateGroupIds: commaSeparated(flowzerAssignment && attribute(flowzerAssignment, 'candidateGroupIds')),
     dueDate: schedule && attribute(schedule, 'dueDate'),
     followUpDate: schedule && attribute(schedule, 'followUpDate'),
     workerType: definition && attribute(definition, 'type'),
@@ -316,6 +332,13 @@ function readTaskProperties(task: Element): TaskProperties {
     inputs: readIoMappings(task, 'input'),
     outputs: readIoMappings(task, 'output'),
   };
+}
+
+function commaSeparated(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 /** Das Startformular, falls das Startereignis eines mitbringt. */
@@ -521,6 +544,10 @@ function normalizeTask(task: TaskProperties) {
     assignee: task.assignee ?? null,
     candidateGroups: task.candidateGroups ?? null,
     candidateUsers: task.candidateUsers ?? null,
+    assignmentMode: task.assignmentMode ?? null,
+    directoryAssigneeId: task.directoryAssigneeId ?? null,
+    directoryCandidateUserIds: task.directoryCandidateUserIds ?? [],
+    directoryCandidateGroupIds: task.directoryCandidateGroupIds ?? [],
     dueDate: task.dueDate ?? null,
     followUpDate: task.followUpDate ?? null,
     workerType: task.workerType ?? null,

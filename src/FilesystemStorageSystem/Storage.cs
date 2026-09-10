@@ -19,6 +19,7 @@ public class Storage : IStorageSystem
         FormStorage = new FormStorage(this);
         ServiceTaskStorage = new ServiceTaskStorage(this);
         IdempotencyStorage = new IdempotencyStorage(this);
+        IdentityDirectoryStorage = new IdentityDirectoryStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
@@ -26,6 +27,7 @@ public class Storage : IStorageSystem
     public IFormStorage FormStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
+    public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 
@@ -34,6 +36,7 @@ public class Storage : IStorageSystem
         {
             TypeNameHandling = TypeNameHandling.Auto,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
+            SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented
         };
 

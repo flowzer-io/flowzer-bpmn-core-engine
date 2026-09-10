@@ -8,6 +8,7 @@ import './bpmn.css';
 import { cn } from '@/lib/cn';
 
 import { type Box, fitViewport } from './fitViewport';
+import { FLOWZER_MODDLE } from './flowzerModdle';
 
 /** Darstellungszustand eines BPMN-Elements im Instanzverlauf. */
 export type NodeMarker = 'completed' | 'active' | 'failed';
@@ -104,7 +105,10 @@ export function BpmnViewer({
         const Viewer = module.default as unknown as new (options: Record<string, unknown>) => ViewerLike;
         // Ohne die Zeebe-Erweiterung stolpert der Viewer über `zeebe:formDefinition`
         // & Co. und bricht den Import mit "unparsable content" ab.
-        viewer = new Viewer({ container, moddleExtensions: { zeebe: zeebeModdle } });
+        viewer = new Viewer({
+          container,
+          moddleExtensions: { zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE },
+        });
 
         if (onElementClickRef.current) {
           viewer.on('element.click', (event) => onElementClickRef.current?.(event.element.id));

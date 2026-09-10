@@ -17,6 +17,7 @@ public class InstanceStorage : IInstanceStorage
         {
             TypeNameHandling = TypeNameHandling.Auto,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
+            SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented,
         };
     }

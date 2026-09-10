@@ -1,4 +1,5 @@
 using System.Dynamic;
+using BPMN.HumanInteraction;
 using FluentAssertions;
 using Model;
 using StorageSystem;
@@ -104,6 +105,29 @@ internal static class StableUserTaskScenarios
                 .Single(token => token.CurrentFlowNode?.Id == "First").State.Should().Be(FlowNodeState.Active);
     }
 
+    internal static async Task DirectoryProgressAsync(ITransactionalStorageProvider provider)
+    {
+        var (userId, groupId) = await PublishDirectoryAsync(provider);
+        var (engine, instance) = await StartAsync(provider, directoryAssignment: (userId, groupId));
+        var initial = await TasksAsync(provider, instance.InstanceId);
+        var right = initial.Single(task => task.Token.CurrentFlowNode!.Id == "Right");
+        var first = initial.Single(task => task.Token.CurrentFlowNode!.Id == "First");
+
+        // Neue Engine und neue Storage-Session erzwingen den dauerhaften Roundtrip.
+        engine = new BpmnBusinessLogic(provider);
+        await CompleteAsync(engine, first);
+        var kept = (await TasksAsync(provider, instance.InstanceId))
+            .Single(task => task.Token.Id == right.Token.Id);
+
+        kept.Id.Should().Be(right.Id);
+        kept.AssignmentMode.Should().Be(UserTaskAssignmentMode.Directory);
+        kept.DirectoryAssigneeUserId.Should().Be(userId);
+        kept.DirectoryCandidateGroupIds.Should().Equal(groupId);
+        kept.Assignee.Should().BeNull();
+        kept.CandidateUsers.Should().BeEmpty();
+        kept.CandidateGroups.Should().BeEmpty();
+    }
+
     private static async Task CompleteAsync(BpmnBusinessLogic engine, UserTaskSubscription task)
     {
         var result = await engine.CompleteUserTaskAsync(new UserTaskResult
@@ -120,7 +144,10 @@ internal static class StableUserTaskScenarios
         return (await storage.SubscriptionStorage.GetAllUserTasks(id)).ToArray();
     }
 
-    private static async Task<(BpmnBusinessLogic Engine, ProcessInstanceInfo Instance)> StartAsync(ITransactionalStorageProvider provider, bool timer = false)
+    private static async Task<(BpmnBusinessLogic Engine, ProcessInstanceInfo Instance)> StartAsync(
+        ITransactionalStorageProvider provider,
+        bool timer = false,
+        (Guid UserId, Guid GroupId)? directoryAssignment = null)
     {
         var definition = new BpmnDefinition
         {
@@ -131,7 +158,7 @@ internal static class StableUserTaskScenarios
         {
             await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition { DefinitionId = definition.DefinitionId, Name = "Stable tasks" });
             await storage.DefinitionStorage.StoreDefinition(definition);
-            await storage.DefinitionStorage.StoreBinary(definition.Id, Xml(timer));
+            await storage.DefinitionStorage.StoreBinary(definition.Id, Xml(timer, directoryAssignment));
             await FormTestSeed.StoreAsync(storage, "Approval");
             storage.CommitChanges();
         }
@@ -140,19 +167,22 @@ internal static class StableUserTaskScenarios
         return (engine, await engine.StartProcessInstance(definition.DefinitionId));
     }
 
-    private static string Xml(bool timer)
+    private static string Xml(bool timer, (Guid UserId, Guid GroupId)? directoryAssignment = null)
     {
         var first = timer ? """
             <bpmn:intermediateCatchEvent id="First"><bpmn:timerEventDefinition><bpmn:timeDuration>PT1S</bpmn:timeDuration></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent>
-            """ : TaskXml("First");
+            """ : TaskXml("First", directoryAssignment);
         return $$"""
-            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_Stable" targetNamespace="test">
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+              xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+              id="Definitions_Stable" targetNamespace="test">
               <bpmn:process id="Process_Stable" isExecutable="true">
                 <bpmn:startEvent id="Start" />
                 <bpmn:parallelGateway id="Fork" />
                 {{first}}
-                {{TaskXml("Second")}}
-                {{TaskXml("Right")}}
+                {{TaskXml("Second", directoryAssignment)}}
+                {{TaskXml("Right", directoryAssignment)}}
                 <bpmn:parallelGateway id="Join" />
                 <bpmn:endEvent id="End" />
                 <bpmn:sequenceFlow id="F0" sourceRef="Start" targetRef="Fork" />
@@ -167,10 +197,56 @@ internal static class StableUserTaskScenarios
             """;
     }
 
-    private static string TaskXml(string id) => $$"""
+    private static string TaskXml(string id, (Guid UserId, Guid GroupId)? directoryAssignment = null) => $$"""
         <bpmn:userTask id="{{id}}" name="{{id}}"><bpmn:extensionElements>
           <zeebe:formDefinition formKey="Approval" />
-          <zeebe:assignmentDefinition assignee="model-text" candidateUsers="text-user" candidateGroups="/team/original" />
+          {{(directoryAssignment is { } directory
+              ? $"<flowzer:taskAssignment mode=\"directory\" assigneeId=\"{directory.UserId}\" candidateGroupIds=\"{directory.GroupId}\" />"
+              : "<zeebe:assignmentDefinition assignee=\"model-text\" candidateUsers=\"text-user\" candidateGroups=\"/team/original\" />")}}
         </bpmn:extensionElements></bpmn:userTask>
         """;
+
+    private static async Task<(Guid UserId, Guid GroupId)> PublishDirectoryAsync(
+        ITransactionalStorageProvider provider)
+    {
+        const string issuer = "https://issuer.test/realms/stable";
+        var importedUserId = Guid.NewGuid();
+        var importedGroupId = Guid.NewGuid();
+        var snapshot = new DirectorySnapshot
+        {
+            GenerationId = Guid.NewGuid(), Issuer = issuer, CompletedAtUtc = DateTime.UtcNow,
+            Users =
+            [
+                new DirectoryUser
+                {
+                    Id = importedUserId, SourceKind = DirectorySourceKind.Keycloak, Issuer = issuer,
+                    Subject = "stable-user", DisplayName = "Stable User", IsActive = true
+                }
+            ],
+            Groups =
+            [
+                new DirectoryGroup
+                {
+                    Id = importedGroupId, SourceKind = DirectorySourceKind.Keycloak, Issuer = issuer,
+                    ExternalId = "stable-group", Name = "Stable Group", Path = "/stable", IsActive = true
+                }
+            ],
+            Memberships = [new DirectoryMembership { UserId = importedUserId, GroupId = importedGroupId }]
+        };
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            var startedAt = snapshot.CompletedAtUtc.AddSeconds(-1);
+            (await storage.IdentityDirectoryStorage.TryStartSync(
+                issuer, snapshot.GenerationId, startedAt, startedAt.AddMinutes(5))).Should().BeTrue();
+            await storage.IdentityDirectoryStorage.PublishSnapshot(snapshot);
+            storage.CommitChanges();
+        }
+
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            var published = (await storage.IdentityDirectoryStorage.GetActiveSnapshot())!;
+            return (published.Users.Single(user => user.Subject == "stable-user").Id,
+                published.Groups.Single(group => group.ExternalId == "stable-group").Id);
+        }
+    }
 }

@@ -12,6 +12,8 @@ public static class FolderMappingExtensions
 {
     public const string SubjectKindUser = "user";
     public const string SubjectKindGroup = "group";
+    public const string ReferenceModeText = "text";
+    public const string ReferenceModeDirectory = "directory";
     public const string RoleEditor = "editor";
     public const string RoleSteward = "steward";
 
@@ -36,10 +38,12 @@ public static class FolderMappingExtensions
 
         return new FolderAssignmentDto
         {
+            ReferenceMode = ToWire(assignment.AssignmentMode),
             SubjectKind = ToWire(assignment.SubjectKind),
             Subject = assignment.Subject,
             Role = ToWire(assignment.Role),
-            DisplayName = assignment.DisplayName
+            DisplayName = assignment.DisplayName,
+            SubjectRef = ToDto(assignment.DirectorySubject)
         };
     }
 
@@ -50,10 +54,12 @@ public static class FolderMappingExtensions
 
         return new InheritedFolderAssignmentDto
         {
+            ReferenceMode = ToWire(assignment.AssignmentMode),
             SubjectKind = ToWire(assignment.SubjectKind),
             Subject = assignment.Subject,
             Role = ToWire(assignment.Role),
             DisplayName = assignment.DisplayName,
+            SubjectRef = ToDto(assignment.DirectorySubject),
             InheritedFromId = source.Id,
             InheritedFromName = source.Name
         };
@@ -68,19 +74,71 @@ public static class FolderMappingExtensions
     {
         ArgumentNullException.ThrowIfNull(dto);
 
+        var mode = ParseReferenceMode(dto.ReferenceMode);
         if (string.IsNullOrWhiteSpace(dto.Subject))
         {
             throw new ArgumentException("Eine Zuweisung braucht eine Kennung.", nameof(dto));
         }
 
+        var subjectKind = ParseSubjectKind(dto.SubjectKind);
+        SubjectRef? directorySubject = null;
+        if (mode == FolderAssignmentMode.Text)
+        {
+            if (dto.SubjectRef is not null)
+                throw new ArgumentException("Eine Freitextzuweisung darf keine Directory-Referenz enthalten.", nameof(dto));
+        }
+        else
+        {
+            directorySubject = ParseSubjectRef(dto.SubjectRef);
+            var expectedKind = directorySubject.Kind == DirectorySubjectKind.User
+                ? FolderSubjectKind.User
+                : FolderSubjectKind.Group;
+            if (subjectKind != expectedKind
+                || !Guid.TryParse(dto.Subject, out var compatibleId)
+                || compatibleId != directorySubject.Id)
+            {
+                throw new ArgumentException("Art, Kennung und Directory-Referenz einer Zuweisung muessen uebereinstimmen.", nameof(dto));
+            }
+        }
+
         return new FolderAssignment
         {
-            SubjectKind = ParseSubjectKind(dto.SubjectKind),
-            Subject = dto.Subject.Trim(),
+            AssignmentMode = mode,
+            SubjectKind = subjectKind,
+            Subject = mode == FolderAssignmentMode.Directory ? directorySubject!.Id.ToString() : dto.Subject.Trim(),
             Role = ParseRole(dto.Role),
-            DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim()
+            DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim(),
+            DirectorySubject = directorySubject
         };
     }
+
+    private static SubjectRef? ToSubjectRef(SubjectRefDto? dto) => dto is null
+        ? null
+        : new SubjectRef(ParseDirectorySubjectKind(dto.Kind), dto.Id);
+
+    private static SubjectRefDto? ToDto(SubjectRef? subject) => subject is null
+        ? null
+        : new SubjectRefDto
+        {
+            Kind = subject.Kind == DirectorySubjectKind.User ? SubjectKindUser : SubjectKindGroup,
+            Id = subject.Id
+        };
+
+    private static SubjectRef ParseSubjectRef(SubjectRefDto? dto)
+    {
+        var subject = ToSubjectRef(dto)
+            ?? throw new ArgumentException("Eine Directory-Zuweisung braucht eine stabile Referenz.", nameof(dto));
+        if (subject.Id == Guid.Empty)
+            throw new ArgumentException("Eine Directory-Zuweisung braucht eine gueltige stabile Referenz.", nameof(dto));
+        return subject;
+    }
+
+    public static string ToWire(FolderAssignmentMode mode) => mode switch
+    {
+        FolderAssignmentMode.Text => ReferenceModeText,
+        FolderAssignmentMode.Directory => ReferenceModeDirectory,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, null)
+    };
 
     public static string ToWire(FolderSubjectKind kind) => kind switch
     {
@@ -102,6 +160,22 @@ public static class FolderMappingExtensions
             SubjectKindUser => FolderSubjectKind.User,
             SubjectKindGroup => FolderSubjectKind.Group,
             _ => throw new ArgumentException($"\"{value}\" ist keine gueltige Art einer Zuweisung; erlaubt sind \"{SubjectKindUser}\" und \"{SubjectKindGroup}\".")
+        };
+
+    public static FolderAssignmentMode ParseReferenceMode(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            null or "" or ReferenceModeText => FolderAssignmentMode.Text,
+            ReferenceModeDirectory => FolderAssignmentMode.Directory,
+            _ => throw new ArgumentException($"\"{value}\" ist kein gueltiger Referenzmodus; erlaubt sind \"{ReferenceModeText}\" und \"{ReferenceModeDirectory}\".")
+        };
+
+    private static DirectorySubjectKind ParseDirectorySubjectKind(string? value) =>
+        value?.Trim().ToLowerInvariant() switch
+        {
+            SubjectKindUser => DirectorySubjectKind.User,
+            SubjectKindGroup => DirectorySubjectKind.Group,
+            _ => throw new ArgumentException($"\"{value}\" ist keine gueltige Art einer Directory-Referenz.")
         };
 
     public static FolderRole ParseRole(string? value) =>

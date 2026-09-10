@@ -15,20 +15,25 @@ public sealed partial class FormKeyResolver
             if (resolved.Form is not { FormData: not null } form)
                 throw new InvalidOperationException($"Cannot create form binding for \"{key}\": {resolved.ErrorMessage}");
 
-            FormContractCompiler.Compile(form.FormData);
-            bindings.Add(key, new BoundForm(form.Id, form.FormId, form.Version?.ToString(), form.FormData, FormContract.Profile));
+            var contract = FormContractCompiler.Compile(form.FormData);
+            bindings.Add(key, new BoundForm(form.Id, form.FormId, form.Version?.ToString(), form.FormData, contract.ValidationProfile));
         }
         return bindings;
     }
 
     /// <summary>Erneutes Aktivieren behält Inhalte, muss aber aktuelle Prüfprofile erfüllen.</summary>
-    public static void ValidateBindings(IReadOnlyDictionary<string, BoundForm> bindings)
+    public static void ValidateBindings(
+        IReadOnlyDictionary<string, BoundForm> bindings,
+        StorageSystem.DirectorySnapshot? directorySnapshot = null)
     {
         foreach (var binding in bindings.Values)
         {
-            if (binding.ValidationProfile is not null and not FormContract.Profile)
+            if (!FormContract.IsSupportedProfile(binding.ValidationProfile))
                 throw new InvalidOperationException("Unsupported form contract: profile.version.");
-            FormContractCompiler.Compile(binding.FormData);
+            var contract = FormContractCompiler.Compile(binding.FormData);
+            if (binding.ValidationProfile is not null && binding.ValidationProfile != contract.ValidationProfile)
+                throw new InvalidOperationException("Unsupported form contract: profile.mismatch.");
+            FormDirectoryPolicyValidator.Validate(contract, directorySnapshot);
         }
     }
 

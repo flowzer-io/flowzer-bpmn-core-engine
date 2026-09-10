@@ -39,4 +39,13 @@ public class StableUserTaskIdentityTest
         using var context = new AuthenticatedWorkflowTestContext();
         await StableUserTaskScenarios.CorruptAsync(new FileSystemTransactionalStorageProvider(), duplicate);
     }
+
+    // Testzweck: Stabile Directory-Referenzen und Task-ID überleben Fortschritt sowie einen
+    // vollständigen Datei-Storage-/Engine-Neustart ohne Rückfall auf Textzuweisungen.
+    [Test]
+    public async Task DirectoryAssignment_ShouldSurviveProgressAndRestartOnFilesystem()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await StableUserTaskScenarios.DirectoryProgressAsync(new FileSystemTransactionalStorageProvider());
+    }
 }

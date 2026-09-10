@@ -16,6 +16,12 @@ public static class FlowzerPolicies
     public const string Operator = "flowzer:operator";
 
     /// <summary>
+    /// Neue administrative Verzeichnisendpunkte sind fail-closed: Im authentifizierten
+    /// Betrieb muss der Operator-Rollenname ausdrücklich konfiguriert sein.
+    /// </summary>
+    public const string IdentityDirectoryOperator = "flowzer:identity-directory-operator";
+
+    /// <summary>
     /// Darf Auftraege fuer Service-Tasks abholen und zurueckmelden. Eine eigene Rolle, weil ein
     /// Auftrag die Prozessvariablen enthaelt: Wer Aufgaben bearbeitet, soll deswegen nicht die
     /// Eingaben aller Service-Tasks lesen koennen.

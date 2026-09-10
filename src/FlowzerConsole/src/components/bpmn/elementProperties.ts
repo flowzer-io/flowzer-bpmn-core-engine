@@ -104,6 +104,15 @@ export interface Assignment {
   candidateUsers: string;
 }
 
+export type AssignmentMode = 'text' | 'directory' | 'invalid';
+
+/** Stabile lokale Verzeichnis-IDs einer Directory-Zuweisung. */
+export interface DirectoryAssignment {
+  assigneeId: string;
+  candidateUserIds: string[];
+  candidateGroupIds: string[];
+}
+
 export interface Schedule {
   dueDate: string;
   followUpDate: string;
@@ -133,6 +142,10 @@ export interface ElementProperties {
   assignee: string;
   candidateGroups: string;
   candidateUsers: string;
+  assignmentMode: AssignmentMode;
+  directoryAssignment: DirectoryAssignment;
+  /** Erklaert einen nicht unterstützten Vertrag, ohne ihn beim Öffnen umzuschreiben. */
+  assignmentContractWarning: string | null;
   dueDate: string;
   followUpDate: string;
 
@@ -382,6 +395,8 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
   const businessObject = element.businessObject;
   const formDefinition = extension(businessObject, 'zeebe:FormDefinition');
   const assignment = extension(businessObject, 'zeebe:AssignmentDefinition');
+  const flowzerAssignment = extension(businessObject, 'flowzer:TaskAssignment');
+  const assignmentMode = assignmentModeOf(flowzerAssignment);
   const schedule = extension(businessObject, 'zeebe:TaskSchedule');
   const taskDefinition = extension(businessObject, 'zeebe:TaskDefinition');
   const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
@@ -399,6 +414,16 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     assignee: text(assignment, 'assignee'),
     candidateGroups: text(assignment, 'candidateGroups'),
     candidateUsers: text(assignment, 'candidateUsers'),
+    assignmentMode,
+    directoryAssignment: {
+      assigneeId: text(flowzerAssignment, 'assigneeId'),
+      candidateUserIds: commaSeparated(text(flowzerAssignment, 'candidateUserIds')),
+      candidateGroupIds: commaSeparated(text(flowzerAssignment, 'candidateGroupIds')),
+    },
+    assignmentContractWarning:
+      assignmentMode === 'invalid'
+        ? `Der Zuweisungsmodus „${text(flowzerAssignment, 'mode') || '(leer)'}“ wird nicht unterstützt.`
+        : null,
     dueDate: text(schedule, 'dueDate'),
     followUpDate: text(schedule, 'followUpDate'),
 
@@ -427,4 +452,18 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     isScriptTask: type === 'bpmn:ScriptTask',
     multiInstance: multiInstanceOf(businessObject),
   };
+}
+
+function assignmentModeOf(assignment: ModdleElement | undefined): AssignmentMode {
+  if (!assignment) return 'text';
+  const mode = text(assignment, 'mode');
+  if (mode === 'text' || mode === 'directory') return mode;
+  return 'invalid';
+}
+
+function commaSeparated(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }

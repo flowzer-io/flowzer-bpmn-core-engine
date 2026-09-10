@@ -123,6 +123,31 @@ public class OpenApiContractTest
         GetResponse(logout, "404").Should().NotBeNull();
     }
 
+    // Testzweck: Status und manueller Keycloak-Abgleich besitzen einen expliziten
+    // Operatorvertrag; Fehler verwenden Problem Details und der Status enthaelt keine Secrets.
+    [Test]
+    public async Task IdentityDirectoryEndpoints_ShouldExposeOnlyTheOperationalContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+
+        var status = GetOperation(paths, "/identity-directory/status", "get");
+        GetResponseSchema(status, "200").Should().Be("#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult");
+        GetProblemResponse(status, "503").Should().Be("#/components/schemas/ProblemDetails");
+
+        var synchronization = GetOperation(paths, "/identity-directory/sync", "post");
+        GetResponseSchema(synchronization, "202").Should().Be("#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult");
+        GetProblemResponse(synchronization, "404").Should().Be("#/components/schemas/ProblemDetails");
+        GetProblemResponse(synchronization, "409").Should().Be("#/components/schemas/ProblemDetails");
+
+        var statusSchema = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("IdentityDirectoryStatusDto").GetProperty("properties");
+        statusSchema.TryGetProperty("issuer", out _).Should().BeFalse();
+        statusSchema.TryGetProperty("serverUrl", out _).Should().BeFalse();
+        statusSchema.TryGetProperty("clientSecret", out _).Should().BeFalse();
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

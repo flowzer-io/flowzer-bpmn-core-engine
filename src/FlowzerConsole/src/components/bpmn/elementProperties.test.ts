@@ -72,6 +72,60 @@ describe('readElementProperties für eine menschliche Aufgabe', () => {
     expect(properties.formKey).toBeNull();
     expect(properties.externalFormReference).toBe('Urlaubsantrag');
   });
+
+  it('behandelt eine fehlende Flowzer-Erweiterung weiterhin als Legacy-Textmodus', () => {
+    const properties = readElementProperties(userTask);
+
+    expect(properties.assignmentMode).toBe('text');
+    expect(properties.directoryAssignment).toEqual({
+      assigneeId: '',
+      candidateUserIds: [],
+      candidateGroupIds: [],
+    });
+    expect(properties.assignmentContractWarning).toBeNull();
+  });
+
+  it('liest bekannte Benutzer und Gruppen ausschließlich als stabile Referenzen', () => {
+    const directoryTask = element({
+      $type: 'bpmn:UserTask',
+      extensionElements: extensions({
+        $type: 'flowzer:TaskAssignment',
+        mode: 'directory',
+        assigneeId: '10000000-0000-0000-0000-000000000001',
+        candidateUserIds: '10000000-0000-0000-0000-000000000002,10000000-0000-0000-0000-000000000003',
+        candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+      } as ModdleElement),
+    });
+
+    const properties = readElementProperties(directoryTask);
+
+    expect(properties.assignmentMode).toBe('directory');
+    expect(properties.directoryAssignment).toEqual({
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds: [
+        '10000000-0000-0000-0000-000000000002',
+        '10000000-0000-0000-0000-000000000003',
+      ],
+      candidateGroupIds: ['20000000-0000-0000-0000-000000000001'],
+    });
+    expect(properties.assignee).toBe('');
+  });
+
+  it('weist auf einen unbekannten Modus hin, statt ihn still umzudeuten', () => {
+    const invalidTask = element({
+      $type: 'bpmn:UserTask',
+      extensionElements: extensions({
+        $type: 'flowzer:TaskAssignment',
+        mode: 'automatic',
+        assigneeId: '10000000-0000-0000-0000-000000000001',
+      } as ModdleElement),
+    });
+
+    const properties = readElementProperties(invalidTask);
+
+    expect(properties.assignmentMode).toBe('invalid');
+    expect(properties.assignmentContractWarning).toContain('automatic');
+  });
 });
 
 // Testzweck: Ein Timer gilt der Engine über genau eine Zeitangabe. Stehen mehrere im Diagramm,

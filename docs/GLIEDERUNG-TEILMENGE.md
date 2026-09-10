@@ -82,7 +82,7 @@ Form-Keys ändert die Struktur nicht — die Anordnung im Diagramm bleibt erhalt
 
 | Konstrukt | Ausgewertete Angaben |
 |---|---|
-| `bpmn:userTask` | `zeebe:formDefinition/@formKey` oder `@formId`, `zeebe:assignmentDefinition/@assignee`, `@candidateGroups`, `@candidateUsers`, `zeebe:taskSchedule/@dueDate`, `@followUpDate`, `zeebe:ioMapping` |
+| `bpmn:userTask` | `zeebe:formDefinition/@formKey` oder `@formId`; entweder `zeebe:assignmentDefinition/@assignee`, `@candidateGroups`, `@candidateUsers` als Freitext oder `flowzer:taskAssignment` mit stabilen Bearbeiter-, Benutzer- und Gruppen-IDs; `zeebe:taskSchedule/@dueDate`, `@followUpDate`, `zeebe:ioMapping` |
 | `bpmn:serviceTask` | `zeebe:taskDefinition/@type`, `@retries`, `zeebe:ioMapping` |
 
 ### Ablaufstrukturen
@@ -169,6 +169,9 @@ einer solchen Lücke lesbar bleibt und man sie in der Gliederung schließen kann
   besser hier melden als in einer Fehlermeldung der API. Das Startformular
   gehört ausdrücklich **nicht** dazu: Ein Workflow ohne Eingabe beim Starten ist
   ein gültiger Workflow.
+- Ein ausdrücklich gewählter Directory-Modus braucht mindestens einen bekannten Benutzer
+  oder eine bekannte Gruppe. Die Gliederung darf den vom Parser abgelehnten Zwischenstand
+  anzeigen, sperrt aber Speichern und Deployment bis zur ersten Auswahl.
 - Jeder Ausgang eines exklusiven Tors braucht entweder eine Bedingung oder die
   Markierung als Standardweg, und es gibt höchstens einen Standardweg. Ein
   Ausgang ohne beides wäre ein Tor, das nicht entscheidet.
@@ -186,6 +189,10 @@ speichern lässt:
   (`camunda-forms:bpmn:<Kennung>`), ist das Feld nicht überschreibbar. Der
   Verweis ist eine Kennung; wer sie überschreibt, kappt die Verbindung, ohne
   es zu merken.
+- Freitext-Zuweisungen werden nie anhand von Namen oder E-Mail-Adressen in Directory-IDs
+  umgewandelt. Die Umschaltung ist ausdrücklich; Gruppen bleiben Gruppenreferenzen. Suche und
+  erneute Anzeigeauflösung sind an die konkrete Workflowkennung und ihre Modellierungsrechte
+  gebunden.
 
 ## Anordnung im Diagramm
 
