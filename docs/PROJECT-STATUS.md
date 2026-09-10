@@ -1,8 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#220 sowie der laufende Security-Slice #222 liegen in noch nicht nach `main`
-gemergten, gestapelten Arbeitsständen.
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #233
+liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -120,6 +119,16 @@ Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
+## Wiederverwendbare Formularabschnitte – #230 / PR #231 (noch nicht gemergt)
+
+Eine hostneutrale Bibliothek trennt Katalogmetadaten, revisionsgeschützte Entwürfe und
+append-only Abschnittsversionen. Formulare referenzieren nur konkrete Fassungen; beim
+Publish expandiert und validiert der Server sie, verwirft behauptete Browserbindungen
+und speichert einen eigenständigen Formularsnapshot mit nachvollziehbarem Inhalts-Hash.
+Neue Abschnittsversionen ändern keine veröffentlichten Formulare oder laufenden Instanzen.
+PostgreSQL publiziert Fassung und Draft-Löschung atomar, die Dateiablage bleibt
+Einzelprozess-Entwicklung. Details: [Formularabschnitte](FORM-SECTIONS.md).
+
 ## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
 
 `flowzer.forms/4` bindet fachlich benannte Human-Task-Aktionen an feste skalare
@@ -204,7 +213,7 @@ Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
 `main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
 und Recovery-Pakete.
 
-## Verzeichnis-Slices #190, #192, #194, #196, #198 und #200 (noch nicht gemergt)
+## Verzeichnis-Slices #190, #192, #194, #196, #198, #200 und #234 (noch nicht gemergt)
 
 #190 / PR #191 synchronisiert Benutzer, Gruppenhierarchie und Mitgliedschaften lesend aus
 Keycloak. Nur ein vollständig erfolgreicher Lauf ersetzt den atomaren lokalen Snapshot;
@@ -232,6 +241,14 @@ explizit zwischen unverändertem Freitext und einer Directory-Referenz. Neue Ref
 serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet ausschließlich das
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
+
+#234 / PR #237 ergänzt einen getrennten, begrenzten Batch-Vertrag für historische Anzeigeauflösung.
+Workflow, Ordner, gebundenes Formular und Task-Lifecycle erlauben nur Referenzen, die im
+jeweiligen berechtigten Kontext bereits gespeichert sind; eine manipulierte bekannte UUID
+bleibt ohne Treffer. Antworten unterscheiden aktuellen Directory-Status (`isActive`) von
+heutiger Auswählbarkeit (`isSelectable`). Console, SDK und React-Schicht markieren inaktive
+oder nicht mehr erlaubte Werte, ohne sie erneut einreichbar zu machen. Details:
+[Historische Identitätsreferenzen](HISTORICAL-IDENTITY-RESOLUTION.md).
 
 ## Private Aufgabenentwürfe – #202 / PR #203 (noch nicht gemergt)
 
@@ -266,6 +283,42 @@ Sichtbarkeit verwendet die zentrale Instanz-Objektberechtigung. SDK, React-Schic
 Console nutzen denselben hostneutralen Vertrag. Details:
 [Append-only Vorgangshistorie](PROCESS-HISTORY.md).
 
+## Zentrale BPMN-Fähigkeiten – #228 / PR #229 (noch nicht gemergt)
+
+`flowzer.bpmn-capabilities/1` trennt modellierbare, parsebare und tatsächlich
+ausführbare BPMN-Elementarten. Vorabprüfung, Save und Deploy erzwingen dieselbe
+serverseitige Matrix samt Graph-, Referenz- und Pflichtkonfiguration; laufende
+Instanzen werden nicht rückwirkend neu bewertet. `422`-Befunde tragen stabile Codes,
+Element-ID und Eigenschaftspfad. Diagramm und Gliederung zeigen sie dauerhaft,
+markieren beziehungsweise öffnen den betroffenen Knoten. Details:
+[BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
+
+## Laufzeitdiagramm und Engine-Ereignisse – #232 / PR #233 (noch nicht gemergt)
+
+Persistenzgrenzen schreiben append-only, idempotente und datensparsame
+Flow-Node-Zustände. PostgreSQL koppelt sie transaktional an den Instanzstand; die
+Dateiablage bleibt Einzelprozess-Entwicklung. Ein eigener objektberechtigter
+Operatorendpunkt liefert ausschließlich die exakt an die Instanz gebundene,
+bereinigte BPMN-Struktur, verdichtete Knotenstatus und die kanonisch sortierte
+Ereignisspur. Token-/Korrelations-IDs, Personen, Variablen, Formulardaten und
+Erweiterungskonfiguration verlassen den Server nicht.
+
+SDK und React-Schicht stellen denselben hostneutralen Vertrag bereit. Die Console
+zeigt Diagramm, Statuslegende, tastaturbedienbare Knotenliste und echte
+Ereigniszeitleiste responsiv; die fachlich falsche lineare Fortschrittsanzeige ist
+entfernt. Details: [Laufzeitdiagramm](RUNTIME-DIAGRAM.md).
+
+## Gezählt markierte Ausführungen und Instanzdaten – #235 / PR #236 (noch nicht gemergt)
+
+Mehrere Token am selben aktiven BPMN-Knoten werden in Diagramm und Klartextliste
+als eine verdichtete Anzahl angezeigt, statt deckungsgleiche Punkte zu zeichnen.
+Die technische Instanzansicht liest Prozessvariablen zuverlässig aus dem
+Master-Token. Für einen ausgewählten Knoten zeigt sie alle persistierten
+Ausführungen mit getrenntem Input und Output, Zustand und Startzeit; fehlende und
+leere Snapshots bleiben unterscheidbar. Diese Informationen verlassen die bereits
+objektberechtigte Operatoransicht nicht, und der Runtime-Diagramm-Vertrag bleibt
+datensparsam.
+
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
@@ -297,23 +350,23 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
    private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren, getrennte
    Entwurfs-/Vorschau-/Veröffentlichungszustände, Wiederholgruppen und Entscheidungsaktionen
-   liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
-   Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
+   liegen in #208–#216; die Abschnittsbibliothek folgt mit #230 / PR #231. Anhänge und freigegebene
+   dynamische Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
    Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
 3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
    serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
    Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
-   vor (#202–#226). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
-   Engine-Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   vor (#202–#232). Merge/Abnahme, externe Zustellung sowie weiterführende Laufzeitkennzahlen
+   und Störungsdiagnose folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 111 Engine-,
-680 API-/Storage-, 302 Konsolen-, 14 SDK- und 16 React-Pakettests. Der vollständige UX-Audit und die erste
+Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
+737 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

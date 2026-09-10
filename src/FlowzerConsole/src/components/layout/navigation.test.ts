@@ -9,9 +9,9 @@ function only(...capabilities: FlowzerCapability[]) {
 }
 
 describe('visibleNavItems', () => {
-  // Testzweck: Lesen darf jeder Zugelassene. Frueher hing die gesamte Konsole an den
-  // Rollen fuers Modellieren oder den Betrieb; wer nur Aufgaben hatte, sah nichts.
-  it('zeigt Zugelassenen alle Bereiche ausser dem Betrieb', () => {
+  // Testzweck: Lesen darf jeder Zugelassene. Reine Pflegebereiche fuer Betrieb und
+  // Abschnittsbibliothek duerfen ohne ihre jeweilige Rolle nicht im Menue erscheinen.
+  it('zeigt Zugelassenen nur die allgemein lesbaren Bereiche', () => {
     const keys = visibleNavItems(only('access')).map((item) => item.key);
 
     expect(keys).toContain('tasks');
@@ -19,6 +19,14 @@ describe('visibleNavItems', () => {
     expect(keys).toContain('instances');
     expect(keys).toContain('forms');
     expect(keys).not.toContain('operations');
+    expect(keys).not.toContain('form-sections');
+  });
+
+  // Testzweck: Die Abschnittsbibliothek ist ein Modellierungswerkzeug und erscheint
+  // ausschließlich mit der serverseitig abgebildeten Modelliererfaehigkeit.
+  it('zeigt die Abschnittsbibliothek nur Modellierenden', () => {
+    expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key))
+      .toContain('form-sections');
   });
 
   // Testzweck: Der Betrieb erscheint erst mit der zugehoerigen Rolle. Ein Eintrag, der

@@ -14,17 +14,28 @@ describe('öffentliche Directory-Adapter der Console', () => {
         detail: 'anna@example.test',
       }],
     });
-    const adapter = createTaskFormDirectoryAdapter('task-1', searchSubjects);
+    const resolveSubjects = vi.fn().mockResolvedValue({
+      generationId: 'generation-1',
+      items: [{
+        subject: { kind: 'user', id: 'user-1' },
+        displayName: 'Anna Beispiel',
+        detail: 'anna@example.test',
+        isActive: false,
+        isSelectable: false,
+      }],
+    });
+    const adapter = createTaskFormDirectoryAdapter('task-1', searchSubjects, resolveSubjects);
 
     await adapter.search('representative', { query: 'an', kind: 'user' });
-    await adapter.resolve('representative', [{ kind: 'user', id: 'user-1' }]);
+    const resolved = await adapter.resolve('representative', [{ kind: 'user', id: 'user-1' }]);
 
     expect(searchSubjects).toHaveBeenNthCalledWith(1, 'representative', {
       query: 'an', kind: 'user', limit: 20, signal: undefined,
     });
-    expect(searchSubjects).toHaveBeenNthCalledWith(2, 'representative', {
-      query: 'user-1', kind: 'user', limit: 20, signal: undefined,
+    expect(resolveSubjects).toHaveBeenCalledWith('representative', [{ kind: 'user', id: 'user-1' }], {
+      signal: undefined,
     });
+    expect(resolved).toMatchObject([{ isActive: false, isSelectable: false }]);
   });
 
   // Testzweck: Unbekannte Subject-Arten aus einem künftig erweiterten Serververtrag
@@ -34,7 +45,9 @@ describe('öffentliche Directory-Adapter der Console', () => {
       generationId: 'generation-1',
       items: [{ subject: { kind: 'service', id: 'service-1' }, displayName: 'Dienst', detail: null }],
     });
-    const adapter = createTaskFormDirectoryAdapter('task-1', searchSubjects);
+    const adapter = createTaskFormDirectoryAdapter(
+      'task-1', searchSubjects, vi.fn().mockResolvedValue({ generationId: 'generation-1', items: [] }),
+    );
 
     await expect(adapter.search('representative', { query: 'di', kind: 'all' }))
       .resolves.toEqual({ generationId: 'generation-1', items: [] });

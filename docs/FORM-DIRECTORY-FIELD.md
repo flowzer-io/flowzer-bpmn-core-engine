@@ -69,6 +69,16 @@ den dann aktiven Snapshot. Eine Deaktivierung zwischen Suche und Absenden führt
 zu `422`, ohne die Instanz zu verändern. Für Suche, Auflösung und Submission gilt
 derselbe Policykern.
 
+Bereits persistierte Werte werden getrennt und exakt im Batch aufgelöst:
+
+- `POST /identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve`
+- `POST /identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve`
+
+Die Auflösung ist kein freier UUID-Lookup. Das Startformular darf nur veröffentlichte
+explizite Filterreferenzen beschriften; beim Aufgabenformular kommen tatsächlich
+persistierte Werte des aktiven Task-Kontexts hinzu. Details und Lifecycle-Grenzen stehen
+unter [Historische Identitätsreferenzen](HISTORICAL-IDENTITY-RESOLUTION.md).
+
 ## Veröffentlichung und Historie
 
 Beim Workflow-Deployment werden Formularinhalt, Profil und Filterreferenzen fest an

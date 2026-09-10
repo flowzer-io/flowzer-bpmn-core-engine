@@ -13,10 +13,12 @@ public class Storage : IStorageSystem
     {
         _storageRoot = ResolveStorageRoot();
         FormAuthoringStorage = new FormAuthoringStorage(this);
+        FormSectionStorage = new FormSectionStorage(this);
         UserTaskDraftStorage = new UserTaskDraftStorage(this);
         UserTaskLifecycleStorage = new UserTaskLifecycleStorage(this);
         UserTaskDeadlineStorage = new UserTaskDeadlineStorage(this);
         UserTaskNotificationStorage = new UserTaskNotificationStorage(this);
+        RuntimeNodeEventStorage = new RuntimeNodeEventStorage(this);
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         FolderStorage = new FolderStorage(this);
@@ -31,6 +33,7 @@ public class Storage : IStorageSystem
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IFormAuthoringStorage FormAuthoringStorage { get; }
+    public IFormSectionStorage FormSectionStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
@@ -38,6 +41,7 @@ public class Storage : IStorageSystem
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
+    public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { FormsPage } from '@/pages/FormsPage';
+import { FormSectionsPage } from '@/pages/FormSectionsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
@@ -53,12 +54,20 @@ const workflowsIndexRoute = createRoute({
 const workflowDetailRoute = createRoute({
   getParentRoute: () => workflowsRoute,
   path: '$definitionId',
+  validateSearch: (search: Record<string, unknown>): WorkflowDetailSearch => ({
+    element: typeof search.element === 'string' ? search.element : undefined,
+  }),
   component: WorkflowDetailRoute,
 });
 
+interface WorkflowDetailSearch {
+  element?: string;
+}
+
 function WorkflowDetailRoute() {
   const { definitionId } = useParams({ from: workflowDetailRoute.id });
-  return <ModelerPage definitionId={decodeURIComponent(definitionId)} />;
+  const { element } = useSearch({ from: workflowDetailRoute.id });
+  return <ModelerPage definitionId={decodeURIComponent(definitionId)} focusElementId={element} />;
 }
 
 /**
@@ -103,6 +112,12 @@ const formsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/forms',
   component: FormsPage,
+});
+
+const formSectionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/form-sections',
+  component: FormSectionsPage,
 });
 
 const operationsRoute = createRoute({
@@ -163,6 +178,7 @@ const routeTree = rootRoute.addChildren([
     workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
+    formSectionsRoute,
     operationsRoute,
     tasksRoute,
   ]),

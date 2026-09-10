@@ -18,10 +18,33 @@ public sealed class DirectorySubjectDto
 
     /// <summary>Bei Benutzern der stabile Subject-Wert, bei Gruppen der vollständige Pfad.</summary>
     public required string Detail { get; set; }
+
+    /// <summary>Ist die Identität im zuletzt vollständig publizierten Stand aktiv?</summary>
+    public required bool IsActive { get; set; }
+
+    /// <summary>
+    /// Darf diese Projektion im aktuellen fachlichen Kontext neu ausgewählt werden?
+    /// Historische Anzeigeauflösungen setzen diesen Wert immer geschlossen auf false,
+    /// sobald Status oder aktuelle Auswahlpolicy die Referenz ausschließen.
+    /// </summary>
+    public required bool IsSelectable { get; set; }
 }
 
 /// <summary>Begrenzte Treffer eines einzelnen, atomar veröffentlichten Snapshots.</summary>
 public sealed class DirectorySubjectSearchResultDto
+{
+    public required Guid GenerationId { get; set; }
+    public List<DirectorySubjectDto> Items { get; set; } = [];
+}
+
+/// <summary>Begrenzte Menge bereits bekannter stabiler Referenzen zur Anzeigeauflösung.</summary>
+public sealed class DirectorySubjectResolutionRequestDto
+{
+    public List<SubjectRefDto> Subjects { get; set; } = [];
+}
+
+/// <summary>Exakte Treffer eines einzelnen atomar publizierten Snapshots.</summary>
+public sealed class DirectorySubjectResolutionResultDto
 {
     public required Guid GenerationId { get; set; }
     public List<DirectorySubjectDto> Items { get; set; } = [];

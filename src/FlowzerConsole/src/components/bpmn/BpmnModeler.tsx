@@ -9,8 +9,10 @@ import { ICON_PATHS } from '@/components/ui/icons.gen';
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
 import { describeFormKey } from '@/lib/formKey';
+import type { BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
+import { focusBpmnElement } from '@/lib/modeling/bpmnFocus';
 import { FLOWZER_MODDLE } from './flowzerModdle';
 import { BpmnProperties } from './properties/BpmnProperties';
 import { READ_ONLY_MODULE } from './readOnly';
@@ -23,6 +25,8 @@ export interface BpmnModelerHandle {
   zoomReset: () => void;
   undo: () => void;
   redo: () => void;
+  /** Wählt ein Element sicher an und scrollt es, falls es im aktuellen XML existiert. */
+  selectElement: (elementId: string) => boolean;
   /** Aktuelle Zoomstufe in Prozent. */
   getZoom: () => number;
 }
@@ -33,6 +37,10 @@ interface BpmnModelerProps {
   xml: string | undefined;
   onChange?: () => void;
   onZoomChange?: (zoom: number) => void;
+  /** Element, das nach dem Import als Diagnose-Sprungziel angewählt werden soll. */
+  focusElementId?: string | null;
+  /** Server- oder clientseitige Befunde für die Marker auf der Zeichenfläche. */
+  diagnostics?: readonly BpmnDiagnostic[];
   className?: string;
   /**
    * Ohne Modelliererrolle bleibt alles lesbar, aber unveränderlich: keine Palette, kein
@@ -53,6 +61,9 @@ interface ModelerLike {
 interface CanvasLike {
   zoom: (mode?: string | number, center?: unknown) => number;
   viewbox: () => { outer: { width: number; height: number } };
+  addMarker: (elementId: string, marker: string) => void;
+  removeMarker: (elementId: string, marker: string) => void;
+  scrollToElement?: (element: unknown) => void;
 }
 
 interface CommandStackLike {
@@ -94,7 +105,16 @@ const FORM_OVERLAY_TYPE = 'flowzer-form';
  * sich nicht mehr speichern.
  */
 export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(function BpmnModeler(
-  { definitionId, xml, onChange, onZoomChange, className, readOnly = false },
+  {
+    definitionId,
+    xml,
+    onChange,
+    onZoomChange,
+    focusElementId,
+    diagnostics = [],
+    className,
+    readOnly = false,
+  },
   ref,
 ) {
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -102,6 +122,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
   const pendingFitRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const onZoomChangeRef = useRef(onZoomChange);
+  const focusElementIdRef = useRef(focusElementId);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +132,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
 
   onChangeRef.current = onChange;
   onZoomChangeRef.current = onZoomChange;
+  focusElementIdRef.current = focusElementId;
 
   useImperativeHandle(
     ref,
@@ -132,6 +154,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       },
       undo: () => modelerRef.current?.get<CommandStackLike>('commandStack').undo(),
       redo: () => modelerRef.current?.get<CommandStackLike>('commandStack').redo(),
+      selectElement: (elementId) => selectElement(modelerRef.current, elementId),
       getZoom: () => Math.round((modelerRef.current?.get<CanvasLike>('canvas').zoom() ?? 1) * 100),
     }),
     [],
@@ -233,6 +256,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
         // Fehler dabei ist kein Ladefehler — das Diagramm steht dann laengst.
         pendingFitRef.current = true;
         if (fitViewport(modeler!, onZoomChangeRef.current)) pendingFitRef.current = false;
+        if (focusElementIdRef.current) selectElement(modeler!, focusElementIdRef.current);
       } catch (cause) {
         if (cancelled) return;
         setError(cause instanceof Error ? cause.message : 'Das Diagramm konnte nicht geladen werden.');
@@ -244,6 +268,44 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       cancelled = true;
     };
   }, [ready, xml]);
+
+  // Ein geändertes Deep-Link-Ziel darf nicht den kompletten Modeler neu erzeugen oder das
+  // XML erneut importieren. Läuft der Import noch, übernimmt dessen Abschluss denselben Ref.
+  useEffect(() => {
+    const modeler = modelerRef.current;
+    if (!ready || !modeler || !focusElementId) return;
+    selectElement(modeler, focusElementId);
+  }, [focusElementId, ready]);
+
+  // Markiert nur bekannte Elemente. Ein Backendbefund aus einer anderen Version darf
+  // die aktuelle Zeichenfläche nicht durch eine fehlende ID aus dem Tritt bringen.
+  useEffect(() => {
+    const modeler = modelerRef.current;
+    if (!ready || !modeler) return;
+
+    const canvas = modeler.get<CanvasLike>('canvas');
+    for (const diagnostic of diagnostics) {
+      if (!diagnostic.elementId) continue;
+      try {
+        const element = modeler.get<ElementRegistryLike>('elementRegistry').get(diagnostic.elementId);
+        if (!element) continue;
+        canvas.addMarker(diagnostic.elementId, 'flowzer-validation-error');
+      } catch {
+        // Ein veraltetes Element darf die übrigen Diagnosen nicht ausblenden.
+      }
+    }
+
+    return () => {
+      for (const diagnostic of diagnostics) {
+        if (!diagnostic.elementId) continue;
+        try {
+          canvas.removeMarker(diagnostic.elementId, 'flowzer-validation-error');
+        } catch {
+          // siehe oben
+        }
+      }
+    };
+  }, [diagnostics, ready, xml]);
 
   // Markiert jede menschliche Aufgabe, an der ein Formular hängt. Ohne die Markierung ist
   // dem Diagramm nicht anzusehen, welche Aufgabe schon eine Eingabemaske hat und welche nicht.
@@ -292,16 +354,23 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
           revision={revision}
           readOnly={readOnly}
           onSelect={(elementId) => {
-            const modeler = modelerRef.current;
-            if (!modeler) return;
-            const element = modeler.get<ElementRegistryLike>('elementRegistry').get(elementId);
-            if (element) modeler.get<SelectionLike>('selection').select(element);
+            selectElement(modelerRef.current, elementId);
           }}
         />
       </div>
     </div>
   );
 });
+
+function selectElement(modeler: ModelerLike | null, elementId: string): boolean {
+  if (!modeler) return false;
+
+  return focusBpmnElement(elementId, {
+    registry: modeler.get<ElementRegistryLike>('elementRegistry'),
+    selection: modeler.get<SelectionLike>('selection'),
+    canvas: modeler.get<CanvasLike>('canvas'),
+  });
+}
 
 /**
  * Passt das Diagramm in die Zeichenflaeche ein. Liefert `false`, solange die Flaeche noch

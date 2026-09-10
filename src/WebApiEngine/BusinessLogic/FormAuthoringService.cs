@@ -91,18 +91,55 @@ public sealed class FormAuthoringService(
         if (draft?.Revision != expectedRevision)
             throw new FormAuthoringConflictException(expectedRevision, draft?.Revision ?? 0);
 
-        try { _ = FormContractCompiler.Compile(draft.FormData); }
+        string publishedFormData;
+        try
+        {
+            publishedFormData = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormSectionStorage,
+                draft.FormData);
+        }
         catch (InvalidOperationException exception)
         {
             throw new FormPublicationValidationException(exception.Message, exception);
         }
 
-        var result = await storage.FormAuthoringStorage.TryPublish(formId, expectedRevision, Guid.NewGuid());
+        var result = await storage.FormAuthoringStorage.TryPublish(
+            formId,
+            expectedRevision,
+            Guid.NewGuid(),
+            publishedFormData);
         if (result.Status == FormAuthoringPublishStatus.FormNotFound) throw UnknownForm(formId);
         if (result.Status == FormAuthoringPublishStatus.RevisionConflict)
             throw new FormAuthoringConflictException(expectedRevision, result.CurrentRevision);
         storage.CommitChanges();
         return result.PublishedForm!;
+    }
+
+    /// <summary>
+    /// Erzeugt aus einem lokalen Autorenstand denselben Snapshot wie Publish, ohne einen
+    /// Entwurf oder eine Version zu verändern. Insbesondere löst nicht der Browser die
+    /// Abschnittsbibliothek auf.
+    /// </summary>
+    public async Task<FormAuthoringPreviewDto> PreviewAsync(Guid formId, string formData)
+    {
+        ValidateDraftJson(formData);
+        using var storage = storageProvider.GetTransactionalStorage();
+        await EnsureFormExists(storage, formId);
+        try
+        {
+            var expanded = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormSectionStorage,
+                formData);
+            return new FormAuthoringPreviewDto
+            {
+                FormData = expanded,
+                ValidationProfile = FormContractCompiler.Compile(expanded).ValidationProfile
+            };
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new FormPublicationValidationException(exception.Message, exception);
+        }
     }
 
     private static void ValidateDraftJson(string formData)

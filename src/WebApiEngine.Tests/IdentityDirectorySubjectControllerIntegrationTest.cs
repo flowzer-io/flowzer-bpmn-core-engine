@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Model;
@@ -110,6 +111,62 @@ public sealed class IdentityDirectorySubjectControllerIntegrationTest
             .Be((await unknown.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
     }
 
+    // Testzweck: Eine deaktivierte direkte Ordnerzuweisung bleibt für die berechtigte
+    // Pflege sichtbar; eine nur im Request ergänzte bekannte UUID bleibt ohne Treffer.
+    [Test]
+    public async Task FolderResolution_ShouldOnlyProjectStoredDirectoryAssignments()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var snapshot = await SeedDirectoryAsync(context.Storage);
+        var inactive = snapshot.Users.Single(user => !user.IsActive);
+        var manipulated = snapshot.Users.Single(user => user.IsActive);
+        var folder = new WorkflowFolder
+        {
+            Id = Guid.NewGuid(),
+            Name = "Own",
+            CreatedOn = DateTime.UtcNow,
+            CreatedByUser = Guid.NewGuid(),
+            Assignments =
+            [
+                new FolderAssignment
+                {
+                    SubjectKind = FolderSubjectKind.Group,
+                    Subject = "/team/review",
+                    Role = FolderRole.Steward
+                },
+                new FolderAssignment
+                {
+                    AssignmentMode = FolderAssignmentMode.Directory,
+                    SubjectKind = FolderSubjectKind.User,
+                    Subject = inactive.Id.ToString(),
+                    DirectorySubject = new SubjectRef(DirectorySubjectKind.User, inactive.Id),
+                    DisplayName = inactive.DisplayName,
+                    Role = FolderRole.Editor
+                }
+            ]
+        };
+        await context.Storage.FolderStorage.StoreFolder(folder);
+        using var client = context.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            $"/identity-directory/folders/{folder.Id}/subjects/resolve",
+            new
+            {
+                subjects = new[]
+                {
+                    new { kind = "user", id = inactive.Id },
+                    new { kind = "user", id = manipulated.Id }
+                }
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var items = (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("result").GetProperty("items");
+        items.GetArrayLength().Should().Be(1);
+        items[0].GetProperty("subject").GetProperty("id").GetGuid().Should().Be(inactive.Id);
+        items[0].GetProperty("isSelectable").GetBoolean().Should().BeFalse();
+    }
+
     // Testzweck: Fremde und unbekannte Workflow-Kontexte antworten identisch mit 404, damit
     // die Suche weder die Existenz des Workflows noch Verzeichnisdaten offenlegt.
     [Test]
@@ -163,6 +220,130 @@ public sealed class IdentityDirectorySubjectControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+    }
+
+    // Testzweck: Eine berechtigte Modellierungsansicht kann aktive und historische
+    // stabile Referenzen exakt auflösen; deaktivierte Treffer bleiben nicht auswählbar.
+    [Test]
+    public async Task Resolve_ShouldReturnInactiveSubjectAsDisplayOnly()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var snapshot = await SeedDirectoryAsync(context.Storage);
+        var active = snapshot.Users.Single(user => user.IsActive);
+        var inactive = snapshot.Users.Single(user => !user.IsActive);
+        await StoreWorkflowWithDirectorySubjectsAsync(context.Storage, inactive.Id, active.Id);
+        using var client = context.CreateClient(isModeler: true);
+
+        var response = await client.PostAsJsonAsync(
+            "/identity-directory/workflows/workflow-editable/subjects/resolve",
+            new
+            {
+                subjects = new[]
+                {
+                    new { kind = "user", id = inactive.Id },
+                    new { kind = "user", id = active.Id }
+                }
+            });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var items = payload.GetProperty("result").GetProperty("items");
+        items.GetArrayLength().Should().Be(2);
+        items[0].GetProperty("subject").GetProperty("id").GetGuid().Should().Be(inactive.Id);
+        items[0].GetProperty("displayName").GetString().Should().Be("Anna Muster");
+        items[0].GetProperty("isActive").GetBoolean().Should().BeFalse();
+        items[0].GetProperty("isSelectable").GetBoolean().Should().BeFalse();
+        items[1].GetProperty("isActive").GetBoolean().Should().BeTrue();
+        items[1].GetProperty("isSelectable").GetBoolean().Should().BeTrue();
+    }
+
+    // Testzweck: Die exakte Anzeigeauflösung wird nicht zu einem unbeschränkten
+    // Verzeichniszugriff; fremde Kontexte und mehr als 50 IDs werden abgewiesen.
+    [Test]
+    public async Task Resolve_ShouldHideForeignWorkflowAndRejectOversizedBatch()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var snapshot = await SeedDirectoryAsync(context.Storage);
+        var folder = new WorkflowFolder
+        {
+            Id = Guid.NewGuid(), Name = "Foreign", CreatedOn = DateTime.UtcNow,
+            CreatedByUser = Guid.NewGuid()
+        };
+        await context.Storage.FolderStorage.StoreFolder(folder);
+        await context.Storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition
+            { DefinitionId = "workflow-foreign", Name = "Foreign", FolderId = folder.Id });
+        await StoreWorkflowWithDirectorySubjectsAsync(
+            context.Storage, snapshot.Users.Single(user => user.IsActive).Id);
+        using var client = context.CreateClient(isModeler: true);
+        using var regularClient = context.CreateClient();
+        var subjects = Enumerable.Range(0, 51)
+            .Select(_ => new { kind = "user", id = Guid.NewGuid() })
+            .ToArray();
+
+        var hidden = await regularClient.PostAsJsonAsync(
+            "/identity-directory/workflows/workflow-foreign/subjects/resolve",
+            new { subjects = subjects[..1] });
+        var oversized = await client.PostAsJsonAsync(
+            "/identity-directory/workflows/workflow-editable/subjects/resolve",
+            new { subjects });
+        var manipulated = await client.PostAsJsonAsync(
+            "/identity-directory/workflows/workflow-editable/subjects/resolve",
+            new
+            {
+                subjects = new[]
+                {
+                    new { kind = "user", id = snapshot.Users.Single(user => !user.IsActive).Id }
+                }
+            });
+
+        hidden.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        oversized.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        oversized.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        manipulated.StatusCode.Should().Be(HttpStatusCode.OK);
+        var manipulatedPayload = await manipulated.Content.ReadFromJsonAsync<JsonElement>();
+        manipulatedPayload.GetProperty("result").GetProperty("items").GetArrayLength().Should().Be(0);
+    }
+
+    private static async Task StoreWorkflowWithDirectorySubjectsAsync(
+        FilesystemStorageSystem.Storage storage,
+        Guid assigneeId,
+        Guid? candidateId = null)
+    {
+        const string definitionId = "workflow-editable";
+        var definition = new BpmnDefinition
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = definitionId,
+            Hash = "directory-resolution-test",
+            SavedByUser = AuthenticatedWorkflowTestContext.UserId,
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = false
+        };
+        await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition
+            { DefinitionId = definitionId, Name = "Editable" });
+        await storage.DefinitionStorage.StoreDefinition(definition);
+        var candidates = candidateId is null ? "" : $" candidateUserIds=\"{candidateId}\"";
+        await storage.DefinitionStorage.StoreBinary(definition.Id, $$"""
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                id="{{definitionId}}" targetNamespace="test">
+              <bpmn:process id="Process" isExecutable="true">
+                <bpmn:startEvent id="Start"><bpmn:outgoing>ToTask</bpmn:outgoing></bpmn:startEvent>
+                <bpmn:sequenceFlow id="ToTask" sourceRef="Start" targetRef="Task" />
+                <bpmn:userTask id="Task">
+                  <bpmn:extensionElements>
+                    <zeebe:formDefinition formKey="Approval" />
+                    <flowzer:taskAssignment mode="directory" assigneeId="{{assigneeId}}"{{candidates}} />
+                  </bpmn:extensionElements>
+                  <bpmn:incoming>ToTask</bpmn:incoming><bpmn:outgoing>ToEnd</bpmn:outgoing>
+                </bpmn:userTask>
+                <bpmn:sequenceFlow id="ToEnd" sourceRef="Task" targetRef="End" />
+                <bpmn:endEvent id="End"><bpmn:incoming>ToEnd</bpmn:incoming></bpmn:endEvent>
+              </bpmn:process>
+            </bpmn:definitions>
+            """);
     }
 
     private static async Task<DirectorySnapshot> SeedDirectoryAsync(FilesystemStorageSystem.Storage storage)

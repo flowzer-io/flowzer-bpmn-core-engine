@@ -20,6 +20,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
         FormAuthoringStorage = new PostgreSqlFormAuthoringStorage(_session);
+        FormSectionStorage = new PostgreSqlFormSectionStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
         IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
@@ -27,6 +28,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         UserTaskLifecycleStorage = new PostgreSqlUserTaskLifecycleStorage(_session);
         UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
         UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
+        RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -35,6 +37,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IFormAuthoringStorage FormAuthoringStorage { get; }
+    public IFormSectionStorage FormSectionStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
@@ -42,6 +45,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
+    public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -63,6 +67,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         InstanceStorage = new PostgreSqlInstanceStorage(_session);
         FormStorage = new PostgreSqlFormStorage(_session);
         FormAuthoringStorage = new PostgreSqlFormAuthoringStorage(_session);
+        FormSectionStorage = new PostgreSqlFormSectionStorage(_session);
         ServiceTaskStorage = new PostgreSqlServiceTaskStorage(_session);
         IdempotencyStorage = new PostgreSqlIdempotencyStorage(_session);
         IdentityDirectoryStorage = new PostgreSqlIdentityDirectoryStorage(_session);
@@ -70,6 +75,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         UserTaskLifecycleStorage = new PostgreSqlUserTaskLifecycleStorage(_session);
         UserTaskDeadlineStorage = new PostgreSqlUserTaskDeadlineStorage(_session);
         UserTaskNotificationStorage = new PostgreSqlUserTaskNotificationStorage(_session);
+        RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -78,6 +84,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IFormAuthoringStorage FormAuthoringStorage { get; }
+    public IFormSectionStorage FormSectionStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
     public IIdempotencyStorage IdempotencyStorage { get; }
     public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
@@ -85,6 +92,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
+    public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
 
     public void CommitChanges() => _session.Commit();
 

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Stand: 8. September 2026**
+**Stand: 9. September 2026**
 
 Die freigegebene, führende Produkt-Roadmap steht in
 [PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
@@ -33,7 +33,11 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    anhand stabiler, datensparsamer Kompatibilitätscodes.
    #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
    Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
-   die Abschnittsbibliothek folgt separat.
+   #230 / PR #231 ergänzt die hostneutrale Bibliothek unveränderlicher Formularabschnittsversionen
+   und vollständige, serverseitig gebundene Formularsnapshots.
+   #234 / PR #237 ergänzt die exakte historische Anzeigeauflösung für gespeicherte Referenzen in
+   Workflow, Ordner, Formular und Task-Lifecycle. `isActive` und `isSelectable` bleiben
+   getrennt; beliebige UUIDs und fremde Kontexte liefern keine Verzeichnisdaten.
 3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
    Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
@@ -42,8 +46,12 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
    React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
    genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
-   Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
-   folgen. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
+   Transport. #228 / PR #229 ergänzt die zentrale versionierte BPMN-Fähigkeitsmatrix, gemeinsame
+   Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. #232 / PR #233 ergänzt
+   das objektberechtigte Laufzeitdiagramm mit exakt gebundener, bereinigter BPMN-Version
+   und append-only Engine-Ereignisspur. #235 / PR #236 ergänzt gezählte statt überlagerter
+   Laufzeitmarker sowie den getrennten Blick auf Prozessvariablen und persistierte
+   Knotenein-/ausgaben. Der vollständige UX-Audit folgt. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
    Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
@@ -71,6 +79,20 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 - [x] **#226 / PR #227 – Human-Task-Vorgangshistorie:** Die bestehende append-only Auditspur
   ist nach Instanz indexiert, objektberechtigt und über SDK sowie Console als
   datensparsame Minimalprojektion verfügbar. Vollständige Engine-Historie folgt.
+- [x] **#228 / PR #229 – BPMN-Fähigkeiten und Modellprüfung:** Ein versionierter, hostneutraler
+  Vertrag trennt modellierbar, parsebar und ausführbar. API, Save und Deploy verwenden
+  denselben Validator; Diagramm und Gliederung zeigen stabile, anwählbare Befunde.
+  Error-/Escalation-Semantik und lokale Call Activities folgen separat.
+- [x] **#232 / PR #233 – Laufzeitdiagramm und Engine-Ereignisse:** Persistenzgrenzen schreiben
+  idempotente, datensparsame Knotenfakten. Der Betrieb erhält die exakt gebundene und
+  von Ausführungsdaten bereinigte BPMN-Version, verdichtete Knotenstatus sowie eine
+  echte Zeitleiste über API, SDK, React-Schicht und responsive Console. Eine lineare
+  „Schritt x von y“-Anzeige wird nicht mehr behauptet.
+- [x] **#235 / PR #236 – Markerzählung und technische Instanzdaten:** Parallele Token am selben
+  aktiven Knoten erscheinen als ein Kreis mit Anzahl. Der Master-Token liefert den
+  aktuellen Prozessscope; pro ausgewähltem Knoten bleiben gebundene Input- und
+  Output-Snapshots aller Ausführungen getrennt sichtbar. Fehlende historische
+  Snapshots werden benannt und nicht aus dem aktuellen Scope rekonstruiert.
 
 ## Vorhandenes nicht neu bauen
 

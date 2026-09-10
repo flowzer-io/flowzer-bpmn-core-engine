@@ -10,7 +10,10 @@ import {
   flowzerQueryKeys,
   useFlowzer,
   useInstanceHistory,
+  useInstanceRuntimeDiagram,
   useTaskFormData,
+  useFormSectionActions,
+  useFormSectionDraft,
   useUserTaskActions,
   useUserTasks,
   useUserTaskWorkspace,
@@ -99,6 +102,38 @@ describe('@flowzer/react', () => {
     )).toBeUndefined());
   });
 
+  // Testzweck: Die technische Laufzeitprojektion wird erst bei ausdrücklicher
+  // Freigabe geladen und nach einem Rechteentzug synchron aus Cache und Hook entfernt.
+  it('lädt das Laufzeitdiagramm fail-closed und sitzungsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      instanceId: 'instance-1',
+      definitionId: 'definition-1',
+      processId: 'Process_1',
+      state: 2,
+      snapshotAtUtc: '2026-09-09T10:00:00Z',
+      diagramXml: '<definitions />',
+      nodes: [],
+      events: [],
+    }));
+    const { queryClient, wrapper } = setup(fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useInstanceRuntimeDiagram('instance-1', { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.processId).toBe('Process_1'));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance-1/runtime-diagram');
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(
+      flowzerQueryKeys.instanceRuntimeDiagram('installation-a', 'session-a', 'instance-1'),
+    )).toBeUndefined());
+  });
+
   // Testzweck: Ohne serverseitiges Arbeitsrecht lädt der Arbeitsbereich weder
   // Formular noch privaten Entwurf und verrät dadurch keine zusätzlichen Daten.
   it('lädt Formular und Entwurf nicht ohne canWork', async () => {
@@ -136,6 +171,38 @@ describe('@flowzer/react', () => {
       '/api/usertask/task-1',
       '/api/usertask/task-1/form',
       '/api/usertask/task-1/draft',
+    ]));
+  });
+
+  // Testzweck: Der React-Arbeitsbereich und die Lifecycle-Aktionen reichen die
+  // historische Batch-Auflösung an den gebundenen SDK-Kontext weiter, ohne einen
+  // globalen Directory-Query oder eigene Filterentscheidung einzuführen.
+  it('stellt gebundene Auflösungen für Formularfelder und Lifecycle-Aktionen bereit', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 0, data: {} });
+      if (url.includes('/subjects/resolve') || url.includes('/assignees/resolve')) {
+        return response({ generationId: 'generation-1', items: [] });
+      }
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => ({
+      workspace: useUserTaskWorkspace('task-1'),
+      actions: useUserTaskActions('task-1'),
+    }), { wrapper });
+    await waitFor(() => expect(result.current.workspace.form?.id).toBe('form-1'));
+    const subjects = [{ kind: 'user' as const, id: 'retired-user' }];
+
+    await act(async () => {
+      await result.current.workspace.resolveSubjects('representative', subjects);
+      await result.current.actions.resolveAssignees({ action: 'delegate', subjects });
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      '/api/identity-directory/user-tasks/task-1/fields/representative/subjects/resolve',
+      '/api/identity-directory/user-tasks/task-1/assignees/resolve?action=delegate',
     ]));
   });
 
@@ -268,6 +335,46 @@ describe('@flowzer/react', () => {
     });
 
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  // Testzweck: Der Abschnittseditor liest seinen Entwurf in einem eigenen,
+  // sitzungsgetrennten Cache und vermischt ihn deshalb nicht mit Human-Task-Drafts.
+  it('lädt einen Formularabschnittsentwurf über einen getrennten Query-Key', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 2, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionDraft('section-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.revision).toBe(2));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(flowzerQueryKeys.formSectionDraft('installation-a', 'session-a', 'section-1')).toEqual([
+      'flowzer', 'installation-a', 'session-a', 'form-sections', 'section-1', 'draft',
+    ]);
+  });
+
+  // Testzweck: Der darstellungsfreie Editor überträgt die erwartete Revision
+  // unverändert und deaktiviert automatische Wiederholungen für CAS-Mutationen.
+  it('speichert einen Abschnittsentwurf revisionsgebunden ohne automatische Wiederholung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 3, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionActions('section-1'), { wrapper });
+
+    await act(async () => {
+      await result.current.saveDraft.mutateAsync({
+        expectedRevision: 2,
+        sectionData: '{"components":[]}',
+      });
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 2,
+      sectionData: '{"components":[]}',
+    });
   });
 
   // Testzweck: Ein manueller Abschluss übergibt Task-Revision und den vom Host

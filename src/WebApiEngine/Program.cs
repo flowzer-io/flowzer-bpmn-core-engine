@@ -39,6 +39,7 @@ builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddScoped<FormAuthoringService>();
 builder.Services.AddScoped<FormCompatibilityService>();
+builder.Services.AddScoped<FormSectionAuthoringService>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
@@ -48,6 +49,7 @@ builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
+builder.Services.AddScoped<RuntimeDiagramService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()
@@ -84,6 +86,7 @@ builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new Keycl
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
 builder.Services.AddSingleton<DirectorySubjectSelectionService>();
+builder.Services.AddSingleton<DirectorySubjectResolutionContext>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<IdentityDirectoryBackgroundService>());
 builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
                               ?? new FlowzerWebhookOptions());

@@ -3,9 +3,9 @@ import { useMemo } from 'react';
 
 import type { Tone } from '@/components/ui/Chip';
 import { definitionsApi } from '@/lib/api/endpoints';
-import { instanceBucket, isFailedToken, isFinishedToken, isLiveToken, type InstanceBucket } from '@/lib/api/normalize';
+import { isFailedToken, isFinishedToken, isLiveToken, type InstanceBucket } from '@/lib/api/normalize';
 import { queryKeys } from '@/lib/api/queries';
-import type { ProcessInstanceInfoDto, ProcessInstanceState, TokenDto } from '@/lib/api/types';
+import type { ProcessInstanceInfoDto, ProcessInstanceState, ProcessVariables, TokenDto } from '@/lib/api/types';
 import { parseBpmn, type BpmnModelSummary } from '@/lib/bpmnModel';
 
 export const BUCKET_TONE: Record<InstanceBucket, Tone> = {
@@ -71,48 +71,6 @@ export function useDefinitionModels(versionGuids: string[]): Map<string, BpmnMod
   }, [unique, xmlKey]);
 }
 
-export interface InstanceProgress {
-  /** Anteil erledigter Schritte, 0…1. `null`, wenn das Modell (noch) unbekannt ist. */
-  ratio: number | null;
-  visited: number;
-  total: number;
-}
-
-/**
- * Fortschritt einer Instanz: Anteil der Prozessschritte, die bereits ein Token
- * gesehen hat. Ohne geladenes Modell wird kein Anteil geraten — abgeschlossene
- * Instanzen gelten als vollständig.
- */
-export function instanceProgress(
-  instance: ProcessInstanceInfoDto,
-  model: BpmnModelSummary | undefined,
-): InstanceProgress {
-  // Eine reduzierte Übersicht enthält absichtlich keine Tokenhistorie. Ein Anteil
-  // wäre erfunden, auch wenn die Workflow-Definition andernorts schon geladen ist.
-  if (instance.canInspect === false) return { ratio: null, visited: 0, total: 0 };
-  const bucket = instanceBucket(instance.state);
-
-  const visitedIds = new Set(
-    instance.tokens.map((token) => token.currentFlowNodeId).filter((id): id is string => Boolean(id)),
-  );
-
-  if (bucket === 'done') {
-    const total = model?.nodes.length ?? visitedIds.size;
-    return { ratio: 1, visited: total, total };
-  }
-
-  if (!model || model.nodes.length === 0) {
-    return { ratio: null, visited: visitedIds.size, total: 0 };
-  }
-
-  const total = model.nodes.length;
-  const visited = [...visitedIds].filter((id) => model.nodeById.has(id)).length;
-
-  // Mindestens ein sichtbarer Anteil, sobald die Instanz überhaupt gestartet ist.
-  const ratio = Math.min(1, Math.max(visited / total, visited > 0 ? 0.05 : 0));
-  return { ratio, visited, total };
-}
-
 /** Das Token, das den aktuellen Schritt der Instanz repräsentiert. */
 export function currentToken(instance: ProcessInstanceInfoDto): TokenDto | undefined {
   const failed = instance.tokens.find(isFailedToken);
@@ -127,6 +85,23 @@ export function currentToken(instance: ProcessInstanceInfoDto): TokenDto | undef
   }
 
   return instance.tokens.at(-1);
+}
+
+/** Aktueller Prozessscope aus dem Master-Token der Instanz. */
+export function processScopeVariables(instance: ProcessInstanceInfoDto): ProcessVariables {
+  const masterToken = instance.tokens.find((token) => token.parentTokenId == null);
+  return masterToken?.variables ?? {};
+}
+
+/** Alle persistierten Ausführungen eines BPMN-Knotens in stabiler Reihenfolge. */
+export function nodeExecutions(instance: ProcessInstanceInfoDto, flowNodeId: string): TokenDto[] {
+  return instance.tokens
+    .filter((token) => token.currentFlowNodeId === flowNodeId)
+    .sort((left, right) => {
+      const leftStart = left.startTime ?? '\uffff';
+      const rightStart = right.startTime ?? '\uffff';
+      return leftStart.localeCompare(rightStart) || left.id.localeCompare(right.id);
+    });
 }
 
 /** Markierungen für den BPMN-Viewer aus den Tokens einer Instanz. */

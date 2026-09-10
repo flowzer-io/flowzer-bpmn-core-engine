@@ -464,6 +464,12 @@ Scriptinhalte. Lesefehler der Ablage sind als Betriebsstörung zu untersuchen; e
 Compilerfehler werden dagegen isoliert mit stabilen Codes gemeldet. Details:
 [Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
 
+Wiederverwendbare Abschnitte werden separat unter `/form-section` gepflegt. Autoren
+wählen ausschließlich eine konkrete veröffentlichte Fassung; beim Formular-Publish
+erzeugt der Server daraus einen vollständigen, unabhängigen Snapshot. Es gibt weder
+eine automatische `latest`-Auflösung noch eine Runtime-Abhängigkeit von der Bibliothek.
+Vertrag und Migrationsdetails: [Formularabschnitte](FORM-SECTIONS.md).
+
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
 Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Formular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — und ein Startformular nähme dem Workflow den Start. Gezählt werden deshalb sowohl die menschlichen Aufgaben als auch die Startereignisse. Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.
@@ -742,6 +748,16 @@ npm --prefix tests/ui-smoke run test
 
 Der `npm test`-Pfad enthält zusätzlich den Prozesswächter für verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse.
 
+### BPMN-Fähigkeiten und Vorabprüfung
+
+Modellieroberflächen können den installierten, hostneutralen Vertrag über
+`GET /definition/capabilities` lesen und BPMN-XML ohne Speicherung mit
+`POST /definition/validate` prüfen. Save und Deploy erzwingen denselben Vertrag erneut;
+die Vorabprüfung darf deshalb nicht als alleinige Sicherheitsgrenze behandelt werden.
+Ein `422` mit `code=bpmn.model.invalid` enthält nur Modellstruktur, stabile Fehlercodes
+und eine Trace-ID, keine Prozessvariablen oder Secrets. Vertrag und Grenzen:
+[Versionierter BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
+
 Ohne diese Variablen startet Playwright API und Konsole selbst. Die Smokes laufen bewusst gegen
 den Vite-Entwicklungsserver: Nur dort meldet die Konsole ohne Identity Provider einen
 technischen Benutzer an; ein Produktionsbündel zeigte stattdessen die Anmeldeseite.
@@ -765,6 +781,11 @@ werden beim Entfernen der User-Task per Fremdschlüssel mitgelöscht. Die Dateia
 deren Revision nur innerhalb eines API-Prozesses und bleibt wie alle dateibasierten
 Mutationen auf Entwicklung/Einzelprozess-Demos begrenzt. Vertrag, Rechte und Grenzen:
 [Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
+Formularabschnitte verwenden mit Migration `011_form_sections.sql` getrennte Tabellen
+für Katalog, Entwurf und append-only Versionen. Eine Publikation bestimmt die Folgeversion,
+fügt sie ein und entfernt den erwarteten Entwurf in derselben PostgreSQL-Transaktion.
+Der Dateiadapter bietet hierfür ausschließlich prozesslokale Sperren.
 
 Human-Task-Claims, Freigaben und Übergaben verwenden in PostgreSQL eine eigene
 Lifecycle-Tabelle mit atomarem Revisionsvergleich. Zustand und Auditereignis werden in

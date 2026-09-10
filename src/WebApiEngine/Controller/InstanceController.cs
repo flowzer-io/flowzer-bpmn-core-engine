@@ -13,7 +13,8 @@ public class InstanceController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
     ICurrentUserContextAccessor currentUserContextAccessor,
-    InstanceAccessService instanceAccess) : FlowzerControllerBase
+    InstanceAccessService instanceAccess,
+    RuntimeDiagramService runtimeDiagramService) : FlowzerControllerBase
 {
     private const string MissingInstance = "The process instance was not found.";
     /// <summary>
@@ -83,6 +84,25 @@ public class InstanceController(
             InstanceId = instanceId,
             Events = events
         }));
+    }
+
+    /// <summary>
+    /// Liefert die bereinigte BPMN-Struktur und die append-only Engine-Ereignisspur der
+    /// exakt an die Instanz gebundenen Version. Dieser Diagnoseweg ist nur für den Betrieb.
+    /// </summary>
+    [HttpGet("{instanceId}/runtime-diagram")]
+    [ProducesResponseType<ApiStatusResult<RuntimeDiagramDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<RuntimeDiagramDto>>> GetRuntimeDiagram(Guid instanceId)
+    {
+        var diagram = await runtimeDiagramService.GetAsync(instanceId);
+        if (diagram is null)
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance);
+
+        return Ok(new ApiStatusResult<RuntimeDiagramDto>(diagram));
     }
     
     [HttpGet("{instanceId}/subscription/messages")]

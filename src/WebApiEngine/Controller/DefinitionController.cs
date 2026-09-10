@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
 using WebApiEngine.Idempotency;
+using core_engine.Exceptions;
 
 namespace WebApiEngine.Controller;
 
@@ -36,6 +37,8 @@ public class DefinitionController(
         "Workflows ausserhalb eines Ordners zu aendern ist der Rolle fuers Modellieren vorbehalten.";
 
     [HttpPost]
+    [ProducesResponseType<ApiStatusResult<BpmnDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
@@ -55,6 +58,8 @@ public class DefinitionController(
     }
     
     [HttpPost("deploy")]
+    [ProducesResponseType<ApiStatusResult<BpmnDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
@@ -82,11 +87,50 @@ public class DefinitionController(
             await CleanupOrphanedVersionAsync(definition);
             throw;
         }
+        catch (BpmnCapabilityValidationException)
+        {
+            await CleanupOrphanedVersionAsync(definition);
+            throw;
+        }
         catch (Exception e)
         {
             await CleanupOrphanedVersionAsync(definition);
             return BadRequest(new ApiStatusResult<BpmnDefinitionDto>(e.Message));
         }
+    }
+
+    /// <summary>
+    /// Liefert den einen versionierten Vertrag, den Modellieransichten für Palette,
+    /// Gliederung und Hinweise verwenden. Der Vertrag enthält keine Host-Annahmen.
+    /// </summary>
+    [HttpGet("capabilities")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    public ActionResult<ApiStatusResult<BpmnCapabilityContract>> GetCapabilities() =>
+        Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
+
+    /// <summary>
+    /// Prüft BPMN vor dem Speichern ohne eine Version anzulegen. Fehler nutzen denselben
+    /// Problem-Details-Vertrag wie Upload und Deployment.
+    /// </summary>
+    [HttpPost("validate")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition()
+    {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!permissions.MayEditAnywhere)
+        {
+            return ForbiddenCapability<BpmnCapabilityContract>(MissingRootPermission);
+        }
+
+        var rawContent = await GetRawContent();
+        if (await DenyIfFolderIsForbidden<BpmnCapabilityContract>(rawContent, permissions) is { } denied)
+        {
+            return denied;
+        }
+
+        BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
     }
 
     /// <summary>

@@ -6,10 +6,62 @@ export type FlowzerForm = components['schemas']['FormDto'];
 export type UserTaskDraft = components['schemas']['UserTaskDraftDto'];
 export type UserTaskWorkState = components['schemas']['UserTaskWorkStateDto'];
 export type ProcessInstance = components['schemas']['ProcessInstanceInfoDto'];
+export type RuntimeDiagram = components['schemas']['RuntimeDiagramDto'];
 export type SubjectRef = components['schemas']['SubjectRefDto'];
+export type DirectorySubject = components['schemas']['DirectorySubjectDto'];
 export type DirectorySubjectSearchResult = components['schemas']['DirectorySubjectSearchResultDto'];
+export type DirectorySubjectResolutionResult = components['schemas']['DirectorySubjectResolutionResultDto'];
 
 export type ProcessVariables = Record<string, unknown>;
+
+/** Hostneutraler Katalogeintrag eines wiederverwendbaren Formularabschnitts. */
+export interface FormSectionMetadata {
+  sectionId: string;
+  name: string;
+}
+
+/** Eine konkrete Abschnittsversion. Das SDK kennt bewusst keinen "latest"-Wert. */
+export interface FormSectionVersionNumber {
+  major: number;
+  minor: number;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Abschnittsfassung. */
+export interface FormSectionVersionSummary {
+  id: string;
+  sectionId: string;
+  version: FormSectionVersionNumber;
+}
+
+/** Vollständige, unveränderliche Abschnittsfassung für autorisierte Modellierung. */
+export interface FormSectionVersion extends FormSectionVersionSummary {
+  sectionData: string;
+}
+
+/** Revisionsgebundener Autorenentwurf eines Abschnitts. */
+export interface FormSectionAuthoringDraft {
+  sectionId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedSectionId?: string | null;
+  basedOnVersion?: FormSectionVersionNumber | null;
+  sectionData: string;
+}
+
+export interface CreateFormSectionCommand {
+  name: string;
+}
+
+export interface RenameFormSectionCommand {
+  name: string;
+}
+
+/** Compare-and-swap-Eingabe für einen Abschnittsentwurf. */
+export interface SaveFormSectionAuthoringDraftCommand {
+  expectedRevision: number;
+  sectionData: string;
+}
 
 /** Ein datensparsamer, serverseitig autorisierter Eintrag im Prozessverlauf. */
 export type ProcessHistoryAction = 'claim' | 'release' | 'assign' | 'delegate' | 'complete';
@@ -89,6 +141,12 @@ export interface TaskAssigneeSearchOptions extends FlowzerCallOptions {
   action: 'assign' | 'delegate';
   query: string;
   limit?: number | undefined;
+}
+
+/** Begrenzte historische Anzeigeauflösung im Kontext einer Lifecycle-Aktion. */
+export interface TaskAssigneeResolutionOptions extends FlowzerCallOptions {
+  action: 'assign' | 'delegate';
+  subjects: readonly SubjectRef[];
 }
 
 export interface FlowzerCompletionOptions extends FlowzerCallOptions {

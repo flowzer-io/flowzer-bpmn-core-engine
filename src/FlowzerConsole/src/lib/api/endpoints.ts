@@ -2,10 +2,12 @@ import { request, requestOptionalStatusResult, requestStatus, requestStatusResul
 import { normalizeInstance } from './normalize';
 import type {
   BpmnDefinitionDto,
+  BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormAuthoringPreviewDto,
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
@@ -24,12 +26,31 @@ import type {
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
   DirectorySubjectSearchResultDto,
+  DirectorySubjectResolutionResultDto,
   FormDirectorySearchContext,
+  SubjectRefDto,
+  FormSectionMetadataDto,
+  FormSectionVersionSummaryDto,
+  FormSectionVersionDto,
+  FormSectionAuthoringDraftDto,
+  SaveFormSectionAuthoringDraftRequestDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
 
 export const definitionsApi = {
+  /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
+  capabilities: (signal?: AbortSignal) =>
+    requestStatusResult<BpmnCapabilityContract>('/definition/capabilities', { signal }),
+
+  /** `POST /definition/validate` — prüft XML vor einer schreibenden Mutation. */
+  validate: (xml: string) =>
+    requestStatusResult<BpmnCapabilityContract>('/definition/validate', {
+      method: 'POST',
+      rawBody: xml,
+      contentType: 'application/xml',
+    }),
+
   /** `GET /definition/meta` — Katalog aller Prozessdefinitionen. */
   listMeta: (signal?: AbortSignal) =>
     requestStatusResult<ExtendedBpmnMetaDefinitionDto[]>('/definition/meta', { signal }),
@@ -138,6 +159,16 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
+  /** Löst nur die genannten stabilen IDs im bearbeitbaren Workflowkontext auf. */
+  resolveSubjects: (
+    definitionId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
+
   /** Sucht aktive Identitäten, die am konkreten Workflow-Ordner delegiert werden dürfen. */
   searchFolderSubjects: (
     folderId: string,
@@ -149,6 +180,16 @@ export const identityDirectoryApi = {
       `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects`,
       { query: { query, kind, limit: 20 }, signal },
     ),
+
+  /** Historische Anzeigeauflösung im delegierbaren Ordnerkontext. */
+  resolveFolderSubjects: (
+    folderId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
 
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
@@ -164,6 +205,22 @@ export const identityDirectoryApi = {
     return requestStatusResult<DirectorySubjectSearchResultDto>(
       `${path}/fields/${encodeURIComponent(fieldKey)}/subjects`,
       { query: { query, kind, limit: 20 }, signal },
+    );
+  },
+
+  /** Löst historische Werte nur gegen das serverseitig gebundene Formularfeld auf. */
+  resolveFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectResolutionResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects/resolve`,
+      { method: 'POST', body: { subjects }, signal },
     );
   },
 };
@@ -296,6 +353,52 @@ export const formsApi = {
       body: { expectedRevision },
     }),
 
+  /** Lokalen Autorenstand ohne Persistenz wie bei der Veroeffentlichung expandieren. */
+  previewDraft: (formId: string, formData: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringPreviewDto>(`/form/${encodeURIComponent(formId)}/preview`, {
+      method: 'POST',
+      body: { formData },
+      signal,
+    }),
+
+};
+
+/** Hostneutrale Bibliothek versionierter, wiederverwendbarer Formularabschnitte. */
+export const formSectionsApi = {
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<FormSectionMetadataDto[]>('/form-section', { signal }),
+  create: (name: string) =>
+    requestStatusResult<FormSectionMetadataDto>('/form-section', { method: 'POST', body: { name } }),
+  rename: (sectionId: string, name: string) =>
+    requestStatusResult<FormSectionMetadataDto>(`/form-section/${encodeURIComponent(sectionId)}`, {
+      method: 'PUT', body: { name },
+    }),
+  listVersions: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionSummaryDto[]>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions`, { signal },
+    ),
+  getVersion: (sectionId: string, version: VersionDto, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions/${version.major}.${version.minor}`, { signal },
+    ),
+  getDraft: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { signal },
+    ),
+  saveDraft: (sectionId: string, draft: SaveFormSectionAuthoringDraftRequestDto) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { method: 'PUT', body: draft },
+    ),
+  deleteDraft: (sectionId: string, expectedRevision: number) =>
+    request<void>(`/form-section/${encodeURIComponent(sectionId)}/draft`, {
+      method: 'DELETE', query: { expectedRevision },
+    }),
+  publishDraft: (sectionId: string, expectedRevision: number) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/publish`, {
+        method: 'POST', body: { expectedRevision },
+      },
+    ),
 };
 
 export const messagesApi = {

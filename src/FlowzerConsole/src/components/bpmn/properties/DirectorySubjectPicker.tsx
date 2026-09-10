@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import {
   useDirectorySubjectResolutions,
@@ -94,6 +94,11 @@ interface ResolutionState {
  * sichtbar, statt bei einer neuen Suche still verloren zu gehen.
  */
 function DirectorySubjectPickerView({
+  definitionId,
+  folderId,
+  directoryContext,
+  directoryAdapter,
+  fieldKey,
   kind,
   disabledReason,
   selected,
@@ -116,12 +121,41 @@ function DirectorySubjectPickerView({
   const fieldId = useId();
 
   const items = search.data?.items ?? [];
+  const cacheScope = resolutionCacheScope({
+    definitionId,
+    folderId,
+    directoryContext,
+    directoryAdapter,
+    fieldKey,
+  });
+  const knownSubjects = useRef<{ scope: string; items: Map<string, DirectorySubjectDto> }>({
+    scope: cacheScope,
+    items: new Map(),
+  });
+  if (knownSubjects.current.scope !== cacheScope) {
+    knownSubjects.current = { scope: cacheScope, items: new Map() };
+  }
+  for (const item of [...items, ...resolution.data]) {
+    knownSubjects.current.items.set(subjectKey(item.subject), item);
+  }
   const displayedSelected = selected.map((entry) => {
     const resolved = resolution.data.find(
       (candidate) =>
         candidate.subject.kind === entry.subject.kind && candidate.subject.id === entry.subject.id,
-    );
-    return resolved ? { ...resolved, available: true } : entry;
+    ) ?? knownSubjects.current.items.get(subjectKey(entry.subject));
+    return resolved
+      ? {
+        ...resolved,
+        available: resolved.isSelectable !== false,
+        resolutionState: resolved.isActive === false
+          ? 'inactive' as const
+          : resolved.isSelectable === false
+            ? 'unselectable' as const
+            : 'selectable' as const,
+      }
+      : entry.available
+        ? { ...entry, resolutionState: 'selectable' as const }
+        : { ...entry, resolutionState: 'unresolved' as const };
   });
   const searching = search.isPending || search.isFetching;
   const hasSearch = debouncedQuery.length >= 2;
@@ -129,6 +163,7 @@ function DirectorySubjectPickerView({
     selected.some((entry) => entry.subject.kind === subject.kind && entry.subject.id === subject.id);
 
   function select(item: DirectorySubjectDto) {
+    if (item.isSelectable === false) return;
     const next: DirectorySubjectSelection = {
       subject: item.subject,
       displayName: item.displayName,
@@ -165,12 +200,17 @@ function DirectorySubjectPickerView({
               'inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold',
               entry.available ? 'bg-accent/15 text-accent' : 'bg-fail/10 text-fail',
             )}
-            title={entry.available ? entry.detail : 'Diese Referenz ist im aktiven Verzeichnis nicht verfügbar.'}
+            title={entry.available ? entry.detail : unavailableTitle(entry.resolutionState)}
           >
             {!entry.available && <Icon name="warning" size={14} />}
             <span className="min-w-0 truncate">
               {entry.displayName || entry.subject.id}
               {entry.detail && <span className="text-[10.5px] font-normal opacity-75"> · {entry.detail}</span>}
+              {!entry.available && (
+                <span className="text-[10.5px] font-normal opacity-90">
+                  {' · '}{unavailableLabel(entry.resolutionState)}
+                </span>
+              )}
             </span>
             <button
               type="button"
@@ -241,7 +281,7 @@ function DirectorySubjectPickerView({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                disabled={isSelected}
+                disabled={isSelected || item.isSelectable === false}
                 onClick={() => select(item)}
                 className={cn(
                   'text-text hover:bg-surface flex w-full cursor-pointer flex-col items-start rounded-md border-none bg-transparent px-2.5 py-2 text-left',
@@ -257,6 +297,18 @@ function DirectorySubjectPickerView({
       )}
     </div>
   );
+}
+
+function unavailableLabel(state: 'inactive' | 'unselectable' | 'unresolved' | 'selectable'): string {
+  if (state === 'inactive') return 'Deaktiviert';
+  if (state === 'unselectable') return 'Nicht mehr auswählbar';
+  return 'Nicht auflösbar';
+}
+
+function unavailableTitle(state: 'inactive' | 'unselectable' | 'unresolved' | 'selectable'): string {
+  if (state === 'inactive') return 'Diese Identität ist deaktiviert und kann nicht erneut ausgewählt werden.';
+  if (state === 'unselectable') return 'Diese Identität ist im aktuellen Kontext nicht mehr auswählbar.';
+  return 'Diese Referenz ist im aktuellen Verzeichnis nicht auflösbar.';
 }
 
 /** Gemeinsame Ansicht für Workflow-, Ordner- und Formularsuche; nur der Hook-Kontext unterscheidet sich. */
@@ -483,4 +535,25 @@ function uniqueSubjects(subjects: SubjectRefDto[]): SubjectRefDto[] {
       (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
     ) === index,
   );
+}
+
+function subjectKey(subject: SubjectRefDto): string {
+  return `${subject.kind}:${subject.id}`;
+}
+
+function resolutionCacheScope({
+  definitionId,
+  folderId,
+  directoryContext,
+  directoryAdapter,
+  fieldKey,
+}: Pick<DirectorySubjectPickerProps,
+  'definitionId' | 'folderId' | 'directoryContext' | 'directoryAdapter' | 'fieldKey'>): string {
+  return JSON.stringify([
+    definitionId,
+    folderId ?? null,
+    directoryContext ?? null,
+    directoryAdapter?.cacheKey ?? null,
+    fieldKey ?? null,
+  ]);
 }

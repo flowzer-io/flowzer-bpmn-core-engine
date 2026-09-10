@@ -182,6 +182,103 @@ public class OpenApiContractTest
         ]);
     }
 
+    // Testzweck: Die technische Laufzeitprojektion ist als eigener 404-geschützter Vertrag
+    // beschrieben und kann keine internen Token- oder Korrelationskennungen serialisieren.
+    [Test]
+    public async Task RuntimeDiagramEndpoint_ShouldExposeOnlyTheSanitizedProjection()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(
+            root.GetProperty("paths"), "/Instance/{instanceId}/runtime-diagram", "get");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/RuntimeDiagramDtoApiStatusResult");
+        GetProblemResponse(operation, "404").Should().Be("#/components/schemas/ProblemDetails");
+
+        var eventProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("RuntimeNodeEventDto").GetProperty("properties");
+        eventProperties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "flowNodeId", "state", "occurredAtUtc"
+        ]);
+        eventProperties.TryGetProperty("tokenId", out _).Should().BeFalse();
+        eventProperties.TryGetProperty("correlationId", out _).Should().BeFalse();
+    }
+
+    // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
+    // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
+    [Test]
+    public async Task DefinitionEndpoints_ShouldExposeTheSharedBpmnCapabilityContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var paths = document.RootElement.GetProperty("paths");
+
+        var capabilities = GetOperation(paths, "/Definition/capabilities", "get");
+        GetResponseSchema(capabilities, "200").Should()
+            .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
+
+        var validation = GetOperation(paths, "/Definition/validate", "post");
+        GetResponseSchema(validation, "200").Should()
+            .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
+        GetProblemResponse(validation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+
+        foreach (var path in new[] { "/Definition", "/Definition/deploy" })
+        {
+            var mutation = GetOperation(paths, path, "post");
+            GetResponseSchema(mutation, "200").Should()
+                .Be("#/components/schemas/BpmnDefinitionDtoApiStatusResult");
+            GetProblemResponse(mutation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+        }
+
+        var problemProperties = document.RootElement.GetProperty("components").GetProperty("schemas")
+            .GetProperty("BpmnCapabilityProblemDetails").GetProperty("properties");
+        problemProperties.TryGetProperty("code", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("issues", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("capabilityContractVersion", out _).Should().BeTrue();
+        problemProperties.TryGetProperty("traceId", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Die Abschnittsbibliothek bleibt ein expliziter hostneutraler Vertrag
+    // mit konkreten Versionen, CAS-Entwuerfen und strukturierten Publish-Fehlern.
+    [Test]
+    public async Task FormSectionEndpoints_ShouldExposeVersionedAuthoringContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+
+        GetResponseSchema(GetOperation(paths, "/form-section", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionMetadataDtoArrayApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section", "post"), "201").Should()
+            .Be("#/components/schemas/FormSectionMetadataDtoApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section/{sectionId}/versions", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionVersionSummaryDtoArrayApiStatusResult");
+        GetResponseSchema(GetOperation(paths, "/form-section/{sectionId}/versions/{version}", "get"), "200").Should()
+            .Be("#/components/schemas/FormSectionVersionDtoApiStatusResult");
+
+        var saveDraft = GetOperation(paths, "/form-section/{sectionId}/draft", "put");
+        GetResponseSchema(saveDraft, "200").Should()
+            .Be("#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult");
+        GetProblemResponse(saveDraft, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+
+        var publish = GetOperation(paths, "/form-section/{sectionId}/publish", "post");
+        GetResponseSchema(publish, "200").Should()
+            .Be("#/components/schemas/FormSectionVersionDtoApiStatusResult");
+        GetProblemResponse(publish, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(publish, "422").Should().Be("#/components/schemas/ApiValidationProblem");
+
+        var versionProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("FormSectionVersionDto").GetProperty("properties");
+        versionProperties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "sectionId", "version", "sectionData"
+        ]);
+
+        var preview = GetOperation(paths, "/Form/{formId}/preview", "post");
+        GetResponseSchema(preview, "200").Should()
+            .Be("#/components/schemas/FormAuthoringPreviewDtoApiStatusResult");
+        GetProblemResponse(preview, "422").Should().Be("#/components/schemas/ApiValidationProblem");
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

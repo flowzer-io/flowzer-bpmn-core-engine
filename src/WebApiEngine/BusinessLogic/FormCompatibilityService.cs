@@ -30,7 +30,7 @@ public sealed class FormCompatibilityService(ITransactionalStorageProvider stora
 
             var draft = await storage.FormAuthoringStorage.Get(formMetadata.FormId);
             if (draft is not null)
-                report.Add(AssessDraft(formMetadata, draft));
+                report.Add(await AssessDraftAsync(storage, formMetadata, draft));
         }
 
         return needsMigration switch
@@ -51,15 +51,48 @@ public sealed class FormCompatibilityService(ITransactionalStorageProvider stora
             version: form.Version.ToDto(),
             draftRevision: null);
 
-    private static FormCompatibilityItemDto AssessDraft(FormMetadata metadata, Model.FormAuthoringDraft draft) =>
-        Assess(
-            formData: draft.FormData,
-            formId: metadata.FormId,
-            formName: metadata.Name,
-            source: "draft",
-            publishedFormId: draft.BasedOnPublishedFormId,
-            version: draft.BasedOnVersion?.ToDto(),
-            draftRevision: draft.Revision);
+    private static async Task<FormCompatibilityItemDto> AssessDraftAsync(
+        IStorageSystem storage,
+        FormMetadata metadata,
+        Model.FormAuthoringDraft draft)
+    {
+        try
+        {
+            var expanded = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormSectionStorage,
+                draft.FormData);
+            return Assess(
+                formData: expanded,
+                formId: metadata.FormId,
+                formName: metadata.Name,
+                source: "draft",
+                publishedFormId: draft.BasedOnPublishedFormId,
+                version: draft.BasedOnVersion?.ToDto(),
+                draftRevision: draft.Revision);
+        }
+        catch (FormContractException exception)
+        {
+            return Incompatible(
+                metadata.FormId,
+                metadata.Name,
+                "draft",
+                draft.BasedOnPublishedFormId,
+                draft.BasedOnVersion?.ToDto(),
+                draft.Revision,
+                exception.Code);
+        }
+        catch (Exception)
+        {
+            return Incompatible(
+                metadata.FormId,
+                metadata.Name,
+                "draft",
+                draft.BasedOnPublishedFormId,
+                draft.BasedOnVersion?.ToDto(),
+                draft.Revision,
+                "schema.invalid");
+        }
+    }
 
     private static FormCompatibilityItemDto Assess(
         string formData,

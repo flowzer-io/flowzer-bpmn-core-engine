@@ -281,6 +281,15 @@ export interface paths {
                         "text/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                     };
                 };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -318,6 +327,98 @@ export interface paths {
                         "text/plain": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                         "application/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
                         "text/json": components["schemas"]["BpmnDefinitionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Definition/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Definition/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["BpmnCapabilityProblemDetails"];
                     };
                 };
             };
@@ -911,6 +1012,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/user-tasks/{taskId}/assignees/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: {
+                    action?: string;
+                };
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects": {
         parameters: {
             query?: never;
@@ -982,6 +1157,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    definitionId: string;
+                    fieldKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects": {
         parameters: {
             query?: never;
@@ -1047,6 +1295,79 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: string;
+                    fieldKey: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1493,6 +1814,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Form/{formId}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    formId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PreviewFormAuthoringRequestDto"];
+                    "text/json": components["schemas"]["PreviewFormAuthoringRequestDto"];
+                    "application/*+json": components["schemas"]["PreviewFormAuthoringRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormAuthoringPreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormAuthoringPreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormAuthoringPreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Form/{formId}/{formIdentifier}": {
         parameters: {
             query?: never;
@@ -1777,6 +2152,436 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/form-section": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionMetadataDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionMetadataDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionMetadataDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateFormSectionRequestDto"];
+                    "text/json": components["schemas"]["CreateFormSectionRequestDto"];
+                    "application/*+json": components["schemas"]["CreateFormSectionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-section/{sectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RenameFormSectionRequestDto"];
+                    "text/json": components["schemas"]["RenameFormSectionRequestDto"];
+                    "application/*+json": components["schemas"]["RenameFormSectionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionMetadataDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-section/{sectionId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionVersionSummaryDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionVersionSummaryDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionVersionSummaryDtoArrayApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-section/{sectionId}/versions/{version}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                    version: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-section/{sectionId}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SaveFormSectionAuthoringDraftRequestDto"];
+                    "text/json": components["schemas"]["SaveFormSectionAuthoringDraftRequestDto"];
+                    "application/*+json": components["schemas"]["SaveFormSectionAuthoringDraftRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionAuthoringDraftDtoApiStatusResult"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: {
+                    expectedRevision?: number;
+                };
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ApiStatusResult"];
+                        "application/json": components["schemas"]["ApiStatusResult"];
+                        "text/json": components["schemas"]["ApiStatusResult"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-section/{sectionId}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    sectionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PublishFormSectionAuthoringDraftRequestDto"];
+                    "text/json": components["schemas"]["PublishFormSectionAuthoringDraftRequestDto"];
+                    "application/*+json": components["schemas"]["PublishFormSectionAuthoringDraftRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormSectionVersionDtoApiStatusResult"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Health": {
         parameters: {
             query?: never;
@@ -2022,6 +2827,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/workflows/{definitionId}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    definitionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/folders/{folderId}/subjects": {
         parameters: {
             query?: never;
@@ -2086,6 +2963,78 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/identity-directory/folders/{folderId}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "text/json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                    "application/*+json": components["schemas"]["DirectorySubjectResolutionRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2234,6 +3183,54 @@ export interface paths {
                         "text/plain": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
                         "application/json": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
                         "text/json": components["schemas"]["ProcessHistoryDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Instance/{instanceId}/runtime-diagram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
+                        "application/json": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
+                        "text/json": components["schemas"]["RuntimeDiagramDtoApiStatusResult"];
                     };
                 };
                 /** @description Not Found */
@@ -3664,6 +4661,41 @@ export interface components {
             email?: string | null;
             capabilities?: string[] | null;
         };
+        BpmnCapabilityContract: {
+            contractVersion?: string | null;
+            elements?: components["schemas"]["BpmnElementCapability"][] | null;
+        };
+        BpmnCapabilityContractApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["BpmnCapabilityContract"];
+        };
+        BpmnCapabilityIssueDto: {
+            code?: string | null;
+            severity?: string | null;
+            elementId?: string | null;
+            propertyPath?: string | null;
+            message?: string | null;
+        };
+        BpmnCapabilityProblemDetails: {
+            type?: string | null;
+            title?: string | null;
+            /** Format: int32 */
+            status?: number | null;
+            detail?: string | null;
+            instance?: string | null;
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            readonly successful?: boolean;
+            readonly errorMessage?: string | null;
+            code?: string | null;
+            issues?: components["schemas"]["BpmnCapabilityIssueDto"][] | null;
+            capabilityContractVersion?: string | null;
+            traceId?: string | null;
+        } & {
+            [key: string]: unknown;
+        };
         BpmnDefinitionDto: {
             /** Format: uuid */
             id: string;
@@ -3691,6 +4723,12 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["BpmnDefinitionDto"][] | null;
         };
+        BpmnElementCapability: {
+            elementType?: string | null;
+            modelable?: boolean;
+            parsable?: boolean;
+            executable?: boolean;
+        };
         BpmnMetaDefinitionDto: {
             definitionId: string | null;
             name: string | null;
@@ -3709,10 +4747,28 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        CreateFormSectionRequestDto: {
+            name: string | null;
+        };
         DirectorySubjectDto: {
             subject: components["schemas"]["SubjectRefDto"];
             displayName: string | null;
             detail: string | null;
+            isActive: boolean;
+            isSelectable: boolean;
+        };
+        DirectorySubjectResolutionRequestDto: {
+            subjects?: components["schemas"]["SubjectRefDto"][] | null;
+        };
+        DirectorySubjectResolutionResultDto: {
+            /** Format: uuid */
+            generationId: string;
+            items?: components["schemas"]["DirectorySubjectDto"][] | null;
+        };
+        DirectorySubjectResolutionResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["DirectorySubjectResolutionResultDto"];
         };
         DirectorySubjectSearchResultDto: {
             /** Format: uuid */
@@ -3834,6 +4890,15 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["FormAuthoringDraftDto"];
         };
+        FormAuthoringPreviewDto: {
+            formData: string | null;
+            validationProfile: string | null;
+        };
+        FormAuthoringPreviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormAuthoringPreviewDto"];
+        };
         FormCompatibilityItemDto: {
             /** Format: uuid */
             formId: string;
@@ -3881,6 +4946,64 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["FormMetaDataDto"][] | null;
+        };
+        FormSectionAuthoringDraftDto: {
+            /** Format: uuid */
+            sectionId: string;
+            /** Format: int64 */
+            revision: number;
+            hasDraft: boolean;
+            /** Format: date-time */
+            updatedAtUtc?: string | null;
+            /** Format: uuid */
+            basedOnPublishedSectionId?: string | null;
+            basedOnVersion?: components["schemas"]["VersionDto"];
+            sectionData: string | null;
+        };
+        FormSectionAuthoringDraftDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormSectionAuthoringDraftDto"];
+        };
+        FormSectionMetadataDto: {
+            /** Format: uuid */
+            sectionId: string;
+            name: string | null;
+        };
+        FormSectionMetadataDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormSectionMetadataDto"];
+        };
+        FormSectionMetadataDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormSectionMetadataDto"][] | null;
+        };
+        FormSectionVersionDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sectionId: string;
+            version: components["schemas"]["VersionDto"];
+            sectionData: string | null;
+        };
+        FormSectionVersionDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormSectionVersionDto"];
+        };
+        FormSectionVersionSummaryDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            sectionId: string;
+            version: components["schemas"]["VersionDto"];
+        };
+        FormSectionVersionSummaryDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormSectionVersionSummaryDto"][] | null;
         };
         HealthStatusDto: {
             status: string | null;
@@ -4042,6 +5165,9 @@ export interface components {
             /** Format: int32 */
             pendingServices: number;
         };
+        PreviewFormAuthoringRequestDto: {
+            formData: string | null;
+        };
         ProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -4116,10 +5242,61 @@ export interface components {
             /** Format: int64 */
             expectedRevision: number;
         };
+        PublishFormSectionAuthoringDraftRequestDto: {
+            /** Format: int64 */
+            expectedRevision: number;
+        };
+        RenameFormSectionRequestDto: {
+            name: string | null;
+        };
+        RuntimeDiagramDto: {
+            /** Format: uuid */
+            instanceId: string;
+            /** Format: uuid */
+            definitionId: string;
+            processId: string | null;
+            state: components["schemas"]["ProcessInstanceStateDto"];
+            /** Format: date-time */
+            snapshotAtUtc: string;
+            diagramXml: string | null;
+            nodes: components["schemas"]["RuntimeNodeSummaryDto"][] | null;
+            events: components["schemas"]["RuntimeNodeEventDto"][] | null;
+        };
+        RuntimeDiagramDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["RuntimeDiagramDto"];
+        };
+        RuntimeNodeEventDto: {
+            /** Format: uuid */
+            id: string;
+            flowNodeId: string | null;
+            state: components["schemas"]["FlowNodeStateDto"];
+            /** Format: date-time */
+            occurredAtUtc: string;
+        };
+        /**
+         * Format: int32
+         * @enum {integer}
+         */
+        RuntimeNodeStatusDto: 0 | 1 | 2 | 3;
+        RuntimeNodeSummaryDto: {
+            flowNodeId: string | null;
+            status: components["schemas"]["RuntimeNodeStatusDto"];
+            /** Format: int32 */
+            tokenCount: number;
+            /** Format: date-time */
+            lastChangedAtUtc?: string | null;
+        };
         SaveFormAuthoringDraftRequestDto: {
             /** Format: int64 */
             expectedRevision: number;
             formData: string | null;
+        };
+        SaveFormSectionAuthoringDraftRequestDto: {
+            /** Format: int64 */
+            expectedRevision: number;
+            sectionData: string | null;
         };
         SaveUserTaskDraftRequestDto: {
             /** Format: int64 */

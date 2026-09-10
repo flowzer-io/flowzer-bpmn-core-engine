@@ -22,3 +22,16 @@ public sealed class PublishFormAuthoringDraftRequestDto
 {
     public required long ExpectedRevision { get; init; }
 }
+
+/// <summary>Lokaler Autorenstand, der ausschließlich serverseitig aufgeloest wird.</summary>
+public sealed class PreviewFormAuthoringRequestDto
+{
+    public required string FormData { get; init; }
+}
+
+/// <summary>Vollständig expandierter, nicht persistierter Vorschau-Snapshot.</summary>
+public sealed class FormAuthoringPreviewDto
+{
+    public required string FormData { get; init; }
+    public required string ValidationProfile { get; init; }
+}

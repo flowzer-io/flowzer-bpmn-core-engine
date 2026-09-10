@@ -1,7 +1,6 @@
 import {
   useMutation,
   useQuery,
-  useQueries,
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
@@ -11,6 +10,7 @@ import {
   definitionsApi,
   foldersApi,
   formsApi,
+  formSectionsApi,
   identityDirectoryApi,
   instancesApi,
   operationsApi,
@@ -18,14 +18,16 @@ import {
 } from './endpoints';
 import type {
   BpmnMetaDefinitionDto,
+  BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
-  DirectorySubjectDto,
+  DirectorySubjectResolutionResultDto,
   FolderAssignmentDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
+  FormAuthoringPreviewDto,
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
@@ -37,11 +39,17 @@ import type {
   SubjectRefDto,
   NotificationDto,
   FormDirectorySearchContext,
+  FormSectionMetadataDto,
+  FormSectionVersionSummaryDto,
+  FormSectionAuthoringDraftDto,
+  FormSectionVersionDto,
+  SaveFormSectionAuthoringDraftRequestDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
 export const queryKeys = {
   definitions: ['definitions'] as const,
+  definitionCapabilities: ['definitions', 'capabilities'] as const,
   definitionMeta: () => [...queryKeys.definitions, 'meta'] as const,
   definitionLatest: (definitionId: string) => [...queryKeys.definitions, 'latest', definitionId] as const,
   definitionXml: (versionGuid: string) => [...queryKeys.definitions, 'xml', versionGuid] as const,
@@ -52,6 +60,10 @@ export const queryKeys = {
     [...queryKeys.identityDirectory, 'workflow', definitionId, kind, query] as const,
   folderDirectorySubjects: (folderId: string, query: string, kind: 'all' | 'user' | 'group') =>
     [...queryKeys.identityDirectory, 'folder', folderId, kind, query] as const,
+  directorySubjectResolution: (definitionId: string, subjects: string) =>
+    [...queryKeys.identityDirectory, 'workflow', definitionId, 'resolve', subjects] as const,
+  folderDirectorySubjectResolution: (folderId: string, subjects: string) =>
+    [...queryKeys.identityDirectory, 'folder', folderId, 'resolve', subjects] as const,
 
   folders: ['folders'] as const,
   folderList: () => [...queryKeys.folders, 'list'] as const,
@@ -66,8 +78,15 @@ export const queryKeys = {
   formList: () => [...queryKeys.forms, 'list'] as const,
   form: (formId: string) => [...queryKeys.forms, 'detail', formId] as const,
   formDraft: (formId: string) => [...queryKeys.forms, 'draft', formId] as const,
+  formPreview: (formId: string, formData: string) =>
+    [...queryKeys.forms, 'preview', formId, formData] as const,
   formCompatibility: (needsMigration?: boolean) =>
     [...queryKeys.forms, 'compatibility', needsMigration ?? null] as const,
+
+  formSections: ['formSections'] as const,
+  formSectionList: () => [...queryKeys.formSections, 'list'] as const,
+  formSectionVersions: (sectionId: string) => [...queryKeys.formSections, 'versions', sectionId] as const,
+  formSectionDraft: (sectionId: string) => [...queryKeys.formSections, 'draft', sectionId] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -90,6 +109,22 @@ export function useDefinitions(options?: QueryTuning<ExtendedBpmnMetaDefinitionD
     queryFn: ({ signal }) => definitionsApi.listMeta(signal),
     staleTime: 15_000,
     ...options,
+  });
+}
+
+/** Der Vertrag ist versioniert und kann deshalb für die Sitzung gecacht werden. */
+export function useBpmnCapabilities() {
+  return useQuery<BpmnCapabilityContract>({
+    queryKey: queryKeys.definitionCapabilities,
+    queryFn: ({ signal }) => definitionsApi.capabilities(signal),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Prüft das aktuelle Modell vor Save oder Deploy, ohne eine Version anzulegen. */
+export function useValidateDefinition() {
+  return useMutation({
+    mutationFn: (xml: string) => definitionsApi.validate(xml),
   });
 }
 
@@ -258,78 +293,38 @@ export function useFormDirectorySubjectSearch(
   });
 }
 
-/** Löst bereits gespeicherte IDs einzeln auf, ohne einen unbeschränkten Directory-Abruf. */
+/** Löst bereits gespeicherte IDs in einem begrenzten, workflowgebundenen Batch auf. */
 export function useDirectorySubjectResolutions(
   definitionId: string,
   subjects: SubjectRefDto[],
   enabled = true,
 ) {
-  const uniqueSubjects = subjects.filter(
-    (subject, index) =>
-      subjects.findIndex(
-        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-      ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: queryKeys.directorySubjects(definitionId, subject.id, subject.kind),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchSubjects(definitionId, subject.id, subject.kind, signal),
-      enabled: enabled && definitionId.length > 0 && subject.id.length >= 1,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        if (!subject) return [];
-        return (result.data?.items ?? []).filter(
-          (item: DirectorySubjectDto) =>
-            item.subject.kind === subject.kind && item.subject.id === subject.id,
-        );
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: queryKeys.directorySubjectResolution(definitionId, subjectKey),
+    queryFn: ({ signal }) => identityDirectoryApi.resolveSubjects(definitionId, uniqueSubjects, signal),
+    enabled: enabled && definitionId.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
 }
 
-/** Löst gespeicherte Ordnerreferenzen einzeln auf; unbekannte IDs bleiben im Picker sichtbar. */
+/** Löst gespeicherte Ordnerreferenzen als Batch auf; unbekannte IDs bleiben im Picker sichtbar. */
 export function useFolderDirectorySubjectResolutions(
   folderId: string,
   subjects: SubjectRefDto[],
   enabled = true,
 ) {
-  const uniqueSubjects = subjects.filter(
-    (subject, index) =>
-      subjects.findIndex(
-        (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-      ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: queryKeys.folderDirectorySubjects(folderId, subject.id, subject.kind),
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchFolderSubjects(folderId, subject.id, subject.kind, signal),
-      enabled: enabled && folderId.length > 0 && subject.id.length >= 1,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        if (!subject) return [];
-        return (result.data?.items ?? []).filter(
-          (item: DirectorySubjectDto) =>
-            item.subject.kind === subject.kind && item.subject.id === subject.id,
-        );
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: queryKeys.folderDirectorySubjectResolution(folderId, subjectKey),
+    queryFn: ({ signal }) => identityDirectoryApi.resolveFolderSubjects(folderId, uniqueSubjects, signal),
+    enabled: enabled && folderId.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
 }
 
 /** Löst Formularwerte über denselben gebundenen Endpoint wie die Suche auf. */
@@ -344,32 +339,27 @@ export function useFormDirectorySubjectResolutions(
     : context?.kind === 'userTask'
       ? `task:${context.taskId}`
       : '';
-  const uniqueSubjects = subjects.filter(
-    (subject, index) => subjects.findIndex(
-      (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
-    ) === index,
-  );
-
-  return useQueries({
-    queries: uniqueSubjects.map((subject) => ({
-      queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, subject.kind, subject.id],
-      queryFn: ({ signal }: { signal: AbortSignal }) =>
-        identityDirectoryApi.searchFormSubjects(context!, fieldKey, subject.id, subject.kind, signal),
-      enabled: enabled && Boolean(context) && fieldKey.length > 0,
-      staleTime: 30_000,
-    })),
-    combine: (results) => ({
-      data: results.flatMap((result, index) => {
-        const subject = uniqueSubjects[index];
-        return subject
-          ? (result.data?.items ?? []).filter((item) => item.subject.kind === subject.kind && item.subject.id === subject.id)
-          : [];
-      }),
-      isPending: results.some((result) => result.isPending),
-      isFetching: results.some((result) => result.isFetching),
-      error: results.find((result) => result.error)?.error ?? null,
-    }),
+  const uniqueSubjects = uniqueSubjectRefs(subjects);
+  const subjectKey = subjectResolutionKey(uniqueSubjects);
+  const result = useQuery<DirectorySubjectResolutionResultDto>({
+    queryKey: [...queryKeys.identityDirectory, 'form', contextKey, fieldKey, 'resolve', subjectKey],
+    queryFn: ({ signal }) => identityDirectoryApi.resolveFormSubjects(
+      context!, fieldKey, uniqueSubjects, signal,
+    ),
+    enabled: enabled && Boolean(context) && fieldKey.length > 0 && uniqueSubjects.length > 0,
+    staleTime: 30_000,
   });
+  return { ...result, data: result.data?.items ?? [] };
+}
+
+function uniqueSubjectRefs(subjects: SubjectRefDto[]): SubjectRefDto[] {
+  return subjects.filter((subject, index) => subjects.findIndex(
+    (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+  ) === index);
+}
+
+function subjectResolutionKey(subjects: SubjectRefDto[]): string {
+  return subjects.map((subject) => `${subject.kind}:${subject.id}`).join('|');
 }
 
 /* ---------------------------------------------------------------------- Ordner */
@@ -537,6 +527,25 @@ export function useFormAuthoringDraft(formId: string | undefined) {
   });
 }
 
+/**
+ * Die Vorschau ist ein read-only POST, weil das unveroeffentlichte Schema zu gross fuer
+ * eine URL sein kann. TanStack Query sorgt trotzdem fuer Abbruch und Server-State-Lebenszyklus.
+ */
+export function useFormAuthoringPreview(
+  formId: string | undefined,
+  formData: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery<FormAuthoringPreviewDto>({
+    queryKey: queryKeys.formPreview(formId ?? '', formData ?? ''),
+    queryFn: ({ signal }) => formsApi.previewDraft(formId!, formData!, signal),
+    enabled: enabled && Boolean(formId) && formData !== undefined,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
+  });
+}
+
 export function useFormCompatibilityInventory(enabled = true, needsMigration?: boolean) {
   return useQuery<FormCompatibilityItemDto[]>({
     queryKey: queryKeys.formCompatibility(needsMigration),
@@ -615,6 +624,88 @@ export function useDeleteForm() {
         queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
       });
     },
+  });
+}
+
+/* -------------------------------------------------- Wiederverwendbare Abschnitte */
+
+export function useFormSections(options?: QueryTuning<FormSectionMetadataDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.formSectionList(),
+    queryFn: ({ signal }) => formSectionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useFormSectionVersions(sectionId: string | undefined) {
+  return useQuery<FormSectionVersionSummaryDto[]>({
+    queryKey: queryKeys.formSectionVersions(sectionId ?? ''),
+    queryFn: ({ signal }) => formSectionsApi.listVersions(sectionId!, signal),
+    enabled: Boolean(sectionId),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function useFormSectionDraft(sectionId: string | undefined) {
+  return useQuery<FormSectionAuthoringDraftDto>({
+    queryKey: queryKeys.formSectionDraft(sectionId ?? ''),
+    queryFn: ({ signal }) => formSectionsApi.getDraft(sectionId!, signal),
+    enabled: Boolean(sectionId),
+    retry: false,
+  });
+}
+
+export function useSaveFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, draft }: { sectionId: string; draft: SaveFormSectionAuthoringDraftRequestDto }) =>
+      formSectionsApi.saveDraft(sectionId, draft),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.formSectionDraft(saved.sectionId), saved);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() });
+    },
+  });
+}
+
+export function useDiscardFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, expectedRevision }: { sectionId: string; expectedRevision: number }) =>
+      formSectionsApi.deleteDraft(sectionId, expectedRevision),
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionDraft(variables.sectionId) });
+    },
+  });
+}
+
+export function usePublishFormSectionDraft() {
+  const queryClient = useQueryClient();
+  return useMutation<FormSectionVersionDto, unknown, { sectionId: string; expectedRevision: number }>({
+    mutationFn: ({ sectionId, expectedRevision }) => formSectionsApi.publishDraft(sectionId, expectedRevision),
+    onSuccess: (_published, variables) => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.formSectionDraft(variables.sectionId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.formSectionVersions(variables.sectionId) }),
+      ]);
+    },
+  });
+}
+
+export function useCreateFormSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => formSectionsApi.create(name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() }),
+  });
+}
+
+export function useRenameFormSection() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sectionId, name }: { sectionId: string; name: string }) => formSectionsApi.rename(sectionId, name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formSectionList() }),
   });
 }
 

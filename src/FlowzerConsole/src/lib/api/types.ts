@@ -126,6 +126,19 @@ export interface BpmnDefinitionDto {
   version: VersionDto;
 }
 
+/** Versionierter, hostneutraler Vertrag für unterstützte BPMN-Elementarten. */
+export interface BpmnCapabilityContract {
+  contractVersion: string;
+  elements: BpmnElementCapability[];
+}
+
+export interface BpmnElementCapability {
+  elementType: string;
+  modelable: boolean;
+  parsable: boolean;
+  executable: boolean;
+}
+
 /** Entspricht `BpmnMetaDefinitionDto`. */
 export interface BpmnMetaDefinitionDto {
   definitionId: string;
@@ -239,6 +252,46 @@ export interface SaveFormAuthoringDraftRequestDto {
   formData: string;
 }
 
+/** Serverseitig expandierter, nicht persistierter Vorschau-Snapshot. */
+export interface FormAuthoringPreviewDto {
+  formData: string;
+  validationProfile: string;
+}
+
+/** Hostneutraler Katalogeintrag eines wiederverwendbaren Formularabschnitts. */
+export interface FormSectionMetadataDto {
+  sectionId: string;
+  name: string;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Abschnittsversion. */
+export interface FormSectionVersionSummaryDto {
+  id: string;
+  sectionId: string;
+  version: VersionDto;
+}
+
+/** Unveränderliche Abschnittsfassung inklusive Form.io-Schema. */
+export interface FormSectionVersionDto extends FormSectionVersionSummaryDto {
+  sectionData: string;
+}
+
+/** Revisionierter Abschnittsentwurf oder veröffentlichte Basis. */
+export interface FormSectionAuthoringDraftDto {
+  sectionId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedSectionId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  sectionData: string;
+}
+
+export interface SaveFormSectionAuthoringDraftRequestDto {
+  expectedRevision: number;
+  sectionData: string;
+}
+
 export type FormCompatibilitySource = 'published' | 'draft';
 
 /** Datensparsamer Inventareintrag; Schema und Scriptinhalt bleiben serverseitig. */
@@ -265,10 +318,20 @@ export interface DirectorySubjectDto {
   subject: SubjectRefDto;
   displayName: string;
   detail: string;
+  /** Status im aktuellen vollständig publizierten Verzeichnisstand. */
+  isActive: boolean;
+  /** Darf im gebundenen fachlichen Kontext erneut ausgewählt werden? */
+  isSelectable: boolean;
 }
 
 /** Begrenzte Treffer aus genau einer atomar veröffentlichten Verzeichnisgeneration. */
 export interface DirectorySubjectSearchResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
+/** Exakte Anzeigeauflösung bereits gespeicherter stabiler Referenzen. */
+export interface DirectorySubjectResolutionResultDto {
   generationId: string;
   items: DirectorySubjectDto[];
 }

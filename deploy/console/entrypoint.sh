@@ -87,7 +87,7 @@ server {
   # (/Definition/meta). Ein daraus erzeugter Client traefe eine Regel mit ~ nicht und bekaeme
   # die Startseite der Oberflaeche mit Status 200 statt der Antwort der API.
   # bff umfasst Login, Session und CSRF unter derselben Origin.
-  location ~* ^/(bff|health|definition|folder|identity-directory|instance|job|message|notifications|usertask|form|timer)(/|\$) {
+  location ~* ^/(bff|health|definition|folder|identity-directory|instance|job|message|notifications|usertask|form-section|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 

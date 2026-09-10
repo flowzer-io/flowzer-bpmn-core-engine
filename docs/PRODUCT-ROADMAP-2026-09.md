@@ -40,10 +40,10 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #220 / PR #221 ergänzt auf #218 / PR #219 aufbauende, hostneutrale React-Hooks,
-Render-Prop-Controller und einen neutralen Formularadaptervertrag. Eine unabhängig
-kompilierte Hostfixture belegt die äußere Produktgrenze. Die Migration der Flowzer-
-Konsole auf dieselben Pakete bleibt ein eigener Folgeslice.
+**Aktiver Slice:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
+dieselbe serverseitige Vorab-/Save-/Deploy-Prüfung. Diagramm und Gliederung zeigen
+strukturierte Befunde dauerhaft und springen zum betroffenen Element. Die bereits
+umgesetzten SDK-/React-Pakete und die Flowzer-Konsole bleiben frei von konkreten Hosts.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
@@ -145,10 +145,11 @@ erzeugen keine weiteren Starts oder Abschlüsse.
 - [x] Erst- und periodischer Abgleich mit Pagination, Retry und sichtbarem Status;
   Generation erst nach vollständigem Erfolg veröffentlichen. Teilfehler dürfen
   keine Massen-Deaktivierung auslösen.
-- [ ] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
-  Auswahlen entfernen. Stabile Historie und Filterung neuer workflowgebundener Suchen
-  sind in #190/#192 umgesetzt; die kontextgebundene historische Anzeige und explizite
-  Klärung mehrdeutiger Bestandszuweisungen folgen mit den konsumierenden Feldern.
+- [x] Gelöschte/deaktivierte Identitäten historisch auflösbar halten, aber aus neuen
+  Auswahlen entfernen. #190/#192 bewahren die stabile Historie und aktive Suche; #234 / PR #237
+  ergänzt exakte, auf gespeicherte Workflow-, Ordner-, Formular- und Lifecycle-Referenzen
+  begrenzte Batch-Auflösungen samt `isActive`/`isSelectable`. Manipulierte IDs bleiben
+  ohne Treffer, inaktive Referenzen sichtbar, aber nicht erneut einreichbar.
 - [x] Generisches Form.io-Feld: Einzel-/Mehrfachauswahl, nur aktive Benutzer (Default
   ja), erlaubte Benutzer/Gruppen, Untergruppen (Default nein), Gruppen auswählbar
   (Default nein), Suche, Auswahl-Chips, Mindest-/Höchstanzahl.
@@ -173,6 +174,8 @@ erzeugen keine weiteren Starts oder Abschlüsse.
   Der serverseitige Modus-, Deployment-, Persistenz- und Rechtevertrag ist in #194 / PR #195
   umgesetzt. #196 ergänzt die Auswahl in Diagramm und Gliederung einschließlich stabiler
   XML-Roundtrips, ID-Auflösung, Lade-/Fehlerzuständen und historischen Warn-Chips.
+  #234 / PR #237 trennt diese Anzeigeauflösung nun vollständig von der aktiven Suche und bindet
+  jeden Treffer an eine bereits gespeicherte Referenz des berechtigten Fachkontexts.
 
 **Abnahme:** Gleichnamige Identitäten bleiben unterscheidbar; manipulierte,
 ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
@@ -201,12 +204,14 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   #202 / PR #203
   PostgreSQL-CAS und FK-Kaskade sichern Konkurrenz und Aufgabenlebenszyklus, die
   Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
-- [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
+- [x] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
   Bedingungen waren bereits Teil von Profil 1. #214 / PR #215 ergänzt Profil 3 für begrenzte
   Datagrids und Plaintext-Hilfetexte. #216 / PR #217 ergänzt Profil 4 mit servergebundenen
-  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche;
-  die versionierte Abschnittsbibliothek bleibt als eigener Folgeslice offen.
+  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche. #230 / PR #231 ergänzt
+  die hostneutrale, revisionsgeschützte Abschnittsbibliothek. Formular-Publish bindet
+  ausschließlich konkrete Versionen und speichert einen eigenständigen Snapshot samt
+  serverseitig erzeugter Bindungsmetadaten; verschachtelte Abschnitte bleiben gesperrt.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
   objektbezogene Downloadrechte und Aufbewahrung.
 - [ ] Dynamische Kunden-/Projekt-/andere Auswahldaten nur über administrativ
@@ -229,7 +234,9 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
   noch offen.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
-- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
+- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln. #226 / PR #227
+  liefert die datensparsame Human-Task-Auditprojektion; #232 / PR #233 ergänzt die getrennte
+  objektberechtigte Engine-Ereignisspur. Fachliche Kommentare bleiben offen.
 - [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
   #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
@@ -253,13 +260,18 @@ und Abschluss bleiben identisch.
   Formularpflege, Modellierung und Störungsbehandlung, mit visueller Evidenz.
 - [ ] BPMN bleibt führend; Gliederung und Diagramm verwenden gemeinsame Eigenschaften
   für Formulare, Identitäten, Fristen, Datenzuordnung, Konnektoren und KI.
-- [ ] Unterstützte Teilmenge zentral deklarieren; nicht ausführbare BPMN-Elemente und
-  verlustbehaftete Gliederungsänderungen vor Speicherung/Deployment anzeigen.
-- [ ] Anwählbare Validierungsfehler für unerreichbare Schritte, fehlende Zuordnungen,
-  ungültige Bedingungen und unvollständige Integrationskonfiguration.
-- [ ] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
-  abgebrochene und gestörte Schritte. Kein scheinexaktes „Schritt x von y“ bei
-  offenen Verzweigungen.
+- [x] Unterstützte Teilmenge zentral deklarieren; #228 / PR #229 trennt modellierbare, parsebare
+  und ausführbare Elemente in `flowzer.bpmn-capabilities/1` und erzwingt den Vertrag
+  vor Save und Deployment. Verlustbehaftete Gliederungsänderungen bleiben zusätzlich
+  durch deren bestehende Teilmengenprüfung blockiert.
+- [x] Anwählbare Validierungsfehler für unerreichbare Schritte, ungültige Referenzen,
+  Exclusive-Gateway-Bedingungen sowie fehlende User-/Service-/Timer-Konfiguration.
+  Diagramm und Gliederung verwenden denselben stabilen 422-Vertrag aus #228 / PR #229.
+- [x] Laufzeitdiagramm und echte Ereigniszeitleiste für aktive, abgeschlossene,
+  abgebrochene und gestörte Schritte. #232 / PR #233 bindet die unveränderliche Definitionsversion,
+  bereinigt das BPMN-Dokument, speichert Engine-Ereignisse append-only und liefert den
+  Vertrag über API, SDK, React und responsive Console. Kein scheinexaktes „Schritt x von y“
+  bei offenen Verzweigungen.
 - [ ] Versionsvergleich, Änderungsübersicht und atomare Veröffentlichung von
   zusammengehörigem BPMN-/Formularstand.
 - [ ] Such-/Filterzustände, Tastatur, Fokus, Formularfehler, Ladezustände und mobile

@@ -177,6 +177,31 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
   });
 
+  // Testzweck: Die hostneutrale Laufzeitprojektion wird über ihren eigenen
+  // objektberechtigten Pfad geladen; AbortSignal und unbekannte Enumwerte bleiben erhalten.
+  it('lädt das Laufzeitdiagramm mit sicher kodierter Instanz-ID', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        instanceId: 'instance/id',
+        definitionId: 'definition-1',
+        processId: 'Process_1',
+        state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z',
+        diagramXml: '<definitions />',
+        nodes: [{ flowNodeId: 'Review', status: 99, tokenCount: 1 }],
+        events: [],
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await expect(client.instances.runtimeDiagram('instance/id', { signal: controller.signal }))
+      .resolves.toMatchObject({ nodes: [{ flowNodeId: 'Review', status: 99 }] });
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance%2Fid/runtime-diagram');
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
   // Testzweck: Der SDK erzeugt niemals stillschweigend einen Ersatzschlüssel und
   // verwirft ungültige Idempotenzwerte, bevor eine Mutation den Server erreicht.
   it('weist ungültige Idempotenzschlüssel vor dem Request zurück', async () => {
@@ -210,7 +235,7 @@ describe('FlowzerClient', () => {
   // Testzweck: Formular-Identitätsfelder fragen ausschließlich ihren servergebundenen
   // Task-/Feldkontext ab; Task- und Feldkennung werden dabei als Pfadsegmente kodiert.
   it('sucht erlaubte Formularidentitäten im gebundenen Aufgabenkontext', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
       successful: true,
       result: { generationId: 'generation-1', items: [] },
     }));
@@ -225,6 +250,36 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![0]).toBe(
       '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects?query=Alex&kind=user&limit=12',
     );
+  });
+
+  // Testzweck: Historische Referenzen werden per begrenztem Batch an den
+  // servergebundenen Aufgabenfeld- beziehungsweise Lifecycle-Kontext gesendet;
+  // der SDK-Client fällt dafür nicht auf die aktive Suche zurück.
+  it('löst historische Aufgabenreferenzen über die gebundenen Batch-Endpunkte auf', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: { generationId: 'generation-1', items: [] },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const subjects = [{ kind: 'user' as const, id: 'user/retired' }];
+
+    await client.userTasks.resolveFormSubjects('task/id', 'delegate/user', subjects);
+    await client.userTasks.resolveAssignees('task/id', {
+      action: 'delegate',
+      subjects,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects/resolve',
+      '/api/identity-directory/user-tasks/task%2Fid/assignees/resolve?action=delegate',
+    ]);
+    expect(fetch.mock.calls.map(([, init]) => ({
+      method: init?.method,
+      body: JSON.parse(String(init?.body)),
+    }))).toEqual([
+      { method: 'POST', body: { subjects } },
+      { method: 'POST', body: { subjects } },
+    ]);
   });
 
   // Testzweck: Ein Host kann eine konkrete Aufgabe per stabiler ID laden, ohne die
@@ -268,5 +323,83 @@ describe('FlowzerClient', () => {
 
     expect(onUnauthorized).toHaveBeenCalledOnce();
     expect(failure).toMatchObject({ status: 401, traceId: 'trace-auth' });
+  });
+
+  // Testzweck: Modellierungsoberflächen laden ausschließlich veröffentlichte,
+  // konkrete Abschnittsversionen; die Version wird nie als freier "latest"-Text
+  // an die API weitergegeben.
+  it('lädt eine konkrete Formularabschnittsversion über ihren kanonischen Pfad', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        id: 'version-1', sectionId: 'section/id', version: { major: 1, minor: 2 }, sectionData: '{}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section/id', { major: 1, minor: 2 }))
+      .resolves.toMatchObject({ id: 'version-1', version: { major: 1, minor: 2 } });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/versions/1.2');
+  });
+
+  // Testzweck: Das revisionsgebundene Speichern eines Abschnittsentwurfs bleibt
+  // als Compare-and-Swap-Vertrag auch für reine JavaScript-Hosts vollständig erhalten.
+  it('speichert einen Formularabschnittsentwurf mit erwarteter Revision', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        sectionId: 'section/id', revision: 4, hasDraft: true, sectionData: '{"components":[]}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.saveDraft('section/id', {
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+  });
+
+  // Testzweck: Das Verwerfen verwendet den gemeinsamen Erfolgsumschlag und bindet
+  // die erwartete Revision als Queryparameter, statt einen 204-Körper zu erfinden.
+  it('verwirft einen Formularabschnittsentwurf revisionsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.deleteDraft('section/id', 3);
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft?expectedRevision=3');
+    expect(fetch.mock.calls[0]![1]?.method).toBe('DELETE');
+  });
+
+  // Testzweck: Eine Veröffentlichung nimmt ausschließlich eine positive
+  // erwartete Revision an und verhindert damit, dass JavaScript-Aufrufer den
+  // serverseitigen Draft-CAS mit einem leeren Standardwert umgehen.
+  it('weist ungültige Abschnittsveröffentlichungen vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.publish('section-1', 0)).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Unvollständige oder nicht-ganzzahlige Versionswerte werden lokal
+  // verworfen; dadurch kann das SDK keine "latest"- oder Pfad-Injection-Semantik
+  // in eine konkrete Abschnittsreferenz einschleusen.
+  it('weist keine unkonkreten Formularabschnittsversionen an die API weiter', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section-1', {
+      major: Number.NaN,
+      minor: 0,
+    })).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

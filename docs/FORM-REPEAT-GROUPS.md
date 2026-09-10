@@ -62,6 +62,7 @@ abgelehnt, statt vorhandene Objektwerte still freizugeben. Veröffentlichte Form
 und Workflow-Bindings bleiben unveränderliche Snapshots; es gibt keine Datenbankmigration.
 
 Formularübergreifend wiederverwendbare, versionierte Abschnitte und explizite
-Entscheidungsaktionen sind eigene Folgeslices. Insbesondere wird ein Datagrid nicht als
+Entscheidungsaktionen sind in eigenen Profilen umgesetzt; Abschnitts-Datagrids bleiben
+bewusst weiterhin gesperrt. Insbesondere wird ein Datagrid nicht als
 allgemeine Freigabe für beliebige Form.io-Container, Editgrids oder verschachtelte Daten
 interpretiert.

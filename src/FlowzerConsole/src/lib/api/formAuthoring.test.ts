@@ -50,6 +50,26 @@ describe('Formularautoren-API', () => {
     });
   });
 
+  // Testzweck: Die Autorenansicht sendet Abschnittsreferenzen zur serverseitigen
+  // Vorschau und rendert ausschließlich den expandierten Antwort-Snapshot.
+  it('fordert eine serverseitig expandierte Vorschau ohne Persistenz an', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({
+        successful: true,
+        result: { formData: '{"components":[{"key":"requester"}]}', validationProfile: 'flowzer.forms/1' },
+      }), { status: 200 }),
+    );
+
+    const result = await formsApi.previewDraft('form/a', '{"components":[{"type":"flowzerSection"}]}');
+
+    expect(result.formData).toContain('requester');
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/form/form%2Fa/preview');
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'POST' });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      formData: '{"components":[{"type":"flowzerSection"}]}',
+    });
+  });
+
   // Testzweck: Veroeffentlichen und Verwerfen binden sich an die konkrete Draft-Revision;
   // dadurch kann die UI keine inzwischen geaenderte Fassung versehentlich bestaetigen.
   it('sendet Publish und Verwerfen mit der erwarteten Revision', async () => {

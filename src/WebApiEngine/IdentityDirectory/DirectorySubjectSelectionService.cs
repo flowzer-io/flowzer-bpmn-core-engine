@@ -34,9 +34,22 @@ public sealed class DirectorySubjectSelectionPolicy
     };
 }
 
-public sealed record DirectorySubjectResult(SubjectRef Subject, string DisplayName, string Detail);
+public sealed record DirectorySubjectResult(
+    SubjectRef Subject,
+    string DisplayName,
+    string Detail,
+    bool IsActive = true,
+    bool IsSelectable = true);
 
 public sealed record DirectorySubjectSearchResult(
+    Guid GenerationId,
+    IReadOnlyList<DirectorySubjectResult> Items);
+
+/// <summary>
+/// Exakte Anzeigeprojektion bereits gespeicherter Referenzen. Sie ist absichtlich vom
+/// Suchvertrag getrennt: ein historischer Treffer darf niemals wieder auswählbar werden.
+/// </summary>
+public sealed record DirectorySubjectResolutionResult(
     Guid GenerationId,
     IReadOnlyList<DirectorySubjectResult> Items);
 
@@ -103,6 +116,55 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
     }
 
     /// <summary>
+    /// Löst eine kleine Menge bereits bekannter stabiler IDs zur Anzeige auf. Die Policy
+    /// begrenzt die erlaubten Identitätsarten; <see cref="DirectorySubjectResult.IsSelectable"/>
+    /// wird weiterhin mit der vollständigen aktuellen Auswahlpolicy berechnet.
+    /// </summary>
+    public async Task<DirectorySubjectResolutionResult?> ResolveForDisplayAsync(
+        IReadOnlyCollection<SubjectRef> subjects,
+        DirectorySubjectSelectionPolicy policy,
+        IReadOnlySet<SubjectRef> contextSubjects)
+    {
+        ArgumentNullException.ThrowIfNull(subjects);
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(contextSubjects);
+        if (subjects.Count is < 1 or > 50) throw new ArgumentOutOfRangeException(nameof(subjects));
+
+        var snapshot = await storage.GetActiveSnapshot();
+        return snapshot is null ? null : ResolveForDisplay(snapshot, subjects, policy, contextSubjects);
+    }
+
+    /// <summary>
+    /// Snapshotreiner Kern für kontextgebundene Anzeigeauflösungen. Filter wie heutige
+    /// Gruppenmitgliedschaft werden nur für <c>IsSelectable</c> ausgewertet: sonst würde
+    /// eine nachträgliche Deaktivierung die historische Beschriftung zerstören.
+    /// </summary>
+    public static DirectorySubjectResolutionResult ResolveForDisplay(
+        DirectorySnapshot snapshot,
+        IReadOnlyCollection<SubjectRef> subjects,
+        DirectorySubjectSelectionPolicy policy,
+        IReadOnlySet<SubjectRef> contextSubjects)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentNullException.ThrowIfNull(subjects);
+        ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(contextSubjects);
+        if (subjects.Count is < 1 or > 50) throw new ArgumentOutOfRangeException(nameof(subjects));
+
+        var items = subjects
+            .Distinct()
+            // Eine UUID allein ist kein Leserecht. Nur eine bereits im fachlichen Kontext
+            // gespeicherte Referenz darf auch dann beschriftet werden, wenn sie inzwischen
+            // inaktiv oder durch eine geänderte Policy ausgeschlossen ist.
+            .Where(contextSubjects.Contains)
+            .Select(subject => ProjectForDisplay(snapshot, subject, policy))
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToArray();
+        return new DirectorySubjectResolutionResult(snapshot.GenerationId, items);
+    }
+
+    /// <summary>
     /// Gemeinsamer, snapshotreiner Pruefkern fuer Suche und Formular-Submission. Dadurch
     /// entscheidet derselbe Policycode ueber angezeigte und tatsaechlich akzeptierte Werte.
     /// </summary>
@@ -140,7 +202,9 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
                 yield return new DirectorySubjectResult(
                     new SubjectRef(DirectorySubjectKind.User, user.Id),
                     user.DisplayName,
-                    user.Subject);
+                    user.Subject,
+                    user.IsActive,
+                    IsSelectable: true);
             }
         }
 
@@ -156,9 +220,37 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
                 yield return new DirectorySubjectResult(
                     new SubjectRef(DirectorySubjectKind.Group, group.Id),
                     group.Name,
-                    group.Path);
+                    group.Path,
+                    group.IsActive,
+                    IsSelectable: true);
             }
         }
+    }
+
+    private static DirectorySubjectResult? ProjectForDisplay(
+        DirectorySnapshot snapshot,
+        SubjectRef subject,
+        DirectorySubjectSelectionPolicy policy)
+    {
+        if (subject.Id == Guid.Empty) return null;
+
+        DirectorySubjectResult? result = subject.Kind switch
+        {
+            DirectorySubjectKind.User when policy.AllowUsers => snapshot.Users
+                .Where(user => user.Id == subject.Id)
+                .Select(user => new DirectorySubjectResult(
+                    subject, user.DisplayName, user.Subject, user.IsActive, IsSelectable: false))
+                .SingleOrDefault(),
+            DirectorySubjectKind.Group when policy.AllowGroups => snapshot.Groups
+                .Where(group => group.Id == subject.Id)
+                .Select(group => new DirectorySubjectResult(
+                    subject, group.Name, group.Path, group.IsActive, IsSelectable: false))
+                .SingleOrDefault(),
+            _ => null
+        };
+        return result is null
+            ? null
+            : result with { IsSelectable = Resolve(snapshot, subject, policy) is not null };
     }
 
     private static HashSet<Guid> ExpandGroups(

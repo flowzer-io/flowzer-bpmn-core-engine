@@ -47,6 +47,9 @@ diesen Sitzungsbestand.
 - `useUserTaskWorkspace` und `UserTaskWorkspaceController`
 - `useUserTaskActions` für Claim/Release/Assign/Delegate, Draft und Abschluss
 - `useInstanceStatus` und `InstanceStatusController`
+- `useFormSections`, `useFormSectionDraft` und `useFormSectionActions` sowie die
+  darstellungsfreien `FormSectionListController`/`FormSectionEditorController`
+  für modellierungsberechtigte Abschnittsbibliotheken
 - `useTaskFormData` für lokale, durch Refetches nicht überschriebene Eingaben
 - `FlowzerTaskFormAdapterProps` als neutraler Formularadaptervertrag
 - `flowzerQueryKeys` und `clearFlowzerScope` für kontrollierte Cache-Integration
@@ -59,12 +62,21 @@ Mutationen setzen `retry: false`, auch wenn der Host-`QueryClient` global etwas 
 vorgibt. Der Host entscheidet über einen erneuten Versuch und bewahrt dafür denselben
 Idempotenzschlüssel. Fehler bleiben als `FlowzerApiError` aus dem SDK maschinenlesbar.
 
+Abschnittsversionen sind stets konkrete serverseitig veröffentlichte Fassungen. Das
+React-Paket erzeugt keine freie `latest`-Auswahl, rendert kein Schema und kennt keine
+konkrete konsumierende Fachanwendung.
+
 ## Formularadapter
 
 Das Paket interpretiert bewusst kein Form.io-Schema. Ein Host kann seinen Renderer über
 `FlowzerTaskFormAdapterProps` anbinden. Directory-Suchen erhalten ausschließlich Task-ID,
 Feldschlüssel und Suchoptionen; die zulässige Auswahl leitet der Flowzer-Server aus dem
 veröffentlichten Formular ab.
+
+Der Workspace stellt zusätzlich `resolveSubjects(fieldKey, subjects)` bereit. Lifecycle-
+Aktionen besitzen `resolveAssignees(action, subjects)`. Beide Methoden verwenden die
+serverseitig gebundene historische Batch-Auflösung und geben den aktuellen Aktiv-/
+Auswahlstatus zurück; sie öffnen weder eine globale Suche noch eine Historienliste.
 
 Eine kleine, unabhängig kompilierte Referenz steht unter
 [`examples/react-host-embedding`](../../examples/react-host-embedding/README.md).

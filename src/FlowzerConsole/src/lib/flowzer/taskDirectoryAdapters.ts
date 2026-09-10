@@ -1,5 +1,6 @@
 import type {
   DirectorySubjectSearchOptions,
+  DirectorySubjectResolutionResult,
   DirectorySubjectSearchResult,
   SubjectRef,
   TaskAssigneeSearchOptions,
@@ -20,6 +21,12 @@ type SearchTaskFormSubjects = (
   options: DirectorySubjectSearchOptions,
 ) => Promise<DirectorySubjectSearchResult>;
 
+type ResolveTaskFormSubjects = (
+  fieldKey: string,
+  subjects: readonly SubjectRef[],
+  options?: { signal?: AbortSignal | undefined },
+) => Promise<DirectorySubjectResolutionResult>;
+
 type SearchTaskAssignees = (
   options: TaskAssigneeSearchOptions,
 ) => Promise<DirectorySubjectSearchResult>;
@@ -32,6 +39,7 @@ type SearchTaskAssignees = (
 export function createTaskFormDirectoryAdapter(
   taskId: string,
   searchSubjects: SearchTaskFormSubjects,
+  resolveSubjects: ResolveTaskFormSubjects,
 ): BoundDirectorySubjectAdapter {
   return {
     cacheKey: ['user-task-form', taskId],
@@ -41,16 +49,9 @@ export function createTaskFormDirectoryAdapter(
       limit: 20,
       signal: options.signal,
     })),
-    resolve: async (fieldKey, subjects, signal) => {
-      const results = await Promise.all(subjects.map((subject) => searchSubjects(fieldKey, {
-        query: subject.id,
-        kind: subject.kind,
-        limit: 20,
-        signal,
-      })));
-      return uniqueDirectorySubjects(results.flatMap((result) => normalizeSearchResult(result).items))
-        .filter((candidate) => subjects.some((subject) => sameSubject(candidate.subject, subject)));
-    },
+    resolve: async (fieldKey, subjects, signal) => normalizeResolutionResult(
+      await resolveSubjects(fieldKey, subjects, { signal }),
+    ).items,
   };
 }
 
@@ -78,22 +79,18 @@ function normalizeSearchResult(result: DirectorySubjectSearchResult): DirectoryS
         subject,
         displayName: item.displayName?.trim() || subject.id,
         detail: item.detail?.trim() || subject.id,
+        isActive: item.isActive !== false,
+        isSelectable: item.isSelectable !== false,
       }];
     }),
   };
 }
 
+function normalizeResolutionResult(result: DirectorySubjectResolutionResult): DirectorySubjectSearchResultDto {
+  return normalizeSearchResult(result);
+}
+
 function normalizeSubject(subject: SubjectRef): SubjectRefDto | null {
   if (subject.kind !== 'user' && subject.kind !== 'group') return null;
   return { kind: subject.kind, id: subject.id };
-}
-
-function sameSubject(left: SubjectRefDto, right: SubjectRefDto): boolean {
-  return left.kind === right.kind && left.id === right.id;
-}
-
-function uniqueDirectorySubjects(subjects: DirectorySubjectDto[]): DirectorySubjectDto[] {
-  return subjects.filter((subject, index) => subjects.findIndex(
-    (candidate) => sameSubject(candidate.subject, subject.subject),
-  ) === index);
 }

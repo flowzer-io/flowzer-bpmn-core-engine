@@ -10,7 +10,16 @@ public interface IFormAuthoringStorage
     Task<FormAuthoringDraft?> Get(Guid formId);
     Task<FormAuthoringWriteResult> TrySave(FormAuthoringDraft draft, long expectedRevision);
     Task<FormAuthoringDeleteResult> TryDelete(Guid formId, long expectedRevision);
-    Task<FormAuthoringPublishResult> TryPublish(Guid formId, long expectedRevision, Guid publishedFormId);
+    /// <summary>
+    /// Veroeffentlicht den erwarteten Entwurf atomar. <paramref name="publishedFormData"/>
+    /// erlaubt dem Anwendungsdienst, einen bereits serverseitig aufgeloesten und validierten
+    /// Snapshot zu speichern, ohne den Autorenentwurf vorher umzuschreiben.
+    /// </summary>
+    Task<FormAuthoringPublishResult> TryPublish(
+        Guid formId,
+        long expectedRevision,
+        Guid publishedFormId,
+        string? publishedFormData = null);
 }
 
 public enum FormAuthoringWriteStatus { Written, RevisionConflict, FormNotFound }

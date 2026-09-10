@@ -86,6 +86,13 @@ begrenztes Bearer-Token.
   Identitätsschlüssel.
 - Formular- und Bearbeiter-Suchen sind immer an Aufgabe, Feld beziehungsweise Aktion
   gebunden. Der Host kann die serverseitige Auswahlpolicy nicht erweitern.
+- `userTasks.resolveFormSubjects(...)` und `userTasks.resolveAssignees(...)` lösen kleine
+  Mengen bereits gespeicherter Referenzen im selben gebundenen Kontext auf. `isActive`
+  und `isSelectable` sind getrennt; nicht kontextgebundene UUIDs bleiben ohne Treffer.
+- `formSections` bietet Modellierungsoberflächen einen revisionsgesicherten Entwurf
+  und ausschließlich konkrete veröffentlichte `major.minor`-Versionen. Das SDK kennt
+  bewusst keine freie oder implizite `latest`-Auflösung; gebundene Formularstände
+  bleiben damit reproduzierbar.
 
 ## Kompatibilität
 

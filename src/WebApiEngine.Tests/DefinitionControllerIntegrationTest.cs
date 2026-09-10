@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using System.Text.Json;
 using BPMN.Common;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
@@ -119,6 +120,127 @@ public class DefinitionControllerIntegrationTest
         payload.ErrorMessage.Should().Contain("No meta definition found");
         storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
         storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
+    }
+
+    // Testzweck: Ein nicht ausführbarer, aber parsebarer BPMN-Task wird schon beim Speichern mit dem gemeinsamen Problem-Details-Vertrag abgelehnt.
+    [Test]
+    public async Task UploadDefinition_ShouldReturnCapabilityIssue_WhenModelContainsNonExecutableElement()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition",
+            new StringContent(CreateUnsupportedScriptTaskXml("workflow-invalid-upload"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("successful").GetBoolean().Should().BeFalse();
+        problem.RootElement.TryGetProperty("errorMessage", out _).Should().BeTrue();
+        problem.RootElement.TryGetProperty("errors", out _).Should().BeTrue();
+        problem.RootElement.GetProperty("code").GetString().Should().Be("bpmn.model.invalid");
+        var issue = problem.RootElement.GetProperty("issues")[0];
+        issue.GetProperty("code").GetString().Should().Be("bpmn.element.not_executable");
+        issue.GetProperty("elementId").GetString().Should().Be("Script_1");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Der HTTP-Fehler verweist bei fehlender Service-Implementierung direkt auf die betroffene Modelleigenschaft.
+    [Test]
+    public async Task UploadDefinition_ShouldExposePropertyPath_ForIncompleteFlowzerConfiguration()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition",
+            new StringContent(CreateServiceTaskWithoutTypeXml("workflow-invalid-service"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var issue = problem.RootElement.GetProperty("issues")[0];
+        issue.GetProperty("code").GetString().Should().Be("bpmn.service_task.implementation_required");
+        issue.GetProperty("propertyPath").GetString().Should().Be("extensionElements.taskDefinition.type");
+    }
+
+    // Testzweck: Fehlerhaftes XML bleibt ein strukturierter, wertefreier Modellfehler
+    // und darf weder als 500 noch mit Parserfragmenten an den Client gelangen.
+    [Test]
+    public async Task UploadDefinition_ShouldReturnStableCapabilityIssue_WhenXmlIsMalformed()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition",
+            new StringContent("<bpmn:definitions>", Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("bpmn.model.invalid");
+        var issue = problem.RootElement.GetProperty("issues")[0];
+        issue.GetProperty("code").GetString().Should().Be("bpmn.xml.invalid");
+        issue.GetProperty("message").GetString().Should().Be("The BPMN XML document is invalid.");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Der Deploy degradiert den gemeinsamen BPMN-Validierungsfehler nicht zu einem unstrukturierten 400-String.
+    [Test]
+    public async Task DeployDefinition_ShouldReturnCapabilityIssue_WhenModelContainsNonExecutableElement()
+    {
+        const string definitionId = "workflow-invalid-deploy";
+        var storage = TestStorage.Create();
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "Invalid deploy"
+        });
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/deploy",
+            new StringContent(CreateUnsupportedScriptTaskXml(definitionId), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("bpmn.model.invalid");
+        problem.RootElement.GetProperty("issues")[0].GetProperty("elementId").GetString().Should().Be("Script_1");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Die Vorabprüfung meldet dieselbe Knoten-ID wie Save und Deploy, ohne eine Definitionsversion anzulegen.
+    [Test]
+    public async Task ValidateDefinition_ShouldReturnCapabilityIssueWithoutPersistingVersion()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/validate",
+            new StringContent(CreateUnsupportedScriptTaskXml("workflow-invalid-validate"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("issues")[0].GetProperty("elementId").GetString().Should().Be("Script_1");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+    }
+
+    // Testzweck: Der Katalog-Endpunkt liefert exakt die zentrale, versionierte Fähigkeitsmatrix für hostneutrale Modellieransichten.
+    [Test]
+    public async Task GetCapabilities_ShouldReturnVersionedCapabilityContract()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/definition/capabilities");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("1");
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
+                && !element.GetProperty("executable").GetBoolean());
     }
 
     // Testzweck: Prüft, dass ein fehlgeschlagener Deploy-Versuch keine halb persistierte Definitionsversion zurücklässt.
@@ -784,6 +906,28 @@ public class DefinitionControllerIntegrationTest
         public Task DeleteForm(Guid id) => Task.CompletedTask;
         public Task<Model.Version> GetMaxVersion(Guid formId) => Task.FromResult(new Model.Version());
     }
+
+    private static string CreateServiceTaskWithoutTypeXml(string definitionId) => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="{definitionId}">
+                  <bpmn:process id="Process_{definitionId}" isExecutable="true">
+                    <bpmn:serviceTask id="Service_1" />
+                  </bpmn:process>
+                </bpmn:definitions>
+                """;
+
+    private static string CreateUnsupportedScriptTaskXml(string definitionId) => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="{definitionId}">
+                  <bpmn:process id="Process_{definitionId}" isExecutable="true">
+                    <bpmn:startEvent id="Start_1" />
+                    <bpmn:scriptTask id="Script_1" />
+                    <bpmn:endEvent id="End_1" />
+                    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Script_1" />
+                    <bpmn:sequenceFlow id="Flow_2" sourceRef="Script_1" targetRef="End_1" />
+                  </bpmn:process>
+                </bpmn:definitions>
+                """;
 
     private static string CreatePlainStartXml(string definitionId)
     {

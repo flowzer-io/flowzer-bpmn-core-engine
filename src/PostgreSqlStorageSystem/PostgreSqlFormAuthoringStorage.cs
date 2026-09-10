@@ -85,7 +85,8 @@ internal sealed class PostgreSqlFormAuthoringStorage(PostgreSqlSession session) 
     public Task<FormAuthoringPublishResult> TryPublish(
         Guid formId,
         long expectedRevision,
-        Guid publishedFormId) => session.RunAsync(async (connection, transaction) =>
+        Guid publishedFormId,
+        string? publishedFormData = null) => session.RunAsync(async (connection, transaction) =>
     {
         if (expectedRevision <= 0) throw new ArgumentOutOfRangeException(nameof(expectedRevision));
         if (publishedFormId == Guid.Empty) throw new ArgumentException("Published form ID is required.", nameof(publishedFormId));
@@ -136,7 +137,7 @@ internal sealed class PostgreSqlFormAuthoringStorage(PostgreSqlSession session) 
             Id = publishedFormId,
             FormId = formId,
             Version = new Model.Version(major, minor),
-            FormData = draft.FormData
+            FormData = publishedFormData ?? draft.FormData
         };
         await using (var insert = session.CreateCommand(connection, transaction, """
                          INSERT INTO {schema}.forms (id, form_id, version_major, version_minor, body)

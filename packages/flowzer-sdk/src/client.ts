@@ -1,6 +1,8 @@
 import { completionOptions, FlowzerTransport } from './transport.js';
 import type {
   CompleteUserTaskCommand,
+  CreateFormSectionCommand,
+  DirectorySubjectResolutionResult,
   DirectorySubjectSearchOptions,
   DirectorySubjectSearchResult,
   ExtendedUserTask,
@@ -8,10 +10,20 @@ import type {
   FlowzerClientOptions,
   FlowzerCompletionOptions,
   FlowzerForm,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersion,
+  FormSectionVersionNumber,
+  FormSectionVersionSummary,
   ProcessInstance,
   ProcessHistory,
+  RuntimeDiagram,
+  RenameFormSectionCommand,
   ReleaseUserTaskCommand,
+  SaveFormSectionAuthoringDraftCommand,
   SaveUserTaskDraftCommand,
+  SubjectRef,
+  TaskAssigneeResolutionOptions,
   TaskAssigneeSearchOptions,
   TransferUserTaskCommand,
   UserTaskDraft,
@@ -21,6 +33,22 @@ import type {
 
 function segment(value: string) {
   return encodeURIComponent(value);
+}
+
+function revision(value: number, operation: string, positive = false) {
+  if (!Number.isSafeInteger(value) || value < (positive ? 1 : 0)) {
+    throw new TypeError(`${operation} requires a ${positive ? 'positive' : 'non-negative'} safe integer revision.`);
+  }
+  return value;
+}
+
+/** Kodiert nur eine explizite, kanonische major.minor-Fassung in den API-Pfad. */
+function sectionVersionPath(version: FormSectionVersionNumber) {
+  if (!version || !Number.isSafeInteger(version.major) || !Number.isSafeInteger(version.minor)
+    || version.major < 0 || version.minor < 0) {
+    throw new TypeError('A form-section version requires non-negative safe integer major and minor values.');
+  }
+  return `${version.major}.${version.minor}`;
 }
 
 /** Öffentlicher, hostneutraler Einstiegspunkt ohne globale Sitzung oder UI-Abhängigkeit. */
@@ -100,6 +128,19 @@ export class FlowzerClient {
       },
     ),
 
+    resolveAssignees: (
+      userTaskId: string,
+      options: TaskAssigneeResolutionOptions,
+    ): Promise<DirectorySubjectResolutionResult> => this.transport.statusResult(
+      `/identity-directory/user-tasks/${segment(userTaskId)}/assignees/resolve`,
+      {
+        method: 'POST',
+        query: { action: options.action },
+        body: { subjects: options.subjects },
+        signal: options.signal,
+      },
+    ),
+
     searchFormSubjects: (
       userTaskId: string,
       fieldKey: string,
@@ -108,6 +149,20 @@ export class FlowzerClient {
       `/identity-directory/user-tasks/${segment(userTaskId)}/fields/${segment(fieldKey)}/subjects`,
       {
         query: { query: options.query, kind: options.kind, limit: options.limit },
+        signal: options.signal,
+      },
+    ),
+
+    resolveFormSubjects: (
+      userTaskId: string,
+      fieldKey: string,
+      subjects: readonly SubjectRef[],
+      options: FlowzerCallOptions = {},
+    ): Promise<DirectorySubjectResolutionResult> => this.transport.statusResult(
+      `/identity-directory/user-tasks/${segment(userTaskId)}/fields/${segment(fieldKey)}/subjects/resolve`,
+      {
+        method: 'POST',
+        body: { subjects },
         signal: options.signal,
       },
     ),
@@ -132,6 +187,95 @@ export class FlowzerClient {
     /** Lädt die serverseitig berechtigte, datensparsame Prozesshistorie. */
     history: (instanceId: string, options: FlowzerCallOptions = {}): Promise<ProcessHistory> =>
       this.transport.statusResult(`/instance/${segment(instanceId)}/history`, options),
+
+    /** Lädt die serverseitig bereinigte Laufzeitprojektion der gebundenen BPMN-Version. */
+    runtimeDiagram: (instanceId: string, options: FlowzerCallOptions = {}): Promise<RuntimeDiagram> =>
+      this.transport.statusResult(`/instance/${segment(instanceId)}/runtime-diagram`, options),
+  };
+
+  /**
+   * Modellierungs-API für wiederverwendbare Abschnitte. Alle Versionszugriffe
+   * verlangen ein konkretes major.minor-Paar; eine implizite "latest"-Auflösung
+   * existiert im SDK absichtlich nicht.
+   */
+  readonly formSections = {
+    list: async (options: FlowzerCallOptions = {}): Promise<FormSectionMetadata[]> =>
+      (await this.transport.status<FormSectionMetadata[]>('/form-section', options)) ?? [],
+
+    get: (sectionId: string, options: FlowzerCallOptions = {}): Promise<FormSectionMetadata> =>
+      this.transport.statusResult(`/form-section/${segment(sectionId)}`, options),
+
+    create: (command: CreateFormSectionCommand, options: FlowzerCallOptions = {}): Promise<FormSectionMetadata> =>
+      this.transport.statusResult('/form-section', {
+        method: 'POST', body: command, signal: options.signal,
+      }),
+
+    rename: (
+      sectionId: string,
+      command: RenameFormSectionCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionMetadata> => this.transport.statusResult(`/form-section/${segment(sectionId)}`, {
+      method: 'PUT', body: command, signal: options.signal,
+    }),
+
+    listVersions: async (
+      sectionId: string,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionVersionSummary[]> =>
+      (await this.transport.status<FormSectionVersionSummary[]>(
+        `/form-section/${segment(sectionId)}/versions`, options,
+      )) ?? [],
+
+    getVersion: async (
+      sectionId: string,
+      version: FormSectionVersionNumber,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionVersion> => {
+      const versionPath = sectionVersionPath(version);
+      return this.transport.statusResult(
+        `/form-section/${segment(sectionId)}/versions/${versionPath}`,
+        options,
+      );
+    },
+
+    getDraft: (
+      sectionId: string,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionAuthoringDraft> =>
+      this.transport.statusResult(`/form-section/${segment(sectionId)}/draft`, options),
+
+    saveDraft: async (
+      sectionId: string,
+      command: SaveFormSectionAuthoringDraftCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionAuthoringDraft> => {
+      revision(command.expectedRevision, 'Saving a form-section draft');
+      return this.transport.statusResult(`/form-section/${segment(sectionId)}/draft`, {
+        method: 'PUT', body: command, signal: options.signal,
+      });
+    },
+
+    deleteDraft: async (
+      sectionId: string,
+      expectedRevision: number,
+      options: FlowzerCallOptions = {},
+    ): Promise<void> => {
+      revision(expectedRevision, 'Deleting a form-section draft');
+      return this.transport.statusVoid(`/form-section/${segment(sectionId)}/draft`, {
+        method: 'DELETE', query: { expectedRevision }, signal: options.signal,
+      });
+    },
+
+    publish: async (
+      sectionId: string,
+      expectedRevision: number,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormSectionVersion> => {
+      revision(expectedRevision, 'Publishing a form-section draft', true);
+      return this.transport.statusResult(`/form-section/${segment(sectionId)}/publish`, {
+        method: 'POST', body: { expectedRevision }, signal: options.signal,
+      });
+    },
   };
 
   private taskAction<TCommand>(
