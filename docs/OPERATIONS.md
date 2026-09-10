@@ -80,21 +80,24 @@ vorgesehen und kein Produktionspfad.
 
 ### Dienstgrenzen bei Coolify-Compose
 
-Coolify kann jedem Dienst dieselbe generierte `env_file` hinzufügen. Deshalb
-reicht es nicht, Secrets nur in den vorgesehenen `environment`-Abschnitten
-zu referenzieren: Die rohen Interpolationsvariablen würden zusätzlich in allen
-Containern landen. `compose.coolify.yaml` überschreibt diese Aliase über den
-YAML-Anker `flowzer-secret-isolation` in **jedem** Dienst explizit mit Leerwerten.
-Benötigte Werte werden ausschließlich unter den dienstspezifischen Schlüsseln
-weitergereicht: Migrationszugang im Migrationsdienst, Laufzeitzugang und BFF-/
-Verzeichnis-Secret in der API, keine Secrets in der Konsole.
+Coolify kann jedem Dienst dieselbe generierte `env_file` hinzufügen. Zudem
+ersetzt sein Parser leere `environment`-Werte durch gespeicherte Werte und
+injiziert referenzierte Interpolationsvariablen zusätzlich in den jeweiligen
+Dienst. Leerwerte sind deshalb **keine** sichere Maskierung.
+
+`compose.coolify.yaml` setzt über `flowzer-secret-isolation` nicht leere,
+eindeutig nicht geheime Platzhalter. Nur Aliase, die ein Dienst tatsächlich
+referenziert, darf Coolify durch benötigte Werte ersetzen: Migrationszugang
+im Migrationsdienst, Laufzeitzugang und BFF-/Verzeichnis-Secret in der API.
+Die Konsole erhält ausschließlich Platzhalter, keine dieser Secrets.
 
 Bei neuen Secret-Variablen den Anker und den Test in
-`tests/ui-smoke/runtime-config.test.mjs` erweitern. Der Test simuliert Coolifys
-zusätzliche gemeinsame `env_file` mit ausschließlich synthetischen Werten und
-prüft die echte Compose-Interpolation. Nach Deployments dieselben Dienstgrenzen
-über reine Präsenz-/Gleichheitsprüfungen verifizieren, niemals `docker inspect`
-oder generierte Compose-Dateien ungefiltert in Logs ausgeben.
+`tests/ui-smoke/runtime-config.test.mjs` erweitern. Der Test bildet die beiden
+relevanten Parser-Schritte sowie die gemeinsame `env_file` mit synthetischen
+Werten nach und prüft die echte Compose-Interpolation. Dies ist kein
+vollständiger Coolify-Integrationstest. Nach Deployments dieselben Dienstgrenzen
+am Zielsystem über Präsenz-/Gleichheitsprüfungen verifizieren, niemals
+`docker inspect` oder generierte Compose-Dateien ungefiltert in Logs ausgeben.
 
 ### BFF-Vertrag
 

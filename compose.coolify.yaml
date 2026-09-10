@@ -1,15 +1,17 @@
 # Produktions-Stack fuer Coolify (Projekt MIT Tools, Server cool4). Die Images kommen aus der
 # GitHub Container Registry; der Release-Workflow pinnt FLOWZER_IMAGE_TAG auf die Revision und
 # loest das Deployment aus. Geheime Werte liegen ausschliesslich als Coolify-Secrets vor.
-# Coolify ergänzt für jeden Dienst eine gemeinsame env_file. Explizite Leerwerte
-# überschreiben deren rohe Secret-Aliase, ohne die ${...}-Interpolation der unten
-# gezielt zugeordneten Konfigurationsschlüssel zu verändern. Neue Secret-Aliase
-# müssen ebenfalls hier und im Compose-Isolationstest aufgenommen werden.
+# Coolify ergänzt eine gemeinsame env_file und ersetzt leere environment-Werte durch
+# gespeicherte Werte. Deshalb nicht leere, eindeutig nicht geheime Platzhalter verwenden.
+# Der Parser injiziert referenzierte Aliase zusätzlich nur im jeweiligen Dienst; dort
+# sind sie bereits für die explizite Konfigurationszuordnung erforderlich. Fremde Aliase
+# bleiben maskiert (z. B. Migrationszugang in API/Konsole, BFF-Zugang in migrate/Konsole).
+# Neue Secret-Aliase auch im Compose-Isolationstest aufnehmen und am Zielsystem prüfen.
 x-flowzer-secret-isolation: &flowzer-secret-isolation
-  STORAGE_CONNECTION_STRING: ""
-  STORAGE_MIGRATION_CONNECTION_STRING: ""
-  FLOWZER_BFF_CLIENT_SECRET: ""
-  FLOWZER_DIRECTORY_CLIENT_SECRET: ""
+  STORAGE_CONNECTION_STRING: "__FLOWZER_NOT_FOR_THIS_SERVICE__"
+  STORAGE_MIGRATION_CONNECTION_STRING: "__FLOWZER_NOT_FOR_THIS_SERVICE__"
+  FLOWZER_BFF_CLIENT_SECRET: "__FLOWZER_NOT_FOR_THIS_SERVICE__"
+  FLOWZER_DIRECTORY_CLIENT_SECRET: "__FLOWZER_NOT_FOR_THIS_SERVICE__"
 
 services:
   migrate:

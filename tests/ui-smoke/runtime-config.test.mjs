@@ -29,22 +29,40 @@ function configuration(file, overrides = {}, sharedEnvFile) {
   // Der Test bildet genau diese zusätzliche Vererbung nach, ohne echte Secrets zu lesen.
   if (sharedEnvFile) source = source.replace(/^  (migrate|api|console):$/gm,
     (line) => `${line}\n    env_file: [${JSON.stringify(sharedEnvFile)}]`);
-  const json = execFileSync('docker', [
-    'compose', '--project-directory', root, '--project-name', 'flowzer-contract-test',
-    '--env-file', '/dev/null', '-f', '-', 'config', '--format', 'json',
-  ], {
-    input: source,
-    encoding: 'utf8',
-    env: {
-      PATH: process.env.PATH,
-      HOME: process.env.HOME,
-      FLOWZER_AUTH_AUTHORITY: 'https://issuer.example.invalid',
-      FLOWZER_AUTH_AUDIENCE: 'test-api',
-      STORAGE_CONNECTION_STRING: 'synthetic-test-configuration',
-      STORAGE_MIGRATION_CONNECTION_STRING: 'synthetic-migration-configuration',
-      ...overrides,
-    },
-  });
+  const env = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    FLOWZER_AUTH_AUTHORITY: 'https://issuer.example.invalid',
+    FLOWZER_AUTH_AUDIENCE: 'test-api',
+    STORAGE_CONNECTION_STRING: 'synthetic-test-configuration',
+    STORAGE_MIGRATION_CONNECTION_STRING: 'synthetic-migration-configuration',
+    ...overrides,
+  };
+  function compose(input, flags = []) {
+    return execFileSync('docker', [
+      'compose', '--project-directory', root, '--project-name', 'flowzer-contract-test',
+      '--env-file', '/dev/null', '-f', '-', 'config', ...flags, '--format', 'json',
+    ], { input, encoding: 'utf8', env });
+  }
+  if (sharedEnvFile) {
+    // Relevante Coolify-Parser-Semantik, kein vollständiger Nachbau: referenzierte
+    // Aliase werden zusätzlich injiziert, leere Werte aus der Konfiguration ersetzt.
+    // Quelle: coollabsio/coolify, bootstrap/helpers/parsers.php, applicationParser.
+    const parsed = JSON.parse(compose(source, ['--no-interpolate', '--no-env-resolution']));
+    for (const service of Object.values(parsed.services)) {
+      for (const [key, value] of Object.entries(service.environment)) {
+        const reference = typeof value === 'string' && value.match(/^\$\{([A-Z_]+)(?::[-?].*)?\}$/);
+        if (reference && reference[1] !== key && Object.hasOwn(overrides, reference[1])) {
+          service.environment[reference[1]] = overrides[reference[1]];
+        }
+      }
+      for (const [key, value] of Object.entries(service.environment)) {
+        if (value === '' && overrides[key]) service.environment[key] = overrides[key];
+      }
+    }
+    source = JSON.stringify(parsed);
+  }
+  const json = compose(source);
   return JSON.parse(json).services;
 }
 
@@ -82,7 +100,7 @@ for (const file of ['compose.runtime.yml', 'compose.coolify.yaml']) {
   });
 }
 
-// Testzweck: Coolifys zusätzliche gemeinsame env_file darf keine rohen Secrets in
+// Testzweck: Coolifys Parser plus gemeinsame env_file dürfen keine rohen Secrets in
 // fachfremde Dienste tragen; explizite Konfigurationszuordnungen müssen weiterhin funktionieren.
 test('compose.coolify.yaml: gemeinsame env_file wahrt die Secret-Grenzen aller Dienste', () => {
   const directory = mkdtempSync(resolve(tmpdir(), 'flowzer-compose-isolation-'));
@@ -97,7 +115,12 @@ test('compose.coolify.yaml: gemeinsame env_file wahrt die Secret-Grenzen aller D
     writeFileSync(sharedEnvFile, Object.entries(secrets).map(([key, value]) => `${key}=${value}`).join('\n'), { mode: 0o600 });
     const services = configuration('compose.coolify.yaml', secrets, sharedEnvFile);
     for (const [name, service] of Object.entries(services)) {
-      for (const key of Object.keys(secrets)) assert.equal(service.environment[key], '', `${name}: ${key}`);
+      const allowed = name === 'api'
+        ? ['STORAGE_CONNECTION_STRING', 'FLOWZER_BFF_CLIENT_SECRET', 'FLOWZER_DIRECTORY_CLIENT_SECRET']
+        : name === 'migrate' ? ['STORAGE_MIGRATION_CONNECTION_STRING'] : [];
+      for (const key of Object.keys(secrets)) {
+        assert.equal(service.environment[key], allowed.includes(key) ? secrets[key] : '__FLOWZER_NOT_FOR_THIS_SERVICE__', `${name}: ${key}`);
+      }
     }
     const api = services.api.environment;
     assert.equal(api.Storage__PostgreSql__ConnectionString, secrets.STORAGE_CONNECTION_STRING);
