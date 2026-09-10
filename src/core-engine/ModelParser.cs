@@ -9,6 +9,11 @@ namespace core_engine;
 
 public static class ModelParser
 {
+    private static readonly XNamespace FlowzerExtensionNamespace = "https://flowzer.io/schema/bpmn/1.0";
+    private static readonly XNamespace BpmnNamespace = "http://www.omg.org/spec/BPMN/20100524/MODEL";
+    private static readonly XNamespace ZeebeExtensionNamespace = "http://camunda.org/schema/zeebe/1.0";
+    private const int MaximumDirectoryCandidatesPerKind = 100;
+
     /// <summary>
     /// Parse a FlowzerBPMN model from a stream
     /// </summary>
@@ -487,6 +492,7 @@ public static class ModelParser
                 ?? throw new ModelValidationException(
                     $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
             FlowzerRetries = ParseRetries(taskDefinition),
+            FlowzerAiTask = AiTaskContractParser.Parse(xmlFlowNode),
             InputMappings = inputMappings,
             OutputMappings = outputMappings,
             LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
@@ -597,6 +603,7 @@ public static class ModelParser
             .FirstOrDefault(e => e.Name.LocalName == "formDefinition");
         var assignmentDefinition = xmlFlowNode.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "assignmentDefinition");
+        var assignment = ParseUserTaskAssignment(xmlFlowNode, assignmentDefinition);
         var taskSchedule = xmlFlowNode.Descendants()
             .FirstOrDefault(e => e.Name.LocalName == "taskSchedule");
         return new UserTask
@@ -609,6 +616,10 @@ public static class ModelParser
             FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
             FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
+            FlowzerAssignmentMode = assignment.Mode,
+            FlowzerDirectoryAssigneeUserId = assignment.AssigneeUserId,
+            FlowzerDirectoryCandidateUserIds = assignment.CandidateUserIds.ToFlowzerList(),
+            FlowzerDirectoryCandidateGroupIds = assignment.CandidateGroupIds.ToFlowzerList(),
             FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
             FlowzerFollowUpDate = taskSchedule?.Attribute("followUpDate")?.Value,
             InputMappings = inputMappings,
@@ -617,10 +628,153 @@ public static class ModelParser
         };
     }
 
+    /// <summary>
+    /// Liest ausschließlich die versionierte Flowzer-Erweiterung. Zeebe-Freitext bleibt der
+    /// kompatible Standard; Directory-IDs und Freitext dürfen nie zu einem Mischvertrag werden.
+    /// </summary>
+    private static ParsedUserTaskAssignment ParseUserTaskAssignment(
+        XElement userTask,
+        XElement? legacyAssignment)
+    {
+        var assignmentElements = userTask.Descendants()
+            .Where(element => element.Name.LocalName == "taskAssignment")
+            .ToArray();
+        if (assignmentElements.Length == 0)
+        {
+            return ParsedUserTaskAssignment.Text;
+        }
+
+        var taskId = userTask.Attribute("id")?.Value ?? "<unknown>";
+        if (assignmentElements.Any(element => element.Name.Namespace != FlowzerExtensionNamespace))
+        {
+            throw AssignmentError(taskId, $"taskAssignment must use namespace '{FlowzerExtensionNamespace}'");
+        }
+
+        if (assignmentElements.Length != 1)
+        {
+            throw AssignmentError(taskId, "exactly one flowzer:taskAssignment is allowed");
+        }
+
+        var element = assignmentElements[0];
+        var supportedAttributes = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "mode", "assigneeId", "candidateUserIds", "candidateGroupIds"
+        };
+        if (element.Attributes().Any(attribute =>
+                !attribute.IsNamespaceDeclaration
+                && (attribute.Name.Namespace != XNamespace.None
+                    || !supportedAttributes.Contains(attribute.Name.LocalName))))
+        {
+            throw AssignmentError(taskId, "taskAssignment contains an unsupported attribute");
+        }
+
+        var mode = element.Attribute("mode")?.Value;
+        if (string.Equals(mode, "text", StringComparison.Ordinal))
+        {
+            if (element.Attribute("assigneeId") is not null
+                || element.Attribute("candidateUserIds") is not null
+                || element.Attribute("candidateGroupIds") is not null)
+            {
+                throw AssignmentError(taskId, "text mode cannot contain directory references");
+            }
+
+            return ParsedUserTaskAssignment.Text;
+        }
+
+        if (!string.Equals(mode, "directory", StringComparison.Ordinal))
+        {
+            throw AssignmentError(taskId, "mode must be 'text' or 'directory'");
+        }
+
+        if (HasLegacyAssignmentValues(legacyAssignment))
+        {
+            throw AssignmentError(taskId, "directory mode cannot be combined with Zeebe text assignments");
+        }
+
+        var assignee = ParseOptionalDirectoryId(element.Attribute("assigneeId"), taskId, "assigneeId");
+        var candidateUsers = ParseDirectoryIds(element.Attribute("candidateUserIds"), taskId, "candidateUserIds");
+        var candidateGroups = ParseDirectoryIds(element.Attribute("candidateGroupIds"), taskId, "candidateGroupIds");
+        if (assignee is null && candidateUsers.Count == 0 && candidateGroups.Count == 0)
+        {
+            throw AssignmentError(taskId, "directory mode requires at least one reference");
+        }
+
+        if (assignee.HasValue && candidateUsers.Contains(assignee.Value))
+        {
+            throw AssignmentError(taskId, "the assignee must not also occur as candidate user");
+        }
+
+        return new ParsedUserTaskAssignment(
+            UserTaskAssignmentMode.Directory,
+            assignee,
+            candidateUsers,
+            candidateGroups);
+    }
+
+    private static bool HasLegacyAssignmentValues(XElement? legacyAssignment) =>
+        legacyAssignment?.Attributes().Any(attribute =>
+            attribute.Name.LocalName is "assignee" or "candidateUsers" or "candidateGroups"
+            && !string.IsNullOrWhiteSpace(attribute.Value)) == true;
+
+    private static Guid? ParseOptionalDirectoryId(XAttribute? attribute, string taskId, string field)
+    {
+        if (attribute is null) return null;
+        if (!Guid.TryParse(attribute.Value, out var id) || id == Guid.Empty)
+        {
+            throw AssignmentError(taskId, $"{field} must be a non-empty UUID");
+        }
+
+        return id;
+    }
+
+    private static IReadOnlyList<Guid> ParseDirectoryIds(XAttribute? attribute, string taskId, string field)
+    {
+        if (attribute is null) return [];
+        var values = attribute.Value.Split(',', StringSplitOptions.TrimEntries);
+        if (values.Length > MaximumDirectoryCandidatesPerKind)
+        {
+            throw AssignmentError(taskId, $"{field} exceeds {MaximumDirectoryCandidatesPerKind} entries");
+        }
+
+        var result = new List<Guid>(values.Length);
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value) || !Guid.TryParse(value, out var id) || id == Guid.Empty)
+            {
+                throw AssignmentError(taskId, $"{field} must contain only non-empty UUIDs");
+            }
+
+            if (result.Contains(id))
+            {
+                throw AssignmentError(taskId, $"{field} contains a duplicate reference");
+            }
+
+            result.Add(id);
+        }
+
+        return result;
+    }
+
+    private static ModelValidationException AssignmentError(string taskId, string reason) =>
+        new($"User task '{taskId}' has an invalid assignment contract: {reason}.");
+
+    private sealed record ParsedUserTaskAssignment(
+        UserTaskAssignmentMode Mode,
+        Guid? AssigneeUserId,
+        IReadOnlyList<Guid> CandidateUserIds,
+        IReadOnlyList<Guid> CandidateGroupIds)
+    {
+        public static ParsedUserTaskAssignment Text { get; } =
+            new(UserTaskAssignmentMode.Text, null, [], []);
+    }
+
     private static FlowzerList<FlowzerIoMapping>? ParseIoMappings(XElement xmlFlowNode, string mappingName)
     {
-        var mappings = xmlFlowNode.Descendants()
-            .Where(element => element.Name.LocalName == mappingName)
+        // Keine rekursive LocalName-Suche: Fremde Erweiterungen und verschachtelte
+        // Datenstrukturen sind keine ausführbaren Ein-/Ausgangszuordnungen.
+        var mappings = xmlFlowNode.Elements(BpmnNamespace + "extensionElements")
+            .SelectMany(extension => extension.Elements(ZeebeExtensionNamespace + "ioMapping"))
+            .SelectMany(mapping => mapping.Elements(ZeebeExtensionNamespace + mappingName))
             .Select(element => new FlowzerIoMapping(
                 element.Attribute("source")!.Value,
                 element.Attribute("target")!.Value))

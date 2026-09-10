@@ -46,7 +46,7 @@ public static class ExpandoHelper
             throw new InvalidOperationException($"could not convert {obj.GetType()} to dynamic object.");
         }
         
-        if (obj.GetType().IsArray || obj.GetType().Name == "List`1" )
+        if (obj is System.Collections.IList)
         {
             if (forceExpando)
                 throw new InvalidOperationException("cannot convert array to dynamic object.");
@@ -83,9 +83,16 @@ public static class ExpandoHelper
 
     public static bool IsComlexValue(object? value)
     {
-        return value != null && 
-               !value.GetType().IsPrimitive &&
-               value.GetType() != typeof(string);
+        if (value is null) return false;
+        var type = value.GetType();
+        return !type.IsPrimitive
+               && !type.IsEnum
+               && value is not string
+               && value is not decimal
+               && value is not Guid
+               && value is not DateTime
+               && value is not DateTimeOffset
+               && value is not TimeSpan;
     }
 
     public static bool HasProperty(this object? vars, string propertyName)

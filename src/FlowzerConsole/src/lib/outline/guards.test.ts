@@ -419,6 +419,23 @@ describe('Fehlende Angaben am Schritt', () => {
     expect(issues.map((issue) => issue.message).join(' ')).toContain('braucht ein Formular');
   });
 
+  it('sperrt einen leeren Directory-Modus bis zur ersten stabilen Auswahl', () => {
+    const document = readOutline(MIT_FORMULAR).document!;
+    const changed = updateStep(document, 'Task_1', {
+      assignmentMode: 'directory',
+      assignee: undefined,
+      candidateGroups: undefined,
+      candidateUsers: undefined,
+    });
+
+    const { xml, issues } = writeOutlineXml(changed);
+
+    expect(xml).toBeUndefined();
+    expect(issues.map((issue) => issue.message).join(' ')).toContain(
+      'mindestens einen bekannten Benutzer oder eine bekannte Gruppe',
+    );
+  });
+
   it('sperrt das Speichern eines Dienstaufrufs ohne Typ', () => {
     const document = readOutline(LINEAR).document!;
     const { issues } = writeOutlineXml(insertAfter(document, 'Task_1', newStep(document, 'service')));

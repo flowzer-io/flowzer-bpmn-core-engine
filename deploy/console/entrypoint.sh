@@ -1,30 +1,19 @@
 #!/bin/sh
 # Schreibt die Laufzeitkonfiguration der React-Konsole und richtet nginx ein.
 #
-# Das gebaute Bundle ist unveraenderlich. Adresse der API und des Identity Providers
-# kommen deshalb aus Umgebungsvariablen in eine config.json, die die Anwendung laedt,
-# bevor sie das erste Mal zeichnet.
+# Das gebaute Bundle ist unveraenderlich. Unkritische Bereitstellungswerte kommen
+# deshalb aus Umgebungsvariablen in eine config.json. OIDC-Clientdaten und Tokens
+# verbleiben vollständig im serverseitigen BFF.
 set -eu
-# Kein Globbing: Scopes wie "api://x/*" duerfen nicht gegen Dateinamen expandiert werden.
-set -f
-
 TARGET="/usr/share/nginx/html/config.json"
 API_BASE_URL="${FLOWZER_API_BASE_URL:-/}"
-OIDC_AUTHORITY="${FLOWZER_OIDC_AUTHORITY:-}"
-OIDC_CLIENT_ID="${FLOWZER_OIDC_CLIENT_ID:-}"
-# Audience der API im Access-Token. Unter ihr stehen die Clientrollen; ohne sie wuerden
-# Rollen fremder Clients mitgelesen.
-OIDC_AUDIENCE="${FLOWZER_OIDC_AUDIENCE:-}"
-OIDC_SCOPES="${FLOWZER_OIDC_SCOPES:-}"
+case "${FLOWZER_BFF_ENABLED:-true}" in
+  true|TRUE|1|yes|YES) BFF_ENABLED=true ;;
+  *) BFF_ENABLED=false ;;
+esac
 # Akzentfarbe der Oberflaeche, damit sie zum Erscheinungsbild des Unternehmens passt.
 # Erlaubt: iris, teal, emerald, amber, rose. Ein unbekannter Wert faellt auf iris zurueck.
 ACCENT="${FLOWZER_ACCENT:-iris}"
-# Namen der Rollen, wie der Betrieb sie vergeben hat. Die API wertet sie ebenfalls
-# konfigurierbar aus; beide Seiten muessen dieselben Namen kennen.
-ROLE_ACCESS="${FLOWZER_ROLE_ACCESS:-access}"
-ROLE_MODELER="${FLOWZER_ROLE_MODELER:-modeler}"
-ROLE_OPERATOR="${FLOWZER_ROLE_OPERATOR:-operator}"
-ROLE_WORKER="${FLOWZER_ROLE_WORKER:-worker}"
 
 # Steuerzeichen haben in diesen Werten nichts verloren und wuerden das JSON unbrauchbar
 # machen; danach Backslash und Anfuehrungszeichen maskieren.
@@ -32,26 +21,11 @@ json_escape() {
   printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-SCOPES_JSON=""
-for scope in $OIDC_SCOPES; do
-  if [ -n "$SCOPES_JSON" ]; then SCOPES_JSON="$SCOPES_JSON, "; fi
-  SCOPES_JSON="$SCOPES_JSON\"$(json_escape "$scope")\""
-done
-
 cat > "$TARGET" <<EOF
 {
   "apiBaseUrl": "$(json_escape "$API_BASE_URL")",
   "accent": "$(json_escape "$ACCENT")",
-  "oidcAuthority": "$(json_escape "$OIDC_AUTHORITY")",
-  "oidcClientId": "$(json_escape "$OIDC_CLIENT_ID")",
-  "oidcAudience": "$(json_escape "$OIDC_AUDIENCE")",
-  "oidcScopes": [$SCOPES_JSON],
-  "roleNames": {
-    "access": "$(json_escape "$ROLE_ACCESS")",
-    "modeler": "$(json_escape "$ROLE_MODELER")",
-    "operator": "$(json_escape "$ROLE_OPERATOR")",
-    "worker": "$(json_escape "$ROLE_WORKER")"
-  }
+  "bffEnabled": $BFF_ENABLED
 }
 EOF
 
@@ -64,6 +38,14 @@ if [ -n "$API_UPSTREAM" ]; then
   case "$API_UPSTREAM" in *:*) ;; *) echo "FLOWZER_API_UPSTREAM muss die Form host:port haben" >&2; exit 1 ;; esac
 
   cat > /etc/nginx/conf.d/default.conf <<NGINX
+# Der Runtime-Stack besitzt zwei Proxy-Stufen. Das externe Schema muss die zweite
+# Stufe unveraendert passieren; beim direkten Aufruf faellt sie auf ihr lokales
+# Schema zurueck. Ein vorgeschalteter Proxy muss eingehende Client-Header ersetzen.
+map \$http_x_forwarded_proto \$flowzer_forwarded_proto {
+  ""      \$scheme;
+  default \$http_x_forwarded_proto;
+}
+
 server {
   listen 8080;
   server_name _;
@@ -77,10 +59,11 @@ server {
   set \$flowzer_api http://${API_UPSTREAM};
 
   proxy_http_version 1.1;
-  proxy_set_header Host \$host;
+  # Der rohe Host-Header behaelt einen expliziten Port fuer die Origin-Pruefung.
+  proxy_set_header Host \$http_host;
   proxy_set_header X-Real-IP \$remote_addr;
   proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto \$http_x_forwarded_proto;
+  proxy_set_header X-Forwarded-Proto \$flowzer_forwarded_proto;
   proxy_read_timeout 120s;
   client_max_body_size 8m;
 
@@ -103,7 +86,8 @@ server {
   # und die OpenAPI-Beschreibung nennt die Pfade mit grossem Anfangsbuchstaben
   # (/Definition/meta). Ein daraus erzeugter Client traefe eine Regel mit ~ nicht und bekaeme
   # die Startseite der Oberflaeche mit Status 200 statt der Antwort der API.
-  location ~* ^/(health|definition|folder|instance|job|message|usertask|form|timer)(/|\$) {
+  # bff umfasst Login, Session und CSRF unter derselben Origin.
+  location ~* ^/(ai/connection|ai/tool|bff|health|definition|folder|identity-directory|instance|job|message|notifications|usertask|form-section|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 

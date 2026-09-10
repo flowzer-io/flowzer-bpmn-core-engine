@@ -87,6 +87,67 @@ function extensionOf(owner: ModdleElement, type: string): ModdleElement | undefi
   return extensionsOf(owner).find((value) => value.$type === type);
 }
 
+// Testzweck: Beim Wechsel zwischen Worker- und KI-Aufgabe entstehen keine halben Verträge;
+// der reservierte Auftragstyp und die Flowzer-Erweiterung werden atomar gemeinsam gepflegt.
+describe('setServiceTaskMode', () => {
+  it('legt einen vollständigen KI-Grundvertrag an', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toMatchObject({ type: 'flowzer.ai.v1' });
+    const aiTask = extensionOf(businessObject, 'flowzer:AiTask')!;
+    expect(aiTask).toMatchObject({
+      contractVersion: '1',
+      instructionVersion: '1',
+      maxInputTokens: '4096',
+      maxOutputTokens: '1024',
+      timeoutSeconds: '60',
+    });
+    expect((aiTask.instruction as ModdleElement).body).toBe('');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe(
+      '{"type":"object","properties":{},"additionalProperties":false}',
+    );
+  });
+
+  it('schreibt einzelne KI-Felder und ihre Textkinder, ohne die übrigen Werte zu verlieren', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    editor.setAiTask('Element_1', {
+      connectionId: '118adeb6-65a4-4e57-a03b-d3b0a3300ac9',
+      instruction: 'Classify the request.',
+      resultSchema: '{"type":"object"}',
+      tools: [{ toolId: 'flowzer.directory.lookup', toolVersion: '1', approval: 'automatic' }],
+    });
+
+    const aiTask = extensionOf(businessObject, 'flowzer:AiTask')!;
+    expect(aiTask.connectionId).toBe('118adeb6-65a4-4e57-a03b-d3b0a3300ac9');
+    expect(aiTask.maxInputTokens).toBe('4096');
+    expect((aiTask.instruction as ModdleElement).body).toBe('Classify the request.');
+    expect((aiTask.resultSchema as ModdleElement).body).toBe('{"type":"object"}');
+    expect(aiTask.tools).toEqual([
+      expect.objectContaining({
+        $type: 'flowzer:Tool',
+        id: 'flowzer.directory.lookup',
+        version: '1',
+        approval: 'automatic',
+        $parent: aiTask,
+      }),
+    ]);
+  });
+
+  it('entfernt beim Wechsel zum normalen Worker den KI-Vertrag und den reservierten Typ', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+    editor.setServiceTaskMode('Element_1', 'ai');
+
+    editor.setServiceTaskMode('Element_1', 'worker');
+
+    expect(extensionOf(businessObject, 'flowzer:AiTask')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+  });
+});
+
 // Testzweck: Der Form-Key gehoert in `zeebe:formDefinition` und schliesst die beiden anderen
 // Schreibweisen aus. Blieben `formId` oder `externalReference` stehen, entschiede die
 // Lesereihenfolge der Engine, welches Formular gilt.
@@ -189,6 +250,71 @@ describe('Teiländerungen', () => {
     editor.setAssignment('Element_1', { assignee: '' });
 
     expect(businessObject.extensionElements).toBeUndefined();
+  });
+
+  it('markiert eine bearbeitete Textzuweisung explizit und entfernt alte Directory-Attribute', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeId: 'alte-id' }],
+      } as ModdleElement,
+    });
+
+    editor.setAssignmentMode('Element_1', 'text');
+    editor.setAssignment('Element_1', { assignee: 'anna' });
+
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toMatchObject({ mode: 'text' });
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')?.assigneeId).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toMatchObject({ assignee: 'anna' });
+  });
+
+  it('schreibt Directory-Referenzen deterministisch und entfernt Freitext vollständig', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:AssignmentDefinition', assignee: 'anna', candidateGroups: 'personal' }],
+      } as ModdleElement,
+    });
+
+    editor.setDirectoryAssignment('Element_1', {
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds: [
+        '10000000-0000-0000-0000-000000000003',
+        '10000000-0000-0000-0000-000000000002',
+        '10000000-0000-0000-0000-000000000003',
+      ],
+      candidateGroupIds: ['20000000-0000-0000-0000-000000000001'],
+    });
+
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toMatchObject({
+      mode: 'directory',
+      assigneeId: '10000000-0000-0000-0000-000000000001',
+      candidateUserIds:
+        '10000000-0000-0000-0000-000000000002,10000000-0000-0000-0000-000000000003',
+      candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+    });
+  });
+
+  it('erzeugt beim Entfernen der letzten Directory-Referenz keinen ungültigen Vertrag', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:UserTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{
+          $type: 'flowzer:TaskAssignment',
+          mode: 'directory',
+          candidateGroupIds: '20000000-0000-0000-0000-000000000001',
+        }],
+      } as ModdleElement,
+    });
+
+    editor.setDirectoryAssignment('Element_1', { candidateGroupIds: [] });
+
+    expect(extensionOf(businessObject, 'flowzer:TaskAssignment')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:AssignmentDefinition')).toBeUndefined();
   });
 });
 

@@ -6,15 +6,28 @@ using BPMN.Flowzer.Events;
 using BPMN.Events;
 using BPMN.Infrastructure;
 using Microsoft.Extensions.Logging.Abstractions;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using StorageSystem.Exceptions;
 
 using WebApiEngine.Auth;
+using WebApiEngine.Ai;
+using WebApiEngine.Idempotency;
+using WebApiEngine.IdentityDirectory;
+using WebApiEngine.Forms;
 using Variables = System.Dynamic.ExpandoObject;
 
 namespace WebApiEngine.BusinessLogic;
 
-public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, ILogger<BpmnBusinessLogic>? logger = null)
+public partial class BpmnBusinessLogic(
+    ITransactionalStorageProvider storageProvider,
+    ILogger<BpmnBusinessLogic>? logger = null,
+    UserTaskDeadlinePolicy? userTaskDeadlinePolicy = null,
+    IAiSecretStore? aiSecretStore = null,
+    AiToolRegistry? aiToolRegistry = null)
 {
+    private readonly UserTaskDeadlinePolicy _userTaskDeadlinePolicy =
+        userTaskDeadlinePolicy ?? UserTaskDeadlinePolicy.Default;
     // Die dateibasierte Ablage kennt weder Transaktionen noch Sperren. Parallele HTTP-Requests
     // und der Timer-Scheduler wuerden sonst gleichzeitig Instanz- und Subscription-Dateien
     // lesen, loeschen und schreiben (Read-Modify-Write ohne Schutz). Alle Engine-Mutationen
@@ -22,6 +35,28 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     // bleiben davon unberuehrt. Durchsatz ist fuer eine Workflow-Engine dieser Groesse
     // unkritisch, verlorene Statuswechsel waeren es nicht.
     private readonly SemaphoreSlim _engineMutationLock = new(1, 1);
+
+    /// <summary>
+    /// Führt eine mit Engine-Abschluss und Timerläufen serialisierte Nebenmutation aus.
+    /// PostgreSQL-Adapter ergänzen dies durch Datenbanklocks für mehrere API-Prozesse.
+    /// </summary>
+    internal async Task<T> ExecuteUserTaskMutationAsync<T>(
+        Func<ITransactionalStorage, Task<T>> mutation,
+        CancellationToken cancellationToken = default)
+    {
+        await _engineMutationLock.WaitAsync(cancellationToken);
+        try
+        {
+            using var storage = storageProvider.GetTransactionalStorage();
+            var result = await mutation(storage);
+            storage.CommitChanges();
+            return result;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
 
     /// <summary>
     /// Stellt die persistierten Timer wieder her und holt ueberfaellige Faelligkeiten nach.
@@ -42,21 +77,92 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         cancellationToken.ThrowIfCancellationRequested();
         await HandleTime(DateTime.UtcNow);
     }
-    
+
     public async Task DeployDefinition(BpmnDefinition definition)
     {
         await _engineMutationLock.WaitAsync();
         try
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
-        
-        
+
+
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
-            var model =  ModelParser.ParseModel(xmlData);
-        
-        
+            // Dieser zweite Check schützt auch interne Deploy-Aufrufer, die den HTTP-Upload
+            // umgehen. Bereits laufende Versionen werden dabei nie erneut validiert.
+            BpmnCapabilityMatrix.ValidateForDeployment(xmlData);
+            var model = ModelParser.ParseModel(xmlData);
+            var userTasks = model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().ToArray();
+            DirectorySnapshot? directorySnapshot = null;
+            if (userTasks.Any(task => task.FlowzerAssignmentMode == UserTaskAssignmentMode.Directory))
+            {
+                try
+                {
+                    directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot();
+                }
+                catch (NotSupportedException)
+                {
+                    // Der Validator liefert den stabilen fachlichen Fehlervertrag auch für
+                    // ältere Storage-Adapter ohne Verzeichnisunterstützung.
+                }
+            }
+            DirectoryTaskAssignmentValidator.Validate(userTasks, directorySnapshot);
+
+            // Nur neue Versionen dürfen auflösen. Ein alter Aufrufer kann eine bereits
+            // gebundene Version nicht durch einen fehlenden/stalen Snapshot neu binden.
+            var storedDefinition = await storageSystem.DefinitionStorage.GetDefinitionById(definition.Id);
+            var aiTasks = model.GetProcesses()
+                .SelectMany(process => AlleFlowElemente(process))
+                .OfType<BPMN.Activities.ServiceTask>()
+                .Where(task => task.FlowzerAiTask is not null)
+                .ToArray();
+            if (storedDefinition.AiTaskBindings is null
+                && aiTasks.Length > 0
+                && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
+                throw new InvalidOperationException(
+                    "The historical workflow has no verified AI task bindings. Deploy a new workflow version.");
+            definition.AiTaskBindings = storedDefinition.AiTaskBindings
+                ?? await AiTaskDeploymentValidator.BindAsync(
+                    aiTasks,
+                    storageSystem.AiConnectionStorage,
+                    aiSecretStore,
+                    aiToolRegistry);
+            AiTaskDeploymentValidator.ValidateBindings(aiTasks, definition.AiTaskBindings, aiToolRegistry);
+
+            if (storedDefinition.FormBindings is null && (storedDefinition.IsActive || storedDefinition.DeployedOn.HasValue))
+                throw new InvalidOperationException("The historical workflow has no verified form bindings. Deploy a new workflow version.");
+            definition.FormBindings = storedDefinition.FormBindings ?? await new FormKeyResolver(storageSystem).BindAsync(
+                model.GetProcesses().SelectMany(AlleFlowElemente).OfType<UserTask>().Select(task => task.Implementation)
+                    .Concat(model.GetProcesses().SelectMany(process => process.FlowElements).OfType<StartEvent>().Select(start => start.FlowzerFormKey)),
+                definition.Id);
+
+            var boundContracts = definition.FormBindings.Values
+                .Select(binding => FormContractCompiler.Compile(binding.FormData))
+                .ToArray();
+            if (directorySnapshot is null
+                && boundContracts.Any(contract => contract.Fields.Any(field => field.SubjectSelection is not null)))
+            {
+                try { directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot(); }
+                catch (NotSupportedException) { /* Validator liefert den stabilen Fachfehler. */ }
+            }
+            FormKeyResolver.ValidateBindings(definition.FormBindings, directorySnapshot);
+
+            // Profil-4-Aktionen sind im ersten Slice bewusst Human-Task-spezifisch. Ein
+            // identisches Formular an einem Startereignis würde sonst ohne Aktions-ID erst
+            // zur Laufzeit scheitern und Autoren eine nicht startbare Version veröffentlichen lassen.
+            var startFormKeys = model.GetProcesses()
+                .SelectMany(process => process.FlowElements)
+                .OfType<StartEvent>()
+                .Select(start => start.FlowzerFormKey?.Trim())
+                .Where(key => !string.IsNullOrWhiteSpace(key));
+            foreach (var startFormKey in startFormKeys)
+            {
+                if (definition.FormBindings.TryGetValue(startFormKey!, out var binding)
+                    && FormContractCompiler.Compile(binding.FormData).Actions.Count > 0)
+                    throw new FormContractException("action.start_form");
+            }
+
             await UndeployDefinition(definition, storageSystem);
-        
+
             foreach (var process in model.GetProcesses())
             {
                 var pe = new ProcessEngine(process);
@@ -74,9 +180,9 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             definition.IsActive = true;
             definition.DeployedOn = DateTime.UtcNow;
             await storageSystem.DefinitionStorage.StoreDefinition(definition);
-        
+
             storageSystem.CommitChanges();
-        
+
         }
         finally
         {
@@ -177,37 +283,6 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         await SaveActiveTimers(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
 
-    private async Task SaveUserTasks(IStorageSystem storageSystem, ICatchHandler catchHandler, string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
-    {
-        if (processInstanceId != null) //if there are already stored user task subscriptions for this instance, remove them
-            storageSystem.SubscriptionStorage.RemoveAllUserTaskSubscriptionsByInstanceId(processInstanceId.Value);
-        
-        foreach (var activeUserTask in catchHandler.ActiveUserTasks())
-        {
-            var userTask = (UserTask)activeUserTask.CurrentFlowNode!; 
-            await storageSystem.SubscriptionStorage.AddUserTaskSubscription(
-                new UserTaskSubscription()
-                {
-                    Id = Guid.NewGuid(),
-                    Token = activeUserTask,
-                    Name = userTask.Name,
-                    // Die Zuweisungen aus dem Modell werden beim Anlegen festgehalten. Aendert
-                    // sich spaeter eine Definition, behaelt eine laufende Aufgabe die Zuweisung,
-                    // mit der sie entstanden ist.
-                    Assignee = string.IsNullOrWhiteSpace(userTask.FlowzerAssignee) ? null : userTask.FlowzerAssignee.Trim(),
-                    CandidateUsers = UserTaskAssignment.SplitList(userTask.FlowzerCandidateUsers),
-                    CandidateGroups = UserTaskAssignment.SplitList(userTask.FlowzerCandidateGroups),
-                    UserCandidates = [],
-                    UserGroups = [],
-                    CurrenAssignedUser = null,
-                    ProcessInstanceId = processInstanceId,
-                    DefinitionId = definitionId,
-                    MetaDefinitionId = metaDefinitionId,
-                    ProcessId = processId
-                });
-        }
-    }
-
     /// <summary>
     /// Legt fuer jeden wartenden Service-Task einen Auftrag an, den ein externer Worker holen
     /// kann. Bereits vergebene Auftraege derselben Instanz behalten ihren Zustand: Ein Worker,
@@ -221,14 +296,21 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             return;
         }
 
-        var activeTokens = catchHandler.ActiveServiceTasks();
+        var activeTokens = catchHandler.ActiveServiceTasks().ToArray();
+        var normalTokens = activeTokens
+            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is null)
+            .ToArray();
+        var aiTokens = activeTokens
+            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is not null)
+            .ToArray();
         var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
             .Where(job => job.ProcessInstanceId == processInstanceId.Value)
             .ToList();
 
         // Auftraege zu Tokens, die nicht mehr warten, sind erledigt oder abgebrochen.
-        var activeTokenIds = activeTokens.Select(token => token.Id).ToHashSet();
-        foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.Token.Id)))
+        // KI-Tasks gehoeren nie in die externe Worker-Warteschlange.
+        var activeTokenIds = normalTokens.Select(token => token.Id).ToHashSet();
+        foreach (var obsolete in existing.Where(job => !activeTokenIds.Contains(job.TokenId)))
         {
             await storageSystem.ServiceTaskStorage.RemoveJob(obsolete.Id);
         }
@@ -242,9 +324,9 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             ? engine.MasterToken.Variables
             : null);
 
-        foreach (var token in activeTokens)
+        foreach (var token in normalTokens)
         {
-            if (existing.Any(job => job.Token.Id == token.Id))
+            if (existing.Any(job => job.TokenId == token.Id))
             {
                 continue;
             }
@@ -255,7 +337,8 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 Id = Guid.NewGuid(),
                 Type = serviceTask.Implementation,
                 Name = serviceTask.Name,
-                Token = token,
+                TokenId = token.Id,
+                FlowNodeId = serviceTask.Id,
                 ProcessInstanceId = processInstanceId.Value,
                 MetaDefinitionId = metaDefinitionId,
                 DefinitionId = definitionId,
@@ -265,6 +348,116 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                 Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
                 Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
+        }
+
+        var persistedAiTokens = catchHandler is InstanceEngine instanceEngine
+            ? instanceEngine.Tokens
+                .Where(token => token.CurrentFlowNode is BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
+                .ToArray()
+            : aiTokens;
+        if (persistedAiTokens.Length == 0)
+        {
+            return;
+        }
+
+        var deployedDefinition = await storageSystem.DefinitionStorage.GetDefinitionById(definitionId);
+        if (deployedDefinition.AiTaskBindings is null)
+            throw new InvalidDataException("The deployed workflow has no verified AI task bindings.");
+
+        foreach (var token in aiTokens)
+        {
+            var task = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            var contract = task.FlowzerAiTask!;
+            if (!deployedDefinition.AiTaskBindings.TryGetValue(task.Id, out var binding)
+                || binding.ConnectionId != contract.ConnectionId)
+                throw new InvalidDataException("The deployed AI task binding is inconsistent.");
+            if (token.Variables is null)
+                throw new InvalidDataException("The AI task has no mapped input variables.");
+
+            var nowUtc = DateTime.UtcNow;
+            var run = new AiRun
+            {
+                Id = Guid.NewGuid(),
+                ProcessInstanceId = processInstanceId.Value,
+                TokenId = token.Id,
+                FlowNodeId = task.Id,
+                MetaDefinitionId = metaDefinitionId,
+                DefinitionId = definitionId,
+                ProcessId = processId,
+                ConnectionId = binding.ConnectionId,
+                ConnectionRevision = binding.ConnectionRevision,
+                Model = binding.Model,
+                InstructionVersion = contract.InstructionVersion,
+                Instruction = contract.Instruction,
+                InputsJson = JsonConvert.SerializeObject(token.Variables, Formatting.None),
+                ResultSchema = contract.ResultSchema,
+                MaxInputTokens = contract.MaxInputTokens,
+                MaxOutputTokens = contract.MaxOutputTokens,
+                TimeoutSeconds = contract.TimeoutSeconds,
+                MaximumAttempts = task.FlowzerRetries > 0 ? task.FlowzerRetries : 1,
+                Status = AiRunStatus.Pending,
+                Attempt = 0,
+                Revision = 1,
+                CreatedAtUtc = nowUtc,
+                UpdatedAtUtc = nowUtc
+            };
+            var created = await storageSystem.AiRunStorage.TryCreate(run);
+            if (created.Status == AiRunWriteStatus.Written)
+            {
+                continue;
+            }
+
+            if (created.Status != AiRunWriteStatus.Conflict
+                || created.Current is null
+                || !SameAiRunSnapshot(created.Current, run))
+                throw new InvalidDataException("The persisted AI run does not match its active token.");
+        }
+
+        // Ein gerade erfolgreich angewendetes Ergebnis besitzt hier bereits einen Completed-
+        // Token, waehrend sein Lauf noch in derselben Transaktion auf Completed gesetzt wird.
+        // Dieser Token bleibt deshalb geschuetzt. Terminierte/fehlgeschlagene Tokens entziehen
+        // dagegen auch einer laufenden Providerlease die Schreibberechtigung.
+        var protectedAiTokenIds = persistedAiTokens
+            .Where(token => token.State is FlowNodeState.Active or FlowNodeState.Completed)
+            .Select(token => token.Id)
+            .ToArray();
+        await storageSystem.AiRunStorage.CancelObsoleteRuns(
+            processInstanceId.Value,
+            protectedAiTokenIds,
+            DateTime.UtcNow);
+    }
+
+    internal static bool SameAiRunSnapshot(AiRun current, AiRun expected) =>
+        current.ProcessInstanceId == expected.ProcessInstanceId
+        && current.TokenId == expected.TokenId
+        && current.FlowNodeId == expected.FlowNodeId
+        && current.MetaDefinitionId == expected.MetaDefinitionId
+        && current.DefinitionId == expected.DefinitionId
+        && current.ProcessId == expected.ProcessId
+        && current.ConnectionId == expected.ConnectionId
+        && current.ConnectionRevision == expected.ConnectionRevision
+        && current.Model == expected.Model
+        && current.InstructionVersion == expected.InstructionVersion
+        && current.Instruction == expected.Instruction
+        && SameJsonValue(current.InputsJson, expected.InputsJson)
+        && current.ResultSchema == expected.ResultSchema
+        && current.MaxInputTokens == expected.MaxInputTokens
+        && current.MaxOutputTokens == expected.MaxOutputTokens
+        && current.TimeoutSeconds == expected.TimeoutSeconds
+        && current.MaximumAttempts == expected.MaximumAttempts;
+
+    private static bool SameJsonValue(string current, string expected)
+    {
+        try
+        {
+            return JToken.DeepEquals(JToken.Parse(current), JToken.Parse(expected));
+        }
+        catch (JsonReaderException)
+        {
+            // Ungültige Snapshots werden nicht als kompatibel akzeptiert. Der Aufrufer
+            // behandelt dies als Persistenzkonflikt statt mit einem Lauf fortzufahren,
+            // dessen deklarierte Eingaben nicht mehr sicher vergleichbar sind.
+            return false;
         }
     }
 
@@ -286,7 +479,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     {
         if (processInstanceId != null) //if there are already stored catch messages subscriptions for this instance, remove them
             await storageSystem.SubscriptionStorage.RemoveProcessMessageSubscriptionsByProcessInstanceId(processInstanceId.Value);
-        
+
         foreach (var activeCatchMessage in catchHandler.ActiveCatchMessages)
         {
             await storageSystem.SubscriptionStorage.AddMessageSubscription(
@@ -296,17 +489,17 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                     relatedDefinitionId,
                     definitionId,
                     processInstanceId
-                ));    
+                ));
         }
-    }    
-    
+    }
+
     private void SaveActiveSignals(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId,
         string processId, Guid? processInstanceId)
     {
         if (processInstanceId != null) //if there are already stored signals subscriptions for this instance, remove them
             storageSystem.SubscriptionStorage.RemoveProcessSingalSubscriptionsByProcessInstanceId(processInstanceId.Value);
 
-        
+
         foreach (var activeSignal in catchHandler.ActiveCatchSignals)
         {
             storageSystem.SubscriptionStorage.AddSignalSubscription(
@@ -314,9 +507,9 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
                     activeSignal,
                     processId,
                     relatedDefinitionId,
-                    definitionId,   
+                    definitionId,
                     processInstanceId
-                ));    
+                ));
         }
     }
 
@@ -377,7 +570,8 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
             foreach (var dueInstanceTimerGroup in dueTimers
                          .Where(subscription => subscription.ProcessInstanceId != null)
-                         .GroupBy(subscription => subscription.ProcessInstanceId!.Value))
+                         .GroupBy(subscription => subscription.ProcessInstanceId!.Value)
+                         .OrderBy(group => group.Key))
             {
                 try
                 {
@@ -425,22 +619,31 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             InstanceEngine instance;
             if (messageSubscription.ProcessInstanceId != null) //the message is for a specific instance, so load the instance
             {
-                var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(messageSubscription.ProcessInstanceId.Value);
+                var instanceId = messageSubscription.ProcessInstanceId.Value;
+                await storageSystem.InstanceStorage.LockForMutation(instanceId);
+                // Nach einem möglichen Warten unter der Instanzsperre erneut lesen. Eine
+                // konkurrierende Mutation darf keine inzwischen entfernte Subscription beleben.
+                var selectedSubscription = messageSubscription;
+                messageSubscription = (await storageSystem.SubscriptionStorage
+                        .GetMessageSubscription(message.Name, message.CorrelationKey, message.InstanceId))
+                    .FirstOrDefault(candidate => candidate == selectedSubscription)
+                    ?? throw new ArgumentException("The selected message subscription is no longer active.");
+                var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
                 instance = new InstanceEngine(processInstance.Tokens);
-                instance.InstanceId = messageSubscription.ProcessInstanceId.Value;
+                instance.InstanceId = instanceId;
                 instance.HandleMessage(message);
             }
             else //the message is for a new instance, so create a new one
             {
                 var xmlData = await storageSystem.DefinitionStorage.GetBinary(messageSubscription.DefinitionId);
-                var model =  ModelParser.ParseModel(xmlData);
+                var model = ModelParser.ParseModel(xmlData);
 
                 var process = model.GetProcesses().FirstOrDefault(x => x.Id == messageSubscription.ProcessId);
                 if (process == null)
                     throw new FileNotFoundException($"No process with the id \"{messageSubscription.ProcessId}\" was found in the definition with the id \"{messageSubscription.DefinitionId}\".");
-            
+
                 instance = StartProcessByMessage(messageSubscription.DefinitionId, messageSubscription.RelatedDefinitionId, process, message);
-            
+
             }
 
             await SaveInstance(storageSystem, instance, messageSubscription.RelatedDefinitionId, messageSubscription.DefinitionId, messageSubscription.ProcessId);
@@ -453,7 +656,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             _engineMutationLock.Release();
         }
     }
-    
+
     /// <summary>
     /// Uebernimmt das Ergebnis eines externen Workers und fuehrt den Token weiter.
     /// Laeuft wie jede andere Zustandsaenderung unter der Engine-Sperre.
@@ -465,65 +668,21 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
             var instance = new InstanceEngine(processInstance.Tokens);
             instance.InstanceId = job.ProcessInstanceId;
 
-            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.Token.Id);
+            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.TokenId);
             if (activeToken is null)
             {
                 throw new ArgumentException(
-                    $"The service task token \"{job.Token.Id}\" is not active for process instance \"{job.ProcessInstanceId}\".",
+                    $"The service task token \"{job.TokenId}\" is not active for process instance \"{job.ProcessInstanceId}\".",
                     nameof(job));
             }
 
             instance.HandleTaskResult(activeToken.Id, result, userId);
             await storageSystem.ServiceTaskStorage.RemoveJob(job.Id);
-            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-            storageSystem.CommitChanges();
-
-            return instance;
-        }
-        finally
-        {
-            _engineMutationLock.Release();
-        }
-    }
-
-    public async Task<InstanceEngine> HandleUserTask(UserTaskResult userTaskResult, Guid userId)
-    {
-        await _engineMutationLock.WaitAsync();
-        try
-        {
-            using var storageSystem = storageProvider.GetTransactionalStorage();
-
-            if (userTaskResult.ProcessInstanceId == null)
-            {
-                throw new ArgumentException("User task results require a ProcessInstanceId.", nameof(userTaskResult.ProcessInstanceId));
-            }
-
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(userTaskResult.ProcessInstanceId.Value);
-            var instance = new InstanceEngine(processInstance.Tokens);
-            instance.InstanceId = userTaskResult.ProcessInstanceId.Value;
-
-            var activeUserTaskToken = instance.GetActiveUserTasks()
-                .SingleOrDefault(token => token.Id == userTaskResult.TokenId);
-
-            if (activeUserTaskToken == null)
-            {
-                throw new ArgumentException(
-                    $"The user task token \"{userTaskResult.TokenId}\" is not active for process instance \"{userTaskResult.ProcessInstanceId}\".",
-                    nameof(userTaskResult.TokenId));
-            }
-
-            if (!string.Equals(activeUserTaskToken.CurrentFlowNode?.Id, userTaskResult.FlowNodeId, StringComparison.Ordinal))
-            {
-                throw new ArgumentException(
-                    $"The user task token \"{userTaskResult.TokenId}\" does not belong to flow node \"{userTaskResult.FlowNodeId}\".",
-                    nameof(userTaskResult.FlowNodeId));
-            }
-
-            instance.HandleTaskResult(userTaskResult.TokenId, userTaskResult.Data, userId);
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
             storageSystem.CommitChanges();
 
@@ -546,6 +705,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         try
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
+            await storageSystem.InstanceStorage.LockForMutation(instanceId);
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
             if (processInstance.IsFinished)
             {
@@ -600,7 +760,9 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     public async Task<ProcessInstanceInfo> StartProcessInstance(
         string relatedDefinitionId,
         Variables? variables = null,
-        string? processId = null)
+        string? processId = null,
+        AuthenticatedSubject? initiator = null,
+        IdempotencyRequest? idempotency = null)
     {
         await _engineMutationLock.WaitAsync();
         try
@@ -608,40 +770,67 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
             ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
-            var (deployedDefinition, process) =
-                await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
-
-            // Traegt der Workflow ein Startformular, sind seine Werte Teil des Starts. Geprueft
-            // wird nur, ob ueberhaupt eine Antwort kam — die Pflichtfelder pruefen wir bewusst
-            // nicht: Form.io kennt bedingt sichtbare Felder (`conditional`), die der Server nicht
-            // auswertet; er wuerde damit gueltige Eingaben der Konsole ablehnen. Die
-            // Pflichtfelder prueft der Renderer, bevor er absendet.
-            if (RequireStartFormKey(process) is not null && variables is null)
+            var acquisition = await IdempotencyExecution.Acquire(storageSystem, idempotency);
+            if (acquisition.IsReplay)
             {
-                throw new InvalidOperationException(
-                    $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
+                var replayId = acquisition.Record?.ProcessInstanceId
+                    ?? throw new IdempotencyConflictException("The stored start result is incomplete.");
+                return await storageSystem.InstanceStorage.GetProcessInstance(replayId);
             }
+            var persistedMutationMayExist = false;
+            try
+            {
+                var (deployedDefinition, process) =
+                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
 
-            var processEngine = new ProcessEngine(process);
-            var instance = processEngine.StartProcess(variables);
-            var processInstanceInfo = CreateProcessInstanceInfo(
-                deployedDefinition.Id,
-                relatedDefinitionId,
-                process.Id,
-                instance);
+                // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
+                // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
+                if (RequireStartFormKey(process) is not null && variables is null)
+                {
+                    throw new InvalidOperationException(
+                        $"The workflow \"{relatedDefinitionId}\" requires its start form. Send the form data as \"variables\".");
+                }
 
-            await SaveSubscriptions(
-                storageSystem,
-                instance,
-                relatedDefinitionId,
-                deployedDefinition.Id,
-                process.Id,
-                instance.InstanceId);
-            await storageSystem.InstanceStorage.AddOrUpdateInstance(processInstanceInfo);
+                if (RequireStartFormKey(process) is { } startFormKey)
+                    variables = await ValidateFormInputAsync(storageSystem, startFormKey, deployedDefinition.Id, variables);
 
-            storageSystem.CommitChanges();
+                var processEngine = new ProcessEngine(process);
+                var instance = processEngine.StartProcess(variables);
+                // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
+                // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
+                instance.MasterToken.Initiator = initiator;
+                var processInstanceInfo = CreateProcessInstanceInfo(
+                    deployedDefinition.Id,
+                    relatedDefinitionId,
+                    process.Id,
+                    instance);
 
-            return processInstanceInfo;
+                // Ab hier kann ein nichttransaktionaler Adapter bereits einzelne Dateien
+                // dauerhaft geschrieben haben. Bei einem späteren Fehler muss die offene
+                // Reservierung erhalten bleiben, damit ein Retry nichts dupliziert.
+                persistedMutationMayExist = true;
+                await SaveInstance(
+                    storageSystem,
+                    instance,
+                    relatedDefinitionId,
+                    deployedDefinition.Id,
+                    process.Id);
+                if (acquisition.Record is not null)
+                    await storageSystem.IdempotencyStorage.Complete(acquisition.Record.ScopeHash, processInstanceInfo.InstanceId);
+
+                storageSystem.CommitChanges();
+                return processInstanceInfo;
+            }
+            catch
+            {
+                try { await IdempotencyExecution.Abandon(storageSystem, acquisition, persistedMutationMayExist); }
+                catch (Exception cleanupError)
+                {
+                    (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogWarning(cleanupError,
+                        "Could not remove failed idempotency reservation {ScopeHash}.", acquisition.Record?.ScopeHash);
+                }
+                throw;
+            }
         }
         finally
         {
@@ -700,8 +889,9 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
+        await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }
-    
+
     private InstanceEngine StartProcessByMessage(Guid definitionsId, string relatedDefinitionId,
         Process process, Message message)
     {
@@ -709,8 +899,8 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
         var instance = processEngine.HandleMessage(message);
         return instance;
     }
-    
-    private async  Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
+
+    private async Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance)
     {
         await storageSystem.InstanceStorage.AddOrUpdateInstance(
@@ -808,6 +998,7 @@ public class BpmnBusinessLogic(ITransactionalStorageProvider storageProvider, IL
 
     private async Task HandleInstanceTimers(ITransactionalStorage storageSystem, Guid instanceId, DateTime time)
     {
+        await storageSystem.InstanceStorage.LockForMutation(instanceId);
         var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var instance = new InstanceEngine(processInstance.Tokens);
         instance.InstanceId = processInstance.InstanceId;

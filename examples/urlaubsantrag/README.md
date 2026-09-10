@@ -1,6 +1,6 @@
 # Beispielprozess: Urlaubsantrag
 
-Ein vollständiger Prozess mit allem, was Flowzer kann: Formulare, parallele Zweige,
+Ein Demonstrationsprozess für Formulare, parallele Zweige,
 menschliche Entscheidungen, automatische Prüfungen und Anbindungen an andere Systeme.
 
 ```
@@ -12,7 +12,7 @@ Urlaubsantrag stellen   ◀ Startformular
       │ alle drei ja                                                                 │
       ├─ Antragsteller benachrichtigen   (Service-Task)                              ▼
       ├─ Urlaub in LexOffice eintragen   (Lohnbuchhaltung, Formular)      Ablehnung mitteilen
-      └─ Urlaub in TickyTask eintragen   (Service-Task)                              │
+      └─ Urlaub in externem Fachsystem eintragen   (Service-Task)                     │
       │                                                                              ▼
    Urlaub genehmigt                                                       Antrag abgelehnt ⊗
 ```
@@ -58,17 +58,17 @@ curl -X POST http://localhost:5182/definition/meta/flowzer-urlaubsantrag/instanc
           "bis": "2026-10-16",
           "arbeitstage": 10,
           "vertretung": "Melli",
-          "bemerkung": "",
-          "vorgang": "Christian Maaß · Erholungsurlaub · 05.10.2026 bis 16.10.2026 · 10 Arbeitstage · Vertretung: Melli"
+          "bemerkung": ""
         }
       }'
 ```
 
 Weil der Workflow ein Startformular trägt, verlangt die API das `variables`-Objekt; ohne
-Rumpf antwortet sie mit 400. Das versteckte Feld `vorgang` rechnet sonst das Formular aus —
-wer von außen startet, setzt es selbst. Die Pflichtfelder prüft der Server nicht, das tut der
-Renderer der Konsole (siehe [docs/OPERATIONS.md](../../docs/OPERATIONS.md), Abschnitt
-„Workflow starten").
+Rumpf antwortet sie mit 400. Pflichtfelder, Typen, Auswahlwerte und `bis >= von`
+werden serverseitig geprüft; ungültige Eingaben liefern feldbezogene Fehler mit 422.
+`vorgang` berechnet ausschließlich der Server mittels `join.v1`. Externe Clients
+lassen das Feld weg; sie dürfen keine abweichende Zusammenfassung vorgeben.
+Siehe [Prüfprofil](../../docs/FORM-VALIDATION-PROFILE.md).
 
 Die drei Service-Tasks brauchen Worker. Zum Durchspielen genügt der mitgelieferte:
 
@@ -77,7 +77,7 @@ node examples/urlaubsantrag/demo-worker.mjs http://localhost:5182
 ```
 
 Er ersetzt keine Anbindung — die Vertretungsprüfung sagt immer ja, benachrichtigt wird auf
-der Konsole, und TickyTask bekommt eine erfundene Vorgangsnummer. Als Vorlage für die
+der Konsole, und das Fachsystem bekommt eine erfundene Vorgangsnummer. Als Vorlage für die
 echten Worker taugt er trotzdem; der Vertrag steht in
 [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
 
@@ -102,9 +102,12 @@ rechte Spalte. Ohne diese Zuordnung schrieben beide Entscheidungen in dieselbe V
 Der Form-Key im BPMN ist der **Name** des Formulars. Namen müssen deshalb eindeutig sein;
 mit `Name:1.0` lässt sich eine feste Version binden.
 
-Das Antragsformular rechnet nebenbei ein verstecktes Feld `vorgang` aus — einen Satz wie
-„Christian Maaß · Erholungsurlaub · 05.10.2026 bis 16.10.2026 · 10 Arbeitstage · Vertretung:
-Melli". Die allgemeinen Formulare zeigen ihn oben an, damit klar ist, worüber entschieden wird.
+Der Server bildet das versteckte Feld `vorgang` aus den deklarierten Quellen,
+beispielsweise „Christian Maaß · erholung · 2026-10-05 · 2026-10-16 · 10 · Melli“.
+Datum und Auswahlcode bleiben absichtlich unverändert. Die allgemeinen Formulare
+zeigen diesen Kontext oben an; die alte clientseitige JavaScript-Berechnung entfällt.
+`vertretung` bleibt in diesem Beispiel vorerst Text. Eine Verzeichniswahl und echte
+externe Abgleiche sind separate Erweiterungen, keine bereits verfügbare Personalverwaltung.
 
 ## Service-Tasks
 
@@ -113,7 +116,7 @@ Melli". Die allgemeinen Formulare zeigen ihn oben an, damit klar ist, worüber e
 | `urlaub-vertretung-pruefen` | Hat die genannte Vertretung im Zeitraum selbst genehmigten Urlaub? | `vertretungFrei`: `"ja"` oder `"nein"` |
 | `urlaub-genehmigung-mitteilen` | Nachricht an die antragstellende Person | frei |
 | `urlaub-ablehnung-mitteilen` | Nachricht mit dem Ablehnungsgrund | frei |
-| `urlaub-tickytask-eintragen` | Abwesenheit in TickyTask anlegen | frei, z. B. `tickytaskVorgang` |
+| `urlaub-fachsystem-eintragen` | Abwesenheit in einem Fachsystem anlegen | frei, z. B. `fachsystemVorgang` |
 
 Jeder Service-Task sagt am Modell, was sein Worker zu sehen bekommt — die
 Vertretungsprüfung etwa nur `vertretung`, `von` und `bis`. Ohne diese Angabe bekäme ein

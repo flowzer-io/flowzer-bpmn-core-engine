@@ -12,17 +12,13 @@ import type { ApiStatusResult } from './types';
  */
 export let API_BASE_URL: string = (import.meta.env.VITE_FLOWZER_API_URL ?? '/api').replace(/\/+$/, '');
 
+const DEVELOPMENT_USER_ID = 'd266f2b6-e96e-4d4a-9c20-c8e541394df0';
+const DEVELOPMENT_USER_HEADER = 'X-Flowzer-UserId';
+
 /** Übernimmt die geladene Laufzeitkonfiguration. Wird einmal beim Start gerufen. */
 export function applyRuntimeConfig(): void {
   API_BASE_URL = getRuntimeConfig().apiBaseUrl;
 }
-
-/**
- * Header, über den die API im Development-Modus den Benutzerkontext auflöst
- * (siehe `HttpContextCurrentUserContextAccessor`). Sobald echte Authentifizierung
- * aktiv ist, entfällt der Header zugunsten des Bearer-Tokens.
- */
-export const USER_ID_HEADER = 'X-Flowzer-UserId';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -38,20 +34,26 @@ export class ApiError extends Error {
   }
 }
 
-type AuthTokenProvider = () => string | null | undefined;
-type UserIdProvider = () => string | null | undefined;
+let csrf: { requestToken: string; headerName: string } | null = null;
+let csrfRequest: Promise<{ requestToken: string; headerName: string }> | null = null;
 
-let authTokenProvider: AuthTokenProvider = () => null;
-let userIdProvider: UserIdProvider = () => null;
-
-/** Hinterlegt, woher der Client sein Bearer-Token bezieht. */
-export function setAuthTokenProvider(provider: AuthTokenProvider): void {
-  authTokenProvider = provider;
+/** Setzt den nur im Speicher gehaltenen CSRF-Token zurück, etwa nach einer 401-Antwort. */
+export function clearCsrfToken(): void {
+  csrf = null;
+  csrfRequest = null;
 }
 
-/** Hinterlegt die Benutzer-Id für den Development-Header. */
-export function setUserIdProvider(provider: UserIdProvider): void {
-  userIdProvider = provider;
+/** Meldet eine abgelaufene BFF-Sitzung an den Session-Store. */
+let unauthorizedHandler: () => void = () => {};
+
+export function setUnauthorizedHandler(handler: () => void): void {
+  unauthorizedHandler = handler;
+}
+
+/** Meldet einen ungültig gewordenen BFF-Cookie an die Console-Sitzung. */
+export function reportUnauthorized(): void {
+  clearCsrfToken();
+  unauthorizedHandler();
 }
 
 /** Antwortheader, mit dem die API eine Ablehnung einordnet. */
@@ -62,6 +64,64 @@ let accessDeniedHandler: (denied: boolean) => void = () => {};
 /** Hinterlegt, wohin der Client meldet, dass dieses Konto nicht freigeschaltet ist. */
 export function setAccessDeniedHandler(handler: (denied: boolean) => void): void {
   accessDeniedHandler = handler;
+}
+
+async function getCsrfToken(): Promise<{ requestToken: string; headerName: string }> {
+  if (csrf) return csrf;
+  if (csrfRequest) return csrfRequest;
+
+  csrfRequest = (async () => {
+    const response = await fetch('/bff/csrf', { credentials: 'same-origin' });
+    const parsed = await readBody(response, false);
+    if (response.status === 401) {
+      reportUnauthorized();
+    }
+    if (!response.ok || !isCsrf(parsed)) {
+      throw new ApiError('Der CSRF-Schutz konnte nicht geladen werden.', {
+        status: response.status,
+        url: '/bff/csrf',
+        body: parsed,
+      });
+    }
+
+    csrf = parsed;
+    return parsed;
+  })();
+
+  try {
+    return await csrfRequest;
+  } finally {
+    csrfRequest = null;
+  }
+}
+
+/**
+ * Liefert den BFF-CSRF-Wert für den Console-Adapter des öffentlichen SDKs.
+ * Der SDK bleibt zustandslos; diese Browser-/BFF-Kopplung gehört ausschließlich
+ * zur Console und speichert den Wert nur im Arbeitsspeicher.
+ */
+export async function getConsoleCsrfToken(): Promise<{ requestToken: string; headerName: string }> {
+  return getCsrfToken();
+}
+
+/**
+ * Ergänzt ausschließlich Console-spezifische Browserdetails für den öffentlichen
+ * Client. Insbesondere gelangt der Development-Header weder in das SDK noch in
+ * dessen öffentliche Authentisierungsoptionen.
+ */
+export function consoleAuthenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (import.meta.env.DEV && !getRuntimeConfig().bffEnabled) {
+    headers.set(DEVELOPMENT_USER_HEADER, DEVELOPMENT_USER_ID);
+  }
+
+  return fetch(input, { ...init, headers, credentials: 'same-origin' });
+}
+
+function isCsrf(value: unknown): value is { requestToken: string; headerName: string } {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Record<string, unknown>;
+  return typeof record.requestToken === 'string' && typeof record.headerName === 'string' && record.headerName.length > 0;
 }
 
 export interface RequestOptions {
@@ -153,11 +213,20 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     Accept: asText ? 'application/xml, text/plain' : 'application/json, text/plain',
   };
 
-  const token = authTokenProvider();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  // Nur Vites Entwicklungsbuild zusammen mit dem explizit deaktivierten BFF darf den
+  // technischen Header verwenden. Die API akzeptiert ihn ebenfalls nur in Development;
+  // produktive Browser senden weder diesen Header noch ein Bearer-Token.
+  if (import.meta.env.DEV && !getRuntimeConfig().bffEnabled) {
+    headers[DEVELOPMENT_USER_HEADER] = DEVELOPMENT_USER_ID;
+  }
 
-  const userId = userIdProvider();
-  if (userId) headers[USER_ID_HEADER] = userId;
+  if (
+    getRuntimeConfig().bffEnabled &&
+    (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
+  ) {
+    const csrfToken = await getCsrfToken();
+    headers[csrfToken.headerName] = csrfToken.requestToken;
+  }
 
   let payload: BodyInit | undefined;
   if (rawBody !== undefined) {
@@ -172,13 +241,17 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   let response: Response;
 
   try {
-    response = await fetch(url, { method, headers, body: payload, signal });
+    response = await fetch(url, { method, headers, body: payload, signal, credentials: 'same-origin' });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
     throw new ApiError('Die Flowzer-API ist nicht erreichbar.', { status: 0, url, body: cause });
   }
 
   const parsed = await readBody(response, asText);
+
+  if (response.status === 401 && getRuntimeConfig().bffEnabled) {
+    reportUnauthorized();
+  }
 
   // Die API ordnet jede Ablehnung ein: `application` heisst, dass dieses Konto Flowzer
   // gar nicht benutzen darf, `capability` nur, dass diese eine Handlung fehlt. Ohne die

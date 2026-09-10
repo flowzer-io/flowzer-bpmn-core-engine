@@ -26,6 +26,25 @@ internal static class StorageFile
         }
     }
 
+    /// <summary>
+    /// Legt eine unveraenderliche Datei atomar neu an. Existiert das Ziel bereits, gewinnt
+    /// nicht still der letzte Schreibende, sondern der Aufrufer erhaelt einen Konflikt.
+    /// </summary>
+    public static async Task WriteAllTextNewAtomicAsync(string path, string content)
+    {
+        var temporaryPath = $"{path}{TemporarySuffix}{Guid.NewGuid():N}";
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, content);
+            File.Move(temporaryPath, path, overwrite: false);
+        }
+        catch
+        {
+            DeleteIfExists(temporaryPath);
+            throw;
+        }
+    }
+
     public static void WriteAllTextAtomic(string path, string content)
     {
         var temporaryPath = $"{path}{TemporarySuffix}{Guid.NewGuid():N}";

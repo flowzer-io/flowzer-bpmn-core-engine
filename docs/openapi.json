@@ -5,6 +5,557 @@
     "version": "1.0"
   },
   "paths": {
+    "/ai/connection": {
+      "get": {
+        "tags": [
+          "AiConnection"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "AiConnection"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiConnectionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiConnectionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAiConnectionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/connection/{connectionId}": {
+      "get": {
+        "tags": [
+          "AiConnection"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "AiConnection"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiConnectionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiConnectionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAiConnectionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/connection/{connectionId}/enabled": {
+      "put": {
+        "tags": [
+          "AiConnection"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiConnectionEnabledRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiConnectionEnabledRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAiConnectionEnabledRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiConnectionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/tool": {
+      "get": {
+        "tags": [
+          "AiTool"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiToolDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiToolDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiToolDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/login": {
+      "get": {
+        "tags": [
+          "Bff"
+        ],
+        "parameters": [
+          {
+            "name": "returnTo",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "/"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/session": {
+      "get": {
+        "tags": [
+          "Bff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffSessionDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffSessionDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffSessionDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/csrf": {
+      "get": {
+        "tags": [
+          "Bff"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffCsrfDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffCsrfDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffCsrfDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/logout": {
+      "post": {
+        "tags": [
+          "Bff"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Definition": {
       "post": {
         "tags": [
@@ -37,6 +588,16 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BpmnDefinitionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
                 }
               }
             }
@@ -106,6 +667,123 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Definition/capabilities": {
+      "get": {
+        "tags": [
+          "Definition"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Definition/validate": {
+      "post": {
+        "tags": [
+          "Definition"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Definition/validate/deployment": {
+      "post": {
+        "tags": [
+          "Definition"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/BpmnCapabilityProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -120,6 +798,13 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
             "schema": {
               "type": "string"
             }
@@ -145,6 +830,16 @@
           }
         },
         "responses": {
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -181,6 +876,16 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
                 }
               }
             }
@@ -702,6 +1407,591 @@
         }
       }
     },
+    "/identity-directory/user-tasks/{taskId}/assignees": {
+      "get": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/user-tasks/{taskId}/assignees/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects": {
+      "get": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects": {
+      "get": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "DirectoryFormSubject"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "fieldKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Folder": {
       "get": {
         "tags": [
@@ -981,6 +2271,358 @@
         }
       }
     },
+    "/Form/compatibility": {
+      "get": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "needsMigration",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormCompatibilityItemDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Form/{formId}/draft": {
+      "get": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormAuthoringDraftRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormAuthoringDraftRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormAuthoringDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expectedRevision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Form/{formId}/publish": {
+      "post": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormAuthoringDraftRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormAuthoringDraftRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormAuthoringDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Form/{formId}/preview": {
+      "post": {
+        "tags": [
+          "Form"
+        ],
+        "parameters": [
+          {
+            "name": "formId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewFormAuthoringRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewFormAuthoringRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewFormAuthoringRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringPreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringPreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormAuthoringPreviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Form/{formId}/{formIdentifier}": {
       "get": {
         "tags": [
@@ -1247,6 +2889,15 @@
         "tags": [
           "Form"
         ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1283,6 +2934,621 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section": {
+      "get": {
+        "tags": [
+          "FormSection"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "FormSection"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormSectionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormSectionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormSectionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section/{sectionId}": {
+      "get": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFormSectionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFormSectionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameFormSectionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionMetadataDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section/{sectionId}/versions": {
+      "get": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionSummaryDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionSummaryDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionSummaryDtoArrayApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section/{sectionId}/versions/{version}": {
+      "get": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section/{sectionId}/draft": {
+      "get": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormSectionAuthoringDraftRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormSectionAuthoringDraftRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveFormSectionAuthoringDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionAuthoringDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expectedRevision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-section/{sectionId}/publish": {
+      "post": {
+        "tags": [
+          "FormSection"
+        ],
+        "parameters": [
+          {
+            "name": "sectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormSectionAuthoringDraftRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormSectionAuthoringDraftRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormSectionAuthoringDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormSectionVersionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
                 }
               }
             }
@@ -1341,6 +3607,458 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthStatusDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/status": {
+      "get": {
+        "tags": [
+          "IdentityDirectory"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/sync": {
+      "post": {
+        "tags": [
+          "IdentityDirectory"
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityDirectoryStatusDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/workflows/{definitionId}/subjects": {
+      "get": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/workflows/{definitionId}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/folders/{folderId}/subjects": {
+      "get": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "folderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "all"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectSearchResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/identity-directory/folders/{folderId}/subjects/resolve": {
+      "post": {
+        "tags": [
+          "IdentityDirectorySubject"
+        ],
+        "parameters": [
+          {
+            "name": "folderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/DirectorySubjectResolutionRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DirectorySubjectResolutionResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1450,6 +4168,106 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Instance/{instanceId}/history": {
+      "get": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessHistoryDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessHistoryDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessHistoryDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Instance/{instanceId}/runtime-diagram": {
+      "get": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeDiagramDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1764,6 +4582,95 @@
         }
       }
     },
+    "/job/{jobId}/lease": {
+      "post": {
+        "tags": [
+          "Job"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewJobLeaseRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewJobLeaseRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewJobLeaseRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenewJobLeaseResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenewJobLeaseResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenewJobLeaseResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/job/{jobId}/fail": {
       "post": {
         "tags": [
@@ -2025,6 +4932,152 @@
         }
       }
     },
+    "/notifications": {
+      "get": {
+        "tags": [
+          "Notification"
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            }
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDtoArrayApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/notifications/{notificationId}/read": {
+      "post": {
+        "tags": [
+          "Notification"
+        ],
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/operations/diagnostics": {
       "get": {
         "tags": [
@@ -2115,6 +5168,15 @@
         "tags": [
           "UserTask"
         ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2151,6 +5213,119 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/UserTask/{userTaskId}": {
+      "get": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -2197,10 +5372,869 @@
           }
         }
       }
+    },
+    "/UserTask/{userTaskId}/draft": {
+      "get": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveUserTaskDraftRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveUserTaskDraftRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveUserTaskDraftRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskDraftDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "expectedRevision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "expectedTaskRevision",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/UserTask/{userTaskId}/claim": {
+      "post": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskClaimRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskClaimRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskClaimRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/UserTask/{userTaskId}/release": {
+      "post": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskReleaseRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskReleaseRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskReleaseRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/UserTask/{userTaskId}/assign": {
+      "post": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/UserTask/{userTaskId}/delegate": {
+      "post": {
+        "tags": [
+          "UserTask"
+        ],
+        "parameters": [
+          {
+            "name": "userTaskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UserTaskTransferRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserTaskWorkStateDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AiConnectionDto": {
+        "required": [
+          "allowedTools",
+          "defaultModel",
+          "enabled",
+          "id",
+          "location",
+          "name",
+          "provider",
+          "ready",
+          "revision",
+          "updatedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiProviderKindDto"
+          },
+          "location": {
+            "$ref": "#/components/schemas/AiProcessingLocationDto"
+          },
+          "baseAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "allowedTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiToolPermissionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiConnectionDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/AiConnectionDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiConnectionDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiConnectionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiProcessingLocationDto": {
+        "enum": [
+          0,
+          1
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "AiProviderKindDto": {
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "AiToolDto": {
+        "required": [
+          "allowsPreApproval",
+          "contractHash",
+          "description",
+          "id",
+          "inputSchema",
+          "name",
+          "outputSchema",
+          "sideEffect",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "inputSchema": {
+            "type": "string",
+            "nullable": true
+          },
+          "outputSchema": {
+            "type": "string",
+            "nullable": true
+          },
+          "sideEffect": {
+            "$ref": "#/components/schemas/AiToolSideEffectDto"
+          },
+          "allowsPreApproval": {
+            "type": "boolean"
+          },
+          "contractHash": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiToolDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiToolDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiToolPermissionDto": {
+        "required": [
+          "allowPreApproval",
+          "toolId",
+          "toolVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "toolId": {
+            "type": "string",
+            "nullable": true
+          },
+          "toolVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "allowPreApproval": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AiToolSideEffectDto": {
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "ApiProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": {}
+      },
       "ApiStatusResult": {
         "type": "object",
         "properties": {
@@ -2213,6 +6247,215 @@
           }
         },
         "additionalProperties": false
+      },
+      "ApiValidationProblem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": {}
+      },
+      "BffCsrfDto": {
+        "type": "object",
+        "properties": {
+          "requestToken": {
+            "type": "string",
+            "nullable": true
+          },
+          "headerName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BffSessionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityContract": {
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnElementCapability"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityContractApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/BpmnCapabilityContract"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityIssueDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "nullable": true
+          },
+          "elementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnCapabilityProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "nullable": true
+          },
+          "successful": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnCapabilityIssueDto"
+            },
+            "nullable": true
+          },
+          "capabilityContractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
       },
       "BpmnDefinitionDto": {
         "required": [
@@ -2301,6 +6544,25 @@
         },
         "additionalProperties": false
       },
+      "BpmnElementCapability": {
+        "type": "object",
+        "properties": {
+          "elementType": {
+            "type": "string",
+            "nullable": true
+          },
+          "modelable": {
+            "type": "boolean"
+          },
+          "parsable": {
+            "type": "boolean"
+          },
+          "executable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "BpmnMetaDefinitionDto": {
         "required": [
           "definitionId",
@@ -2358,6 +6620,176 @@
             "type": "object",
             "additionalProperties": {},
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateAiConnectionRequestDto": {
+        "required": [
+          "defaultModel",
+          "location",
+          "name",
+          "provider",
+          "secretReference"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiProviderKindDto"
+          },
+          "location": {
+            "$ref": "#/components/schemas/AiProcessingLocationDto"
+          },
+          "baseAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "secretReference": {
+            "type": "string",
+            "nullable": true
+          },
+          "allowedTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiToolPermissionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateFormSectionRequestDto": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectDto": {
+        "required": [
+          "detail",
+          "displayName",
+          "isActive",
+          "isSelectable",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "isSelectable": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionRequestDto": {
+        "type": "object",
+        "properties": {
+          "subjects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionResultDto": {
+        "required": [
+          "generationId"
+        ],
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorySubjectDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectResolutionResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/DirectorySubjectResolutionResultDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectSearchResultDto": {
+        "required": [
+          "generationId"
+        ],
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DirectorySubjectDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DirectorySubjectSearchResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/DirectorySubjectSearchResultDto"
           }
         },
         "additionalProperties": false
@@ -2501,6 +6933,27 @@
             },
             "nullable": true
           },
+          "assignmentMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "directoryAssignee": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "directoryCandidateUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          },
+          "directoryCandidateGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRefDto"
+            },
+            "nullable": true
+          },
           "definitionMetaName": {
             "type": "string",
             "nullable": true
@@ -2520,9 +6973,31 @@
             "type": "string",
             "nullable": true
           },
+          "deadline": {
+            "$ref": "#/components/schemas/UserTaskDeadlineDto"
+          },
           "priority": {
             "type": "string",
             "nullable": true
+          },
+          "workState": {
+            "$ref": "#/components/schemas/UserTaskWorkStateDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExtendedUserTaskSubscriptionDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ExtendedUserTaskSubscriptionDto"
           }
         },
         "additionalProperties": false
@@ -2626,6 +7101,10 @@
         ],
         "type": "object",
         "properties": {
+          "referenceMode": {
+            "type": "string",
+            "nullable": true
+          },
           "subjectKind": {
             "type": "string",
             "nullable": true
@@ -2641,6 +7120,9 @@
           "displayName": {
             "type": "string",
             "nullable": true
+          },
+          "subjectRef": {
+            "$ref": "#/components/schemas/SubjectRefDto"
           }
         },
         "additionalProperties": false
@@ -2652,6 +7134,164 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FolderAssignmentDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormAuthoringDraftDto": {
+        "required": [
+          "formData",
+          "formId",
+          "hasDraft",
+          "revision"
+        ],
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hasDraft": {
+            "type": "boolean"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "basedOnPublishedFormId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "basedOnVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "formData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormAuthoringDraftDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/FormAuthoringDraftDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormAuthoringPreviewDto": {
+        "required": [
+          "formData",
+          "validationProfile"
+        ],
+        "type": "object",
+        "properties": {
+          "formData": {
+            "type": "string",
+            "nullable": true
+          },
+          "validationProfile": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormAuthoringPreviewDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/FormAuthoringPreviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormCompatibilityItemDto": {
+        "required": [
+          "compatible",
+          "formId",
+          "formName",
+          "source"
+        ],
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formName": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "publishedFormId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "compatible": {
+            "type": "boolean"
+          },
+          "validationProfile": {
+            "type": "string",
+            "nullable": true
+          },
+          "issueCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormCompatibilityItemDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormCompatibilityItemDto"
             },
             "nullable": true
           }
@@ -2675,6 +7315,10 @@
             "$ref": "#/components/schemas/VersionDto"
           },
           "formData": {
+            "type": "string",
+            "nullable": true
+          },
+          "validationProfile": {
             "type": "string",
             "nullable": true
           }
@@ -2751,6 +7395,201 @@
         },
         "additionalProperties": false
       },
+      "FormSectionAuthoringDraftDto": {
+        "required": [
+          "hasDraft",
+          "revision",
+          "sectionData",
+          "sectionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hasDraft": {
+            "type": "boolean"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "basedOnPublishedSectionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "basedOnVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "sectionData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionAuthoringDraftDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/FormSectionAuthoringDraftDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionMetadataDto": {
+        "required": [
+          "name",
+          "sectionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionMetadataDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/FormSectionMetadataDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionMetadataDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormSectionMetadataDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionVersionDto": {
+        "required": [
+          "id",
+          "sectionData",
+          "sectionId",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "sectionData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionVersionDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/FormSectionVersionDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionVersionSummaryDto": {
+        "required": [
+          "id",
+          "sectionId",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sectionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FormSectionVersionSummaryDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FormSectionVersionSummaryDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "HealthStatusDto": {
         "required": [
           "checkedAtUtc",
@@ -2795,6 +7634,89 @@
         },
         "additionalProperties": false
       },
+      "IdentityDirectoryStatusDto": {
+        "required": [
+          "enabled",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeGenerationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "runningGenerationId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "attemptedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "leaseExpiresAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "succeededAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "failedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "userCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "groupCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "membershipCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "IdentityDirectoryStatusDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/IdentityDirectoryStatusDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "InheritedFolderAssignmentDto": {
         "required": [
           "inheritedFromName",
@@ -2804,6 +7726,10 @@
         ],
         "type": "object",
         "properties": {
+          "referenceMode": {
+            "type": "string",
+            "nullable": true
+          },
           "subjectKind": {
             "type": "string",
             "nullable": true
@@ -2819,6 +7745,9 @@
           "displayName": {
             "type": "string",
             "nullable": true
+          },
+          "subjectRef": {
+            "$ref": "#/components/schemas/SubjectRefDto"
           },
           "inheritedFromId": {
             "type": "string",
@@ -2929,6 +7858,79 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/MessageSubscriptionDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationDto": {
+        "required": [
+          "href",
+          "id",
+          "kind",
+          "message",
+          "occurredAtUtc",
+          "severity",
+          "title",
+          "userTaskId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "readAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "severity": {
+            "type": "string",
+            "nullable": true
+          },
+          "href": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NotificationDto"
             },
             "nullable": true
           }
@@ -3128,6 +8130,121 @@
         },
         "additionalProperties": false
       },
+      "PreviewFormAuthoringRequestDto": {
+        "required": [
+          "formData"
+        ],
+        "type": "object",
+        "properties": {
+          "formData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": {}
+      },
+      "ProcessHistoryDto": {
+        "required": [
+          "events",
+          "instanceId"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessHistoryEventDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessHistoryDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ProcessHistoryDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessHistoryEventDto": {
+        "required": [
+          "action",
+          "flowNodeId",
+          "id",
+          "occurredAtUtc",
+          "revision",
+          "userTaskId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "action": {
+            "type": "string",
+            "nullable": true
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "ProcessInstanceInfoDto": {
         "required": [
           "definitionId",
@@ -3178,6 +8295,9 @@
               "$ref": "#/components/schemas/TokenDto"
             },
             "nullable": true
+          },
+          "canInspect": {
+            "type": "boolean"
           },
           "startedAt": {
             "type": "string",
@@ -3244,6 +8364,288 @@
         ],
         "type": "integer",
         "format": "int32"
+      },
+      "PublishFormAuthoringDraftRequestDto": {
+        "required": [
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublishFormSectionAuthoringDraftRequestDto": {
+        "required": [
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenameFormSectionRequestDto": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenewJobLeaseRequestDto": {
+        "required": [
+          "workerId"
+        ],
+        "type": "object",
+        "properties": {
+          "workerId": {
+            "type": "string",
+            "nullable": true
+          },
+          "lockSeconds": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenewJobLeaseResultDto": {
+        "required": [
+          "jobId",
+          "lockedUntil"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lockedUntil": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RenewJobLeaseResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/RenewJobLeaseResultDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeDiagramDto": {
+        "required": [
+          "definitionId",
+          "diagramXml",
+          "events",
+          "instanceId",
+          "nodes",
+          "processId",
+          "snapshotAtUtc",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processId": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProcessInstanceStateDto"
+          },
+          "snapshotAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "diagramXml": {
+            "type": "string",
+            "nullable": true
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeNodeSummaryDto"
+            },
+            "nullable": true
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuntimeNodeEventDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeDiagramDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/RuntimeDiagramDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeNodeEventDto": {
+        "required": [
+          "flowNodeId",
+          "id",
+          "occurredAtUtc",
+          "state"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "$ref": "#/components/schemas/FlowNodeStateDto"
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RuntimeNodeStatusDto": {
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
+      "RuntimeNodeSummaryDto": {
+        "required": [
+          "flowNodeId",
+          "status",
+          "tokenCount"
+        ],
+        "type": "object",
+        "properties": {
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/RuntimeNodeStatusDto"
+          },
+          "tokenCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastChangedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveFormAuthoringDraftRequestDto": {
+        "required": [
+          "expectedRevision",
+          "formData"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "formData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveFormSectionAuthoringDraftRequestDto": {
+        "required": [
+          "expectedRevision",
+          "sectionData"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sectionData": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SaveUserTaskDraftRequestDto": {
+        "required": [
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "expectedTaskRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "ServiceTaskJobDto": {
         "required": [
@@ -3432,6 +8834,23 @@
         },
         "additionalProperties": false
       },
+      "SetAiConnectionEnabledRequestDto": {
+        "required": [
+          "enabled",
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "SignalSubscriptionDto": {
         "required": [
           "definitionId",
@@ -3510,6 +8929,24 @@
           "result": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubjectRefDto": {
+        "required": [
+          "id",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "additionalProperties": false
@@ -3694,6 +9131,11 @@
             "format": "uuid",
             "nullable": true
           },
+          "completedByUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "startTime": {
             "type": "string",
             "format": "date-time"
@@ -3725,6 +9167,161 @@
         },
         "additionalProperties": false
       },
+      "UpdateAiConnectionRequestDto": {
+        "required": [
+          "defaultModel",
+          "expectedRevision",
+          "location",
+          "name",
+          "provider"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AiProviderKindDto"
+          },
+          "location": {
+            "$ref": "#/components/schemas/AiProcessingLocationDto"
+          },
+          "baseAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "allowedTools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AiToolPermissionDto"
+            },
+            "nullable": true
+          },
+          "secretReference": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskClaimRequestDto": {
+        "required": [
+          "expectedRevision"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskDeadlineDto": {
+        "type": "object",
+        "properties": {
+          "scheduleState": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "activatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "followUpAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "escalationAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskDraftDto": {
+        "required": [
+          "data",
+          "revision",
+          "userTaskId"
+        ],
+        "type": "object",
+        "properties": {
+          "userTaskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskDraftDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/UserTaskDraftDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskReleaseRequestDto": {
+        "required": [
+          "expectedRevision",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "UserTaskResultDto": {
         "required": [
           "flowNodeId"
@@ -3744,10 +9341,95 @@
             "format": "uuid",
             "nullable": true
           },
+          "expectedTaskRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "actionId": {
+            "type": "string",
+            "nullable": true
+          },
           "data": {
             "type": "object",
             "additionalProperties": {},
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskTransferRequestDto": {
+        "required": [
+          "assignee",
+          "expectedRevision",
+          "reason"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "assignee": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskWorkStateDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "claimed": {
+            "type": "boolean"
+          },
+          "isAssignedToCurrentUser": {
+            "type": "boolean"
+          },
+          "actualAssignee": {
+            "$ref": "#/components/schemas/SubjectRefDto"
+          },
+          "actualAssigneeDisplayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "canWork": {
+            "type": "boolean"
+          },
+          "canClaim": {
+            "type": "boolean"
+          },
+          "canRelease": {
+            "type": "boolean"
+          },
+          "canAssign": {
+            "type": "boolean"
+          },
+          "canDelegate": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserTaskWorkStateDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/UserTaskWorkStateDto"
           }
         },
         "additionalProperties": false
@@ -3883,7 +9565,19 @@
   },
   "tags": [
     {
+      "name": "AiConnection"
+    },
+    {
+      "name": "AiTool"
+    },
+    {
+      "name": "Bff"
+    },
+    {
       "name": "Definition"
+    },
+    {
+      "name": "DirectoryFormSubject"
     },
     {
       "name": "Folder"
@@ -3892,7 +9586,16 @@
       "name": "Form"
     },
     {
+      "name": "FormSection"
+    },
+    {
       "name": "Health"
+    },
+    {
+      "name": "IdentityDirectory"
+    },
+    {
+      "name": "IdentityDirectorySubject"
     },
     {
       "name": "Instance"
@@ -3902,6 +9605,9 @@
     },
     {
       "name": "Message"
+    },
+    {
+      "name": "Notification"
     },
     {
       "name": "Operations"

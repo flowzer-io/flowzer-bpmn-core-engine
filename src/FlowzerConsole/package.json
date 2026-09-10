@@ -14,9 +14,15 @@
     "test:watch": "vitest",
     "api:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/lib/api/schema.gen.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "seed": "node scripts/seed-demo.mjs"
+    "seed": "node scripts/seed-demo.mjs",
+    "prepare:flowzer-packages": "npm ci --prefix ../../packages/flowzer-sdk && npm run build --prefix ../../packages/flowzer-sdk && npm ci --prefix ../../packages/flowzer-react && npm run build --prefix ../../packages/flowzer-react",
+    "pretypecheck": "npm run prepare:flowzer-packages",
+    "pretest": "npm run prepare:flowzer-packages",
+    "prebuild": "npm run prepare:flowzer-packages"
   },
   "dependencies": {
+    "@flowzer/react": "file:../../packages/flowzer-react",
+    "@flowzer/sdk": "file:../../packages/flowzer-sdk",
     "@fontsource-variable/bricolage-grotesque": "^5.2.5",
     "@fontsource-variable/hanken-grotesk": "^5.2.5",
     "@fontsource-variable/jetbrains-mono": "^5.2.5",
@@ -33,7 +39,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "date-fns": "^4.1.0",
-    "oidc-client-ts": "^3.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sonner": "^2.0.1",
@@ -54,6 +59,7 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",
+    "bpmn-moddle": "^10.2.0",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
@@ -64,9 +70,9 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.25.0",
     "vite": "^6.2.0",
-    "vitest": "^3.0.7"
+    "vitest": "^5.0.0"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.12.0"
   }
 }

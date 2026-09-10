@@ -6,6 +6,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
+using WebApiEngine.Idempotency;
+using WebApiEngine.Ai;
+using core_engine.Exceptions;
 
 namespace WebApiEngine.Controller;
 
@@ -21,7 +24,10 @@ public class DefinitionController(
     DefinitionBusinessLogic definitionBusinessLogic,
     BpmnBusinessLogic bpmnBusinessLogic,
     FolderBusinessLogic folderBusinessLogic,
-    FormKeyResolver formKeyResolver) : FlowzerControllerBase
+    FormKeyResolver formKeyResolver,
+    InstanceAccessService instanceAccess,
+    IAiSecretStore aiSecretStore,
+    AiToolRegistry aiToolRegistry) : FlowzerControllerBase
 {
     /// <summary>
     /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
@@ -34,6 +40,8 @@ public class DefinitionController(
         "Workflows ausserhalb eines Ordners zu aendern ist der Rolle fuers Modellieren vorbehalten.";
 
     [HttpPost]
+    [ProducesResponseType<ApiStatusResult<BpmnDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> UploadDefinition([FromQuery] Guid? previousGuid)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
@@ -53,6 +61,8 @@ public class DefinitionController(
     }
     
     [HttpPost("deploy")]
+    [ProducesResponseType<ApiStatusResult<BpmnDefinitionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<BpmnDefinitionDto>>> DeployDefinition([FromQuery] Guid? previousGuid)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
@@ -80,6 +90,11 @@ public class DefinitionController(
             await CleanupOrphanedVersionAsync(definition);
             throw;
         }
+        catch (BpmnCapabilityValidationException)
+        {
+            await CleanupOrphanedVersionAsync(definition);
+            throw;
+        }
         catch (Exception e)
         {
             await CleanupOrphanedVersionAsync(definition);
@@ -88,24 +103,85 @@ public class DefinitionController(
     }
 
     /// <summary>
+    /// Liefert den einen versionierten Vertrag, den Modellieransichten für Palette,
+    /// Gliederung und Hinweise verwenden. Der Vertrag enthält keine Host-Annahmen.
+    /// </summary>
+    [HttpGet("capabilities")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    public ActionResult<ApiStatusResult<BpmnCapabilityContract>> GetCapabilities() =>
+        Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
+
+    /// <summary>
+    /// Prüft BPMN vor dem Speichern ohne eine Version anzulegen. Fehler nutzen denselben
+    /// Problem-Details-Vertrag wie Upload und Deployment.
+    /// </summary>
+    [HttpPost("validate")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition() =>
+        ValidateDefinition(BpmnCapabilityMatrix.ValidateForAuthoring);
+
+    /// <summary>
+    /// Prueft dieselbe Eingabe gegen die strengere ausfuehrbare Teilmenge. Ein eigener Pfad
+    /// verhindert, dass ein Requestparameter eine sicherheitsrelevante Pruefung abschwaecht.
+    /// </summary>
+    [HttpPost("validate/deployment")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDeployment() =>
+        ValidateDefinition(BpmnCapabilityMatrix.ValidateForDeployment);
+
+    private async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition(
+        Action<string> validateCapabilities)
+    {
+        var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
+        if (!permissions.MayEditAnywhere)
+        {
+            return ForbiddenCapability<BpmnCapabilityContract>(MissingRootPermission);
+        }
+
+        var rawContent = await GetRawContent();
+        if (await DenyIfFolderIsForbidden<BpmnCapabilityContract>(rawContent, permissions) is { } denied)
+        {
+            return denied;
+        }
+
+        validateCapabilities(rawContent);
+        var model = ModelParser.ParseModel(rawContent);
+        await AiTaskDeploymentValidator.ValidateAsync(
+            model,
+            storageSystem.AiConnectionStorage,
+            aiSecretStore,
+            aiToolRegistry);
+        return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
+    }
+
+    /// <summary>
     /// Startet eine Instanz. Der Rumpf ist optional: Ein Workflow ohne Startformular startet wie
     /// bisher ohne Angaben, ein Workflow mit Startformular bekommt dessen Werte als
     /// <c>variables</c>.
     /// </summary>
     [HttpPost("meta/{id}/instance")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ApiStatusResult<ProcessInstanceInfoDto>>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> StartInstance(
         [FromRoute] string id,
-        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body)
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] StartInstanceDto? body,
+        [FromHeader(Name = HttpIdempotency.HeaderName)] string? _idempotencyKey = null)
     {
         try
         {
-            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables);
-            var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage);
+            var (currentUser, canInspect) = await instanceAccess.GetPermissionsAsync();
+            var idempotency = HttpIdempotency.Create(Request, currentUser,
+                "workflow-start", id, body?.Variables);
+            var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables,
+                initiator: currentUser.Identity, idempotency: idempotency);
+            var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }
-        catch (UnauthorizedAccessException)
+        catch (Exception exception) when (exception is UnauthorizedAccessException or WebApiEngine.Forms.FormSubmissionException or IdempotencyConflictException)
         {
             throw;
         }

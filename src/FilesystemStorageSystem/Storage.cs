@@ -1,4 +1,4 @@
-﻿using Newtonsoft.Json;
+using Newtonsoft.Json;
 using StorageSystem;
 
 namespace FilesystemStorageSystem;
@@ -8,22 +8,44 @@ public class Storage : IStorageSystem
 {
     public const string StorageRootEnvironmentVariableName = "FLOWZER_STORAGE_ROOT";
     private readonly string _storageRoot;
-    
+
     public Storage()
     {
         _storageRoot = ResolveStorageRoot();
+        FormAuthoringStorage = new FormAuthoringStorage(this);
+        FormSectionStorage = new FormSectionStorage(this);
+        UserTaskDraftStorage = new UserTaskDraftStorage(this);
+        UserTaskLifecycleStorage = new UserTaskLifecycleStorage(this);
+        UserTaskDeadlineStorage = new UserTaskDeadlineStorage(this);
+        UserTaskNotificationStorage = new UserTaskNotificationStorage(this);
+        RuntimeNodeEventStorage = new RuntimeNodeEventStorage(this);
         SubscriptionStorage = new MessageSubscriptionStorage(this);
         DefinitionStorage = new DefinitionStorage(this);
         FolderStorage = new FolderStorage(this);
         InstanceStorage = new InstanceStorage(this);
         FormStorage = new FormStorage(this);
         ServiceTaskStorage = new ServiceTaskStorage(this);
+        IdempotencyStorage = new IdempotencyStorage(this);
+        IdentityDirectoryStorage = new IdentityDirectoryStorage(this);
+        AiConnectionStorage = new AiConnectionStorage(this);
+        AiRunStorage = new AiRunStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
+    public IFormAuthoringStorage FormAuthoringStorage { get; }
+    public IFormSectionStorage FormSectionStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
+    public IIdempotencyStorage IdempotencyStorage { get; }
+    public IIdentityDirectoryStorage IdentityDirectoryStorage { get; }
+    public IUserTaskDraftStorage UserTaskDraftStorage { get; }
+    public IUserTaskLifecycleStorage UserTaskLifecycleStorage { get; }
+    public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
+    public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
+    public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
+    public IAiConnectionStorage AiConnectionStorage { get; }
+    public IAiRunStorage AiRunStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 
@@ -32,6 +54,7 @@ public class Storage : IStorageSystem
         {
             TypeNameHandling = TypeNameHandling.Auto,
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
+            SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented
         };
 

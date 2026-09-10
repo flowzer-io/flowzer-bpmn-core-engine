@@ -41,6 +41,23 @@ public class FetchJobsRequestDto
     public int LockSeconds { get; set; } = 300;
 }
 
+/// <summary>Anforderung, die noch gueltige Lease eines eigenen Auftrags zu verlaengern.</summary>
+public class RenewJobLeaseRequestDto
+{
+    /// <summary>Dieselbe Worker-Kennung, mit der der Auftrag abgeholt wurde.</summary>
+    public required string WorkerId { get; set; }
+
+    /// <summary>Gewuenschte Lease-Dauer ab dem Serverzeitpunkt.</summary>
+    public int LockSeconds { get; set; } = 300;
+}
+
+/// <summary>Der nach einem Heartbeat tatsaechlich gespeicherte Lease-Ablauf.</summary>
+public sealed record RenewJobLeaseResultDto
+{
+    public required Guid JobId { get; init; }
+    public required DateTimeOffset LockedUntil { get; init; }
+}
+
 public class CompleteJobRequestDto
 {
     public required string WorkerId { get; set; }

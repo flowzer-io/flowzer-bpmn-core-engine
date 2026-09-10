@@ -1,122 +1,174 @@
-# Roadmap-Vorschlag
+# Roadmap
 
-## Zielbild
+**Stand: 10. September 2026**
 
-Flowzer BPMN Core Engine soll von einem stabilisierten Entwicklungsstand zu einem **verlässlich nutzbaren BPMN-Kern mit API, Frontend, reproduzierbarer Testbasis und produktionsnaher Betriebsgrundlage** weiterentwickelt werden.
+Die freigegebene, führende Produkt-Roadmap steht in
+[PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
+Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 
-## Was bereits erreicht ist
+## Aktuelle Integration und Reststrategie
 
-Die erste große Stabilisierungsrunde ist bereits erfolgt:
+Die folgenden Einzel-Slice-Verweise dokumentieren die Umsetzungsgeschichte.
+Aktiv sind nur noch die Checkpoints #189, #201, #217, #227, #237 und #255.
+Paketübergreifende Reviewfixes werden am vollständigen Stand in #255 geprüft;
+Zwischenstände erhalten dadurch nicht automatisch eine Releasefreigabe.
+Die nächste Arbeit wird in begrenzte Abnahmepakete statt eine neue kumulative
+Dauerimplementierung aufgeteilt. Details und Prioritäten:
+[Gesamtreview und Folgepakete](REVIEW-CHECKPOINTS-2026-09.md).
 
-- `next` als Integrationsbranch eingeführt
-- Grunddokumentation neu aufgesetzt
-- Build- und CI-Basis stabilisiert
-- Demo-Console-App ergänzt
-- wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
-- Timer-Ausführung im Engine-Kern für fällige Start- und Intermediate-Timer ergänzt
-- Boundary-Timer im Parser, in der Runtime und im persistierten Subscription-Pfad ergänzt
-- persistierte Timer-Subscriptions in Storage/Web-API ergänzt
-- Scheduler-/Polling-Pfad für fällige Timer im Web-API-Host ergänzt
-- wiederkehrende Start-Timer inklusive Restwiederholungen und Catch-up-Verhalten ergänzt
-- Startup-Recovery für überfällige Start-Timer über persistierte Timer-Subscriptions ergänzt
-- Form-/Message-Fehlerverträge in der Web-API weiter geschärft
-- lokale und CI-nahe Testpfade wieder grün gemacht
-- lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
-- das ursprüngliche Frontend-Epic (#7) und seine Teilpakete #47–#50 sind abgeschlossen
-- der erste große Revitalisierungs-Backlog ist damit weitgehend abgearbeitet
+## Reihenfolge
 
-Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
+1. **M0 – Sicherheit und Verträge:** zentraler Aufgabenabschluss (#176, PR #177),
+   objektbezogene Instanzrechte, serverseitige Validierung und Idempotenz sind als
+   gestapelte PRs umgesetzt. #188 ist der laufende, noch nicht nach `main` gemergte
+   BFF-Slice: vertraulicher OIDC-Code-Flow, `HttpOnly`/`Secure`-Cookies,
+   `X-Flowzer-CSRF`, persistenter API-Keyring und kompatibler externer Bearer-Vertrag.
+   #222 härtet zusätzlich die offenen CodeQL-Befunde, konkrete Storage-Dokumente,
+   Logausgaben und Codegeneratoren ohne Suppression. Bis Merge, grünem CodeQL und
+   HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
+2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
+   generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe. Der erste
+   M1-Slice #190 / PR #191 implementiert den atomaren, lesenden Keycloak-Abgleich samt
+   stabiler Historie, Mehrprozess-Lease und Operatorstatus. #192 / PR #193 ergänzt darauf
+   aufbauend typisierte `SubjectRef`-Werte und eine workflowgebundene, aktive Suche für
+   berechtigte Modellierende. #194 / PR #195 ergänzt den serverseitigen Text-/Directory-Vertrag für
+   User-Task-Zuweisungen; #196 ergänzt die Auswahl in Diagramm und Gliederung. #198 ergänzt
+   das gebundene `flowzerSubject`-Formularfeld; #200 verwendet dieselbe Auswahl für typisierte
+   Ordnerrechte und erhält daneben den expliziten Freitextmodus. #202 ergänzt private,
+   revisionsgeschützte Aufgabenentwürfe samt Wiederaufnahme und Konfliktdarstellung
+   in PR #203. #208 / PR #209 sichert die Formularprofile mit demselben versionierten
+   Vertragsvektor-Katalog in .NET und Vitest ab. #210 / PR #211 trennt Formularautoren-Entwurf,
+   Vorschau und ausdrückliche unveränderliche Veröffentlichung.
+   #212 / PR #213 inventarisiert danach alle veröffentlichten Fassungen und Autorenentwürfe
+   anhand stabiler, datensparsamer Kompatibilitätscodes.
+   #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
+   Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
+   #230 / PR #231 ergänzt die hostneutrale Bibliothek unveränderlicher Formularabschnittsversionen
+   und vollständige, serverseitig gebundene Formularsnapshots.
+   #234 / PR #237 ergänzt die exakte historische Anzeigeauflösung für gespeicherte Referenzen in
+   Workflow, Ordner, Formular und Task-Lifecycle. `isActive` und `isSelectable` bleiben
+   getrennt; beliebige UUIDs und fremde Kontexte liefern keine Verzeichnisdaten.
+3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
+   Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
+   #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
+   Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
+   Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
+   fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
+   React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
+   genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
+   Transport. #228 / PR #229 ergänzt die zentrale versionierte BPMN-Fähigkeitsmatrix, gemeinsame
+   Vorab-/Save-/Deploy-Prüfung und anwählbare Diagramm-/Gliederungsdiagnosen. #232 / PR #233 ergänzt
+   das objektberechtigte Laufzeitdiagramm mit exakt gebundener, bereinigter BPMN-Version
+   und append-only Engine-Ereignisspur. #235 / PR #236 ergänzt gezählte statt überlagerter
+   Laufzeitmarker sowie den getrennten Blick auf Prozessvariablen und persistierte
+   Knotenein-/ausgaben. Der vollständige UX-Audit folgt. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
+   Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
+   Ereignisse bleiben getrennte Slices.
+4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
+   parametergebundene Freigaben und sichere Wiederaufnahme. Der vorgezogene M6-Baustein
+   #238 ergänzt bereits die atomare Lease-Verlängerung für lang laufende Worker; der PR
+   folgt auf #237. #240 / PR #241 ergänzt darauf die sichere, revisionsgeschützte Verwaltung von
+   Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
+   getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
+   Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
+   Gliederung pflegbaren KI-Aufgabenvertrag. #244 / PR #245 liefert die providerneutrale
+   HTTP-Aufrufschicht und das portable serverseitige Ergebnisschema; #246 bis #251 ergänzen
+   Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 / PR #253 bindet Verbindungsrevision und
+   Modell beim Deployment, erzeugt pro KI-Token genau einen Lauf und committed validierte
+   Ergebnisse atomar mit der BPMN-Instanz. `flowzer.bpmn-capabilities/3` gibt den Task damit
+   erstmals als ausführbar frei. #254 / PR #255 ergänzt typisierte Werkzeugverträge, Registry,
+   Verbindungs-Allowlist und unveränderliche Deploymentbindung; der Deploy bleibt für
+   Werkzeugreferenzen bis zum Ausführungsjournal und parametergebundenen Freigaben gesperrt.
+5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
+   Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
-Seit September 2026 zusätzlich vorhanden (siehe [REVIEW-2026-09.md](./REVIEW-2026-09.md)): OIDC-Token-Prüfung in der API, konfigurierbares CORS, nebenläufigkeitsfeste Dateiablage, lauffähige Container, NuGet-Audit-Gate, Standardfluss-Fix.
+## M3-Slice-Status
 
-## Priorität 0: Firmeneinsatz vorbereiten
+- [x] **#204 / PR #205 – Human-Task-Lifecycle:** Claim, Release, Operator-Zuweisung
+  und berechtigte Delegation mit monotoner Revision, Akteur, Begründung und Auditspur
+  sind im Topic-Branch umgesetzt.
+- [x] **#206 / PR #207 – Human-Task-Fristen:** Due-/Follow-up-Werte werden einmalig serverseitig
+  aufgelöst und als UTC-Termine gebunden. Der Scheduler holt fällige Meilensteine nach;
+  Benachrichtigungen sind taskbezogen, persistent und per Unique-Schlüssel dedupliziert.
+  Die Dateiablage bleibt Einzelprozess-Entwicklung; PostgreSQL ist der vorgesehene
+  Mehrprozesspfad. BPMN-Eskalationspropagation, externe Zustellung und automatische
+  Vertretung sind ausdrücklich nicht enthalten.
+- [x] **#218/#220 – öffentliche Integrationspakete:** Das zustandslose SDK sowie
+  darstellungsfreie React-Hooks/-Controller bleiben frei von konkreten Hosts.
+- [x] **#224 / PR #225 – Console-Paketmigration:** Die Flowzer-Konsole verwendet für Human
+  Tasks die öffentlichen Pakete; BFF, Form.io und Development-Details bleiben
+  ausschließlich Console-Adapter. Ein konkreter externer Host ist nicht Bestandteil
+  von Flowzer.
+- [x] **#226 / PR #227 – Human-Task-Vorgangshistorie:** Die bestehende append-only Auditspur
+  ist nach Instanz indexiert, objektberechtigt und über SDK sowie Console als
+  datensparsame Minimalprojektion verfügbar. Vollständige Engine-Historie folgt.
+- [x] **#228 / PR #229 – BPMN-Fähigkeiten und Modellprüfung:** Ein versionierter, hostneutraler
+  Vertrag trennt modellierbar, parsebar und ausführbar. API, Save und Deploy verwenden
+  denselben Validator; Diagramm und Gliederung zeigen stabile, anwählbare Befunde.
+  Error-/Escalation-Semantik und lokale Call Activities folgen separat.
+- [x] **#232 / PR #233 – Laufzeitdiagramm und Engine-Ereignisse:** Persistenzgrenzen schreiben
+  idempotente, datensparsame Knotenfakten. Der Betrieb erhält die exakt gebundene und
+  von Ausführungsdaten bereinigte BPMN-Version, verdichtete Knotenstatus sowie eine
+  echte Zeitleiste über API, SDK, React-Schicht und responsive Console. Eine lineare
+  „Schritt x von y“-Anzeige wird nicht mehr behauptet.
+- [x] **#235 / PR #236 – Markerzählung und technische Instanzdaten:** Parallele Token am selben
+  aktiven Knoten erscheinen als ein Kreis mit Anzahl. Der Master-Token liefert den
+  aktuellen Prozessscope; pro ausgewähltem Knoten bleiben gebundene Input- und
+  Output-Snapshots aller Ausführungen getrennt sichtbar. Fehlende historische
+  Snapshots werden benannt und nicht aus dem aktuellen Scope rekonstruiert.
 
-### 0.1 Identity Provider anbinden
+## M5-Slice-Status
 
-- API (`Authentication:Scheme=JwtBearer`) und Frontend (`Oidc`) sind konfigurierbar, siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md)
-- offen: Registrierung im Unternehmens-IdP und Benutzer-Id-Format (GUID in `oid`/`sub`) verifizieren
+- [x] **#238 / PR #239 – verlängerbare Worker-Lease:** Ein noch gültiger Job kann seine
+  besitzergebundene Lease atomar verlängern; abgelaufene oder fremde Leases werden nicht
+  wiederbelebt.
+- [x] **#240 / PR #241 – KI-Verbindungen und Secret-Referenzen:** Persistente, revisionsgeschützte
+  und hostneutrale Verbindungsmetadaten, getrennte Rollen, Installationsgrenzen,
+  Secret-Store-Abstraktion, sichere API-/SDK-Verträge und eine Verwaltungsseite liegen vor.
+  Kein Provideradapter und keine KI-Task-Runtime werden damit vorgetäuscht.
+- [x] **#242 / PR #243 – versionierter KI-Aufgabenvertrag:** Eigene KI-Kachel als Standard-Service-Task,
+  stabile Verbindungs-ID, Modelloverride, versionierte Anweisung, JSON-Ergebnisschema,
+  deklarierte I/O-Zuordnungen und harte Limits werden serverseitig und in beiden
+  Modellieransichten gleich behandelt. Geheimnisattribute werden abgelehnt. Bis eine
+  dauerhafte Provider-Runtime folgt, blockiert der Fähigkeitsvertrag das Deployment.
+- [x] **#244 / PR #245 – Provideradapter und Ergebnisschema:** OpenAI Responses, Anthropic Messages
+  und administrativ gebundene OpenAI-kompatible Chat-Completions laufen über einen
+  gemeinsamen, timeout- und größenbegrenzten Gateway-Vertrag. Providerfähigkeit, Ziel,
+  Installations-Opt-in und Secret werden ohne Fallback erneut geprüft. Fremde Antworten
+  müssen das begrenzte Schema-Profil `flowzer.ai-result-schema/1` serverseitig erfüllen.
+  Die persistente KI-Laufzeit bleibt der nächste notwendige Slice.
+- [x] **#246 / PR #247 – Persistente KI-Laufzustände:** Ein unveränderlicher Auftragssnapshot,
+  eindeutige Tokenbindung, Revisionen, atomare Provider-/Ergebnis-Claims, Lease-Verlängerung
+  und konservative Recovery liegen in Dateiablage und PostgreSQL vor. Unklare Provider-
+  oder Engine-Ausgänge werden angehalten statt blind wiederholt. Der Executor und damit die
+  Aktivierung des Deploymentpfads bleiben der nächste Slice.
+- [x] **#248 / PR #249 – Gebundene Netzwerkziele:** Benutzerdefinierte Cloudendpunkte werden nur bei
+  ausschließlich öffentlichen DNS-Ergebnissen zugelassen. Der Socket verwendet danach
+  exakt die geprüften Adressen sowie denselben Host und Port; lokale Ziele bleiben an das
+  ausdrückliche Installations-Opt-in gebunden. Der Deploymentblocker bleibt bestehen.
+- [x] **#250 / PR #251 – Provider-Executor:** Bereits persistierte Läufe werden mit exakter
+  Verbindungsrevision, Lease-Heartbeat, fester Retry-Allowlist und konservativer Recovery
+  bis `ResultReady` verarbeitet. Der Dienst ist standardmäßig aus; Erzeugung und atomarer
+  Engine-Commit folgen vor dem Entfernen des Deploymentblockers.
+- [x] **#252 / PR #253 – Atomare Engine-Anbindung:** KI-Tokens erzeugen genau einen
+  internen Lauf; validierte Ergebnisse werden transaktional mit der Instanz fortgesetzt.
+- [x] **#254 / PR #255 – Typisierte Werkzeugverträge:** Eine geschlossene Registry, sichere Katalog-API,
+  Verbindungs-Allowlist und Taskreferenzen binden Version, Schemahash, Außenwirkung und
+  Freigabemodus. Die Autorenoberfläche ist vollständig; Deployments mit Werkzeugen bleiben
+  bis zum nächsten Runtime-Slice bewusst gesperrt.
 
-### 0.2 Pilot hinter Reverse Proxy
+## Vorhandenes nicht neu bauen
 
-- TLS-Terminierung, persistentes Volume für die Ablage, tägliches Backup
-- ein echter Prozess mit Formularen, User-Tasks und Timer
+React-Konsole, API-seitiger BFF-/Bearer-Auth-Vertrag (laufender ungemergter Slice), PostgreSQL, Service-Task-Worker, Startformulare und
+Workflow-Ordner existieren. Der offene Mobil-PR #153 enthält noch nicht auf `main`
+enthaltene Korrekturen und bleibt ein eigener Strang; sie werden hier nicht dupliziert.
 
-### 0.3 Rollen und Zuweisungen
+#98 verfolgt die gesamte Roadmap; #93–#96 bleiben fachliche Folge-Epics.
+Prozessverbund #154 folgt auf lokale Call Activities und Fehlersemantik.
+Echtes Mehrmandanten-Hosting und vollständige Kompensation sind spätere Vorhaben.
 
-- Kandidaten, Gruppen und Zuständigkeit aus `zeebe:assignmentDefinition` auswerten
-- Sichtbarkeit von Aufgaben, Definitionen und Diagnose nach Rolle
+## Arbeitsweise
 
-### 0.4 Persistenz
-
-- PostgreSQL-Implementierung von `IStorageSystem` mit Migrationen
-- Dateiablage bleibt für Entwicklung und Tests
-
-### 0.5 Eine Oberfläche
-
-- React-Konsole in eigenem PR mit CI, Container und Smokes bewerten
-- danach Blazor ablösen oder den React-Branch schließen
-
-## Priorität 1: Timer- und Runtime-Restlücken schließen
-
-### 1.2 BPMN-Fehlerpfade und weitergehende Timer-Semantik vertiefen
-
-- Error-/Escalation-Semantik jenseits des Best-Effort-Fallbacks modellieren
-- Kompensations- und Abbruchpfade weiter präzisieren
-- Boundary-Timer bei Bedarf um speziellere Randfälle wie konkurrierende Timer oder komplexere Recovery-Szenarien vertiefen
-
-### 1.3 Timer-Recovery und wiederkehrende Strategien vertiefen
-
-- Recovery-Verhalten für bereits persistierte Boundary- und Spezialtimer nach Neustarts weiter härten
-- wiederkehrende Start-Timer nur noch bei komplexeren Spezialfällen vertiefen
-- wiederkehrende Boundary- oder Spezialtimer nur dann ergänzen, wenn sie fachlich wirklich benötigt werden
-
-## Priorität 2: Betriebs- und Auth-Reife erhöhen
-
-### 2.1 Operations-Basis über die lokale Compose-Story hinaus vertiefen
-
-- Collector-/Dashboard-/Alerting-Pfade auf Basis der jetzt vorhandenen OpenTelemetry-Exporter
-- Secret-/Konfigurationsstory
-- Recovery-/Backup-Hinweise
-- Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen
-
-### 2.2 Auth-/Identity-Pfade weiter absichern
-
-- Claim-basierte Authentifizierung entlang echter Betriebsumgebungen verdrahten
-- Nutzer- und Rollenmodell klarer kapseln
-- API-Verträge und Betriebssignale entlang der Auth-Story ergänzen
-
-## Priorität 3: Test- und Dokumentationsreife nachziehen
-
-### 3.1 Weitere E2E-/Smoke-Pfade gezielt ausbauen
-
-- Kernpfade für Direktaufrufe, Refreshes und Betriebsfehler weiter ausbauen
-- Testdaten und Hilfslogik für reproduzierbare Läufe schaffen
-- die Suite klein und CI-tauglich halten
-
-### 3.2 Architektur-, Status- und Repo-Hygiene weiter verbessern
-
-- Altlasten und Doppelstrukturen bewerten und bereinigen
-- Status- und Roadmap-Dokumente laufend aktualisieren
-- technische Realität und Doku synchron halten
-
-## Empfohlene Reihenfolge der nächsten Sprints
-
-### Sprint A – Timer-Runtime vertiefen
-
-- Boundary-/Spezialtimer-Recovery
-- verbleibende wiederkehrende Spezialtimer
-- verbleibende Boundary-Timer-Randfälle
-
-### Sprint B – Betrieb und Auth
-
-- externe Telemetrie/Secrets/Recovery
-- Claim-/Rollenmodell und Auth-/Identity-Härtung
-
-### Sprint C – E2E und Dokumentation
-
-- zusätzliche E2E-/Smoke-Pfade
-- Architektur- und Operations-Dokumentation vertiefen
-
-## Leitprinzip für die weitere Arbeit
-
-Neue Features sollten weiterhin **nur dann** priorisiert werden, wenn die zugehörigen Kernpfade bereits belastbar getestet und dokumentiert sind. Die Stärke des Projekts liegt jetzt nicht in maximaler Breite, sondern in der Kombination aus **klaren Arbeitspaketen, reproduzierbarer Testbasis und schrittweise steigender Produktreife**.
+Kleine, testgetriebene PRs nach `main`; laufende Instanzen und öffentliche Verträge
+kompatibel migrieren. Kein Produktivdeployment allein durch einen Feature-PR.
+Tests, Reviews und nicht erfüllte Abnahmen werden pro Slice dokumentiert.

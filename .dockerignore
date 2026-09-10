@@ -8,6 +8,8 @@
 **/bin
 **/obj
 **/TestResults
+**/node_modules
+**/dist
 tests/ui-smoke/node_modules
 tests/ui-smoke/playwright-report
 tests/ui-smoke/test-results

@@ -2,7 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router';
 
 import { Icon } from '@/components/ui/Icon';
 import { cn } from '@/lib/cn';
-import { useUserTasks } from '@/lib/api/queries';
+import { useUserTasks } from '@flowzer/react';
 
 import { activeNavKey } from './navigation';
 
@@ -23,7 +23,7 @@ const TABS = [
 
 export function MobileTabBar() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const tasksQuery = useUserTasks();
+  const tasksQuery = useUserTasks({ refetchInterval: 10_000 });
   const currentKey = activeNavKey(pathname);
   const openTasks = tasksQuery.data?.length ?? 0;
 

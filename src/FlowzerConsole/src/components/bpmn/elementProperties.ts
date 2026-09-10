@@ -18,6 +18,7 @@ import {
   type DiagramElement,
   type ModdleElement,
 } from './moddle';
+import { AI_WORKER_TYPE, type AiTaskConfiguration, type ServiceTaskMode } from '@/lib/aiTaskContract';
 
 /** Die Elementgruppen, für die das Panel eigene Abschnitte zeigt. */
 export type ElementKind =
@@ -104,6 +105,15 @@ export interface Assignment {
   candidateUsers: string;
 }
 
+export type AssignmentMode = 'text' | 'directory' | 'invalid';
+
+/** Stabile lokale Verzeichnis-IDs einer Directory-Zuweisung. */
+export interface DirectoryAssignment {
+  assigneeId: string;
+  candidateUserIds: string[];
+  candidateGroupIds: string[];
+}
+
 export interface Schedule {
   dueDate: string;
   followUpDate: string;
@@ -133,12 +143,18 @@ export interface ElementProperties {
   assignee: string;
   candidateGroups: string;
   candidateUsers: string;
+  assignmentMode: AssignmentMode;
+  directoryAssignment: DirectoryAssignment;
+  /** Erklaert einen nicht unterstützten Vertrag, ohne ihn beim Öffnen umzuschreiben. */
+  assignmentContractWarning: string | null;
   dueDate: string;
   followUpDate: string;
 
   /** Auftrag an einen externen Worker. */
   jobType: string;
   retries: string;
+  serviceTaskMode: ServiceTaskMode;
+  aiTask: AiTaskConfiguration | null;
   /** Ob die Engine an diesem Element einen Auftragstyp auswertet. */
   needsJobType: boolean;
 
@@ -382,8 +398,11 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
   const businessObject = element.businessObject;
   const formDefinition = extension(businessObject, 'zeebe:FormDefinition');
   const assignment = extension(businessObject, 'zeebe:AssignmentDefinition');
+  const flowzerAssignment = extension(businessObject, 'flowzer:TaskAssignment');
+  const assignmentMode = assignmentModeOf(flowzerAssignment);
   const schedule = extension(businessObject, 'zeebe:TaskSchedule');
   const taskDefinition = extension(businessObject, 'zeebe:TaskDefinition');
+  const aiTask = extension(businessObject, 'flowzer:AiTask');
   const formKey = text(formDefinition, 'formKey') || text(formDefinition, 'formId');
   const type = businessObject?.$type ?? element.type;
 
@@ -399,11 +418,43 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     assignee: text(assignment, 'assignee'),
     candidateGroups: text(assignment, 'candidateGroups'),
     candidateUsers: text(assignment, 'candidateUsers'),
+    assignmentMode,
+    directoryAssignment: {
+      assigneeId: text(flowzerAssignment, 'assigneeId'),
+      candidateUserIds: commaSeparated(text(flowzerAssignment, 'candidateUserIds')),
+      candidateGroupIds: commaSeparated(text(flowzerAssignment, 'candidateGroupIds')),
+    },
+    assignmentContractWarning:
+      assignmentMode === 'invalid'
+        ? `Der Zuweisungsmodus „${text(flowzerAssignment, 'mode') || '(leer)'}“ wird nicht unterstützt.`
+        : null,
     dueDate: text(schedule, 'dueDate'),
     followUpDate: text(schedule, 'followUpDate'),
 
     jobType: text(taskDefinition, 'type'),
     retries: text(taskDefinition, 'retries'),
+    serviceTaskMode:
+      type === 'bpmn:ServiceTask' && (aiTask || text(taskDefinition, 'type') === AI_WORKER_TYPE)
+        ? 'ai'
+        : 'worker',
+    aiTask: aiTask
+      ? {
+          contractVersion: text(aiTask, 'contractVersion'),
+          connectionId: text(aiTask, 'connectionId'),
+          model: text(aiTask, 'model'),
+          instructionVersion: text(aiTask, 'instructionVersion'),
+          instruction: text(aiTask.instruction as ModdleElement | undefined, 'body'),
+          resultSchema: text(aiTask.resultSchema as ModdleElement | undefined, 'body'),
+          maxInputTokens: text(aiTask, 'maxInputTokens'),
+          maxOutputTokens: text(aiTask, 'maxOutputTokens'),
+          timeoutSeconds: text(aiTask, 'timeoutSeconds'),
+          tools: ((aiTask.tools as ModdleElement[] | undefined) ?? []).map((tool) => ({
+            toolId: text(tool, 'id'),
+            toolVersion: text(tool, 'version'),
+            approval: text(tool, 'approval') as AiTaskConfiguration['tools'][number]['approval'],
+          })),
+        }
+      : null,
     needsJobType: needsJobType(businessObject),
 
     inputs: ioMappings(element, 'inputParameters'),
@@ -427,4 +478,18 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     isScriptTask: type === 'bpmn:ScriptTask',
     multiInstance: multiInstanceOf(businessObject),
   };
+}
+
+function assignmentModeOf(assignment: ModdleElement | undefined): AssignmentMode {
+  if (!assignment) return 'text';
+  const mode = text(assignment, 'mode');
+  if (mode === 'text' || mode === 'directory') return mode;
+  return 'invalid';
+}
+
+function commaSeparated(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }

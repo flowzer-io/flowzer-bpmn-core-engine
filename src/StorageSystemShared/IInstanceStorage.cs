@@ -3,6 +3,14 @@ namespace StorageSystem;
 public interface IInstanceStorage
 {
     public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId);
+
+    /// <summary>
+    /// Serialisiert schreibende Engine-Vorgänge derselben Instanz innerhalb der aktuellen
+    /// Storage-Transaktion. Reine Lesepfade rufen diese Methode bewusst nicht auf.
+    /// Ein Einzelprozess-Adapter darf sich auf seine Anwendungs-Sperre verlassen.
+    /// </summary>
+    Task LockForMutation(Guid processInstanceId) => Task.CompletedTask;
+
     Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo);
     Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances();
     Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances();

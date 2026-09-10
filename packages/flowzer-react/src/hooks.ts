@@ -1,0 +1,491 @@
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseMutationResult,
+} from '@tanstack/react-query';
+import { useCallback, useEffect } from 'react';
+
+import type {
+  CompleteUserTaskCommand,
+  DirectorySubjectResolutionResult,
+  DirectorySubjectSearchOptions,
+  DirectorySubjectSearchResult,
+  ExtendedUserTask,
+  FlowzerCompletionOptions,
+  FlowzerForm,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersion,
+  FormSectionVersionSummary,
+  ProcessInstance,
+  ProcessHistory,
+  RuntimeDiagram,
+  ReleaseUserTaskCommand,
+  RenameFormSectionCommand,
+  SaveFormSectionAuthoringDraftCommand,
+  SaveUserTaskDraftCommand,
+  SubjectRef,
+  TaskAssigneeResolutionOptions,
+  TaskAssigneeSearchOptions,
+  TransferUserTaskCommand,
+  UserTaskDraft,
+  UserTaskRevisionCommand,
+  UserTaskWorkState,
+} from '@flowzer/sdk';
+
+import { FlowzerApiError } from '@flowzer/sdk';
+
+import { useFlowzer } from './context.js';
+import { flowzerQueryKeys } from './queryKeys.js';
+
+export interface FlowzerQueryOptions {
+  enabled?: boolean | undefined;
+  refetchInterval?: number | false | undefined;
+}
+
+export interface CompleteTaskInput {
+  command: CompleteUserTaskCommand;
+  options: FlowzerCompletionOptions;
+}
+
+export interface DeleteDraftInput {
+  expectedRevision: number;
+  expectedTaskRevision?: number | undefined;
+}
+
+export interface TaskWorkspaceState {
+  task: ExtendedUserTask | undefined;
+  form: FlowzerForm | undefined;
+  draft: UserTaskDraft | undefined;
+  canWork: boolean;
+  isPending: boolean;
+  isRefreshing: boolean;
+  error: Error | null;
+  reload: () => Promise<void>;
+  reloadDraft: () => Promise<UserTaskDraft | undefined>;
+  searchSubjects: (
+    fieldKey: string,
+    options: DirectorySubjectSearchOptions,
+  ) => Promise<DirectorySubjectSearchResult>;
+  resolveSubjects: (
+    fieldKey: string,
+    subjects: readonly SubjectRef[],
+    options?: { signal?: AbortSignal | undefined },
+  ) => Promise<DirectorySubjectResolutionResult>;
+}
+
+export interface UserTaskActions {
+  claim: UseMutationResult<UserTaskWorkState, Error, UserTaskRevisionCommand>;
+  release: UseMutationResult<UserTaskWorkState, Error, ReleaseUserTaskCommand>;
+  assign: UseMutationResult<UserTaskWorkState, Error, TransferUserTaskCommand>;
+  delegate: UseMutationResult<UserTaskWorkState, Error, TransferUserTaskCommand>;
+  saveDraft: UseMutationResult<UserTaskDraft, Error, SaveUserTaskDraftCommand>;
+  deleteDraft: UseMutationResult<void, Error, DeleteDraftInput>;
+  complete: UseMutationResult<void, Error, CompleteTaskInput>;
+  searchAssignees: (options: TaskAssigneeSearchOptions) => Promise<DirectorySubjectSearchResult>;
+  resolveAssignees: (options: TaskAssigneeResolutionOptions) => Promise<DirectorySubjectResolutionResult>;
+}
+
+/** Revisionsgebundene Modellierungsaktionen für genau einen Abschnitt. */
+export interface FormSectionActions {
+  rename: UseMutationResult<FormSectionMetadata, Error, RenameFormSectionCommand>;
+  saveDraft: UseMutationResult<FormSectionAuthoringDraft, Error, SaveFormSectionAuthoringDraftCommand>;
+  deleteDraft: UseMutationResult<void, Error, number>;
+  publish: UseMutationResult<FormSectionVersion, Error, number>;
+}
+
+export function useUserTasks(options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<ExtendedUserTask[], Error>({
+    queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+    queryFn: ({ signal }) => client.userTasks.list({ signal }),
+    enabled: options.enabled ?? true,
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+export function useUserTask(userTaskId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<ExtendedUserTask, Error>({
+    queryKey: flowzerQueryKeys.userTask(cacheNamespace, sessionScope, userTaskId),
+    queryFn: ({ signal }) => client.userTasks.get(userTaskId, { signal }),
+    enabled: Boolean(userTaskId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+export function useInstanceStatus(instanceId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<ProcessInstance, Error>({
+    queryKey: flowzerQueryKeys.instance(cacheNamespace, sessionScope, instanceId),
+    queryFn: ({ signal }) => client.instances.get(instanceId, { signal }),
+    enabled: Boolean(instanceId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt ausschließlich den modellierungsberechtigten Abschnittskatalog dieser Sitzung. */
+export function useFormSections(options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionMetadata[], Error>({
+    queryKey: flowzerQueryKeys.formSections(cacheNamespace, sessionScope),
+    queryFn: ({ signal }) => client.formSections.list({ signal }),
+    enabled: options.enabled ?? true,
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt einen Katalogeintrag ohne seinen Entwurf oder publizierte Schema-Inhalte vorwegzunehmen. */
+export function useFormSection(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionMetadata, Error>({
+    queryKey: flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.get(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Listet nur konkrete veröffentlichte Fassungen; der Client löst nie „latest“ auf. */
+export function useFormSectionVersions(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionVersionSummary[], Error>({
+    queryKey: flowzerQueryKeys.formSectionVersions(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.listVersions(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt den serverseitigen Draft erst für einen ausdrücklich gewählten Abschnitt. */
+export function useFormSectionDraft(sectionId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  return useQuery<FormSectionAuthoringDraft, Error>({
+    queryKey: flowzerQueryKeys.formSectionDraft(cacheNamespace, sessionScope, sectionId),
+    queryFn: ({ signal }) => client.formSections.getDraft(sectionId, { signal }),
+    enabled: Boolean(sectionId) && (options.enabled ?? true),
+    ...(options.refetchInterval === undefined
+      ? {}
+      : { refetchInterval: options.refetchInterval }),
+  });
+}
+
+/** Lädt die datensparsame History erst, wenn die einbettende Oberfläche sie freischaltet. */
+export function useInstanceHistory(instanceId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const enabled = Boolean(instanceId) && (options.enabled ?? true);
+  const query = useQuery<ProcessHistory, Error>({
+    queryKey: flowzerQueryKeys.instanceHistory(cacheNamespace, sessionScope, instanceId),
+    queryFn: ({ signal }) => client.instances.history(instanceId, { signal }),
+    enabled,
+    ...(options.refetchInterval === undefined ? {} : { refetchInterval: options.refetchInterval }),
+  });
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!enabled) queryClient.removeQueries({
+      queryKey: flowzerQueryKeys.instanceHistory(cacheNamespace, sessionScope, instanceId),
+    });
+  }, [cacheNamespace, enabled, instanceId, queryClient, sessionScope]);
+  // Deaktivierte Observer können ihren letzten Wert noch bis zum nächsten internen
+  // Query-Update halten. Die öffentliche Projektion schließt deshalb synchron fail-closed.
+  return enabled ? query : { ...query, data: undefined };
+}
+
+/**
+ * Lädt die technische Laufzeitprojektion nur nach ausdrücklicher Freischaltung. Ein
+ * Rechteentzug entfernt sowohl Observer-Daten als auch den sitzungsgebundenen Cache.
+ */
+export function useInstanceRuntimeDiagram(instanceId: string, options: FlowzerQueryOptions = {}) {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const enabled = Boolean(instanceId) && (options.enabled ?? true);
+  const queryKey = flowzerQueryKeys.instanceRuntimeDiagram(cacheNamespace, sessionScope, instanceId);
+  const query = useQuery<RuntimeDiagram, Error>({
+    queryKey,
+    queryFn: ({ signal }) => client.instances.runtimeDiagram(instanceId, { signal }),
+    enabled,
+    ...(options.refetchInterval === undefined ? {} : { refetchInterval: options.refetchInterval }),
+  });
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!enabled) queryClient.removeQueries({ queryKey });
+  }, [enabled, queryClient, queryKey]);
+  return enabled ? query : { ...query, data: undefined };
+}
+
+/** Lädt zuerst den sichtbaren Task und erst danach dessen arbeitsberechtigte Inhalte. */
+export function useUserTaskWorkspace(
+  userTaskId: string,
+  options: FlowzerQueryOptions = {},
+): TaskWorkspaceState {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const queryClient = useQueryClient();
+  const revocation = useQuery<Error | null, Error>({
+    queryKey: workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId),
+    queryFn: skipToken,
+    initialData: null,
+    staleTime: Infinity,
+    // Ein Remount darf den Entzug nicht vergessen; Logout räumt den gesamten Scope auf.
+    gcTime: Infinity,
+  });
+  const latchedAccessLoss = revocation.data ?? null;
+  const task = useUserTask(userTaskId, options);
+  const taskAccessLoss = firstResourceAccessLoss(task.error, task.failureReason);
+  const taskCanWork = taskAccessLoss === null && task.data?.workState?.canWork === true;
+  const contentEnabled = Boolean(userTaskId) && taskCanWork
+    && latchedAccessLoss === null && (options.enabled ?? true);
+  const form = useQuery<FlowzerForm, Error>({
+    queryKey: flowzerQueryKeys.userTaskForm(cacheNamespace, sessionScope, userTaskId),
+    queryFn: ({ signal }) => client.userTasks.getForm(userTaskId, { signal }),
+    enabled: contentEnabled,
+  });
+  const draft = useQuery<UserTaskDraft, Error>({
+    queryKey: flowzerQueryKeys.userTaskDraft(cacheNamespace, sessionScope, userTaskId),
+    queryFn: ({ signal }) => client.userTasks.getDraft(userTaskId, { signal }),
+    enabled: contentEnabled,
+  });
+  const responseAccessLoss = firstResourceAccessLoss(
+    task.error, task.failureReason, form.error, form.failureReason, draft.error, draft.failureReason,
+  );
+  const accessLoss = responseAccessLoss ?? latchedAccessLoss;
+  const canWork = taskCanWork && accessLoss === null;
+  // Cacheentfernung darf den Rechtefehler nicht vergessen und automatische Neuladungen
+  // auslösen. Nur ein expliziter, vollständig erfolgreicher Reload hebt die Sperre auf.
+  useEffect(() => {
+    if (responseAccessLoss) queryClient.setQueryData(
+      workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId), responseAccessLoss,
+    );
+  }, [cacheNamespace, queryClient, responseAccessLoss, sessionScope, userTaskId]);
+  useEffect(() => {
+    if (canWork || (!task.data && accessLoss === null)) return;
+    // Ein Refetch kann ein entzogenes Arbeitsrecht sichtbar machen. Deaktivierte Queries
+    // behalten standardmäßig alte Daten im Cache; diese dürfen nicht weitergereicht werden.
+    queryClient.removeQueries({
+      queryKey: flowzerQueryKeys.userTaskForm(cacheNamespace, sessionScope, userTaskId),
+    });
+    queryClient.removeQueries({
+      queryKey: flowzerQueryKeys.userTaskDraft(cacheNamespace, sessionScope, userTaskId),
+    });
+  }, [accessLoss, cacheNamespace, canWork, queryClient, sessionScope, task.data, userTaskId]);
+  const searchSubjects = useCallback(
+    (fieldKey: string, search: DirectorySubjectSearchOptions) =>
+      client.userTasks.searchFormSubjects(userTaskId, fieldKey, search),
+    [client, userTaskId],
+  );
+  const resolveSubjects = useCallback(
+    (fieldKey: string, subjects: readonly SubjectRef[], options: { signal?: AbortSignal | undefined } = {}) =>
+      client.userTasks.resolveFormSubjects(userTaskId, fieldKey, subjects, options),
+    [client, userTaskId],
+  );
+
+  return {
+    task: accessLoss ? undefined : task.data,
+    form: canWork ? form.data : undefined,
+    draft: canWork ? draft.data : undefined,
+    canWork,
+    isPending: task.isPending || (contentEnabled && (form.isPending || draft.isPending)),
+    isRefreshing: task.isFetching || form.isFetching || draft.isFetching,
+    error: accessLoss ?? task.error ?? (taskCanWork ? form.error ?? draft.error : null),
+    reload: async () => {
+      const refreshed = await task.refetch();
+      if (!refreshed.error && !firstResourceAccessLoss(refreshed.failureReason)
+          && refreshed.data?.workState?.canWork === true) {
+        const [refreshedForm, refreshedDraft] = await Promise.all([form.refetch(), draft.refetch()]);
+        if (!refreshedForm.error && !refreshedDraft.error
+            && !firstResourceAccessLoss(refreshedForm.failureReason, refreshedDraft.failureReason)) {
+          queryClient.setQueryData(
+            workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId), null,
+          );
+        }
+      }
+    },
+    reloadDraft: async () => {
+      if (accessLoss) throw accessLoss;
+      const result = await draft.refetch();
+      const error = result.error ?? firstResourceAccessLoss(result.failureReason);
+      if (error) throw error;
+      return result.data;
+    },
+    searchSubjects,
+    resolveSubjects,
+  };
+}
+
+/** Task-Mutationen werden nie automatisch wiederholt; der Host entscheidet bewusst. */
+export function useUserTaskActions(userTaskId: string): UserTaskActions {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const queryClient = useQueryClient();
+  const taskKey = flowzerQueryKeys.userTask(cacheNamespace, sessionScope, userTaskId);
+  const draftKey = flowzerQueryKeys.userTaskDraft(cacheNamespace, sessionScope, userTaskId);
+
+  const refreshTask = async (state?: UserTaskWorkState) => {
+    if (state) {
+      queryClient.setQueryData<ExtendedUserTask>(taskKey, (task) =>
+        task ? { ...task, workState: state } : task);
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope) }),
+      queryClient.invalidateQueries({ queryKey: taskKey }),
+    ]);
+  };
+
+  const claim = useMutation({
+    mutationFn: (command: UserTaskRevisionCommand) => client.userTasks.claim(userTaskId, command),
+    retry: false,
+    onSuccess: refreshTask,
+    onError: () => refreshTask(),
+  });
+  const release = useMutation({
+    mutationFn: (command: ReleaseUserTaskCommand) => client.userTasks.release(userTaskId, command),
+    retry: false,
+    onSuccess: refreshTask,
+    onError: () => refreshTask(),
+  });
+  const assign = useMutation({
+    mutationFn: (command: TransferUserTaskCommand) => client.userTasks.assign(userTaskId, command),
+    retry: false,
+    onSuccess: refreshTask,
+    onError: () => refreshTask(),
+  });
+  const delegate = useMutation({
+    mutationFn: (command: TransferUserTaskCommand) => client.userTasks.delegate(userTaskId, command),
+    retry: false,
+    onSuccess: refreshTask,
+    onError: () => refreshTask(),
+  });
+  const saveDraft = useMutation({
+    mutationFn: (command: SaveUserTaskDraftCommand) => client.userTasks.saveDraft(userTaskId, command),
+    retry: false,
+    onSuccess: (saved) => queryClient.setQueryData(draftKey, saved),
+  });
+  const deleteDraft = useMutation({
+    mutationFn: (command: DeleteDraftInput) => client.userTasks.deleteDraft(
+      userTaskId,
+      command.expectedRevision,
+      command.expectedTaskRevision,
+    ),
+    retry: false,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: draftKey }),
+  });
+  const complete = useMutation({
+    mutationFn: (input: CompleteTaskInput) => client.userTasks.complete(input.command, input.options),
+    retry: false,
+    onSuccess: async (_result, input) => {
+      await refreshTask();
+      if (input.command.processInstanceId) {
+        await queryClient.invalidateQueries({
+          queryKey: flowzerQueryKeys.instance(
+            cacheNamespace,
+            sessionScope,
+            input.command.processInstanceId,
+          ),
+        });
+      }
+    },
+  });
+  const searchAssignees = useCallback(
+    (search: TaskAssigneeSearchOptions) => client.userTasks.searchAssignees(userTaskId, search),
+    [client, userTaskId],
+  );
+  const resolveAssignees = useCallback(
+    (options: TaskAssigneeResolutionOptions) => client.userTasks.resolveAssignees(userTaskId, options),
+    [client, userTaskId],
+  );
+
+  return {
+    claim, release, assign, delegate, saveDraft, deleteDraft, complete,
+    searchAssignees, resolveAssignees,
+  };
+}
+
+/**
+ * Kapselt Abschnitts-Mutationen ohne Darstellung oder Host-Fachlogik. Alle
+ * Compare-and-Swap-Schreibvorgänge werden absichtlich nicht automatisch wiederholt.
+ */
+export function useFormSectionActions(sectionId: string): FormSectionActions {
+  const { client, cacheNamespace, sessionScope } = useFlowzer();
+  const queryClient = useQueryClient();
+  const catalogKey = flowzerQueryKeys.formSections(cacheNamespace, sessionScope);
+  const sectionKey = flowzerQueryKeys.formSection(cacheNamespace, sessionScope, sectionId);
+  const versionsKey = flowzerQueryKeys.formSectionVersions(cacheNamespace, sessionScope, sectionId);
+  const draftKey = flowzerQueryKeys.formSectionDraft(cacheNamespace, sessionScope, sectionId);
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: catalogKey }),
+      queryClient.invalidateQueries({ queryKey: sectionKey }),
+      queryClient.invalidateQueries({ queryKey: versionsKey }),
+      queryClient.invalidateQueries({ queryKey: draftKey }),
+    ]);
+  };
+
+  const rename = useMutation({
+    mutationFn: (command: RenameFormSectionCommand) => client.formSections.rename(sectionId, command),
+    retry: false,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(sectionKey, saved);
+      void queryClient.invalidateQueries({ queryKey: catalogKey });
+    },
+    onError: refresh,
+  });
+  const saveDraft = useMutation({
+    mutationFn: (command: SaveFormSectionAuthoringDraftCommand) =>
+      client.formSections.saveDraft(sectionId, command),
+    retry: false,
+    onSuccess: (saved) => queryClient.setQueryData(draftKey, saved),
+    onError: refresh,
+  });
+  const deleteDraft = useMutation({
+    mutationFn: (expectedRevision: number) => client.formSections.deleteDraft(sectionId, expectedRevision),
+    retry: false,
+    onSuccess: refresh,
+    onError: refresh,
+  });
+  const publish = useMutation({
+    mutationFn: (expectedRevision: number) => client.formSections.publish(sectionId, expectedRevision),
+    retry: false,
+    onSuccess: refresh,
+    onError: refresh,
+  });
+
+  return { rename, saveDraft, deleteDraft, publish };
+}
+
+export type {
+  ExtendedUserTask,
+  FlowzerForm,
+  FormSectionAuthoringDraft,
+  FormSectionMetadata,
+  FormSectionVersion,
+  FormSectionVersionSummary,
+  ProcessInstance,
+  UserTaskDraft,
+};
+
+/** Nur definitive Rechte-/Ressourcenverluste entwerten die letzte autorisierte Sicht.
+ * Ein vorübergehender Netzwerkfehler bleibt dagegen als solcher mit Daten sichtbar. */
+function isResourceAccessLost(error: Error | null): boolean {
+  return error instanceof FlowzerApiError && [401, 403, 404].includes(error.status);
+}
+
+/** Während automatischer Retries steht ein HTTP-Fehler zunächst nur in failureReason. */
+function firstResourceAccessLoss(...errors: (Error | null)[]): Error | null {
+  return errors.find(isResourceAccessLost) ?? null;
+}
+
+/** Rein lokaler Sitzungszustand ohne Netzwerkfunktion, gemeinsam für parallele Observer. */
+function workspaceRevocationKey(cacheNamespace: string, sessionScope: string, userTaskId: string) {
+  return [...flowzerQueryKeys.userTask(cacheNamespace, sessionScope, userTaskId), 'access-revocation'] as const;
+}

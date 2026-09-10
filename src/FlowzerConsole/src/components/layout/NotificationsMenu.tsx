@@ -1,23 +1,27 @@
 import * as Popover from '@radix-ui/react-popover';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Dot } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
-import { useActivityFeed } from '@/lib/activity';
+import { useMarkNotificationRead, useNotifications } from '@/lib/api/queries';
+import { formatTimestamp } from '@/lib/format';
+import type { NotificationDto } from '@/lib/api/types';
+
+function notificationTone(notification: NotificationDto) {
+  if (notification.severity === 'error') return 'fail' as const;
+  if (notification.severity === 'success') return 'done' as const;
+  if (notification.severity === 'warning') return 'wait' as const;
+  return 'accent' as const;
+}
 
 export function NotificationsMenu() {
-  const activity = useActivityFeed();
+  const notificationsQuery = useNotifications();
+  const markRead = useMarkNotificationRead();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const [seenCount, setSeenCount] = useState(0);
-
-  // Solange das Menü offen ist, gelten alle sichtbaren Meldungen als gelesen.
-  useEffect(() => {
-    if (open) setSeenCount(activity.length);
-  }, [open, activity.length]);
-
-  const unread = Math.max(0, activity.length - seenCount);
+  const notifications = notificationsQuery.data ?? [];
+  const unread = notifications.filter((notification) => !notification.readAtUtc).length;
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
@@ -44,31 +48,41 @@ export function NotificationsMenu() {
           <div className="border-border flex items-center justify-between border-b px-4 py-3">
             <span className="text-sm font-semibold">Benachrichtigungen</span>
             <span className="text-faint font-mono text-[11px]">
-              {activity.length === 0 ? 'nichts Neues' : `${activity.length} Ereignisse`}
+              {notifications.length === 0 ? 'nichts Neues' : `${notifications.length} Meldungen`}
             </span>
           </div>
 
           <div className="max-h-[330px] overflow-auto px-2 py-1.5">
-            {activity.length === 0 && (
+            {notificationsQuery.isPending && (
+              <div className="text-muted px-3 py-8 text-center text-[13.5px]">Benachrichtigungen werden geladen …</div>
+            )}
+            {notificationsQuery.error && (
+              <div role="alert" className="text-fail px-3 py-8 text-center text-[13.5px]">Benachrichtigungen konnten nicht geladen werden.</div>
+            )}
+            {!notificationsQuery.isPending && !notificationsQuery.error && notifications.length === 0 && (
               <div className="text-muted px-3 py-8 text-center text-[13.5px]">
                 Zurzeit gibt es nichts zu berichten.
               </div>
             )}
 
-            {activity.map((entry) => (
+            {notifications.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
                 onClick={() => {
+                  if (!entry.readAtUtc) markRead.mutate(entry.id);
                   if (entry.href) void navigate({ to: entry.href });
                   setOpen(false);
                 }}
-                className="hover:bg-surface-2 flex w-full cursor-pointer gap-2.5 rounded-[var(--r-sm)] border-none bg-transparent px-2 py-2.5 text-left"
+                className={`hover:bg-surface-2 flex w-full cursor-pointer gap-2.5 rounded-[var(--r-sm)] border-none px-2 py-2.5 text-left ${entry.readAtUtc ? 'bg-transparent' : 'bg-accent/5'}`}
               >
-                <Dot tone={entry.tone} size={9} halo className="mt-1.5" />
+                <Dot tone={notificationTone(entry)} size={9} halo className="mt-1.5" />
                 <span className="min-w-0">
-                  <span className="block text-[13px] leading-snug">{entry.text}</span>
-                  <span className="text-faint mt-0.5 block font-mono text-[11.5px]">{entry.time}</span>
+                  <span className="block text-[13px] leading-snug">
+                    {entry.title ?? entry.message ?? `Aufgabenmeldung: ${entry.kind}`}
+                    {entry.title && entry.message ? `: ${entry.message}` : ''}
+                  </span>
+                  <span className="text-faint mt-0.5 block font-mono text-[11.5px]">{formatTimestamp(entry.occurredAtUtc)}</span>
                 </span>
               </button>
             ))}

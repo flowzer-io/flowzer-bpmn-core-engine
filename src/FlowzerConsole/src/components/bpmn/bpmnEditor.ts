@@ -24,6 +24,8 @@ import {
   startFormAppliesTo,
   timerOf,
   type Assignment,
+  type AssignmentMode,
+  type DirectoryAssignment,
   type EmbeddedForm,
   type CalledProcess,
   type ElementProperties,
@@ -35,6 +37,12 @@ import {
   type MessageReference,
   type FormOwner,
 } from './elementProperties';
+import {
+  AI_WORKER_TYPE,
+  DEFAULT_AI_TASK,
+  type AiTaskConfiguration,
+  type ServiceTaskMode,
+} from '@/lib/aiTaskContract';
 import {
   enclosing,
   eventDefinition,
@@ -209,6 +217,57 @@ export function createBpmnEditor(modeler: ModelerLike) {
     return created;
   }
 
+  /** Legt die verschachtelte Flowzer-Erweiterung mit korrekten Moddle-Elternbeziehungen an. */
+  function ensureAiTaskExtension(element: DiagramElement): ModdleElement {
+    const existing = extension(element.businessObject, 'flowzer:AiTask');
+    if (existing) return existing;
+
+    const container = ensureExtensionElements(element, element.businessObject);
+    const contract = factory().create('flowzer:AiTask', {
+      ...DEFAULT_AI_TASK,
+      connectionId: undefined,
+      model: undefined,
+      instruction: undefined,
+      resultSchema: undefined,
+      tools: undefined,
+    });
+    const instruction = factory().create('flowzer:Instruction', { body: DEFAULT_AI_TASK.instruction });
+    const resultSchema = factory().create('flowzer:ResultSchema', { body: DEFAULT_AI_TASK.resultSchema });
+    contract.$parent = container;
+    instruction.$parent = contract;
+    resultSchema.$parent = contract;
+    contract.instruction = instruction;
+    contract.resultSchema = resultSchema;
+    modeling().updateModdleProperties(element, container, {
+      values: [...((container.values as ModdleElement[] | undefined) ?? []), contract],
+    });
+    return contract;
+  }
+
+  function setServiceTaskMode(element: DiagramElement, mode: ServiceTaskMode): void {
+    if (mode === 'worker') {
+      writeExtension(element, element.businessObject, 'flowzer:AiTask', null);
+      const taskDefinition = extension(element.businessObject, 'zeebe:TaskDefinition');
+      if (text(taskDefinition, 'type') === AI_WORKER_TYPE) {
+        const retries = text(taskDefinition, 'retries');
+        writeExtension(
+          element,
+          element.businessObject,
+          'zeebe:TaskDefinition',
+          retries ? { retries } : null,
+        );
+      }
+      return;
+    }
+
+    const taskDefinition = extension(element.businessObject, 'zeebe:TaskDefinition');
+    writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', {
+      type: AI_WORKER_TYPE,
+      retries: merge(undefined, text(taskDefinition, 'retries')),
+    });
+    ensureAiTaskExtension(element);
+  }
+
   return {
     /** Liest alle Werte, die das Panel für ein Element anzeigt. */
     read(elementId: string): ElementProperties | null {
@@ -256,6 +315,58 @@ export function createBpmnEditor(modeler: ModelerLike) {
       writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', isEmpty ? null : values);
     },
 
+    /**
+     * Wechselt den Vertrag ohne eine nicht deploybare leere Directory-Zuweisung zu erzeugen.
+     * Der Wechsel in den Directory-Modus wird erst mit der ersten konkreten Auswahl persistiert.
+     */
+    setAssignmentMode(elementId: string, mode: Exclude<AssignmentMode, 'invalid'>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      if (mode === 'directory') {
+        const current = extension(element.businessObject, 'flowzer:TaskAssignment');
+        if (text(current, 'mode') !== 'directory' || !hasDirectoryReference(current)) return;
+        writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', null);
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
+        mode: 'text',
+        assigneeId: undefined,
+        candidateUserIds: undefined,
+        candidateGroupIds: undefined,
+      });
+    },
+
+    /** Schreibt ausschließlich stabile IDs; Anzeigenamen gehören nie in den BPMN-Vertrag. */
+    setDirectoryAssignment(elementId: string, patch: Partial<DirectoryAssignment>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const current = extension(element.businessObject, 'flowzer:TaskAssignment');
+      const currentDirectory = text(current, 'mode') === 'directory' ? current : undefined;
+      const assigneeId = normalizeId(patch.assigneeId ?? text(currentDirectory, 'assigneeId'));
+      const candidateUserIds = normalizeIds(
+        patch.candidateUserIds ?? commaSeparatedIds(text(currentDirectory, 'candidateUserIds')),
+      );
+      const candidateGroupIds = normalizeIds(
+        patch.candidateGroupIds ?? commaSeparatedIds(text(currentDirectory, 'candidateGroupIds')),
+      );
+
+      writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', null);
+      if (!assigneeId && candidateUserIds.length === 0 && candidateGroupIds.length === 0) {
+        writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', null);
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
+        mode: 'directory',
+        assigneeId: assigneeId || undefined,
+        candidateUserIds: candidateUserIds.length > 0 ? candidateUserIds.join(',') : undefined,
+        candidateGroupIds: candidateGroupIds.length > 0 ? candidateGroupIds.join(',') : undefined,
+      });
+    },
+
     setSchedule(elementId: string, patch: Partial<Schedule>): void {
       const element = registry().get(elementId);
       if (!element) return;
@@ -286,6 +397,62 @@ export function createBpmnEditor(modeler: ModelerLike) {
       }
 
       writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', { type, retries: attempts });
+    },
+
+    /** Wechselt einen Standard-Service-Task zwischen freiem Worker und Flowzer-KI-Vertrag. */
+    setServiceTaskMode(elementId: string, mode: ServiceTaskMode): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:ServiceTask') return;
+      setServiceTaskMode(element, mode);
+    },
+
+    /** Schreibt Teiländerungen des KI-Vertrags, ohne Prompt oder Schema beim Fokuswechsel zu verlieren. */
+    setAiTask(elementId: string, patch: Partial<AiTaskConfiguration>): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:ServiceTask') return;
+      setServiceTaskMode(element, 'ai');
+      const current = ensureAiTaskExtension(element);
+
+      const attributeNames = [
+        'contractVersion',
+        'connectionId',
+        'model',
+        'instructionVersion',
+        'maxInputTokens',
+        'maxOutputTokens',
+        'timeoutSeconds',
+      ] as const;
+      const attributes = Object.fromEntries(
+        attributeNames.map((name) => [name, merge(patch[name], text(current, name))]),
+      );
+      modeling().updateModdleProperties(element, current, attributes);
+
+      for (const [property, type] of [
+        ['instruction', 'flowzer:Instruction'],
+        ['resultSchema', 'flowzer:ResultSchema'],
+      ] as const) {
+        let child = current[property] as ModdleElement | undefined;
+        if (!child) {
+          child = factory().create(type, { body: patch[property] ?? '' });
+          child.$parent = current;
+          modeling().updateModdleProperties(element, current, { [property]: child });
+        } else if (patch[property] !== undefined) {
+          modeling().updateModdleProperties(element, child, { body: patch[property].trim() });
+        }
+      }
+
+      if (patch.tools !== undefined) {
+        const tools = patch.tools.map((tool) => {
+          const child = factory().create('flowzer:Tool', {
+            id: tool.toolId,
+            version: tool.toolVersion,
+            approval: tool.approval,
+          });
+          child.$parent = current;
+          return child;
+        });
+        modeling().updateModdleProperties(element, current, { tools });
+      }
     },
 
     /** Schreibt Ein- und Ausgangszuordnungen als ein `zeebe:ioMapping`. */
@@ -622,4 +789,28 @@ function formKeyOf(businessObject: ModdleElement): string | null {
 function merge(patched: string | undefined, current: string): string | undefined {
   const value = (patched ?? current).trim();
   return value.length > 0 ? value : undefined;
+}
+
+function commaSeparatedIds(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function normalizeId(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+/** UUIDs werden kanonisch, eindeutig und stabil sortiert geschrieben. */
+function normalizeIds(values: string[]): string[] {
+  return [...new Set(values.map(normalizeId).filter((value) => value.length > 0))].sort();
+}
+
+function hasDirectoryReference(assignment: ModdleElement | undefined): boolean {
+  return Boolean(
+    normalizeId(text(assignment, 'assigneeId'))
+      || commaSeparatedIds(text(assignment, 'candidateUserIds')).length > 0
+      || commaSeparatedIds(text(assignment, 'candidateGroupIds')).length > 0,
+  );
 }

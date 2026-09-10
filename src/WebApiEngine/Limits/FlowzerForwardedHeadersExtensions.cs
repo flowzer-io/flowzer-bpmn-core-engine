@@ -23,6 +23,13 @@ public sealed class FlowzerForwardedHeadersOptions
     /// <summary>Einzelne Proxy-Adressen, wenn kein ganzes Netz gemeint ist.</summary>
     public string[] KnownProxies { get; set; } = [];
 
+    /// <summary>
+    /// Maximale Zahl explizit vertrauter Proxy-Stufen. Der Standard bleibt fuer
+    /// direkte Installationen bei einer Stufe; der mitgelieferte Containerpfad setzt
+    /// diesen Wert passend zu TLS-Proxy, Gateway und Konsolen-nginx auf drei.
+    /// </summary>
+    public int ForwardLimit { get; set; } = 1;
+
     public bool IsEnabled => KnownNetworks.Length > 0 || KnownProxies.Length > 0;
 }
 
@@ -39,9 +46,16 @@ public static class FlowzerForwardedHeadersExtensions
             return services;
         }
 
+        if (options.ForwardLimit is < 1 or > 10)
+        {
+            throw new InvalidOperationException(
+                $"{FlowzerForwardedHeadersOptions.SectionName}:ForwardLimit must be between 1 and 10.");
+        }
+
         services.Configure<ForwardedHeadersOptions>(forwarded =>
         {
             forwarded.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            forwarded.ForwardLimit = options.ForwardLimit;
 
             // Die Standardliste erlaubt nur die Loopback-Adresse; der Proxy laeuft im
             // Containernetz. Beide Listen werden deshalb bewusst geleert und neu gefuellt.

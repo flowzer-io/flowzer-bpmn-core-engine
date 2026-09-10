@@ -43,6 +43,32 @@ internal sealed class InMemoryServiceTaskStorage : IServiceTaskStorage
         return Task.FromResult<ServiceTaskJob?>(job);
     }
 
+    public Task<ServiceTaskJob?> RenewJobLease(
+        Guid jobId,
+        string lockOwner,
+        DateTime now,
+        DateTime lockedUntil)
+    {
+        lock (_jobs)
+        {
+            var job = _jobs.GetValueOrDefault(jobId);
+            if (job is null
+                || !string.Equals(job.LockedBy, lockOwner, StringComparison.Ordinal)
+                || job.LockedUntil is null
+                || job.LockedUntil <= now)
+            {
+                return Task.FromResult<ServiceTaskJob?>(null);
+            }
+
+            if (job.LockedUntil < lockedUntil)
+            {
+                job.LockedUntil = lockedUntil;
+            }
+
+            return Task.FromResult<ServiceTaskJob?>(job);
+        }
+    }
+
     public Task SaveJob(ServiceTaskJob job)
     {
         _jobs[job.Id] = job;

@@ -99,9 +99,20 @@ public partial class InstanceEngine: ICatchHandler
             throw new FlowzerRuntimeException("Token ist nicht aktiv");
         }
 
-        data ??= new Variables();
-        data.TryAdd("UserId", userId);
-        token.OutputData = data;
+        // Eingaben können aus einem Formular oder einem Worker stammen. Weder dürfen sie
+        // den Akteur bestimmen noch darf das Ergänzen des Legacy-Feldes die Eingabe ändern
+        // (sie kann dieselbe Referenz wie ein anderer Variablenscope besitzen).
+        Variables outputData = new();
+        var outputValues = (IDictionary<string, object?>)outputData;
+        foreach (var entry in (IDictionary<string, object?>?)data ?? new Dictionary<string, object?>())
+        {
+            outputValues[entry.Key] = entry.Value;
+        }
+
+        // Kompatibilität für bestehende BPMN-Mappings; maßgeblich ist CompletedByUserId.
+        outputValues["UserId"] = userId;
+        token.CompletedByUserId = userId;
+        token.OutputData = outputData;
         token.State = FlowNodeState.Completing;
 
         Run();

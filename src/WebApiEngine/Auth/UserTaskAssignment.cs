@@ -1,4 +1,5 @@
 using Model;
+using StorageSystem;
 
 namespace WebApiEngine.Auth;
 
@@ -29,14 +30,33 @@ public static class UserTaskAssignment
     /// </summary>
     public static void EnsureAssignmentFromModel(UserTaskSubscription subscription)
     {
-        if (!string.IsNullOrWhiteSpace(subscription.Assignee)
-            || subscription.CandidateUsers.Count > 0
-            || subscription.CandidateGroups.Count > 0)
+        if (subscription.AssignmentMode.HasValue)
         {
             return;
         }
 
         if (subscription.Token?.CurrentFlowNode is not BPMN.HumanInteraction.UserTask userTask)
+        {
+            return;
+        }
+
+        subscription.AssignmentMode = userTask.FlowzerAssignmentMode;
+        if (userTask.FlowzerAssignmentMode == BPMN.HumanInteraction.UserTaskAssignmentMode.Directory)
+        {
+            // Historische Datensätze werden eindeutig aus dem unveränderlichen Tokenmodell
+            // rekonstruiert. Eventuell vorhandener Freitext darf den Directory-Modus nie öffnen.
+            subscription.Assignee = null;
+            subscription.CandidateUsers = [];
+            subscription.CandidateGroups = [];
+            subscription.DirectoryAssigneeUserId = userTask.FlowzerDirectoryAssigneeUserId;
+            subscription.DirectoryCandidateUserIds = [.. userTask.FlowzerDirectoryCandidateUserIds];
+            subscription.DirectoryCandidateGroupIds = [.. userTask.FlowzerDirectoryCandidateGroupIds];
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(subscription.Assignee)
+            || subscription.CandidateUsers.Count > 0
+            || subscription.CandidateGroups.Count > 0)
         {
             return;
         }
@@ -53,15 +73,53 @@ public static class UserTaskAssignment
             : value.Split(Separators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
 
     /// <summary>
+    /// Lädt den Snapshot höchstens einmal und nur dann, wenn mindestens eine der bereits
+    /// materialisierten Aufgaben ihn tatsächlich benötigt. Fehlende Unterstützung bleibt
+    /// für Textaufgaben folgenlos und lässt Directory-Aufgaben später geschlossen ausfallen.
+    /// </summary>
+    public static async Task<DirectorySnapshot?> LoadDirectorySnapshotIfRequiredAsync(
+        IIdentityDirectoryStorage storage,
+        IEnumerable<UserTaskSubscription> subscriptions,
+        bool requiresDirectoryAssignee = false)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        ArgumentNullException.ThrowIfNull(subscriptions);
+        var requiresDirectory = requiresDirectoryAssignee;
+        foreach (var subscription in subscriptions)
+        {
+            EnsureAssignmentFromModel(subscription);
+            requiresDirectory |= subscription.AssignmentMode == BPMN.HumanInteraction.UserTaskAssignmentMode.Directory;
+        }
+
+        if (!requiresDirectory) return null;
+        try
+        {
+            return await storage.GetActiveSnapshot();
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Sichtbar ist eine Aufgabe, wenn sie niemandem zugewiesen ist, die Person genannt ist,
     /// sie zu den Kandidaten gehoert, eine ihrer Gruppen genannt ist, oder sie den Betrieb
     /// verantwortet (<paramref name="seeAll"/>).
     /// </summary>
     public static bool IsVisibleTo(UserTaskSubscription subscription, UserTaskIdentity identity, bool seeAll)
     {
+        EnsureAssignmentFromModel(subscription);
         if (seeAll)
         {
             return true;
+        }
+
+        // Dieser Legacy-Overload besitzt absichtlich keinen Directory-Kontext. Ein neuer
+        // Aufrufpfad, der ihn versehentlich verwendet, soll geschlossen statt per Name öffnen.
+        if (subscription.AssignmentMode == BPMN.HumanInteraction.UserTaskAssignmentMode.Directory)
+        {
+            return false;
         }
 
         var hasAssignment = !string.IsNullOrWhiteSpace(subscription.Assignee)
@@ -85,6 +143,35 @@ public static class UserTaskAssignment
         }
 
         return MatchesAnyGroup(subscription.CandidateGroups, identity.Groups);
+    }
+
+    /// <summary>
+    /// Einheitliche Laufzeitprüfung für beide Zuweisungsmodi. Im Directory-Modus zählen nur
+    /// die verifizierte OIDC-Identität, stabile lokale IDs und aktuelle Mitgliedschaften.
+    /// Anzeigenamen und Gruppen-Claims sind dort niemals ein Ersatz.
+    /// </summary>
+    public static bool IsVisibleTo(
+        UserTaskSubscription subscription,
+        CurrentUserContext currentUser,
+        DirectorySnapshot? snapshot,
+        bool seeAll)
+    {
+        EnsureAssignmentFromModel(subscription);
+        if (seeAll) return true;
+
+        if (subscription.AssignmentMode != BPMN.HumanInteraction.UserTaskAssignmentMode.Directory)
+        {
+            return IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), seeAll: false);
+        }
+
+        var identity = DirectoryIdentityAccess.Resolve(currentUser, snapshot);
+        return identity is not null
+               && (subscription.DirectoryAssigneeUserId is { } assignee
+                   && identity.Matches(new SubjectRef(DirectorySubjectKind.User, assignee))
+                   || subscription.DirectoryCandidateUserIds.Any(id =>
+                       identity.Matches(new SubjectRef(DirectorySubjectKind.User, id)))
+                   || subscription.DirectoryCandidateGroupIds.Any(id =>
+                       identity.Matches(new SubjectRef(DirectorySubjectKind.Group, id))));
     }
 
     /// <summary>

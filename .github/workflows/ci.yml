@@ -126,7 +126,10 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: src/FlowzerConsole/package-lock.json
+          cache-dependency-path: |
+            src/FlowzerConsole/package-lock.json
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
 
       - name: Abhaengigkeiten installieren
         working-directory: src/FlowzerConsole
@@ -148,6 +151,9 @@ jobs:
         working-directory: src/FlowzerConsole
         run: npm run build
 
+      - name: Sichere Runtime- und Coolify-Konfiguration prüfen
+        run: node --test tests/ui-smoke/runtime-config.test.mjs
+
       # Eine API-Route, die das Gateway der Konsole nicht weiterleitet, beantwortet die
       # Konsole mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die
       # erwartete Antwort. Genau so ist /job zuerst durchgerutscht.
@@ -157,6 +163,69 @@ jobs:
       - name: Bekannte Schwachstellen der Abhaengigkeiten pruefen
         working-directory: src/FlowzerConsole
         run: npm audit --audit-level=high
+
+  typescript_sdk:
+    name: Headless SDK und React-Bausteine
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
+            examples/react-host-embedding/package-lock.json
+
+      - name: Abhängigkeiten installieren
+        working-directory: packages/flowzer-sdk
+        run: npm ci
+
+      - name: OpenAPI-Typen neu erzeugen und Drift ausschließen
+        working-directory: packages/flowzer-sdk
+        run: |
+          npm run generate:openapi
+          git diff --exit-code -- src/schema.generated.ts
+
+      - name: SDK prüfen und bauen
+        working-directory: packages/flowzer-sdk
+        run: npm run check
+
+      - name: Veröffentlichbares Paket prüfen
+        working-directory: packages/flowzer-sdk
+        run: npm pack --dry-run
+
+      - name: Bekannte Schwachstellen der Abhängigkeiten prüfen
+        working-directory: packages/flowzer-sdk
+        run: npm audit --audit-level=high
+
+      - name: React-Abhängigkeiten installieren
+        working-directory: packages/flowzer-react
+        run: npm ci
+
+      - name: React-Bausteine prüfen und bauen
+        working-directory: packages/flowzer-react
+        run: npm run check
+
+      - name: Veröffentlichbares React-Paket prüfen
+        working-directory: packages/flowzer-react
+        run: npm pack --dry-run
+
+      - name: React-Abhängigkeiten auf bekannte Schwachstellen prüfen
+        working-directory: packages/flowzer-react
+        run: npm audit --audit-level=high
+
+      - name: Unabhängige Hostfixture installieren und prüfen
+        working-directory: examples/react-host-embedding
+        run: |
+          npm ci
+          npm run typecheck
+          npm audit --audit-level=high
 
   console_smoke:
     name: UI-Smoke-Tests der Konsole
@@ -179,7 +248,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: tests/ui-smoke/package-lock.json
+          cache-dependency-path: |
+            tests/ui-smoke/package-lock.json
+            src/FlowzerConsole/package-lock.json
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
 
       - name: Abhängigkeiten wiederherstellen
         run: dotnet restore core-engine.sln
@@ -190,6 +263,13 @@ jobs:
       - name: Abhaengigkeiten der Konsole installieren
         working-directory: src/FlowzerConsole
         run: npm ci
+
+      # Die lokalen file:-Pakete veröffentlichen ausschließlich ihre gebauten dist-Einstiege.
+      # Ein frischer Runner besitzt diese Artefakte noch nicht; ohne den expliziten Build
+      # wartet Playwright nur auf einen Vite-Server, der die Pakete niemals auflösen kann.
+      - name: Oeffentliche Flowzer-Pakete fuer die Konsole bauen
+        working-directory: src/FlowzerConsole
+        run: npm run prepare:flowzer-packages
 
       - name: Playwright-Abhängigkeiten installieren
         working-directory: tests/ui-smoke

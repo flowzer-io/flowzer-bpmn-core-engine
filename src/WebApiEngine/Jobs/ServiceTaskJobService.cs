@@ -48,7 +48,12 @@ public sealed class ServiceTaskJobService(
 
             if (claimed.Count > 0)
             {
-                logger.LogInformation("{Count} Auftraege vom Typ {Type} an Worker {Worker} vergeben.", claimed.Count, type, workerId);
+                // Typ und Worker-Kennung stammen aus Eingaben. Sie werden bewusst nicht
+                // protokolliert; Job- und Benutzerkennung genuegen zur Korrelation.
+                logger.LogInformation(
+                    "{Count} Auftraege an Benutzer {WorkerUserId} vergeben.",
+                    claimed.Count,
+                    userId);
             }
 
             return claimed;
@@ -78,6 +83,45 @@ public sealed class ServiceTaskJobService(
 
             await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
             return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Verlaengert eine laufende Lease vom vertrauenswuerdigen Serverzeitpunkt aus. Die Ablage
+    /// prueft Besitzer und Ablauf atomar; die Prozesssperre haelt den lokalen Complete-/Fail-
+    /// Pfad waehrenddessen fern.
+    /// </summary>
+    public async Task<JobLeaseRenewalOutcome> RenewLease(
+        Guid jobId,
+        Guid userId,
+        string workerId,
+        TimeSpan lockDuration)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var lockOwner = BuildLockOwner(userId, workerId);
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            using var storage = storageProvider.GetTransactionalStorage();
+            var job = await storage.ServiceTaskStorage.RenewJobLease(
+                jobId,
+                lockOwner,
+                now,
+                now.Add(lockDuration));
+            if (job is null)
+            {
+                return new JobLeaseRenewalOutcome(
+                    await ClassifyMissingJob(storage, jobId),
+                    null);
+            }
+
+            storage.CommitChanges();
+            return new JobLeaseRenewalOutcome(JobOperationResult.Ok, job);
         }
         finally
         {
@@ -123,9 +167,12 @@ public sealed class ServiceTaskJobService(
             await storage.ServiceTaskStorage.SaveJob(job);
             storage.CommitChanges();
 
+            // Die vollstaendige Worker-Meldung bleibt in der geschuetzten Betriebssicht.
+            // Freitext gehoert weder wegen Log-Forging noch wegen Datenminimierung ins Log.
             logger.LogWarning(
-                "Auftrag {JobId} vom Typ {Type} gescheitert ({Retries} Versuche verbleiben): {Error}",
-                job.Id, job.Type, job.Retries, errorMessage);
+                "Auftrag {JobId} gescheitert ({Retries} Versuche verbleiben).",
+                job.Id,
+                job.Retries);
 
             return JobOperationResult.Ok;
         }
@@ -180,3 +227,6 @@ public enum JobOperationResult
     NotLockedByWorker,
     LockExpired
 }
+
+/// <summary>Ergebnis einer Lease-Verlaengerung samt neuem, serverseitigem Ablaufzeitpunkt.</summary>
+public sealed record JobLeaseRenewalOutcome(JobOperationResult Status, ServiceTaskJob? Job);

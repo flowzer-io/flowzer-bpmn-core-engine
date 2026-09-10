@@ -12,7 +12,7 @@ namespace WebApiEngine.BusinessLogic;
 ///
 /// Der Form-Key stammt aus <c>zeebe:formDefinition/@formKey</c> und meint eines von zwei Dingen:
 /// <list type="bullet">
-/// <item>ein Formular aus dem Bestand — als <c>Formularname</c> (dann gilt die neueste Version)
+/// <item>ein Formular aus dem Bestand — als <c>Formularname</c> (neueste Version beim Deployment)
 /// oder <c>Formularname:1.0</c> (dann gilt genau diese Version). Statt des Namens darf auch die
 /// Kennung des Formulars stehen (<c>Guid</c> bzw. <c>Guid:1.0</c>): Der Modeler legt sie als
 /// <c>formId</c> ab, und der Parser nimmt sie als Form-Key an — ohne diesen Weg wäre ein so
@@ -20,11 +20,13 @@ namespace WebApiEngine.BusinessLogic;
 /// <item>ein Formular, das im Workflow selbst liegt — als
 /// <c>camunda-forms:bpmn:Kennung</c> (siehe <see cref="FlowzerUserTaskForm"/>).</item>
 /// </list>
+/// Laufzeitaufrufe lesen ausschließlich den Deployment-Snapshot; externe Altbestände
+/// ohne belegte Bindung werden nicht automatisch auf heutige Fassungen migriert.
 ///
 /// Die Auflösung lag bisher im Blazor-Client und benötigte dort drei API-Aufrufe.
 /// Als Teil der API gehört sie hierher: die Regel ist fachlich, nicht darstellend.
 /// </summary>
-public sealed class FormKeyResolver(IStorageSystem storageSystem)
+public sealed partial class FormKeyResolver(IStorageSystem storageSystem)
 {
     public sealed record Result(FormDto? Form, string? ErrorMessage)
     {
@@ -46,6 +48,40 @@ public sealed class FormKeyResolver(IStorageSystem storageSystem)
     /// Formular erreichbar: Es steht im Diagramm, nicht in der Ablage der Formulare.
     /// </param>
     public async Task<Result> ResolveAsync(string? formKey, Guid definitionId)
+    {
+        if (string.IsNullOrWhiteSpace(formKey)) return await ResolveForDeploymentAsync(formKey, definitionId);
+        var key = formKey.Trim();
+        BpmnDefinition? definition;
+        try
+        {
+            definition = await storageSystem.DefinitionStorage.GetDefinitionById(definitionId);
+        }
+        catch (FileNotFoundException)
+        {
+            definition = null;
+        }
+
+        if (definition?.FormBindings is { } bindings)
+        {
+            return bindings.TryGetValue(key, out var bound)
+                ? FromBinding(bound)
+                : Result.Failure($"No deployment form binding exists for form key \"{key}\". Deploy a new workflow version.");
+        }
+
+        // Historische eingebettete Formulare tragen ihren Stand bereits in der konkreten
+        // BPMN-Version. Für externe Referenzen wäre „latest“ dagegen eine geratene Migration.
+        if (FlowzerUserTaskForm.IdFromFormKey(key) is { } embeddedId)
+            return await ResolveFromWorkflowAsync(embeddedId, definitionId);
+
+        return Result.Failure($"The workflow has no verified form binding for \"{key}\". "
+            + "Deploy a new workflow version for new instances; existing instances require an explicitly verified form migration.");
+    }
+
+    /// <summary>
+    /// Ausschließlich für das Erstellen neuer Deployment-Bindungen, nicht für laufende
+    /// Aufgaben. Hier darf ein unversionierter Schlüssel noch die neueste Fassung wählen.
+    /// </summary>
+    public async Task<Result> ResolveForDeploymentAsync(string? formKey, Guid definitionId)
     {
         if (string.IsNullOrWhiteSpace(formKey))
         {

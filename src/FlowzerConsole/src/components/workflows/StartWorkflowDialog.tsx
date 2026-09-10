@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
+import { FormValidationErrors } from '@/components/forms/FormValidationErrors';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import type { ProcessVariables } from '@/lib/api/types';
+import type { FormDirectorySearchContext, ProcessVariables } from '@/lib/api/types';
 
 interface StartWorkflowDialogProps {
   open: boolean;
@@ -12,22 +13,26 @@ interface StartWorkflowDialogProps {
   workflowName: string;
   /** Form.io-Schema des Startformulars als JSON-String. */
   schema: string | undefined;
+  directoryContext?: FormDirectorySearchContext;
   busy?: boolean;
+  serverError?: unknown;
   onStart: (variables: ProcessVariables) => void;
 }
 
 /**
  * Das Startformular ausfüllen, bevor der Workflow läuft.
  *
- * Die Pflichtfelder prüft der Renderer, nicht der Server: Form.io kennt bedingt sichtbare
- * Felder, die der Server nicht auswertet — er würde damit gültige Eingaben ablehnen.
+ * Der Renderer unterstützt die Eingabe, der Server prüft den gebundenen Vertrag
+ * verbindlich. Eine Ablehnung darf weder den Dialog schließen noch Eingaben zurücksetzen.
  */
 export function StartWorkflowDialog({
   open,
   onOpenChange,
   workflowName,
   schema,
+  directoryContext,
   busy = false,
+  serverError,
   onStart,
 }: StartWorkflowDialogProps) {
   const formRef = useRef<FormRendererHandle>(null);
@@ -89,7 +94,8 @@ export function StartWorkflowDialog({
       }
     >
       <div className="pb-3">
-        <FormRenderer ref={formRef} schema={schema} />
+        <FormValidationErrors error={serverError} schema={schema} />
+        <FormRenderer ref={formRef} schema={schema} directoryContext={directoryContext} />
         {error && <div className="text-fail mt-2 text-[12.5px]">{error}</div>}
       </div>
     </Modal>

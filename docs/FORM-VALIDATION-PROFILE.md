@@ -1,0 +1,150 @@
+# Serverseitiges Formular-Prüfprofil
+
+M0/M2-Teilpaket #182 / PR #183, aufbauend auf der Formularbindung #180 / PR #181.
+
+`flowzer.forms/1` sowie die additiven Profile `flowzer.forms/2`,
+`flowzer.forms/3` und `flowzer.forms/4` sind **begrenzte**, serverseitig
+prüfbare Form.io-Teilmengen,
+keine vollständige Form.io-Kompatibilität. Neue Deployments und Wiederaktivierungen
+prüfen alle gebundenen Schemas vor einer Änderung der aktiven Version. Der Snapshot
+trägt `ValidationProfile`; das Formular-DTO liefert `validationProfile` mit.
+`flowzer.contractVersion: 1` im Schema ist optional. Version 2 ergänzt die typisierte
+[Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Version 3 ergänzt begrenzte
+[Wiederholgruppen und Plaintext-Hilfetexte](FORM-REPEAT-GROUPS.md). Version 4 ergänzt
+[explizite Human-Task-Entscheidungsaktionen](FORM-DECISION-ACTIONS.md); andere Versionen
+werden abgelehnt.
+
+## Datenfluss und Rechte
+
+- HTTP-Starts mit Startformular sowie `POST /usertask` und `POST /form/result`
+  verwenden denselben Compiler/Validator innerhalb des Engine-Mutationszyklus.
+  Bei Aufgaben erfolgen Identitäts- und Berechtigungsprüfung **vor** der Feldprüfung.
+  Fremde Aufgaben liefern weiterhin `404`, keine Informationen über ihre Felder.
+- Nur deklarierte Eingaben werden als neues Ergebnisobjekt übernommen. Unbekannte
+  Felder, Objekte an Skalarfeldern und manipulierte Kontextwerte werden abgelehnt.
+  `UserId` ist ausschließlich ein ignorierter historischer Transportwert; der Akteur
+  kommt aus dem authentifizierten Kontext. Buttons/Inhaltsfelder sind keine Ausgaben.
+- `disabled: true` oder `flowzer.access: "context"` bezeichnet nur lesbaren Kontext.
+  Ein mitgesendeter Wert muss dem serverseitigen Kontext entsprechen; selbst dann
+  wird er nicht ins Ergebnis übernommen. Gleichheit ist typstreng, nicht formatiert.
+- Anzeige und Read-only-Prüfung verwenden lokale Taskvariablen, ergänzt aus dem
+  nächsten Prozess-/Subprozessscope. Explizite Input-Mappings sperren diesen Fallback.
+  Fehlende/mehrdeutige/zyklische Parent-Tokens ergeben keinen Kontext.
+  Auch Operator-Formulare erhalten nur deklarierte Werte; vollständige Diagnosedaten
+  gehören in die berechtigte Instanzansicht, nicht in eine Formular-Submission.
+- Startformulare verlangen weiterhin ein `variables`-Objekt (sonst kompatibel `400`).
+  Ein leeres Objekt ist kein Validierungs-Bypass. Technische Nachrichtenstarts ohne
+  Startformular sind nicht Teil dieses Formularvertrags.
+
+## Unterstützte Felder und Regeln
+
+| Bereich | Prüfprofil 1 |
+| --- | --- |
+| Text | `textfield`, `textarea`, `email`, `url`, `phoneNumber`, `password`; String, Länge, Muster; URL nur HTTP(S), E-Mail ohne Anzeigenamen |
+| Zahlen | `number`, `currency`; JSON-Zahl, Decimal-Bereich, `validate.min` / `max`; **keine** String-zu-Zahl-Konvertierung |
+| Boolesch | `checkbox`; JSON-Boolean, erforderlich bedeutet `true` |
+| Auswahl | `select` mit `dataSrc: "values"`, `radio`; typstrenge skalare statische Optionswerte |
+| Verzeichnis (Profil 2) | `flowzerSubject`; stabile `{ kind, id }`-Referenz, Single/Multi, aktive serverseitige Policy |
+| Zeit | `datetime`: ISO-Datum oder ISO-Zeitstempel; `time`: `HH:mm` / `HH:mm:ss` |
+| Versteckt | `hidden`: skalarer String/Zahl/Boolean, nicht automatisch vertrauenswürdig |
+| Mehrfach | `multiple: true`: Array skalarer Werte, `minSelectedCount` / `maxSelectedCount` |
+| Layout | `panel`, `fieldset`, `columns`, `table`, `tabs`, `well`; flacher Ergebnisscope |
+| Wiederholung (Profil 3) | `datagrid` mit höchstens 50 Zeilen und ausschließlich deklarierten skalaren Zeilenfeldern |
+| Hilfe (Profil 3) | `description` / `flowzer.helpText` als Plaintext bis 2.000 Zeichen |
+| Aktionen (Profil 4) | 1–20 fachlich benannte Human-Task-Aktionen mit festen skalaren Belegungen deklarierter Root-Felder |
+| Pflicht | `validate.required`; null, fehlend, Leer-/Whitespace-String und leeres Array gelten als leer |
+| Sichtbarkeit | `conditional.when` / `eq` / `show`, einschließlich Layout-Vererbung; keine Zyklen oder berechneten Quellen |
+| Kontext | `disabled` / `flowzer.access`; keine Ausgabezuweisung über Browserwerte |
+
+Nicht-leere Werte in inaktiven Feldern werden abgelehnt. Bedingungen lesen nur
+deklarierte Felder; Checkboxwerte werden für Form.io-kompatible `eq`-Strings verglichen.
+Optionale Leerstrings werden zu null normalisiert, Arrays bleiben Arrays. Fachliche
+Prozessausgaben werden anschließend wie bisher durch modellierte I/O-Mappings zugeordnet.
+
+Deklarativer Datumsvergleich im Wurzelschema:
+
+```json
+{
+  "flowzer": {
+    "contractVersion": 1,
+    "rules": [{ "kind": "dateOrder", "start": "von", "end": "bis", "allowEqual": true }]
+  },
+  "components": [
+    { "type": "datetime", "key": "von", "validate": { "required": true } },
+    { "type": "datetime", "key": "bis", "validate": { "required": true } }
+  ]
+}
+```
+
+`allowEqual` ist ohne Angabe false. Der Vergleich ersetzt keine Pflichtregeln und
+keine fachliche Zeitzonen-/Arbeitstageberechnung.
+
+## Benannte Berechnungen statt Formular-JavaScript
+
+Die feste, versionierte Registry enthält zunächst nur `join.v1`:
+
+```json
+{ "type": "hidden", "key": "vorgang", "flowzer": {
+  "calculation": { "name": "join.v1", "fields": ["mitarbeiter", "art", "von", "bis"] }
+} }
+```
+
+Der Server verbindet 1–20 deklarierte skalare, nicht berechnete Quellen mit ` · `.
+Leere Werte entfallen; Datum und Auswahlcode bleiben unverändert, ohne Übersetzung
+oder Formatierung. Keine Scripts, URLs, Shell, Netzaufrufe oder verketteten Berechnungen.
+Ein abweichender nicht-leerer Browserwert wird abgelehnt. Das Urlaubsbeispiel verwendet
+diese Berechnung und `dateOrder` statt seiner bisherigen zwei Custom-Skripte.
+Es gibt noch keine Live-Vorschau dieser Berechnung im Renderer.
+
+## Grenzen und Fehlervertrag
+
+Nicht unterstützt und bei Veröffentlichung abgelehnt: allgemeine Container/Editgrids,
+verschachtelte Datagrids, beliebige weitere Objekt-/dotted-path-Werte, Datei- und unkontrollierte dynamische Felder,
+Custom-JavaScript, JSON-Logic, Input-Masks, Widget-Datumsgrenzen, unbekannte aktive
+Validierungsregeln und zum Feldtyp unpassende Regeln. Weitere Geschäftsregeln müssen
+vor Veröffentlichung explizit implementiert werden. Kein stiller JavaScript-Fallback.
+
+Grenzen: Schema maximal 1 Mi Zeichen, JSON-Tiefe 32, 500 deklarierte Schlüssel,
+500 statische Optionen/Arraywerte, 100 übergreifende Regeln, Text 131072 Zeichen.
+Schlüssel sind ASCII-Buchstaben/Ziffern/Unterstrich, beginnen mit einem Buchstaben
+und sind höchstens 128 Zeichen lang; reservierte Identitäts-/Prototypschlüssel entfallen.
+Regex: höchstens 1024 Zeichen, vollständig verankert, .NET NonBacktracking mit
+50-ms-Limit; kein Anspruch auf beliebige JavaScript-Regex-Kompatibilität.
+
+Ungültige Submissions liefern `422 application/problem+json` mit `errors` als
+Feld→Fehlercode-Arrays. Die kompatiblen Felder `successful: false` / `errorMessage`
+bleiben enthalten. Keine eingesandten Werte im Fehlertext. Die Konsole übersetzt
+bekannte Codes, zeigt Feldlabels und fokussiert die Fehlerübersicht, ohne das
+Formular neu zu mounten. Die API bleibt auch ohne Browserprüfung verbindlich.
+
+## Gemeinsame Vertragsvektoren
+
+Issue #208 / PR #209 führt den versionierten Katalog
+`tests/form-contract-vectors/manifest.json` ein. `FormContractVectorTest` und
+`formContractVectors.test.ts` lesen exakt dieselbe Datei. Jeder Fall besitzt eine
+stabile ID, eine deutsche Zweckbeschreibung, Profil, Schema, Kontext, Eingabe sowie
+die erwarteten kanonischen Fehlercodes oder die normalisierte Ausgabe.
+
+Der Browser-Spiegel `formContractClient.ts` dient nur als schnelle, nebenwirkungsfreie
+Vorprüfung. Er deckt die als `client-server` markierten skalaren Regeln ab. Fälle mit
+Directory-Snapshot, benannter Berechnung, Wiederholgruppen oder Entscheidungsaktionen
+tragen `server-authoritative`; der Client
+meldet dort bewusst keinen Erfolg und der API-Validator bleibt allein maßgeblich.
+Damit behauptet der Testkatalog keine Berechtigungs- oder Form.io-Parität, macht die
+Grenze aber maschinenprüfbar. Compile-Vektoren sichern zudem Script-, dynamische
+Datenquellen-, unbekannte Komponenten- und Schemagrößen-Ablehnungen ab.
+
+## Upgrade und offene Arbeit
+
+Vor einem Upgrade bestehende Formulare inventarisieren und eine Testinstallation
+mit laufenden Instanzen prüfen. Nicht unterstützte gebundene Altschemas werden auch
+beim Abschluss abgelehnt; sie brauchen einen fachlich geprüften Migrationsweg.
+Externe Altverweise ohne Snapshot werden weiterhin nicht auf heutiges `latest` geraten.
+Dieser PR migriert nur das Beispiel, **keine Kundendaten oder produktiven Workflows**.
+
+Weitere erweiterte Komponenten und eine kontrollierte Bestandsmigration bleiben offen.
+#212 / PR #213 ergänzt ein modellierergeschütztes, datensparsames
+[Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md) für alle veröffentlichten
+Fassungen und den aktuellen Autorenentwurf. #210 ergänzt Autorenentwürfe und die
+Veröffentlichungsoberfläche; Details stehen in [Formularpflege](FORM-AUTHORING.md).
+Tests ersetzen keine allgemeine Produktionsfreigabe.

@@ -1,10 +1,39 @@
 # Betriebs- und Deployment-Basis
 
-**Stand:** 5. September 2026
+**Stand:** 8. September 2026 (Aufgabenabschluss aktualisiert)
 
-Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `main`: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade.
+Dieses Dokument beschreibt den realistischen Betriebsrahmen des laufenden M0-BFF-Slices: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade. Bis der zugehörige PR nach `main` gemergt und abgenommen ist, ist dies kein Produktionsabschluss.
 
 > Wichtig: Das ist **noch keine produktionsfertige Deployment-Story**. Ziel dieses Pakets ist ein reproduzierbarer, dokumentierter Start- und Prüfpfad für API und Frontend.
+
+## Sichere Defaults der Installationsvorlagen (September-Review)
+
+`compose.runtime.yml` und `compose.coolify.yaml` setzen auch bei leeren oder fehlenden
+Umgebungswerten `flowzer-access` als Zugangsrolle sowie getrennt `flowzer-modeler`,
+`flowzer-operator` und `flowzer-worker`. Ein gültiges Token allein reicht damit nicht
+für Fachzugriff, Modellierung, Diagnose oder Worker-Aktionen. Die Werte können über
+`FLOWZER_AUTH_REQUIRED_ROLE` und `FLOWZER_AUTH_ROLE_MODELER`/`OPERATOR`/`WORKER`
+ausdrücklich auf installationsspezifische **nichtleere** Rollen abgebildet werden.
+
+**Upgradehinweis:** Vor einem späteren Deployment die entsprechenden Rollen im IdP
+zuordnen oder bestehende Rollennamen konfigurieren. Personen benötigen die Zugangsrolle
+und nur ihre fachlich erforderlichen Zusatzrollen; technische Worker erhalten keine
+Modeler-/Operatorrechte. Leere Umgebungswerte schalten diese Compose-Grenzen nicht ab.
+Die historische rollenlose API-Konfiguration außerhalb dieser Vorlagen bleibt ein
+Kompatibilitätspfad, keine Produktionsfreigabe. `Authentication=None` ist weiterhin
+nur für ausdrücklich lokalen Entwicklungsbetrieb gedacht.
+
+KI-Datenfluss und Ausführung besitzen getrennte Opt-ins in beiden Vorlagen:
+`FLOWZER_AI_ALLOW_CLOUD_PROVIDERS`, `FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS` und
+`FLOWZER_AI_EXECUTION_ENABLED` sind standardmäßig `false`. Das Aktivieren einer
+Verbindung allein startet den Executor nicht. KI-Rollen und Provider-Secrets müssen
+zusätzlich richtig zugeordnet bzw. zur Laufzeit injiziert sein. Es wird kein Secret
+in der Vorlage gespeichert. Diese Dokumentation aktiviert keinen laufenden Dienst.
+
+Die sicheren Defaults, leere Werte, explizite Rollennamen und KI-Opt-ins werden ohne
+Daemonzugriff durch `node --test tests/ui-smoke/runtime-config.test.mjs` mit dem echten
+Compose-Konfigurationsparser geprüft. Dabei werden weder `.env` noch produktive
+Umgebungswerte übernommen. Die Browser-API-Wurzeladresse `/` bleibt unterstützt.
 
 ## Enthaltene Bausteine
 
@@ -18,34 +47,164 @@ Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `main`:
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 - optionale OpenTelemetry-Exporter für Console und OTLP
 
-## Authentifizierung (JWT Bearer / OIDC)
+## Authentifizierung (BFF und externe Bearer-Clients)
 
-Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
+`src/WebApiEngine/appsettings.json` bleibt bewusst mit `Authentication:Scheme=None`
+ein sicherer Entwicklungs-/Testdefault. Die produktiven Compose-Stacks setzen dagegen
+explizit `Authentication__Scheme=Bff`. `JwtBearer` bleibt ein kompatibler Modus für
+direkte/externe API-Clients; `None` ist nur für lokale Development-/CI-Prüfungen
+vorgesehen und kein Produktionspfad.
 
 | Schlüssel | Bedeutung |
 |---|---|
-| `Authentication__Scheme` | `None` (Default, kein Schutz) oder `JwtBearer` |
-| `Authentication__JwtBearer__Authority` | OIDC-Issuer, z. B. `https://login.microsoftonline.com/<tenant>/v2.0` oder `https://keycloak.example/realms/flowzer` |
-| `Authentication__JwtBearer__Audience` | erwartete Audience (Client-/App-Id der API) |
-| `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für lokale IdPs ohne TLS auf `false` |
+| `Authentication__Scheme` | `Bff` für die Browser-Konsole in Runtime/Produktion; `JwtBearer` für direkte Bearer-Clients; `None` nur lokal |
+| `Authentication__JwtBearer__Authority` | OIDC-Issuer für Bearer-Prüfung **und** den serverseitigen OIDC-Code-Flow |
+| `Authentication__JwtBearer__Audience` | erwartete API-Audience; validiert externe Bearer und das im Code-Flow erhaltene Access-Token |
+| `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für einen lokalen IdP ohne TLS auf `false` |
+| `Authentication__Bff__ClientId` | Client-ID eines **vertraulichen** OIDC-Clients |
+| `Authentication__Bff__ClientSecret` | ausschließlich beim API-Start aus dem Secret-Store injiziert; nie in JSON, `.env`, Logs, Browser oder Konsolen-Container |
+| `Authentication__Bff__Scopes__0` bis `__2` | zusätzliche OIDC-Scopes neben `openid profile email`; etwa der API-Scope bei Entra. Ein Keycloak-Audience-Mapper kann ohne zusätzlichen Scope auskommen |
+| `Authentication__Bff__DataProtectionKeysPath` | persistenter, ausschließlich für den API-Container beschreibbarer Keyring; Pflicht im BFF-Modus |
 | `ForwardedHeaders__KnownNetworks__0` | Netz des Reverse Proxy in CIDR-Schreibweise, z. B. `10.0.0.0/8`. Ohne Angabe werden Weiterleitungsheader ignoriert und alle anonymen Aufrufer teilen sich hinter dem Proxy ein Kontingent |
 | `ForwardedHeaders__KnownProxies__0` | einzelne Proxy-Adresse, alternativ zum Netz |
+| `ForwardedHeaders__ForwardLimit` | Zahl der vollständig vertrauenswürdigen Proxy-Stufen; Default `1`, im mitgelieferten Containerpfad `3` für TLS-Proxy, Gateway und Konsolen-nginx |
 | `RateLimiting__Enabled` | Default `true`; Kontingent je Aufrufer. Health-Endpunkte sind ausgenommen |
 | `RateLimiting__PermitLimit` / `RateLimiting__WindowSeconds` | Default 300 Anfragen je 60 Sekunden. Gezählt wird je angemeldeter Person; ohne Anmeldung je Adresse, die nur mit gesetztem `ForwardedHeaders` hinter einem Proxy stimmt |
 | `Limits__MaxUploadBytes` | Default 8 MiB, abgestimmt auf `client_max_body_size` des mitgelieferten Gateways; darüber antwortet die API 413 |
 | `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
+| `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
-Verhalten bei `JwtBearer`:
+### BFF-Vertrag
 
-- Alle Endpunkte verlangen ein gültiges Token (Fallback-Policy). `GET /health` und `GET /health/ready` bleiben anonym für Orchestrator-Probes.
-- Die Benutzer-Id wird aus den Claims `nameidentifier`, `sub` oder `oid` gelesen (Originalnamen, kein Inbound-Claim-Mapping) und muss eine GUID sein. Entra ID liefert `oid` als GUID, Keycloak `sub`. Andere Formate führen zu 401 auf benutzerbezogenen Pfaden. Der gültige Issuer stammt aus den OIDC-Metadaten der Authority.
-- Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
-- Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
+Bei `Bff` startet der Browser über `GET /bff/login?returnTo=/…` den serverseitigen
+Authorization-Code-Flow mit PKCE. Die Callback-URI des vertraulichen Clients lautet
+`https://<flowzer-host>/bff/signin-oidc`. Der BFF speichert keine Tokens im
+Browser und setzt stattdessen `__Host-Flowzer-Session` (HttpOnly, Secure,
+SameSite=Lax, `Path=/`). Der Antiforgery-Cookie `__Host-Flowzer-Csrf` ist ebenfalls
+HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTPS,
+einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
+kein funktionaler BFF-Testpfad.
 
-Die Konsole meldet sich über ihre zur Laufzeit geladene `config.json` (`oidcAuthority`, `oidcClientId`, `oidcAudience`, `oidcScopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen diese Werte gesetzt sein; eine halb gefüllte Konfiguration bricht den Start der Konsole bewusst mit einer Fehlermeldung ab, statt stillschweigend ohne Anmeldung weiterzulaufen.
+## Lesender Keycloak-Verzeichnisabgleich
+
+Der optionale M1-Abgleich uebernimmt Benutzer, Gruppenhierarchie und Mitgliedschaften aus
+Keycloak in einen lokalen, atomar publizierten Snapshot. Keycloak bleibt fuehrend; Flowzer
+ruft ausschließlich Token- und `GET`-Endpunkte der
+[Keycloak Admin REST API](https://www.keycloak.org/docs-api/latest/rest-api/index.html) auf.
+Passwoerter, Credentials, Rollen-Mappings, freie Attribute und E-Mail-Adressen werden nicht
+in das Verzeichnis kopiert.
+
+| Einstellung | Bedeutung |
+|---|---|
+| `IdentityDirectory__Enabled` | Opt-in; Standard ist `false` |
+| `IdentityDirectory__ServerUrl` | technische HTTPS-Basisadresse des Keycloak-Servers, gegebenenfalls intern erreichbar |
+| `IdentityDirectory__Issuer` | exakter, externer `iss`-Wert der Benutzer-Tokens; bildet zusammen mit `sub` die stabile Benutzeridentitaet |
+| `IdentityDirectory__Realm` | zu lesender Realm |
+| `IdentityDirectory__ClientId` | vertrauliches Servicekonto nur fuer die benoetigten Leseoperationen |
+| `IdentityDirectory__ClientSecret` | ausschließlich zur Laufzeit aus dem Secret-Store; nie in `.env`, BPMN, Formularen oder Browserantworten speichern |
+| `IdentityDirectory__SyncIntervalSeconds` | Intervall nach dem sofortigen Startlauf; 10 bis 86.400 Sekunden |
+
+Im authentifizierten Betrieb muss zusaetzlich
+`Authentication__JwtBearer__Roles__Operator` gesetzt sein. Anders als historische
+Kompatibilitaetspolicies sind die neuen Verzeichnisendpunkte bei einem leeren Rollenwert
+vollstaendig gesperrt. Im ausdrücklich lokalen `Authentication__Scheme=None`-Modus bleibt
+die Entwicklungs-API offen.
+
+Weitere begrenzte Einstellungen (`PageSize`, `MaxPages`, `MaxRetries`,
+`RequestTimeoutSeconds`, `SynchronizationTimeoutSeconds`, `LeaseGraceSeconds`,
+`MaxResponseBytes`, `TokenRefreshSkewSeconds`) besitzen sichere Defaults in
+`appsettings.json`. Eine aktivierte, unvollstaendige oder unsichere Konfiguration beendet
+den Hoststart mit einer generischen Validierungsmeldung, die kein Secret wiedergibt.
+
+Das Keycloak-Servicekonto soll ueber feingranulare Rechte nur die verwendeten Benutzer-,
+Gruppen-, Gruppen-Kinder- und Benutzergruppen-Endpunkte lesen duerfen. Nach der Einrichtung
+ist mit einem negativen Test sicherzustellen, dass Schreiboperationen fuer dieses Konto
+abgewiesen werden. Eine pauschale Realm-Administratorrolle ist nicht vorgesehen.
+
+Der Startlauf und jeder Intervalllauf lesen alle Seiten. Erst nach vollstaendigem Erfolg
+werden Snapshot und Status gemeinsam ersetzt. Ein Seiten-, Hierarchie-, Timeout- oder
+Validierungsfehler laesst die letzte aktive Generation unveraendert. Fehlende Identitaeten
+werden erst durch einen erfolgreichen Folgelauf historisch inaktiv; ihre lokalen IDs bleiben
+auflösbar. Eine datenbankgestuetzte Lease verhindert parallele Importe durch mehrere
+API-Prozesse und laesst nach Ablauf einen Neustart zu. Die Keycloak-Offset-Pagination ist
+allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraenderte Realms
+bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
+
+Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
+`POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,
+Generations-IDs, Zaehler und klassifizierte Fehler, aber keine Subjects, Gruppen,
+Provideradresse oder Zugangsdaten. Der manuelle Aufruf stellt einen Lauf mit `202` in eine
+begrenzte Warteschlange; `409` bedeutet, dass lokal bereits ein Lauf aktiv oder vorgemerkt
+ist. Erfolg oder Fehler werden im Status sichtbar, die vorherige vollständige Generation
+bleibt bei einem Fehler aktiv.
+
+### Workflowgebundene Identitätssuche
+
+`GET /identity-directory/workflows/{definitionId}/subjects` ist bewusst kein allgemeines
+Adressbuch. Der Aufruf ist nur erfolgreich, wenn die Person den angegebenen Workflow über
+die globale Modelliererrolle oder eine geerbte Ordnerzuständigkeit bearbeiten darf. Ein
+unbekannter und ein fremder Workflow antworten mit demselben `404`-Problem-Details-Vertrag.
+
+Pflichtparameter `query` enthält 2 bis 100 Zeichen. `kind` ist `all`, `user` oder `group`,
+`limit` liegt zwischen 1 und 50 und ist standardmäßig 20. Weitere Query-Parameter wie ein
+vom Browser erfundenes `includeInactive` erweitern die Auswahl nicht. Ohne erfolgreich
+publizierten Snapshot antwortet die Suche mit `503`.
+
+Jeder Treffer enthält einen Anzeigenamen, eine eindeutige Zusatzinformation und eine
+typisierte stabile Referenz:
+
+```json
+{
+  "subject": { "kind": "user", "id": "b0a4a83f-3a32-40ef-a089-267347279018" },
+  "displayName": "Anna Muster",
+  "detail": "keycloak-subject"
+}
+```
+
+Bei Gruppen steht im Detail der vollständige Hierarchiepfad. Neu angeboten werden nur
+aktive Identitäten. Die lokale ID bleibt über Synchronisationen stabil; Anzeigename und
+Detail sind keine Berechtigungskennungen. Eine spätere Speicherung oder Veröffentlichung
+muss die Referenz erneut gegen den dann aktiven Snapshot und dieselbe Serverpolicy prüfen.
+Der vorhandene Freitextvertrag von `zeebe:assignmentDefinition` bleibt davon unverändert.
+Für neue Aufgaben kann das Modell zusätzlich den ausdrücklich getrennten Directory-Modus
+verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
+
+Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
+auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
+und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor
+Tokenablauf (Backchannel-Logout/Introspection) ist noch nicht implementiert; deshalb
+kurze Access-Token-Laufzeiten konfigurieren. Logout beendet die lokale Flowzer-Sitzung,
+nicht die zentrale SSO-Sitzung beim Identity Provider.
+
+`GET /bff/session` liefert nur die minimale Benutzerprojektion samt serverseitig
+ermittelten Fähigkeiten. Auch ein angemeldetes Konto ohne Freischaltung darf seine
+Sitzung sehen, CSRF anfordern und sich abmelden; es erhält keine Fachfähigkeiten und
+keinen Zugriff auf Fachendpunkte. Für jeden schreibenden Cookie-Aufruf lädt die Konsole über
+`GET /bff/csrf` einen Request-Token und sendet ihn im Header `X-Flowzer-CSRF`; der
+Token verbleibt nur im JavaScript-Speicher. Die Middleware verlangt zusätzlich einen
+gleichen `Origin`. Auch `POST /bff/logout` ist geschützt. Ungültige oder fehlende
+Nachweise liefern `400 application/problem+json` bevor ein Controller läuft.
+
+Externe Clients verwenden weiter `Authorization: Bearer <token>` gegen die
+Fachendpunkte. Sie sind nicht CSRF-gefährdet und benötigen deshalb keinen
+CSRF-Header. Sobald ein Bearer-Header vorhanden ist, wird auch ein ungültiger Header
+nicht auf eine Browser-Session zurückgefallen. Health-Endpunkte bleiben anonym.
+
+Fehlen bei `Bff` Authority, Audience, Client-ID, Client-Secret oder Keyring-Pfad,
+bricht der API-Host absichtlich mit einer klaren Konfigurationsmeldung ab. Der
+Keyring darf weder mit der Konsole noch mit nicht vertrauenswürdigen Containern
+gemeinsam gemountet werden, sonst wären geschützte Cookies nachbildbar.
+
+Der TLS-Proxy muss eingehende Forwarded-Header ersetzen und externes Schema sowie
+Host einschließlich eines Nichtstandardports weiterreichen. Die API wertet nur die
+konfigurierten Netze/Adressen und höchstens `ForwardLimit` Stufen aus. Das Runtime-
+Gateway und der Konsolen-nginx bewahren diese Werte; ein nicht zum Docker-Netz
+passendes `FLOWZER_TRUSTED_PROXY_NETWORK` führt deshalb bewusst zu internem HTTP und
+damit zu einer falschen OIDC-Callback-Adresse statt Forwarded-Headern blind zu trauen.
 
 ### Oberfläche
 
@@ -56,21 +215,16 @@ und ihr Image `flowzer-frontend` sind entfernt.
 | --- | --- | --- |
 | React-Konsole | `flowzer-console` | `flowzer.maass.it` |
 
-Die Konsole richtet ihre Anzeige nach den Rollen im Token: Was eine Rolle verlangt, die jemand
-nicht hat, bietet sie gar nicht erst an. Die Entscheidung trifft in jedem Fall die API — die
-Oberfläche erspart nur den Weg zu einer Ablehnung. Ihr Aufbau ist in
-`src/FlowzerConsole/README.md` beschrieben.
+Die Konsole richtet ihre Anzeige nach den serverseitig in `GET /bff/session`
+projizierten Fähigkeiten: Was eine Rolle verlangt, die jemand nicht hat, bietet sie gar nicht
+erst an. Die Entscheidung trifft in jedem Fall die API — die Oberfläche erspart nur den Weg
+zu einer Ablehnung. Ihr Aufbau ist in `src/FlowzerConsole/README.md` beschrieben.
 
-Der Umstieg ist am 6. September 2026 abgeschlossen: Der Coolify-Stack bildet nur noch den
-Dienst `console` auf `https://flowzer.maass.it` ab, der Client `flowzer-maass-it` im Realm
-MaassIT kennt genau drei Rückleitungen unter dieser Adresse (Anmeldung, Abmeldung, stille
-Erneuerung), und das GHCR-Paket `flowzer-frontend` ist gelöscht. Die Adresse
-`console.flowzer.maass.it` existiert nicht mehr.
-
-Die Keycloak-Seite ist deklarativ in
-`roles/keycloak/files/ensure-flowzer-maassit-client.sh` des Repositories
-`MaassIT/Serverkonfiguration` beschrieben; ein Lauf mit `FLOWZER_KEYCLOAK_DRY_RUN=1` meldet
-jede geplante Änderung, ohne zu schreiben.
+Der produktive OIDC-Client ist vertraulich und besitzt als einzige Browser-Callback-URI
+`https://<flowzer-host>/bff/signin-oidc`. SPA-Redirect-URIs, stille Token-Erneuerung und
+Browser-OIDC-Variablen gehören nicht mehr zum Flowzer-Deployment. Die konkrete
+Identity-Provider-Konfiguration ist installationsspezifisch und wird vor dem Einsatz gegen
+die tatsächliche Zielumgebung geprüft.
 
 ### API-Vertrag
 
@@ -82,24 +236,147 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### KI-Verbindungen
+
+Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
+serverseitig aufgeloeste Secret-Referenzen ist in [AI-CONNECTIONS.md](AI-CONNECTIONS.md)
+dokumentiert. Cloud- und lokale Verarbeitung sind getrennte Installations-Opt-ins. Das
+aktuelle Paket bindet beim Workflow-Deployment eine unveränderliche Verbindungsrevision,
+erzeugt pro aktivem KI-Token genau einen internen Lauf und führt ihn bei ausdrücklicher
+Aktivierung bis zum atomaren BPMN-Ergebniscommit aus. Die Use-Rolle sieht nur aktive
+Verbindungen; die Manage-Rolle darf auch deaktivierte aktuelle Metadaten pflegen. Historische
+Revisionen sind ausschließlich ein interner Runtimevertrag.
+
+Der Executor ist standardmäßig abgeschaltet:
+
+| Einstellung | Standard | Grenze |
+|---|---:|---:|
+| `AiExecution__Enabled` | `false` | explizites Opt-in |
+| `AiExecution__PollIntervalSeconds` | `5` | 1–3.600 |
+| `AiExecution__BatchSize` | `10` | 1–100 parallele Claims |
+| `AiExecution__LeaseSeconds` | `600` | 10–3.600 |
+| `AiExecution__HeartbeatSeconds` | `30` | 1 bis kleiner als Lease |
+| `AiExecution__RetryBaseSeconds` | `30` | 1–3.600 |
+| `AiExecution__MaximumRetrySeconds` | `900` | Retrybasis bis 86.400 |
+
+Ein aktivierter Dienst führt keine Werkzeuge aus. Er wiederholt nur fest klassifizierte
+temporäre Providerfehler innerhalb des am Lauf gebundenen Versuchslimits. Lease-Verlust und
+unklare Ausgänge bleiben für Recovery beziehungsweise Störungsbearbeitung stehen.
+
 ### Rollen und Zuweisungen
 
 Vier Ebenen, die unabhängig voneinander wirken:
 
 1. **Zugang** (`RequiredRole`): Wer Flowzer überhaupt benutzen darf. Ohne die Rolle antwortet jeder Fachendpunkt 403.
-2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`): Wer veröffentlichen und wer den Betrieb einsehen darf. Endpunkte mit einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
+2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`, `Roles:Worker` sowie die
+   getrennten KI-Use-/Manage-Rollen): Wer veröffentlichen, Betrieb einsehen, technische
+   Aufträge bearbeiten oder KI-Verbindungen verwenden/verwalten darf. Endpunkte mit
+   einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
 3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
 4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 
-Die Aufgabenliste wertet `zeebe:assignmentDefinition` aus: `assignee`, `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer genannten Gruppe gehört; wer die Operator-Rolle trägt, sieht alle.
+User Tasks besitzen zwei ausdrücklich getrennte Zuweisungsmodi:
 
-Für den Abgleich zählt jede Kennung, die im Token steht: `preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit `/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt keine Rolle, ein Teiltreffer zählt nicht.
+- **Text (kompatibler Standard):** `zeebe:assignmentDefinition` mit `assignee`,
+  `candidateUsers` und `candidateGroups`. Eine Aufgabe ohne jede Angabe bleibt für alle
+  Zugelassenen sichtbar. Ist etwas angegeben, sieht sie nur, wer genannt ist oder zu einer
+  genannten Gruppe gehört.
+- **Directory:** eine versionierte Flowzer-Erweiterung mit stabilen lokalen UUIDs. Der direkte
+  Bearbeiter und Benutzerkandidaten sind Benutzerreferenzen, Kandidatengruppen bleiben
+  Gruppenreferenzen:
 
-Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig.
+  ```xml
+  <flowzer:taskAssignment mode="directory"
+      assigneeId="10000000-0000-0000-0000-000000000001"
+      candidateUserIds="10000000-0000-0000-0000-000000000002"
+      candidateGroupIds="20000000-0000-0000-0000-000000000001" />
+  ```
+
+  Das Definitions-Element muss dafür den Namespace
+  `xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"` deklarieren. Directory- und
+  Zeebe-Textwerte dürfen an derselben Aufgabe nicht gemischt werden. Beim Deployment werden
+  alle Referenzen erneut gegen den aktiven Snapshot, ihre Art und ihren Aktivstatus geprüft.
+
+Wer die Operator-Rolle trägt, sieht in beiden Modi alle Aufgaben.
+
+Nur im Textmodus zählt für den Abgleich jede Kennung, die im Token steht:
+`preferred_username`, `email`, `upn`, `unique_name`, `name`, `sub`, `oid`. Gruppen kommen aus
+dem `groups`-Claim. Keycloak liefert Gruppen als Pfad (`/abteilungen/buchhaltung`); im Modell
+genügt der Gruppenname. Nennt das Modell selbst einen Pfad, muss dieser genau stimmen, damit
+`/extern/buchhaltung` nicht auf `/intern/buchhaltung` passt. Groß- und Kleinschreibung spielt
+keine Rolle, ein Teiltreffer zählt nicht.
+
+Im Directory-Modus gilt dieser Namensabgleich ausdrücklich **nicht**. Der Server ordnet die
+angemeldete Person ausschließlich über das exakte `(Issuer, Subject)` einem aktiven lokalen
+Benutzer zu und prüft dessen stabile ID beziehungsweise aktuelle direkte Mitgliedschaften.
+Anzeigename, E-Mail, der technische Flowzer-Benutzerwert und Gruppen-Claims sind kein
+Fallback. Fehlt der aktive Snapshot oder wurde die Identität deaktiviert, antworten Liste,
+Formular, Abschluss und Vorgangsübersicht für normale Benutzer geschlossen wie bei einer
+unbekannten Ressource. Laufende Aufgaben behalten ihre gespeicherten Referenzen; aktuelle
+Mitgliedschaften und Aktivstatus entscheiden weiterhin über den Zugriff.
+
+Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die
+Zuweisungsfelder nicht. Sie werden beim Lesen aus dem BPMN-Element im gespeicherten Token
+nachgezogen; eine Datenwanderung in der Ablage ist nicht nötig. Ein fehlender
+`flowzer:taskAssignment` bedeutet immer Textmodus und löst keine automatische Migration
+anhand gleichlautender Verzeichniseinträge aus.
+
+Diagramm und Gliederung zeigen vor der Bearbeitung die Wahl **Freitext** oder **Bekannte
+Benutzer/Gruppen**. Die bekannte Auswahl sucht ausschließlich über
+`GET /identity-directory/workflows/{definitionId}/subjects`; der Server prüft dabei erneut
+die Modellierungsberechtigung des konkreten Workflows und gibt höchstens 20 aktive Treffer
+zurück. Anzeigename und Zusatzinformation werden nur dargestellt, in das BPMN gelangen
+ausschließlich stabile UUIDs. Bereits gespeicherte aktive UUIDs werden über denselben
+workflowgebundenen Pfad einzeln aufgelöst; deaktivierte oder nicht mehr bekannte Werte bleiben
+als warnender ID-Chip sichtbar und werden nicht automatisch ersetzt. Ein Wechsel in den
+Directory-Modus wird erst mit der ersten Auswahl in das Diagramm geschrieben. In der
+Gliederung sperrt ein noch leerer Directory-Entwurf Speichern und Deployment.
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
-Ein fachliches Berechtigungsmodell innerhalb einer Aufgabe gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Was jemand *ändern* darf, richtet sich zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+Objektbezogene Instanzprojektionen beschränken Antragsteller und aktuell berechtigte
+Bearbeiter auf den benötigten Kontext; Diagnose verlangt die konfigurierte
+Operator-Fähigkeit. Die erste belastbare Vorgangshistorie liefert ausschließlich
+datensparsame Human-Task-Lifecycle-Fakten; weitere Ereignisarten und feldbezogene
+Rechte bleiben offene Pakete. Was jemand am Katalog *ändern* darf, richtet sich
+zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei
+konfigurierter `RequiredRole` der Identity Provider über die Rollenzuweisung. Ohne
+`RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit
+Selbstregistrierung zu weit ist.
+
+### Sicherer Aufgabenabschluss (M0-Teilpaket)
+
+`POST /usertask` und der kompatible Altpfad `POST /form/result` verwenden denselben
+`UserTaskCompletionService`. Der Body bleibt unverändert: `processInstanceId`,
+`tokenId`, `flowNodeId` und optionale `data`. Akteur und Operator-Fähigkeit kommen
+ausschließlich aus dem serverseitig geprüften Request-Kontext.
+
+Im bestehenden Engine-Mutationszyklus werden Subscription, aktives menschliches
+Token, Instanz-/Definitionsbindung und Zuweisung erneut geprüft. Fehlende,
+mehrdeutige, bereits abgeschlossene und fremde Aufgaben liefern denselben `404`-
+Umschlag (`successful: false`); fehlende Anmeldung liefert `401`. Eine fehlende
+Subscription ist auch für Operatoren keine Erlaubnis. Die bestehende Operator-
+Ausnahme sowie unzugewiesene, für alle Zugelassenen offene Aufgaben bleiben erhalten.
+**In Produktionskonfigurationen `Roles:Operator` ausdrücklich setzen:** Ein leerer
+Rollenname gewährt die Fähigkeit nach dem bisherigen Konfigurationsvertrag allen
+Zugelassenen, also auch den Zugriff auf fremd zugewiesene Aufgaben.
+
+`TokenDto.completedByUserId` und das persistierte Token enthalten den Akteur
+getrennt von Formulardaten. `data.UserId` wird als Kompatibilitätswert mit dem
+verifizierten Akteur überschrieben. Historische Tokens ohne diese neue Eigenschaft
+bleiben lesbar (`null`/nicht vorhanden); historische Formulardaten werden **nicht**
+nachträglich als verifizierter Akteur übernommen. Es ist keine Schemaänderung an
+bestehenden JSON-Token-Dokumenten erforderlich.
+
+Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
+eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
+ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
+die direkten HTTP-Starts und -Abschlüsse. Der Human-Task-Lifecycle besitzt eine
+append-only Auditspur mit objektberechtigter Minimalprojektion; der allgemeine
+Mehrprozessschutz bleibt ein weiteres M6-Paket. Instanzrechte und das
+begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
+`Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
+Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
 
 ### Ordner und Delegation
 
@@ -119,7 +396,17 @@ Regeln, die im Betrieb zählen:
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
 
-Zuweisungen nennen Personen (`subjectKind: "user"`) und Gruppen (`subjectKind: "group"`) mit denselben Kennungen wie die Zuweisung im Modell — dieselbe Auswertung von `preferred_username`, `email` und `groups`, dieselbe Behandlung von Keycloak-Gruppenpfaden.
+Ordnerzuweisungen besitzen einen expliziten `referenceMode`:
+
+- `text` ist der kompatible Standard für bisherige Kennungen. Er wertet `subjectKind` und
+  `subject` weiterhin gegen `preferred_username`, `email` und `groups` aus.
+- `directory` verlangt zusätzlich `subjectRef` mit `kind` und stabiler lokaler UUID.
+  Die API prüft neue Referenzen gegen den aktiven Snapshot und ersetzt den mitgesendeten
+  Anzeigenamen durch die serverseitige Projektion. Zugriff entsteht nur über das exakte
+  `(Issuer, Subject)` oder eine aktive direkte Gruppenmitgliedschaft.
+
+Beide Modi werden weder automatisch ineinander umgewandelt noch per Anzeigename verknüpft.
+Details und Beispiele stehen in [Ordnerzuweisungen](FOLDER-DIRECTORY-ASSIGNMENTS.md).
 
 Bestehende Katalogeinträge tragen kein `folderId` und liegen damit auf der obersten Ebene; ein Umzug ist nicht nötig.
 
@@ -139,6 +426,17 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 ## Workflow starten
 
+### Wiederholte HTTP-Aufrufe
+
+Direkte Starts und Aufgabenabschlüsse können mit `Idempotency-Key` abgesichert werden.
+Identische Wiederholungen liefern dasselbe Ergebnis; anderer Inhalt 409. Der Schlüssel
+muss bereits beim ersten Versuch gesetzt sein und ist 1–200 sichtbare ASCII-Zeichen
+lang. Abgeschlossene Ergebnisse sind sieben Tage gültig; offene Reservierungen mit
+unklarem Ausgang werden nicht automatisch freigegeben. Details, PostgreSQL-Migration
+und Grenzen:
+[HTTP-Idempotenz](IDEMPOTENCY.md).
+
+
 `POST /definition/meta/{definitionId}/instance` startet eine Instanz. Der Rumpf ist optional:
 
 ```json
@@ -149,11 +447,15 @@ Ohne Rumpf startet der Workflow wie bisher ohne Angaben. Trägt sein reines Star
 Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API das
 `variables`-Objekt und antwortet sonst mit 400 und
 `The workflow "…" requires its start form. Send the form data as "variables".` Ein leeres
-Objekt `{}` gilt als Antwort und wird angenommen.
+Objekt `{}` wird anschließend wie jede andere Eingabe validiert.
 
-Die **Pflichtfelder des Formulars prüft der Server nicht.** Form.io kennt bedingt sichtbare
-Felder (`conditional`), die der Server nicht auswertet — er würde damit gültige Eingaben der
-Oberfläche ablehnen. Diese Prüfung sitzt im Renderer der Konsole.
+Pflichtwerte, Typen, statische Auswahlwerte, deklarative Sichtbarkeits- und Datumsregeln
+prüft der Server im [Formular-Prüfprofil](FORM-VALIDATION-PROFILE.md). Profil 2 ergänzt
+die gebundene [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md). Ungültige Eingaben
+liefern `422 application/problem+json` mit feldbezogenen Codes. Nicht unterstützte
+Geschäftsregeln blockieren das Deployment, statt nur im Browser zu gelten.
+Die Konsole zeigt Serverfehler unter Erhalt der Eingaben an. Vollständige Form.io-
+Kompatibilität und gemeinsame Client-/Server-Konformitätsvektoren stehen noch aus.
 
 `GET /definition/meta/{definitionId}/start-form` liefert das Startformular als
 `ApiStatusResult<FormDto>` — aufgelöst über die Kennung der deployten Version, damit auch ein
@@ -175,6 +477,20 @@ Workflow von außen mit Startvariablen anstoßen, ohne dass er dafür ein Formul
 
 ## Formulare im Workflow
 
+Ab PR #181 erhalten **alle** beim Deployment referenzierten Start-/Aufgabenformulare
+einen festen Snapshot an der Definitionsversion, auch externe Formulare ohne
+Versionssuffix. Eine neue Formularfassung wirkt erst mit einem neuen Workflow-Deployment.
+Umbenennen oder Wiederaktivieren einer bestehenden Workflow-Version bindet nicht neu.
+Nicht auflösbare Referenzen verhindern die Aktivierung; die bisher aktive Fassung bleibt.
+
+**Upgradehinweis:** Historische externe Referenzen ohne gespeicherten Snapshot werden
+bei Laufzeitabrufen nicht mehr automatisch auf `latest` aufgelöst. Neue Instanzen
+brauchen ein neues Deployment; laufende Altinstanzen eine ausdrücklich geprüfte
+Formularzuordnung im noch ausstehenden Migrationspaket. Eingebettete historische
+Formulare bleiben aus ihrer BPMN-Version lesbar. Vor einem Upgrade solche Referenzen
+inventarisieren; dieses Paket führt keine produktive Migration aus.
+Siehe [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
+
 Ein Formular kann aus zwei Quellen kommen. Der Form-Key
 (`zeebe:formDefinition/@formKey`) sagt, aus welcher — am User-Task wie am Startereignis:
 
@@ -195,6 +511,25 @@ Das Präfix ist bewusst Camundas: Ein im Camunda Modeler erstelltes Diagramm mit
 eingebettetem Formular läuft ohne Umbau.
 
 ## Formulare löschen
+
+Die Formularpflege verwendet revisionierte Autorenentwürfe und eine ausdrückliche
+Veröffentlichung. Betrieb, Konfliktvertrag, PostgreSQL-Migration und Grenzen der
+Dateiablage beschreibt [Formularpflege](FORM-AUTHORING.md). Der kompatible
+`POST /form`-Endpunkt veröffentlicht weiterhin direkt, prüft das Schema aber ebenfalls
+serverseitig und überschreibt keine bestehende konkrete Version.
+
+Vor einem Upgrade oder einer erneuten Veröffentlichung sollte ein Modellierer
+`GET /form/compatibility?needsMigration=true` beziehungsweise den Filter „Migration“
+in der Formularpflege prüfen. Die Antwort enthält absichtlich keine Schemas oder
+Scriptinhalte. Lesefehler der Ablage sind als Betriebsstörung zu untersuchen; einzelne
+Compilerfehler werden dagegen isoliert mit stabilen Codes gemeldet. Details:
+[Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
+
+Wiederverwendbare Abschnitte werden separat unter `/form-section` gepflegt. Autoren
+wählen ausschließlich eine konkrete veröffentlichte Fassung; beim Formular-Publish
+erzeugt der Server daraus einen vollständigen, unabhängigen Snapshot. Es gibt weder
+eine automatische `latest`-Auflösung noch eine Runtime-Abhängigkeit von der Bibliothek.
+Vertrag und Migrationsdetails: [Formularabschnitte](FORM-SECTIONS.md).
 
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
@@ -231,6 +566,50 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Namen des lokalen `Meter`- und `ActivitySource`-Setups
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
+
+### Human-Task-Deadline-Scheduler
+
+Der Deadline-Scheduler verarbeitet die serverseitig gebundenen Termine offener
+Human Tasks. Er startet nach der Engine-Startup-Recovery, legt fehlende Deadline-Zeilen
+für bestehende offene Aufgaben anhand des gespeicherten Token-Startzeitpunkts an und
+arbeitet danach in konfigurierten Poll-Intervallen höchstens `BatchSize` Kandidaten ab.
+Fällige Meilensteine werden nach einem Neustart nachgeholt; der persistierte
+Meilenstein-Schlüssel verhindert doppelte Meldungen.
+
+Die Konfiguration liegt in `src/WebApiEngine/appsettings.json` beziehungsweise in
+Environment-Variablen:
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `UserTaskDeadlines__Enabled` | `true` aktiviert den Scheduler, `false` deaktiviert ihn |
+| `UserTaskDeadlines__PollIntervalSeconds` | Poll-Intervall von 1 bis 3600 Sekunden |
+| `UserTaskDeadlines__BatchSize` | maximal 1 bis 1000 Deadline-Kandidaten je Tick |
+| `UserTaskDeadlines__PolicyVersion` | Version der gebundenen Reminder-/Eskalationsregeln |
+| `UserTaskDeadlines__ReminderLeadTimes__0` usw. | ISO-8601-Vorlaufzeiten wie `P1D` oder `PT1H` |
+| `UserTaskDeadlines__EscalationAfterDue` | ISO-8601-Dauer nach der Fälligkeit, mindestens `PT0S` |
+
+Die Konfiguration wird beim Hoststart validiert. Eine ungültige Dauer, ein ungültiges
+Intervall oder eine zu große Batch-Größe verhindert den Start statt einen teilweise
+aktiven Scheduler zu erzeugen. Eine neue `PolicyVersion` verschiebt bereits gebundene
+Termine nicht; sie ist nur für bewusst neue Regeln zu verwenden.
+
+Der Scheduler erzeugt ausschließlich persistente In-App-Meldungen über
+`GET /notifications` und `POST /notifications/{id}/read`. E-Mail, Push, Chat,
+automatische Delegation und BPMN-Eskalationsereignisse gehören nicht zu diesem Slice.
+Scheduler-Backfill, Tick-Erfolg und Tick-Fehler erscheinen derzeit im API-Log; ein
+eigener Deadline-Diagnoseblock im Operations-Endpunkt ist noch nicht vorhanden.
+
+PostgreSQL ist für mehrere API-Prozesse vorgesehen: Deadline-Fortschritt und
+Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per
+Compare-and-swap und Unique-Deduplication geschrieben. Die Dateiablage schützt nur
+innerhalb eines API-Prozesses und bleibt ein Entwicklungsadapter. Die Migration liegt
+unter `src/PostgreSqlStorageSystem/Migrations/008_user_task_deadlines.sql` und wird
+wie alle Migrationen getrennt über `dotnet WebApiEngine.dll --migrate` angewendet.
+
+Für lokale Prüfungen genügt die Default-Konfiguration. Nach einem Neustart sollten
+die Logs `Bound schedules for ...` und bei fälligen Aufgaben `Created ... due
+user-task notification(s).` zeigen. Bei einem dauerhaften Scheduler-Fehler bleibt
+der Prozess selbst aktiv; der Logeintrag muss geprüft und die Ursache behoben werden.
 
 ## Lokaler Start ohne Docker
 
@@ -295,7 +674,7 @@ Für lokale Release-Checks liegt zusätzlich `compose.runtime.yml` mit echten Ru
 ./scripts/runtime/start-runtime-stack.sh
 ```
 
-Das Skript baut API- und Frontend-Images, startet anschließend den Gateway-Stack und wartet auf grüne Healthchecks.
+Das Skript baut API- und Konsolen-Images, startet anschließend den Gateway-Stack und wartet auf grüne Healthchecks. Der Runtime-Standard ist BFF; für einen Browser-Login muss vor dem Gateway ein TLS-terminierender Reverse Proxy stehen, weil die `__Host-`-Cookies immer `Secure` sind.
 
 ### Prüfen
 
@@ -310,7 +689,7 @@ Typische URLs:
 - [http://localhost:5288/health/ready](http://localhost:5288/health/ready)
 - [http://localhost:5288/operations/diagnostics](http://localhost:5288/operations/diagnostics)
 
-Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschrieben werden.
+Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschrieben werden. Das Gateway bindet sicherheitshalber nur an `${FLOWZER_RUNTIME_BIND_ADDRESS:-127.0.0.1}`; eine Öffnung ins Hostnetz setzt Firewall und einen vorgeschalteten TLS-Proxy voraus, der eingehende Forwarded-Header ersetzt. Der API-Container persistiert seinen Data-Protection-Keyring getrennt unter `.data/runtime-data-protection`; ihn nicht löschen oder mit der Konsole teilen. Für reine lokale HTTP-Prüfungen gemeinsam `FLOWZER_AUTH_SCHEME=None` und `FLOWZER_BFF_ENABLED=false` setzen; `JwtBearer` bleibt für direkte Bearer-Tests verfügbar.
 
 ### Stoppen
 
@@ -430,6 +809,16 @@ npm --prefix tests/ui-smoke run test
 
 Der `npm test`-Pfad enthält zusätzlich den Prozesswächter für verwaiste `ms-playwright`-/`chrome-headless-shell`-Prozesse.
 
+### BPMN-Fähigkeiten und Vorabprüfung
+
+Modellieroberflächen können den installierten, hostneutralen Vertrag über
+`GET /definition/capabilities` lesen und BPMN-XML ohne Speicherung mit
+`POST /definition/validate` prüfen. Save und Deploy erzwingen denselben Vertrag erneut;
+die Vorabprüfung darf deshalb nicht als alleinige Sicherheitsgrenze behandelt werden.
+Ein `422` mit `code=bpmn.model.invalid` enthält nur Modellstruktur, stabile Fehlercodes
+und eine Trace-ID, keine Prozessvariablen oder Secrets. Vertrag und Grenzen:
+[Versionierter BPMN-Fähigkeitsvertrag](BPMN-CAPABILITIES.md).
+
 Ohne diese Variablen startet Playwright API und Konsole selbst. Die Smokes laufen bewusst gegen
 den Vite-Entwicklungsserver: Nur dort meldet die Konsole ohne Identity Provider einen
 technischen Benutzer an; ein Produktionsbündel zeigte stattdessen die Anmeldeseite.
@@ -448,6 +837,39 @@ Abschnitt `Storage`:
 
 PostgreSQL ist der Betriebspfad: Engine-Operationen (Deploy, Start, User-Task, Message, Timer, Abbruch) sowie das Speichern von Definitionen und Formularversionen laufen je in einer Datenbanktransaktion und werden atomar sichtbar; die übrigen Katalog- und Formular-Metadatenpfade schreiben je Aufruf in einer kurzen Transaktion. Die Dokumente werden mit derselben JSON-Serialisierung wie in der Dateiablage abgelegt; ein Wechsel zwischen beiden Ablagen ist damit ein reiner Kopiervorgang.
 
+Private Aufgabenentwürfe verwenden in PostgreSQL einen atomaren Revisionsvergleich und
+werden beim Entfernen der User-Task per Fremdschlüssel mitgelöscht. Die Dateiablage schützt
+deren Revision nur innerhalb eines API-Prozesses und bleibt wie alle dateibasierten
+Mutationen auf Entwicklung/Einzelprozess-Demos begrenzt. Vertrag, Rechte und Grenzen:
+[Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
+Formularabschnitte verwenden mit Migration `011_form_sections.sql` getrennte Tabellen
+für Katalog, Entwurf und append-only Versionen. Eine Publikation bestimmt die Folgeversion,
+fügt sie ein und entfernt den erwarteten Entwurf in derselben PostgreSQL-Transaktion.
+Der Dateiadapter bietet hierfür ausschließlich prozesslokale Sperren.
+
+Human-Task-Claims, Freigaben und Übergaben verwenden in PostgreSQL eine eigene
+Lifecycle-Tabelle mit atomarem Revisionsvergleich. Zustand und Auditereignis werden in
+derselben Transaktion geschrieben; beim Taskende wird nur der aktuelle Zustand kaskadiert,
+die Auditspur bleibt erhalten. Die Dateiablage bietet dafür ebenfalls nur
+Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Grenzen:
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+Die indexierte, datensparsame Instanzabfrage ist unter
+[Append-only Vorgangshistorie](PROCESS-HISTORY.md) dokumentiert.
+
+KI-Läufe verwenden ab Migration `014_ai_runs.sql` eine eigene Tabelle. Prozessinstanz und
+Token sind gemeinsam eindeutig; Zustandsrevision, Lease, Wiederaufnahmezeit und
+Providerergebnis liegen in querybaren Spalten. PostgreSQL claimt Provider- und
+Engine-Fortsetzungen atomar. Migration `015_ai_connection_revisions.sql` ergänzt die
+unveränderliche Historie der beim Deployment gebundenen Verbindungsrevisionen. Der
+Engine-Commit speichert Lauf, Instanz, Subscriptions und Historie in derselben Transaktion;
+ein pro Instanz verwendeter PostgreSQL-Advisory-Lock verhindert verlorene Fortschritte bei
+parallelen Mutationen. Alle Engine-Schreiber nehmen ihn vor weiteren Zeilensperren; reine
+Instanzansichten bleiben davon getrennt. Ein Engine-Batch claimt höchstens ein KI-Ergebnis je
+Instanz. Ein abgelaufener Claim nach bereits markiertem externem Aufruf wird
+als unklarer Ausgang angehalten. `FileStorage/AiRuns` besitzt dagegen nur eine
+prozesslokale Sperre und ist kein Mehrprozess- oder Rollbackversprechen.
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash
@@ -458,7 +880,8 @@ genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-S
 
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
-Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
+Die dateibasierte Persistenz ist die maßgebliche lokale Entwicklungsquelle. Für Diagnose,
+Backup und Restore von Einzelprozess-Demos gelten deshalb ein paar einfache Regeln:
 
 ### Nebenläufigkeit
 
@@ -468,6 +891,9 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 
 - lokale Dev-/Compose-Daten: `.data/flowzer-storage`
 - runtime-nahe Containerdaten: `.data/runtime-storage`
+- Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
+- persistente KI-Laufzustände liegen darunter in `FileStorage/AiRuns`.
+- historische KI-Verbindungsrevisionen liegen unter `FileStorage/AiConnections/History`.
 
 ### Sicheres Backup
 
@@ -511,12 +937,24 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 
 ## Bewusst noch offen
 
+### Instanzdaten und Rollen
+
+`Roles:Operator` muss für produktive Installationen explizit auf eine eng vergebene
+Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist im bestehenden Vertrag permissiv.
+Die neuen Instanzansichten in PR #179 liefern ohne diese Rolle nur eine Übersicht
+für den authentifizierten Initiator oder einen aktuell berechtigten Bearbeiter.
+Technische Subscription-Routen und Tokenscopes bleiben der Diagnose vorbehalten.
+Historische `variables.UserId`-Werte werden nicht als Besitznachweis übernommen.
+Siehe [Instanzrechte](INSTANCE-ACCESS.md), insbesondere Grenzen der Formularprojektion.
+
+### Noch fehlende Betriebspakete
+
 Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus
 - vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
-- produktionsnahe Reverse-Proxy- oder TLS-Story
-- Secret-/Configuration-Story jenseits lokaler Entwicklungswerte
+- vollständige produktionsnahe Reverse-Proxy-/TLS- und Secret-Store-Automatisierung
+- Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring
 
 ## Sinnvolle nächste Ausbauschritte
 

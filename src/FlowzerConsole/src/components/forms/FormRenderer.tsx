@@ -4,25 +4,36 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import './formioStyles';
 
 import { registerDialogCalendarWidget } from './dialogCalendarWidget';
+import { registerFlowzerSubjectComponent } from './FlowzerSubjectComponent';
+import { registerFormSectionComponent } from './FormSectionComponent';
 
+import type { BoundDirectorySubjectAdapter } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
-import type { ProcessVariables } from '@/lib/api/types';
+import type { FormDirectorySearchContext, ProcessVariables } from '@/lib/api/types';
 
 export interface FormRendererHandle {
   /** Aktuelle Eingabedaten des Formulars. */
   getData: () => ProcessVariables;
   /** Prüft alle Felder und meldet, ob das Formular gültig ist. */
-  validate: () => Promise<boolean>;
+  validate: (trustedOverrides?: ProcessVariables) => Promise<boolean>;
 }
 
-interface FormRendererProps {
+export interface FormRendererProps {
   /** Form.io-Schema als JSON-String (so liefert es die API in `FormDto.formData`). */
   schema: string | undefined;
   initialData?: ProcessVariables;
   readOnly?: boolean;
   onChange?: (data: ProcessVariables) => void;
   className?: string;
+  /** Kontext, der die serverseitige Directory-Suche auf genau dieses Formular bindet. */
+  directoryContext?: FormDirectorySearchContext;
+  /**
+   * Bereits gebundene Directory-Callbacks für verschachtelte Form.io-Roots.
+   * Der Adapter selbst enthält keine Task-ID und kann dadurch keinen weiteren
+   * Feldkontext an die API anhängen.
+   */
+  directoryAdapter?: BoundDirectorySubjectAdapter;
 }
 
 interface FormioInstance {
@@ -44,6 +55,12 @@ function parseSchema(schema: string | undefined): { value: unknown | null; error
   }
 }
 
+/** Form.io darf den Submission-Baum mutieren, niemals aber Query- oder Draft-Daten. */
+function cloneInitialData(data: ProcessVariables): ProcessVariables {
+  if (typeof structuredClone === 'function') return structuredClone(data);
+  return JSON.parse(JSON.stringify(data)) as ProcessVariables;
+}
+
 /**
  * Rendert ein Form.io-Formular.
  *
@@ -53,7 +70,7 @@ function parseSchema(schema: string | undefined): { value: unknown | null; error
  * damit „Freigeben“ und „Ablehnen“ als eigene Prozessentscheidungen sichtbar sind.
  */
 export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(function FormRenderer(
-  { schema, initialData, readOnly = false, onChange, className },
+  { schema, initialData, readOnly = false, onChange, className, directoryContext, directoryAdapter },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -68,10 +85,17 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
     ref,
     () => ({
       getData: () => instanceRef.current?.submission.data ?? {},
-      validate: async () => {
+      validate: async (trustedOverrides = {}) => {
         const instance = instanceRef.current;
         if (!instance) return false;
-        return instance.checkValidity(instance.submission.data, true, {});
+        // Aktionsbelegungen stammen aus dem kompilierten veröffentlichten Schema. Die
+        // Vorschau dient nur der Form.io-Pflichtfeldprüfung; gesendet werden sie nicht,
+        // weil der Server sie erneut aus seinem gebundenen Snapshot ableitet.
+        return instance.checkValidity(
+          { ...instance.submission.data, ...trustedOverrides },
+          true,
+          {},
+        );
       },
     }),
     [],
@@ -79,6 +103,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
   // Der Erstwert soll das Formular nicht bei jeder Elternaktualisierung neu aufbauen.
   const initialDataKey = JSON.stringify(initialData ?? {});
+  const directoryContextKey = JSON.stringify(directoryContext ?? null);
 
   useEffect(() => {
     let disposed = false;
@@ -100,6 +125,8 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         const { Formio, Widgets } = await import('@formio/js');
         // Muss vor dem ersten Formular stehen: Form.io liest das Widget beim Aufbau.
         registerDialogCalendarWidget(Widgets);
+        registerFlowzerSubjectComponent(Formio);
+        registerFormSectionComponent(Formio);
         if (disposed) return;
 
         const form = (await Formio.createForm(container, parsed.value, {
@@ -107,6 +134,8 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
           noAlerts: true,
           // Der eingebaute Submit-Button würde mit den Prozessaktionen konkurrieren.
           buttonSettings: { showCancel: false, showSubmit: false },
+          flowzerDirectoryContext: directoryContext,
+          flowzerDirectoryAdapter: directoryAdapter,
         })) as unknown as FormioInstance;
 
         if (disposed) {
@@ -117,7 +146,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         instanceRef.current = form;
 
         if (initialData && Object.keys(initialData).length > 0) {
-          form.submission = { data: { ...initialData } };
+          form.submission = { data: cloneInitialData(initialData) };
         }
 
         form.on('change', () => {
@@ -141,7 +170,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
       instanceRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, readOnly, initialDataKey]);
+  }, [schema, readOnly, initialDataKey, directoryContextKey, directoryAdapter]);
 
   return (
     <div className={cn('formio-surface relative', className)}>

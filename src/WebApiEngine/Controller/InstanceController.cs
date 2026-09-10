@@ -12,8 +12,11 @@ namespace WebApiEngine.Controller;
 public class InstanceController(
     IStorageSystem storageSystem,
     BpmnBusinessLogic bpmnBusinessLogic,
-    ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
+    ICurrentUserContextAccessor currentUserContextAccessor,
+    InstanceAccessService instanceAccess,
+    RuntimeDiagramService runtimeDiagramService) : FlowzerControllerBase
 {
+    private const string MissingInstance = "The process instance was not found.";
     /// <summary>
     /// Bricht eine laufende Instanz ab. Beendete Instanzen antworten mit 409, unbekannte mit 404.
     /// </summary>
@@ -39,8 +42,7 @@ public class InstanceController(
     [HttpGet]
     public async Task<ActionResult<ApiStatusResult<List<ProcessInstanceInfoDto>>>> GetAllInstances()
     {
-        var instances = await storageSystem.InstanceStorage.GetAllInstances();
-        var mappedInstances = await instances.ToDtosAsync(storageSystem.DefinitionStorage);
+        var mappedInstances = await instanceAccess.GetAllAsync();
         return Ok(new ApiStatusResult<List<ProcessInstanceInfoDto>>(mappedInstances));
     }
 
@@ -49,14 +51,64 @@ public class InstanceController(
     [HttpGet("{instanceId}")]
     public async Task<ActionResult<ApiStatusResult<ProcessInstanceInfoDto>>> GetInstanceById(Guid instanceId)
     {
-        var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
-        var mappedInstance = await instance.ToDtoAsync(storageSystem.DefinitionStorage);
+        var mappedInstance = await instanceAccess.GetAsync(instanceId);
+        if (mappedInstance is null) return NotFound(new ApiStatusResult<ProcessInstanceInfoDto>(MissingInstance));
         return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mappedInstance));
+    }
+
+    /// <summary>
+    /// Liefert die append-only gespeicherten Human-Task-Aktionen einer sichtbaren
+    /// Instanz. Die Projektion enthält bewusst keine Personen- oder Formulardaten.
+    /// </summary>
+    [HttpGet("{instanceId}/history")]
+    [ProducesResponseType<ApiStatusResult<ProcessHistoryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<ProcessHistoryDto>>> GetHistory(Guid instanceId)
+    {
+        if (await instanceAccess.GetAsync(instanceId) is null)
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance);
+
+        var events = (await storageSystem.UserTaskLifecycleStorage
+                .GetEventsByProcessInstance(instanceId))
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.UserTaskId)
+            .ThenBy(item => item.Revision)
+            .ThenBy(item => item.Id)
+            .Select(item => item.ToHistoryDto())
+            .ToArray();
+        return Ok(new ApiStatusResult<ProcessHistoryDto>(new ProcessHistoryDto
+        {
+            InstanceId = instanceId,
+            Events = events
+        }));
+    }
+
+    /// <summary>
+    /// Liefert die bereinigte BPMN-Struktur und die append-only Engine-Ereignisspur der
+    /// exakt an die Instanz gebundenen Version. Dieser Diagnoseweg ist nur für den Betrieb.
+    /// </summary>
+    [HttpGet("{instanceId}/runtime-diagram")]
+    [ProducesResponseType<ApiStatusResult<RuntimeDiagramDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<RuntimeDiagramDto>>> GetRuntimeDiagram(Guid instanceId)
+    {
+        var diagram = await runtimeDiagramService.GetAsync(instanceId);
+        if (diagram is null)
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance);
+
+        return Ok(new ApiStatusResult<RuntimeDiagramDto>(diagram));
     }
     
     [HttpGet("{instanceId}/subscription/messages")]
     public async Task<ActionResult<ApiStatusResult<MessageSubscriptionDto[]>>> GetMessageSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<MessageSubscriptionDto[]>(MissingInstance));
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetMessageSubscription(instanceId);
         var result = messageSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<MessageSubscriptionDto[]>(result));
@@ -65,6 +117,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/signals")]
     public async Task<ActionResult<ApiStatusResult<SignalSubscriptionDto[]>>> GetSignalSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<SignalSubscriptionDto[]>(MissingInstance));
         var signalSubscriptions = await storageSystem.SubscriptionStorage.GetSignalSubscriptions(instanceId);
         var result = signalSubscriptions.Select(subscription => subscription.ToDto()).ToArray();
         return Ok(new ApiStatusResult<SignalSubscriptionDto[]>(result));
@@ -73,6 +126,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/timers")]
     public async Task<ActionResult<ApiStatusResult<TimerSubscriptionDto[]>>> GetTimerSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TimerSubscriptionDto[]>(MissingInstance));
         var timerSubscriptions = await storageSystem.SubscriptionStorage.GetTimerSubscriptions(instanceId);
         var result = timerSubscriptions
             .OrderBy(subscription => subscription.DueAt)
@@ -84,6 +138,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/services")]
     public async Task<ActionResult<ApiStatusResult<TokenDto[]>>> GetServiceSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var result = instance.Tokens
             .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
@@ -96,6 +151,7 @@ public class InstanceController(
     [HttpGet("{instanceId}/subscription/userTasks")]
     public async Task<ActionResult<ApiStatusResult<TokenDto[]>>> GetUserTasksSubscriptions(Guid instanceId)
     {
+        if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var messageSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasks(instanceId);
         var result = messageSubscriptions.Select(x => x.Token.ToDto()).ToArray();
         return Ok(new ApiStatusResult<TokenDto[]>(result));

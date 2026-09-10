@@ -1,31 +1,65 @@
 import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
 import { normalizeInstance } from './normalize';
+import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
+import { normalizeAiTool } from './aiTools';
 import type {
   BpmnDefinitionDto,
+  BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
   ExtendedBpmnMetaDefinitionDto,
-  ExtendedUserTaskSubscriptionDto,
   FormDto,
+  FormAuthoringDraftDto,
+  FormAuthoringPreviewDto,
+  FormCompatibilityItemDto,
+  SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   HealthStatusDto,
   MessageDto,
   MessageSubscriptionDto,
+  NotificationDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   SignalSubscriptionDto,
   TimerSubscriptionDto,
   TokenDto,
-  UserTaskResultDto,
   VersionDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
+  DirectorySubjectSearchResultDto,
+  DirectorySubjectResolutionResultDto,
+  FormDirectorySearchContext,
+  SubjectRefDto,
+  FormSectionMetadataDto,
+  FormSectionVersionSummaryDto,
+  FormSectionVersionDto,
+  FormSectionAuthoringDraftDto,
+  SaveFormSectionAuthoringDraftRequestDto,
+  AiConnectionDto,
+  AiToolDto,
+  CreateAiConnectionInput,
+  UpdateAiConnectionInput,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
 
 export const definitionsApi = {
+  /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
+  capabilities: (signal?: AbortSignal) =>
+    requestStatusResult<BpmnCapabilityContract>('/definition/capabilities', { signal }),
+
+  /** Getrennte feste Pfade verhindern, dass ein Requestparameter die Prüfart abschwächt. */
+  validate: (xml: string, deployment: boolean) =>
+    requestStatusResult<BpmnCapabilityContract>(
+      deployment ? '/definition/validate/deployment' : '/definition/validate',
+      {
+        method: 'POST',
+        rawBody: xml,
+        contentType: 'application/xml',
+      },
+    ),
+
   /** `GET /definition/meta` — Katalog aller Prozessdefinitionen. */
   listMeta: (signal?: AbortSignal) =>
     requestStatusResult<ExtendedBpmnMetaDefinitionDto[]>('/definition/meta', { signal }),
@@ -121,6 +155,85 @@ export const definitionsApi = {
   },
 };
 
+/** Workflowgebundene Suche nach aktiven, stabil referenzierten Identitäten. */
+export const identityDirectoryApi = {
+  searchSubjects: (
+    definitionId: string,
+    query: string,
+    kind: 'user' | 'group',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
+
+  /** Löst nur die genannten stabilen IDs im bearbeitbaren Workflowkontext auf. */
+  resolveSubjects: (
+    definitionId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/workflows/${encodeURIComponent(definitionId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
+
+  /** Sucht aktive Identitäten, die am konkreten Workflow-Ordner delegiert werden dürfen. */
+  searchFolderSubjects: (
+    folderId: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    ),
+
+  /** Historische Anzeigeauflösung im delegierbaren Ordnerkontext. */
+  resolveFolderSubjects: (
+    folderId: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => requestStatusResult<DirectorySubjectResolutionResultDto>(
+    `/identity-directory/folders/${encodeURIComponent(folderId)}/subjects/resolve`,
+    { method: 'POST', body: { subjects }, signal },
+  ),
+
+  /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
+  searchFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    query: string,
+    kind: 'all' | 'user' | 'group' = 'all',
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectSearchResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects`,
+      { query: { query, kind, limit: 20 }, signal },
+    );
+  },
+
+  /** Löst historische Werte nur gegen das serverseitig gebundene Formularfeld auf. */
+  resolveFormSubjects: (
+    context: FormDirectorySearchContext,
+    fieldKey: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => {
+    const path = context.kind === 'startForm'
+      ? `/identity-directory/start-forms/${encodeURIComponent(context.definitionId)}`
+      : `/identity-directory/user-tasks/${encodeURIComponent(context.taskId)}`;
+    return requestStatusResult<DirectorySubjectResolutionResultDto>(
+      `${path}/fields/${encodeURIComponent(fieldKey)}/subjects/resolve`,
+      { method: 'POST', body: { subjects }, signal },
+    );
+  },
+};
+
 /** Ordner des Workflow-Katalogs und die Zuständigkeiten daran. */
 export const foldersApi = {
   /** `GET /folder` — der ganze Baum als flache Liste, inklusive der eigenen Rechte. */
@@ -185,20 +298,14 @@ export const instancesApi = {
     requestStatusResult<TokenDto[]>(`/instance/${instanceId}/subscription/userTasks`, { signal }),
 };
 
-export const userTasksApi = {
-  /** `GET /usertask` — offene Aufgaben des angemeldeten Benutzers. */
-  list: (signal?: AbortSignal) =>
-    requestStatusResult<ExtendedUserTaskSubscriptionDto[]>('/usertask', { signal }),
-
-  /** `GET /usertask/{id}/form` — Formular zu einer Aufgabe (serverseitig aufgelöst). */
-  getForm: (userTaskId: string, signal?: AbortSignal) =>
-    requestStatusResult<FormDto>(`/usertask/${userTaskId}/form`, { signal }),
-
-  /** `POST /usertask` — schließt eine Aufgabe mit Ergebnisdaten ab. */
-  complete: (result: UserTaskResultDto) => requestStatus('/usertask', { method: 'POST', body: result }),
-};
-
 export const formsApi = {
+  /** Datensparsames Inventar veroeffentlichter Fassungen und Autorenentwuerfe. */
+  compatibility: (needsMigration?: boolean, signal?: AbortSignal) =>
+    requestStatusResult<FormCompatibilityItemDto[]>('/form/compatibility', {
+      query: { needsMigration },
+      signal,
+    }),
+
   /** `GET /form/meta` — alle Formulare, optional nach Namen gefiltert. */
   listMeta: (search?: string, signal?: AbortSignal) =>
     requestStatusResult<FormMetaDataDto[]>('/form/meta', { query: { search }, signal }),
@@ -230,14 +337,136 @@ export const formsApi = {
       body: { formId: form.formId, formData: form.formData, version: form.version ?? { major: 0, minor: 1 } },
     }),
 
-  /** `POST /form/result` — reicht Formulardaten für einen User-Task ein. */
-  submitResult: (result: UserTaskResultDto) =>
-    requestStatus('/form/result', { method: 'POST', body: result }),
+  /** Autorenentwurf oder Basis der neuesten Veroeffentlichung. */
+  getDraft: (formId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, { signal }),
+
+  /** Revisionierten Autorenentwurf speichern. */
+  saveDraft: (formId: string, draft: SaveFormAuthoringDraftRequestDto) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'PUT',
+      body: draft,
+    }),
+
+  /** Autorenentwurf bei passender Revision verwerfen. */
+  deleteDraft: (formId: string, expectedRevision: number) =>
+    request<void>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'DELETE',
+      query: { expectedRevision },
+    }),
+
+  /** Erwarteten Entwurf als naechste unveraenderliche Version veroeffentlichen. */
+  publishDraft: (formId: string, expectedRevision: number) =>
+    requestStatusResult<FormDto>(`/form/${encodeURIComponent(formId)}/publish`, {
+      method: 'POST',
+      body: { expectedRevision },
+    }),
+
+  /** Lokalen Autorenstand ohne Persistenz wie bei der Veroeffentlichung expandieren. */
+  previewDraft: (formId: string, formData: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringPreviewDto>(`/form/${encodeURIComponent(formId)}/preview`, {
+      method: 'POST',
+      body: { formData },
+      signal,
+    }),
+
+};
+
+/** Hostneutrale Bibliothek versionierter, wiederverwendbarer Formularabschnitte. */
+export const formSectionsApi = {
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<FormSectionMetadataDto[]>('/form-section', { signal }),
+  create: (name: string) =>
+    requestStatusResult<FormSectionMetadataDto>('/form-section', { method: 'POST', body: { name } }),
+  rename: (sectionId: string, name: string) =>
+    requestStatusResult<FormSectionMetadataDto>(`/form-section/${encodeURIComponent(sectionId)}`, {
+      method: 'PUT', body: { name },
+    }),
+  listVersions: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionSummaryDto[]>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions`, { signal },
+    ),
+  getVersion: (sectionId: string, version: VersionDto, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/versions/${version.major}.${version.minor}`, { signal },
+    ),
+  getDraft: (sectionId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { signal },
+    ),
+  saveDraft: (sectionId: string, draft: SaveFormSectionAuthoringDraftRequestDto) =>
+    requestStatusResult<FormSectionAuthoringDraftDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/draft`, { method: 'PUT', body: draft },
+    ),
+  deleteDraft: (sectionId: string, expectedRevision: number) =>
+    request<void>(`/form-section/${encodeURIComponent(sectionId)}/draft`, {
+      method: 'DELETE', query: { expectedRevision },
+    }),
+  publishDraft: (sectionId: string, expectedRevision: number) =>
+    requestStatusResult<FormSectionVersionDto>(
+      `/form-section/${encodeURIComponent(sectionId)}/publish`, {
+        method: 'POST', body: { expectedRevision },
+      },
+    ),
+};
+
+/** Sichere KI-Verbindungsmetadaten; Secret-Referenzen werden nur schreibend uebertragen. */
+export const aiConnectionsApi = {
+  list: async (signal?: AbortSignal) => {
+    const items = await requestStatusResult<Array<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>>('/ai/connection', { signal });
+    return items.map(normalizeAiConnection);
+  },
+  create: async (input: CreateAiConnectionInput) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>('/ai/connection', { method: 'POST', body: createAiConnectionBody(input) }),
+  ),
+  update: async (connectionId: string, input: UpdateAiConnectionInput) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>(`/ai/connection/${encodeURIComponent(connectionId)}`, {
+      method: 'PUT',
+      body: updateAiConnectionBody(input),
+    }),
+  ),
+  setEnabled: async (connectionId: string, expectedRevision: number, enabled: boolean) => normalizeAiConnection(
+    await requestStatusResult<Omit<AiConnectionDto, 'provider' | 'location'> & {
+      provider: number;
+      location: number;
+    }>(`/ai/connection/${encodeURIComponent(connectionId)}/enabled`, {
+      method: 'PUT',
+      body: { expectedRevision, enabled },
+    }),
+  ),
+};
+
+/** Ausschliesslich installierte, typisierte Werkzeugvertraege ohne Handlerdetails. */
+export const aiToolsApi = {
+  list: async (signal?: AbortSignal) => {
+    const items = await requestStatusResult<Array<Omit<AiToolDto, 'sideEffect'> & {
+      sideEffect: AiToolDto['sideEffect'] | number;
+    }>>('/ai/tool', { signal });
+    return items.map(normalizeAiTool);
+  },
 };
 
 export const messagesApi = {
   /** `POST /message` — korreliert eine Nachricht in laufende Instanzen. */
   publish: (message: MessageDto) => requestStatusResult<string>('/message', { method: 'POST', body: message }),
+};
+
+export const notificationsApi = {
+  /** `GET /notifications` — persistenter Feed der angemeldeten Person. */
+  list: (signal?: AbortSignal) => requestStatusResult<NotificationDto[]>('/notifications', { signal }),
+
+  /** `POST /notifications/{id}/read` — idempotentes Lesestatus-Update. */
+  markRead: (id: string) =>
+    requestStatus(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }),
 };
 
 export const operationsApi = {

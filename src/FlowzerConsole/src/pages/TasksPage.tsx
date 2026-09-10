@@ -1,19 +1,24 @@
-import { useMemo, useRef, useState } from 'react';
+import type { UserTaskWorkState } from '@flowzer/sdk';
+import { useUserTaskActions, useUserTasks, useUserTaskWorkspace } from '@flowzer/react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
-import { Button } from '@/components/ui/Button';
+import { TaskFormCard } from '@/components/tasks/TaskFormCard';
+import { TaskLifecycleDialog } from '@/components/tasks/TaskLifecycleDialog';
+import { TaskLifecyclePanel } from '@/components/tasks/TaskLifecyclePanel';
+import { TaskListPane } from '@/components/tasks/TaskListPane';
 import { Chip, toneSurface } from '@/components/ui/Chip';
-import { EmptyState } from '@/components/ui/Card';
 import { Icon } from '@/components/ui/Icon';
-import { ErrorState, InlineSpinner, LoadingRows } from '@/components/ui/States';
-import { useCompleteUserTask, useUserTaskForm, useUserTasks } from '@/lib/api/queries';
-import { describeFormKey } from '@/lib/formKey';
-import type { ProcessVariables } from '@/lib/api/types';
 import { cn } from '@/lib/cn';
 import { useCompactLayout } from '@/lib/useCompactLayout';
 import { formatTimestamp } from '@/lib/format';
+import {
+  createTaskAssigneeSearch,
+  createTaskFormDirectoryAdapter,
+} from '@/lib/flowzer/taskDirectoryAdapters';
+import { useTaskDraftEditor } from '@/lib/taskDraft';
 import { PRIORITY_TONE, sortTasks, taskIcon, toTaskView } from '@/lib/taskView';
+import type { TaskLifecycleCommand } from '@/components/tasks/TaskLifecycleDialog';
 
 interface TasksPageProps {
   /** Vorausgewählte Aufgabe (z. B. aus dem Dashboard oder der Befehlspalette). */
@@ -30,15 +35,17 @@ interface TasksPageProps {
  * sehen — der Prozess-Manager erreicht sie zusätzlich über `/tasks`.
  */
 export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }: TasksPageProps) {
-  const tasksQuery = useUserTasks();
-  const completeTask = useCompleteUserTask();
-  const formRef = useRef<FormRendererHandle>(null);
+  const tasksQuery = useUserTasks({ refetchInterval: 10_000 });
 
   // Lokal zurückgestellte Aufgaben rutschen ans Listenende — ein reiner
   // Anzeigezustand, die Engine kennt kein "später".
   const [deferred, setDeferred] = useState<string[]>([]);
   const [fallbackSelection, setFallbackSelection] = useState<string | null>(null);
-  const [formData, setFormData] = useState<ProcessVariables>({});
+  const [lifecycleDialog, setLifecycleDialog] = useState<{
+    action: 'release' | 'assign' | 'delegate';
+    taskId: string;
+    expectedRevision: number;
+  } | null>(null);
 
   const views = useMemo(() => {
     const sorted = sortTasks((tasksQuery.data ?? []).map((task) => toTaskView(task)));
@@ -53,137 +60,130 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
   const compact = useCompactLayout();
   const activeId = selectedTaskId ?? fallbackSelection ?? (compact ? undefined : views[0]?.id);
   const active = views.find((view) => view.id === activeId) ?? (compact ? undefined : views[0]);
+  const workspace = useUserTaskWorkspace(active?.id ?? '', {
+    enabled: Boolean(active),
+    refetchInterval: 10_000,
+  });
+  const actions = useUserTaskActions(active?.id ?? '');
 
   const select = (taskId: string | null) => {
-    setFormData({});
     if (onSelectTask) onSelectTask(taskId);
     else setFallbackSelection(taskId);
   };
 
-  const formQuery = useUserTaskForm(active?.id);
+  const currentTask = workspace.task ?? active?.task;
+  const workState = normalizeWorkState(currentTask?.workState);
+  const canWork = workspace.canWork;
+  const taskRevision = workState.revision;
+  const lifecyclePending = actions.claim.isPending || actions.release.isPending
+    || actions.assign.isPending || actions.delegate.isPending;
+  const lifecycleError = actions.claim.error ?? actions.release.error
+    ?? actions.assign.error ?? actions.delegate.error;
+  const formQuery = {
+    data: workspace.form,
+    isPending: workspace.isPending,
+    error: workspace.error,
+  };
+  const formDirectoryAdapter = useMemo(
+    () => activeId
+      ? createTaskFormDirectoryAdapter(activeId, workspace.searchSubjects, workspace.resolveSubjects)
+      : undefined,
+    [activeId, workspace.resolveSubjects, workspace.searchSubjects],
+  );
+  const lifecycleAssigneeSearch = useMemo(
+    () => lifecycleDialog && lifecycleDialog.action !== 'release'
+      ? createTaskAssigneeSearch(lifecycleDialog.action, actions.searchAssignees)
+      : undefined,
+    [actions.searchAssignees, lifecycleDialog],
+  );
+  const draft = useTaskDraftEditor(
+    active?.id,
+    currentTask?.token.variables ?? {},
+    taskRevision,
+    canWork,
+    {
+      draft: workspace.draft,
+      isPending: workspace.isPending,
+      isRefreshing: workspace.isRefreshing,
+      error: workspace.error,
+      reloadDraft: workspace.reloadDraft,
+      saveDraft: actions.saveDraft,
+      deleteDraft: actions.deleteDraft,
+    },
+  );
 
-  async function handleComplete() {
+  function claim(expectedRevision: number) {
     if (!active) return;
-
-    const renderer = formRef.current;
-    if (renderer) {
-      const valid = await renderer.validate();
-      if (!valid) {
-        toast.error('Bitte fülle alle Pflichtfelder aus.');
-        return;
-      }
-    }
-
-    const data = renderer?.getData() ?? formData;
-
-    completeTask.mutate(
+    resetLifecycle();
+    actions.claim.mutate(
+      { expectedRevision },
       {
-        flowNodeId: active.task.token.currentFlowNodeId ?? '',
-        tokenId: active.task.token.id,
-        processInstanceId: active.task.processInstanceId ?? null,
-        data,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Aufgabe abgeschlossen — der Prozess läuft weiter');
-          setFormData({});
-          const next = views.find((view) => view.id !== active.id);
-          if (next) select(next.id);
-        },
-        onError: (error) =>
-          toast.error('Aufgabe konnte nicht abgeschlossen werden', {
-            description: error instanceof Error ? error.message : undefined,
-          }),
+        onSuccess: () => toast.success('Aufgabe übernommen'),
+        onError: (error) => toast.error('Aufgabe konnte nicht übernommen werden', {
+          description: error instanceof Error ? error.message : undefined,
+        }),
       },
     );
   }
 
-  const openCount = views.length;
-  const listWidth = variant === 'worker' ? 'w-[340px]' : 'w-[320px]';
+  function openLifecycleDialog(
+    action: 'release' | 'assign' | 'delegate',
+    expectedRevision: number,
+  ) {
+    if (!active) return;
+    resetLifecycle();
+    setLifecycleDialog({ action, taskId: active.id, expectedRevision });
+  }
 
+  function submitLifecycle(command: TaskLifecycleCommand) {
+    const callbacks = {
+      onSuccess: () => {
+        setLifecycleDialog(null);
+        toast.success(command.action === 'release'
+          ? 'Aufgabe zurückgegeben'
+          : command.action === 'assign'
+            ? 'Bearbeiter zugewiesen'
+            : 'Aufgabe delegiert');
+      },
+    };
+
+    if (command.action === 'release') {
+      actions.release.mutate({
+        expectedRevision: command.expectedRevision,
+        reason: command.reason,
+      }, callbacks);
+      return;
+    }
+
+    const payload = {
+      expectedRevision: command.expectedRevision,
+      reason: command.reason,
+      assignee: command.assignee,
+    };
+    if (command.action === 'assign') actions.assign.mutate(payload, callbacks);
+    else actions.delegate.mutate(payload, callbacks);
+  }
+
+  function resetLifecycle() {
+    actions.claim.reset();
+    actions.release.reset();
+    actions.assign.reset();
+    actions.delegate.reset();
+  }
+
+  const listWidth = variant === 'worker' ? 'w-[340px]' : 'w-[320px]';
   return (
     <div className={cn('flex min-h-0 flex-1', variant === 'console' && 'h-full')}>
-      {/*
-        * Auf dem Telefon ist immer nur eine der beiden Spalten zu sehen: erst die Liste,
-        * nach der Auswahl die Aufgabe. Nebeneinander blieben von jeder Spalte ein paar
-        * Zentimeter uebrig, in denen weder die Liste lesbar noch das Formular ausfuellbar
-        * waere. Ab `md` stehen sie wieder nebeneinander.
-        */}
-      <div
-        className={cn(
-          'border-border bg-surface flex min-h-0 flex-none flex-col border-r',
-          // Grundbreite ist die Spaltenbreite; erst auf dem Telefon nimmt die Liste die
-          // ganze Breite. Andersherum (`w-full` plus `md:w-[320px]`) gewinnt in diesem
-          // Tailwind-Aufbau die Grundklasse — die Liste war dann auch am Schreibtisch
-          // bildschirmbreit.
-          listWidth,
-          'max-md:w-full',
-          // Auf dem Telefon weicht die Liste der geoeffneten Aufgabe.
-          active && 'max-md:hidden',
-        )}
-      >
-        <div className="flex-none px-[18px] pt-[18px] pb-2.5">
-          <div className="font-display text-[17px] font-semibold">Zu erledigen</div>
-          <div className="text-muted mt-0.5 text-[12.5px]">
-            {tasksQuery.isPending
-              ? 'wird geladen …'
-              : `${openCount} offene Aufgabe${openCount === 1 ? '' : 'n'}`}
-          </div>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col gap-[7px] overflow-auto px-3 pt-1 pb-4">
-          {tasksQuery.isPending && <LoadingRows rows={4} className="p-0" />}
-
-          {tasksQuery.error && (
-            <ErrorState error={tasksQuery.error} onRetry={() => void tasksQuery.refetch()} />
-          )}
-
-          {!tasksQuery.isPending && !tasksQuery.error && views.length === 0 && (
-            <EmptyState
-              icon="task_alt"
-              title="Alles erledigt"
-              description="Neue Aufgaben erscheinen hier automatisch."
-            />
-          )}
-
-          {views.map((view) => {
-            const isActive = view.id === active?.id;
-            const isDeferred = deferred.includes(view.id);
-
-            return (
-              <button
-                key={view.id}
-                type="button"
-                onClick={() => select(view.id)}
-                className={cn(
-                  'flex w-full cursor-pointer items-center gap-3 rounded-[var(--r)] border px-3 py-3 text-left',
-                  'transition-[background-color,border-color] duration-150',
-                  isActive ? 'border-accent' : 'bg-surface-2 border-transparent',
-                  isDeferred && !isActive && 'opacity-60',
-                )}
-                style={isActive ? { background: toneSurface('accent', 9) } : undefined}
-              >
-                <span
-                  className="h-2.5 w-2.5 flex-none rounded-full"
-                  style={{
-                    background: view.priority
-                      ? `var(--${view.priority === 'Hoch' ? 'fail' : view.priority === 'Mittel' ? 'wait' : 'muted'})`
-                      : 'var(--muted)',
-                  }}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13.5px] font-semibold">{view.title}</span>
-                  <span className="text-muted mt-0.5 block truncate text-xs">
-                    {isDeferred ? 'zurückgestellt · ' : ''}
-                    {view.workflowName} · {view.dueLabel}
-                  </span>
-                </span>
-                <Icon name="chevron_right" size={19} className="text-faint flex-none" />
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <TaskListPane
+        views={views}
+        activeId={active?.id}
+        deferredIds={deferred}
+        pending={tasksQuery.isPending}
+        error={tasksQuery.error}
+        width={listWidth}
+        onRetry={() => void tasksQuery.refetch()}
+        onSelect={(taskId) => select(taskId)}
+      />
 
       <div className={cn('bg-bg min-w-0 flex-1 overflow-auto', !active && 'max-md:hidden')}>
         {!active ? (
@@ -234,93 +234,102 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                 </h1>
                 <div className="text-muted mt-1.5 text-[13.5px]">
                   Gestartet {formatTimestamp(active.startedAt)} · fällig {active.dueLabel}
-                  {active.dueRaw && (
-                    <>
-                      {' '}
-                      <span
-                        className="text-faint font-mono text-xs"
-                        title="Fälligkeit ist ein Ausdruck und wird von der Engine ausgewertet."
-                      >
-                        ({active.dueRaw})
-                      </span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
 
-            <div className="bg-surface border-border shadow-card mt-[22px] overflow-hidden rounded-[var(--r-lg)] border">
-              <div className="border-border bg-surface-2 flex items-center gap-2.5 border-b px-6 py-3.5">
-                <Icon name="assignment" size={18} className="text-accent" />
-                <span className="text-sm font-semibold">Formular ausfüllen</span>
-                {active.formKey && (
-                  // Ein Formular aus dem Workflow traegt dort eine technische Kennung; sie mit
-                  // Praefix anzuzeigen sagte niemandem etwas.
-                  <span className="text-faint ml-auto font-mono text-[11.5px]">
-                    {describeFormKey(active.formKey)}
-                  </span>
-                )}
+            <TaskLifecyclePanel
+              state={workState}
+              busy={lifecyclePending}
+              draftDirty={canWork && draft.dirty}
+              onClaim={claim}
+              onRelease={(revision) => openLifecycleDialog('release', revision)}
+              onAssign={(revision) => openLifecycleDialog('assign', revision)}
+              onDelegate={(revision) => openLifecycleDialog('delegate', revision)}
+            />
+
+            {!lifecycleDialog && Boolean(lifecycleError) && (
+              <div className="border-wait bg-wait/10 mt-3 rounded-[var(--r)] border px-3.5 py-3 text-[12.5px]" role="alert">
+                {lifecycleError instanceof Error
+                  ? lifecycleError.message
+                  : 'Der Aufgabenstand konnte nicht geändert werden.'}
               </div>
+            )}
 
-              <div className="px-[30px] py-[26px]">
-                {formQuery.isPending && <InlineSpinner label="Formular wird geladen …" />}
-
-                {formQuery.error && (
-                  <div className="border-border rounded-[var(--r)] border border-dashed px-4 py-6 text-center">
-                    <div className="text-fail text-[13.5px] font-semibold">
-                      Für diese Aufgabe ist kein Formular verfügbar.
-                    </div>
-                    <div className="text-muted mt-1.5 text-[13px]">
-                      {formQuery.error instanceof Error ? formQuery.error.message : null}
-                    </div>
-                    <div className="text-faint mt-2 text-xs">
-                      Prüfe den Form-Key des User-Tasks im Modeler und ob das Formular gespeichert ist.
-                    </div>
-                  </div>
-                )}
-
-                {formQuery.data && (
-                  <FormRenderer
-                    key={active.id}
-                    ref={formRef}
-                    schema={formQuery.data.formData ?? undefined}
-                    initialData={active.task.token.variables ?? undefined}
-                    onChange={setFormData}
-                  />
-                )}
+            {canWork && currentTask ? (
+              <TaskFormCard
+                view={active}
+                workspace={{
+                  task: currentTask,
+                  form: formQuery.data,
+                  pending: formQuery.isPending,
+                  error: formQuery.error,
+                  directoryAdapter: formDirectoryAdapter,
+                }}
+                controls={{ draft, actions, lifecyclePending, taskRevision }}
+                onCompleted={() => {
+                  const next = views.find((view) => view.id !== active.id);
+                  if (next) select(next.id);
+                }}
+                onDefer={() => {
+                  setDeferred((current) => current.includes(active.id) ? current : [...current, active.id]);
+                  const next = views.find((view) => view.id !== active.id);
+                  if (next) select(next.id);
+                  toast('Zurückgestellt — bleibt in deiner Liste', { icon: '🕓' });
+                }}
+              />
+            ) : (
+              <div className="border-border bg-surface mt-[22px] rounded-[var(--r-lg)] border border-dashed px-6 py-10 text-center">
+                <Icon name="lock" size={28} className="text-faint mx-auto" />
+                <div className="mt-3 text-sm font-semibold">Noch nicht zur Bearbeitung geöffnet</div>
+                <p className="text-muted mx-auto mt-1.5 max-w-[420px] text-[13px] leading-normal">
+                  Übernimm die Aufgabe zuerst. Formular und privater Entwurf werden erst danach geladen.
+                </p>
               </div>
-
-              <div className="border-border bg-surface-2 flex items-center justify-between gap-2.5 border-t px-6 py-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="schedule"
-                  onClick={() => {
-                    setDeferred((current) =>
-                      current.includes(active.id) ? current : [...current, active.id],
-                    );
-                    const next = views.find((view) => view.id !== active.id);
-                    if (next) select(next.id);
-                    toast('Zurückgestellt — bleibt in deiner Liste', { icon: '🕓' });
-                  }}
-                >
-                  Später
-                </Button>
-
-                <Button
-                  variant="primary"
-                  icon="check_circle"
-                  loading={completeTask.isPending}
-                  disabled={!formQuery.data}
-                  onClick={() => void handleComplete()}
-                >
-                  Aufgabe abschließen
-                </Button>
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
+
+      {lifecycleDialog && (
+        <TaskLifecycleDialog
+          open
+          {...lifecycleDialog}
+          busy={lifecyclePending}
+          error={lifecycleError}
+          searchAssignees={lifecycleAssigneeSearch}
+          onOpenChange={(open) => {
+            if (!open && !lifecyclePending) {
+              setLifecycleDialog(null);
+              resetLifecycle();
+            }
+          }}
+          onUseCurrentRevision={() => {
+            if (active?.id !== lifecycleDialog.taskId) return;
+            setLifecycleDialog({
+              ...lifecycleDialog,
+              expectedRevision: workState.revision,
+            });
+            resetLifecycle();
+          }}
+          onSubmit={submitLifecycle}
+        />
+      )}
     </div>
   );
+}
+
+function normalizeWorkState(state: UserTaskWorkState | undefined): UserTaskWorkState & { revision: number } {
+  return {
+    revision: state?.revision ?? 0,
+    claimed: state?.claimed ?? false,
+    isAssignedToCurrentUser: state?.isAssignedToCurrentUser ?? false,
+    actualAssignee: state?.actualAssignee,
+    actualAssigneeDisplayName: state?.actualAssigneeDisplayName ?? null,
+    canWork: state?.canWork ?? false,
+    canClaim: state?.canClaim ?? false,
+    canRelease: state?.canRelease ?? false,
+    canAssign: state?.canAssign ?? false,
+    canDelegate: state?.canDelegate ?? false,
+  };
 }

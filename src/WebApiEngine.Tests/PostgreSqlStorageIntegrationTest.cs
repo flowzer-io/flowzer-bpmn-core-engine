@@ -1,3 +1,4 @@
+using WebApiEngine.Auth;
 using BPMN.Common;
 using BPMN.HumanInteraction;
 using BPMN.Process;
@@ -17,7 +18,7 @@ namespace WebApiEngine.Tests;
 /// Ohne erreichbaren Docker-Daemon werden die Tests uebersprungen, nicht rot.
 /// </summary>
 [NonParallelizable]
-public class PostgreSqlStorageIntegrationTest
+public partial class PostgreSqlStorageIntegrationTest
 {
     private const string Schema = "flowzer_test";
     private PostgreSqlContainer? _container;
@@ -65,10 +66,16 @@ public class PostgreSqlStorageIntegrationTest
         command.CommandText = string.Join(";", new[]
         {
             "definitions", "definition_binaries", "meta_definitions", "instances",
-            "message_subscriptions", "signal_subscriptions", "user_task_subscriptions", "timer_subscriptions", "forms", "form_metadata",
+            "service_task_jobs", "service_task_webhooks",
+            "message_subscriptions", "signal_subscriptions", "user_task_drafts",
+            "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
+            "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
+            "runtime_node_events", "ai_runs", "ai_connection_revisions", "ai_connections",
+            "timer_subscriptions", "form_section_authoring_drafts", "form_section_versions",
+            "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
-            "workflow_folders"
+            "workflow_folders", "idempotency_records", "identity_directory_state"
         }.Select(table => $"DELETE FROM {Schema}.{table}"));
         await command.ExecuteNonQueryAsync();
     }
@@ -103,6 +110,8 @@ public class PostgreSqlStorageIntegrationTest
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var v1 = CreateDefinition("catalog-1", 1, 0, isActive: false);
         var v2 = CreateDefinition("catalog-1", 2, 0, isActive: true);
+        var binding = new BoundForm(Guid.NewGuid(), Guid.NewGuid(), "1.0", "{\"components\":[]}");
+        v2.FormBindings = new Dictionary<string, BoundForm> { ["Approval"] = binding };
         await storage.DefinitionStorage.StoreDefinition(v1);
         await storage.DefinitionStorage.StoreDefinition(v2);
         await storage.DefinitionStorage.StoreBinary(v2.Id, "<xml/>");
@@ -112,6 +121,8 @@ public class PostgreSqlStorageIntegrationTest
         (await storage.DefinitionStorage.GetMaxVersionId("unknown")).Should().BeNull();
         (await storage.DefinitionStorage.GetLatestDefinition("catalog-1")).Id.Should().Be(v2.Id);
         (await storage.DefinitionStorage.GetDeployedDefinition("catalog-1"))!.Id.Should().Be(v2.Id);
+        (await storage.DefinitionStorage.GetDefinitionById(v2.Id)).FormBindings!["Approval"].Should().Be(binding);
+        (await storage.DefinitionStorage.GetDefinitionById(v1.Id)).FormBindings.Should().BeNull();
         (await storage.DefinitionStorage.GetBinary(v2.Id)).Should().Be("<xml/>");
         (await storage.DefinitionStorage.GetAllBinaryDefinitions()).Should().Equal(v2.Id);
         var metas = await storage.DefinitionStorage.GetAllMetaDefinitions();
@@ -136,6 +147,7 @@ public class PostgreSqlStorageIntegrationTest
     public async Task FolderStorage_ShouldMirrorFilesystemContract()
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var directoryUserId = Guid.NewGuid();
         var finanzen = new WorkflowFolder
         {
             Id = Guid.NewGuid(),
@@ -144,7 +156,16 @@ public class PostgreSqlStorageIntegrationTest
             Assignments =
             [
                 new FolderAssignment { SubjectKind = FolderSubjectKind.Group, Subject = "/abteilungen/einkauf", Role = FolderRole.Steward },
-                new FolderAssignment { SubjectKind = FolderSubjectKind.User, Subject = "anna", Role = FolderRole.Editor, DisplayName = "Anna Weber" }
+                new FolderAssignment { SubjectKind = FolderSubjectKind.User, Subject = "anna", Role = FolderRole.Editor, DisplayName = "Anna Weber" },
+                new FolderAssignment
+                {
+                    AssignmentMode = FolderAssignmentMode.Directory,
+                    SubjectKind = FolderSubjectKind.User,
+                    Subject = directoryUserId.ToString(),
+                    DirectorySubject = new SubjectRef(DirectorySubjectKind.User, directoryUserId),
+                    Role = FolderRole.Editor,
+                    DisplayName = "Anna Stabil"
+                }
             ]
         };
         var beschaffung = new WorkflowFolder { Id = Guid.NewGuid(), Name = "Beschaffung", ParentId = finanzen.Id };
@@ -153,9 +174,11 @@ public class PostgreSqlStorageIntegrationTest
         await storage.FolderStorage.StoreFolder(beschaffung);
 
         var gelesen = (await storage.FolderStorage.GetFolder(finanzen.Id))!;
-        gelesen.Assignments.Should().HaveCount(2);
+        gelesen.Assignments.Should().HaveCount(3);
         gelesen.Assignments.Single(assignment => assignment.SubjectKind == FolderSubjectKind.Group)
             .Role.Should().Be(FolderRole.Steward);
+        gelesen.Assignments.Single(assignment => assignment.AssignmentMode == FolderAssignmentMode.Directory)
+            .DirectorySubject.Should().Be(new SubjectRef(DirectorySubjectKind.User, directoryUserId));
         (await storage.FolderStorage.GetAllFolders()).Select(folder => folder.Name)
             .Should().Equal("Beschaffung", "Finanzen");
         (await storage.FolderStorage.GetFolder(Guid.NewGuid())).Should().BeNull();
@@ -174,13 +197,16 @@ public class PostgreSqlStorageIntegrationTest
     }
 
     // Testzweck: Instanzen inklusive polymorpher Token-Elemente ueberleben den Weg durch die
-    // Datenbank; unbekannte Ids sind FileNotFound (404 am API-Rand).
+    // Datenbank, einschließlich issuergebundener Herkunft; historische Instanzen bleiben
+    // ohne erfundenen Initiator. Unbekannte Ids sind FileNotFound (404 am API-Rand).
     [Test]
     public async Task InstanceStorage_ShouldRoundTripTokensAndFilterActiveInstances()
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var active = CreateInstance(finished: false);
         var finished = CreateInstance(finished: true);
+        var initiator = new AuthenticatedSubject("https://issuer.test/realms/flowzer", "subject");
+        active.Tokens.Single(token => token.ParentTokenId is null).Initiator = initiator;
         await storage.InstanceStorage.AddOrUpdateInstance(active);
         await storage.InstanceStorage.AddOrUpdateInstance(finished);
 
@@ -188,9 +214,51 @@ public class PostgreSqlStorageIntegrationTest
         loaded.Tokens.Should().HaveCount(2);
         loaded.Tokens.Select(token => token.CurrentBaseElement).Should().ContainItemsAssignableTo<Process>();
         loaded.Tokens.Should().Contain(token => token.CurrentFlowNode is UserTask);
+        loaded.Tokens.Single(token => token.ParentTokenId is null).Initiator.Should().Be(initiator);
+        (await storage.InstanceStorage.GetProcessInstance(finished.InstanceId))
+            .Tokens.Single(token => token.ParentTokenId is null).Initiator.Should().BeNull();
         (await storage.InstanceStorage.GetAllActiveInstances()).Select(i => i.InstanceId).Should().Equal(active.InstanceId);
         (await storage.InstanceStorage.GetAllInstances()).Should().HaveCount(2);
         await storage.InstanceStorage.Invoking(s => s.GetProcessInstance(Guid.NewGuid())).Should().ThrowAsync<FileNotFoundException>();
+    }
+
+    // Testzweck: Eine lange Engine-Mutation darf die objektberechtigte reine Instanzansicht
+    // nicht blockieren; nur weitere Schreiber derselben Prozessinstanz werden serialisiert.
+    [Test]
+    public async Task InstanceStorage_ShouldKeepReadAccessSeparateFromMutationLock()
+    {
+        var instance = CreateInstance(finished: false);
+        var writer = new PostgreSqlStorage(_dataSource!, Schema);
+        await writer.InstanceStorage.AddOrUpdateInstance(instance);
+        using var mutation = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        await mutation.InstanceStorage.LockForMutation(instance.InstanceId);
+
+        var read = new PostgreSqlStorage(_dataSource!, Schema)
+            .InstanceStorage.GetProcessInstance(instance.InstanceId);
+        var first = await Task.WhenAny(read, Task.Delay(TimeSpan.FromSeconds(2)));
+
+        first.Should().Be(read);
+        (await read).InstanceId.Should().Be(instance.InstanceId);
+        mutation.RollbackTransaction();
+    }
+
+    // Testzweck: Zwei Engine-Schreiber derselben Instanz werden über getrennte
+    // PostgreSQL-Transaktionen serialisiert und erst nach Freigabe nacheinander zugelassen.
+    [Test]
+    public async Task InstanceStorage_ShouldSerializeMutationLocksPerProcessInstance()
+    {
+        var instanceId = Guid.NewGuid();
+        using var first = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        using var second = new PostgreSqlTransactionalStorage(_dataSource!, Schema);
+        await first.InstanceStorage.LockForMutation(instanceId);
+
+        var competingLock = second.InstanceStorage.LockForMutation(instanceId);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        competingLock.IsCompleted.Should().BeFalse();
+
+        first.CommitChanges();
+        await competingLock.WaitAsync(TimeSpan.FromSeconds(2));
+        second.RollbackTransaction();
     }
 
     // Testzweck: Message-, Signal-, User-Task- und Timer-Subscriptions werden gezielt gefunden
@@ -245,13 +313,23 @@ public class PostgreSqlStorageIntegrationTest
         var token = instance.Tokens.Single(candidate => candidate.CurrentFlowNode is UserTask);
         await storage.SubscriptionStorage.AddUserTaskSubscription(new UserTaskSubscription
         {
-            Id = Guid.NewGuid(), Name = "Review", Token = token, ProcessInstanceId = instance.InstanceId,
-            MetaDefinitionId = "catalog-2", DefinitionId = definition.Id, ProcessId = "Process_1"
+            Id = Guid.NewGuid(),
+            Name = "Review",
+            Token = token,
+            ProcessInstanceId = instance.InstanceId,
+            MetaDefinitionId = "catalog-2",
+            DefinitionId = definition.Id,
+            ProcessId = "Process_1"
         });
         await storage.SubscriptionStorage.AddUserTaskSubscription(new UserTaskSubscription
         {
-            Id = Guid.NewGuid(), Name = "Orphan", Token = token, ProcessInstanceId = Guid.NewGuid(),
-            MetaDefinitionId = "missing-catalog", DefinitionId = Guid.NewGuid(), ProcessId = "Process_1"
+            Id = Guid.NewGuid(),
+            Name = "Orphan",
+            Token = token,
+            ProcessInstanceId = Guid.NewGuid(),
+            MetaDefinitionId = "missing-catalog",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1"
         });
 
         var extended = (await storage.SubscriptionStorage.GetAllUserTasksExtended(Guid.NewGuid())).ToList();
@@ -338,6 +416,7 @@ public class PostgreSqlStorageIntegrationTest
             await storage.DefinitionStorage.StoreMetaDefinition(new BpmnMetaDefinition { DefinitionId = definition.DefinitionId, Name = "Review" });
             await storage.DefinitionStorage.StoreDefinition(definition);
             await storage.DefinitionStorage.StoreBinary(definition.Id, UserTaskXml);
+            await FormTestSeed.StoreAsync(storage, "Approval");
             storage.CommitChanges();
         }
 
@@ -346,7 +425,7 @@ public class PostgreSqlStorageIntegrationTest
         await Task.WhenAll(instances.Select(instance => Task.Run(async () =>
         {
             var token = instance.Tokens.Single(candidate => candidate.CurrentFlowNode is UserTask && candidate.State == FlowNodeState.Active);
-            await businessLogic.HandleUserTask(new UserTaskResult { ProcessInstanceId = instance.InstanceId, TokenId = token.Id, FlowNodeId = "UserTask_Review" }, Guid.NewGuid());
+            await businessLogic.CompleteUserTaskAsync(new UserTaskResult { ProcessInstanceId = instance.InstanceId, TokenId = token.Id, FlowNodeId = "UserTask_Review" }, new CurrentUserContext(Guid.NewGuid(), "test", false));
         })));
 
         var reader = new PostgreSqlStorage(_dataSource!, Schema);
@@ -377,6 +456,20 @@ public class PostgreSqlStorageIntegrationTest
         await storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
         var saveDuplicateForm = () => storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
         await saveDuplicateForm.Should().ThrowAsync<DefinitionStorageConflictException>();
+
+        // Dieselbe konkrete ID ist eine veroeffentlichte Fassung und darf ebenfalls nicht
+        // als verdecktes Update mit anderem Inhalt benutzt werden.
+        var immutable = new Form
+        {
+            Id = Guid.NewGuid(),
+            FormId = Guid.NewGuid(),
+            Version = new Model.Version(1, 0),
+            FormData = "{}"
+        };
+        await storage.FormStorage.SaveForm(immutable);
+        immutable.FormData = "{\"changed\":true}";
+        await storage.FormStorage.Invoking(s => s.SaveForm(immutable))
+            .Should().ThrowAsync<DefinitionStorageConflictException>();
     }
 
     private static BpmnDefinition CreateDefinition(string definitionId, int major, int minor, bool isActive) => new()
@@ -399,9 +492,17 @@ public class PostgreSqlStorageIntegrationTest
         var task = new Token { ProcessInstanceId = instanceId, ParentTokenId = master.Id, CurrentBaseElement = userTask, ActiveBoundaryEvents = [], State = finished ? FlowNodeState.Completed : FlowNodeState.Active };
         return new ProcessInstanceInfo
         {
-            InstanceId = instanceId, metaDefinitionId = "catalog-1", DefinitionId = Guid.NewGuid(), ProcessId = "Process_1",
-            Tokens = [master, task], IsFinished = finished, State = finished ? ProcessInstanceState.Completed : ProcessInstanceState.Waiting,
-            MessageSubscriptionCount = 0, SignalSubscriptionCount = 0, UserTaskSubscriptionCount = finished ? 0 : 1, ServiceSubscriptionCount = 0
+            InstanceId = instanceId,
+            metaDefinitionId = "catalog-1",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "Process_1",
+            Tokens = [master, task],
+            IsFinished = finished,
+            State = finished ? ProcessInstanceState.Completed : ProcessInstanceState.Waiting,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = finished ? 0 : 1,
+            ServiceSubscriptionCount = 0
         };
     }
 

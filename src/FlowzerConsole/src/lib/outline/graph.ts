@@ -7,7 +7,9 @@
  * zu gehen. Das ist die erste von zwei Absicherungen; die zweite ist die
  * Rueckuebersetzungsprobe in `read.ts`.
  */
+import type { AiTaskConfiguration, ServiceTaskMode } from '@/lib/aiTaskContract';
 import type { IoMapping, OutlineIssue } from './model';
+import { AI_WORKER_TYPE } from '@/lib/aiTaskContract';
 
 export type GraphNodeType =
   | 'startEvent'
@@ -24,10 +26,16 @@ export interface TaskProperties {
   readonly assignee?: string;
   readonly candidateGroups?: string;
   readonly candidateUsers?: string;
+  readonly assignmentMode?: 'text' | 'directory';
+  readonly directoryAssigneeId?: string;
+  readonly directoryCandidateUserIds?: readonly string[];
+  readonly directoryCandidateGroupIds?: readonly string[];
   readonly dueDate?: string;
   readonly followUpDate?: string;
   readonly workerType?: string;
   readonly retries?: string;
+  readonly serviceTaskMode?: ServiceTaskMode;
+  readonly aiTask?: AiTaskConfiguration;
   readonly inputs: readonly IoMapping[];
   readonly outputs: readonly IoMapping[];
 }
@@ -86,6 +94,7 @@ export interface BpmnGraph {
 
 const BPMN_NS = 'http://www.omg.org/spec/BPMN/20100524/MODEL';
 const ZEEBE_NS = 'http://camunda.org/schema/zeebe/1.0';
+const FLOWZER_NS = 'https://flowzer.io/schema/bpmn/1.0';
 
 interface ElementRule {
   /** Namensraum, in dem das Element stehen muss. */
@@ -175,8 +184,8 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
   extensionElements: {
     namespace: BPMN_NS,
     attributes: [],
-    children: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
-    single: ['formDefinition', 'assignmentDefinition', 'taskSchedule', 'taskDefinition', 'ioMapping'],
+    children: ['formDefinition', 'assignmentDefinition', 'taskAssignment', 'taskSchedule', 'taskDefinition', 'aiTask', 'ioMapping'],
+    single: ['formDefinition', 'assignmentDefinition', 'taskAssignment', 'taskSchedule', 'taskDefinition', 'aiTask', 'ioMapping'],
   },
   formDefinition: { namespace: ZEEBE_NS, attributes: ['formKey', 'formId'], children: [] },
   assignmentDefinition: {
@@ -184,8 +193,30 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
     attributes: ['assignee', 'candidateGroups', 'candidateUsers'],
     children: [],
   },
+  taskAssignment: {
+    namespace: FLOWZER_NS,
+    attributes: ['mode', 'assigneeId', 'candidateUserIds', 'candidateGroupIds'],
+    children: [],
+  },
   taskSchedule: { namespace: ZEEBE_NS, attributes: ['dueDate', 'followUpDate'], children: [] },
   taskDefinition: { namespace: ZEEBE_NS, attributes: ['type', 'retries'], children: [] },
+  aiTask: {
+    namespace: FLOWZER_NS,
+    attributes: [
+      'contractVersion',
+      'connectionId',
+      'model',
+      'instructionVersion',
+      'maxInputTokens',
+      'maxOutputTokens',
+      'timeoutSeconds',
+    ],
+    children: ['instruction', 'resultSchema', 'tool'],
+    single: ['instruction', 'resultSchema'],
+  },
+  tool: { namespace: FLOWZER_NS, attributes: ['id', 'version', 'approval'], children: [] },
+  instruction: { namespace: FLOWZER_NS, attributes: [], children: [] },
+  resultSchema: { namespace: FLOWZER_NS, attributes: [], children: [] },
   ioMapping: { namespace: ZEEBE_NS, attributes: [], children: ['input', 'output'] },
   input: { namespace: ZEEBE_NS, attributes: ['source', 'target'], children: [] },
   output: { namespace: ZEEBE_NS, attributes: ['source', 'target'], children: [] },
@@ -300,8 +331,11 @@ function readTaskProperties(task: Element): TaskProperties {
   const extensions = firstChild(task, 'extensionElements');
   const form = extensions && firstChild(extensions, 'formDefinition');
   const assignment = extensions && firstChild(extensions, 'assignmentDefinition');
+  const flowzerAssignment = extensions && firstChild(extensions, 'taskAssignment');
+  const flowzerMode = flowzerAssignment && attribute(flowzerAssignment, 'mode');
   const schedule = extensions && firstChild(extensions, 'taskSchedule');
   const definition = extensions && firstChild(extensions, 'taskDefinition');
+  const aiTask = extensions && firstChild(extensions, 'aiTask');
 
   return {
     formKey: form && attribute(form, 'formKey'),
@@ -309,13 +343,48 @@ function readTaskProperties(task: Element): TaskProperties {
     assignee: assignment && attribute(assignment, 'assignee'),
     candidateGroups: assignment && attribute(assignment, 'candidateGroups'),
     candidateUsers: assignment && attribute(assignment, 'candidateUsers'),
+    assignmentMode: flowzerMode === 'directory' || flowzerMode === 'text' ? flowzerMode : undefined,
+    directoryAssigneeId: flowzerAssignment && attribute(flowzerAssignment, 'assigneeId'),
+    directoryCandidateUserIds: commaSeparated(flowzerAssignment && attribute(flowzerAssignment, 'candidateUserIds')),
+    directoryCandidateGroupIds: commaSeparated(flowzerAssignment && attribute(flowzerAssignment, 'candidateGroupIds')),
     dueDate: schedule && attribute(schedule, 'dueDate'),
     followUpDate: schedule && attribute(schedule, 'followUpDate'),
     workerType: definition && attribute(definition, 'type'),
     retries: definition && attribute(definition, 'retries'),
+    serviceTaskMode:
+      task.localName === 'serviceTask'
+        ? aiTask || (definition && attribute(definition, 'type') === AI_WORKER_TYPE)
+          ? 'ai'
+          : 'worker'
+        : undefined,
+    aiTask: aiTask
+      ? {
+          contractVersion: attribute(aiTask, 'contractVersion') ?? '',
+          connectionId: attribute(aiTask, 'connectionId') ?? '',
+          model: attribute(aiTask, 'model') ?? '',
+          instructionVersion: attribute(aiTask, 'instructionVersion') ?? '',
+          instruction: firstChild(aiTask, 'instruction')?.textContent?.trim() ?? '',
+          resultSchema: firstChild(aiTask, 'resultSchema')?.textContent?.trim() ?? '',
+          maxInputTokens: attribute(aiTask, 'maxInputTokens') ?? '',
+          maxOutputTokens: attribute(aiTask, 'maxOutputTokens') ?? '',
+          timeoutSeconds: attribute(aiTask, 'timeoutSeconds') ?? '',
+          tools: children(aiTask, 'tool').map((tool) => ({
+            toolId: attribute(tool, 'id') ?? '',
+            toolVersion: attribute(tool, 'version') ?? '',
+            approval: (attribute(tool, 'approval') ?? 'human') as AiTaskConfiguration['tools'][number]['approval'],
+          })),
+        }
+      : undefined,
     inputs: readIoMappings(task, 'input'),
     outputs: readIoMappings(task, 'output'),
   };
+}
+
+function commaSeparated(value: string | undefined): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
 }
 
 /** Das Startformular, falls das Startereignis eines mitbringt. */
@@ -521,10 +590,21 @@ function normalizeTask(task: TaskProperties) {
     assignee: task.assignee ?? null,
     candidateGroups: task.candidateGroups ?? null,
     candidateUsers: task.candidateUsers ?? null,
+    assignmentMode: task.assignmentMode ?? null,
+    directoryAssigneeId: task.directoryAssigneeId ?? null,
+    directoryCandidateUserIds: task.directoryCandidateUserIds ?? [],
+    directoryCandidateGroupIds: task.directoryCandidateGroupIds ?? [],
     dueDate: task.dueDate ?? null,
     followUpDate: task.followUpDate ?? null,
     workerType: task.workerType ?? null,
     retries: task.retries ?? null,
+    serviceTaskMode: task.serviceTaskMode ?? null,
+    aiTask: task.aiTask
+      ? {
+          ...task.aiTask,
+          model: task.aiTask.model || null,
+        }
+      : null,
     inputs: task.inputs.map((entry) => [entry.source, entry.target]),
     outputs: task.outputs.map((entry) => [entry.source, entry.target]),
   };

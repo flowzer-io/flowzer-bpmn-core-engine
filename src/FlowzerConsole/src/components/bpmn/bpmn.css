@@ -65,6 +65,17 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--accent) 45%, transparent));
 }
 
+/* Abgebrochene oder zurückgezogene Ausführungspfade: gestrichelt und nicht nur farblich. */
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--muted) !important;
+  stroke-width: 2px !important;
+  stroke-dasharray: 5 3 !important;
+}
+
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--muted) 10%, var(--surface)) !important;
+}
+
 /* Fehlgeschlagene Elemente. */
 .bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;
@@ -79,13 +90,32 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--fail) 45%, transparent));
 }
 
-/* Der pulsierende Token-Punkt am aktiven Element. */
+/* Elementbezogene Modellfehler bleiben auch neben der Diagnoseliste sichtbar. */
+.bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--fail) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--fail) 14%, var(--surface)) !important;
+}
+
+/* Der pulsierende Token-Zähler am aktiven Element. */
 .flowzer-token {
-  width: 18px;
-  height: 18px;
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  place-items: center;
+  padding: 0 4px;
   border-radius: 50%;
   background: var(--accent);
   border: 3px solid var(--surface);
+  color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
   animation: tokenPulse 2s ease-in-out infinite;
   pointer-events: none;
 }
@@ -164,6 +194,20 @@
 .bpmn-surface .djs-palette {
   border-radius: var(--r-sm);
   box-shadow: var(--shadow);
+}
+
+/* Die KI-Kachel bleibt technisch ein Service-Task, ist in der Palette aber als Flowzer-
+   Erweiterung erkennbar statt neben dem normalen Zahnrad identisch auszusehen. */
+.bpmn-surface .djs-palette .flowzer-ai-task-palette::after {
+  content: 'AI';
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--surface);
+  padding: 0 3px;
+  font: 700 7px/12px sans-serif;
 }
 
 .bpmn-surface .djs-popup,

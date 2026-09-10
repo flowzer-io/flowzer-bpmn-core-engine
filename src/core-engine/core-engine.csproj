@@ -9,6 +9,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v3.json"
+                      Link="Contracts\bpmn-capabilities\v3.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="core-engine.csproj.DotSettings" />
     <None Update="feelin\bundle.js">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

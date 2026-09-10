@@ -32,18 +32,48 @@ async function seedWorkflow(request) {
 /**
  * Laesst die Konsole ohne Modelliererrolle laufen.
  *
- * Der Entwicklungsbenutzer traegt fest `access`, `modeler`, `operator` und `worker`. Welche
- * Rollennamen dahinter zaehlen, steht aber in `config.json` — der Betrieb vergibt sie im
- * Identity Provider. Verlangt die Konfiguration fuers Modellieren einen Namen, den niemand
- * traegt, sieht die Oberflaeche einen Zugelassenen ohne Modelliererrolle. Das ist genau der
- * Fall, um den es hier geht, und er braucht keinen laufenden Identity Provider.
+ * Der BFF liefert die wirksamen Faehigkeiten serverseitig. Fuer diesen reinen UI-Test wird
+ * seine datensparsame Sessionprojektion ohne `modeler` nachgebildet; die API-Autorisierung
+ * selbst pruefen die .NET-Integrationstests.
  */
 async function ohneModelliererrolle(page) {
   await page.route('**/config.json', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ apiBaseUrl: '/api', roleNames: { modeler: 'rolle-die-niemand-hat' } })
+      body: JSON.stringify({ apiBaseUrl: '/api', bffEnabled: true })
+    })
+  );
+  await page.route('**/bff/session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'ui-smoke', name: 'UI Smoke', capabilities: ['access', 'operator', 'worker'] })
+    })
+  );
+  // Die API laeuft im Smoke absichtlich mit Authentication=None und besitzt deshalb kein
+  // echtes BFF-Cookie. Globale Aufgaben- und Meldungsabfragen werden fuer diesen reinen
+  // Rollen-UI-Test leer beantwortet, damit ihr erwartetes 401 die nachgebildete Sitzung
+  // nicht beendet. Die fachliche Autorisierung dieser Endpunkte pruefen API-Tests.
+  await page.route('**/api/usertask*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
+    })
+  );
+  await page.route('**/api/instance', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
+    })
+  );
+  await page.route('**/api/notifications*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ successful: true, result: [] })
     })
   );
 }
@@ -462,6 +492,7 @@ test.describe('Konsole', () => {
     ['/workflows', 'Workflows', (page) => page.getByRole('heading', { name: 'Workflows', level: 1 })],
     ['/instances', 'Instanzen', (page) => page.getByRole('heading', { name: 'Instanzen', level: 1 })],
     ['/forms', 'Formulare', (page) => page.getByRole('heading', { name: 'Formulare', level: 1 })],
+    ['/form-sections', 'Formularabschnitte', (page) => page.getByRole('heading', { name: 'Formularabschnitte', level: 1 })],
     ['/tasks', 'Aufgaben', (page) => page.getByText('Zu erledigen', { exact: true })]
   ]) {
     // Testzweck: Jede Hauptseite zeichnet ihren Inhalt — eine Seite, die beim Laden
@@ -501,6 +532,9 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
+    // Die eigene KI-Kachel bleibt ein Service-Task, muss aber als eigener Autorenweg
+    // auffindbar sein und darf nicht hinter dem generischen Worker versteckt bleiben.
+    await expect(page.locator('.djs-palette [data-action="create.flowzer-ai-task"]')).toBeVisible();
   });
 
   // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des
@@ -712,6 +746,53 @@ test.describe('Konsole', () => {
 
     await reiter.getByRole('link', { name: /Instanzen/ }).click();
     await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+  });
+
+  // Testzweck: Die neue Verwaltungsseite ist im echten Browser erreichbar und zeigt
+  // bei vorhandenen Verbindungen niemals eine vom Server nicht gelieferte Secret-
+  // Referenz. Ein normales Metadatenupdate darf deshalb auch keine leere Referenz senden.
+  test('KI-Verbindungen lassen sich ohne Ruecklesen der Secret-Referenz pflegen', async ({ page }) => {
+    const id = randomUUID();
+    let updateBody;
+    await page.route('**/api/ai/connection**', async (route) => {
+      const request = route.request();
+      const connection = {
+        id,
+        name: 'Lokales Modell',
+        provider: 1,
+        location: 1,
+        baseAddress: 'http://127.0.0.1:11434/v1',
+        defaultModel: 'model-example',
+        enabled: true,
+        ready: true,
+        revision: request.method() === 'PUT' ? 2 : 1,
+        updatedAtUtc: '2026-09-09T16:00:00Z'
+      };
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ successful: true, result: [connection] })
+        });
+        return;
+      }
+      updateBody = request.postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ successful: true, result: connection })
+      });
+    });
+
+    await page.goto('/ai-connections');
+    await expect(page.getByRole('heading', { name: 'KI-Verbindungen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Lokales Modell/ })).toBeVisible();
+
+    const secretReference = page.getByRole('textbox', { name: 'Secret-Referenz' });
+    await expect(secretReference).toHaveValue('');
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect.poll(() => updateBody).toBeTruthy();
+    expect(updateBody).not.toHaveProperty('secretReference');
   });
 
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld

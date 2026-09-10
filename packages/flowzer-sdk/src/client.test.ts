@@ -1,0 +1,532 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { FlowzerApiError, FlowzerClient } from './index.js';
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+describe('FlowzerClient', () => {
+  // Testzweck: Ein externer Host kann Aufgaben mit einem kurzlebig gelieferten
+  // Bearer-Token laden, ohne dass der SDK globalen Auth-Zustand speichert.
+  it('lädt Aufgaben über einen hostseitigen Bearer-Callback', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: [{ id: 'task-1', name: 'Prüfen' }],
+    }));
+    const client = new FlowzerClient({
+      baseUrl: 'https://flowzer.example/api/',
+      fetch,
+      auth: { kind: 'bearer', getAccessToken: async () => 'short-lived-token' },
+    });
+
+    await expect(client.userTasks.list()).resolves.toEqual([{ id: 'task-1', name: 'Prüfen' }]);
+    const [url, init] = fetch.mock.calls[0]!;
+    expect(url).toBe('https://flowzer.example/api/usertask');
+    expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer short-lived-token');
+    expect(init?.credentials).toBe('omit');
+  });
+
+  // Testzweck: Auch eine sehr lange Folge abschließender Schrägstriche wird linear
+  // normalisiert und landet nicht in einem rückverfolgenden regulären Ausdruck.
+  it('normalisiert viele abschließende Schrägstriche ohne den Requestpfad zu verändern', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: [],
+    }));
+    const client = new FlowzerClient({ baseUrl: `/api${'/'.repeat(20_000)}`, fetch });
+
+    await client.userTasks.list();
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask');
+  });
+
+  // Testzweck: Cookiegebundene Einbettungen senden bei Mutationen nur den vom Host
+  // gelieferten CSRF-Header und niemals zusätzlich einen Bearer-Token.
+  it('schützt Cookie-Mutationen mit einem hostseitigen CSRF-Callback', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: { revision: 3 },
+    }));
+    const client = new FlowzerClient({
+      baseUrl: '/api',
+      fetch,
+      auth: {
+        kind: 'cookie',
+        getCsrfToken: async () => ({ headerName: 'X-Flowzer-CSRF', requestToken: 'csrf-1' }),
+      },
+    });
+
+    await client.userTasks.release('task/id', { expectedRevision: 2, reason: 'Übergabe' });
+
+    const [url, init] = fetch.mock.calls[0]!;
+    const headers = new Headers(init?.headers);
+    expect(url).toBe('/api/usertask/task%2Fid/release');
+    expect(init?.credentials).toBe('include');
+    expect(headers.get('X-Flowzer-CSRF')).toBe('csrf-1');
+    expect(headers.has('Authorization')).toBe(false);
+  });
+
+  // Testzweck: Der idempotente Abschluss überträgt die stabile Aktions-ID und bindet
+  // Wiederholungen an den ausdrücklich vom Host vergebenen Schlüssel.
+  it('schließt eine Aufgabe mit Aktion und Idempotenzschlüssel ab', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.userTasks.complete({
+      flowNodeId: 'approve',
+      tokenId: 'token-1',
+      processInstanceId: 'instance-1',
+      expectedTaskRevision: 4,
+      actionId: 'approve',
+      data: { comment: 'ok' },
+    }, { idempotencyKey: 'host-command-42' });
+
+    const [, init] = fetch.mock.calls[0]!;
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('host-command-42');
+    expect(JSON.parse(String(init?.body))).toMatchObject({ actionId: 'approve', data: { comment: 'ok' } });
+  });
+
+  // Testzweck: Private Entwürfe verwenden im SDK denselben revisionsgebundenen
+  // Vertrag wie die Flowzer-Konsole und kodieren auch ungewöhnliche Task-IDs sicher.
+  it('speichert einen revisionsgebundenen Aufgabenentwurf', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: { userTaskId: 'task/id', revision: 4, data: { comment: 'offen' } },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.userTasks.saveDraft('task/id', {
+      expectedRevision: 3,
+      expectedTaskRevision: 7,
+      data: { comment: 'offen' },
+    })).resolves.toMatchObject({ revision: 4 });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask/task%2Fid/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toMatchObject({
+      expectedRevision: 3,
+      expectedTaskRevision: 7,
+    });
+  });
+
+  // Testzweck: Feldbezogene Problem-Details bleiben für beliebige Host-Oberflächen
+  // maschinenlesbar und werden nicht in einen lokalisierten Text reduziert.
+  it('liefert Problem Details und Feldfehler typisiert weiter', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      type: 'about:blank',
+      title: 'The request could not be processed.',
+      status: 422,
+      detail: 'Validation failed.',
+      instance: '/usertask',
+      traceId: 'trace-1',
+      errors: { decision: ['action.invalid'] },
+    }, 422));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    const failure = await client.userTasks.complete(
+      { flowNodeId: 'x', tokenId: 'y', expectedTaskRevision: 2 },
+      { idempotencyKey: 'host-command-validation' },
+    )
+      .catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FlowzerApiError);
+    expect(failure).toMatchObject({
+      status: 422,
+      fieldErrors: { decision: ['action.invalid'] },
+      traceId: 'trace-1',
+    });
+  });
+
+  // Testzweck: Abbruchsignale des Hosts erreichen fetch unverändert, damit entfernte
+  // Views keine unnötigen oder veralteten Antworten weiterverarbeiten.
+  it('reicht AbortSignal an den Transport durch', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: [],
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await client.instances.list({ signal: controller.signal });
+
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
+  // Testzweck: Die History bleibt eine minimale, serverseitig berechtigte Projektion
+  // und wird als eigener, hostneutraler Vertrag über den Instanzpfad geladen.
+  it('lädt die Prozesshistorie mit sicher kodierter Instanz-ID', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        instanceId: 'instance/id', events: [{
+          id: 'history-1', userTaskId: 'task-1', flowNodeId: 'Review',
+          action: 'complete', revision: 3, occurredAtUtc: '2026-09-09T10:00:00Z',
+        }],
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await expect(client.instances.history('instance/id', { signal: controller.signal })).resolves.toMatchObject({
+      events: [{ flowNodeId: 'Review', revision: 3 }],
+    });
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance%2Fid/history');
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
+  // Testzweck: Die hostneutrale Laufzeitprojektion wird über ihren eigenen
+  // objektberechtigten Pfad geladen; AbortSignal und unbekannte Enumwerte bleiben erhalten.
+  it('lädt das Laufzeitdiagramm mit sicher kodierter Instanz-ID', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        instanceId: 'instance/id',
+        definitionId: 'definition-1',
+        processId: 'Process_1',
+        state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z',
+        diagramXml: '<definitions />',
+        nodes: [{ flowNodeId: 'Review', status: 99, tokenCount: 1 }],
+        events: [],
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const controller = new AbortController();
+
+    await expect(client.instances.runtimeDiagram('instance/id', { signal: controller.signal }))
+      .resolves.toMatchObject({ nodes: [{ flowNodeId: 'Review', status: 99 }] });
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance%2Fid/runtime-diagram');
+    expect(fetch.mock.calls[0]![1]?.signal).toBe(controller.signal);
+  });
+
+  // Testzweck: Der SDK erzeugt niemals stillschweigend einen Ersatzschlüssel und
+  // verwirft ungültige Idempotenzwerte, bevor eine Mutation den Server erreicht.
+  it('weist ungültige Idempotenzschlüssel vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.userTasks.complete(
+      { flowNodeId: 'x', tokenId: 'y', expectedTaskRevision: 2 },
+      { idempotencyKey: 'line\nbreak' },
+    )).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Auch untypisierte JavaScript-Aufrufer können den verpflichtenden
+  // Idempotenzschutz beim Abschluss nicht durch Weglassen der Optionen umgehen.
+  it('verlangt beim Aufgabenabschluss immer einen Idempotenzschlüssel', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const completeFromJavaScript = client.userTasks.complete as unknown as (
+      command: { flowNodeId: string; tokenId: string; expectedTaskRevision: number },
+    ) => Promise<void>;
+
+    await expect(completeFromJavaScript({
+      flowNodeId: 'x',
+      tokenId: 'y',
+      expectedTaskRevision: 2,
+    })).rejects.toThrow('idempotencyKey');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Formular-Identitätsfelder fragen ausschließlich ihren servergebundenen
+  // Task-/Feldkontext ab; Task- und Feldkennung werden dabei als Pfadsegmente kodiert.
+  it('sucht erlaubte Formularidentitäten im gebundenen Aufgabenkontext', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: { generationId: 'generation-1', items: [] },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.userTasks.searchFormSubjects('task/id', 'delegate/user', {
+      query: 'Alex',
+      kind: 'user',
+      limit: 12,
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe(
+      '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects?query=Alex&kind=user&limit=12',
+    );
+  });
+
+  // Testzweck: Historische Referenzen werden per begrenztem Batch an den
+  // servergebundenen Aufgabenfeld- beziehungsweise Lifecycle-Kontext gesendet;
+  // der SDK-Client fällt dafür nicht auf die aktive Suche zurück.
+  it('löst historische Aufgabenreferenzen über die gebundenen Batch-Endpunkte auf', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: { generationId: 'generation-1', items: [] },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const subjects = [{ kind: 'user' as const, id: 'user/retired' }];
+
+    await client.userTasks.resolveFormSubjects('task/id', 'delegate/user', subjects);
+    await client.userTasks.resolveAssignees('task/id', {
+      action: 'delegate',
+      subjects,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/identity-directory/user-tasks/task%2Fid/fields/delegate%2Fuser/subjects/resolve',
+      '/api/identity-directory/user-tasks/task%2Fid/assignees/resolve?action=delegate',
+    ]);
+    expect(fetch.mock.calls.map(([, init]) => ({
+      method: init?.method,
+      body: JSON.parse(String(init?.body)),
+    }))).toEqual([
+      { method: 'POST', body: { subjects } },
+      { method: 'POST', body: { subjects } },
+    ]);
+  });
+
+  // Testzweck: Ein Host kann eine konkrete Aufgabe per stabiler ID laden, ohne die
+  // gesamte Aufgabenliste abzurufen; ungewöhnliche IDs bleiben ein einzelnes Segment.
+  it('lädt eine einzelne sichtbare Aufgabe per Deep Link', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: { id: 'task/id', name: 'Prüfen' },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.userTasks.get('task/id')).resolves.toMatchObject({ name: 'Prüfen' });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask/task%2Fid');
+  });
+
+  // Testzweck: Eine als erfolgreich markierte, aber ergebnislose Datenantwort wird
+  // nicht als gültiges typisiertes Objekt an die Host-Anwendung weitergereicht.
+  it('weist erfolgreiche Datenantworten ohne Ergebnis zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    const failure = await client.userTasks.getForm('task-1').catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FlowzerApiError);
+    expect(failure).toMatchObject({ status: 200 });
+  });
+
+  // Testzweck: Eine abgelaufene Host-Sitzung kann zentral invalidiert werden, ohne
+  // die maschinenlesbaren Flowzer-Fehlerdetails für den Aufrufer zu verlieren.
+  it('meldet eine 401-Antwort an den Host und bewahrt den API-Fehler', async () => {
+    const onUnauthorized = vi.fn();
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      title: 'Unauthorized',
+      status: 401,
+      traceId: 'trace-auth',
+    }, 401));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch, onUnauthorized });
+
+    const failure = await client.userTasks.list().catch((error: unknown) => error);
+
+    expect(onUnauthorized).toHaveBeenCalledOnce();
+    expect(failure).toMatchObject({ status: 401, traceId: 'trace-auth' });
+  });
+
+  // Testzweck: Modellierungsoberflächen laden ausschließlich veröffentlichte,
+  // konkrete Abschnittsversionen; die Version wird nie als freier "latest"-Text
+  // an die API weitergegeben.
+  it('lädt eine konkrete Formularabschnittsversion über ihren kanonischen Pfad', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        id: 'version-1', sectionId: 'section/id', version: { major: 1, minor: 2 }, sectionData: '{}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section/id', { major: 1, minor: 2 }))
+      .resolves.toMatchObject({ id: 'version-1', version: { major: 1, minor: 2 } });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/versions/1.2');
+  });
+
+  // Testzweck: Das revisionsgebundene Speichern eines Abschnittsentwurfs bleibt
+  // als Compare-and-Swap-Vertrag auch für reine JavaScript-Hosts vollständig erhalten.
+  it('speichert einen Formularabschnittsentwurf mit erwarteter Revision', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        sectionId: 'section/id', revision: 4, hasDraft: true, sectionData: '{"components":[]}',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.saveDraft('section/id', {
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 3,
+      sectionData: '{"components":[]}',
+    });
+  });
+
+  // Testzweck: Das Verwerfen verwendet den gemeinsamen Erfolgsumschlag und bindet
+  // die erwartete Revision als Queryparameter, statt einen 204-Körper zu erfinden.
+  it('verwirft einen Formularabschnittsentwurf revisionsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.formSections.deleteDraft('section/id', 3);
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/draft?expectedRevision=3');
+    expect(fetch.mock.calls[0]![1]?.method).toBe('DELETE');
+  });
+
+  // Testzweck: Eine Veröffentlichung nimmt ausschließlich eine positive
+  // erwartete Revision an und verhindert damit, dass JavaScript-Aufrufer den
+  // serverseitigen Draft-CAS mit einem leeren Standardwert umgehen.
+  it('weist ungültige Abschnittsveröffentlichungen vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.publish('section-1', 0)).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Unvollständige oder nicht-ganzzahlige Versionswerte werden lokal
+  // verworfen; dadurch kann das SDK keine "latest"- oder Pfad-Injection-Semantik
+  // in eine konkrete Abschnittsreferenz einschleusen.
+  it('weist keine unkonkreten Formularabschnittsversionen an die API weiter', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.formSections.getVersion('section-1', {
+      major: Number.NaN,
+      minor: 0,
+    })).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Administrative Hosts können Verbindungsmetadaten anlegen, ohne
+  // dass der SDK-Antwortvertrag die nur schreibbare Secret-Referenz zurückspiegelt.
+  it('legt eine KI-Verbindung über den sicheren Metadatenvertrag an', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        id: '18e68e30-8bf1-4f67-9709-d403884df66f',
+        name: 'Lokales Modell',
+        provider: 1,
+        location: 1,
+        baseAddress: 'https://models.example.test/v1',
+        defaultModel: 'model-1',
+        enabled: true,
+        ready: true,
+        revision: 1,
+        updatedAtUtc: '2026-09-09T10:00:00Z',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    const connection = await client.aiConnections.create({
+      name: 'Lokales Modell',
+      provider: 1,
+      location: 1,
+      baseAddress: 'https://models.example.test/v1',
+      defaultModel: 'model-1',
+      secretReference: 'env:LOCAL_MODEL_KEY',
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/ai/connection');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toMatchObject({
+      secretReference: 'env:LOCAL_MODEL_KEY',
+    });
+    expect(connection).not.toHaveProperty('secretReference');
+  });
+
+  // Testzweck: Modellierungsoberflächen erhalten Werkzeugverträge über einen eigenen
+  // rein lesbaren SDK-Pfad; die Verbindung referenziert nur die erlaubte stabile Version.
+  it('lädt KI-Werkzeuge und bindet ihre Version an eine Verbindung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(jsonResponse({
+        successful: true,
+        result: [{
+          id: 'flowzer.directory.lookup', version: 1, name: 'Directory lookup',
+          description: 'Reads one entry.', inputSchema: '{}', outputSchema: '{}',
+          sideEffect: 0, allowsPreApproval: false, contractHash: 'ABC',
+        }],
+      }))
+      .mockResolvedValueOnce(jsonResponse({ successful: true, result: {} }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.aiTools.list()).resolves.toMatchObject([
+      { id: 'flowzer.directory.lookup', version: 1 },
+    ]);
+    await client.aiConnections.create({
+      name: 'Cloud',
+      provider: 0,
+      location: 0,
+      defaultModel: 'model-1',
+      secretReference: 'env:FLOWZER_AI_KEY',
+      allowedTools: [{
+        toolId: 'flowzer.directory.lookup',
+        toolVersion: 1,
+        allowPreApproval: false,
+      }],
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/ai/tool');
+    expect(JSON.parse(String(fetch.mock.calls[1]![1]?.body))).toMatchObject({
+      allowedTools: [{ toolId: 'flowzer.directory.lookup', toolVersion: 1 }],
+    });
+  });
+
+  // Testzweck: Änderungen und Aktivierung bleiben revisionsgebunden und IDs
+  // werden auch bei ungewöhnlichen Hostwerten als einzelnes Pfadsegment kodiert.
+  it('ändert und aktiviert KI-Verbindungen mit Compare-and-Swap', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: {
+        id: 'connection/id', name: 'Cloud', provider: 0, location: 0,
+        defaultModel: 'model-2', enabled: true, ready: true, revision: 3,
+        updatedAtUtc: '2026-09-09T10:00:00Z',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.aiConnections.update('connection/id', {
+      expectedRevision: 2,
+      name: 'Cloud',
+      provider: 0,
+      location: 0,
+      defaultModel: 'model-2',
+    });
+    await client.aiConnections.setEnabled('connection/id', {
+      expectedRevision: 3,
+      enabled: true,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/ai/connection/connection%2Fid',
+      '/api/ai/connection/connection%2Fid/enabled',
+    ]);
+    expect(fetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
+      {
+        expectedRevision: 2,
+        name: 'Cloud',
+        provider: 0,
+        location: 0,
+        defaultModel: 'model-2',
+      },
+      { expectedRevision: 3, enabled: true },
+    ]);
+  });
+
+  // Testzweck: Untypisierte Aufrufer können den serverseitigen CAS nicht mit
+  // ungültigen Revisionen umgehen; in diesem Fall findet kein Request statt.
+  it('weist ungültige KI-Verbindungsrevisionen vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.aiConnections.setEnabled('connection-1', {
+      expectedRevision: 0,
+      enabled: false,
+    })).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+});

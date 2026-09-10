@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { BlockEditor } from '@/components/outline/BlockEditor';
 import { OutlineIssues } from '@/components/outline/OutlineIssues';
 import { OutlineView } from '@/components/outline/OutlineView';
+import { BpmnDiagnosticsPanel } from '@/components/bpmn/BpmnDiagnosticsPanel';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
@@ -14,7 +15,10 @@ import {
   useDeployDefinition,
   useLatestDefinition,
   useSaveDefinition,
+  useValidateDefinition,
+  useBpmnCapabilities,
 } from '@/lib/api/queries';
+import { normalizeBpmnDiagnostics, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 import { findBlock, hasBlocker, type OutlineDocument } from '@/lib/outline/model';
 import { readOutline } from '@/lib/outline/read';
 import { writeOutlineXml } from '@/lib/outline/write';
@@ -39,11 +43,14 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
   const xmlQuery = useDefinitionXml(latestQuery.data?.id);
   const saveDefinition = useSaveDefinition();
   const deployDefinition = useDeployDefinition();
+  const validateDefinition = useValidateDefinition();
+  const capabilitiesQuery = useBpmnCapabilities();
   const mayPublish = useCan()('modeler');
 
   const [draft, setDraft] = useState<OutlineDocument | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<BpmnDiagnostic[]>([]);
 
   const definition = definitionsQuery.data?.find((entry) => entry.definitionId === definitionId);
   const name = definition?.name ?? definitionId;
@@ -76,34 +83,63 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
   function apply(next: OutlineDocument) {
     setDraft(next);
     setDirty(true);
+    setDiagnostics([]);
   }
 
   function store(kind: 'save' | 'deploy') {
     if (!written?.xml) return;
     const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
 
-    mutation.mutate(
-      { xml: written.xml, previousGuid: latestQuery.data?.id },
-      {
-        onSuccess: (result) => {
-          setDirty(false);
-          toast.success(
-            kind === 'deploy'
-              ? `v${result.version.major}.${result.version.minor} ist aktiv`
-              : `Version v${result.version.major}.${result.version.minor} gespeichert`,
-          );
-          void latestQuery.refetch();
-        },
-        onError: (error) =>
-          toast.error(kind === 'deploy' ? 'Deploy fehlgeschlagen' : 'Speichern fehlgeschlagen', {
-            description: error instanceof Error ? error.message : undefined,
-          }),
+    validateDefinition.mutate({ xml: written.xml, deployment: kind === 'deploy' }, {
+      onSuccess: () => {
+        mutation.mutate(
+          { xml: written.xml!, previousGuid: latestQuery.data?.id },
+          {
+            onSuccess: (result) => {
+              setDirty(false);
+              setDiagnostics([]);
+              toast.success(
+                kind === 'deploy'
+                  ? `v${result.version.major}.${result.version.minor} ist aktiv`
+                  : `Version v${result.version.major}.${result.version.minor} gespeichert`,
+              );
+              void latestQuery.refetch();
+            },
+            onError: (error) => handleMutationError(kind, error),
+          },
+        );
       },
-    );
+      onError: (error) => handleMutationError(kind, error),
+    });
+  }
+
+  function handleMutationError(kind: 'save' | 'deploy', error: unknown) {
+    const nextDiagnostics = normalizeBpmnDiagnostics(error);
+    if (nextDiagnostics.length > 0) {
+      setDiagnostics(nextDiagnostics);
+      return;
+    }
+
+    toast.error(kind === 'deploy' ? 'Deploy fehlgeschlagen' : 'Speichern fehlgeschlagen', {
+      description: error instanceof Error ? error.message : undefined,
+    });
   }
 
   const loading = latestQuery.isPending || (Boolean(latestQuery.data?.id) && xmlQuery.isPending);
-  const openDiagram = () => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}` });
+  const openDiagram = (elementId?: string) =>
+    void navigate({
+      to: `/workflows/${encodeURIComponent(definitionId)}`,
+      search: elementId ? { element: elementId } : {},
+    });
+
+  function selectIssue(issue: { elementId?: string }) {
+    if (!issue.elementId) return;
+    if (draft && findBlock(draft.blocks, issue.elementId)) {
+      setSelectedId(issue.elementId);
+      return;
+    }
+    openDiagram(issue.elementId);
+  }
 
   if (latestQuery.error) {
     return (
@@ -132,13 +168,13 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
 
         <span className="flex-1" />
 
-        <Button size="sm" icon="account_tree" onClick={openDiagram}>
+        <Button size="sm" icon="account_tree" onClick={() => openDiagram()}>
           Diagramm
         </Button>
 
         {mayPublish ? (
           <>
-            <Button size="sm" icon="save" disabled={!canSave} loading={saveDefinition.isPending} onClick={() => store('save')}>
+            <Button size="sm" icon="save" disabled={!canSave} loading={saveDefinition.isPending || validateDefinition.isPending} onClick={() => store('save')}>
               Speichern
             </Button>
             <Button
@@ -146,7 +182,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
               variant="primary"
               icon="rocket_launch"
               disabled={!canSave}
-              loading={deployDefinition.isPending}
+              loading={deployDefinition.isPending || validateDefinition.isPending}
               onClick={() => store('deploy')}
             >
               Deployen
@@ -173,7 +209,17 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <div className="min-w-0 flex-1 overflow-auto px-[22px] py-5">
             <div className="mx-auto flex max-w-[720px] flex-col gap-4">
-              <OutlineIssues issues={issues} outlineShown={Boolean(draft)} onOpenDiagram={openDiagram} />
+              <BpmnDiagnosticsPanel
+                diagnostics={diagnostics}
+                contractVersion={capabilitiesQuery.data?.contractVersion}
+                onSelectElement={(elementId) => selectIssue({ elementId })}
+              />
+              <OutlineIssues
+                issues={issues}
+                outlineShown={Boolean(draft)}
+                onOpenDiagram={() => openDiagram()}
+                onSelectIssue={selectIssue}
+              />
               {draft && (
                 <OutlineView
                   document={draft}
@@ -189,6 +235,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
           {draft && (
             <aside className="border-border bg-surface w-[340px] flex-none overflow-auto border-l p-5 max-lg:hidden">
               <BlockEditor
+                definitionId={definitionId}
                 document={draft}
                 block={selectedId ? findBlock(draft.blocks, selectedId) : undefined}
                 editable={mayPublish}

@@ -1,23 +1,36 @@
 FROM node:22-alpine AS build
 WORKDIR /src
 
-# Abhaengigkeiten zuerst: Sie aendern sich seltener als der Quellcode und bleiben
-# damit als Zwischenschicht erhalten.
-COPY src/FlowzerConsole/package.json src/FlowzerConsole/package-lock.json ./
-RUN npm ci
+# Die Console bindet die veröffentlichbaren Pakete über lokale, gelockte file:-
+# Referenzen ein. Ihre Artefakte müssen deshalb vor dem Vite-Build erzeugt werden;
+# unversionierte dist/-Ordner vom Host werden nicht in das Image kopiert.
+COPY packages/flowzer-sdk/package.json packages/flowzer-sdk/package-lock.json ./packages/flowzer-sdk/
+COPY packages/flowzer-react/package.json packages/flowzer-react/package-lock.json ./packages/flowzer-react/
+RUN npm ci --prefix packages/flowzer-sdk && npm ci --prefix packages/flowzer-react
 
-COPY src/FlowzerConsole/ ./
-RUN npm run build
+COPY packages/flowzer-sdk/ ./packages/flowzer-sdk/
+COPY packages/flowzer-react/ ./packages/flowzer-react/
+RUN npm run build --prefix packages/flowzer-sdk && npm run build --prefix packages/flowzer-react
+
+# Abhaengigkeiten zuerst: Sie aendern sich seltener als der Console-Quellcode und
+# bleiben damit als Zwischenschicht erhalten. Die file:-Links zeigen auf die oben
+# gebauten, in derselben Build-Stage liegenden öffentlichen Pakete.
+COPY src/FlowzerConsole/package.json src/FlowzerConsole/package-lock.json ./src/FlowzerConsole/
+RUN npm ci --prefix src/FlowzerConsole
+
+COPY src/FlowzerConsole/ ./src/FlowzerConsole/
+RUN npm run build --prefix src/FlowzerConsole
 
 FROM nginx:1.27-alpine AS runtime
 
 COPY deploy/console/entrypoint.sh /entrypoint.sh
-COPY --from=build /src/dist /usr/share/nginx/html
+COPY --from=build /src/src/FlowzerConsole/dist /usr/share/nginx/html
 RUN chmod +x /entrypoint.sh
 
-# Adresse der API und des Identity Providers stehen erst zur Laufzeit fest; das Bundle
-# soll nicht je Umgebung neu gebaut werden. Siehe entrypoint.sh.
-ENV FLOWZER_API_BASE_URL=/ FLOWZER_ACCENT=iris FLOWZER_OIDC_AUTHORITY= FLOWZER_OIDC_CLIENT_ID= FLOWZER_OIDC_AUDIENCE= FLOWZER_OIDC_SCOPES= FLOWZER_API_UPSTREAM= FLOWZER_ROLE_ACCESS=access FLOWZER_ROLE_MODELER=modeler FLOWZER_ROLE_OPERATOR=operator FLOWZER_ROLE_WORKER=worker
+# Nur nicht geheime Bereitstellungswerte stehen erst zur Laufzeit fest; das Bundle
+# soll nicht je Umgebung neu gebaut werden. OIDC-Clientdaten und Tokens bleiben im BFF.
+# Siehe entrypoint.sh.
+ENV FLOWZER_API_BASE_URL=/ FLOWZER_ACCENT=iris FLOWZER_BFF_ENABLED=true FLOWZER_API_UPSTREAM=
 
 EXPOSE 8080
 CMD ["/entrypoint.sh"]

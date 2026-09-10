@@ -89,10 +89,14 @@ export interface TokenDto {
   startTime?: string | null;
   /** Ergänzt durch die Console-API: letzter Statuswechsel (UTC). */
   lastStateChangeTime?: string | null;
+  /** Serverseitig verifizierter Abschlussakteur, unabhängig von Formulardaten. */
+  completedByUserId?: string | null;
 }
 
 /** Entspricht `ProcessInstanceInfoDto`. */
 export interface ProcessInstanceInfoDto {
+  /** Ohne explizite Freigabe nur datensparsame Übersicht, keine Token-Diagnose. */
+  canInspect?: boolean;
   instanceId: string;
   definitionId: string;
   relatedDefinitionId: string;
@@ -122,6 +126,19 @@ export interface BpmnDefinitionDto {
   version: VersionDto;
 }
 
+/** Versionierter, hostneutraler Vertrag für unterstützte BPMN-Elementarten. */
+export interface BpmnCapabilityContract {
+  contractVersion: string;
+  elements: BpmnElementCapability[];
+}
+
+export interface BpmnElementCapability {
+  elementType: string;
+  modelable: boolean;
+  parsable: boolean;
+  executable: boolean;
+}
+
 /** Entspricht `BpmnMetaDefinitionDto`. */
 export interface BpmnMetaDefinitionDto {
   definitionId: string;
@@ -139,6 +156,9 @@ export interface BpmnMetaDefinitionDto {
 export const FOLDER_SUBJECT_KINDS = ['user', 'group'] as const;
 export type FolderSubjectKind = (typeof FOLDER_SUBJECT_KINDS)[number];
 
+/** Herkunft einer Ordnerzuweisung. Fehlende Werte bleiben aus Legacy-Antworten `text`. */
+export type FolderReferenceMode = 'text' | 'directory';
+
 /**
  * Die beiden Rollen eines Ordners. `editor` darf die Workflows darin ändern,
  * `steward` — die Fachverantwortung — zusätzlich Unterordner anlegen und delegieren.
@@ -152,6 +172,10 @@ export interface FolderAssignmentDto {
   subject: string;
   role: FolderRole;
   displayName?: string | null;
+  /** Additiver Vertragswert: alte Antworten ohne Wert sind weiterhin Freitext. */
+  referenceMode?: FolderReferenceMode;
+  /** Bei `directory` die stabile, vom Verzeichnis bestätigte Identität. */
+  subjectRef?: SubjectRefDto | null;
 }
 
 /** Entspricht `InheritedFolderAssignmentDto` — eine Zuweisung aus einem übergeordneten Ordner. */
@@ -200,6 +224,7 @@ export interface FormMetaDataDto {
 
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
 export interface FormDto {
+  validationProfile?: string | null;
   id?: string | null;
   /**
    * Kennung im Formularbestand. Fehlt bei einem Formular, das im Workflow selbst liegt:
@@ -211,29 +236,122 @@ export interface FormDto {
   formData?: string | null;
 }
 
-/** Entspricht `UserTaskSubscriptionDto`. */
-export interface UserTaskSubscriptionDto {
-  id: string;
-  name: string;
-  token: TokenDto;
-  userCandidates: string[];
-  userGroups: string[];
-  currenAssignedUser?: string | null;
-  processInstanceId?: string | null;
-  definitionId: string;
-  processId: string;
+/** Gemeinsamer Formularautoren-Entwurf oder die noch unveraenderte Veroeffentlichungsbasis. */
+export interface FormAuthoringDraftDto {
+  formId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedFormId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  formData: string;
 }
 
-/** Entspricht `ExtendedUserTaskSubscriptionDto`. */
-export interface ExtendedUserTaskSubscriptionDto extends UserTaskSubscriptionDto {
-  definitionMetaName: string;
-  definitionVersion: VersionDto;
-  /** Ergänzt durch die Console-API: aufgelöster Form-Key des User-Tasks. */
-  formKey?: string | null;
-  /** Ergänzt durch die Console-API: Fälligkeitsangabe aus dem BPMN-Modell. */
-  dueDate?: string | null;
-  followUpDate?: string | null;
-  priority?: string | null;
+export interface SaveFormAuthoringDraftRequestDto {
+  expectedRevision: number;
+  formData: string;
+}
+
+/** Serverseitig expandierter, nicht persistierter Vorschau-Snapshot. */
+export interface FormAuthoringPreviewDto {
+  formData: string;
+  validationProfile: string;
+}
+
+/** Hostneutraler Katalogeintrag eines wiederverwendbaren Formularabschnitts. */
+export interface FormSectionMetadataDto {
+  sectionId: string;
+  name: string;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Abschnittsversion. */
+export interface FormSectionVersionSummaryDto {
+  id: string;
+  sectionId: string;
+  version: VersionDto;
+}
+
+/** Unveränderliche Abschnittsfassung inklusive Form.io-Schema. */
+export interface FormSectionVersionDto extends FormSectionVersionSummaryDto {
+  sectionData: string;
+}
+
+/** Revisionierter Abschnittsentwurf oder veröffentlichte Basis. */
+export interface FormSectionAuthoringDraftDto {
+  sectionId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedSectionId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  sectionData: string;
+}
+
+export interface SaveFormSectionAuthoringDraftRequestDto {
+  expectedRevision: number;
+  sectionData: string;
+}
+
+export type FormCompatibilitySource = 'published' | 'draft';
+
+/** Datensparsamer Inventareintrag; Schema und Scriptinhalt bleiben serverseitig. */
+export interface FormCompatibilityItemDto {
+  formId: string;
+  formName: string;
+  source: FormCompatibilitySource;
+  publishedFormId?: string | null;
+  version?: VersionDto | null;
+  draftRevision?: number | null;
+  compatible: boolean;
+  validationProfile?: string | null;
+  issueCode?: string | null;
+}
+
+/** Stabile Benutzer- oder Gruppenreferenz aus dem veröffentlichten Verzeichnis. */
+export interface SubjectRefDto {
+  kind: 'user' | 'group';
+  id: string;
+}
+
+/** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
+export interface DirectorySubjectDto {
+  subject: SubjectRefDto;
+  displayName: string;
+  detail: string;
+  /** Status im aktuellen vollständig publizierten Verzeichnisstand. */
+  isActive: boolean;
+  /** Darf im gebundenen fachlichen Kontext erneut ausgewählt werden? */
+  isSelectable: boolean;
+}
+
+/** Begrenzte Treffer aus genau einer atomar veröffentlichten Verzeichnisgeneration. */
+export interface DirectorySubjectSearchResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
+/** Exakte Anzeigeauflösung bereits gespeicherter stabiler Referenzen. */
+export interface DirectorySubjectResolutionResultDto {
+  generationId: string;
+  items: DirectorySubjectDto[];
+}
+
+/** Kontext, in dem ein Formularfeld Directory-Identitäten suchen darf. */
+export type FormDirectorySearchContext =
+  | { kind: 'startForm'; definitionId: string }
+  | { kind: 'userTask'; taskId: string };
+
+/** Persistente, benutzergebundene Meldung aus dem Server-Feed. */
+export interface NotificationDto {
+  id: string;
+  userTaskId: string;
+  kind: string;
+  occurredAtUtc: string;
+  readAtUtc: string | null;
+  title: string;
+  message: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  href: string;
 }
 
 /** Entspricht `TimerSubscriptionDto`. */
@@ -282,14 +400,6 @@ export interface MessageDto {
   variables?: ProcessVariables | null;
   timeToLive?: number;
   instanceId?: string | null;
-}
-
-/** Entspricht `UserTaskResultDto`. */
-export interface UserTaskResultDto {
-  flowNodeId: string;
-  tokenId: string;
-  processInstanceId?: string | null;
-  data?: ProcessVariables | null;
 }
 
 /** Entspricht `HealthStatusDto`. */
@@ -363,4 +473,65 @@ export interface OperationsDiagnosticsDto {
   timerScheduler: TimerSchedulerDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
+}
+
+/** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */
+export const AI_PROVIDER_KINDS = ['OpenAi', 'OpenAiCompatible', 'Anthropic'] as const;
+export type AiProviderKind = (typeof AI_PROVIDER_KINDS)[number];
+
+/** Explizite Datenflussgrenze; es gibt keinen stillen Wechsel zwischen lokal und Cloud. */
+export const AI_PROCESSING_LOCATIONS = ['Cloud', 'Local'] as const;
+export type AiProcessingLocation = (typeof AI_PROCESSING_LOCATIONS)[number];
+
+export const AI_TOOL_SIDE_EFFECTS = ['ReadOnly', 'Write', 'Send'] as const;
+export type AiToolSideEffect = (typeof AI_TOOL_SIDE_EFFECTS)[number];
+
+export interface AiToolPermissionDto {
+  toolId: string;
+  toolVersion: number;
+  allowPreApproval: boolean;
+}
+
+/** Nur lesbarer Vertrag einer fest auf dem Server registrierten Werkzeugversion. */
+export interface AiToolDto {
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  inputSchema: string;
+  outputSchema: string;
+  sideEffect: AiToolSideEffect;
+  allowsPreApproval: boolean;
+  contractHash: string;
+}
+
+/** Sichere Projektion ohne Secret-Wert und ohne Secret-Referenz. */
+export interface AiConnectionDto {
+  id: string;
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  enabled: boolean;
+  ready: boolean;
+  revision: number;
+  updatedAtUtc: string;
+  allowedTools: AiToolPermissionDto[];
+}
+
+export interface CreateAiConnectionInput {
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  secretReference: string;
+  allowedTools?: AiToolPermissionDto[];
+}
+
+export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, 'secretReference'> {
+  expectedRevision: number;
+  /** Leer behaelt die vorhandene Referenz; sie wird nie aus einer Antwort vorbefuellt. */
+  secretReference?: string;
 }

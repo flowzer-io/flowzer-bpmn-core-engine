@@ -43,6 +43,9 @@ public class WorkflowFolderDto
 /// </summary>
 public class FolderAssignmentDto
 {
+    /// <summary><c>text</c> fuer bestehende Kennungen oder <c>directory</c> fuer eine stabile Referenz.</summary>
+    public string ReferenceMode { get; set; } = "text";
+
     public required string SubjectKind { get; set; }
 
     public required string Subject { get; set; }
@@ -50,6 +53,9 @@ public class FolderAssignmentDto
     public required string Role { get; set; }
 
     public string? DisplayName { get; set; }
+
+    /// <summary>Im Directory-Modus dieselbe Kennung als strikt typisierte Referenz.</summary>
+    public SubjectRefDto? SubjectRef { get; set; }
 }
 
 public class InheritedFolderAssignmentDto : FolderAssignmentDto

@@ -2,22 +2,39 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuilder';
+import { FormSectionPicker } from '@/components/forms/FormSectionPicker';
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
 import { ConfirmModal } from '@/components/ui/Modal';
-import { toneSurface } from '@/components/ui/Chip';
+import { Chip, toneSurface } from '@/components/ui/Chip';
 import { SearchInput, TextInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, InlineSpinner, Skeleton } from '@/components/ui/States';
-import { useDeleteForm, useForm, useForms, useSaveForm, useSaveFormMeta } from '@/lib/api/queries';
+import {
+  useDeleteForm,
+  useDiscardFormAuthoringDraft,
+  useForm,
+  useFormAuthoringDraft,
+  useFormAuthoringPreview,
+  useFormCompatibilityInventory,
+  useForms,
+  usePublishFormAuthoringDraft,
+  useSaveFormAuthoringDraft,
+  useSaveFormMeta,
+} from '@/lib/api/queries';
+import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
+import { describeCompatibilityIssue, incompatibleCountByForm } from '@/lib/forms/formCompatibility';
 import { iconForLabel } from '@/lib/taskView';
+import { appendSectionReference } from '@/lib/forms/sectionReferences';
+import type { FormSectionVersionSummaryDto } from '@/lib/api/types';
 import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
+type InventoryFilter = 'all' | 'migration';
 
 const MODE_OPTIONS = [
   { value: 'preview' as const, label: 'Vorschau' },
@@ -30,30 +47,94 @@ export function FormsPage() {
   const [mode, setMode] = useState<Mode>('preview');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
+  const [editorSchema, setEditorSchema] = useState<string | undefined>();
+  const [dirty, setDirty] = useState(false);
+  const [builderReady, setBuilderReady] = useState(false);
+  const [draftConflict, setDraftConflict] = useState(false);
+  const [editorGeneration, setEditorGeneration] = useState(0);
   const builderRef = useRef<FormBuilderHandle>(null);
   // Formulare darf jeder Zugelassene lesen; anlegen und aendern verlangt die Modelliererrolle.
   const mayPublish = useCan()('modeler');
 
   const formsQuery = useForms();
-  const saveForm = useSaveForm();
+  const saveDraft = useSaveFormAuthoringDraft();
+  const discardDraft = useDiscardFormAuthoringDraft();
+  const publishDraft = usePublishFormAuthoringDraft();
   const saveMeta = useSaveFormMeta();
   const deleteForm = useDeleteForm();
+  const compatibilityQuery = useFormCompatibilityInventory(mayPublish);
   const [pendingDelete, setPendingDelete] = useState<{ formId: string; name: string } | null>(null);
+  const [pendingPublish, setPendingPublish] = useState(false);
+  const [pendingDiscard, setPendingDiscard] = useState(false);
+
+  const incompatibleByForm = useMemo(() => {
+    return incompatibleCountByForm(compatibilityQuery.data ?? []);
+  }, [compatibilityQuery.data]);
 
   const forms = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (formsQuery.data ?? [])
       .filter((form) => term.length === 0 || form.name.toLowerCase().includes(term))
+      .filter((form) => inventoryFilter === 'all' || incompatibleByForm.has(form.formId))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [formsQuery.data, search]);
+  }, [formsQuery.data, incompatibleByForm, inventoryFilter, search]);
 
   // Beim ersten Laden das erste Formular auswählen, damit die Vorschau nicht leer bleibt.
   useEffect(() => {
     if (!selectedId && forms.length > 0) setSelectedId(forms[0]!.formId);
   }, [forms, selectedId]);
 
+  // Ein Filter darf rechts keinen unsichtbaren, nicht mehr zur Liste gehoerenden
+  // Datensatz stehen lassen. Bei leerem Ergebnis wird auch die Detailauswahl geleert.
+  useEffect(() => {
+    if (selectedId && !forms.some((form) => form.formId === selectedId)) {
+      setSelectedId(forms[0]?.formId ?? null);
+    }
+  }, [forms, selectedId]);
+
   const selected = forms.find((form) => form.formId === selectedId);
-  const formQuery = useForm(selectedId ?? undefined);
+  const draftQuery = useFormAuthoringDraft(mayPublish ? selectedId ?? undefined : undefined);
+  const publishedQuery = useForm(mayPublish ? undefined : selectedId ?? undefined);
+  const sourceData = useMemo(
+    () => mayPublish
+      ? draftQuery.data
+      : publishedQuery.data
+        ? {
+            formData: publishedQuery.data.formData ?? '{}',
+            basedOnVersion: publishedQuery.data.version,
+            hasDraft: false,
+            revision: 0,
+          }
+        : undefined,
+    [draftQuery.data, mayPublish, publishedQuery.data],
+  );
+  const sourcePending = mayPublish ? draftQuery.isPending : publishedQuery.isPending;
+  const sourceError = mayPublish ? draftQuery.error : publishedQuery.error;
+  const previewQuery = useFormAuthoringPreview(
+    mayPublish ? selectedId ?? undefined : undefined,
+    editorSchema,
+    mayPublish && mode === 'preview',
+  );
+  const selectedCompatibility = useMemo(
+    () => (compatibilityQuery.data ?? []).filter((item) => item.formId === selectedId),
+    [compatibilityQuery.data, selectedId],
+  );
+  const selectedIssues = selectedCompatibility.filter((item) => !item.compatible);
+
+  useEffect(() => {
+    setEditorSchema(undefined);
+    setDirty(false);
+    setBuilderReady(false);
+    setDraftConflict(false);
+    setEditorGeneration((generation) => generation + 1);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (sourceData && editorSchema === undefined) {
+      setEditorSchema(sourceData.formData);
+    }
+  }, [sourceData, editorSchema]);
 
   function handleCreate() {
     const name = newName.trim();
@@ -65,24 +146,26 @@ export function FormsPage() {
       { formId, name },
       {
         onSuccess: () => {
-          // Ein neues Formular braucht sofort eine erste Version, sonst liefert
-          // `GET /form/{id}/latest` einen 404.
-          saveForm.mutate(
+          // Neu angelegte Formulare beginnen als Entwurf. Erst die ausdrueckliche
+          // Veroeffentlichung erzeugt eine fuer Deployments sichtbare Version.
+          saveDraft.mutate(
             {
               formId,
-              formData: JSON.stringify({ display: 'form', components: [] }, null, 2),
-              version: { major: 0, minor: 1 },
+              draft: {
+                expectedRevision: 0,
+                formData: JSON.stringify({ display: 'form', components: [] }, null, 2),
+              },
             },
             {
               onSuccess: () => {
-                toast.success(`Formular „${name}" angelegt`);
+                toast.success(`Entwurf „${name}" angelegt`);
                 setCreating(false);
                 setNewName('');
                 setSelectedId(formId);
                 setMode('edit');
               },
               onError: (error) =>
-                toast.error('Erste Version konnte nicht gespeichert werden', {
+                toast.error('Erster Entwurf konnte nicht gespeichert werden', {
                   description: error instanceof Error ? error.message : undefined,
                 }),
             },
@@ -96,37 +179,78 @@ export function FormsPage() {
     );
   }
 
-  function handleSaveSchema() {
-    if (!selectedId) return;
-
-    let schema: string;
+  function readEditorSchema(): string | null {
+    if (!builderRef.current) return editorSchema ?? null;
     try {
-      schema = builderRef.current!.getSchema();
+      const schema = builderRef.current.getSchema();
+      setEditorSchema(schema);
+      return schema;
     } catch (error) {
       toast.error('Das Schema konnte nicht gelesen werden', {
         description: error instanceof Error ? error.message : undefined,
       });
-      return;
+      return null;
     }
+  }
 
-    const current = formQuery.data?.version;
-    const nextVersion = current ? { major: current.major, minor: current.minor + 1 } : { major: 0, minor: 1 };
+  function handleSaveSchema() {
+    if (!selectedId) return;
+    const schema = readEditorSchema();
+    if (schema === null) return;
 
-    saveForm.mutate(
-      { formId: selectedId, formData: schema, version: nextVersion },
+    saveDraft.mutate(
       {
-        onSuccess: (saved) =>
-          toast.success(
-            saved.version
-              ? `Version v${saved.version.major}.${saved.version.minor} gespeichert`
-              : 'Formular gespeichert',
-          ),
-        onError: (error) =>
+        formId: selectedId,
+        draft: { expectedRevision: draftQuery.data?.revision ?? 0, formData: schema },
+      },
+      {
+        onSuccess: (saved) => {
+          setDirty(false);
+          setDraftConflict(false);
+          toast.success(`Entwurf Revision ${saved.revision} gespeichert`);
+        },
+        onError: (error) => {
+          setDraftConflict(error instanceof ApiError && error.status === 409);
           toast.error('Speichern fehlgeschlagen', {
             description: error instanceof Error ? error.message : undefined,
-          }),
+          });
+        },
       },
     );
+  }
+
+  async function adoptServerDraft() {
+    const result = await draftQuery.refetch();
+    if (!result.data) return;
+    setEditorSchema(result.data.formData);
+    setDirty(false);
+    setDraftConflict(false);
+    setEditorGeneration((generation) => generation + 1);
+  }
+
+  function handleModeChange(next: Mode) {
+    if (mode === 'edit' && next === 'preview' && readEditorSchema() === null) return;
+    setMode(next);
+  }
+
+  function insertSection(version: FormSectionVersionSummaryDto, name: string) {
+    const current = readEditorSchema();
+    if (!current) return;
+    try {
+      const next = appendSectionReference(current, {
+        sectionId: version.sectionId,
+        version: version.version,
+        label: name,
+      });
+      setEditorSchema(next);
+      setDirty(next !== draftQuery.data?.formData);
+      setEditorGeneration((generation) => generation + 1);
+      toast.success(`Abschnitt „${name}" v${version.version.major}.${version.version.minor} eingefügt`);
+    } catch (error) {
+      toast.error('Abschnitt konnte nicht eingefügt werden', {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
   }
 
   return (
@@ -156,7 +280,7 @@ export function FormsPage() {
           />
           <Button
             variant="primary"
-            loading={saveMeta.isPending || saveForm.isPending}
+            loading={saveMeta.isPending || saveDraft.isPending}
             onClick={handleCreate}
           >
             Anlegen
@@ -175,6 +299,19 @@ export function FormsPage() {
             placeholder="Formular filtern …"
             wrapperClassName="py-2 mb-1"
           />
+
+          {mayPublish && (
+            <Segmented
+              options={[
+                { value: 'all', label: 'Alle', count: formsQuery.data?.length ?? 0 },
+                { value: 'migration', label: 'Migration', count: incompatibleByForm.size },
+              ]}
+              value={inventoryFilter}
+              onChange={setInventoryFilter}
+              aria-label="Formularbestand filtern"
+              className="mb-1"
+            />
+          )}
 
           {formsQuery.isPending &&
             Array.from({ length: 4 }, (_, index) => <Skeleton key={index} className="h-[60px]" />)}
@@ -225,6 +362,9 @@ export function FormsPage() {
                     Form-Key: {form.name}
                   </span>
                 </span>
+                {(incompatibleByForm.get(form.formId) ?? 0) > 0 && (
+                  <Chip tone="wait">Migration</Chip>
+                )}
               </button>
             );
           })}
@@ -239,26 +379,51 @@ export function FormsPage() {
                   {selected?.name ?? 'Kein Formular ausgewählt'}
                 </div>
                 <div className="text-muted text-xs">
-                  {formQuery.data?.version
-                    ? `Version v${formQuery.data.version.major}.${formQuery.data.version.minor}`
-                    : 'Live-Vorschau'}
+                  {sourceData?.hasDraft
+                    ? `Entwurf · Revision ${sourceData.revision}`
+                    : sourceData?.basedOnVersion
+                      ? `Veröffentlicht v${sourceData.basedOnVersion.major}.${sourceData.basedOnVersion.minor}`
+                      : 'Noch nicht veröffentlicht'}
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5">
-              {mode === 'edit' && selectedId && (
+            <div className="flex flex-wrap items-center justify-end gap-2.5">
+              {mayPublish && mode === 'edit' && selectedId && (
                 <Button
                   variant="primary"
                   size="sm"
                   icon="save"
-                  loading={saveForm.isPending}
+                  loading={saveDraft.isPending}
+                  disabled={!builderReady || !dirty || draftConflict}
                   onClick={handleSaveSchema}
                 >
-                  Speichern
+                  Entwurf speichern
                 </Button>
               )}
-              <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} aria-label="Ansicht" />
+              {mayPublish && draftQuery.data?.hasDraft && !dirty && !draftConflict && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon="upload"
+                  onClick={() => setPendingPublish(true)}
+                >
+                  Veröffentlichen
+                </Button>
+              )}
+              {mayPublish && draftQuery.data?.hasDraft && !dirty && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={publishDraft.isPending}
+                  onClick={() => setPendingDiscard(true)}
+                >
+                  Entwurf verwerfen
+                </Button>
+              )}
+              {mayPublish && (
+                <Segmented options={MODE_OPTIONS} value={mode} onChange={handleModeChange} aria-label="Ansicht" />
+              )}
               {mayPublish && selected && (
                 <Button
                   size="sm"
@@ -285,26 +450,145 @@ export function FormsPage() {
               />
             )}
 
-            {selectedId && formQuery.isPending && <InlineSpinner />}
+            {selectedId && sourcePending && <InlineSpinner />}
 
-            {selectedId && formQuery.error && (
+            {selectedId && sourceError && (
               <ErrorState
-                error={formQuery.error}
+                error={sourceError}
                 title="Formular konnte nicht geladen werden"
-                onRetry={() => void formQuery.refetch()}
+                onRetry={() => void (mayPublish ? draftQuery.refetch() : publishedQuery.refetch())}
               />
             )}
 
-            {selectedId && formQuery.data && mode === 'preview' && (
-              <FormRenderer key={`preview-${selectedId}`} schema={formQuery.data.formData ?? undefined} />
+            {selectedId && draftConflict && (
+              <div className="border-warn text-warn mb-4 flex items-center justify-between gap-3 rounded-[var(--r)] border px-4 py-3 text-sm">
+                <span>Der Entwurf wurde zwischenzeitlich geändert. Deine lokale Fassung bleibt erhalten.</span>
+                <Button size="sm" variant="secondary" onClick={() => void adoptServerDraft()}>
+                  Serverstand laden
+                </Button>
+              </div>
             )}
 
-            {selectedId && formQuery.data && mode === 'edit' && (
-              <FormBuilder key={`edit-${selectedId}`} ref={builderRef} schema={formQuery.data.formData ?? undefined} />
+            {mayPublish && selectedId && selectedIssues.length > 0 && (
+              <div className="border-warn mb-4 rounded-[var(--r)] border px-4 py-3 text-sm">
+                <div className="text-warn mb-1 font-semibold">Bestand vor erneutem Veröffentlichen prüfen</div>
+                <ul className="text-muted list-disc space-y-1 pl-5">
+                  {selectedIssues.map((item) => (
+                    <li key={`${item.source}-${item.publishedFormId ?? item.draftRevision ?? 'current'}`}>
+                      {item.source === 'draft'
+                        ? `Entwurf Revision ${item.draftRevision ?? 0}`
+                        : `Version ${item.version ? `${item.version.major}.${item.version.minor}` : 'unbekannt'}`}
+                      {' '}{describeCompatibilityIssue(item.issueCode)}.
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.isPending && (
+              <InlineSpinner />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.error && (
+              <ErrorState
+                error={previewQuery.error}
+                title="Vorschau konnte nicht erzeugt werden"
+                onRetry={() => void previewQuery.refetch()}
+              />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.data && (
+              <FormRenderer schema={previewQuery.data.formData} />
+            )}
+
+            {selectedId && sourceData && mode === 'preview' && !mayPublish && (
+              <FormRenderer schema={editorSchema} />
+            )}
+
+            {mayPublish && selectedId && draftQuery.data && mode === 'edit' && (
+              <>
+                <FormSectionPicker onInsert={insertSection} />
+                <FormBuilder
+                  key={`edit-${selectedId}-${editorGeneration}`}
+                  ref={builderRef}
+                  schema={editorSchema}
+                  onReadyChange={setBuilderReady}
+                  // Form.io besitzt waehrend der Bearbeitung den aktuellen Zustand. Ein
+                  // Zurueckschreiben bei jedem Event wuerde den Builder ueber sein schema-Prop
+                  // zerstoeren und neu aufbauen; gelesen wird erst bei Save/Preview/Insert.
+                  onChange={() => setDirty(true)}
+                />
+              </>
             )}
           </div>
         </Card>
       </div>
+      <ConfirmModal
+        open={pendingPublish}
+        onOpenChange={setPendingPublish}
+        busy={publishDraft.isPending}
+        title={`„${selected?.name ?? ''}" veröffentlichen?`}
+        description="Der aktuelle Entwurf wird verbindlich geprüft und als neue unveränderliche Version veröffentlicht. Laufende Deployments behalten ihre bisher gebundene Version."
+        confirmLabel="Version veröffentlichen"
+        confirmIcon="upload"
+        onConfirm={() => {
+          if (!selectedId || !draftQuery.data?.hasDraft) return;
+          publishDraft.mutate(
+            { formId: selectedId, expectedRevision: draftQuery.data.revision },
+            {
+              onSuccess: (published) => {
+                setPendingPublish(false);
+                setDirty(false);
+                setDraftConflict(false);
+                const version = published.version;
+                toast.success(version ? `Version v${version.major}.${version.minor} veröffentlicht` : 'Formular veröffentlicht');
+              },
+              onError: (error) => {
+                setPendingPublish(false);
+                setDraftConflict(error instanceof ApiError && error.status === 409);
+                toast.error('Veröffentlichung fehlgeschlagen', {
+                  description: error instanceof Error ? error.message : undefined,
+                });
+              },
+            },
+          );
+        }}
+      />
+      <ConfirmModal
+        open={pendingDiscard}
+        onOpenChange={setPendingDiscard}
+        destructive
+        busy={discardDraft.isPending}
+        title="Entwurf verwerfen?"
+        description="Die letzte veröffentlichte Fassung bleibt erhalten. Der aktuelle Autorenentwurf kann danach nicht wiederhergestellt werden."
+        confirmLabel="Entwurf verwerfen"
+        confirmIcon="delete"
+        onConfirm={() => {
+          if (!selectedId || !draftQuery.data?.hasDraft) return;
+          discardDraft.mutate(
+            { formId: selectedId, expectedRevision: draftQuery.data.revision },
+            {
+              onSuccess: async () => {
+                setPendingDiscard(false);
+                setEditorSchema(undefined);
+                setDirty(false);
+                setDraftConflict(false);
+                const refreshed = await draftQuery.refetch();
+                if (refreshed.data) setEditorSchema(refreshed.data.formData);
+                setEditorGeneration((generation) => generation + 1);
+                toast.success('Entwurf verworfen');
+              },
+              onError: (error) => {
+                setPendingDiscard(false);
+                setDraftConflict(error instanceof ApiError && error.status === 409);
+                toast.error('Entwurf konnte nicht verworfen werden', {
+                  description: error instanceof Error ? error.message : undefined,
+                });
+              },
+            },
+          );
+        }}
+      />
       <ConfirmModal
         open={pendingDelete !== null}
         onOpenChange={(open) => {

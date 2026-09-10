@@ -7,6 +7,7 @@ interface OutlineIssuesProps {
   /** Steht die Gliederung daneben? Dann sind die Blocker Dinge, die man hier schließen kann. */
   outlineShown: boolean;
   onOpenDiagram?: () => void;
+  onSelectIssue?: (issue: OutlineIssue) => void;
 }
 
 /**
@@ -18,7 +19,7 @@ interface OutlineIssuesProps {
  * Weg ins Diagramm. Oder die Gliederung steht, es fehlt aber eine Angabe, die
  * genau hier nachgetragen werden kann.
  */
-export function OutlineIssues({ issues, outlineShown, onOpenDiagram }: OutlineIssuesProps) {
+export function OutlineIssues({ issues, outlineShown, onOpenDiagram, onSelectIssue }: OutlineIssuesProps) {
   if (issues.length === 0) return null;
 
   const blockers = issues.filter((issue) => issue.level === 'blocker');
@@ -45,7 +46,18 @@ export function OutlineIssues({ issues, outlineShown, onOpenDiagram }: OutlineIs
       <ul className="text-muted mt-2 flex list-disc flex-col gap-1 pl-5 text-[12.5px]">
         {[...blockers, ...notes].map((issue, index) => (
           <li key={`${issue.elementId ?? ''}-${index}`}>
-            {issue.message}
+            {issue.elementId && onSelectIssue ? (
+              <button
+                type="button"
+                className="text-accent cursor-pointer border-none bg-transparent p-0 text-left font-semibold underline"
+                aria-label={`Befund an Element ${issue.elementId} anwählen`}
+                onClick={() => onSelectIssue(issue)}
+              >
+                {issue.message}
+              </button>
+            ) : (
+              issue.message
+            )}
             {issue.elementId && <span className="text-faint font-mono"> ({issue.elementId})</span>}
           </li>
         ))}

@@ -31,6 +31,10 @@ export default defineConfig({
   server: {
     port: 5273,
     proxy: {
+      '/bff': {
+        target: DEV_API_TARGET,
+        changeOrigin: true,
+      },
       '/api': {
         target: DEV_API_TARGET,
         changeOrigin: true,

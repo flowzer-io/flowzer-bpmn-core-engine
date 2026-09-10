@@ -1,13 +1,14 @@
 import { useState } from 'react';
 
 import { Icon } from '@/components/ui/Icon';
-import { useForms } from '@/lib/api/queries';
+import { useAiConnections, useAiTools, useForms } from '@/lib/api/queries';
 import { nodeTypeIcon, nodeTypeLabel } from '@/lib/bpmnModel';
 import { parseFormKey } from '@/lib/formKey';
 
 import type { BpmnEditor } from '../bpmnEditor';
+import { AssignmentSection } from './AssignmentSection';
 import {
-  AssignmentSection,
+  AiTaskSection,
   CallActivitySection,
   FlowSection,
   FormSection,
@@ -18,6 +19,7 @@ import {
   MessageSection,
   MultiInstanceSection,
   ScheduleSection,
+  ServiceTaskModeSection,
   ScriptSection,
   SignalSection,
   TimerSection,
@@ -27,6 +29,8 @@ import { Section } from './PropertyFields';
 import { WorkflowForms } from './WorkflowForms';
 
 interface BpmnPropertiesProps {
+  /** Workflowkontext für die serverseitig berechtigte Verzeichnissuche. */
+  definitionId: string;
   editor: BpmnEditor | null;
   /** Das ausgewählte Element; `null` steht für die Sicht auf den ganzen Workflow. */
   selectedId: string | null;
@@ -48,7 +52,14 @@ interface BpmnPropertiesProps {
  * Zeebe-Umfang samt Feldern, die diese Engine gar nicht liest — was modelliert werden
  * konnte, lief hinterher nicht.
  */
-export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnly = false }: BpmnPropertiesProps) {
+export function BpmnProperties({
+  definitionId,
+  editor,
+  selectedId,
+  revision,
+  onSelect,
+  readOnly = false,
+}: BpmnPropertiesProps) {
   const formsQuery = useForms();
   const [formTab, setFormTab] = useState<{ elementId: string; source: 'stored' | 'embedded' } | null>(null);
   const [editingFormId, setEditingFormId] = useState<string | null>(null);
@@ -58,6 +69,8 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
   void revision;
 
   const properties = editor && selectedId ? editor.read(selectedId) : null;
+  const aiConnectionsQuery = useAiConnections({ enabled: properties?.serviceTaskMode === 'ai' });
+  const aiToolsQuery = useAiTools({ enabled: properties?.serviceTaskMode === 'ai' });
   const embeddedForms = editor?.listEmbeddedForms() ?? [];
   const formOwners = editor?.listFormOwners() ?? [];
   const storedFormNames = (formsQuery.data ?? []).map((form) => form.name);
@@ -121,7 +134,7 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
 
           {properties.kind === 'userTask' && (
             <>
-              <AssignmentSection {...section} />
+              <AssignmentSection {...section} definitionId={definitionId} />
               <ScheduleSection {...section} />
             </>
           )}
@@ -131,7 +144,17 @@ export function BpmnProperties({ editor, selectedId, revision, onSelect, readOnl
           {properties.signalName !== null && <SignalSection {...section} />}
           {properties.calledProcess && <CallActivitySection {...section} />}
           {properties.isScriptTask && <ScriptSection {...section} />}
-          {properties.needsJobType && <JobSection {...section} />}
+          {properties.kind === 'serviceTask' && <ServiceTaskModeSection {...section} />}
+          {properties.needsJobType && properties.serviceTaskMode !== 'ai' && <JobSection {...section} />}
+          {properties.kind === 'serviceTask' && properties.serviceTaskMode === 'ai' && (
+            <AiTaskSection
+              {...section}
+              connections={aiConnectionsQuery.data ?? []}
+              connectionsUnavailable={aiConnectionsQuery.isError}
+              tools={aiToolsQuery.data ?? []}
+              toolsUnavailable={aiToolsQuery.isError}
+            />
+          )}
 
           {(properties.supportsInputMappings || properties.supportsOutputMappings) && (
             <MappingsSection {...section} />

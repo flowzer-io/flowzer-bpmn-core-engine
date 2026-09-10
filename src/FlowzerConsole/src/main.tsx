@@ -26,9 +26,9 @@ const container = document.getElementById('root');
 if (!container) throw new Error('Das Wurzelelement #root fehlt in index.html.');
 
 /**
- * Adresse der API und des Identity Providers stehen erst zur Laufzeit fest. Beides
- * muss geladen sein, bevor die Anwendung das erste Mal zeichnet: Sonst liefe der
- * erste Aufruf gegen die falsche Adresse oder ganz ohne Anmeldung.
+ * Adresse der API und der BFF-Schalter stehen erst zur Laufzeit fest. Die Konfiguration
+ * muss geladen sein, bevor die Anwendung das erste Mal zeichnet: Sonst liefe der erste
+ * Aufruf gegen die falsche Adresse oder ohne die serverseitige Sitzung.
  */
 async function start() {
   await loadRuntimeConfig();

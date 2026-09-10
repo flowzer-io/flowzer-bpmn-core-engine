@@ -1,5 +1,4 @@
 using Model;
-using Newtonsoft.Json;
 using StorageSystem;
 
 namespace FilesystemStorageSystem;
@@ -13,16 +12,12 @@ public class ServiceTaskStorage : IServiceTaskStorage
     private const string JobPrefix = "job_";
     private const string WebhookPrefix = "webhook_";
 
-    private readonly Storage _storage;
     private readonly string _basePath;
 
     public ServiceTaskStorage(Storage storage)
     {
-        _storage = storage;
         _basePath = storage.GetBasePath("FileStorage/ServiceTasks");
     }
-
-    private JsonSerializerSettings Settings => _storage.NewtonSoftDefaultSettings;
 
     /// <summary>
     /// Die Dateiablage kennt keine Transaktionen. Die Vergabe wird deshalb prozessweit
@@ -30,11 +25,11 @@ public class ServiceTaskStorage : IServiceTaskStorage
     /// den Einzelknotenbetrieb, fuer den diese Ablage gedacht ist; im Mehrknotenbetrieb gehoert
     /// die PostgreSQL-Ablage darunter, die den Auftrag in einem Statement uebernimmt.
     /// </summary>
-    private static readonly SemaphoreSlim ClaimLock = new(1, 1);
+    private static readonly SemaphoreSlim LeaseLock = new(1, 1);
 
     public async Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs)
     {
-        await ClaimLock.WaitAsync();
+        await LeaseLock.WaitAsync();
         try
         {
             var claimed = ReadAll()
@@ -54,7 +49,36 @@ public class ServiceTaskStorage : IServiceTaskStorage
         }
         finally
         {
-            ClaimLock.Release();
+            LeaseLock.Release();
+        }
+    }
+
+    public async Task<ServiceTaskJob?> RenewJobLease(
+        Guid jobId,
+        string lockOwner,
+        DateTime now,
+        DateTime lockedUntil)
+    {
+        await LeaseLock.WaitAsync();
+        try
+        {
+            var job = await GetLockedJob(jobId, lockOwner, now);
+            if (job is null)
+            {
+                return null;
+            }
+
+            if (job.LockedUntil < lockedUntil)
+            {
+                job.LockedUntil = lockedUntil;
+                await SaveJob(job);
+            }
+
+            return job;
+        }
+        finally
+        {
+            LeaseLock.Release();
         }
     }
 
@@ -75,13 +99,13 @@ public class ServiceTaskStorage : IServiceTaskStorage
     public Task SaveJob(ServiceTaskJob job)
     {
         var path = Path.Combine(_basePath, $"{JobPrefix}{job.Id}.json");
-        return StorageFile.WriteAllTextAtomicAsync(path, JsonConvert.SerializeObject(job, Settings));
+        return StorageFile.WriteAllTextAtomicAsync(path, ServiceTaskJobDocument.Serialize(job));
     }
 
     public Task<ServiceTaskJob?> GetJob(Guid jobId)
     {
         var content = StorageFile.ReadAllTextIfExists(Path.Combine(_basePath, $"{JobPrefix}{jobId}.json"));
-        return Task.FromResult(content is null ? null : JsonConvert.DeserializeObject<ServiceTaskJob>(content, Settings));
+        return Task.FromResult(content is null ? null : ServiceTaskJobDocument.Deserialize(content));
     }
 
     public Task<IEnumerable<ServiceTaskJob>> GetJobs() => Task.FromResult(ReadAll());
@@ -108,19 +132,19 @@ public class ServiceTaskStorage : IServiceTaskStorage
     public Task SaveWebhook(ServiceTaskWebhook webhook)
     {
         var path = Path.Combine(_basePath, $"{WebhookPrefix}{webhook.Id}.json");
-        return StorageFile.WriteAllTextAtomicAsync(path, JsonConvert.SerializeObject(webhook, Settings));
+        return StorageFile.WriteAllTextAtomicAsync(path, SafeStorageJson.Serialize(webhook));
     }
 
     public Task<ServiceTaskWebhook?> GetWebhook(Guid webhookId)
     {
         var content = StorageFile.ReadAllTextIfExists(Path.Combine(_basePath, $"{WebhookPrefix}{webhookId}.json"));
-        return Task.FromResult(content is null ? null : JsonConvert.DeserializeObject<ServiceTaskWebhook>(content, Settings));
+        return Task.FromResult(content is null ? null : SafeStorageJson.Deserialize<ServiceTaskWebhook>(content));
     }
 
     public Task<IEnumerable<ServiceTaskWebhook>> GetWebhooks()
     {
         var webhooks = StorageFile.ReadExistingFiles(_basePath, $"{WebhookPrefix}*.json")
-            .Select(entry => JsonConvert.DeserializeObject<ServiceTaskWebhook>(entry.Content, Settings)!)
+            .Select(entry => SafeStorageJson.Deserialize<ServiceTaskWebhook>(entry.Content))
             .ToList();
 
         return Task.FromResult<IEnumerable<ServiceTaskWebhook>>(webhooks);
@@ -134,6 +158,6 @@ public class ServiceTaskStorage : IServiceTaskStorage
 
     private IEnumerable<ServiceTaskJob> ReadAll() =>
         StorageFile.ReadExistingFiles(_basePath, $"{JobPrefix}*.json")
-            .Select(entry => JsonConvert.DeserializeObject<ServiceTaskJob>(entry.Content, Settings)!)
+            .Select(entry => ServiceTaskJobDocument.Deserialize(entry.Content))
             .ToList();
 }

@@ -61,13 +61,23 @@ export function Meta({ block }: { block: OutlineBlock }) {
           )}
         </>
       ) : (
-        <Chip tone="run">{block.workerType ?? 'ohne Dienst'}</Chip>
+        <Chip tone="run">{block.serviceTaskMode === 'ai' ? 'KI-Aufgabe' : (block.workerType ?? 'ohne Dienst')}</Chip>
       )}
     </div>
   );
 }
 
 function describeAssignment(step: OutlineStep): string {
+  if (step.assignmentMode === 'directory') {
+    const users = (step.directoryAssigneeId ? 1 : 0) + (step.directoryCandidateUserIds?.length ?? 0);
+    const groups = step.directoryCandidateGroupIds?.length ?? 0;
+    const parts = [
+      users > 0 ? `${users} bekannte${users === 1 ? ' Person' : ' Personen'}` : undefined,
+      groups > 0 ? `${groups} bekannte${groups === 1 ? ' Gruppe' : ' Gruppen'}` : undefined,
+    ].filter((value): value is string => value !== undefined);
+    return parts.length > 0 ? parts.join(' · ') : 'Directory-Auswahl unvollständig';
+  }
+
   const parts = [step.assignee, step.candidateUsers, step.candidateGroups].filter(
     (value): value is string => Boolean(value?.trim()),
   );

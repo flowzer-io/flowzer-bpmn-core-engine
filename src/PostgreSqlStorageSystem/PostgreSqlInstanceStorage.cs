@@ -14,6 +14,19 @@ internal sealed class PostgreSqlInstanceStorage(PostgreSqlSession session) : IIn
             : StorageJson.Deserialize<ProcessInstanceInfo>(body);
     });
 
+    public Task LockForMutation(Guid processInstanceId) => session.RunAsync(async (connection, transaction) =>
+    {
+        if (processInstanceId == Guid.Empty)
+            throw new ArgumentException("Process instance ID is required.", nameof(processInstanceId));
+        // Derselbe Namespace wird bereits beim KI-Ergebnisclaim vor dem Statuswechsel
+        // verwendet. Alle Engine-Schreiber nehmen diese Sperre vor weiteren Row-Locks;
+        // reine Instanzansichten bleiben dadurch unabhängig.
+        await using var command = session.CreateCommand(connection, transaction,
+            "SELECT pg_advisory_xact_lock(hashtextextended(@id::text, 624529181))");
+        command.Parameters.AddWithValue("id", processInstanceId);
+        await command.ExecuteNonQueryAsync();
+    });
+
     public Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo) => session.RunAsync(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction, """

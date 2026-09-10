@@ -16,6 +16,9 @@ public class ProcessInstanceInfoDto
     public ProcessInstanceStateDto State { get; set; }
     public List<TokenDto> Tokens { get; set; } = [];
 
+    /// <summary>Nur bei expliziter Diagnoseberechtigung sind Tokens und technische Routen verfügbar.</summary>
+    public bool CanInspect { get; set; }
+
     /// <summary>
     /// Startzeitpunkt der Instanz (UTC), abgeleitet aus dem ältesten Token.
     /// Null, solange die Instanz noch kein Token besitzt.

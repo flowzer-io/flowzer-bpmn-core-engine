@@ -1,28 +1,53 @@
 import { describe, expect, it } from 'vitest';
+import type { ExtendedUserTask } from '@flowzer/sdk';
 
 import { normalizePriority, parseDueDate, parseIsoDuration, sortTasks, toTaskView } from './taskView';
-import type { ExtendedUserTaskSubscriptionDto } from './api/types';
 
 const NOW = new Date('2026-07-27T09:00:00Z');
 
-function task(overrides: Partial<ExtendedUserTaskSubscriptionDto> = {}): ExtendedUserTaskSubscriptionDto {
+function deadline(dueAtUtc: string, status: 'scheduled' | 'overdue' = 'scheduled') {
+  return {
+    scheduleState: 'resolved' as const,
+    status,
+    activatedAtUtc: '2026-07-27T08:00:00Z',
+    dueAtUtc,
+  };
+}
+
+function task(overrides: Partial<ExtendedUserTask> = {}): ExtendedUserTask {
   return {
     id: overrides.id ?? 'task-1',
     name: overrides.name ?? 'Freigabe erteilen',
     token: {
       id: 'token-1',
-      state: 'Active',
+      state: 1,
       currentFlowNodeId: 'Activity_1',
       startTime: '2026-07-27T08:00:00',
       ...overrides.token,
     },
     userCandidates: [],
     userGroups: [],
+    candidateUsers: [],
+    candidateGroups: [],
+    assignmentMode: 'text',
+    directoryCandidateUsers: [],
+    directoryCandidateGroups: [],
     definitionId: 'def-1',
     processId: 'Process_1',
     definitionMetaName: overrides.definitionMetaName ?? 'Rechnungsfreigabe',
     definitionVersion: { major: 1, minor: 0 },
     ...overrides,
+    workState: overrides.workState ?? {
+      revision: 0,
+      claimed: false,
+      actualAssigneeDisplayName: null,
+      isAssignedToCurrentUser: false,
+      canWork: false,
+      canClaim: true,
+      canRelease: false,
+      canAssign: false,
+      canDelegate: false,
+    },
   };
 }
 
@@ -89,13 +114,32 @@ describe('normalizePriority', () => {
 });
 
 describe('toTaskView', () => {
+  // Testzweck: Die Aufgabenansicht verwendet ausschließlich die serverseitig berechnete
+  // UTC-Deadline und ihren Status; ein BPMN-Rohwert darf niemals als exakter Termin erscheinen.
+  it('zeigt die serverseitige Deadline und ignoriert den alten Rohwert', () => {
+    const view = toTaskView(task({
+      dueDate: '=now() + duration("PT2H")',
+      deadline: deadline('2026-07-27T11:00:00Z'),
+    }), NOW);
+    expect(view.dueDate?.toISOString()).toBe('2026-07-27T11:00:00.000Z');
+    expect(view.dueBucket).toBe('today');
+    expect(view.dueLabel).not.toContain('now()');
+  });
+
+  // Testzweck: Der vom Server gebundene Deadline-Status ist maßgeblich, auch wenn der
+  // UTC-Zeitpunkt durch eine spätere Statusaktualisierung noch in der Zukunft liegt.
+  it('verwendet den serverseitigen Überfälligkeitsstatus', () => {
+    const view = toTaskView(task({ deadline: deadline('2026-07-28T11:00:00Z', 'overdue') }), NOW);
+    expect(view.dueBucket).toBe('overdue');
+  });
+
   it('stuft eine überschrittene Fälligkeit als überfällig ein', () => {
-    const view = toTaskView(task({ dueDate: '2026-07-26T12:00:00Z' }), NOW);
+    const view = toTaskView(task({ deadline: deadline('2026-07-26T12:00:00Z', 'overdue') }), NOW);
     expect(view.dueBucket).toBe('overdue');
   });
 
   it('stuft eine Fälligkeit am selben Tag als heute ein', () => {
-    const view = toTaskView(task({ dueDate: '2026-07-27T17:00:00Z' }), NOW);
+    const view = toTaskView(task({ deadline: deadline('2026-07-27T17:00:00Z') }), NOW);
     expect(view.dueBucket).toBe('today');
   });
 
@@ -115,8 +159,8 @@ describe('sortTasks', () => {
   it('sortiert überfällige vor heutigen vor terminlosen Aufgaben', () => {
     const views = [
       toTaskView(task({ id: 'c' }), NOW),
-      toTaskView(task({ id: 'a', dueDate: '2026-07-26T12:00:00Z' }), NOW),
-      toTaskView(task({ id: 'b', dueDate: '2026-07-27T17:00:00Z' }), NOW),
+      toTaskView(task({ id: 'a', deadline: deadline('2026-07-26T12:00:00Z', 'overdue') }), NOW),
+      toTaskView(task({ id: 'b', deadline: deadline('2026-07-27T17:00:00Z') }), NOW),
     ];
 
     expect(sortTasks(views).map((view) => view.id)).toEqual(['a', 'b', 'c']);

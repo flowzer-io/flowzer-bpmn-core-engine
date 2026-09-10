@@ -9,11 +9,11 @@ import {
 } from '@tanstack/react-router';
 
 import { AppShell } from '@/components/layout/AppShell';
-import { AuthenticationCallbackPage, SignedOutPage, SilentCallbackPage } from '@/pages/AuthenticationCallbackPage';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { FormsPage } from '@/pages/FormsPage';
+import { FormSectionsPage } from '@/pages/FormSectionsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
@@ -21,32 +21,10 @@ import { OperationsPage } from '@/pages/OperationsPage';
 import { OutlinePage } from '@/pages/OutlinePage';
 import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
+import { AiConnectionsPage } from '@/pages/AiConnectionsPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
-});
-
-/**
- * Die Rueckleitungen des Identity Providers liegen ausserhalb der Anwendungshuelle:
- * Zu diesem Zeitpunkt gibt es noch keine Anmeldung, und die Huelle wuerde sofort
- * wieder zur Anmeldeseite fuehren.
- */
-const loginCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/login-callback',
-  component: AuthenticationCallbackPage,
-});
-
-const logoutCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/logout-callback',
-  component: SignedOutPage,
-});
-
-const silentCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/silent-callback',
-  component: SilentCallbackPage,
 });
 
 /** Alles Uebrige laeuft in der Anwendungshuelle, die die Anmeldung voraussetzt. */
@@ -77,12 +55,20 @@ const workflowsIndexRoute = createRoute({
 const workflowDetailRoute = createRoute({
   getParentRoute: () => workflowsRoute,
   path: '$definitionId',
+  validateSearch: (search: Record<string, unknown>): WorkflowDetailSearch => ({
+    element: typeof search.element === 'string' ? search.element : undefined,
+  }),
   component: WorkflowDetailRoute,
 });
 
+interface WorkflowDetailSearch {
+  element?: string;
+}
+
 function WorkflowDetailRoute() {
   const { definitionId } = useParams({ from: workflowDetailRoute.id });
-  return <ModelerPage definitionId={decodeURIComponent(definitionId)} />;
+  const { element } = useSearch({ from: workflowDetailRoute.id });
+  return <ModelerPage definitionId={decodeURIComponent(definitionId)} focusElementId={element} />;
 }
 
 /**
@@ -129,10 +115,22 @@ const formsRoute = createRoute({
   component: FormsPage,
 });
 
+const formSectionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/form-sections',
+  component: FormSectionsPage,
+});
+
 const operationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/operations',
   component: OperationsPage,
+});
+
+const aiConnectionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/ai-connections',
+  component: AiConnectionsPage,
 });
 
 interface TasksSearch {
@@ -182,14 +180,13 @@ function NotFound() {
 }
 
 const routeTree = rootRoute.addChildren([
-  loginCallbackRoute,
-  logoutCallbackRoute,
-  silentCallbackRoute,
   shellRoute.addChildren([
     dashboardRoute,
     workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
+    formSectionsRoute,
+    aiConnectionsRoute,
     operationsRoute,
     tasksRoute,
   ]),

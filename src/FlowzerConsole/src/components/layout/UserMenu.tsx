@@ -1,4 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
+import { toast } from 'sonner';
 
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
@@ -55,12 +56,12 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
           </div>
 
           <div className="flex flex-wrap gap-1.5 px-4 pb-3">
-            {[...(user?.roles ?? [])].sort().map((role) => (
+            {[...(user?.capabilities ?? [])].sort().map((role) => (
               <Chip key={role} tone={role === 'access' ? 'muted' : 'accent'}>
                 {ROLE_LABELS[role] ?? role}
               </Chip>
             ))}
-            {(user?.roles.size ?? 0) === 0 && <Chip tone="wait">Keine Rolle zugewiesen</Chip>}
+            {(user?.capabilities.size ?? 0) === 0 && <Chip tone="wait">Keine Fähigkeit zugewiesen</Chip>}
           </div>
 
           <div className="border-border border-t px-4 py-3.5">
@@ -92,7 +93,11 @@ export function UserMenu({ open, onOpenChange }: UserMenuProps) {
               type="button"
               onClick={() => {
                 onOpenChange(false);
-                void signOut();
+                void signOut().catch(() => {
+                  toast.error('Abmelden fehlgeschlagen', {
+                    description: 'Die Sitzung konnte nicht beendet werden. Bitte erneut versuchen.',
+                  });
+                });
               }}
               className={cn(
                 'hover:bg-surface-2 flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--r-sm)]',

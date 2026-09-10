@@ -1,0 +1,544 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import type { PropsWithChildren } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+
+import { FlowzerClient } from '@flowzer/sdk';
+import {
+  FlowzerProvider,
+  clearFlowzerScope,
+  flowzerQueryKeys,
+  useFlowzer,
+  useInstanceHistory,
+  useInstanceRuntimeDiagram,
+  useTaskFormData,
+  useFormSectionActions,
+  useFormSectionDraft,
+  useUserTaskActions,
+  useUserTasks,
+  useUserTaskWorkspace,
+} from './index.js';
+
+function response(result: unknown, status = 200) {
+  return new Response(JSON.stringify(status < 400
+    ? { successful: true, result }
+    : { title: 'Fehler', status }), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function setup(fetch: typeof globalThis.fetch, sessionScope = 'session-a') {
+  const client = new FlowzerClient({ baseUrl: '/api', fetch });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: 4 } },
+  });
+  const wrapper = ({ children }: PropsWithChildren) => (
+    <QueryClientProvider client={queryClient}>
+      <FlowzerProvider client={client} cacheNamespace="installation-a" sessionScope={sessionScope}>
+        {children}
+      </FlowzerProvider>
+    </QueryClientProvider>
+  );
+  return { client, queryClient, wrapper };
+}
+
+describe('@flowzer/react', () => {
+  // Testzweck: Hooks dürfen nicht unbemerkt auf einen globalen Client zurückfallen,
+  // weil dies Daten zwischen Installationen oder Sitzungen vermischen könnte.
+  it('verlangt einen expliziten FlowzerProvider', () => {
+    expect(() => renderHook(() => useFlowzer())).toThrow('FlowzerProvider');
+  });
+
+  // Testzweck: Cache-Schlüssel trennen Installation und Host-Sitzung, enthalten aber
+  // weder Token noch E-Mail oder andere Authentisierungsdaten.
+  it('trennt Query-Keys nach Installation und nicht geheimem Sitzungsscope', () => {
+    expect(flowzerQueryKeys.userTasks('installation-a', 'session-a')).toEqual([
+      'flowzer', 'installation-a', 'session-a', 'user-tasks',
+    ]);
+    expect(flowzerQueryKeys.userTasks('installation-a', 'session-b')).not.toEqual(
+      flowzerQueryKeys.userTasks('installation-a', 'session-a'),
+    );
+  });
+
+  // Testzweck: Nicht nur Query-Keys, sondern auch lokale ungespeicherte Eingaben
+  // müssen bei Konto-/Installationswechsel verschwinden, selbst wenn die Task-ID gleich bleibt.
+  it.each(['session', 'installation'])('isoliert lokale Formulardaten beim Wechsel von %s', (change) => {
+    const { client, queryClient } = setup(vi.fn<typeof globalThis.fetch>());
+    let scope = 'session-a';
+    let namespace = 'installation-a';
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>
+        <FlowzerProvider client={client} cacheNamespace={namespace} sessionScope={scope}>
+          {children}
+        </FlowzerProvider>
+      </QueryClientProvider>
+    );
+    const { result, rerender } = renderHook(() => useTaskFormData('same-task', undefined), { wrapper });
+    act(() => { result.current.setData({ private: 'previous user' }); });
+    expect(result.current.isDirty).toBe(true);
+    if (change === 'session') scope = 'session-b';
+    else namespace = 'installation-b';
+
+    rerender();
+
+    expect(result.current.data).toEqual({});
+    expect(result.current.isDirty).toBe(false);
+  });
+
+  // Testzweck: Ein Host-Logout entfernt nur den früheren Sitzungsscope und lässt
+  // andere Installationen oder parallele Sitzungen im gemeinsamen QueryClient unberührt.
+  it('entfernt den Cache einer beendeten Sitzung gezielt', () => {
+    const queryClient = new QueryClient();
+    const oldKey = flowzerQueryKeys.userTasks('installation-a', 'session-old');
+    const otherKey = flowzerQueryKeys.userTasks('installation-a', 'session-other');
+    queryClient.setQueryData(oldKey, [{ id: 'old' }]);
+    queryClient.setQueryData(otherKey, [{ id: 'other' }]);
+
+    clearFlowzerScope(queryClient, 'installation-a', 'session-old');
+
+    expect(queryClient.getQueryData(oldKey)).toBeUndefined();
+    expect(queryClient.getQueryData(otherKey)).toEqual([{ id: 'other' }]);
+  });
+
+  // Testzweck: Die Historie wird erst nach Freischaltung durch die einbettende Oberfläche
+  // geladen und bei einem Entzug vollständig aus dem Sitzungscache entfernt.
+  it('lädt die History nur nach Freischaltung und entfernt sie bei Entzug', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      instanceId: 'instance-1',
+      events: [],
+    }));
+    const { queryClient, wrapper } = setup(fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useInstanceHistory('instance-1', { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(result.current.isFetching).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.instanceId).toBe('instance-1'));
+    expect(fetch).toHaveBeenCalledOnce();
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(
+      flowzerQueryKeys.instanceHistory('installation-a', 'session-a', 'instance-1'),
+    )).toBeUndefined());
+  });
+
+  // Testzweck: Die technische Laufzeitprojektion wird erst bei ausdrücklicher
+  // Freigabe geladen und nach einem Rechteentzug synchron aus Cache und Hook entfernt.
+  it('lädt das Laufzeitdiagramm fail-closed und sitzungsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      instanceId: 'instance-1',
+      definitionId: 'definition-1',
+      processId: 'Process_1',
+      state: 2,
+      snapshotAtUtc: '2026-09-09T10:00:00Z',
+      diagramXml: '<definitions />',
+      nodes: [],
+      events: [],
+    }));
+    const { queryClient, wrapper } = setup(fetch);
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useInstanceRuntimeDiagram('instance-1', { enabled }),
+      { wrapper, initialProps: { enabled: false } },
+    );
+    expect(fetch).not.toHaveBeenCalled();
+    expect(result.current.data).toBeUndefined();
+
+    rerender({ enabled: true });
+    await waitFor(() => expect(result.current.data?.processId).toBe('Process_1'));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/instance/instance-1/runtime-diagram');
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.data).toBeUndefined());
+    await waitFor(() => expect(queryClient.getQueryData(
+      flowzerQueryKeys.instanceRuntimeDiagram('installation-a', 'session-a', 'instance-1'),
+    )).toBeUndefined());
+  });
+
+  // Testzweck: Ohne serverseitiges Arbeitsrecht lädt der Arbeitsbereich weder
+  // Formular noch privaten Entwurf und verrät dadurch keine zusätzlichen Daten.
+  it('lädt Formular und Entwurf nicht ohne canWork', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      id: 'task-1',
+      token: {},
+      workState: { revision: 0, canWork: false },
+    }));
+    const { wrapper } = setup(fetch);
+
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.task?.id).toBe('task-1'));
+    expect(result.current.canWork).toBe(false);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask/task-1');
+  });
+
+  // Testzweck: Mit Arbeitsrecht werden gebundenes Formular und privater Entwurf
+  // über genau den geladenen Taskkontext parallel bereitgestellt.
+  it('lädt den vollständigen berechtigten Task-Arbeitsbereich', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 2, data: { note: 'offen' } });
+      return response({ id: 'task-1', token: {}, workState: { revision: 4, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.form?.id).toBe('form-1'));
+    expect(result.current.draft?.revision).toBe(2);
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      '/api/usertask/task-1',
+      '/api/usertask/task-1/form',
+      '/api/usertask/task-1/draft',
+    ]));
+  });
+
+  // Testzweck: Ein Rechteentzug wird vom Server als 401/403/404 statt als neues
+  // canWork=false-DTO gemeldet. React Query behält beim Refetch alte Daten; diese
+  // dürfen weder weiter als Arbeitsrecht gelten noch Formular/Entwurf offenhalten.
+  it.each([401, 403, 404])('verwirft Arbeitsdaten nach HTTP-Rechteverlust %s', async (status) => {
+    let revoked = false;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 1, data: { private: 'draft' } });
+      return revoked ? response(null, status)
+        : response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper, queryClient } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+    await waitFor(() => expect(result.current.draft?.revision).toBe(1));
+    const contentCalls = fetch.mock.calls.filter(([url]) => /\/(form|draft)$/.test(String(url))).length;
+
+    revoked = true;
+    await act(async () => { await result.current.reload(); });
+
+    await waitFor(() => expect(result.current.canWork).toBe(false));
+    expect(result.current.task).toBeUndefined();
+    expect(result.current.form).toBeUndefined();
+    expect(result.current.draft).toBeUndefined();
+    expect(result.current.error).not.toBeNull();
+    expect(queryClient.getQueryData(flowzerQueryKeys.userTaskForm('installation-a', 'session-a', 'task-1')))
+      .toBeUndefined();
+    expect(queryClient.getQueryData(flowzerQueryKeys.userTaskDraft('installation-a', 'session-a', 'task-1')))
+      .toBeUndefined();
+    expect(fetch.mock.calls.filter(([url]) => /\/(form|draft)$/.test(String(url))).length).toBe(contentCalls);
+  });
+
+  // Testzweck: Auch separat widerrufene Formular-/Entwurfsrechte sperren den gesamten
+  // Workspace; erst ein expliziter erfolgreicher Reload darf ihn wieder freigeben.
+  it.each([401, 403, 404].flatMap((status) => ['form', 'draft'].map((route) => ({ status, route }))))(
+    'sperrt nach $status von /$route und erlaubt eine geprüfte Wiederaufnahme', async ({ status, route }) => {
+      let revoked = false;
+      const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+        const url = String(input);
+        if (revoked && url.endsWith(`/${route}`)) return response(null, status);
+        if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+        if (url.endsWith('/draft')) return response({ revision: 1, data: { private: 'draft' } });
+        return response({ id: 'task-1', token: {}, workState: { canWork: true } });
+      });
+      const { wrapper, queryClient } = setup(fetch);
+      let rendered = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+      await waitFor(() => expect(rendered.result.current.draft?.revision).toBe(1));
+      revoked = true;
+      await act(async () => { await rendered.result.current.reload(); });
+      await waitFor(() => expect(rendered.result.current.canWork).toBe(false));
+      expect(rendered.result.current.task).toBeUndefined();
+      expect(rendered.result.current.form).toBeUndefined();
+      expect(rendered.result.current.draft).toBeUndefined();
+      expect(rendered.result.current.error).not.toBeNull();
+      expect(queryClient.getQueryData(flowzerQueryKeys.userTaskForm('installation-a', 'session-a', 'task-1')))
+        .toBeUndefined();
+      expect(queryClient.getQueryData(flowzerQueryKeys.userTaskDraft('installation-a', 'session-a', 'task-1')))
+        .toBeUndefined();
+      // Auch Navigation weg und zurück darf die Sperre nicht aus lokalem State verlieren.
+      const contentCalls = fetch.mock.calls.filter(([url]) => /\/(form|draft)$/.test(String(url))).length;
+      rendered.unmount();
+      rendered = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+      expect(rendered.result.current.canWork).toBe(false);
+      expect(fetch.mock.calls.filter(([url]) => /\/(form|draft)$/.test(String(url))).length).toBe(contentCalls);
+      revoked = false;
+      await act(async () => { await rendered.result.current.reload(); });
+      await waitFor(() => expect(rendered.result.current.canWork).toBe(true));
+      expect(rendered.result.current.form?.id).toBe('form-1');
+      expect(rendered.result.current.draft?.revision).toBe(1);
+    },
+  );
+
+  // Testzweck: Ein Rechtefehler steht während Host-Retries nur in failureReason.
+  // Geschützte Daten müssen schon beim ersten Fehler und nicht erst nach Retryende verschwinden.
+  it.each(['task', 'form', 'draft'])('sperrt /%s bereits während einer Retry-Pause', async (route) => {
+    let revoked = false;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      const currentRoute = url.endsWith('/form') ? 'form' : url.endsWith('/draft') ? 'draft' : 'task';
+      if (revoked && currentRoute === route) return response(null, 403);
+      if (currentRoute === 'form') return response({ id: 'form-1', formData: '{}' });
+      if (currentRoute === 'draft') return response({ revision: 1, data: {} });
+      return response({ id: 'task-1', token: {}, workState: { canWork: true } });
+    });
+    const { wrapper, queryClient } = setup(fetch);
+    queryClient.setDefaultOptions({ queries: { retry: 2, retryDelay: 60_000 } });
+    const { result, unmount } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+    await waitFor(() => expect(result.current.draft?.revision).toBe(1));
+    revoked = true;
+    let reload: Promise<void> | undefined;
+    act(() => { reload = result.current.reload(); });
+    try {
+      await waitFor(() => expect(result.current.canWork).toBe(false));
+      expect(result.current.form).toBeUndefined();
+      expect(result.current.draft).toBeUndefined();
+    } finally {
+      unmount();
+      await queryClient.cancelQueries();
+      await reload;
+      queryClient.clear();
+    }
+  });
+
+  // Testzweck: Der React-Arbeitsbereich und die Lifecycle-Aktionen reichen die
+  // historische Batch-Auflösung an den gebundenen SDK-Kontext weiter, ohne einen
+  // globalen Directory-Query oder eigene Filterentscheidung einzuführen.
+  it('stellt gebundene Auflösungen für Formularfelder und Lifecycle-Aktionen bereit', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 0, data: {} });
+      if (url.includes('/subjects/resolve') || url.includes('/assignees/resolve')) {
+        return response({ generationId: 'generation-1', items: [] });
+      }
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => ({
+      workspace: useUserTaskWorkspace('task-1'),
+      actions: useUserTaskActions('task-1'),
+    }), { wrapper });
+    await waitFor(() => expect(result.current.workspace.form?.id).toBe('form-1'));
+    const subjects = [{ kind: 'user' as const, id: 'retired-user' }];
+
+    await act(async () => {
+      await result.current.workspace.resolveSubjects('representative', subjects);
+      await result.current.actions.resolveAssignees({ action: 'delegate', subjects });
+    });
+
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      '/api/identity-directory/user-tasks/task-1/fields/representative/subjects/resolve',
+      '/api/identity-directory/user-tasks/task-1/assignees/resolve?action=delegate',
+    ]));
+  });
+
+  // Testzweck: Entzieht der Server bei einem Refetch das Arbeitsrecht, verschwinden
+  // bereits geladene Formular-/Entwurfsdaten und werden nicht noch einmal angefragt.
+  it('entfernt geschützte Arbeitsdaten nach einem Rechteentzug', async () => {
+    let canWork = true;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision: 1, data: {} });
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+    await waitFor(() => expect(result.current.form?.id).toBe('form-1'));
+    const contentCalls = fetch.mock.calls.length;
+
+    canWork = false;
+    await act(async () => { await result.current.reload(); });
+
+    await waitFor(() => expect(result.current.canWork).toBe(false));
+    expect(result.current.form).toBeUndefined();
+    expect(result.current.draft).toBeUndefined();
+    expect(fetch).toHaveBeenCalledTimes(contentCalls + 1);
+  });
+
+  // Testzweck: Ein ausdrücklicher Draft-Reload gibt den frisch vom Server
+  // gelieferten Entwurf zurück, damit Hosts ihren lokalen Formularstand gezielt abgleichen können.
+  it('liefert beim erneuten Laden den aktuellen Entwurf zurück', async () => {
+    let revision = 1;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) return response({ userTaskId: 'task-1', revision, data: { note: `stand-${revision}` } });
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.draft?.revision).toBe(1));
+    revision = 2;
+
+    let reloadedDraft: Awaited<ReturnType<typeof result.current.reloadDraft>>;
+    await act(async () => { reloadedDraft = await result.current.reloadDraft(); });
+
+    expect(reloadedDraft).toMatchObject({ revision: 2, data: { note: 'stand-2' } });
+    await waitFor(() => expect(result.current.draft).toMatchObject({
+      revision: 2,
+      data: { note: 'stand-2' },
+    }));
+  });
+
+  // Testzweck: Ein ausdrücklicher Draft-Reload darf einen Serverfehler nicht als
+  // erfolgreichen, aber leeren Stand tarnen, weil der Host sonst lokale Eingaben verwirft.
+  it('reicht Fehler beim erneuten Laden des Entwurfs an den Host weiter', async () => {
+    let failReload = false;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/form')) return response({ id: 'form-1', formData: '{}' });
+      if (url.endsWith('/draft')) {
+        return failReload
+          ? response(null, 503)
+          : response({ userTaskId: 'task-1', revision: 1, data: { note: 'server' } });
+      }
+      return response({ id: 'task-1', token: {}, workState: { revision: 1, canWork: true } });
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskWorkspace('task-1'), { wrapper });
+    await waitFor(() => expect(result.current.draft?.revision).toBe(1));
+    failReload = true;
+
+    await act(async () => {
+      await expect(result.current.reloadDraft()).rejects.toThrow('Fehler');
+    });
+  });
+
+  // Testzweck: Jede Lifecycle-Mutation muss bei einem 409 auch aktive Detail- und
+  // Listen-Queries neu laden, damit der Host den maßgeblichen Serverstand anzeigt.
+  it.each([
+    ['claim', (actions: ReturnType<typeof useUserTaskActions>) => actions.claim.mutateAsync({ expectedRevision: 1 })],
+    ['release', (actions: ReturnType<typeof useUserTaskActions>) => actions.release.mutateAsync({ expectedRevision: 1, reason: 'Zurückgeben' })],
+    ['assign', (actions: ReturnType<typeof useUserTaskActions>) => actions.assign.mutateAsync({ expectedRevision: 1, reason: 'Neu zuweisen', assignee: { id: '00000000-0000-0000-0000-000000000001', kind: 'user' } })],
+    ['delegate', (actions: ReturnType<typeof useUserTaskActions>) => actions.delegate.mutateAsync({ expectedRevision: 1, reason: 'Delegieren', assignee: { id: '00000000-0000-0000-0000-000000000002', kind: 'user' } })],
+  ])('aktualisiert Taskdetail und -liste nach einem %s-Konflikt', async (_action, mutate) => {
+    let conflictOccurred = false;
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async (input) => {
+      const url = String(input);
+      if (/\/usertask\/task-1\/(claim|release|assign|delegate)$/.test(url)) {
+        conflictOccurred = true;
+        return response(null, 409);
+      }
+      const revision = conflictOccurred ? 2 : 1;
+      const task = { id: 'task-1', token: {}, workState: { revision, canWork: false } };
+      if (url === '/api/usertask/task-1') return response(task);
+      if (url === '/api/usertask') return response([task]);
+      throw new Error(`Unerwarteter Request: ${url}`);
+    });
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => ({
+      list: useUserTasks(),
+      workspace: useUserTaskWorkspace('task-1'),
+      actions: useUserTaskActions('task-1'),
+    }), { wrapper });
+
+    await waitFor(() => expect(result.current.list.data?.[0]?.workState?.revision).toBe(1));
+    await waitFor(() => expect(result.current.workspace.task?.workState?.revision).toBe(1));
+
+    await act(async () => {
+      await expect(mutate(result.current.actions)).rejects.toThrow();
+    });
+
+    await waitFor(() => expect(result.current.list.data?.[0]?.workState?.revision).toBe(2));
+    await waitFor(() => expect(result.current.workspace.task?.workState?.revision).toBe(2));
+    expect(fetch.mock.calls.map(([url]) => String(url))).toEqual(expect.arrayContaining([
+      '/api/usertask',
+      '/api/usertask/task-1',
+    ]));
+  });
+
+  // Testzweck: Human-Task-Mutationen werden auch dann nicht automatisch wiederholt,
+  // wenn der Host-QueryClient global Wiederholungen für Mutationen konfiguriert hat.
+  it('deaktiviert automatische Wiederholungen für Task-Mutationen', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response(null, 503));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskActions('task-1'), { wrapper });
+
+    await act(async () => {
+      await expect(result.current.claim.mutateAsync({ expectedRevision: 0 })).rejects.toThrow();
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  // Testzweck: Der Abschnittseditor liest seinen Entwurf in einem eigenen,
+  // sitzungsgetrennten Cache und vermischt ihn deshalb nicht mit Human-Task-Drafts.
+  it('lädt einen Formularabschnittsentwurf über einen getrennten Query-Key', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 2, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionDraft('section-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.data?.revision).toBe(2));
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(flowzerQueryKeys.formSectionDraft('installation-a', 'session-a', 'section-1')).toEqual([
+      'flowzer', 'installation-a', 'session-a', 'form-sections', 'section-1', 'draft',
+    ]);
+  });
+
+  // Testzweck: Der darstellungsfreie Editor überträgt die erwartete Revision
+  // unverändert und deaktiviert automatische Wiederholungen für CAS-Mutationen.
+  it('speichert einen Abschnittsentwurf revisionsgebunden ohne automatische Wiederholung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({
+      sectionId: 'section-1', revision: 3, hasDraft: true, sectionData: '{"components":[]}',
+    }));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useFormSectionActions('section-1'), { wrapper });
+
+    await act(async () => {
+      await result.current.saveDraft.mutateAsync({
+        expectedRevision: 2,
+        sectionData: '{"components":[]}',
+      });
+    });
+
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section-1/draft');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({
+      expectedRevision: 2,
+      sectionData: '{"components":[]}',
+    });
+  });
+
+  // Testzweck: Ein manueller Abschluss übergibt Task-Revision und den vom Host
+  // verwalteten stabilen Idempotenzschlüssel unverändert an das Headless-SDK.
+  it('schließt mit explizitem stabilen Idempotenzschlüssel ab', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response(null));
+    const { wrapper } = setup(fetch);
+    const { result } = renderHook(() => useUserTaskActions('task-1'), { wrapper });
+
+    await act(async () => {
+      await result.current.complete.mutateAsync({
+        command: { flowNodeId: 'review', tokenId: 'token-1', expectedTaskRevision: 3 },
+        options: { idempotencyKey: 'host-operation-42' },
+      });
+    });
+
+    const [, init] = fetch.mock.calls[0]!;
+    expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('host-operation-42');
+    expect(JSON.parse(String(init?.body))).toMatchObject({ expectedTaskRevision: 3 });
+  });
+
+  // Testzweck: Ein Hintergrund-Refetch darf lokale Formulareingaben nicht durch einen
+  // neuen Serverstand ersetzen; nur ein ausdrücklicher Reset übernimmt diesen Stand.
+  it('bewahrt lokale Formulardaten bis zum ausdrücklichen Reset', () => {
+    const { result, rerender } = renderHook(
+      ({ serverData }) => useTaskFormData('task-1', serverData),
+      { initialProps: { serverData: { note: 'server-alt' } } },
+    );
+    act(() => result.current.setData({ note: 'lokal' }));
+
+    rerender({ serverData: { note: 'server-neu' } });
+
+    expect(result.current.data).toEqual({ note: 'lokal' });
+    expect(result.current.isDirty).toBe(true);
+    act(() => result.current.resetToServer());
+    expect(result.current.data).toEqual({ note: 'server-neu' });
+    expect(result.current.isDirty).toBe(false);
+  });
+});

@@ -10,8 +10,11 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class UserTaskController(
     IStorageSystem storageSystem,
-    BpmnBusinessLogic bpmnBusinessLogic,
+    UserTaskCompletionService completionService,
+    UserTaskDraftService draftService,
+    UserTaskLifecycleService lifecycleService,
     FormKeyResolver formKeyResolver,
+    UserTaskViewService taskView,
     IAuthorizationService authorizationService,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
@@ -21,28 +24,49 @@ public class UserTaskController(
     {
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var userId = currentUser.RequireResolvedUserId("reading user tasks");
-        var userTaskSubscriptions = await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId);
+        var userTaskSubscriptions = (await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(userId)).ToArray();
 
         // Die Ablage kennt nur die technische Id; die Zuweisungen im Modell nennen Namen und
         // Gruppen. Gefiltert wird deshalb hier, wo der vollstaendige Benutzerkontext vorliegt.
-        var identity = new UserTaskIdentity(currentUser.Names, currentUser.Groups);
         var seeAll = await HasOperatorRole();
+        // Sequenziell: Der Storage-Vertrag garantiert keine parallel nutzbare DB-Connection.
+        var dtos = new List<ExtendedUserTaskSubscriptionDto>();
+        foreach (var task in userTaskSubscriptions)
+        {
+            var access = await UserTaskWorkAuthorization.EvaluateAsync(
+                storageSystem, task, currentUser, seeAll);
+            if (access.CanSee) dtos.Add(await taskView.ProjectAsync(task, seeAll, access));
+        }
 
-        var dtos = userTaskSubscriptions
-            .Select(subscription =>
-            {
-                UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-                return subscription;
-            })
-            .Where(subscription => UserTaskAssignment.IsVisibleTo(subscription, identity, seeAll))
-            .Select(subscription => subscription.ToDto())
-            .ToArray();
-
-        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos));
+        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto[]>(dtos.ToArray()));
     }
 
     private async Task<bool> HasOperatorRole() =>
         (await authorizationService.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
+
+    /// <summary>
+    /// Liefert genau eine sichtbare Aufgabe für Deep Links und eingebettete Oberflächen.
+    /// Fremde, erledigte und unbekannte Aufgaben verwenden absichtlich denselben 404-Vertrag.
+    /// </summary>
+    [HttpGet("{userTaskId:guid}")]
+    [ProducesResponseType<ApiStatusResult<ExtendedUserTaskSubscriptionDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<ExtendedUserTaskSubscriptionDto>>> GetUserTask(
+        [FromRoute] Guid userTaskId)
+    {
+        var currentUser = currentUserContextAccessor.GetCurrentUser();
+        currentUser.RequireResolvedUserId("reading a user task");
+        var task = await storageSystem.SubscriptionStorage.GetUserTaskExtended(userTaskId);
+        if (task is null) return HiddenUserTask();
+
+        var canOperate = await HasOperatorRole();
+        var access = await UserTaskWorkAuthorization.EvaluateAsync(
+            storageSystem, task, currentUser, canOperate);
+        if (!access.CanSee) return HiddenUserTask();
+
+        return Ok(new ApiStatusResult<ExtendedUserTaskSubscriptionDto>(
+            await taskView.ProjectAsync(task, canOperate, access)));
+    }
 
     /// <summary>
     /// Liefert das Formular, das zu einem offenen User-Task gehört.
@@ -60,15 +84,12 @@ public class UserTaskController(
 
         // Eine Aufgabe, die dieser Person nicht zusteht, wird wie eine unbekannte behandelt;
         // ein eigener Fehlercode wuerde ihre Existenz verraten.
+        var seeAll = await HasOperatorRole();
         if (subscription is not null)
         {
-            UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-        }
-
-        if (subscription is not null
-            && !UserTaskAssignment.IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), await HasOperatorRole()))
-        {
-            subscription = null;
+            var access = await UserTaskWorkAuthorization.EvaluateAsync(
+                storageSystem, subscription, currentUser, seeAll);
+            if (!access.CanWork) subscription = null;
         }
 
         if (subscription is null)
@@ -90,42 +111,116 @@ public class UserTaskController(
         return Ok(new ApiStatusResult<FormDto>(resolved.Form));
     }
 
+    /// <summary>Liefert den privaten Entwurf des aktuellen Bearbeiters; Revision 0 bedeutet leer.</summary>
+    [HttpGet("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult<UserTaskDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> GetDraft([FromRoute] Guid userTaskId)
+    {
+        var draft = await draftService.GetAsync(userTaskId);
+        return draft is null
+            ? HiddenDraft()
+            : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
+    }
+
+    /// <summary>Speichert den vollstaendigen privaten Entwurfsstand per Compare-and-swap.</summary>
+    [HttpPut("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult<UserTaskDraftDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> SaveDraft(
+        [FromRoute] Guid userTaskId,
+        [FromBody] SaveUserTaskDraftRequestDto request)
+    {
+        var draft = await draftService.SaveAsync(userTaskId, request);
+        return draft is null
+            ? HiddenDraft()
+            : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
+    }
+
+    /// <summary>Verwirft den privaten Entwurf nur bei noch aktueller Revision.</summary>
+    [HttpDelete("{userTaskId:guid}/draft")]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> DeleteDraft(
+        [FromRoute] Guid userTaskId,
+        [FromQuery] long expectedRevision,
+        [FromQuery] long? expectedTaskRevision = null)
+    {
+        return await draftService.DeleteAsync(userTaskId, expectedRevision, expectedTaskRevision)
+            ? Ok(new ApiStatusResult { Successful = true })
+            : HiddenDraft();
+    }
+
     [HttpPost]
-    public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult([FromBody] UserTaskResultDto messageDto)
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(void), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> HandleUserTaskResult(
+        [FromBody] UserTaskResultDto messageDto,
+        [FromHeader(Name = WebApiEngine.Idempotency.HttpIdempotency.HeaderName)] string? _idempotencyKey = null)
     {
-        var userTaskResult = messageDto.ToModel();
-        var currentUser = currentUserContextAccessor.GetCurrentUser();
-        var userId = currentUser.RequireResolvedUserId("completing user tasks");
-
-        // Eine Aufgabe abzuschliessen ist der eigentliche Eingriff; sie nur zu sehen ist der
-        // harmlose Teil. Die Zuweisung muss deshalb hier genauso gelten wie in der Liste, sonst
-        // genuegte die Kenntnis von TokenId und FlowNodeId, um fremde Arbeit zu erledigen.
-        if (!await MayWorkOnToken(userTaskResult.TokenId, currentUser))
-        {
-            return NotFound(new ApiStatusResult($"User task for token {userTaskResult.TokenId} was not found."));
-        }
-
-        await bpmnBusinessLogic.HandleUserTask(userTaskResult, userId);
-
-        return Ok(new ApiStatusResult { Successful = true });
+        var outcome = await completionService.CompleteAsync(messageDto.ToModel());
+        return outcome == UserTaskCompletionOutcome.Completed
+            ? Ok(new ApiStatusResult { Successful = true })
+            : NotFound(new ApiStatusResult("The user task was not found."));
     }
 
-    /// <summary>
-    /// Sucht die Subscription zum Token und prueft die Zuweisung. Ist zu dem Token keine
-    /// Subscription bekannt, bleibt es beim bisherigen Verhalten: Die Engine beurteilt den
-    /// Vorgang und antwortet mit ihrem eigenen Fehler.
-    /// </summary>
-    private async Task<bool> MayWorkOnToken(Guid tokenId, CurrentUserContext currentUser)
-    {
-        var subscriptions = (await storageSystem.SubscriptionStorage.GetAllUserTasksExtended(currentUser.UserId)).ToList();
-        var subscription = subscriptions.FirstOrDefault(candidate => candidate.Token?.Id == tokenId);
+    [HttpPost("{userTaskId:guid}/claim")]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Claim(
+        Guid userTaskId, [FromBody] UserTaskClaimRequestDto request) =>
+        Lifecycle(await lifecycleService.ClaimAsync(userTaskId, request.ExpectedRevision));
 
-        if (subscription is null)
-        {
-            return true;
-        }
+    [HttpPost("{userTaskId:guid}/release")]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Release(
+        Guid userTaskId, [FromBody] UserTaskReleaseRequestDto request) =>
+        Lifecycle(await lifecycleService.ReleaseAsync(userTaskId, request.ExpectedRevision, request.Reason));
 
-        UserTaskAssignment.EnsureAssignmentFromModel(subscription);
-        return UserTaskAssignment.IsVisibleTo(subscription, new UserTaskIdentity(currentUser.Names, currentUser.Groups), await HasOperatorRole());
-    }
+    [HttpPost("{userTaskId:guid}/assign")]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Assign(
+        Guid userTaskId, [FromBody] UserTaskTransferRequestDto request) =>
+        Lifecycle(await lifecycleService.AssignAsync(
+            userTaskId, request.ExpectedRevision, request.Assignee, request.Reason));
+
+    [HttpPost("{userTaskId:guid}/delegate")]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Delegate(
+        Guid userTaskId, [FromBody] UserTaskTransferRequestDto request) =>
+        Lifecycle(await lifecycleService.DelegateAsync(
+            userTaskId, request.ExpectedRevision, request.Assignee, request.Reason));
+
+    private ActionResult<ApiStatusResult<UserTaskWorkStateDto>> Lifecycle(UserTaskWorkStateDto? state) =>
+        state is null
+            ? NotFound(new ApiStatusResult<UserTaskWorkStateDto>("The user task was not found."))
+            : Ok(new ApiStatusResult<UserTaskWorkStateDto>(state));
+
+    private ObjectResult HiddenDraft() => Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: "User task draft unavailable",
+        detail: "The user task or draft operation is not available.");
+
+    private ObjectResult HiddenUserTask() => Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: "User task unavailable",
+        detail: "The user task is not available.");
 }

@@ -1,50 +1,79 @@
 # Runbook: Pilotbetrieb im Unternehmen
 
-**Stand:** 5. September 2026
+**Stand:** 8. September 2026 – BFF-Slice ist noch nicht nach `main` gemergt und
+nicht als vollständiger M0-Abschluss abgenommen.
 
-Dieses Runbook beschreibt, wie Flowzer als Einzelknoten-Pilot hinter einem TLS-terminierenden Reverse Proxy mit Anmeldung über den Identity Provider des Unternehmens betrieben wird. Es setzt den Stand der Branches `claude/produktivreife-2026-09` und `claude/pilotbetrieb-2026-09` voraus.
+Dieses Runbook beschreibt den Zielbetrieb eines Einzelknotens hinter einem
+TLS-terminierenden Reverse Proxy. Die Browser-Konsole verwendet dabei den
+serverseitigen BFF; direkte/externe API-Konsumenten behalten den Bearer-Vertrag.
+Produktivkonfiguration und ein konkretes Deployment brauchen weiterhin die dafür
+vorgesehene Freigabe.
 
 ## Zielbild
 
 ```text
-Browser ──TLS──▶ Reverse Proxy (Unternehmen) ──▶ Gateway (nginx, Port 5288)
-                                                  └── alles ──▶ Konsole (nginx)
-                                                                 ├── /definition, /instance, /usertask, /form,
-                                                                 │   /message, /timer, /job, /operations/, /health ──▶ Web-API
-                                                                 └── alles andere ──▶ statisches Bundle
-Web-API ──▶ Dateiablage (persistentes Volume .data/runtime-storage)
-Browser ──▶ Identity Provider (OIDC, Authorization Code + PKCE)
+Browser ──TLS──▶ Reverse Proxy ──▶ Gateway (nginx, Port 5288)
+                                      └── Konsole (nginx)
+                                          ├── /bff, /definition, /instance, /usertask,
+                                          │   /form, /message, /timer, /job, /operations/, /health ──▶ Web-API
+                                          └── übrige Pfade ──▶ statisches Bundle
+Web-API ──▶ persistenter Data-Protection-Keyring (nur API-Volume)
+Web-API ──▶ Dateiablage oder PostgreSQL
+Web-API ──▶ OIDC-Provider (Authorization Code + PKCE, vertraulicher Client)
+Externe Clients ──Bearer──▶ Web-API
 ```
 
 Die Aufteilung zwischen Oberfläche und API macht der Konsolen-Container selbst
-(`deploy/console/entrypoint.sh`). Das Gateway leitet nur weiter — eine zweite Routenliste
-dort könnte von der des Containers abweichen und in Produktion anders wirken als im Test.
-`tests/ui-smoke/check-gateway-routes.sh` vergleicht die Liste des Containers mit den
-tatsächlichen Controller-Routen.
+(`deploy/console/entrypoint.sh`). Das Gateway leitet nur weiter. Der BFF setzt
+`__Host-Flowzer-Session` und `__Host-Flowzer-Csrf` als `HttpOnly`/`Secure` Cookies;
+deshalb ist HTTPS bis zum Browser zwingend. Der Reverse Proxy muss den originalen
+Host und das HTTPS-Schema weitergeben, damit Origin-Prüfung und Callback-URL stimmen.
 
-Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht unterstützt. Statt der Dateiablage kann PostgreSQL verwendet werden (`Storage__Provider=PostgreSql`, siehe `docs/OPERATIONS.md`); der Compose-Stack für Coolify (`compose.coolify.yaml`) nutzt ausschließlich PostgreSQL.
+Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht
+unterstützt. Coolify nutzt PostgreSQL; die dateibasierte Ablage bleibt ein lokaler
+Einzelprozesspfad.
 
 ## 1. Voraussetzungen
 
-- Docker mit Compose auf dem Zielhost, Zugriff auf `mcr.microsoft.com` und Docker Hub (`nginx:1.27-alpine`)
-- Ein Reverse Proxy mit TLS-Zertifikat, der auf `http://<host>:5288` weiterleitet
-- Ein Identity Provider (Entra ID oder Keycloak) mit zwei Registrierungen (siehe Schritt 2)
-- Persistentes Volume oder Verzeichnis für `.data/runtime-storage`
+- Docker mit Compose auf dem Zielhost sowie ein Reverse Proxy mit gültigem TLS-
+  Zertifikat, der auf das Gateway weiterleitet
+- OIDC-Provider mit einem **vertraulichen** Client für die Flowzer-Web-API
+- API-Audience und gegebenenfalls Rollen-/Audience-Mapper
+- persistentes Storage-Volume sowie ein getrenntes, nur vom API-Container
+  beschreibbares Data-Protection-Volume
+- ein Secret-Store, aus dem `FLOWZER_BFF_CLIENT_SECRET` nur zur Prozesslaufzeit
+  in die API-Umgebung injiziert wird; niemals in `.env`, Git, Logs oder Browser
 
 ## 2. Identity Provider einrichten
 
 ### Entra ID
 
-1. **API-Registrierung** (z. B. „Flowzer API“): Application ID URI `api://<api-client-id>`, ein Scope `access_as_user`. Die Audience der API ist `api://<api-client-id>` (oder die Client-Id, je nach Tokenversion; im Zweifel beide Varianten im Token prüfen).
-2. **SPA-Registrierung** (z. B. „Flowzer Console“): Plattform „Single-page application“, Redirect-URIs `https://<flowzer-host>/authentication/login-callback` und `https://<flowzer-host>/authentication/logout-callback`. Der SPA-Registrierung die API-Berechtigung `access_as_user` erteilen und Admin-Consent geben.
-3. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Die API nimmt den ersten GUID-Claim in der Reihenfolge `nameidentifier`, `sub`, `oid`; bei Entra ID ist `sub` ein opakes Kennzeichen und `oid` die GUID des Benutzers. Optional `offline_access` in die Scopes aufnehmen, damit Refresh-Tokens ausgestellt werden.
+1. API-Registrierung anlegen, Application ID URI `api://<api-client-id>` und Scope
+   `access_as_user` einrichten. Die API-Audience muss mit
+   `FLOWZER_AUTH_AUDIENCE` übereinstimmen.
+2. Einen **Web-/vertraulichen Client** für den BFF registrieren. Ausschließlich die
+   Redirect-URI `https://<flowzer-host>/bff/signin-oidc` hinterlegen. Ein Client-
+   Secret im Secret-Store speichern, nicht in der Konsole.
+3. Dem vertraulichen Client die delegierte API-Berechtigung `access_as_user` geben
+   und erforderlichen Admin-Consent erteilen.
+4. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Flowzer benötigt
+   eine GUID aus `nameidentifier`, `sub` oder `oid`; für Entra ist üblicherweise
+   `oid` die passende GUID.
 
 ### Keycloak
 
-1. Realm anlegen, Client `flowzer-console` als Public Client mit PKCE, gültige Redirect-URIs wie oben, Web Origins `https://<flowzer-host>`.
-2. Audience-Mapper, der `flowzer-api` in das Access-Token schreibt; die API erwartet diese Audience.
-3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-Id kommt als `sub`-Claim (GUID).
-4. Werte für `.env` (abweichend von der Entra-Vorlage): `FLOWZER_AUTH_AUDIENCE=flowzer-api`, `FLOWZER_OIDC_SCOPES` leer lassen oder nur `offline_access`, weil Keycloak die Audience über den Mapper setzt.
+1. Im Ziel-Realm einen Client für den BFF als **confidential** anlegen, Standard Flow
+   und PKCE aktivieren, Redirect-URI exakt auf
+   `https://<flowzer-host>/bff/signin-oidc` begrenzen. Das Client-Secret im
+   Secret-Store halten.
+2. Einen Audience-Mapper einrichten, der `flowzer-api` in das Access-Token schreibt;
+   dann lautet `FLOWZER_AUTH_AUDIENCE=flowzer-api`. Rollen bei Bedarf unter
+   `resource_access.flowzer-api.roles` ausgeben.
+3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-ID muss als
+   GUID im `sub`-Claim vorliegen.
+
+Keine SPA-Registrierung, keine Browser-Client-ID, keine `FLOWZER_OIDC_*`-Variablen
+und keine stille Browser-Token-Erneuerung konfigurieren.
 
 ## 3. Konfigurieren
 
@@ -52,23 +81,50 @@ Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind ni
 cp .env.example .env
 ```
 
-`.env` ausfüllen:
+`.env` enthält nur nicht geheime Bereitstellungswerte:
 
 | Variable | Bedeutung |
 |---|---|
+| `FLOWZER_RUNTIME_BIND_ADDRESS` | Bindeadresse des lokalen Gateways; sicherer Default `127.0.0.1`, nur für einen bewusst angebundenen externen Container-Proxy öffnen |
 | `FLOWZER_RUNTIME_PORT` | Host-Port des Gateways (Default 5288) |
-| `FLOWZER_AUTH_SCHEME` | `JwtBearer` für den Pilot, `None` nur für lokale Prüfungen |
-| `FLOWZER_AUTH_AUTHORITY` | OIDC-Issuer der API |
+| `FLOWZER_AUTH_SCHEME` | `Bff` für diesen Betrieb; `None` nur lokal, `JwtBearer` für direkte Bearer-Kompatibilität |
+| `FLOWZER_BFF_ENABLED` | `true` zusammen mit `Bff`; nur beim lokalen `None`-HTTP-Modus ebenfalls auf `false` setzen |
+| `FLOWZER_AUTH_AUTHORITY` | OIDC-Issuer der API und des BFF |
 | `FLOWZER_AUTH_AUDIENCE` | erwartete Audience im Access-Token |
-| `FLOWZER_OIDC_AUTHORITY` | Issuer für die Oberfläche (in der Regel identisch) |
-| `FLOWZER_OIDC_CLIENT_ID` | Client-Id der SPA-Registrierung |
-| `FLOWZER_OIDC_SCOPES` | zusätzlich zu den Standard-Scopes `openid profile`, leerzeichengetrennt, z. B. `api://<api-client-id>/access_as_user offline_access` |
+| `FLOWZER_BFF_CLIENT_ID` | Client-ID des vertraulichen BFF-Clients |
+| `FLOWZER_BFF_SCOPE_0` bis `_2` | zusätzliche Scopes, bei Entra typischerweise der API-Scope |
+| `FLOWZER_TRUSTED_PROXY_NETWORK` | privates CIDR, aus dem die API Forwarded-Header akzeptiert; muss zum tatsächlichen Container-Netz passen |
+| `FLOWZER_FORWARDED_HEADER_LIMIT` | Zahl der vertrauenswürdigen Proxy-Stufen; Default `3` für TLS-Proxy, Gateway und Konsolen-nginx |
+| `FLOWZER_ACCENT` | globale Akzentfarbe der Konsole |
 
-Wichtig: `FLOWZER_AUTH_SCHEME=JwtBearer` und die `FLOWZER_OIDC_*`-Werte gehören zusammen. Bleiben die Frontend-Werte leer, zeigt die Oberfläche einen technischen Benutzer ohne Anmeldung, während die API jeden Aufruf mit 401 ablehnt.
+`FLOWZER_BFF_CLIENT_SECRET` wird **nicht** in `.env` eingetragen: vor dem Start aus
+dem Secret-Store in die Umgebung des API-Containers injizieren. Der Compose-Stack
+reicht ihn ausschließlich als `Authentication__Bff__ClientSecret` an `api` weiter.
+Die Konsole erhält keine OIDC-/Rollen-/Secret-Variablen und `config.json` enthält nur
+API-Basis, Akzent und BFF-Schalter.
 
-Die Oberfläche läuft hinter dem Gateway unter derselben Origin wie die API; CORS ist deshalb nicht nötig. Wird die API unter einer anderen Origin betrieben, zusätzlich `Cors__AllowedOrigins__0` an der API setzen (siehe `docs/OPERATIONS.md`).
+Der TLS-Proxy muss eingehende `X-Forwarded-For`- und `X-Forwarded-Proto`-Werte
+ersetzen, den externen Host **einschließlich eines Nichtstandardports** weitergeben
+und selbst im konfigurierten Vertrauensnetz liegen. Gateway und Konsolen-nginx
+erhalten Schema und Host unverändert. Ein breiteres Vertrauensnetz oder ein höheres
+Forward-Limit als die tatsächliche Kette würde dagegen fälschbare Clientdaten
+akzeptieren.
+
+Das Runtime-Gateway bindet standardmäßig nur an `127.0.0.1`. So kann ein direkter
+Netzwerkclient keinen Forwarded-Header am TLS-Proxy vorbei einschleusen. Liegt der
+TLS-Proxy in einem anderen Container, muss dessen gemeinsames privates Netz bevorzugt
+werden; eine abweichende `FLOWZER_RUNTIME_BIND_ADDRESS` ist nur zusammen mit einer
+Firewallregel und einem Proxy zulässig, der Client-Header zuverlässig ersetzt.
+
+Der Runtime-Stack legt den Keyring unter `.data/runtime-data-protection` an. Dieses
+Verzeichnis nicht löschen, teilen oder in Backups vergessen; sonst verlieren alle
+bestehenden BFF-Sitzungen, OIDC-Korrelationen und Antiforgery-Token ihre Gültigkeit.
 
 ## 4. Bauen und starten
+
+Vor dem Start muss der Reverse Proxy für eine HTTPS-Adresse eingerichtet sein. Der
+mitgelieferte lokale Gateway-Port ist für Healthchecks geeignet; über reines HTTP
+funktionieren `Secure`-Cookies absichtlich nicht.
 
 ```bash
 ./scripts/runtime/start-runtime-stack.sh
@@ -85,36 +141,39 @@ docker compose -f compose.runtime.yml up -d --wait
 ## 5. Prüfen
 
 1. `curl -s https://<flowzer-host>/health/ready` liefert `"Status":"Healthy"`.
-2. `curl -s https://<flowzer-host>/definition/meta` liefert **401** (Anmeldung wirkt).
-3. Im Browser `https://<flowzer-host>/` öffnen: Weiterleitung zum Identity Provider, danach Dashboard mit Benutzername im Seitenmenü.
-4. Workflow anlegen, deployen, Instanz starten, Aufgabe in der Task-Inbox abschließen.
-5. Diagnose per Token abrufen (das Access-Token liegt in der Browser-Sitzung und wird bei direkter Navigation nicht mitgesendet):
+2. `curl -s -o /dev/null -w '%{http_code}' https://<flowzer-host>/definition/meta`
+   liefert **401**, solange keine Sitzung/Bearer vorhanden ist.
+3. Browser auf `https://<flowzer-host>/` öffnen: Die Konsole leitet über
+   `/bff/login` zum Identity Provider, danach erscheint die Sitzung in der Konsole.
+4. Einen schreibenden Fachvorgang ausführen; der Browser sendet dazu automatisch
+   `X-Flowzer-CSRF`. Ein Cross-Origin-POST oder POST ohne Header muss mit 400
+   abgewiesen werden.
+5. Einen direkten Diagnoseaufruf mit einem autorisierten externen Bearer prüfen:
 
    ```bash
    curl -s -H "Authorization: Bearer <token>" https://<flowzer-host>/operations/diagnostics
    ```
 
+   Der Bearer-Aufruf bleibt ohne CSRF-Header gültig. Einen absichtlich ungültigen
+   Bearer bei bestehender Browser-Sitzung als 401 prüfen; er darf nicht auf Cookie
+   zurückfallen.
+
 ## 6. Betrieb
 
-### Backup
+### Backup und Restore
 
-Tägliches Backup der Ablage, idealerweise bei geringer Last:
-
-```bash
-tar -czf flowzer-runtime-backup-$(date +%F).tgz .data/runtime-storage
-```
-
-Restore: Stack stoppen, Verzeichnis ersetzen, Stack starten. Die Ablage schreibt atomar; ein Backup während des Betriebs ist konsistent auf Dateiebene, kann aber eine gerade laufende Instanzänderung noch nicht enthalten.
-
-### Instanz abbrechen
-
-Im Frontend auf der Instanzseite „Cancel instance“ oder per API:
+Bei Dateiablage täglich Storage **und** den Data-Protection-Keyring sichern:
 
 ```bash
-curl -X POST -H "Authorization: Bearer <token>" https://<flowzer-host>/instance/<instance-id>/cancel
+tar -czf flowzer-runtime-backup-$(date +%F).tgz \
+  .data/runtime-storage .data/runtime-data-protection
 ```
 
-Aktive Tokens werden terminiert, offene Aufgaben entfernt. Bereits erledigte Aktivitäten werden nicht kompensiert.
+Für Restore Stack stoppen, beide Verzeichnisse konsistent zurückspielen und erst dann
+starten. Eine Wiederherstellung ohne Keyring invalidiert Sessions und OIDC-
+Korrelationen; das ist sicherer als Schlüssel neu zu erzeugen, aber im Runbook als
+beabsichtigter Logout zu behandeln. PostgreSQL-Backups folgen dem Datenbankbetrieb;
+der Keyring bleibt trotzdem ein separates Volume.
 
 ### Logs und Diagnose
 
@@ -124,7 +183,10 @@ docker compose -f compose.runtime.yml logs -f console
 docker compose -f compose.runtime.yml logs -f gateway
 ```
 
-`GET /operations/diagnostics` liefert Scheduler-Status, Ablage-Snapshot und Observability-Konfiguration. OpenTelemetry-Export ist über `Observability__*` aktivierbar (siehe `docs/OPERATIONS.md`).
+Logs nie mit `Authentication__Bff__ClientSecret`, Authorization-Headern, Cookies
+oder CSRF-Request-Tokens teilen. `GET /operations/diagnostics` verlangt im BFF-
+Betrieb Sitzung oder autorisierten Bearer; OpenTelemetry-Export ist über
+`Observability__*` aktivierbar (siehe `docs/OPERATIONS.md`).
 
 ### Aktualisieren
 
@@ -134,29 +196,41 @@ docker compose -f compose.runtime.yml build
 docker compose -f compose.runtime.yml up -d --wait
 ```
 
-Die Ablage bleibt erhalten. Vor einem Update ein Backup ziehen.
+Vor einem Update Storage und Keyring sichern. Das Keyring-Volume behalten, damit ein
+Redeploy nicht alle Sitzungen und OIDC-Korrelationen ungültig macht.
 
 ## 6b. Variante Coolify mit GitHub Container Registry
 
-Für Maaß IT läuft der Stack über Coolify (`compose.coolify.yaml`): Der Workflow `release.yml` baut die Images bei jedem Push auf `release` (das ausgerollte Paket; `main` ist der Entwicklungsstand), veröffentlicht sie in der GitHub Container Registry, setzt `FLOWZER_IMAGE_TAG` in Coolify auf die Revision und löst das Deployment aus. Der Dienst `migrate` bringt die PostgreSQL-Datenbank vor dem API-Start auf den aktuellen Stand; das Frontend-nginx leitet die API-Pfade an den API-Container (`FLOWZER_API_UPSTREAM`), sodass Traefik nur eine Domain kennt.
+Für Maaß IT verwendet `compose.coolify.yaml` PostgreSQL und ein benanntes,
+ausschließlich an `api` gemountetes Volume `flowzer-bff-data-protection`. Der
+Release-Workflow baut Images bei einem Push auf `release`, pinnt
+`FLOWZER_IMAGE_TAG` und löst anschließend das Deployment aus. Ein Feature-PR allein
+ist kein Deployment.
 
-Benötigte Coolify-Umgebungsvariablen: `STORAGE_CONNECTION_STRING`, `STORAGE_MIGRATION_CONNECTION_STRING`, `FLOWZER_AUTH_AUTHORITY`, `FLOWZER_AUTH_AUDIENCE`, `FLOWZER_OIDC_AUTHORITY`, `FLOWZER_OIDC_CLIENT_ID`, optional `FLOWZER_OIDC_SCOPES`, `STORAGE_SCHEMA`, `FLOWZER_IMAGE_TAG`. GitHub-Environment `maassit-production`: Variablen `COOLIFY_API_BASE`, `COOLIFY_APP_UUID`, `PUBLIC_BASE_URL`, Secret `COOLIFY_TOKEN`.
+Coolify benötigt mindestens `STORAGE_CONNECTION_STRING`,
+`STORAGE_MIGRATION_CONNECTION_STRING`, `FLOWZER_AUTH_AUTHORITY`,
+`FLOWZER_AUTH_AUDIENCE`, `FLOWZER_BFF_CLIENT_ID` und
+`FLOWZER_BFF_CLIENT_SECRET`. Letzteres ist als Coolify-Secret zu pflegen. Optional
+sind `FLOWZER_BFF_SCOPE_0` bis `_2`, Rollen, Storage-Schema und Image-Tag. Es gibt
+keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 
 ## 7. Bekannte Grenzen des Piloten
 
-- Kein Rollenmodell: jede angemeldete Person sieht alle Workflows, Instanzen, Aufgaben und die Diagnose.
-- Zuweisungen (`assignee`, `candidateGroups`) aus dem BPMN werden nicht ausgewertet.
-- Dateiablage: ein API-Prozess, keine Historie; mit PostgreSQL echte Transaktionen, aber weiterhin ein API-Prozess (Engine-Sperre im Prozess).
-- Fälligkeiten werden angezeigt, nicht ausgewertet.
-- Service-Tasks haben keinen Worker-Vertrag; sie warten, bis ein Ergebnis über `POST /usertask` bzw. die Engine gemeldet wird.
-- Fehler-, Eskalations- und Kompensationsereignisse führen nur in einen Best-Effort-Fehlerzustand.
+- Der BFF-Slice ist noch nicht nach `main` gemergt und kein vollständiger
+  M0-/Produktionsabschluss.
+- Rollen müssen produktiv explizit gesetzt werden; leere Fähigkeitsrollen bleiben
+  im bestehenden Vertrag permissiv.
+- Dateiablage und auch PostgreSQL sind noch nicht für Mehrprozessbetrieb freigegeben.
+- Recovery, Fehler-/Eskalations-/Kompensationssemantik, Alarmierung und vollständige
+  Secret-Store-/TLS-Automatisierung bleiben weitere Pakete.
 
 ## 8. Fehlerbilder
 
 | Symptom | Ursache | Abhilfe |
 |---|---|---|
-| Frontend lädt, API antwortet 401 | Access-Token trägt nicht die erwartete Audience | `FLOWZER_OIDC_SCOPES` um den API-Scope ergänzen, `FLOWZER_AUTH_AUDIENCE` prüfen |
-| Alle benutzerbezogenen Aufrufe 401 trotz Login | weder `nameidentifier`, `sub` noch `oid` ist eine GUID | Access-Token dekodieren und die Claims prüfen; Entra liefert `oid`, Keycloak `sub` als GUID; andere IdPs brauchen einen Mapper, der eine GUID in einen dieser Claims schreibt |
-| API startet nicht: „Authentication:JwtBearer:Authority must be set“ | `FLOWZER_AUTH_SCHEME=JwtBearer` ohne Authority/Audience | `.env` vervollständigen |
-| Frontend zeigt „Sign-in failed“ | Redirect-URI oder Client-Id passt nicht zur Registrierung | Redirect-URIs `/authentication/login-callback` und `/authentication/logout-callback` prüfen |
+| API startet nicht mit BFF-Konfigurationsfehler | Authority, Audience, Client-ID, Secret oder Keyring-Pfad fehlt | BFF-Werte und Secret-Injektion nur am API-Container prüfen |
+| Browser bleibt nach Login abgemeldet | URL ist HTTP oder Proxy meldet nicht HTTPS/Host weiter | TLS, `X-Forwarded-Proto` und Host-Weitergabe prüfen; `Secure`-Cookies sind unter HTTP absichtlich unwirksam |
+| Schreibaufruf liefert 400 `CSRF validation failed` | Header/Origin fehlt oder Request-Token ist abgelaufen | Sitzung/`GET /bff/csrf` erneuern; nur same-origin schreiben |
+| Externer Client erhält 401 | Bearer trägt nicht die erwartete Audience oder ist ungültig | Audience/Issuer/Claims prüfen; der BFF ersetzt den externen Bearer-Vertrag nicht |
+| Nach Redeploy sind alle Sitzungen ungültig | Data-Protection-Keyring wurde nicht persistent übernommen | getrenntes Keyring-Volume wiederherstellen und künftig sichern |
 | `docker compose build` scheitert am SDK | Falsches Feature-Band | Images nutzen `sdk:10.0.103`; `global.json` verlangt 10.0.1xx |

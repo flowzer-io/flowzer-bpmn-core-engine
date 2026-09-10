@@ -1,16 +1,17 @@
 import { create } from 'zustand';
 
-import { setAccessDeniedHandler, setAuthTokenProvider, setUserIdProvider } from '@/lib/api/client';
-import { decodeJwtPayload, readRoles, type FlowzerCapability } from '@/lib/auth/roles';
-import { getUser, getUserManager, signIn, signOut } from '@/lib/auth/oidc';
-import { getRuntimeConfig, isAuthenticationConfigured } from '@/lib/config/runtime';
+import { setAccessDeniedHandler, setUnauthorizedHandler } from '@/lib/api/client';
+import { fetchSession, logout, signIn } from '@/lib/auth/bff';
+import type { FlowzerCapability } from '@/lib/auth/roles';
+import { getRuntimeConfig } from '@/lib/config/runtime';
+import { clearPublicPackageScope, createSessionScope } from '@/lib/flowzer/sessionScope';
 
 export interface SessionUser {
   id: string;
   name: string;
   email?: string;
   initials: string;
-  roles: Set<string>;
+  capabilities: Set<string>;
 }
 
 type SessionStatus = 'unknown' | 'anonymous' | 'signed-in';
@@ -18,11 +19,15 @@ type SessionStatus = 'unknown' | 'anonymous' | 'signed-in';
 interface SessionState {
   status: SessionStatus;
   user: SessionUser | null;
+  /** Opaquer Zufallswert nur für die Query-Keys der veröffentlichten Pakete. */
+  sessionScope: string | null;
   /** Die API hat einen Aufruf mit 403 abgelehnt, weil die Zugangsrolle fehlt. */
   accessDenied: boolean;
   refresh: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Console-interne Transition für den vom API-Client gemeldeten 401-Fall. */
+  endSessionForUnauthorized: () => void;
   setAccessDenied: (denied: boolean) => void;
 }
 
@@ -36,66 +41,110 @@ function initials(name: string): string {
 }
 
 /**
- * Ohne Identity Provider läuft die Konsole als technischer Benutzer. Die API
- * akzeptiert das ausschließlich im Entwicklungsmodus, und nur dort greift dieser
- * Zweig: In einem Produktionsbündel bliebe die Anwendung sonst mit voller Ansicht
- * stehen, während die API jeden Aufruf ablehnt.
+ * Ausschliesslich der Vite-Entwicklungsserver darf ohne BFF eine offene Konsole zeigen.
+ * Dabei wird kein Token versendet. Der feste technische Identitaetsheader ist auf Vites
+ * Development-Build begrenzt und wird von der API ebenfalls nur in Development akzeptiert.
  */
 const DEVELOPMENT_USER: SessionUser = {
   id: 'd266f2b6-e96e-4d4a-9c20-c8e541394df0',
   name: 'Entwicklungsbenutzer',
   initials: 'EB',
-  roles: new Set(['access', 'modeler', 'operator', 'worker']),
+  capabilities: new Set([
+    'access',
+    'modeler',
+    'operator',
+    'worker',
+    'aiConnectionUse',
+    'aiConnectionManage',
+  ]),
 };
 
 export const useSession = create<SessionState>()((set, get) => ({
   status: 'unknown',
   user: null,
+  sessionScope: null,
   accessDenied: false,
 
   refresh: async () => {
-    if (!isAuthenticationConfigured()) {
-      if (!import.meta.env.DEV) {
-        // Fail-closed: lieber die Anmeldeseite als eine Oberfläche, die nichts kann.
-        set({ status: 'anonymous', user: null });
+    if (!getRuntimeConfig().bffEnabled) {
+      set(import.meta.env.DEV
+        ? {
+          status: 'signed-in',
+          user: DEVELOPMENT_USER,
+          sessionScope: get().sessionScope ?? createSessionScope(),
+        }
+        : anonymousState(get()));
+      return;
+    }
+
+    try {
+      const session = await fetchSession();
+      if (!session) {
+        set(anonymousState(get()));
         return;
       }
 
-      set({ status: 'signed-in', user: DEVELOPMENT_USER });
-      return;
+      const current = get();
+      const subjectChanged = current.status === 'signed-in'
+        && current.user !== null
+        && current.user.id !== session.id;
+      if (subjectChanged) clearPublicPackageScope(current.sessionScope);
+
+      set({
+        status: 'signed-in',
+        sessionScope: subjectChanged || !current.sessionScope
+          ? createSessionScope()
+          : current.sessionScope,
+        accessDenied: !session.capabilities.includes('access'),
+        user: {
+          id: session.id,
+          name: session.name,
+          email: session.email,
+          initials: initials(session.name),
+          capabilities: new Set(session.capabilities),
+        },
+      });
+    } catch {
+      // Ein BFF-Ausfall darf nicht mit einer halbgültigen Sitzung weiterlaufen.
+      set(anonymousState(get()));
     }
-
-    const user = await getUser();
-    if (!user || user.expired) {
-      set({ status: 'anonymous', user: null });
-      return;
-    }
-
-    const claims = decodeJwtPayload(user.access_token);
-    const profile = user.profile;
-    const name = (profile.name ?? profile.preferred_username ?? profile.email ?? 'Unbekannt') as string;
-
-    set({
-      status: 'signed-in',
-      user: {
-        id: (profile.sub ?? '') as string,
-        name,
-        email: profile.email,
-        initials: initials(name),
-        roles: readRoles(claims, getRuntimeConfig().oidcAudience),
-      },
-    });
   },
 
-  signIn: () => signIn(),
-  signOut: () => signOut(),
+  signIn: async () => {
+    signIn();
+  },
+
+  signOut: async () => {
+    // Erst ein bestaetigter Server-Logout (oder 401) beendet die lokale Sitzung.
+    // Bei Netzwerk-/CSRF-Fehlern bleibt sie sichtbar und die Abmeldung wiederholbar.
+    await logout();
+    set(anonymousState(get()));
+  },
+
+  endSessionForUnauthorized: () => {
+    set(anonymousState(get()));
+  },
+
   setAccessDenied: (denied) => {
     if (get().accessDenied !== denied) set({ accessDenied: denied });
   },
 }));
 
 /**
- * Kurzer Zusatz unter dem Namen: die stärkste Rolle, die die Person trägt.
+ * Beendet die lokale Sicht auf eine BFF-Sitzung und entfernt vorher nur deren
+ * öffentliche Paketdaten. Allgemeine Console-Queries folgen weiter ihrem eigenen
+ * Lebenszyklus und werden nicht pauschal gelöscht.
+ */
+function anonymousState(state: Pick<SessionState, 'sessionScope'>): Pick<
+  SessionState,
+  'status' | 'user' | 'sessionScope' | 'accessDenied'
+> {
+  clearPublicPackageScope(state.sessionScope);
+  return { status: 'anonymous', user: null, sessionScope: null, accessDenied: false };
+}
+
+/**
+ * Kurzer Zusatz unter dem Namen: die stärkste Fähigkeit, die die Person trägt.
  * Mehr gehört nicht in die Kopfzeile; die vollständige Liste steht im Menü.
  */
 export function describeRole(user: SessionUser | null): string {
@@ -106,75 +155,28 @@ export function describeRole(user: SessionUser | null): string {
   return 'Kein Zugang';
 }
 
-/**
- * Prüft eine Fähigkeit anhand des Rollennamens, den der Betrieb vergeben hat.
- * Die Anzeige richtet sich danach; die Entscheidung trifft weiterhin die API.
- */
+/** Prüft eine BFF-Fähigkeit. Die API bleibt die maßgebliche Autorisierung. */
 export function hasCapability(user: SessionUser | null, capability: FlowzerCapability): boolean {
-  return user?.roles.has(getRuntimeConfig().roleNames[capability]) ?? false;
+  return user?.capabilities.has(capability) ?? false;
 }
 
-/**
- * Die vollständige Konsole steht jedem Zugelassenen offen.
- *
- * Vorher hing sie an den Rollen fürs Modellieren oder den Betrieb. Das war strenger
- * als die API: Definitionen, Instanzen und Formulare darf jeder Zugelassene lesen,
- * erst Schreiben und die Diagnose verlangen eine Rolle. Wer nur Aufgaben bearbeitet,
- * bekam so eine Oberfläche zu sehen, die weniger konnte als sein Zugang hergab.
- *
- * Die reduzierte Aufgabenansicht bleibt erhalten, aber als eigene Wahl im
- * Benutzermenü statt als Folge fehlender Rollen.
- */
+/** Die Vollansicht steht jedem BFF-Subjekt mit der `access`-Fähigkeit offen. */
 export function seesFullConsole(user: SessionUser | null): boolean {
   return hasCapability(user, 'access');
 }
 
-/**
- * Prüft eine Fähigkeit der angemeldeten Person. Für die Anzeige gedacht: Was die
- * Oberfläche gar nicht erst anbietet, führt auch nicht zu einer Ablehnung.
- */
+/** Prüft eine Fähigkeit der angemeldeten Person für die reine Anzeige. */
 export function useCan(): (capability: FlowzerCapability) => boolean {
   const user = useSession((state) => state.user);
   return (capability) => hasCapability(user, capability);
 }
 
-// Der API-Client holt Token und Benutzer-Id bei jedem Aufruf frisch.
-setAuthTokenProvider(() => {
-  const manager = getUserManager();
-  if (!manager) return null;
-  return currentAccessToken;
+setUnauthorizedHandler(() => {
+  useSession.getState().endSessionForUnauthorized();
 });
-setUserIdProvider(() => (!isAuthenticationConfigured() && import.meta.env.DEV ? DEVELOPMENT_USER.id : null));
 setAccessDeniedHandler((denied) => useSession.getState().setAccessDenied(denied));
 
-/**
- * Das Token wird beim Anmelden und bei jeder Erneuerung gespiegelt: Der API-Client
- * ist synchron, `getUser()` nicht.
- */
-let currentAccessToken: string | null = null;
-
+/** Lädt die aktuelle BFF-Sitzung einmal beim Start des SPA. */
 export function initialiseSession(): void {
-  const manager = getUserManager();
-  if (!manager) {
-    void useSession.getState().refresh();
-    return;
-  }
-
-  manager.events.addUserLoaded((user) => {
-    currentAccessToken = user.access_token;
-    void useSession.getState().refresh();
-  });
-  manager.events.addUserUnloaded(() => {
-    currentAccessToken = null;
-    void useSession.getState().refresh();
-  });
-  manager.events.addAccessTokenExpired(() => {
-    currentAccessToken = null;
-    void useSession.getState().refresh();
-  });
-
-  void manager.getUser().then((user) => {
-    currentAccessToken = user && !user.expired ? user.access_token : null;
-    return useSession.getState().refresh();
-  });
+  void useSession.getState().refresh();
 }

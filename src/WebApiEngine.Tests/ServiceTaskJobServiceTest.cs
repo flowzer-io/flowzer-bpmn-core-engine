@@ -1,6 +1,6 @@
 using BPMN.Common;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Model;
 using StorageSystem;
@@ -64,6 +64,133 @@ public class ServiceTaskJobServiceTest
         afterExpiry.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, "worker-b"));
     }
 
+    // Testzweck: Ein lang laufender Worker verlaengert seine gueltige Lease vom aktuellen
+    // Serverzeitpunkt aus und erhaelt den tatsaechlich gespeicherten Ablaufzeitpunkt zurueck.
+    [Test]
+    public async Task RenewLease_ShouldExtendTheCurrentWorkersLeaseFromServerTime()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock(
+            "zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        context.Time.Advance(TimeSpan.FromMinutes(2));
+
+        var outcome = await context.Service.RenewLease(
+            job.Id, WorkerUser, "worker-a", TimeSpan.FromMinutes(10));
+
+        outcome.Status.Should().Be(JobOperationResult.Ok);
+        outcome.Job.Should().NotBeNull();
+        outcome.Job!.LockedUntil.Should().Be(context.Time.GetUtcNow().UtcDateTime.AddMinutes(10));
+        (await context.Storage.GetJob(job.Id))!.LockedUntil.Should().Be(outcome.Job.LockedUntil);
+    }
+
+    // Testzweck: Eine kuerzere Heartbeat-Dauer darf eine bereits laenger gueltige Lease nicht
+    // versehentlich verkuerzen und den Auftrag vorzeitig fuer andere Worker freigeben.
+    [Test]
+    public async Task RenewLease_ShouldNotShortenAnExistingLease()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock(
+            "zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(30))).Single();
+        var originalExpiry = job.LockedUntil;
+        context.Time.Advance(TimeSpan.FromMinutes(1));
+
+        var outcome = await context.Service.RenewLease(
+            job.Id, WorkerUser, "worker-a", TimeSpan.FromMinutes(5));
+
+        outcome.Status.Should().Be(JobOperationResult.Ok);
+        outcome.Job!.LockedUntil.Should().Be(originalExpiry);
+    }
+
+    // Testzweck: Eine frei waehlbare Worker-Kennung reicht nicht zur Lease-Verlaengerung; die
+    // authentifizierte Person ist Teil des Besitznachweises.
+    [Test]
+    public async Task RenewLease_ShouldRefuseAnotherPersonUsingTheSameWorkerName()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock(
+            "zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        var outcome = await context.Service.RenewLease(
+            job.Id, Guid.NewGuid(), "worker-a", TimeSpan.FromMinutes(5));
+
+        outcome.Status.Should().Be(JobOperationResult.NotLockedByWorker);
+        outcome.Job.Should().BeNull();
+    }
+
+    // Testzweck: Auch dieselbe angemeldete Person darf die Lease nicht unter einer anderen
+    // Worker-Kennung verlaengern; beide Bestandteile bilden gemeinsam den Besitznachweis.
+    [Test]
+    public async Task RenewLease_ShouldRefuseAnotherWorkerNameFromTheSamePerson()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock(
+            "zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        var outcome = await context.Service.RenewLease(
+            job.Id, WorkerUser, "worker-b", TimeSpan.FromMinutes(5));
+
+        outcome.Status.Should().Be(JobOperationResult.NotLockedByWorker);
+        outcome.Job.Should().BeNull();
+    }
+
+    // Testzweck: Eine abgelaufene Lease kann per Heartbeat nicht wiederbelebt werden; der
+    // Auftrag muss danach erneut ueber den atomaren Claim-Pfad uebernommen werden.
+    [Test]
+    public async Task RenewLease_ShouldReportExpiredLeaseWithoutRevivingIt()
+    {
+        var context = new JobTestContext();
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock(
+            "zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+        var expiredAt = job.LockedUntil;
+        context.Time.Advance(TimeSpan.FromMinutes(6));
+
+        var outcome = await context.Service.RenewLease(
+            job.Id, WorkerUser, "worker-a", TimeSpan.FromMinutes(5));
+
+        outcome.Status.Should().Be(JobOperationResult.LockExpired);
+        outcome.Job.Should().BeNull();
+        (await context.Storage.GetJob(job.Id))!.LockedUntil.Should().Be(expiredAt);
+    }
+
+    // Testzweck: Ein unbekannter Auftrag wird auch beim Heartbeat als nicht vorhanden
+    // eingeordnet, statt einen Serverfehler oder Verzeichnisinformationen zu liefern.
+    [Test]
+    public async Task RenewLease_ShouldReportUnknownJob()
+    {
+        var context = new JobTestContext();
+
+        var outcome = await context.Service.RenewLease(
+            Guid.NewGuid(), WorkerUser, "worker-a", TimeSpan.FromMinutes(5));
+
+        outcome.Status.Should().Be(JobOperationResult.NotFound);
+        outcome.Job.Should().BeNull();
+    }
+
+    // Testzweck: Untrusted Task- und Worker-Eingaben dürfen nicht in die Lognachricht gelangen;
+    // der Auftrag muss trotzdem mit seinen fachlichen Daten vergeben werden.
+    [Test]
+    public async Task FetchAndLock_ShouldNotLogUntrustedTaskOrWorkerInput()
+    {
+        var context = new JobTestContext();
+        const string taskType = "zahlung\r\nUNTRUSTED_TASK_INPUT";
+        const string workerId = "worker-a\nUNTRUSTED_WORKER_INPUT";
+        await context.AddJob(taskType);
+
+        var jobs = await context.Service.FetchAndLock(taskType, WorkerUser, workerId, 10, TimeSpan.FromMinutes(5));
+
+        var log = context.Logger.Entries.Should().ContainSingle().Subject;
+        log.Message.Should().NotContain(taskType);
+        log.Message.Should().NotContain(workerId);
+        jobs.Should().ContainSingle();
+        jobs.Single().Type.Should().Be(taskType);
+        jobs.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, workerId));
+    }
+
     // Testzweck: Nur der Worker, dem der Auftrag gehoert, darf zurueckmelden. Sonst koennten
     // zwei Ergebnisse fuer denselben Token den Prozess doppelt weiterfuehren.
     [Test]
@@ -113,6 +240,23 @@ public class ServiceTaskJobServiceTest
         afterBackoff.Should().ContainSingle();
         afterBackoff.Single().Retries.Should().Be(2);
         afterBackoff.Single().LastErrorMessage.Should().Be("Endpunkt nicht erreichbar");
+    }
+
+    // Testzweck: Eine untrusted Worker-Fehlermeldung darf nicht ins Log gelangen, muss aber als
+    // fachlicher Fehler am Auftrag erhalten bleiben.
+    [Test]
+    public async Task Fail_ShouldNotLogWorkerErrorInput_ButPersistItOnTheJob()
+    {
+        var context = new JobTestContext();
+        const string errorMessage = "Workerfehler\r\nUNTRUSTED_ERROR_INPUT";
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        await context.Service.Fail(job.Id, WorkerUser, "worker-a", errorMessage, null, TimeSpan.Zero);
+
+        var log = context.Logger.Entries.Where(entry => entry.Level == LogLevel.Warning).Should().ContainSingle().Subject;
+        log.Message.Should().NotContain(errorMessage);
+        (await context.Service.GetAll()).Single().LastErrorMessage.Should().Be(errorMessage);
     }
 
     // Testzweck: Ist der letzte Versuch verbraucht, wird der Auftrag nicht mehr vergeben. Er
@@ -197,12 +341,13 @@ public class ServiceTaskJobServiceTest
                 provider,
                 new BpmnBusinessLogic(provider),
                 Time,
-                NullLogger<ServiceTaskJobService>.Instance);
+                Logger);
         }
 
         public FakeTimeProvider Time { get; }
         public InMemoryServiceTaskStorage Storage { get; }
         public ServiceTaskJobService Service { get; }
+        public CapturingLogger<ServiceTaskJobService> Logger { get; } = new();
 
         public async Task<ServiceTaskJob> AddJob(string type, int retries = 3)
         {
@@ -212,13 +357,8 @@ public class ServiceTaskJobServiceTest
                 Id = Guid.NewGuid(),
                 Type = type,
                 Name = type,
-                Token = new Token
-                {
-                    ProcessInstanceId = Guid.NewGuid(),
-                    CurrentBaseElement = serviceTask,
-                    ActiveBoundaryEvents = [],
-                    State = FlowNodeState.Active
-                },
+                TokenId = Guid.NewGuid(),
+                FlowNodeId = serviceTask.Id,
                 ProcessInstanceId = Guid.NewGuid(),
                 MetaDefinitionId = "catalog",
                 DefinitionId = Guid.NewGuid(),

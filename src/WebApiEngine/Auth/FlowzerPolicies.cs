@@ -9,8 +9,17 @@ public static class FlowzerPolicies
     /// </summary>
     public const string Access = "flowzer:access";
 
+    /// <summary>Nur Anmeldung fuer die eigene BFF-Sitzung, ohne fachliche Zugangsrolle.</summary>
+    public const string Session = "flowzer:session";
+
     public const string Modeler = "flowzer:modeler";
     public const string Operator = "flowzer:operator";
+
+    /// <summary>
+    /// Neue administrative Verzeichnisendpunkte sind fail-closed: Im authentifizierten
+    /// Betrieb muss der Operator-Rollenname ausdrücklich konfiguriert sein.
+    /// </summary>
+    public const string IdentityDirectoryOperator = "flowzer:identity-directory-operator";
 
     /// <summary>
     /// Darf Auftraege fuer Service-Tasks abholen und zurueckmelden. Eine eigene Rolle, weil ein
@@ -18,6 +27,12 @@ public static class FlowzerPolicies
     /// Eingaben aller Service-Tasks lesen koennen.
     /// </summary>
     public const string Worker = "flowzer:worker";
+
+    /// <summary>Darf freigegebene KI-Verbindungsmetadaten in Workflows auswaehlen.</summary>
+    public const string AiConnectionUse = "flowzer:ai-connection-use";
+
+    /// <summary>Darf KI-Verbindungen, Endpunkte und Secret-Referenzen administrieren.</summary>
+    public const string AiConnectionManage = "flowzer:ai-connection-manage";
 
     /// <summary>
     /// Antwortheader, der eine 403 einordnet: <c>application</c> heisst, dass dieses Konto

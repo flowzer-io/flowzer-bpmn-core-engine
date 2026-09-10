@@ -1,12 +1,15 @@
+using StorageSystem;
 using WebApiEngine;
 using WebApiEngine.Auth;
 using WebApiEngine.Background;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Jobs;
+using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
+using WebApiEngine.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,18 +38,95 @@ builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUse
 builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
 builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
+builder.Services.AddScoped<FormAuthoringService>();
+builder.Services.AddScoped<FormCompatibilityService>();
+builder.Services.AddScoped<FormSectionAuthoringService>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.AddScoped<UserTaskCompletionService>();
+builder.Services.AddScoped<UserTaskDraftService>();
+builder.Services.AddScoped<UserTaskLifecycleService>();
+builder.Services.AddScoped<UserTaskNotificationService>();
+builder.Services.AddSingleton<UserTaskDeadlineService>();
+builder.Services.AddScoped<InstanceAccessService>();
+builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddSingleton<AiToolRegistry>();
+builder.Services.AddScoped<AiConnectionService>();
+builder.Services.AddOptions<FlowzerAiOptions>()
+    .Bind(builder.Configuration.GetSection(FlowzerAiOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IAiSecretStore, EnvironmentAiSecretStore>();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().AiConnectionStorage);
+builder.Services.AddHttpClient("flowzer-ai-provider", client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .RedactLoggedHeaders(["Authorization", "x-api-key"]);
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiResponsesAdapter(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+builder.Services.AddSingleton<IAiHostAddressResolver, SystemAiHostAddressResolver>();
+builder.Services.AddSingleton<IAiSocketDialer, SystemAiSocketDialer>();
+builder.Services.AddSingleton<AiResolvedEndpointResolver>();
+builder.Services.AddSingleton<PinnedAiSocketConnector>();
+builder.Services.AddSingleton<PinnedAiHttpClientLeaseFactory>();
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiCompatibleChatAdapter(
+    serviceProvider.GetRequiredService<PinnedAiHttpClientLeaseFactory>()));
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new AnthropicMessagesAdapter(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+builder.Services.AddSingleton<AiProviderRegistry>();
+builder.Services.AddSingleton<AiInferenceGateway>();
+builder.Services.AddSingleton<IAiInferenceGateway>(serviceProvider =>
+    serviceProvider.GetRequiredService<AiInferenceGateway>());
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().AiRunStorage);
+builder.Services.AddOptions<AiRunExecutionOptions>()
+    .Bind(builder.Configuration.GetSection(AiRunExecutionOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI run execution configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRunExecutionOptions>>()
+        .Value.ToPolicy());
+builder.Services.AddSingleton<AiRunExecutor>();
+builder.Services.AddHostedService<AiRunBackgroundService>();
+builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
+builder.Services.AddOptions<UserTaskDeadlineOptions>()
+    .Bind(builder.Configuration.GetSection(UserTaskDeadlineOptions.SectionName))
+    .Validate(options => options.IsValid(), "UserTaskDeadlines configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UserTaskDeadlineOptions>>()
+        .Value.ToPolicy());
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
 builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
+builder.Services.AddHostedService<UserTaskDeadlineBackgroundService>();
 
 // Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
 // um eine Benachrichtigung an angemeldete Adressen.
 builder.Services.AddSingleton(TimeProvider.System);
+
+// Keycloak bleibt die fuehrende, ausschließlich gelesene Quelle. Der Abgleich ist opt-in;
+// ohne vollstaendige sichere Konfiguration startet die aktivierte Installation nicht halb.
+builder.Services.AddOptions<KeycloakDirectoryOptions>()
+    .Bind(builder.Configuration.GetSection(KeycloakDirectoryOptions.SectionName))
+    .Validate(options => options.IsValid(), "IdentityDirectory configuration is invalid or incomplete.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IIdentityDirectoryStorage>(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().IdentityDirectoryStorage);
+builder.Services.AddHttpClient("flowzer-keycloak-directory", client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-keycloak-directory"),
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakDirectoryOptions>>(),
+    serviceProvider.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
+builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
+builder.Services.AddSingleton<DirectorySubjectSelectionService>();
+builder.Services.AddSingleton<DirectorySubjectResolutionContext>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<IdentityDirectoryBackgroundService>());
 builder.Services.AddSingleton(builder.Configuration.GetSection(FlowzerWebhookOptions.SectionName).Get<FlowzerWebhookOptions>()
                               ?? new FlowzerWebhookOptions());
 builder.Services.AddSingleton<ServiceTaskJobService>();

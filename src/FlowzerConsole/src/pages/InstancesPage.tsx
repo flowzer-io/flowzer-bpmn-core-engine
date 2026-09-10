@@ -2,7 +2,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 import { Card, EmptyState } from '@/components/ui/Card';
-import { Chip, toneColor } from '@/components/ui/Chip';
+import { Chip } from '@/components/ui/Chip';
 import { SearchInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
@@ -16,7 +16,6 @@ import {
   BUCKET_LABEL,
   BUCKET_TONE,
   currentToken,
-  instanceProgress,
   STATE_LABEL,
   useDefinitionModels,
   waitingBadges,
@@ -40,8 +39,12 @@ export function InstancesPage() {
   const instancesQuery = useInstances();
   const instances = useMemo(() => instancesQuery.data ?? [], [instancesQuery.data]);
 
-  // Die BPMN-Modelle liefern Schrittnamen und Gesamtzahl für den Fortschritt.
-  const models = useDefinitionModels(useMemo(() => instances.map((i) => i.definitionId), [instances]));
+  // Die BPMN-Modelle liefern ausschließlich verständliche Schrittnamen. Bei
+  // Verzweigungen wäre eine lineare Fortschrittszahl fachlich falsch.
+  const models = useDefinitionModels(useMemo(
+    () => instances.filter((instance) => instance.canInspect === true).map((instance) => instance.definitionId),
+    [instances],
+  ));
 
   const counts = useMemo(() => {
     const result = { all: instances.length, active: 0, done: 0, error: 0 };
@@ -120,7 +123,7 @@ export function InstancesPage() {
             className="border-border border-t"
             icon="filter_alt_off"
             title={
-              instances.length === 0 ? 'Es läuft noch keine Instanz' : 'Keine Instanzen in dieser Ansicht'
+              instances.length === 0 ? 'Keine sichtbaren Vorgänge' : 'Keine Instanzen in dieser Ansicht'
             }
             description={
               instances.length === 0
@@ -134,11 +137,10 @@ export function InstancesPage() {
           const bucket = instanceBucket(instance.state);
           const tone = BUCKET_TONE[bucket];
           const model = models.get(instance.definitionId);
-          const progress = instanceProgress(instance, model);
           const token = currentToken(instance);
           const badges = waitingBadges(instance);
 
-          const stepName = model
+          const stepName = instance.canInspect === false ? 'Vorgangsübersicht' : model
             ? nodeLabel(model, token?.currentFlowNodeId)
             : (token?.currentFlowElement?.Name ?? token?.currentFlowNodeId ?? '—');
 
@@ -155,22 +157,8 @@ export function InstancesPage() {
               </div>
 
               <div className="w-full min-w-0 md:w-auto">
-                <div className="text-muted mb-1.5 truncate text-[13px]">
+                <div className="text-muted truncate text-[13px]">
                   {bucket === 'done' ? 'Abgeschlossen' : stepName}
-                </div>
-                <div className="bg-surface-2 h-[5px] overflow-hidden rounded-[5px]">
-                  <div
-                    className="h-full rounded-[5px] transition-[width] duration-500"
-                    style={{
-                      width: progress.ratio === null ? '100%' : `${Math.round(progress.ratio * 100)}%`,
-                      background: progress.ratio === null ? 'var(--border-strong)' : toneColor(tone),
-                    }}
-                    title={
-                      progress.total > 0
-                        ? `${progress.visited} von ${progress.total} Elementen durchlaufen`
-                        : 'Fortschritt unbekannt — Modell nicht geladen'
-                    }
-                  />
                 </div>
               </div>
 

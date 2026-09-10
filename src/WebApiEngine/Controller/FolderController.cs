@@ -4,6 +4,7 @@ using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Mappers;
 using WebApiEngine.Shared;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Controller;
 
@@ -18,6 +19,7 @@ namespace WebApiEngine.Controller;
 [ApiController, Route("[controller]")]
 public class FolderController(
     ITransactionalStorageProvider storageProvider,
+    IStorageSystem storageSystem,
     FolderBusinessLogic folderBusinessLogic,
     ICurrentUserContextAccessor currentUserContextAccessor) : FlowzerControllerBase
 {
@@ -220,10 +222,35 @@ public class FolderController(
             return BadRequest(new ApiStatusResult<WorkflowFolderDto>(exception.Message));
         }
 
+        DirectorySnapshot? directorySnapshot = null;
+        if (assignments.Any(assignment => assignment.AssignmentMode == FolderAssignmentMode.Directory))
+        {
+            try { directorySnapshot = await storageSystem.IdentityDirectoryStorage.GetActiveSnapshot(); }
+            catch (NotSupportedException) { /* Der folgende 503-Vertrag bleibt speicherunabhaengig. */ }
+            if (directorySnapshot is null)
+            {
+                return Problem(
+                    statusCode: StatusCodes.Status503ServiceUnavailable,
+                    title: "Identity directory unavailable",
+                    detail: "No successfully synchronized identity-directory snapshot is available.");
+            }
+        }
+
+        try
+        {
+            FolderDirectoryAssignmentValidator.ValidateAndProject(assignments, directorySnapshot);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(new ApiStatusResult<WorkflowFolderDto>(exception.Message));
+        }
+
         // Dieselbe Kennung zweimal mit verschiedenen Rollen waere nicht entscheidbar; die
         // staerkere gewinnt, und die Antwort zeigt, was tatsaechlich gespeichert wurde.
         folder.Assignments = assignments
-            .GroupBy(assignment => (assignment.SubjectKind, assignment.Subject.ToLowerInvariant()))
+            .GroupBy(assignment => assignment.AssignmentMode == FolderAssignmentMode.Directory
+                ? $"directory:{assignment.DirectorySubject!.Kind}:{assignment.DirectorySubject.Id}"
+                : $"text:{assignment.SubjectKind}:{assignment.Subject.ToLowerInvariant()}", StringComparer.Ordinal)
             .Select(group => group.OrderByDescending(assignment => assignment.Role).First())
             .ToList();
 

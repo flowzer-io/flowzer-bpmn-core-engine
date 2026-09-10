@@ -59,6 +59,37 @@ public class JobController(
         return Translate(await jobService.Complete(jobId, userId, request.WorkerId, request.Variables));
     }
 
+    /// <summary>Verlaengert die noch gueltige Lease eines eigenen Auftrags.</summary>
+    [HttpPost("{jobId:guid}/lease")]
+    [ProducesResponseType<ApiStatusResult<RenewJobLeaseResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<RenewJobLeaseResultDto>>> RenewJobLease(
+        Guid jobId,
+        [FromBody] RenewJobLeaseRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.WorkerId))
+        {
+            return InvalidLeaseRenewal("WorkerId is required.");
+        }
+
+        if (request.LockSeconds is < 1 or > 3600)
+        {
+            return InvalidLeaseRenewal("LockSeconds must be between 1 and 3600.");
+        }
+
+        var userId = currentUserContextAccessor.GetCurrentUser()
+            .RequireResolvedUserId("renewing service task job leases");
+        var outcome = await jobService.RenewLease(
+            jobId,
+            userId,
+            request.WorkerId,
+            TimeSpan.FromSeconds(request.LockSeconds));
+
+        return TranslateLeaseRenewal(jobId, outcome);
+    }
+
     [HttpPost("{jobId:guid}/fail")]
     public async Task<ActionResult<ApiStatusResult>> FailJob(Guid jobId, [FromBody] FailJobRequestDto request)
     {
@@ -135,6 +166,39 @@ public class JobController(
         _ => StatusCode(StatusCodes.Status500InternalServerError, new ApiStatusResult("Unexpected job operation result."))
     };
 
+    private ActionResult<ApiStatusResult<RenewJobLeaseResultDto>> TranslateLeaseRenewal(
+        Guid jobId,
+        JobLeaseRenewalOutcome outcome) => outcome.Status switch
+    {
+        JobOperationResult.Ok when outcome.Job?.LockedUntil is DateTime lockedUntil =>
+            Ok(new ApiStatusResult<RenewJobLeaseResultDto>(new RenewJobLeaseResultDto
+            {
+                JobId = jobId,
+                LockedUntil = new DateTimeOffset(DateTime.SpecifyKind(lockedUntil, DateTimeKind.Utc))
+            })),
+        JobOperationResult.NotFound => Problem(
+            statusCode: StatusCodes.Status404NotFound,
+            title: "Service task job unavailable",
+            detail: "The job was not found; it may already be finished."),
+        JobOperationResult.NotLockedByWorker => Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Service task lease unavailable",
+            detail: "The job is not locked by this worker."),
+        JobOperationResult.LockExpired => Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: "Service task lease expired",
+            detail: "The lock on this job has expired; the job must be fetched again."),
+        _ => Problem(
+            statusCode: StatusCodes.Status500InternalServerError,
+            title: "Service task lease renewal failed",
+            detail: "The lease could not be renewed.")
+    };
+
+    private ObjectResult InvalidLeaseRenewal(string detail) => Problem(
+        statusCode: StatusCodes.Status400BadRequest,
+        title: "Invalid service task lease renewal",
+        detail: detail);
+
     private static ServiceTaskJobDto ToDto(ServiceTaskJob job) => new()
     {
         Id = job.Id,
@@ -144,8 +208,8 @@ public class JobController(
         ProcessId = job.ProcessId,
         DefinitionId = job.DefinitionId,
         MetaDefinitionId = job.MetaDefinitionId,
-        TokenId = job.Token.Id,
-        FlowNodeId = job.Token.CurrentFlowNode?.Id,
+        TokenId = job.TokenId,
+        FlowNodeId = job.FlowNodeId,
         CreatedAt = job.CreatedAt,
         LockedUntil = job.LockedUntil,
         // Nur die Worker-Kennung, nicht die Person dahinter: Der Sperrinhaber enthaelt intern

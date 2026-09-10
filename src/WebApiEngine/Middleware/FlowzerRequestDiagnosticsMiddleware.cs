@@ -15,7 +15,9 @@ public sealed class FlowzerRequestDiagnosticsMiddleware(
     {
         var path = context.Request.Path.HasValue ? context.Request.Path.Value! : "/";
         var method = context.Request.Method;
-        var routeName = context.GetEndpoint()?.DisplayName ?? path;
+        // Nur serverdefinierte Endpoint-Metadaten protokollieren. Der rohe Pfad kann
+        // Freitext, Steuerzeichen oder personenbezogene Objektkennungen enthalten.
+        var routeName = context.GetEndpoint()?.DisplayName ?? "unmatched";
 
         using var diagnosticsActivity = Activity.Current is null
             ? FlowzerDiagnostics.ActivitySource.StartActivity("flowzer.request", ActivityKind.Internal)
@@ -53,9 +55,8 @@ public sealed class FlowzerRequestDiagnosticsMiddleware(
 
         logger.Log(
             logLevel,
-            "Handled {Method} {Path} with status {StatusCode} in {DurationMs:0.0} ms (RequestId: {RequestId}, ActivityTraceId: {ActivityTraceId}, ActivitySpanId: {ActivitySpanId}).",
-            method,
-            path,
+            "Handled route {RouteName} with status {StatusCode} in {DurationMs:0.0} ms (RequestId: {RequestId}, ActivityTraceId: {ActivityTraceId}, ActivitySpanId: {ActivitySpanId}).",
+            routeName,
             statusCode,
             stopwatch.Elapsed.TotalMilliseconds,
             context.TraceIdentifier,

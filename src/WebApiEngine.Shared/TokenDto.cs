@@ -23,6 +23,9 @@ public class TokenDto
     public Guid? PreviousTokenId { get; set; }
     public Guid? ParentTokenId { get; init; }
 
+    /// <summary>Verifizierter Abschlussakteur; null bei alten/internerzeugten Abschlüssen.</summary>
+    public Guid? CompletedByUserId { get; set; }
+
     /// <summary>
     /// Zeitpunkt, zu dem das Token erzeugt wurde (UTC).
     /// Grundlage für die Verlaufsdarstellung in der Oberfläche.

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -9,11 +10,205 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Model;
 using StorageSystem;
 using WebApiEngine.Shared;
+using WebApiEngine.Forms;
 
 namespace WebApiEngine.Tests;
 
 public class FormControllerIntegrationTest
 {
+    private const string ValidFormSchema = "{\"display\":\"form\",\"components\":[{\"type\":\"textfield\",\"key\":\"reason\",\"input\":true}]}";
+
+    // Testzweck: Der Modelliererbericht prueft jede Version und den aktuellen Autorenentwurf
+    // isoliert. Ein kaputtes Schema darf weder spaetere Fassungen blockieren noch seinen Inhalt
+    // oder die Compiler-Nachricht in die API-Antwort leaken.
+    [Test]
+    public async Task Compatibility_ShouldReportPublishedVersionsAndDraftWithoutSchemaDetails()
+    {
+        var storage = TestStorage.Create();
+        var brokenId = SeedFormMetadata(storage, "A kaputt");
+        var brokenPublishedId = Guid.NewGuid();
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = brokenPublishedId,
+            FormId = brokenId,
+            Version = new Model.Version(1, 0),
+            FormData = "{\"components\":[{\"type\":\"textfield\",\"key\":\"x\",\"calculateValue\":\"SECRET_SCRIPT\"}]}"
+        });
+
+        var healthyId = SeedFormMetadata(storage, "B gesund");
+        var healthyPublishedId = Guid.NewGuid();
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = healthyPublishedId,
+            FormId = healthyId,
+            Version = new Model.Version(1, 0),
+            FormData = ValidFormSchema
+        });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(),
+            FormId = healthyId,
+            Version = new Model.Version(1, 1),
+            FormData = "{\"components\":[{\"type\":\"unknown\",\"key\":\"later\"}]}"
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+        var draftResponse = await client.PutAsJsonAsync($"/form/{healthyId}/draft",
+            new SaveFormAuthoringDraftRequestDto
+            {
+                ExpectedRevision = 0,
+                FormData = "{\"components\":[{\"type\":\"textfield\",\"key\":\"draft\",\"customConditional\":\"SECRET_DRAFT\"}]}"
+            });
+        draftResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var response = await client.GetAsync("/form/compatibility");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("SECRET_SCRIPT");
+        body.Should().NotContain("SECRET_DRAFT");
+        body.Should().NotContain("Unsupported form contract");
+
+        var payload = JsonSerializer.Deserialize<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            body, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        payload.Successful.Should().BeTrue(body);
+        payload.Result.Should().HaveCount(4);
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == brokenId && item.Source == "published" && !item.Compatible
+            && item.PublishedFormId == brokenPublishedId && item.Version!.ToString() == "1.0"
+            && item.IssueCode == "schema.script");
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == healthyId && item.Source == "draft" && !item.Compatible
+            && item.DraftRevision == 1 && item.IssueCode == "schema.script");
+        payload.Result.Should().ContainSingle(item =>
+            item.FormId == healthyId && item.Source == "published" && item.Compatible
+            && item.PublishedFormId == healthyPublishedId && item.ValidationProfile == FormContract.ProfileV1);
+    }
+
+    // Testzweck: needsMigration ist ein reiner serverseitiger Filter und liefert keine
+    // kaputten Fassungen als vermeintlich kompatibel zurueck.
+    [Test]
+    public async Task Compatibility_ShouldFilterByMigrationNeed()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage, "Filter");
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = ValidFormSchema
+        });
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 1),
+            FormData = "{\"components\":[{\"type\":\"unknown\",\"key\":\"bad\"}]}"
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+
+        var migrations = await client.GetFromJsonAsync<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            "/form/compatibility?needsMigration=true");
+        migrations!.Result.Should().ContainSingle(item => !item.Compatible && item.IssueCode == "schema.field_type");
+
+        var compatible = await client.GetFromJsonAsync<ApiStatusResult<FormCompatibilityItemDto[]>>(
+            "/form/compatibility?needsMigration=false");
+        compatible!.Result.Should().ContainSingle(item => item.Compatible && item.ValidationProfile == FormContract.ProfileV1);
+    }
+
+    // Testzweck: Compare-and-swap verhindert, dass ein alter Browserstand einen inzwischen
+    // gespeicherten Autorenentwurf still ueberschreibt; der Konflikt verrät keine Formulardaten.
+    [Test]
+    public async Task SaveAuthoringDraft_ShouldRejectAStaleRevision()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage);
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+
+        var first = await client.PutAsJsonAsync($"/form/{formId}/draft",
+            new SaveFormAuthoringDraftRequestDto { ExpectedRevision = 0, FormData = ValidFormSchema });
+        var stale = await client.PutAsJsonAsync($"/form/{formId}/draft",
+            new SaveFormAuthoringDraftRequestDto { ExpectedRevision = 0, FormData = "{}" });
+
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        stale.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        using var problem = JsonDocument.Parse(await stale.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("form_draft.revision_conflict");
+        problem.RootElement.GetProperty("currentRevision").GetInt64().Should().Be(1);
+        (await storage.FormAuthoringStorageSeed.Get(formId))!.FormData.Should().Be(ValidFormSchema);
+    }
+
+    // Testzweck: Entwuerfe duerfen waehrend der Modellierung unvollstaendig sein; Publish
+    // lehnt nicht unterstuetztes JavaScript serverseitig ab und erhaelt den Arbeitsstand.
+    [Test]
+    public async Task PublishAuthoringDraft_ShouldKeepAnInvalidDraftUnpublished()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage);
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+        var unsupported = "{\"components\":[{\"type\":\"textfield\",\"key\":\"x\",\"calculateValue\":\"value=1\"}]}";
+        await client.PutAsJsonAsync($"/form/{formId}/draft",
+            new SaveFormAuthoringDraftRequestDto { ExpectedRevision = 0, FormData = unsupported });
+
+        var response = await client.PostAsJsonAsync($"/form/{formId}/publish",
+            new PublishFormAuthoringDraftRequestDto { ExpectedRevision = 1 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        storage.FormStorageSeed.Forms.Should().BeEmpty();
+        (await storage.FormAuthoringStorageSeed.Get(formId)).Should().NotBeNull();
+    }
+
+    // Testzweck: Publish erzeugt genau die naechste unveraenderliche Version aus dem
+    // erwarteten Entwurf und entfernt diesen im selben atomaren Speicheraufruf.
+    [Test]
+    public async Task PublishAuthoringDraft_ShouldCreateNextVersionAndRemoveDraft()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage);
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(0, 1), FormData = "{}"
+        });
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+        await client.PutAsJsonAsync($"/form/{formId}/draft",
+            new SaveFormAuthoringDraftRequestDto { ExpectedRevision = 0, FormData = ValidFormSchema });
+
+        var response = await client.PostAsJsonAsync($"/form/{formId}/publish",
+            new PublishFormAuthoringDraftRequestDto { ExpectedRevision = 1 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<FormDto>>();
+        payload!.Result!.Version!.ToString().Should().Be("0.2");
+        storage.FormStorageSeed.Forms.Should().HaveCount(2);
+        storage.FormStorageSeed.Forms.Single(form => form.Version.Equals(new Model.Version(0, 2)))
+            .FormData.Should().Be(ValidFormSchema);
+        (await storage.FormAuthoringStorageSeed.Get(formId)).Should().BeNull();
+    }
+
+    // Testzweck: Ohne gespeicherten Entwurf liefert die Autorenansicht eine Basis aus der
+    // letzten Veroeffentlichung, markiert sie aber nicht faelschlich als Entwurf.
+    [Test]
+    public async Task GetAuthoringDraft_ShouldReturnTheLatestPublishedBaseline()
+    {
+        var storage = TestStorage.Create();
+        var formId = SeedFormMetadata(storage);
+        storage.FormStorageSeed.Forms.Add(new Form
+        {
+            Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(2, 4), FormData = ValidFormSchema
+        });
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = CreateAuthorClient(factory);
+
+        var result = (await client.GetFromJsonAsync<ApiStatusResult<FormAuthoringDraftDto>>(
+            $"/form/{formId}/draft"))!.Result!;
+
+        result.HasDraft.Should().BeFalse();
+        result.Revision.Should().Be(0);
+        result.BasedOnVersion!.ToString().Should().Be("2.4");
+        result.FormData.Should().Be(ValidFormSchema);
+    }
+
     // Testzweck: Deckt den Fall „Save Form Should Create Initial Version When No Version Exists“ ab.
     [Test]
     public async Task SaveForm_ShouldCreateInitialVersion_WhenNoVersionExists()
@@ -609,6 +804,8 @@ public class FormControllerIntegrationTest
         public NoOpInstanceStorage InstanceStorageSeed { get; } = new();
         public IInstanceStorage InstanceStorage => InstanceStorageSeed;
         public IFormStorage FormStorage { get; } = formStorage;
+        public InMemoryFormAuthoringStorage FormAuthoringStorageSeed { get; } = new(formStorage);
+        public IFormAuthoringStorage FormAuthoringStorage => FormAuthoringStorageSeed;
         public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
 
         public void CommitChanges()
@@ -622,6 +819,101 @@ public class FormControllerIntegrationTest
         public void Dispose()
         {
         }
+    }
+
+    private sealed class InMemoryFormAuthoringStorage(TestFormStorage forms) : IFormAuthoringStorage
+    {
+        private readonly SemaphoreSlim _gate = new(1, 1);
+        private readonly Dictionary<Guid, FormAuthoringDraft> _drafts = [];
+
+        public async Task<FormAuthoringDraft?> Get(Guid formId)
+        {
+            await _gate.WaitAsync();
+            try { return _drafts.GetValueOrDefault(formId); }
+            finally { _gate.Release(); }
+        }
+
+        public async Task<FormAuthoringWriteResult> TrySave(FormAuthoringDraft draft, long expectedRevision)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                if (forms.FormMetadatas.All(metadata => metadata.FormId != draft.FormId))
+                    return new FormAuthoringWriteResult(FormAuthoringWriteStatus.FormNotFound, null, 0);
+                var current = _drafts.GetValueOrDefault(draft.FormId);
+                if ((current?.Revision ?? 0) != expectedRevision)
+                    return new FormAuthoringWriteResult(
+                        FormAuthoringWriteStatus.RevisionConflict, current, current?.Revision ?? 0);
+                _drafts[draft.FormId] = draft;
+                return new FormAuthoringWriteResult(FormAuthoringWriteStatus.Written, draft, draft.Revision);
+            }
+            finally { _gate.Release(); }
+        }
+
+        public async Task<FormAuthoringDeleteResult> TryDelete(Guid formId, long expectedRevision)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                if (forms.FormMetadatas.All(metadata => metadata.FormId != formId))
+                    return new FormAuthoringDeleteResult(FormAuthoringDeleteStatus.FormNotFound, 0);
+                var current = _drafts.GetValueOrDefault(formId);
+                if ((current?.Revision ?? 0) != expectedRevision)
+                    return new FormAuthoringDeleteResult(
+                        FormAuthoringDeleteStatus.RevisionConflict, current?.Revision ?? 0);
+                _drafts.Remove(formId);
+                return new FormAuthoringDeleteResult(FormAuthoringDeleteStatus.Deleted, 0);
+            }
+            finally { _gate.Release(); }
+        }
+
+        public async Task<FormAuthoringPublishResult> TryPublish(
+            Guid formId,
+            long expectedRevision,
+            Guid publishedFormId,
+            string? publishedFormData = null)
+        {
+            await _gate.WaitAsync();
+            try
+            {
+                if (forms.FormMetadatas.All(metadata => metadata.FormId != formId))
+                    return new FormAuthoringPublishResult(FormAuthoringPublishStatus.FormNotFound, null, 0);
+                var draft = _drafts.GetValueOrDefault(formId);
+                if (draft?.Revision != expectedRevision)
+                    return new FormAuthoringPublishResult(
+                        FormAuthoringPublishStatus.RevisionConflict, null, draft?.Revision ?? 0);
+                var current = forms.Forms.Where(form => form.FormId == formId)
+                    .OrderByDescending(form => form.Version).FirstOrDefault();
+                var published = new Form
+                {
+                    Id = publishedFormId,
+                    FormId = formId,
+                    Version = (current?.Version ?? new Model.Version()) + 1,
+                    FormData = publishedFormData ?? draft.FormData
+                };
+                forms.Forms.Add(published);
+                _drafts.Remove(formId);
+                return new FormAuthoringPublishResult(FormAuthoringPublishStatus.Published, published, 0);
+            }
+            finally { _gate.Release(); }
+        }
+    }
+
+    private static Guid SeedFormMetadata(TestStorage storage)
+        => SeedFormMetadata(storage, "Freigabe");
+
+    private static Guid SeedFormMetadata(TestStorage storage, string name)
+    {
+        var formId = Guid.NewGuid();
+        storage.FormStorageSeed.FormMetadatas.Add(new FormMetadata { FormId = formId, Name = name });
+        return formId;
+    }
+
+    private static HttpClient CreateAuthorClient(TestWebApplicationFactory factory)
+    {
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Flowzer-UserId", Guid.NewGuid().ToString());
+        return client;
     }
 
     private sealed class TestFormStorage : IFormStorage
