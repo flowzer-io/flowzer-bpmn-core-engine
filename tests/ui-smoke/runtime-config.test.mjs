@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -19,11 +20,15 @@ const aiFlags = {
 };
 
 /** Echte Compose-Interpolation, aber ohne Daemon, .env oder geerbte Produktivkonfiguration. */
-function configuration(file, overrides = {}) {
+function configuration(file, overrides = {}, sharedEnvFile) {
   // Diese Coolify-Erweiterung ist keine Docker-Compose-Eigenschaft. Nur sie entfernen;
   // alle sicherheitsrelevanten Werte bleiben unverändert im tatsächlichen Parser.
-  const source = readFileSync(resolve(root, file), 'utf8')
+  let source = readFileSync(resolve(root, file), 'utf8')
     .replace(/^\s+exclude_from_hc: true\s*$/gm, '');
+  // Coolify ergänzt in verarbeiteten Stacks dieselbe env_file an allen Diensten.
+  // Der Test bildet genau diese zusätzliche Vererbung nach, ohne echte Secrets zu lesen.
+  if (sharedEnvFile) source = source.replace(/^  (migrate|api|console):$/gm,
+    (line) => `${line}\n    env_file: [${JSON.stringify(sharedEnvFile)}]`);
   const json = execFileSync('docker', [
     'compose', '--project-directory', root, '--project-name', 'flowzer-contract-test',
     '--env-file', '/dev/null', '-f', '-', 'config', '--format', 'json',
@@ -76,3 +81,39 @@ for (const file of ['compose.runtime.yml', 'compose.coolify.yaml']) {
     assert.equal(enabled.Authentication__JwtBearer__Roles__AiConnectionManager, 'ai-manage');
   });
 }
+
+// Testzweck: Coolifys zusätzliche gemeinsame env_file darf keine rohen Secrets in
+// fachfremde Dienste tragen; explizite Konfigurationszuordnungen müssen weiterhin funktionieren.
+test('compose.coolify.yaml: gemeinsame env_file wahrt die Secret-Grenzen aller Dienste', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'flowzer-compose-isolation-'));
+  const secrets = {
+    STORAGE_CONNECTION_STRING: 'synthetic-runtime',
+    STORAGE_MIGRATION_CONNECTION_STRING: 'synthetic-migration',
+    FLOWZER_BFF_CLIENT_SECRET: 'synthetic-bff',
+    FLOWZER_DIRECTORY_CLIENT_SECRET: 'synthetic-directory',
+  };
+  try {
+    const sharedEnvFile = resolve(directory, 'synthetic.env');
+    writeFileSync(sharedEnvFile, Object.entries(secrets).map(([key, value]) => `${key}=${value}`).join('\n'), { mode: 0o600 });
+    const services = configuration('compose.coolify.yaml', secrets, sharedEnvFile);
+    for (const [name, service] of Object.entries(services)) {
+      for (const key of Object.keys(secrets)) assert.equal(service.environment[key], '', `${name}: ${key}`);
+    }
+    const api = services.api.environment;
+    assert.equal(api.Storage__PostgreSql__ConnectionString, secrets.STORAGE_CONNECTION_STRING);
+    assert.equal(api.Authentication__Bff__ClientSecret, secrets.FLOWZER_BFF_CLIENT_SECRET);
+    assert.equal(api.IdentityDirectory__ClientSecret, secrets.FLOWZER_DIRECTORY_CLIENT_SECRET);
+    assert.equal(api.Storage__PostgreSql__MigrationConnectionString, undefined);
+    const migration = services.migrate.environment;
+    assert.equal(migration.Storage__PostgreSql__ConnectionString, secrets.STORAGE_MIGRATION_CONNECTION_STRING);
+    assert.equal(migration.Storage__PostgreSql__MigrationConnectionString, secrets.STORAGE_MIGRATION_CONNECTION_STRING);
+    for (const key of ['Authentication__Bff__ClientSecret', 'IdentityDirectory__ClientSecret']) {
+      assert.equal(migration[key], undefined);
+      assert.equal(services.console.environment[key], undefined);
+    }
+    assert.equal(services.console.environment.Storage__PostgreSql__ConnectionString, undefined);
+    assert.equal(services.console.environment.Storage__PostgreSql__MigrationConnectionString, undefined);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
