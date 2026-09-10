@@ -57,6 +57,28 @@ public sealed class UserTaskLifecycleIntegrationTest
         audit.Should().ContainSingle().Which.ActorUserId.Should().Be(AuthenticatedWorkflowTestContext.UserId);
     }
 
+    // Testzweck: Negative Lebenszyklusrevisionen bleiben die bisherige fachliche
+    // Validierungsantwort und werden nicht als generischer 400-Fehler abgeflacht.
+    [Test]
+    public async Task Claim_ShouldRejectNegativeRevisionWithValidationProblem()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var task = await context.StartAsync("");
+        using var client = context.CreateClient(username: "bert");
+
+        using var response = await client.PostAsJsonAsync($"/usertask/{task.Id}/claim", new
+        {
+            expectedRevision = -1
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        problem.GetProperty("errors").GetProperty("expectedRevision")
+            .EnumerateArray().Should().ContainSingle().Which.GetString().Should().Be("revision.invalid");
+        (await context.Storage.UserTaskLifecycleStorage.Get(task.Id)).Should().BeNull();
+    }
+
     // Testzweck: Zwei gleichzeitige Claims mit derselben Revision haben genau einen Gewinner;
     // der Verlierer erhält einen strukturierten Konflikt und verändert den Stand nicht.
     [Test]

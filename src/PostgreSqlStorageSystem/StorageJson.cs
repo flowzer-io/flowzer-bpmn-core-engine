@@ -1,5 +1,6 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using Newtonsoft.Json.Linq;
 
 namespace PostgreSqlStorageSystem;
 
@@ -19,11 +20,38 @@ internal static class StorageJson
         Formatting = Formatting.None
     };
 
+    private static readonly JsonSerializerSettings ConcreteSettings = new()
+    {
+        TypeNameHandling = TypeNameHandling.None,
+        Formatting = Formatting.None,
+        MaxDepth = 128
+    };
+
     public static string Serialize(object value) => JsonConvert.SerializeObject(value, Settings);
 
     public static T Deserialize<T>(string json) =>
         JsonConvert.DeserializeObject<T>(json, Settings)
         ?? throw new InvalidDataException($"Stored document could not be read as {typeof(T).Name}.");
+
+    public static string SerializeConcrete<T>(T value) =>
+        JsonConvert.SerializeObject(value, ConcreteSettings);
+
+    public static T DeserializeConcrete<T>(string json) =>
+        JsonConvert.DeserializeObject<T>(json, ConcreteSettings)
+        ?? throw new InvalidDataException($"Stored document could not be read as {typeof(T).Name}.");
+
+    public static string? ReadLegacyString(string json, params string[] path)
+    {
+        using var text = new StringReader(json);
+        using var reader = new JsonTextReader(text)
+        {
+            DateParseHandling = DateParseHandling.None,
+            MaxDepth = 128
+        };
+        JToken? token = JObject.Load(reader);
+        foreach (var segment in path) token = token?[segment];
+        return token is { Type: JTokenType.String } ? token.Value<string>() : null;
+    }
 
     private sealed class KnownAssembliesBinder : DefaultSerializationBinder
     {

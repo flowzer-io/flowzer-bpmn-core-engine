@@ -1,3 +1,4 @@
+import { FlowzerApiError } from '@flowzer/sdk';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
@@ -15,6 +16,21 @@ describe('Serverseitige Formularfehler', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Begründung');
     expect(screen.getByRole('alert')).toHaveTextContent('Dieses Feld ist erforderlich.');
     expect(screen.getByRole('alert')).toHaveFocus();
+  });
+
+  // Testzweck: Nach der Migration der Human Tasks auf das öffentliche SDK bleiben
+  // dessen Problem-Details gleichwertig zur älteren Console-Fehlerklasse sichtbar.
+  it('zeigt Feldfehler des öffentlichen SDKs an', () => {
+    const error = new FlowzerApiError('Invalid input', {
+      status: 422,
+      url: '/usertask',
+      body: { errors: { reason: ['required'] } },
+    });
+
+    render(<FormValidationErrors error={error} schema={schema} />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Begründung');
+    expect(screen.getByRole('alert')).toHaveTextContent('Dieses Feld ist erforderlich.');
   });
 
   // Testzweck: Unbekannte/malforme Fehlerantworten und fehlende Schemata verursachen

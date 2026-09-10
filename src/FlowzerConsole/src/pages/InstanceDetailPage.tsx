@@ -1,5 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs';
 import { useNavigate } from '@tanstack/react-router';
+import { useInstanceHistory } from '@flowzer/react';
+import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -40,7 +42,8 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   // Keine technischen Requests auf Verdacht: Die öffentliche Projektion entscheidet,
   // nicht die bloße Anmeldung oder ein im Browser sichtbarer Rollenname.
   const canInspect = instance?.canInspect === true;
-  const xmlQuery = useDefinitionXml(canInspect ? instance.definitionId : undefined);
+  const xmlQuery = useDefinitionXml(canInspect ? instance.definitionId! : undefined);
+  const historyQuery = useInstanceHistory(instanceId, { enabled: canInspect });
   const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
 
   const model = useMemo(() => parseBpmn(xmlQuery.data), [xmlQuery.data]);
@@ -249,8 +252,16 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             </Tabs.Content>
 
             <Tabs.Content value="timeline">
-              <SectionLabel className="mb-3.5">Verlauf</SectionLabel>
-              <Timeline tokens={instance.tokens} model={model} />
+              <SectionLabel className="mb-3.5">Aufgabenereignisse</SectionLabel>
+              {historyQuery.isPending && <InlineSpinner />}
+              {historyQuery.error && <ErrorState error={historyQuery.error} onRetry={() => void historyQuery.refetch()} />}
+              {historyQuery.data && <TaskHistoryTimeline entries={historyQuery.data.events} model={model} />}
+
+              <SectionLabel className="mt-6 mb-1.5">Aktueller Tokenstand</SectionLabel>
+              <p className="text-faint mt-0 mb-3 text-[11.5px] leading-normal">
+                Technische Momentaufnahme der gespeicherten Tokens, keine vollständige Ereignishistorie.
+              </p>
+              <TokenStateTimeline tokens={instance.tokens} model={model} />
             </Tabs.Content>
 
             <Tabs.Content value="subscriptions">
@@ -273,36 +284,94 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   );
 }
 
-function Timeline({ tokens, model }: { tokens: TokenDto[]; model: ReturnType<typeof parseBpmn> }) {
+const HISTORY_ACTION_LABEL: Record<ProcessHistoryAction, string> = {
+  claim: 'Übernommen',
+  release: 'Freigegeben',
+  assign: 'Zugewiesen',
+  delegate: 'Delegiert',
+  complete: 'Abgeschlossen',
+};
+
+const HISTORY_ACTION_TONE: Record<ProcessHistoryAction, Tone> = {
+  claim: 'run',
+  release: 'wait',
+  assign: 'run',
+  delegate: 'run',
+  complete: 'done',
+};
+
+function TaskHistoryTimeline({ entries, model }: {
+  entries: ProcessHistoryEntry[];
+  model: ReturnType<typeof parseBpmn>;
+}) {
   const events = useMemo(
-    () =>
-      tokens
-        // Die Engine führt zusätzlich ein Token auf Prozessebene ohne Flow-Node.
-        // Es ist kein Prozessschritt und gehört nicht in den Verlauf.
-        .filter((token) => Boolean(token.currentFlowNodeId))
-        .map((token) => ({
-          token,
-          at: parseApiDate(token.lastStateChangeTime) ?? parseApiDate(token.startTime),
-        }))
-        .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
-    [tokens],
+    () => entries
+      .filter((entry) => Boolean(entry.flowNodeId))
+      .map((entry) => ({ entry, at: parseApiDate(entry.occurredAtUtc) }))
+      .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)
+        || a.entry.userTaskId.localeCompare(b.entry.userTaskId)
+        || a.entry.revision - b.entry.revision
+        || a.entry.id.localeCompare(b.entry.id)),
+    [entries],
   );
 
   if (events.length === 0) {
-    return <EmptyState icon="timeline" title="Kein Verlauf" description="Diese Instanz hat noch keine Schritte." />;
+    return <EmptyState icon="timeline" title="Keine Aufgabenaktionen" description="Für diese Instanz wurde noch keine Human-Task-Aktion protokolliert." />;
   }
 
   return (
     <div>
-      {events.map(({ token, at }, index) => {
+      {events.map(({ entry, at }, index) => {
+        const node = model.nodeById.get(entry.flowNodeId);
+        return (
+          <div key={entry.id} className="flex gap-3.5">
+            <div className="flex flex-none flex-col items-center">
+              <Dot tone={HISTORY_ACTION_TONE[entry.action]} size={12} halo className="mt-1" />
+              {index < events.length - 1 && <span className="bg-border my-1 w-0.5 flex-1" />}
+            </div>
+            <div className="pb-[18px]">
+              <div className="text-[13.5px] font-semibold">{nodeLabel(model, entry.flowNodeId)}</div>
+              <div className="text-muted mt-0.5 text-[12.5px]">
+                {nodeTypeLabel(node?.type)} · {HISTORY_ACTION_LABEL[entry.action]} · Revision {entry.revision}
+              </div>
+              <div className="text-faint mt-1 font-mono text-[11.5px]">{formatTimestamp(at)}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TokenStateTimeline({ tokens, model }: {
+  tokens: TokenDto[];
+  model: ReturnType<typeof parseBpmn>;
+}) {
+  const states = useMemo(
+    () => tokens
+      .filter((token) => Boolean(token.currentFlowNodeId))
+      .map((token) => ({
+        token,
+        at: parseApiDate(token.lastStateChangeTime) ?? parseApiDate(token.startTime),
+      }))
+      .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
+    [tokens],
+  );
+
+  if (states.length === 0) {
+    return <EmptyState icon="account_tree" title="Keine Tokens" description="Es ist kein technischer Tokenstand gespeichert." />;
+  }
+
+  return (
+    <div>
+      {states.map(({ token, at }, index) => {
         const tone: Tone = isFailedToken(token) ? 'fail' : isLiveToken(token) ? 'run' : 'done';
         const node = token.currentFlowNodeId ? model.nodeById.get(token.currentFlowNodeId) : undefined;
-
         return (
           <div key={token.id} className="flex gap-3.5">
             <div className="flex flex-none flex-col items-center">
               <Dot tone={tone} size={12} halo className="mt-1" />
-              {index < events.length - 1 && <span className="bg-border my-1 w-0.5 flex-1" />}
+              {index < states.length - 1 && <span className="bg-border my-1 w-0.5 flex-1" />}
             </div>
             <div className="pb-[18px]">
               <div className="text-[13.5px] font-semibold">

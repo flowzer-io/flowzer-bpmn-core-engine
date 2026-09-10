@@ -24,11 +24,11 @@ oder produktiv ausgerollt.
 - Zunächst eine getrennte Installation mit eigener Datenbank und Identitätsanbindung
   je Kunde; echtes Mehrmandanten-Hosting ist ein späteres eigenes Vorhaben.
 - Bestehenden modularen .NET-/React-Aufbau schrittweise verbessern, kein Rewrite.
-- Flowzer kennt keine konsumierende Fachanwendung: keine TickyTask-Abhängigkeit,
-  projektspezifischen Modelle, Routen, Konfiguration oder Laufzeitnamen. Flowzer stellt
+- Flowzer kennt keine konsumierende Fachanwendung: keine projektspezifischen
+  Abhängigkeiten, Modelle, Routen, Konfiguration oder Laufzeitnamen. Flowzer stellt
   ausschließlich generische, versionierte APIs, ein Headless-SDK und optionale
-  React-Komponenten bereit. TickyTask integriert diese von außen und bleibt Eigentümer
-  seiner Fachobjekte; zwischen den Produkten gibt es keinen gemeinsamen Datenbankzugriff.
+  React-Komponenten bereit. Ein Host integriert diese von außen und bleibt Eigentümer
+  seiner Fachobjekte; es gibt keinen gemeinsamen Datenbankzugriff.
 - Der Urlaubsantrag ist ein Beispiel für generische Fähigkeiten, keine vollständige
   Personalverwaltung und keine pauschale Übertragung von Rechten auf Vertretungen.
 - Produktivkonfiguration, echte Anbieteraufrufe und Deployment sind separate Freigaben.
@@ -40,10 +40,10 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #216 / PR #217 erweitert den Formularvertrag additiv um servergebundene
-Human-Task-Entscheidungsaktionen. #214 / PR #215 liefert dafür bereits begrenzte
-Wiederholgruppen und Plaintext-Hilfetexte; #212 / PR #213 inventarisiert inkompatible
-Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
+**Aktiver Slice:** #220 / PR #221 ergänzt auf #218 / PR #219 aufbauende, hostneutrale React-Hooks,
+Render-Prop-Controller und einen neutralen Formularadaptervertrag. Eine unabhängig
+kompilierte Hostfixture belegt die äußere Produktgrenze. Die Migration der Flowzer-
+Konsole auf dieselben Pakete bleibt ein eigener Folgeslice.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
@@ -125,6 +125,10 @@ CAS und Lebenszyklus atomar; die Dateiablage bleibt ein Einzelprozess-Entwicklun
   läuft in einem noch ungemergten PR und ist nicht als M0-Abnahme markiert.
 - [x] Idempotente Starts und Abschlüsse; derselbe Schlüssel mit abweichendem Inhalt
   erzeugt einen Konflikt statt einen weiteren Vorgang.
+- [x] Offene CodeQL-Befunde ohne Suppression beseitigen und konkrete Arbeitsdaten aus
+  der polymorphen Storage-Grenze lösen. #222 / PR #223 ist implementiert, lokal getestet
+  und einschließlich CodeQL grün; der Merge steht noch aus. Prozessinstanzen und
+  Definitionen verbleiben dokumentiert in einer gesonderten Legacy-Grenze.
 - [x] Bestandsissues #93–#96 und #98 bereinigt und #176 / PR #177 verknüpft;
   Mobil-PR #153 gegen `main` auf Überschneidungen geprüft, nicht dupliziert.
   Sein Review/Sync/Merge bleibt ein gesonderter Vorgang; hier wurde nichts daraus übernommen.
@@ -226,8 +230,12 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
   #202 / PR #203
 - [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
-- [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
+- [x] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
+  #218 / PR #219 implementiert den unabhängigen Client samt generierter OpenAPI-Typen,
+  Host-Auth-Callbacks und feld-/aktionsgebundener Verzeichnissuche. #220 / PR #221 ergänzt
+  darstellungsfreie React-Controller, sichere Cache-Scopes, Mutations- und
+  Formularadapter sowie eine unabhängige Hostfixture.
 - [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
   Flowzer besitzt Prozesse/Aufgaben, der jeweilige Host seine Fachobjekte. Eine
   konkrete Host-Anwendung wird im Flowzer-Produktcode weder benannt noch referenziert.

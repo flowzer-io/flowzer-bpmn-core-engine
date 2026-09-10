@@ -2,17 +2,23 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '@/lib/api/client';
+import { FlowzerApiError } from '@flowzer/sdk';
 
 import { TaskLifecycleDialog } from './TaskLifecycleDialog';
 
 vi.mock('@/components/bpmn/properties/DirectorySubjectPicker', () => ({
-  DirectorySubjectPicker: ({ onChange, selected }: {
+  DirectorySubjectPicker: ({ onChange, selected, directoryAdapter }: {
     onChange: (value: unknown[]) => void;
     selected: Array<{ displayName: string }>;
+    directoryAdapter?: { search: (fieldKey: string, options: { query: string; kind: 'user'; signal: AbortSignal }) => Promise<unknown> };
   }) => (
     <div>
       {selected.map((entry) => <span key={entry.displayName}>{entry.displayName}</span>)}
+      <button type="button" onClick={() => void directoryAdapter?.search('', {
+        query: 'an', kind: 'user', signal: new AbortController().signal,
+      })}>
+        Anna suchen
+      </button>
       <button type="button" onClick={() => onChange([{
         subject: { kind: 'user', id: 'user-anna' },
         displayName: 'Anna Beispiel',
@@ -65,7 +71,7 @@ describe('Task-Lifecycle-Dialog', () => {
 
     await user.click(screen.getByRole('button', { name: 'Anna wählen' }));
     await user.type(screen.getByLabelText('Begründung'), 'Urlaubsvertretung');
-    rerender(<TaskLifecycleDialog {...props} error={new ApiError('Conflict', {
+    rerender(<TaskLifecycleDialog {...props} error={new FlowzerApiError('Conflict', {
       status: 409,
       url: '/usertask/task-1/delegate',
     })} />);
@@ -74,5 +80,18 @@ describe('Task-Lifecycle-Dialog', () => {
     expect(screen.getByRole('button', { name: 'Aktuellen Stand verwenden' })).toBeInTheDocument();
     expect(screen.getByText('Anna Beispiel')).toBeInTheDocument();
     expect(screen.getByLabelText('Begründung')).toHaveValue('Urlaubsvertretung');
+  });
+
+  // Testzweck: Der Dialog bindet die Assignee-Suche vor dem verschachtelten Picker
+  // und gibt nur Suchtext plus AbortSignal weiter, nicht Task-ID oder Aktion.
+  it('reicht die optionale gebundene Assignee-Suche weiter', async () => {
+    const user = userEvent.setup();
+    const searchAssignees = vi.fn().mockResolvedValue({ generationId: 'g-1', items: [] });
+    render(<TaskLifecycleDialog open action="assign" taskId="task-1" expectedRevision={4}
+      busy={false} error={null} onOpenChange={vi.fn()} onSubmit={vi.fn()} searchAssignees={searchAssignees} />);
+
+    await user.click(screen.getByRole('button', { name: 'Anna suchen' }));
+
+    expect(searchAssignees).toHaveBeenCalledWith({ query: 'an', signal: expect.any(AbortSignal) });
   });
 });

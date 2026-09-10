@@ -2,10 +2,11 @@
 
 ## Ergebnis
 
-Einundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
-implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
-umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
-kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
+Fünfundzwanzig aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+implementiert und lokal sowie in CI getestet.
+Der **gesamte M0–M6-Produktplan ist noch nicht umgesetzt**. Alle Änderungen liegen in
+Topic-Branches/PRs nach `main`; kein Merge, kein Produktivdeployment, keine Änderung
+produktiver Benutzer oder Datenbanken.
 
 | Teilpaket | Ergebnis | PR |
 | --- | --- | --- |
@@ -30,8 +31,13 @@ kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
 | Formular-Kompatibilität | Modellierergeschütztes, datensparsames Inventar jeder veröffentlichten Fassung und des Autorenentwurfs mit isolierter Prüfung und stabilen Migrationscodes. | [#213](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/213) |
 | Wiederholbare Formulargruppen | `flowzer.forms/3` bindet Datagrids, sichere Hilfetexte, Zeilengrenzen sowie indexierte Serverfehler durchgängig an Submission, Entwurf und Kontextprojektion. | [#215](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/215) |
 | Entscheidungsaktionen | `flowzer.forms/4` bindet fachliche Human-Task-Aktionen an den veröffentlichten Snapshot; Browserwerte können feste Belegungen nicht ändern, die Konsole rendert und pflegt den Vertrag. | [#217](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/217) |
+| Headless-TypeScript-SDK | `@flowzer/sdk` kapselt Aufgaben, Formulare, Entwürfe, Aktionen, gebundene Verzeichnissuche und Vorgangsstatus ohne Host- oder UI-Abhängigkeit; ein objektberechtigter Task-Deep-Link ergänzt den OpenAPI-Vertrag. | [#219](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/219) |
+| React-Integrationsbausteine | `@flowzer/react` ergänzt darstellungsfreie Hooks und Controller mit sicheren Installations-/Sitzungs-Caches, bewusst nicht wiederholten Task-Mutationen und neutralem Formularadapter; eine unabhängige Host-Fixture kompiliert ausschließlich gegen öffentliche Pakete. | [#221](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/221) |
+| CodeQL-/Storage-Härtung | Offene Deserialisierungs-, Log-, Codegenerierungs-, Revisions- und SDK-RegEx-Befunde werden ohne Suppression geschlossen; polymorphe Arbeitsdaten werden durch konkrete Dokumente und stabile Referenzen ersetzt. | [#223](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/223) |
+| Console-Paketmigration | Die Flowzer-Konsole konsumiert für Human Tasks ihre öffentlichen SDK-/React-Verträge; BFF, Form.io und Development-Header bleiben Console-Adapter, Sitzungscaches opak und Abschlusswiederholungen idempotent. Der doppelte Tasktransport entfällt. | #224 / PR #225 |
+| Task-Vorgangshistorie | Die append-only Lifecycle-Auditspur ist nach Instanz indexiert, objektberechtigt, datensparsam und über API, SDK, React-Schicht sowie Console lesbar. | #226 / PR #227 |
 
-Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217**. Deshalb zeigen spätere
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189 → 191 → 193 → 195 → 197 → 199 → 201 → 203 → 205 → 207 → 209 → 211 → 213 → 215 → 217 → 219 → 221 → 223 → 225 → 227**. Deshalb zeigen spätere
 PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
 slice-spezifische Testnachweise stehen jeweils im PR. Die freigegebene finale
 Zusammenführung erfolgt erst nach Umsetzung der verbleibenden Pakete und dem
@@ -39,11 +45,17 @@ abschließenden Astra-/High-Gesamtreview.
 
 ## Nachweise
 
-- Aktuelle lokale .NET-Suite einschließlich #216: **111 Engine + 657 API-/Storage-Tests bestanden**,
+- Aktuelle lokale .NET-Suite einschließlich #226: **111 Engine + 680 API-/Storage-Tests bestanden**,
   keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
   Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
-- React-Konsole einschließlich Profil 4: **288 Tests**, Typecheck und Build erfolgreich;
-  Lint ohne Fehler, acht bestehende Warnungen.
+- React-Konsole einschließlich Vorgangshistorie: **302 Tests**, Typecheck
+  und Build erfolgreich; Lint ohne Fehler und sieben bestehende Warnungen. Ein frischer
+  `Dockerfile.console`-Build einschließlich lokaler SDK-/React-Pakete ist erfolgreich.
+- Headless-SDK: **14 Tests**, Typecheck, Build, OpenAPI-Neugenerierung,
+  Paket-Trockenlauf und npm-Audit ohne Befund erfolgreich.
+- React-Integrationspaket: **16 Tests**, Typecheck, Build, Paket-Trockenlauf und
+  npm-Audit ohne Befund; eine unabhängige Host-Fixture kompiliert erfolgreich gegen
+  `@flowzer/sdk` und `@flowzer/react`.
 - Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
   Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
 - Vorgangsübersichten auf Desktop und Mobil visuell geprüft. Das ersetzt noch nicht
@@ -51,24 +63,25 @@ abschließenden Astra-/High-Gesamtreview.
 - Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
   `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
   Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
-- Der verlangte abschließende **Astra-/High-Review** lief direkt als strikt lesender
-  Subagent. Drei Befunde wurden umgesetzt: unklare Datei-Commits behalten ihre offene
-  Reservierung, mathematisch gleiche JSON-Zahlen erhalten denselben Hash und der
-  Projektstatus unterscheidet korrekt zwischen Wiederholungen mit/ohne Header.
-  Zusätzliche Fault-Injection-, PostgreSQL-Rollback- und Retentionstests sichern die
-  Korrekturen. Der Re-Review meldete **keine blockierenden Findings**. Als spätere
-  Härtung bleiben weitere Zahlenvektoren/-größenlimits und ein auditierter Klärungsweg
-  für offene Reservierungen dokumentiert.
-- Ein zusätzlich verlangter direkter **Astra-/High-Review des BFF-Slices** fand und
+- PR #223 ist in allen .NET-, Console-, Paket-, UI-Smoke- und CodeQL-Prüfungen grün.
+  Die PR-spezifische Code-Scanning-Abfrage enthält keine offenen Befunde; bestehende
+  Hauptbranch-Warnungen werden erst durch die spätere Zusammenführung geschlossen.
+- Frühere gezielte Astra-/High-Teilreviews prüften Idempotenz und den BFF-Slice.
+  Beim Idempotenzpfad wurden offene Dateireservierungen, mathematisch gleiche
+  JSON-Zahlen sowie der Projektstatus korrigiert und durch Fault-Injection-,
+  PostgreSQL-Rollback- und Retentionstests abgesichert. Der BFF-Teilreview fand und
   behob die an das Access-Token gebundene, nicht gleitende Sitzungsdauer, Logout für
   angemeldete Konten ohne Fachrolle, fehlgeschlagene Logout-Anzeige sowie abgeschaltete
   BFF-Routen. Negativtests decken Signatur und CSRF ab. Unmittelbarer Provider-Widerruf
   vor Tokenablauf, echter Keycloak-Code-Flow und Keyring-Restore bleiben Abnahmen.
+- Der vereinbarte **finale Astra-/High-Gesamtreview aller M0–M6-Punkte ist noch nicht
+  erfolgt**. Er findet erst nach Abschluss der Implementierung statt und darf nicht
+  durch die früheren Teilreviews ersetzt werden.
 
 ## Bewahrte Produktentscheidungen
 
 - Flowzer bleibt eigenständig, modular und unter MPL-2.0; kein Rewrite und keine
-  TickyTask-Abhängigkeit. Erste Kundenstufe mit getrennter Installation.
+  Abhängigkeit von einer konsumierenden Fachanwendung. Erste Kundenstufe mit getrennter Installation.
 - Bei Task-Zuweisungen bleibt **Text ausdrücklich erhalten**. Die spätere Auswahl
   „Bekannter Benutzer / bekannte Gruppe“ oder „Text-String“ ist in Roadmap und
   Auth-Epic verbindlich ergänzt. Kein stilles Umwandeln gleichnamiger Texte in IDs.
@@ -105,8 +118,7 @@ Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
    Historische Identitätsauflösung und Klärung mehrdeutiger Altwerte bleiben offen.
 2. **M2:** Weitere deklarative Regeln, Wiederholgruppen, Anhänge, freigegebene
    dynamische Quellen, Skriptinventar und geprüfte Bestandsmigration.
-3. **M3/M4:** Kommentare/Vorgangshistorie, generisches Headless-SDK und optionale
-   React-Komponenten für beliebige Host-Anwendungen, gemeinsame Modellfähigkeiten,
+3. **M3/M4:** Kommentare/Vorgangshistorie, gemeinsame Modellfähigkeiten,
    Laufzeitdiagramme und vollständiger UX-Audit. Flowzer erhält dabei keine Abhängigkeit
    von einer konkreten konsumierenden Fachanwendung.
 4. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige

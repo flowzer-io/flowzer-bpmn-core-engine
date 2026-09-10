@@ -46,6 +46,27 @@ public sealed class UserTaskLifecycleStorageTest
             .Which.Action.Should().Be("claim");
     }
 
+    // Testzweck: Die Vorgangssicht liefert nur die Auditspur der angefragten Instanz und
+    // bewahrt diese auch dann, wenn die zugehörige offene Task-Subscription bereits endet.
+    [Test]
+    public async Task GetEventsByProcessInstance_ShouldFilterAndRetainCompletedTaskAudit()
+    {
+        using var context = new Context();
+        var instanceId = Guid.NewGuid();
+        var matchingTask = await context.AddTask(instanceId);
+        var otherTask = await context.AddTask(Guid.NewGuid());
+        var matching = Create(matchingTask, "claim", revision: 1);
+        var other = Create(otherTask, "claim", revision: 1);
+        await context.Storage.UserTaskLifecycleStorage.TryWrite(matching.State, 0, matching.Event);
+        await context.Storage.UserTaskLifecycleStorage.TryWrite(other.State, 0, other.Event);
+
+        await context.Storage.SubscriptionStorage.RemoveUserTaskSubscription(matchingTask.Id);
+
+        var events = await context.Storage.UserTaskLifecycleStorage.GetEventsByProcessInstance(instanceId);
+
+        events.Should().ContainSingle().Which.Id.Should().Be(matching.Event.Id);
+    }
+
     internal static (UserTaskWorkState State, UserTaskAssignmentEvent Event) Create(
         UserTaskSubscription task, string action, long revision)
     {
@@ -88,8 +109,9 @@ public sealed class UserTaskLifecycleStorageTest
             Storage = new Storage();
         }
         public Storage Storage { get; }
-        public async Task<UserTaskSubscription> AddTask()
+        public async Task<UserTaskSubscription> AddTask(Guid? processInstanceId = null)
         {
+            var instanceId = processInstanceId ?? Guid.NewGuid();
             var task = new UserTask { Id = "Review", Name = "Review", Implementation = "ReviewForm" };
             var subscription = new UserTaskSubscription
             {
@@ -97,12 +119,12 @@ public sealed class UserTaskLifecycleStorageTest
                 Name = "Review",
                 Token = new Token
                 {
-                    ProcessInstanceId = Guid.NewGuid(),
+                    ProcessInstanceId = instanceId,
                     CurrentBaseElement = task,
                     ActiveBoundaryEvents = [],
                     State = FlowNodeState.Active
                 },
-                ProcessInstanceId = Guid.NewGuid(),
+                ProcessInstanceId = instanceId,
                 MetaDefinitionId = "catalog",
                 DefinitionId = Guid.NewGuid(),
                 ProcessId = "Process"

@@ -44,4 +44,27 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.UserTaskLifecycleStorage.TryWrite(item.State, 0, item.Event)).Status
             .Should().Be(UserTaskLifecycleWriteStatus.TaskNotFound);
     }
+
+    // Testzweck: Die PostgreSQL-Vorgangsabfrage filtert über die persistierte Instanzkennung
+    // und lässt die Append-only-Spur nach dem Ende der offenen Subscription erreichbar.
+    [Test]
+    public async Task UserTaskLifecycle_ShouldQueryRetainedAuditByProcessInstance()
+    {
+        using var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var instanceId = Guid.NewGuid();
+        var matchingTask = await AddDraftUserTaskAsync(storage, instanceId);
+        var otherTask = await AddDraftUserTaskAsync(storage, Guid.NewGuid());
+        var matching = UserTaskLifecycleStorageTest.Create(matchingTask, "claim", revision: 1);
+        var other = UserTaskLifecycleStorageTest.Create(otherTask, "claim", revision: 1);
+        (await storage.UserTaskLifecycleStorage.TryWrite(matching.State, 0, matching.Event)).Status
+            .Should().Be(UserTaskLifecycleWriteStatus.Written);
+        (await storage.UserTaskLifecycleStorage.TryWrite(other.State, 0, other.Event)).Status
+            .Should().Be(UserTaskLifecycleWriteStatus.Written);
+
+        await storage.SubscriptionStorage.RemoveUserTaskSubscription(matchingTask.Id);
+
+        var events = await storage.UserTaskLifecycleStorage.GetEventsByProcessInstance(instanceId);
+
+        events.Should().ContainSingle().Which.Id.Should().Be(matching.Event.Id);
+    }
 }

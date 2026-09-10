@@ -4,6 +4,7 @@ import { setAccessDeniedHandler, setUnauthorizedHandler } from '@/lib/api/client
 import { fetchSession, logout, signIn } from '@/lib/auth/bff';
 import type { FlowzerCapability } from '@/lib/auth/roles';
 import { getRuntimeConfig } from '@/lib/config/runtime';
+import { clearPublicPackageScope, createSessionScope } from '@/lib/flowzer/sessionScope';
 
 export interface SessionUser {
   id: string;
@@ -18,11 +19,15 @@ type SessionStatus = 'unknown' | 'anonymous' | 'signed-in';
 interface SessionState {
   status: SessionStatus;
   user: SessionUser | null;
+  /** Opaquer Zufallswert nur für die Query-Keys der veröffentlichten Pakete. */
+  sessionScope: string | null;
   /** Die API hat einen Aufruf mit 403 abgelehnt, weil die Zugangsrolle fehlt. */
   accessDenied: boolean;
   refresh: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Console-interne Transition für den vom API-Client gemeldeten 401-Fall. */
+  endSessionForUnauthorized: () => void;
   setAccessDenied: (denied: boolean) => void;
 }
 
@@ -50,25 +55,39 @@ const DEVELOPMENT_USER: SessionUser = {
 export const useSession = create<SessionState>()((set, get) => ({
   status: 'unknown',
   user: null,
+  sessionScope: null,
   accessDenied: false,
 
   refresh: async () => {
     if (!getRuntimeConfig().bffEnabled) {
       set(import.meta.env.DEV
-        ? { status: 'signed-in', user: DEVELOPMENT_USER }
-        : { status: 'anonymous', user: null });
+        ? {
+          status: 'signed-in',
+          user: DEVELOPMENT_USER,
+          sessionScope: get().sessionScope ?? createSessionScope(),
+        }
+        : anonymousState(get()));
       return;
     }
 
     try {
       const session = await fetchSession();
       if (!session) {
-        set({ status: 'anonymous', user: null });
+        set(anonymousState(get()));
         return;
       }
 
+      const current = get();
+      const subjectChanged = current.status === 'signed-in'
+        && current.user !== null
+        && current.user.id !== session.id;
+      if (subjectChanged) clearPublicPackageScope(current.sessionScope);
+
       set({
         status: 'signed-in',
+        sessionScope: subjectChanged || !current.sessionScope
+          ? createSessionScope()
+          : current.sessionScope,
         accessDenied: !session.capabilities.includes('access'),
         user: {
           id: session.id,
@@ -80,7 +99,7 @@ export const useSession = create<SessionState>()((set, get) => ({
       });
     } catch {
       // Ein BFF-Ausfall darf nicht mit einer halbgültigen Sitzung weiterlaufen.
-      set({ status: 'anonymous', user: null });
+      set(anonymousState(get()));
     }
   },
 
@@ -92,13 +111,30 @@ export const useSession = create<SessionState>()((set, get) => ({
     // Erst ein bestaetigter Server-Logout (oder 401) beendet die lokale Sitzung.
     // Bei Netzwerk-/CSRF-Fehlern bleibt sie sichtbar und die Abmeldung wiederholbar.
     await logout();
-    set({ status: 'anonymous', user: null, accessDenied: false });
+    set(anonymousState(get()));
+  },
+
+  endSessionForUnauthorized: () => {
+    set(anonymousState(get()));
   },
 
   setAccessDenied: (denied) => {
     if (get().accessDenied !== denied) set({ accessDenied: denied });
   },
 }));
+
+/**
+ * Beendet die lokale Sicht auf eine BFF-Sitzung und entfernt vorher nur deren
+ * öffentliche Paketdaten. Allgemeine Console-Queries folgen weiter ihrem eigenen
+ * Lebenszyklus und werden nicht pauschal gelöscht.
+ */
+function anonymousState(state: Pick<SessionState, 'sessionScope'>): Pick<
+  SessionState,
+  'status' | 'user' | 'sessionScope' | 'accessDenied'
+> {
+  clearPublicPackageScope(state.sessionScope);
+  return { status: 'anonymous', user: null, sessionScope: null, accessDenied: false };
+}
 
 /**
  * Kurzer Zusatz unter dem Namen: die stärkste Fähigkeit, die die Person trägt.
@@ -129,7 +165,7 @@ export function useCan(): (capability: FlowzerCapability) => boolean {
 }
 
 setUnauthorizedHandler(() => {
-  useSession.setState({ status: 'anonymous', user: null, accessDenied: false });
+  useSession.getState().endSessionForUnauthorized();
 });
 setAccessDeniedHandler((denied) => useSession.getState().setAccessDenied(denied));
 

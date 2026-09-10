@@ -4,7 +4,6 @@ import type {
   BpmnDefinitionDto,
   BpmnMetaDefinitionDto,
   ExtendedBpmnMetaDefinitionDto,
-  ExtendedUserTaskSubscriptionDto,
   FormDto,
   FormAuthoringDraftDto,
   FormCompatibilityItemDto,
@@ -20,13 +19,6 @@ import type {
   SignalSubscriptionDto,
   TimerSubscriptionDto,
   TokenDto,
-  UserTaskResultDto,
-  UserTaskDraftDto,
-  UserTaskDraftRequest,
-  UserTaskClaimRequest,
-  UserTaskReleaseRequest,
-  UserTaskTransferRequest,
-  UserTaskWorkStateDto,
   VersionDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -158,18 +150,6 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
-  /** Aktive Benutzer, die für genau diese Laufzeitaktion als Ziel zulässig sind. */
-  searchTaskAssignees: (
-    userTaskId: string,
-    query: string,
-    action: 'assign' | 'delegate',
-    signal?: AbortSignal,
-  ) =>
-    requestStatusResult<DirectorySubjectSearchResultDto>(
-      `/identity-directory/user-tasks/${encodeURIComponent(userTaskId)}/assignees`,
-      { query: { query, action, limit: 20 }, signal },
-    ),
-
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
     context: FormDirectorySearchContext,
@@ -252,65 +232,6 @@ export const instancesApi = {
     requestStatusResult<TokenDto[]>(`/instance/${instanceId}/subscription/userTasks`, { signal }),
 };
 
-export const userTasksApi = {
-  /** `GET /usertask` — offene Aufgaben des angemeldeten Benutzers. */
-  list: (signal?: AbortSignal) =>
-    requestStatusResult<ExtendedUserTaskSubscriptionDto[]>('/usertask', { signal }),
-
-  /** `GET /usertask/{id}/form` — Formular zu einer Aufgabe (serverseitig aufgelöst). */
-  getForm: (userTaskId: string, signal?: AbortSignal) =>
-    requestStatusResult<FormDto>(`/usertask/${userTaskId}/form`, { signal }),
-
-  /** `GET /usertask/{id}/draft` — lädt den serverseitigen Eingabeentwurf. */
-  getDraft: (userTaskId: string, signal?: AbortSignal) =>
-    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, { signal }),
-
-  /** `PUT /usertask/{id}/draft` — speichert den Entwurf mit optimistischer Revision. */
-  saveDraft: (userTaskId: string, draft: UserTaskDraftRequest) =>
-    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
-      method: 'PUT',
-      body: draft,
-    }),
-
-  /** `DELETE /usertask/{id}/draft?expectedRevision=…` — verwirft den Entwurf. */
-  deleteDraft: (userTaskId: string, expectedRevision: number, expectedTaskRevision?: number) =>
-    requestStatus(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
-      method: 'DELETE',
-      query: { expectedRevision, expectedTaskRevision },
-    }),
-
-  /** Übernimmt eine freie Kandidatenaufgabe für die authentifizierte Person. */
-  claim: (userTaskId: string, command: UserTaskClaimRequest) =>
-    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/claim`, {
-      method: 'POST',
-      body: command,
-    }),
-
-  /** Gibt die eigene Übernahme mit protokolliertem Grund zurück in den Kandidatenpool. */
-  release: (userTaskId: string, command: UserTaskReleaseRequest) =>
-    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/release`, {
-      method: 'POST',
-      body: command,
-    }),
-
-  /** Administrative Zuweisung an einen aktiven Directory-Benutzer. */
-  assign: (userTaskId: string, command: UserTaskTransferRequest) =>
-    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/assign`, {
-      method: 'POST',
-      body: command,
-    }),
-
-  /** Berechtigte Übergabe an einen aktiven Directory-Kandidaten. */
-  delegate: (userTaskId: string, command: UserTaskTransferRequest) =>
-    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/delegate`, {
-      method: 'POST',
-      body: command,
-    }),
-
-  /** `POST /usertask` — schließt eine Aufgabe mit Ergebnisdaten ab. */
-  complete: (result: UserTaskResultDto) => requestStatus('/usertask', { method: 'POST', body: result }),
-};
-
 export const formsApi = {
   /** Datensparsames Inventar veroeffentlichter Fassungen und Autorenentwuerfe. */
   compatibility: (needsMigration?: boolean, signal?: AbortSignal) =>
@@ -375,9 +296,6 @@ export const formsApi = {
       body: { expectedRevision },
     }),
 
-  /** `POST /form/result` — reicht Formulardaten für einen User-Task ein. */
-  submitResult: (result: UserTaskResultDto) =>
-    requestStatus('/form/result', { method: 'POST', body: result }),
 };
 
 export const messagesApi = {

@@ -254,56 +254,10 @@ export interface FormCompatibilityItemDto {
   issueCode?: string | null;
 }
 
-/** Serverseitiger Zwischenstand einer offenen User-Task. */
-export interface UserTaskDraftDto {
-  userTaskId: string;
-  revision: number;
-  updatedAtUtc: string | null;
-  data: ProcessVariables;
-}
-
-/** Vollständiger Schreibkörper für einen Aufgabenentwurf. */
-export interface UserTaskDraftRequest {
-  expectedRevision: number;
-  /** Bindet den privaten Stand zusätzlich an die aktuelle Übernahmegeneration. */
-  expectedTaskRevision?: number;
-  data: ProcessVariables;
-}
-
 /** Stabile Benutzer- oder Gruppenreferenz aus dem veröffentlichten Verzeichnis. */
 export interface SubjectRefDto {
   kind: 'user' | 'group';
   id: string;
-}
-
-/** Laufzeitzuweisung einer offenen Aufgabe, getrennt von der BPMN-Modellzuweisung. */
-export interface UserTaskWorkStateDto {
-  /** Eigene monotone Revision des Task-Lebenszyklus, nicht die Draft-Revision. */
-  revision: number;
-  claimed: boolean;
-  /** Tatsächlicher Bearbeiter, sofern er eine bekannte Directory-Identität ist. */
-  actualAssignee: SubjectRefDto | null;
-  actualAssigneeDisplayName: string | null;
-  isAssignedToCurrentUser: boolean;
-  /** Gemeinsame serverseitige Entscheidung für Formular, Draft und Abschluss. */
-  canWork: boolean;
-  canClaim: boolean;
-  canRelease: boolean;
-  canAssign: boolean;
-  canDelegate: boolean;
-}
-
-export interface UserTaskClaimRequest {
-  expectedRevision: number;
-}
-
-export interface UserTaskReleaseRequest extends UserTaskClaimRequest {
-  reason: string;
-}
-
-export interface UserTaskTransferRequest extends UserTaskReleaseRequest {
-  /** Die Console bietet bewusst nur aktive, serverseitig erlaubte Benutzer an. */
-  assignee: SubjectRefDto;
 }
 
 /** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
@@ -323,50 +277,6 @@ export interface DirectorySubjectSearchResultDto {
 export type FormDirectorySearchContext =
   | { kind: 'startForm'; definitionId: string }
   | { kind: 'userTask'; taskId: string };
-
-/** Entspricht `UserTaskSubscriptionDto`. */
-export interface UserTaskSubscriptionDto {
-  id: string;
-  name: string;
-  token: TokenDto;
-  userCandidates: string[];
-  userGroups: string[];
-  currenAssignedUser?: string | null;
-  /** Legacy-Freitextfelder; im Directory-Modus leer. */
-  assignee?: string | null;
-  candidateUsers: string[];
-  candidateGroups: string[];
-  assignmentMode: 'text' | 'directory';
-  directoryAssignee?: SubjectRefDto | null;
-  directoryCandidateUsers: SubjectRefDto[];
-  directoryCandidateGroups: SubjectRefDto[];
-  /** Additiver, revisionssicherer Laufzeitvertrag für Claim und Übergaben. */
-  workState: UserTaskWorkStateDto;
-  processInstanceId?: string | null;
-  definitionId: string;
-  processId: string;
-}
-
-/** Entspricht `ExtendedUserTaskSubscriptionDto`. */
-export interface ExtendedUserTaskSubscriptionDto extends UserTaskSubscriptionDto {
-  definitionMetaName: string;
-  definitionVersion: VersionDto;
-  /** Ergänzt durch die Console-API: aufgelöster Form-Key des User-Tasks. */
-  formKey?: string | null;
-  /** Ergänzt durch die Console-API: Fälligkeitsangabe aus dem BPMN-Modell. */
-  dueDate?: string | null;
-  followUpDate?: string | null;
-  /** Serverseitig gebundener Vertrag; Rohwerte sind nur noch Diagnoseinformation. */
-  deadline?: {
-    scheduleState: 'none' | 'resolved' | 'unsupported' | 'invalid';
-    status: 'none' | 'scheduled' | 'follow_up_due' | 'overdue' | 'escalated' | 'unsupported' | 'invalid';
-    activatedAtUtc: string;
-    dueAtUtc?: string | null;
-    followUpAtUtc?: string | null;
-    escalationAtUtc?: string | null;
-  } | null;
-  priority?: string | null;
-}
 
 /** Persistente, benutzergebundene Meldung aus dem Server-Feed. */
 export interface NotificationDto {
@@ -427,18 +337,6 @@ export interface MessageDto {
   variables?: ProcessVariables | null;
   timeToLive?: number;
   instanceId?: string | null;
-}
-
-/** Entspricht `UserTaskResultDto`. */
-export interface UserTaskResultDto {
-  flowNodeId: string;
-  tokenId: string;
-  processInstanceId?: string | null;
-  /** Additiv: ältere API-Nutzer dürfen das Feld während der Migration noch auslassen. */
-  expectedTaskRevision?: number;
-  /** Stabile Kennung der im veröffentlichten Aufgabenformular gewählten Aktion. */
-  actionId?: string | null;
-  data?: ProcessVariables | null;
 }
 
 /** Entspricht `HealthStatusDto`. */

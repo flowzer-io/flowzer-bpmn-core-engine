@@ -7,7 +7,6 @@ import {
   useFolderDirectorySubjectSearch,
   useFormDirectorySubjectResolutions,
   useFormDirectorySubjectSearch,
-  useTaskAssigneeSearch,
 } from '@/lib/api/queries';
 import type {
   DirectorySubjectDto,
@@ -29,6 +28,30 @@ export interface DirectorySubjectSelection {
   available: boolean;
 }
 
+/**
+ * Hostgebundene Directory-Suche für ein konkretes Formularfeld oder eine konkrete
+ * Lifecycle-Aktion. Der Picker erhält weder Task-ID noch Feld/Aktion und kann den
+ * serverseitig gebundenen Kontext daher nicht erweitern.
+ */
+export interface BoundDirectorySubjectAdapter {
+  /** Stabile, nicht fachliche Cache-/Instanzdomäne des Hosts. */
+  cacheKey: readonly unknown[];
+  /**
+   * Der Host bindet hier bereits Task plus Feld beziehungsweise Aktion. Der
+   * verschachtelte React-Root erhält deshalb nur Suchparameter und kann den
+   * serverseitig erlaubten Kontext nicht erweitern.
+   */
+  search: (
+    fieldKey: string,
+    options: { query: string; kind: SubjectRefDto['kind'] | 'all'; signal?: AbortSignal },
+  ) => Promise<DirectorySubjectSearchResultDto>;
+  resolve: (
+    fieldKey: string,
+    subjects: readonly SubjectRefDto[],
+    signal?: AbortSignal,
+  ) => Promise<DirectorySubjectDto[]>;
+}
+
 export interface DirectorySubjectPickerProps {
   definitionId: string;
   /** Für Ordnerdelegationen wird statt des Workflowpfads dieser Kontext verwendet. */
@@ -39,7 +62,7 @@ export interface DirectorySubjectPickerProps {
   /** Technischer Form.io-Key, der serverseitig in die Policy-Prüfung einfließt. */
   fieldKey?: string;
   /** Laufzeitgebundene Auswahl eines tatsächlichen Bearbeiters. */
-  taskAssignee?: { taskId: string; action: 'assign' | 'delegate' };
+  directoryAdapter?: BoundDirectorySubjectAdapter;
   disabledReason?: string;
   selected: DirectorySubjectSelection[];
   multiple: boolean;
@@ -241,8 +264,8 @@ export function DirectorySubjectPicker(props: DirectorySubjectPickerProps) {
   if (props.folderId) {
     return <FolderDirectorySubjectPicker {...props} />;
   }
-  if (props.taskAssignee) {
-    return <TaskAssigneeDirectorySubjectPicker {...props} />;
+  if (props.directoryAdapter) {
+    return <BoundDirectorySubjectPicker {...props} />;
   }
   if (props.directoryContext && props.fieldKey) {
     return <FormDirectorySubjectPicker {...props} />;
@@ -250,30 +273,136 @@ export function DirectorySubjectPicker(props: DirectorySubjectPickerProps) {
   return <WorkflowDirectorySubjectPicker {...props} />;
 }
 
-function TaskAssigneeDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
+/**
+ * Adapterpfad für eingebettete Hosts wie Form.io und den Lifecycle-Dialog.
+ *
+ * Der Host bindet Task plus Feld beziehungsweise Aktion in die Callbacks. Damit
+ * kann der verschachtelte React-Root nur noch Suchtext und Auswahlart liefern.
+ */
+function BoundDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedQuery(query.trim()), 250);
     return () => window.clearTimeout(timeout);
   }, [query]);
-  const context = props.taskAssignee!;
-  const search = useTaskAssigneeSearch(
-    context.taskId,
-    context.action,
-    debouncedQuery,
-    !props.disabled && debouncedQuery.length >= 2,
+  const adapter = props.directoryAdapter!;
+  const fieldKey = props.fieldKey ?? '';
+  const search = useBoundSearch(adapter, fieldKey, props.kind, debouncedQuery, !props.disabled);
+  const subjects = uniqueSubjects(props.selected.map((entry) => entry.subject));
+  const resolution = useBoundResolution(adapter, fieldKey, subjects, !props.disabled);
+  return (
+    <DirectorySubjectPickerView
+      {...props}
+      search={search}
+      resolution={{
+        data: resolution.data,
+        isPending: resolution.isPending,
+        isFetching: resolution.isFetching,
+        error: resolution.error,
+      }}
+      query={query}
+      setQuery={setQuery}
+      debouncedQuery={debouncedQuery}
+    />
   );
-  // Ein Laufzeitziel entsteht immer aus der aktuellen Suche. Der tatsächliche
-  // gespeicherte Bearbeiter wird bereits mit seiner Anzeigeprojektion im Task geliefert.
-  const resolution: ResolutionState = {
+}
+
+/**
+ * Form.io erzeugt für das Feld einen eigenen React-Root. Deshalb darf dieser
+ * Adapterpfad keine Console-Hooks mit React-Query-Kontext voraussetzen, sondern
+ * arbeitet ausschließlich mit den vom Host injizierten, bereits gebundenen
+ * Promises. Abgebrochene oder überholte Antworten werden verworfen.
+ */
+function useBoundSearch(
+  adapter: BoundDirectorySubjectAdapter,
+  fieldKey: string,
+  kind: DirectorySubjectPickerProps['kind'],
+  query: string,
+  enabled: boolean,
+): SearchState {
+  const [state, setState] = useState<SearchState>({
+    data: undefined,
+    isPending: false,
+    isFetching: false,
+    error: null,
+  });
+
+  useEffect(() => {
+    if (!enabled || query.length < 2) {
+      setState({ data: undefined, isPending: false, isFetching: false, error: null });
+      return;
+    }
+
+    const controller = new AbortController();
+    let current = true;
+    setState((previous) => ({ ...previous, isPending: previous.data === undefined, isFetching: true, error: null }));
+    void adapter.search(fieldKey, { query, kind, signal: controller.signal }).then(
+      (data) => {
+        if (current) setState({ data, isPending: false, isFetching: false, error: null });
+      },
+      (error: unknown) => {
+        if (current && !controller.signal.aborted) {
+          setState((previous) => ({ ...previous, isPending: false, isFetching: false, error }));
+        }
+      },
+    );
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+  }, [adapter, enabled, fieldKey, kind, query]);
+
+  return state;
+}
+
+function useBoundResolution(
+  adapter: BoundDirectorySubjectAdapter,
+  fieldKey: string,
+  subjects: SubjectRefDto[],
+  enabled: boolean,
+): ResolutionState {
+  const [state, setState] = useState<ResolutionState>({
     data: [],
     isPending: false,
     isFetching: false,
     error: null,
-  };
-  return <DirectorySubjectPickerView {...props} search={search} resolution={resolution}
-    query={query} setQuery={setQuery} debouncedQuery={debouncedQuery} />;
+  });
+  const subjectKey = subjects.map((subject) => `${subject.kind}:${subject.id}`).join('|');
+
+  useEffect(() => {
+    if (!enabled || subjects.length === 0) {
+      setState({ data: [], isPending: false, isFetching: false, error: null });
+      return;
+    }
+
+    const controller = new AbortController();
+    let current = true;
+    setState((previous) => ({ ...previous, isPending: previous.data.length === 0, isFetching: true, error: null }));
+    void adapter.resolve(fieldKey, subjects, controller.signal).then(
+      (data) => {
+        if (current) setState({ data, isPending: false, isFetching: false, error: null });
+      },
+      (error: unknown) => {
+        if (current && !controller.signal.aborted) {
+          setState((previous) => ({ ...previous, isPending: false, isFetching: false, error }));
+        }
+      },
+    );
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+    // The serialized key tracks the immutable subject references without making
+    // the host recreate callbacks solely because Form.io recreated an array.
+  // subjectKey is the intentional structural dependency; Form.io frequently
+  // recreates the array while keeping the selected references unchanged.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter, enabled, fieldKey, subjectKey]);
+
+  return state;
 }
 
 function FolderDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
@@ -346,4 +475,12 @@ function FormDirectorySubjectPicker(props: DirectorySubjectPickerProps) {
     Boolean(context),
   );
   return <DirectorySubjectPickerView {...props} search={search} resolution={resolution} query={query} setQuery={setQuery} debouncedQuery={debouncedQuery} />;
+}
+
+function uniqueSubjects(subjects: SubjectRefDto[]): SubjectRefDto[] {
+  return subjects.filter(
+    (subject, index) => subjects.findIndex(
+      (candidate) => candidate.kind === subject.kind && candidate.id === subject.id,
+    ) === index,
+  );
 }

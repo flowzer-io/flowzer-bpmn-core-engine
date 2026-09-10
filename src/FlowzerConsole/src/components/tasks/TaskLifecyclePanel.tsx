@@ -1,9 +1,10 @@
+import type { UserTaskWorkState } from '@flowzer/sdk';
+
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
-import type { UserTaskWorkStateDto } from '@/lib/api/types';
 
 interface TaskLifecyclePanelProps {
-  state: UserTaskWorkStateDto;
+  state: UserTaskWorkState;
   busy: boolean;
   draftDirty: boolean;
   onClaim: (expectedRevision: number) => void;
@@ -53,27 +54,27 @@ export function TaskLifecyclePanel({
         {state.canRelease && (
           <Button size="sm" variant="ghost" icon="undo" disabled={transferBlocked}
             title={draftDirty ? 'Entwurf zuerst speichern oder verwerfen' : undefined}
-            onClick={() => onRelease(state.revision)}>
+            onClick={() => onRelease(state.revision ?? 0)}>
             Zurückgeben
           </Button>
         )}
         {state.canDelegate && (
           <Button size="sm" variant="secondary" icon="person_add" disabled={transferBlocked}
             title={draftDirty ? 'Entwurf zuerst speichern oder verwerfen' : undefined}
-            onClick={() => onDelegate(state.revision)}>
+            onClick={() => onDelegate(state.revision ?? 0)}>
             Delegieren
           </Button>
         )}
         {state.canAssign && (
           <Button size="sm" variant="secondary" icon="manage_accounts" disabled={transferBlocked}
             title={draftDirty ? 'Entwurf zuerst speichern oder verwerfen' : undefined}
-            onClick={() => onAssign(state.revision)}>
+            onClick={() => onAssign(state.revision ?? 0)}>
             Zuweisen
           </Button>
         )}
         {state.canClaim && (
           <Button size="sm" variant="primary" icon="touch_app" loading={busy}
-            onClick={() => onClaim(state.revision)}>
+            onClick={() => onClaim(state.revision ?? 0)}>
             Übernehmen
           </Button>
         )}

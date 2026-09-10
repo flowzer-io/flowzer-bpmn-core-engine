@@ -60,6 +60,37 @@ public sealed class UserTaskDraftIntegrationTest
         (await ReadDraft(client, task.Id)).GetProperty("revision").GetInt64().Should().Be(0);
     }
 
+    // Testzweck: Negative Entwurfsrevisionen bleiben ein ungueltiger 400-Request und
+    // erreichen weder Autorisierung noch Persistenz.
+    [Test]
+    public async Task Draft_ShouldRejectNegativeRevisionWithTheExistingBadRequestContract()
+    {
+        using var context = await CreateContext();
+        var task = await context.StartAsync("");
+        using var client = context.CreateClient();
+
+        using var save = await client.PutAsJsonAsync($"/usertask/{task.Id}/draft", new
+        {
+            expectedRevision = -1,
+            data = new { answer = "nicht speichern" }
+        });
+        using var delete = await client.DeleteAsync($"/usertask/{task.Id}/draft?expectedRevision=-1");
+
+        save.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        delete.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        save.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        delete.Content.Headers.ContentType!.MediaType.Should().Be("application/json");
+        var saveError = await save.Content.ReadFromJsonAsync<JsonElement>();
+        var deleteError = await delete.Content.ReadFromJsonAsync<JsonElement>();
+        saveError.GetProperty("successful").GetBoolean().Should().BeFalse();
+        deleteError.GetProperty("successful").GetBoolean().Should().BeFalse();
+        saveError.GetProperty("errorMessage").GetString()
+            .Should().Be("ExpectedRevision must not be negative. (Parameter 'requestDto')");
+        deleteError.GetProperty("errorMessage").GetString()
+            .Should().Be("ExpectedRevision must not be negative. (Parameter 'expectedRevision')");
+        (await ReadDraft(client, task.Id)).GetProperty("revision").GetInt64().Should().Be(0);
+    }
+
     // Testzweck: Zwei Tabs mit derselben Ausgangsrevision duerfen nicht still einander
     // ueberschreiben; genau der erste Write gewinnt und der Konflikt nennt nur die Revision.
     [Test]

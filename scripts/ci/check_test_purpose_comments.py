@@ -16,11 +16,14 @@ CS_TEST_DIRECTORIES = [
 ]
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',
+    ROOT / 'src' / 'FlowzerConsole' / 'scripts',
+    ROOT / 'packages' / 'flowzer-sdk' / 'src',
+    ROOT / 'packages' / 'flowzer-react' / 'src',
 ]
 
 CS_TEST_ATTRIBUTE = re.compile(r'^\s*\[(Test|TestCase|TestCaseSource|Theory|Fact)\b')
 CS_ATTRIBUTE = re.compile(r'^\s*\[[^\]]+\]\s*$')
-JS_TEST_CALL = re.compile(r'^\s*test(?:\.(?:only|skip|fixme))?\s*\(')
+JS_TEST_CALL = re.compile(r'^\s*(?:it|test)(?:\.(?:only|skip|fixme))?\s*\(')
 PURPOSE_COMMENT = re.compile(r'^\s*//\s*Testzweck:')
 IGNORED_DIRECTORIES = {
     '.git',
@@ -111,7 +114,7 @@ def check_csharp_tests() -> list[Finding]:
 def check_js_tests() -> list[Finding]:
     findings: list[Finding] = []
 
-    for path in iter_files(JS_TEST_DIRECTORIES, ('.js', '.ts')):
+    for path in iter_files(JS_TEST_DIRECTORIES, ('.js', '.mjs', '.ts')):
         lines = path.read_text(encoding='utf-8').splitlines()
         for index, line in enumerate(lines):
             if JS_TEST_CALL.match(line) and not has_purpose_comment_before_js_test(lines, index):
@@ -129,7 +132,7 @@ def main() -> int:
             print(f'- {finding}')
         return 1
 
-    print('Alle gefundenen NUnit- und Playwright-Tests tragen einen // Testzweck:-Kommentar.')
+    print('Alle gefundenen NUnit-, Playwright- und SDK-Tests tragen einen // Testzweck:-Kommentar.')
     return 0
 
 

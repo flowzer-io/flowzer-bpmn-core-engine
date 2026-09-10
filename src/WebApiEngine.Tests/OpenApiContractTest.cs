@@ -148,6 +148,40 @@ public class OpenApiContractTest
         statusSchema.TryGetProperty("clientSecret", out _).Should().BeFalse();
     }
 
+    // Testzweck: Der hostneutrale Task-Deep-Link bleibt als datensparsamer Umschlag
+    // beschrieben und verbirgt fremde wie unbekannte Aufgaben mit Problem Details.
+    [Test]
+    public async Task UserTaskDetailEndpoint_ShouldExposeTheEmbeddingContract()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var detail = GetOperation(
+            document.RootElement.GetProperty("paths"), "/UserTask/{userTaskId}", "get");
+
+        GetResponseSchema(detail, "200").Should()
+            .Be("#/components/schemas/ExtendedUserTaskSubscriptionDtoApiStatusResult");
+        GetProblemResponse(detail, "404").Should().Be("#/components/schemas/ProblemDetails");
+    }
+
+    // Testzweck: Die neue append-only Vorgangshistorie bleibt ein expliziter,
+    // datensparsamer Vertrag und verwendet für verborgene Ressourcen Problem Details.
+    [Test]
+    public async Task ProcessHistoryEndpoint_ShouldExposeOnlyMinimalLifecycleFacts()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var history = GetOperation(root.GetProperty("paths"), "/Instance/{instanceId}/history", "get");
+
+        GetResponseSchema(history, "200").Should()
+            .Be("#/components/schemas/ProcessHistoryDtoApiStatusResult");
+        GetProblemResponse(history, "404").Should().Be("#/components/schemas/ProblemDetails");
+
+        var properties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("ProcessHistoryEventDto").GetProperty("properties");
+        properties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "userTaskId", "flowNodeId", "action", "revision", "occurredAtUtc"
+        ]);
+    }
+
     private static string? ResolveSchemaName(JsonElement schema)
     {
         if (schema.TryGetProperty("$ref", out var reference))

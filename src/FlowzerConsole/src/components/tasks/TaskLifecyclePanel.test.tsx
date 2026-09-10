@@ -2,14 +2,13 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { UserTaskWorkStateDto } from '@/lib/api/types';
+import type { UserTaskWorkState } from '@flowzer/sdk';
 
 import { TaskLifecyclePanel } from './TaskLifecyclePanel';
 
-const available: UserTaskWorkStateDto = {
+const available: UserTaskWorkState = {
   revision: 4,
   claimed: false,
-  actualAssignee: null,
   actualAssigneeDisplayName: null,
   isAssignedToCurrentUser: false,
   canWork: false,

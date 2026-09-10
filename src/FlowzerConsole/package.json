@@ -14,9 +14,15 @@
     "test:watch": "vitest",
     "api:types": "openapi-typescript http://localhost:5000/swagger/v1/swagger.json -o src/lib/api/schema.gen.ts",
     "icons": "node scripts/generate-icons.mjs",
-    "seed": "node scripts/seed-demo.mjs"
+    "seed": "node scripts/seed-demo.mjs",
+    "prepare:flowzer-packages": "npm ci --prefix ../../packages/flowzer-sdk && npm run build --prefix ../../packages/flowzer-sdk && npm ci --prefix ../../packages/flowzer-react && npm run build --prefix ../../packages/flowzer-react",
+    "pretypecheck": "npm run prepare:flowzer-packages",
+    "pretest": "npm run prepare:flowzer-packages",
+    "prebuild": "npm run prepare:flowzer-packages"
   },
   "dependencies": {
+    "@flowzer/react": "file:../../packages/flowzer-react",
+    "@flowzer/sdk": "file:../../packages/flowzer-sdk",
     "@fontsource-variable/bricolage-grotesque": "^5.2.5",
     "@fontsource-variable/hanken-grotesk": "^5.2.5",
     "@fontsource-variable/jetbrains-mono": "^5.2.5",

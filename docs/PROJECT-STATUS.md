@@ -1,7 +1,8 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
 **Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
-#216 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+#220 sowie der laufende Security-Slice #222 liegen in noch nicht nach `main`
+gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -25,6 +26,17 @@ keine aktuelle Liste noch fehlender Funktionen.
 - Eingebettete/externe Aufgabenformulare, Startformulare und BPMN-Gliederungsansicht.
 - Reproduzierbare .NET-/Frontend-CI, OpenAPI-Snapshot, Testzweckprüfung,
   Container-/Compose-Setup, Health-/Diagnose- und Telemetriegrundlagen.
+
+## CodeQL- und Storage-Härtung – #222 / PR #223 (noch nicht gemergt)
+
+Der Slice beseitigt die offenen CodeQL-Befunde ohne Suppression: konkrete
+Dateidokumente lesen keine CLR-Typnamen mehr, Worker-Jobs duplizieren keinen
+polymorphen Token, SDK-URL-Normalisierung und Icon-Codegenerierung sind gegen
+pathologische beziehungsweise ausbrechende Eingaben abgesichert und Betriebslogs
+übernehmen keine freien Worker-/Pfadinhalte. Negative Revisionswerte behalten ihre
+bisherigen HTTP-Fehlerverträge. Prozessinstanzen und BPMN-Definitionen verbleiben
+vorerst in einer gesonderten polymorphen Legacy-Grenze; die Dateiablage bleibt
+Einzelprozess-Entwicklung. Details: [CodeQL- und Storage-Härtung](CODEQL-STORAGE-HARDENING.md).
 
 ## Aktuelles M0-Teilpaket – PR #177
 
@@ -118,6 +130,49 @@ Idempotenz-Hash. Die Konsole pflegt und rendert die Aktionen, Formulare ohne Akt
 behalten den generischen Abschluss. Startformulare bleiben im ersten Slice gesperrt.
 Details: [Entscheidungsaktionen](FORM-DECISION-ACTIONS.md).
 
+## Hostneutrales TypeScript-SDK – #218 / PR #219 (noch nicht gemergt)
+
+Das eigenständig baubare Paket `@flowzer/sdk` kapselt die generische Flowzer-HTTP-API
+für Aufgabenliste, gebundene Formulare, private Entwürfe, Claim/Release/Assign/Delegate,
+idempotenten Abschluss, feld- und aktionsgebundene Verzeichnissuche sowie
+Vorgangsübersichten. Öffentliche DTOs werden aus dem versionierten OpenAPI-Snapshot
+erzeugt; die CI prüft Drift, Paketbau, Tests, Abhängigkeiten und konkrete
+Host-Anwendungsnamen im Produktcode.
+
+Das SDK besitzt keine React- oder Laufzeitabhängigkeit und keinen globalen
+Authentisierungszustand. Bearer-Token beziehungsweise BFF-CSRF-Werte kommen pro Aufruf
+über diskriminierte Host-Callbacks; Benutzer-Header und still erzeugte
+Idempotenzschlüssel gibt es nicht. Flowzer enthält dabei weder Abhängigkeit noch
+Laufzeitwissen über eine konkrete konsumierende Fachanwendung. Optionale React-
+Komponenten, Host-Adapter und eine reale Einbettungsabnahme bleiben Folgearbeiten.
+
+## Hostneutrale React-Bausteine – #220 / PR #221 (noch nicht gemergt)
+
+Das optionale Paket `@flowzer/react` setzt ausschließlich auf die öffentliche SDK-API
+und stellt Hooks sowie Render-Prop-Controller für Aufgabenliste, Task-Arbeitsbereich
+und Vorgangsstatus bereit. Installation und Sitzung bilden explizite, nicht geheime
+Cache-Scopes. Mutationen werden nie automatisch wiederholt; ein Rechteentzug entfernt
+bereits geladene Formular-/Entwurfsdaten aus der sichtbaren Projektion und dem Scope.
+
+Form.io, CSS, Navigation und Fachobjekte bleiben beim Host. Ein neutraler
+Formularadaptervertrag und eine unabhängig kompilierte Fixture belegen diese Grenze.
+Die Flowzer-Konsole konsumiert die Pakete mit #224/PR #225 inzwischen selbst: Ihre BFF-,
+Form.io- und Development-Details bleiben in schmalen Console-Adaptern, während der
+parallele Human-Task-Transport entfernt wurde. Eine reale externe Identity-/HTTPS-
+Einbettungsabnahme bleibt separat offen. Details:
+[Hostneutrale Einbettung](HOST-INTEGRATION.md).
+
+## Console auf öffentlichen Task-Paketen – #224 / PR #225 (noch nicht gemergt)
+
+Aufgabenlisten in Dashboard, Navigation und Arbeitsplatz verwenden `@flowzer/react`;
+Detail, Formular, privater Entwurf, Lifecycle, Directory und idempotenter Abschluss
+laufen über denselben öffentlichen Workspace-/Action-Vertrag. Ein opaker
+Sitzungsscope wird bei Logout, `401` und Kontowechsel gezielt bereinigt. Form.io erhält
+nur feldgebundene Directory-Callbacks; konkrete Hosts bleiben vollständig außerhalb
+des Produkts. Der frühere Console-eigene Tasktransport und sein alternativer
+`/form/result`-Aufruf wurden entfernt. Details:
+[Console-Paketintegration](CONSOLE-TASK-PACKAGE-INTEGRATION.md).
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.
@@ -201,6 +256,16 @@ PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Audi
 dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
 [Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
 
+## Append-only Human-Task-Vorgangshistorie – #226 / PR #227 (noch nicht gemergt)
+
+Die vorhandene Lifecycle-Auditspur lässt sich indexiert nach Prozessinstanz lesen und
+bleibt auch nach dem Taskende erhalten. Der neue History-Vertrag veröffentlicht nur
+Ereignis-/Task-ID, Flow-Node, Aktion, Revision und Zeitpunkt; interne Personen-,
+Begründungs-, Korrelations-, Variablen- und Formulardaten verlassen den Server nicht.
+Sichtbarkeit verwendet die zentrale Instanz-Objektberechtigung. SDK, React-Schicht und
+Console nutzen denselben hostneutralen Vertrag. Details:
+[Append-only Vorgangshistorie](PROCESS-HISTORY.md).
+
 ## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
 
 Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
@@ -235,11 +300,11 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
    Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
    Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
-   serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
-   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, generisches Headless-SDK samt
-   optionalen React-Komponenten, Modellvalidierung, externe Zustellung und vollständige
-   Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe, der
+   serverseitige Fristen-/Benachrichtigungskern sowie SDK, React-Bausteine und die
+   Console-Paketmigration liegen als gestapelte Topic-Branch-Slices
+   vor (#202–#226). Merge/Abnahme, Modellvalidierung, externe Zustellung und vollständige
+   Engine-Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
@@ -247,8 +312,8 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal 111 Engine-,
-657 API-/Storage- und 288 Konsolentests. Der vollständige UX-Audit und die erste
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 111 Engine-,
+680 API-/Storage-, 302 Konsolen-, 14 SDK- und 16 React-Pakettests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

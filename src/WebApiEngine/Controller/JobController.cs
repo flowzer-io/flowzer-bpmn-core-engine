@@ -144,8 +144,8 @@ public class JobController(
         ProcessId = job.ProcessId,
         DefinitionId = job.DefinitionId,
         MetaDefinitionId = job.MetaDefinitionId,
-        TokenId = job.Token.Id,
-        FlowNodeId = job.Token.CurrentFlowNode?.Id,
+        TokenId = job.TokenId,
+        FlowNodeId = job.FlowNodeId,
         CreatedAt = job.CreatedAt,
         LockedUntil = job.LockedUntil,
         // Nur die Worker-Kennung, nicht die Person dahinter: Der Sperrinhaber enthaelt intern

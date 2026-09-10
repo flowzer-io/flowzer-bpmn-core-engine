@@ -54,6 +54,103 @@ public class PostgreSqlStorageGuardsTest
         copy.Tokens.Last().CurrentBaseElement.Should().BeOfType<UserTask>().Which.Name.Should().Be("Aufgabe");
     }
 
+    // Testzweck: Konkrete Service-Task-Auftragsdokumente kommen ohne CLR-Typmetadaten aus und
+    // behalten die Daten, die der PostgreSQL-Adapter außerhalb des Token-Objektgraphen benötigt.
+    [Test]
+    public void ConcreteServiceTaskJobDocumentRoundTripsWithoutTypeMetadata()
+    {
+        var job = new ServiceTaskJob
+        {
+            Id = Guid.NewGuid(),
+            Type = "payment",
+            Name = "Zahlung auslösen",
+            TokenId = Guid.NewGuid(),
+            FlowNodeId = "ServiceTask_Payment",
+            ProcessInstanceId = Guid.NewGuid(),
+            MetaDefinitionId = "payments",
+            DefinitionId = Guid.NewGuid(),
+            ProcessId = "PaymentProcess",
+            CreatedAt = DateTime.UtcNow,
+            Retries = 3,
+            Variables = new System.Dynamic.ExpandoObject()
+        };
+
+        var json = StorageJson.SerializeConcrete(job);
+        var restored = StorageJson.DeserializeConcrete<ServiceTaskJob>(json);
+
+        json.Should().NotContain("$type");
+        restored.Id.Should().Be(job.Id);
+        restored.TokenId.Should().Be(job.TokenId);
+        restored.FlowNodeId.Should().Be(job.FlowNodeId);
+        restored.Type.Should().Be(job.Type);
+        restored.Variables.Should().NotBeNull();
+    }
+
+    // Testzweck: Konkrete Webhook-Dokumente bleiben ohne CLR-Typmetadaten lesbar, damit
+    // gespeicherte Ziel- und Sicherheitsinformationen nicht an polymorphe JSON-Bindung koppeln.
+    [Test]
+    public void ConcreteServiceTaskWebhookDocumentRoundTripsWithoutTypeMetadata()
+    {
+        var webhook = new ServiceTaskWebhook
+        {
+            Id = Guid.NewGuid(),
+            Type = "payment",
+            Url = new Uri("https://worker.example.test/jobs"),
+            Secret = "test-secret",
+            Description = "Payment worker",
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = Guid.NewGuid(),
+            ConsecutiveFailures = 2,
+            LastAttemptAt = DateTime.UtcNow,
+            LastError = "Timeout"
+        };
+
+        var json = StorageJson.SerializeConcrete(webhook);
+        var restored = StorageJson.DeserializeConcrete<ServiceTaskWebhook>(json);
+
+        json.Should().NotContain("$type");
+        restored.Id.Should().Be(webhook.Id);
+        restored.Url.Should().Be(webhook.Url);
+        restored.Secret.Should().Be(webhook.Secret);
+        restored.LastError.Should().Be(webhook.LastError);
+    }
+
+    // Testzweck: Der Fallback für historische Auftragskörper liest ausschließlich die
+    // verschachtelte BPMN-ID und wertet ein vorhandenes $type-Feld nie als CLR-Typ aus.
+    [Test]
+    public void LegacyFlowNodeIdReaderIgnoresClrTypeMetadata()
+    {
+        const string legacyBody = """
+            {
+              "$type": "System.Diagnostics.Process, System.Diagnostics.Process",
+              "Token": {
+                "CurrentBaseElement": {
+                  "$type": "System.Diagnostics.Process, System.Diagnostics.Process",
+                  "Id": "ServiceTask_Legacy"
+                }
+              }
+            }
+            """;
+
+        var flowNodeId = StorageJson.ReadLegacyString(legacyBody, "Token", "CurrentBaseElement", "Id");
+
+        flowNodeId.Should().Be("ServiceTask_Legacy");
+    }
+
+    // Testzweck: Der historische Fallback akzeptiert nur eine Zeichenkette als BPMN-ID und
+    // verwirft strukturierte Nutzlasten statt sie implizit in eine Kennung umzuwandeln.
+    [Test]
+    public void LegacyFlowNodeIdReaderRejectsNonStringValues()
+    {
+        const string legacyBody = """
+            { "Token": { "CurrentBaseElement": { "Id": { "value": "not-an-id" } } } }
+            """;
+
+        var flowNodeId = StorageJson.ReadLegacyString(legacyBody, "Token", "CurrentBaseElement", "Id");
+
+        flowNodeId.Should().BeNull();
+    }
+
     // Testzweck: Der Schemaname wird als schlichter Bezeichner validiert; alles andere wird abgelehnt.
     [TestCase("flowzer", true)]
     [TestCase("_intern", true)]

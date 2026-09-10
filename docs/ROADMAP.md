@@ -13,7 +13,9 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    gestapelte PRs umgesetzt. #188 ist der laufende, noch nicht nach `main` gemergte
    BFF-Slice: vertraulicher OIDC-Code-Flow, `HttpOnly`/`Secure`-Cookies,
    `X-Flowzer-CSRF`, persistenter API-Keyring und kompatibler externer Bearer-Vertrag.
-   Bis Merge und HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
+   #222 härtet zusätzlich die offenen CodeQL-Befunde, konkrete Storage-Dokumente,
+   Logausgaben und Codegeneratoren ohne Suppression. Bis Merge, grünem CodeQL und
+   HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
 2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
    generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe. Der erste
    M1-Slice #190 / PR #191 implementiert den atomaren, lesenden Keycloak-Abgleich samt
@@ -37,8 +39,13 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
    Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
    Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
-   fachliche Abnahme bleiben offen. SDK/Einbettung für TickyTask, Modellierungsprüfung,
-   Laufzeitdiagramm und belastbare Vorgangshistorie folgen.
+   fachliche Abnahme bleiben offen. Das hostneutrale SDK (#218/PR #219) und die
+   React-Bausteine (#220/PR #221) liegen vor. #224/PR #225 migriert die Flowzer-Konsole auf
+   genau diese öffentlichen Verträge und entfernt ihren parallelen Human-Task-
+   Transport. Modellierungsprüfung, Laufzeitdiagramm und belastbare Vorgangshistorie
+   folgen. #226/PR #227 stellt als ersten Historienbaustein die vorhandene append-only
+   Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
+   Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
@@ -55,6 +62,15 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   Die Dateiablage bleibt Einzelprozess-Entwicklung; PostgreSQL ist der vorgesehene
   Mehrprozesspfad. BPMN-Eskalationspropagation, externe Zustellung und automatische
   Vertretung sind ausdrücklich nicht enthalten.
+- [x] **#218/#220 – öffentliche Integrationspakete:** Das zustandslose SDK sowie
+  darstellungsfreie React-Hooks/-Controller bleiben frei von konkreten Hosts.
+- [x] **#224 / PR #225 – Console-Paketmigration:** Die Flowzer-Konsole verwendet für Human
+  Tasks die öffentlichen Pakete; BFF, Form.io und Development-Details bleiben
+  ausschließlich Console-Adapter. Ein konkreter externer Host ist nicht Bestandteil
+  von Flowzer.
+- [x] **#226 / PR #227 – Human-Task-Vorgangshistorie:** Die bestehende append-only Auditspur
+  ist nach Instanz indexiert, objektberechtigt und über SDK sowie Console als
+  datensparsame Minimalprojektion verfügbar. Vollständige Engine-Historie folgt.
 
 ## Vorhandenes nicht neu bauen
 

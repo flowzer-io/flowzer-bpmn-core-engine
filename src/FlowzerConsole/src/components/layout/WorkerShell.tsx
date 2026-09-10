@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { TasksPage } from '@/pages/TasksPage';
 import { Icon } from '@/components/ui/Icon';
-import { useUserTasks } from '@/lib/api/queries';
+import { useUserTasks } from '@flowzer/react';
 import { useAppearance, useResolvedTheme } from '@/stores/appearance';
 import { useSession } from '@/stores/session';
 
@@ -23,7 +23,7 @@ export function WorkerShell({ onOpenUserMenu, children }: WorkerShellProps) {
   const user = useSession((state) => state.user);
   const toggleTheme = useAppearance((state) => state.toggleTheme);
   const theme = useResolvedTheme();
-  const tasksQuery = useUserTasks();
+  const tasksQuery = useUserTasks({ refetchInterval: 10_000 });
 
   const openCount = tasksQuery.data?.length ?? 0;
 

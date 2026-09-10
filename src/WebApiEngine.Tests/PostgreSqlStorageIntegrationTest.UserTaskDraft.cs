@@ -65,9 +65,10 @@ public partial class PostgreSqlStorageIntegrationTest
             .Should().Be(UserTaskDraftWriteStatus.TaskNotFound);
     }
 
-    private static async Task<UserTaskSubscription> AddDraftUserTaskAsync(PostgreSqlStorage storage)
+    private static async Task<UserTaskSubscription> AddDraftUserTaskAsync(
+        PostgreSqlStorage storage, Guid? processInstanceId = null)
     {
-        var instanceId = Guid.NewGuid();
+        var instanceId = processInstanceId ?? Guid.NewGuid();
         var userTask = new UserTask
         {
             Id = "UserTask_Draft",

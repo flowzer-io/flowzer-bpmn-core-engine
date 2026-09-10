@@ -1,3 +1,4 @@
+import { FlowzerApiError } from '@flowzer/sdk';
 import { useEffect, useRef } from 'react';
 
 import { ApiError } from '@/lib/api/client';
@@ -68,7 +69,7 @@ function labelOf(field: string, labels: Map<string, string>): string {
 /** Gemeinsame, wertefreie Fehleranzeige. Der Renderer und seine Eingaben bleiben bestehen. */
 export function FormValidationErrors({ error, schema }: { error: unknown; schema?: string }) {
   const ref = useRef<HTMLElement>(null);
-  const body = error instanceof ApiError ? error.body : null;
+  const body = error instanceof ApiError || error instanceof FlowzerApiError ? error.body : null;
   const raw = body && typeof body === 'object' ? (body as Record<string, unknown>).errors : null;
   const entries = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? Object.entries(raw).filter((entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].every(code => typeof code === 'string')).slice(0, 100)

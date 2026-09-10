@@ -12,7 +12,9 @@ import { TaskGroupHeading, TaskRow } from '@/components/tasks/TaskRow';
 import { useActivityFeed } from '@/lib/activity';
 import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
 import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
-import { useDefinitions, useDiagnostics, useUserTasks } from '@/lib/api/queries';
+import { useUserTasks } from '@flowzer/react';
+
+import { useDefinitions, useDiagnostics } from '@/lib/api/queries';
 import { formatNumber, formatTodayLabel, greetingForNow } from '@/lib/format';
 import { groupByDue, groupByWorkflow, sortTasks, toTaskView, type DueBucket } from '@/lib/taskView';
 import { useSession } from '@/stores/session';
@@ -29,7 +31,7 @@ export function DashboardPage() {
   const user = useSession((state) => state.user);
   const [view, setView] = useState<DashboardView>('due');
 
-  const tasksQuery = useUserTasks();
+  const tasksQuery = useUserTasks({ refetchInterval: 10_000 });
   const diagnosticsQuery = useDiagnostics();
   const definitionsQuery = useDefinitions();
   const activity = useActivityFeed();

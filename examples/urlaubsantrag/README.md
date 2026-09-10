@@ -12,7 +12,7 @@ Urlaubsantrag stellen   ◀ Startformular
       │ alle drei ja                                                                 │
       ├─ Antragsteller benachrichtigen   (Service-Task)                              ▼
       ├─ Urlaub in LexOffice eintragen   (Lohnbuchhaltung, Formular)      Ablehnung mitteilen
-      └─ Urlaub in TickyTask eintragen   (Service-Task)                              │
+      └─ Urlaub in externem Fachsystem eintragen   (Service-Task)                     │
       │                                                                              ▼
    Urlaub genehmigt                                                       Antrag abgelehnt ⊗
 ```
@@ -77,7 +77,7 @@ node examples/urlaubsantrag/demo-worker.mjs http://localhost:5182
 ```
 
 Er ersetzt keine Anbindung — die Vertretungsprüfung sagt immer ja, benachrichtigt wird auf
-der Konsole, und TickyTask bekommt eine erfundene Vorgangsnummer. Als Vorlage für die
+der Konsole, und das Fachsystem bekommt eine erfundene Vorgangsnummer. Als Vorlage für die
 echten Worker taugt er trotzdem; der Vertrag steht in
 [docs/SERVICE-TASK-WORKER.md](../../docs/SERVICE-TASK-WORKER.md).
 
@@ -116,7 +116,7 @@ externe Abgleiche sind separate Erweiterungen, keine bereits verfügbare Persona
 | `urlaub-vertretung-pruefen` | Hat die genannte Vertretung im Zeitraum selbst genehmigten Urlaub? | `vertretungFrei`: `"ja"` oder `"nein"` |
 | `urlaub-genehmigung-mitteilen` | Nachricht an die antragstellende Person | frei |
 | `urlaub-ablehnung-mitteilen` | Nachricht mit dem Ablehnungsgrund | frei |
-| `urlaub-tickytask-eintragen` | Abwesenheit in TickyTask anlegen | frei, z. B. `tickytaskVorgang` |
+| `urlaub-fachsystem-eintragen` | Abwesenheit in einem Fachsystem anlegen | frei, z. B. `fachsystemVorgang` |
 
 Jeder Service-Task sagt am Modell, was sein Worker zu sehen bekommt — die
 Vertretungsprüfung etwa nur `vertretung`, `von` und `bis`. Ohne diese Angabe bekäme ein

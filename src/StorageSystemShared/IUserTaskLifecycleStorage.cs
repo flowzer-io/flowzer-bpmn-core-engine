@@ -20,6 +20,13 @@ public interface IUserTaskLifecycleStorage
         UserTaskAssignmentEvent auditEvent);
 
     Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEvents(Guid userTaskId);
+
+    /// <summary>
+    /// Liest die append-only Human-Task-Ereignisse eines Vorgangs. Die konkrete API-Projektion
+    /// entscheidet anschließend, welche der darin enthaltenen Personen- und Betriebsdaten
+    /// überhaupt sichtbar werden dürfen.
+    /// </summary>
+    Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId);
 }
 
 public enum UserTaskLifecycleWriteStatus
@@ -89,6 +96,8 @@ internal sealed class UnsupportedUserTaskLifecycleStorage : IUserTaskLifecycleSt
     public Task<UserTaskLifecycleWriteResult> TryWrite(UserTaskWorkState state, long expectedRevision, UserTaskAssignmentEvent auditEvent) =>
         Unsupported<UserTaskLifecycleWriteResult>();
     public Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEvents(Guid userTaskId) =>
+        Unsupported<IReadOnlyList<UserTaskAssignmentEvent>>();
+    public Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId) =>
         Unsupported<IReadOnlyList<UserTaskAssignmentEvent>>();
     private static Task<T> Unsupported<T>() => Task.FromException<T>(
         new NotSupportedException("This storage adapter does not support the user-task lifecycle."));

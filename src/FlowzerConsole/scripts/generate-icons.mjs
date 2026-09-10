@@ -11,6 +11,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { escapeSingleQuotedLiteral } from './icon-output.mjs';
+
 const here = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(here, '..');
 const sourceDir = resolve(projectRoot, 'node_modules/@material-symbols/svg-400/outlined');
@@ -140,7 +142,7 @@ if (missing.length > 0) {
   process.exitCode = 1;
 }
 
-const body = entries.map(([name, markup]) => `  '${name}': '${markup.replace(/'/g, "\\'")}',`).join('\n');
+const body = entries.map(([name, markup]) => `  '${name}': '${escapeSingleQuotedLiteral(markup)}',`).join('\n');
 
 const output = `// Automatisch erzeugt von scripts/generate-icons.mjs — nicht von Hand bearbeiten.
 // Quelle: @material-symbols/svg-400 (Apache-2.0). Neues Icon: Namen im Skript

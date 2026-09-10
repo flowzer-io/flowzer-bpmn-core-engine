@@ -1,5 +1,4 @@
 using Model;
-using Newtonsoft.Json;
 using StorageSystem;
 
 namespace FilesystemStorageSystem;
@@ -11,7 +10,6 @@ namespace FilesystemStorageSystem;
 public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 {
     private readonly string _messageSubscriptionsPath;
-    private readonly JsonSerializerSettings _newtonSoftDefaultSettings;
     private readonly Storage _storage;
 
     public MessageSubscriptionStorage(Storage storage)
@@ -19,13 +17,6 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         _storage = storage;
         _messageSubscriptionsPath = _storage.GetBasePath("FileStorage/MessageSubscriptions");
 
-        _newtonSoftDefaultSettings = new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.Auto,
-            TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
-            SerializationBinder = new KnownStorageAssembliesBinder(),
-            Formatting = Formatting.Indented,
-        };
     }
 
     public Task<IEnumerable<MessageSubscription>> GetAllMessageSubscriptions()
@@ -61,7 +52,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         // Path.GetFileName: siehe InstanceStorage.AddOrUpdateInstance.
         var fullFileName = Path.Combine(_messageSubscriptionsPath,
             Path.GetFileName($"message_{messageSubscription.RelatedDefinitionId}_{randomIdOrInstanceId}.json"));
-        var data = JsonConvert.SerializeObject(messageSubscription, _newtonSoftDefaultSettings);
+        var data = SafeStorageJson.Serialize(messageSubscription);
         return StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
@@ -106,7 +97,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         // Path.GetFileName: siehe InstanceStorage.AddOrUpdateInstance.
         var fullFileName = Path.Combine(_messageSubscriptionsPath,
             Path.GetFileName($"signal_{signalSubscription.RelatedDefinitionId}_{fileIdentifier}.json"));
-        var data = JsonConvert.SerializeObject(signalSubscription, _newtonSoftDefaultSettings);
+        var data = SafeStorageJson.Serialize(signalSubscription);
         StorageFile.WriteAllTextAtomic(fullFileName, data);
     }
 
@@ -130,21 +121,33 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
         }
     }
 
-    public Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId)
+    public async Task<IEnumerable<UserTaskSubscription>> GetAllUserTasks(Guid instanceId)
     {
-        var subscriptions = ReadAll<UserTaskSubscription>("usertask_*.json")
-            .Select(entry => entry.Item)
-            .Where(subscription => subscription.ProcessInstanceId == instanceId)
+        var instance = await TryGetInstance(instanceId);
+        if (instance is null) return [];
+        return ReadUserTaskDocuments("usertask_*.json")
+            .Where(entry => entry.Document.ProcessInstanceId == instanceId)
+            .Select(entry => Hydrate(entry.Document, instance))
+            .Where(subscription => subscription is not null)
+            .Cast<UserTaskSubscription>()
             .ToList();
-
-        return Task.FromResult<IEnumerable<UserTaskSubscription>>(subscriptions);
     }
 
     public async Task<IEnumerable<ExtendedUserTaskSubscription>> GetAllUserTasksExtended(Guid userId)
     {
         var ret = new List<ExtendedUserTaskSubscription>();
-        foreach (var (_, userTaskSubscription) in ReadAll<ExtendedUserTaskSubscription>("usertask_*.json"))
+        var instances = new Dictionary<Guid, ProcessInstanceInfo?>();
+        foreach (var (_, document) in ReadUserTaskDocuments("usertask_*.json"))
         {
+            if (document.ProcessInstanceId is not { } instanceId) continue;
+            if (!instances.TryGetValue(instanceId, out var instance))
+            {
+                instance = await TryGetInstance(instanceId);
+                instances[instanceId] = instance;
+            }
+            if (instance is null) continue;
+            var userTaskSubscription = Hydrate(document, instance);
+            if (userTaskSubscription is null) continue;
             var metaDefinition = await _storage.DefinitionStorage.GetMetaDefinitionById(userTaskSubscription.MetaDefinitionId);
             var definition = await _storage.DefinitionStorage.GetDefinitionById(userTaskSubscription.DefinitionId);
             userTaskSubscription.DefinitionMetaName = metaDefinition.Name;
@@ -166,7 +169,12 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
             return null;
         }
 
-        var subscription = JsonConvert.DeserializeObject<ExtendedUserTaskSubscription>(content, _newtonSoftDefaultSettings)!;
+        var document = UserTaskSubscriptionDocument.Deserialize(content);
+        if (document.ProcessInstanceId is not { } instanceId) return null;
+        var instance = await TryGetInstance(instanceId);
+        if (instance is null) return null;
+        var subscription = Hydrate(document, instance);
+        if (subscription is null) return null;
         var metaDefinition = await _storage.DefinitionStorage.GetMetaDefinitionById(subscription.MetaDefinitionId);
         var definition = await _storage.DefinitionStorage.GetDefinitionById(subscription.DefinitionId);
         subscription.DefinitionMetaName = metaDefinition.Name;
@@ -181,7 +189,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
     public Task AddUserTaskSubscription(UserTaskSubscription userTasks)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"usertask_{userTasks.Id}.json");
-        var data = JsonConvert.SerializeObject(userTasks, _newtonSoftDefaultSettings);
+        var data = UserTaskSubscriptionDocument.Serialize(userTasks);
         return StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
@@ -206,7 +214,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 
     public void RemoveAllUserTaskSubscriptionsByInstanceId(Guid instanceId)
     {
-        foreach (var (file, subscription) in ReadAll<UserTaskSubscription>("usertask_*.json"))
+        foreach (var (file, subscription) in ReadUserTaskDocuments("usertask_*.json"))
         {
             if (subscription.ProcessInstanceId == instanceId)
             {
@@ -225,7 +233,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
 
     public Task RemoveAllUserTaskSubscriptionsWithNoInstanceId(string relatedDefinitionId)
     {
-        foreach (var (file, subscription) in ReadAll<UserTaskSubscription>($"usertask_{relatedDefinitionId}_*.json"))
+        foreach (var (file, subscription) in ReadUserTaskDocuments($"usertask_{relatedDefinitionId}_*.json"))
         {
             if (subscription.ProcessInstanceId == null || subscription.ProcessInstanceId == Guid.Empty)
             {
@@ -258,7 +266,7 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
     public Task AddTimerSubscription(TimerSubscription timerSubscription)
     {
         var fullFileName = Path.Combine(_messageSubscriptionsPath, $"timer_{timerSubscription.Id}.json");
-        var data = JsonConvert.SerializeObject(timerSubscription, _newtonSoftDefaultSettings);
+        var data = SafeStorageJson.Serialize(timerSubscription);
         return StorageFile.WriteAllTextAtomicAsync(fullFileName, data);
     }
 
@@ -300,11 +308,38 @@ public class MessageSubscriptionStorage : IMessageSubscriptionStorage
     {
         foreach (var (path, content) in StorageFile.ReadExistingFiles(_messageSubscriptionsPath, searchPattern))
         {
-            var item = JsonConvert.DeserializeObject<T>(content, _newtonSoftDefaultSettings);
-            if (item is not null)
-            {
-                yield return (path, item);
-            }
+            yield return (path, SafeStorageJson.Deserialize<T>(content));
         }
+    }
+
+    private IEnumerable<(string File, UserTaskSubscriptionDocument Document)> ReadUserTaskDocuments(
+        string searchPattern)
+    {
+        foreach (var (path, content) in StorageFile.ReadExistingFiles(_messageSubscriptionsPath, searchPattern))
+            yield return (path, UserTaskSubscriptionDocument.Deserialize(content));
+    }
+
+    private async Task<ProcessInstanceInfo?> TryGetInstance(Guid instanceId)
+    {
+        try { return await _storage.InstanceStorage.GetProcessInstance(instanceId); }
+        catch (FileNotFoundException) { return null; }
+    }
+
+    /// <summary>
+    /// Bindet die schlanke Subscription an genau einen weiterhin aktiven Instanztoken.
+    /// Inkonsistente oder erledigte Dateireste werden nicht als arbeitsberechtigte Aufgabe
+    /// rekonstruiert.
+    /// </summary>
+    private static ExtendedUserTaskSubscription? Hydrate(
+        UserTaskSubscriptionDocument document,
+        ProcessInstanceInfo instance)
+    {
+        var matches = instance.Tokens.Where(token => token.Id == document.TokenId).Take(2).ToArray();
+        if (matches.Length != 1
+            || matches[0] is not { State: FlowNodeState.Active, CurrentFlowNode: BPMN.HumanInteraction.UserTask task }
+            || !string.Equals(task.Id, document.FlowNodeId, StringComparison.Ordinal))
+            return null;
+
+        return document.ToSubscription(matches[0]);
     }
 }

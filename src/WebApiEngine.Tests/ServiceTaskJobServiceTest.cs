@@ -1,6 +1,6 @@
 using BPMN.Common;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Model;
 using StorageSystem;
@@ -64,6 +64,26 @@ public class ServiceTaskJobServiceTest
         afterExpiry.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, "worker-b"));
     }
 
+    // Testzweck: Untrusted Task- und Worker-Eingaben dürfen nicht in die Lognachricht gelangen;
+    // der Auftrag muss trotzdem mit seinen fachlichen Daten vergeben werden.
+    [Test]
+    public async Task FetchAndLock_ShouldNotLogUntrustedTaskOrWorkerInput()
+    {
+        var context = new JobTestContext();
+        const string taskType = "zahlung\r\nUNTRUSTED_TASK_INPUT";
+        const string workerId = "worker-a\nUNTRUSTED_WORKER_INPUT";
+        await context.AddJob(taskType);
+
+        var jobs = await context.Service.FetchAndLock(taskType, WorkerUser, workerId, 10, TimeSpan.FromMinutes(5));
+
+        var log = context.Logger.Entries.Should().ContainSingle().Subject;
+        log.Message.Should().NotContain(taskType);
+        log.Message.Should().NotContain(workerId);
+        jobs.Should().ContainSingle();
+        jobs.Single().Type.Should().Be(taskType);
+        jobs.Single().LockedBy.Should().Be(ServiceTaskJobService.BuildLockOwner(WorkerUser, workerId));
+    }
+
     // Testzweck: Nur der Worker, dem der Auftrag gehoert, darf zurueckmelden. Sonst koennten
     // zwei Ergebnisse fuer denselben Token den Prozess doppelt weiterfuehren.
     [Test]
@@ -113,6 +133,23 @@ public class ServiceTaskJobServiceTest
         afterBackoff.Should().ContainSingle();
         afterBackoff.Single().Retries.Should().Be(2);
         afterBackoff.Single().LastErrorMessage.Should().Be("Endpunkt nicht erreichbar");
+    }
+
+    // Testzweck: Eine untrusted Worker-Fehlermeldung darf nicht ins Log gelangen, muss aber als
+    // fachlicher Fehler am Auftrag erhalten bleiben.
+    [Test]
+    public async Task Fail_ShouldNotLogWorkerErrorInput_ButPersistItOnTheJob()
+    {
+        var context = new JobTestContext();
+        const string errorMessage = "Workerfehler\r\nUNTRUSTED_ERROR_INPUT";
+        await context.AddJob("zahlung");
+        var job = (await context.Service.FetchAndLock("zahlung", WorkerUser, "worker-a", 10, TimeSpan.FromMinutes(5))).Single();
+
+        await context.Service.Fail(job.Id, WorkerUser, "worker-a", errorMessage, null, TimeSpan.Zero);
+
+        var log = context.Logger.Entries.Where(entry => entry.Level == LogLevel.Warning).Should().ContainSingle().Subject;
+        log.Message.Should().NotContain(errorMessage);
+        (await context.Service.GetAll()).Single().LastErrorMessage.Should().Be(errorMessage);
     }
 
     // Testzweck: Ist der letzte Versuch verbraucht, wird der Auftrag nicht mehr vergeben. Er
@@ -197,12 +234,13 @@ public class ServiceTaskJobServiceTest
                 provider,
                 new BpmnBusinessLogic(provider),
                 Time,
-                NullLogger<ServiceTaskJobService>.Instance);
+                Logger);
         }
 
         public FakeTimeProvider Time { get; }
         public InMemoryServiceTaskStorage Storage { get; }
         public ServiceTaskJobService Service { get; }
+        public CapturingLogger<ServiceTaskJobService> Logger { get; } = new();
 
         public async Task<ServiceTaskJob> AddJob(string type, int retries = 3)
         {
@@ -212,13 +250,8 @@ public class ServiceTaskJobServiceTest
                 Id = Guid.NewGuid(),
                 Type = type,
                 Name = type,
-                Token = new Token
-                {
-                    ProcessInstanceId = Guid.NewGuid(),
-                    CurrentBaseElement = serviceTask,
-                    ActiveBoundaryEvents = [],
-                    State = FlowNodeState.Active
-                },
+                TokenId = Guid.NewGuid(),
+                FlowNodeId = serviceTask.Id,
                 ProcessInstanceId = Guid.NewGuid(),
                 MetaDefinitionId = "catalog",
                 DefinitionId = Guid.NewGuid(),

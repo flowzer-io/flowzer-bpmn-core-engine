@@ -50,6 +50,12 @@ export function setUnauthorizedHandler(handler: () => void): void {
   unauthorizedHandler = handler;
 }
 
+/** Meldet einen ungültig gewordenen BFF-Cookie an die Console-Sitzung. */
+export function reportUnauthorized(): void {
+  clearCsrfToken();
+  unauthorizedHandler();
+}
+
 /** Antwortheader, mit dem die API eine Ablehnung einordnet. */
 export const ACCESS_DENIED_HEADER = 'X-Flowzer-Access-Denied';
 
@@ -68,8 +74,7 @@ async function getCsrfToken(): Promise<{ requestToken: string; headerName: strin
     const response = await fetch('/bff/csrf', { credentials: 'same-origin' });
     const parsed = await readBody(response, false);
     if (response.status === 401) {
-      clearCsrfToken();
-      unauthorizedHandler();
+      reportUnauthorized();
     }
     if (!response.ok || !isCsrf(parsed)) {
       throw new ApiError('Der CSRF-Schutz konnte nicht geladen werden.', {
@@ -88,6 +93,29 @@ async function getCsrfToken(): Promise<{ requestToken: string; headerName: strin
   } finally {
     csrfRequest = null;
   }
+}
+
+/**
+ * Liefert den BFF-CSRF-Wert für den Console-Adapter des öffentlichen SDKs.
+ * Der SDK bleibt zustandslos; diese Browser-/BFF-Kopplung gehört ausschließlich
+ * zur Console und speichert den Wert nur im Arbeitsspeicher.
+ */
+export async function getConsoleCsrfToken(): Promise<{ requestToken: string; headerName: string }> {
+  return getCsrfToken();
+}
+
+/**
+ * Ergänzt ausschließlich Console-spezifische Browserdetails für den öffentlichen
+ * Client. Insbesondere gelangt der Development-Header weder in das SDK noch in
+ * dessen öffentliche Authentisierungsoptionen.
+ */
+export function consoleAuthenticatedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (import.meta.env.DEV && !getRuntimeConfig().bffEnabled) {
+    headers.set(DEVELOPMENT_USER_HEADER, DEVELOPMENT_USER_ID);
+  }
+
+  return fetch(input, { ...init, headers, credentials: 'same-origin' });
 }
 
 function isCsrf(value: unknown): value is { requestToken: string; headerName: string } {
@@ -222,8 +250,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const parsed = await readBody(response, asText);
 
   if (response.status === 401 && getRuntimeConfig().bffEnabled) {
-    clearCsrfToken();
-    unauthorizedHandler();
+    reportUnauthorized();
   }
 
   // Die API ordnet jede Ablehnung ein: `application` heisst, dass dieses Konto Flowzer

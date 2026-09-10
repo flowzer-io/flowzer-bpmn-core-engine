@@ -16,8 +16,11 @@ public class ServiceTaskJob
 
     public required string Name { get; set; }
 
-    /// <summary>Der wartende Token; er verbindet den Auftrag mit der Instanz.</summary>
-    public required Token Token { get; set; }
+    /// <summary>Stabile Referenz auf den wartenden Token der Instanz.</summary>
+    public required Guid TokenId { get; set; }
+
+    /// <summary>Stabile BPMN-Kennung des wartenden Service-Tasks.</summary>
+    public required string FlowNodeId { get; set; }
 
     public required Guid ProcessInstanceId { get; set; }
     public required string MetaDefinitionId { get; set; }

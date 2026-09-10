@@ -54,6 +54,36 @@ public class InstanceController(
         if (mappedInstance is null) return NotFound(new ApiStatusResult<ProcessInstanceInfoDto>(MissingInstance));
         return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(mappedInstance));
     }
+
+    /// <summary>
+    /// Liefert die append-only gespeicherten Human-Task-Aktionen einer sichtbaren
+    /// Instanz. Die Projektion enthält bewusst keine Personen- oder Formulardaten.
+    /// </summary>
+    [HttpGet("{instanceId}/history")]
+    [ProducesResponseType<ApiStatusResult<ProcessHistoryDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<ProcessHistoryDto>>> GetHistory(Guid instanceId)
+    {
+        if (await instanceAccess.GetAsync(instanceId) is null)
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance);
+
+        var events = (await storageSystem.UserTaskLifecycleStorage
+                .GetEventsByProcessInstance(instanceId))
+            .OrderBy(item => item.OccurredAtUtc)
+            .ThenBy(item => item.UserTaskId)
+            .ThenBy(item => item.Revision)
+            .ThenBy(item => item.Id)
+            .Select(item => item.ToHistoryDto())
+            .ToArray();
+        return Ok(new ApiStatusResult<ProcessHistoryDto>(new ProcessHistoryDto
+        {
+            InstanceId = instanceId,
+            Events = events
+        }));
+    }
     
     [HttpGet("{instanceId}/subscription/messages")]
     public async Task<ActionResult<ApiStatusResult<MessageSubscriptionDto[]>>> GetMessageSubscriptions(Guid instanceId)

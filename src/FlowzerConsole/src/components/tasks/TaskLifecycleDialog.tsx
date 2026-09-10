@@ -1,37 +1,64 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { FlowzerApiError } from '@flowzer/sdk';
 
 import {
   DirectorySubjectPicker,
+  type BoundDirectorySubjectAdapter,
   type DirectorySubjectSelection,
 } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import { Button } from '@/components/ui/Button';
 import { FieldLabel, TextInput } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { ApiError } from '@/lib/api/client';
-import type { UserTaskLifecycleCommand } from '@/lib/api/queries';
+import type { DirectorySubjectSearchResultDto, SubjectRefDto } from '@/lib/api/types';
 
-type DialogAction = 'release' | 'assign' | 'delegate';
+export type TaskLifecycleAction = 'release' | 'assign' | 'delegate';
 
-interface TaskLifecycleDialogProps {
+/**
+ * Struktureller Übergabevertrag des Dialogs. Die Console entscheidet außerhalb
+ * des Dialogs, wie diese Daten an ihren Client gebunden werden; der Dialog kennt
+ * weder Mutations-Hooks noch konkrete API-Request-Typen.
+ */
+export type TaskLifecycleCommand =
+  | {
+    action: 'release';
+    userTaskId: string;
+    expectedRevision: number;
+    reason: string;
+  }
+  | {
+    action: 'assign' | 'delegate';
+    userTaskId: string;
+    expectedRevision: number;
+    assignee: SubjectRefDto;
+    reason: string;
+  };
+
+/** Suche, die vom Host bereits an Task und Lifecycle-Aktion gebunden wurde. */
+export type SearchAssignees = (options: { query: string; signal?: AbortSignal }) =>
+  Promise<DirectorySubjectSearchResultDto>;
+
+export interface TaskLifecycleDialogProps {
   open: boolean;
-  action: DialogAction;
+  action: TaskLifecycleAction;
   taskId: string;
   /** Wird von der öffnenden Aktion eingefangen und nicht durch Polling ersetzt. */
   expectedRevision: number;
   busy: boolean;
   error: unknown;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (command: UserTaskLifecycleCommand) => void;
+  onSubmit: (command: TaskLifecycleCommand) => void;
+  /** Optionaler Callback; ohne ihn zeigt der Dialog keine globale Directory-Suche. */
+  searchAssignees?: SearchAssignees;
   onUseCurrentRevision?: () => void;
 }
 
-const TITLES: Record<DialogAction, string> = {
+const TITLES: Record<TaskLifecycleAction, string> = {
   release: 'Aufgabe zurückgeben',
   assign: 'Bearbeiter zuweisen',
   delegate: 'Aufgabe delegieren',
 };
 
-const SUBMIT_LABELS: Record<DialogAction, string> = {
+const SUBMIT_LABELS: Record<TaskLifecycleAction, string> = {
   release: 'Zurückgeben',
   assign: 'Zuweisen',
   delegate: 'Delegieren',
@@ -48,6 +75,7 @@ export function TaskLifecycleDialog({
   onOpenChange,
   onSubmit,
   onUseCurrentRevision,
+  searchAssignees,
 }: TaskLifecycleDialogProps) {
   const reasonId = useId();
   const [reason, setReason] = useState('');
@@ -61,6 +89,13 @@ export function TaskLifecycleDialog({
 
   const transfer = action !== 'release';
   const valid = reason.trim().length > 0 && (!transfer || selected.length === 1);
+  const directoryAdapter = useMemo<BoundDirectorySubjectAdapter>(() => ({
+    cacheKey: ['task-lifecycle', taskId, action],
+    search: (_fieldKey, { query, signal }) => searchAssignees
+      ? searchAssignees({ query, signal })
+      : Promise.resolve({ generationId: 'empty', items: [] }),
+    resolve: async () => [],
+  }), [action, searchAssignees, taskId]);
 
   function submit() {
     const trimmedReason = reason.trim();
@@ -97,7 +132,7 @@ export function TaskLifecycleDialog({
         {Boolean(error) && (
           <div className="border-wait bg-wait/10 flex flex-wrap items-center justify-between gap-2 rounded-[var(--r-sm)] border px-3 py-2.5 text-[12.5px]" role="alert">
             <span>{errorMessage(error)}</span>
-            {error instanceof ApiError && error.status === 409 && onUseCurrentRevision && (
+            {error instanceof FlowzerApiError && error.status === 409 && onUseCurrentRevision && (
               <Button size="sm" variant="secondary" icon="refresh" onClick={onUseCurrentRevision}>
                 Aktuellen Stand verwenden
               </Button>
@@ -108,7 +143,7 @@ export function TaskLifecycleDialog({
         {transfer && (
           <DirectorySubjectPicker
             definitionId=""
-            taskAssignee={{ taskId, action }}
+            directoryAdapter={directoryAdapter}
             kind="user"
             selected={selected}
             multiple={false}
@@ -129,7 +164,7 @@ export function TaskLifecycleDialog({
   );
 }
 
-function description(action: DialogAction): string {
+function description(action: TaskLifecycleAction): string {
   if (action === 'release') {
     return 'Die Aufgabe wird wieder für berechtigte Kandidaten geöffnet. Dein privater Entwurf wird nicht übertragen.';
   }
@@ -140,10 +175,10 @@ function description(action: DialogAction): string {
 }
 
 function errorMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status === 409) {
+  if (error instanceof FlowzerApiError && error.status === 409) {
     return 'Die Aufgabe wurde zwischenzeitlich geändert. Prüfe den aktualisierten Zustand und versuche es erneut.';
   }
-  if (error instanceof ApiError && error.status === 503) {
+  if (error instanceof FlowzerApiError && error.status === 503) {
     return 'Das Benutzerverzeichnis ist derzeit nicht verfügbar. Die Aufgabe wurde nicht verändert.';
   }
   return error instanceof Error ? error.message : 'Die Aufgabe konnte nicht verändert werden.';

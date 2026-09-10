@@ -1,6 +1,6 @@
 # Human-Task-Lifecycle
 
-**Stand:** 8. September 2026 · **Slice:** #204 / PR #205
+**Stand:** 9. September 2026 · **Slice:** #204 / PR #205, Historie #226 / PR #227
 
 Flowzer trennt die unveränderliche Zuweisung im veröffentlichten BPMN-Modell vom
 tatsächlichen Bearbeiter einer laufenden Aufgabe. Modelle dürfen weiterhin bewusst
@@ -61,6 +61,8 @@ ist nicht für produktiven Mehrprozessbetrieb freigegeben.
 Dieser Slice enthält noch keine Fristen, Wiedervorlagen, Erinnerungen, Benachrichtigungen,
 Kommentare oder automatische Rechtevertretung. Die getrennte Umsetzung von Fristen und
 Benachrichtigungen steht in [Human-Task-Fristen und Benachrichtigungen](HUMAN-TASK-DEADLINES.md).
-Ein öffentlicher Historien-Endpunkt folgt
-erst mit der objektberechtigten Vorgangshistorie. TickyTask soll später denselben API-Vertrag
-über das headless SDK verwenden und erhält keinen direkten Datenbankzugriff.
+Die append-only Task-Auditspur ist mit #226 als erste objektberechtigte, datensparsame
+[Vorgangshistorie](PROCESS-HISTORY.md) öffentlich lesbar. Eine vollständige Engine-,
+Timer-, Job-, Formular- oder Kommentarhistorie bleibt ein separates Ausbaupaket.
+Host-Anwendungen verwenden denselben API-Vertrag über das Headless-SDK und erhalten
+keinen direkten Datenbankzugriff.
