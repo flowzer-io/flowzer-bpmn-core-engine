@@ -103,7 +103,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
     const xml = await currentXml();
     if (!xml) return;
 
-    validateDefinition.mutate(xml, {
+    validateDefinition.mutate({ xml, deployment: false }, {
       onSuccess: () => {
         saveDefinition.mutate(
           { xml, previousGuid: latestQuery.data?.id },
@@ -126,7 +126,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
     const xml = await currentXml();
     if (!xml) return;
 
-    validateDefinition.mutate(xml, {
+    validateDefinition.mutate({ xml, deployment: true }, {
       onSuccess: () => {
         deployDefinition.mutate(
           { xml, previousGuid: latestQuery.data?.id },

@@ -1,6 +1,6 @@
 # Human-Task-Lifecycle
 
-**Stand:** 9. September 2026 · **Slice:** #204 / PR #205, Historie #226 / PR #227
+**Stand:** 10. September 2026 · **Slice:** #204 / PR #205, Historie #226 / PR #227
 
 Flowzer trennt die unveränderliche Zuweisung im veröffentlichten BPMN-Modell vom
 tatsächlichen Bearbeiter einer laufenden Aufgabe. Modelle dürfen weiterhin bewusst
@@ -36,6 +36,11 @@ Der Wert ist für bestehende API-Clients zunächst optional.
 - Vor einer Übernahme gelten die im BPMN veröffentlichten Text- oder Directory-Kandidaten.
 - Nach einer Übernahme darf ausschließlich der tatsächliche Bearbeiter arbeiten. Frühere
   Gruppenmitglieder verlieren Aufgabenliste, Formular, Entwurf, Abschluss und Instanzsicht.
+- Ein tatsächlicher Directory-Bearbeiter muss auch nach der Übernahme im aktuellen
+  Snapshot aktiv und über die exakte stabile ID sowie Issuer/Subject auflösbar sein.
+  Deaktivierung sperrt Aufgaben-, Formular-, Entwurfs- und Arbeits-Vorgangsrechte;
+  ein noch gültiges JWT oder Cookie umgeht dies nicht. Das gilt auch für Directory-
+  Zuweisungen an Textmodelle. Reine Text-Claims benötigen dagegen kein Verzeichnis.
 - Der Operator darf Aufgaben sehen, bearbeiten und einem beliebigen aktiven
   Directory-Benutzer zuweisen. Das wird im Zustand als Zuweisung außerhalb des
   Kandidatenpools nachvollziehbar markiert.

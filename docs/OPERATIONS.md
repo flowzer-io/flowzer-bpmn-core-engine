@@ -6,6 +6,35 @@ Dieses Dokument beschreibt den realistischen Betriebsrahmen des laufenden M0-BFF
 
 > Wichtig: Das ist **noch keine produktionsfertige Deployment-Story**. Ziel dieses Pakets ist ein reproduzierbarer, dokumentierter Start- und Prüfpfad für API und Frontend.
 
+## Sichere Defaults der Installationsvorlagen (September-Review)
+
+`compose.runtime.yml` und `compose.coolify.yaml` setzen auch bei leeren oder fehlenden
+Umgebungswerten `flowzer-access` als Zugangsrolle sowie getrennt `flowzer-modeler`,
+`flowzer-operator` und `flowzer-worker`. Ein gültiges Token allein reicht damit nicht
+für Fachzugriff, Modellierung, Diagnose oder Worker-Aktionen. Die Werte können über
+`FLOWZER_AUTH_REQUIRED_ROLE` und `FLOWZER_AUTH_ROLE_MODELER`/`OPERATOR`/`WORKER`
+ausdrücklich auf installationsspezifische **nichtleere** Rollen abgebildet werden.
+
+**Upgradehinweis:** Vor einem späteren Deployment die entsprechenden Rollen im IdP
+zuordnen oder bestehende Rollennamen konfigurieren. Personen benötigen die Zugangsrolle
+und nur ihre fachlich erforderlichen Zusatzrollen; technische Worker erhalten keine
+Modeler-/Operatorrechte. Leere Umgebungswerte schalten diese Compose-Grenzen nicht ab.
+Die historische rollenlose API-Konfiguration außerhalb dieser Vorlagen bleibt ein
+Kompatibilitätspfad, keine Produktionsfreigabe. `Authentication=None` ist weiterhin
+nur für ausdrücklich lokalen Entwicklungsbetrieb gedacht.
+
+KI-Datenfluss und Ausführung besitzen getrennte Opt-ins in beiden Vorlagen:
+`FLOWZER_AI_ALLOW_CLOUD_PROVIDERS`, `FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS` und
+`FLOWZER_AI_EXECUTION_ENABLED` sind standardmäßig `false`. Das Aktivieren einer
+Verbindung allein startet den Executor nicht. KI-Rollen und Provider-Secrets müssen
+zusätzlich richtig zugeordnet bzw. zur Laufzeit injiziert sein. Es wird kein Secret
+in der Vorlage gespeichert. Diese Dokumentation aktiviert keinen laufenden Dienst.
+
+Die sicheren Defaults, leere Werte, explizite Rollennamen und KI-Opt-ins werden ohne
+Daemonzugriff durch `node --test tests/ui-smoke/runtime-config.test.mjs` mit dem echten
+Compose-Konfigurationsparser geprüft. Dabei werden weder `.env` noch produktive
+Umgebungswerte übernommen. Die Browser-API-Wurzeladresse `/` bleibt unterstützt.
+
 ## Enthaltene Bausteine
 
 - dokumentierte Health-Endpunkte der Web-API
@@ -45,6 +74,8 @@ vorgesehen und kein Produktionspfad.
 | `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
+| `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
 ### BFF-Vertrag
@@ -205,12 +236,42 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### KI-Verbindungen
+
+Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
+serverseitig aufgeloeste Secret-Referenzen ist in [AI-CONNECTIONS.md](AI-CONNECTIONS.md)
+dokumentiert. Cloud- und lokale Verarbeitung sind getrennte Installations-Opt-ins. Das
+aktuelle Paket bindet beim Workflow-Deployment eine unveränderliche Verbindungsrevision,
+erzeugt pro aktivem KI-Token genau einen internen Lauf und führt ihn bei ausdrücklicher
+Aktivierung bis zum atomaren BPMN-Ergebniscommit aus. Die Use-Rolle sieht nur aktive
+Verbindungen; die Manage-Rolle darf auch deaktivierte aktuelle Metadaten pflegen. Historische
+Revisionen sind ausschließlich ein interner Runtimevertrag.
+
+Der Executor ist standardmäßig abgeschaltet:
+
+| Einstellung | Standard | Grenze |
+|---|---:|---:|
+| `AiExecution__Enabled` | `false` | explizites Opt-in |
+| `AiExecution__PollIntervalSeconds` | `5` | 1–3.600 |
+| `AiExecution__BatchSize` | `10` | 1–100 parallele Claims |
+| `AiExecution__LeaseSeconds` | `600` | 10–3.600 |
+| `AiExecution__HeartbeatSeconds` | `30` | 1 bis kleiner als Lease |
+| `AiExecution__RetryBaseSeconds` | `30` | 1–3.600 |
+| `AiExecution__MaximumRetrySeconds` | `900` | Retrybasis bis 86.400 |
+
+Ein aktivierter Dienst führt keine Werkzeuge aus. Er wiederholt nur fest klassifizierte
+temporäre Providerfehler innerhalb des am Lauf gebundenen Versuchslimits. Lease-Verlust und
+unklare Ausgänge bleiben für Recovery beziehungsweise Störungsbearbeitung stehen.
+
 ### Rollen und Zuweisungen
 
 Vier Ebenen, die unabhängig voneinander wirken:
 
 1. **Zugang** (`RequiredRole`): Wer Flowzer überhaupt benutzen darf. Ohne die Rolle antwortet jeder Fachendpunkt 403.
-2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`): Wer veröffentlichen und wer den Betrieb einsehen darf. Endpunkte mit einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
+2. **Fähigkeiten** (`Roles:Modeler`, `Roles:Operator`, `Roles:Worker` sowie die
+   getrennten KI-Use-/Manage-Rollen): Wer veröffentlichen, Betrieb einsehen, technische
+   Aufträge bearbeiten oder KI-Verbindungen verwenden/verwalten darf. Endpunkte mit
+   einer dieser Rollen verlangen weiterhin Anmeldung und Zugangsrolle.
 3. **Zuständigkeit für einen Ordner**: Wer einen Ausschnitt des Katalogs bearbeiten und weiterreichen darf, auch ohne die Rolle fürs Modellieren. Siehe [Ordner und Delegation](#ordner-und-delegation).
 4. **Zuweisung im Modell**: Welche Aufgaben eine Person sieht.
 
@@ -796,6 +857,19 @@ Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Gre
 Die indexierte, datensparsame Instanzabfrage ist unter
 [Append-only Vorgangshistorie](PROCESS-HISTORY.md) dokumentiert.
 
+KI-Läufe verwenden ab Migration `014_ai_runs.sql` eine eigene Tabelle. Prozessinstanz und
+Token sind gemeinsam eindeutig; Zustandsrevision, Lease, Wiederaufnahmezeit und
+Providerergebnis liegen in querybaren Spalten. PostgreSQL claimt Provider- und
+Engine-Fortsetzungen atomar. Migration `015_ai_connection_revisions.sql` ergänzt die
+unveränderliche Historie der beim Deployment gebundenen Verbindungsrevisionen. Der
+Engine-Commit speichert Lauf, Instanz, Subscriptions und Historie in derselben Transaktion;
+ein pro Instanz verwendeter PostgreSQL-Advisory-Lock verhindert verlorene Fortschritte bei
+parallelen Mutationen. Alle Engine-Schreiber nehmen ihn vor weiteren Zeilensperren; reine
+Instanzansichten bleiben davon getrennt. Ein Engine-Batch claimt höchstens ein KI-Ergebnis je
+Instanz. Ein abgelaufener Claim nach bereits markiertem externem Aufruf wird
+als unklarer Ausgang angehalten. `FileStorage/AiRuns` besitzt dagegen nur eine
+prozesslokale Sperre und ist kein Mehrprozess- oder Rollbackversprechen.
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash
@@ -818,6 +892,8 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 - lokale Dev-/Compose-Daten: `.data/flowzer-storage`
 - runtime-nahe Containerdaten: `.data/runtime-storage`
 - Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
+- persistente KI-Laufzustände liegen darunter in `FileStorage/AiRuns`.
+- historische KI-Verbindungsrevisionen liegen unter `FileStorage/AiConnections/History`.
 
 ### Sicheres Backup
 

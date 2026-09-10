@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
+import type { AiConnectionDto, AiToolDto } from '@/lib/api/types';
 import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from '@/lib/formKey';
 
 import type {
@@ -21,7 +22,7 @@ import type {
   ScriptDefinition,
   TimerKind,
 } from '../bpmnEditor';
-import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextRow } from './PropertyFields';
+import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextAreaRow, TextRow } from './PropertyFields';
 
 export interface SectionProps {
   properties: ElementProperties;
@@ -309,6 +310,273 @@ export function JobSection({ properties, editor, readOnly }: SectionProps) {
           hint="Wie oft ein fehlgeschlagener Auftrag erneut vergeben wird. Leer bedeutet einmalig."
           onCommit={(value) => editor?.setJob(properties.id, { retries: value })}
         />
+      )}
+    </Section>
+  );
+}
+
+/** Ein Service-Task bleibt BPMN-seitig derselbe Knoten; hier wird seine Ausführungsart gewählt. */
+export function ServiceTaskModeSection({ properties, editor, readOnly }: SectionProps) {
+  return (
+    <Section
+      icon="settings_suggest"
+      title="Ausführungsart"
+      hint="Ein freier Worker-Typ bleibt möglich. KI verwendet den versionierten Flowzer-Vertrag."
+    >
+      <Segmented
+        options={[
+          { value: 'worker' as const, label: 'Worker' },
+          { value: 'ai' as const, label: 'KI' },
+        ]}
+        value={properties.serviceTaskMode}
+        aria-label="Ausführungsart des Service-Tasks"
+        disabled={readOnly}
+        onChange={(mode) => editor?.setServiceTaskMode(properties.id, mode)}
+      />
+    </Section>
+  );
+}
+
+export function AiTaskSection({
+  properties,
+  editor,
+  readOnly,
+  connections,
+  connectionsUnavailable,
+  tools,
+  toolsUnavailable,
+}: SectionProps & {
+  connections: readonly AiConnectionDto[];
+  connectionsUnavailable: boolean;
+  tools: readonly AiToolDto[];
+  toolsUnavailable: boolean;
+}) {
+  const ai = properties.aiTask;
+  if (!ai) {
+    return (
+      <Section icon="psychology" title="KI-Aufgabe">
+        <Notice tone="warn">Der KI-Vertrag ist unvollständig. Wähle die Ausführungsart erneut aus.</Notice>
+      </Section>
+    );
+  }
+  // React may render this section again with a different element. Keep the
+  // already validated configuration in a stable local binding for callbacks.
+  const aiTask = ai;
+
+  const connectionOptions = [
+    { value: '', label: 'Verbindung auswählen …' },
+    ...connections.map((connection) => ({
+      value: connection.id,
+      label: `${connection.name} · ${connection.provider} · ${connection.defaultModel}${connection.ready ? '' : ' · nicht bereit'}`,
+    })),
+  ];
+  if (ai.connectionId && !connections.some((connection) => connection.id === ai.connectionId)) {
+    connectionOptions.push({ value: ai.connectionId, label: `Nicht verfügbare Verbindung · ${ai.connectionId}` });
+  }
+
+  const set = (patch: Parameters<BpmnEditor['setAiTask']>[1]) => editor?.setAiTask(properties.id, patch);
+  const selectedConnection = connections.find((connection) => connection.id === ai.connectionId);
+  const permittedTools = tools.filter((tool) => selectedConnection?.allowedTools.some(
+    (permission) => permission.toolId === tool.id && permission.toolVersion === tool.version,
+  ));
+  const invalidConfiguredTools = aiTask.tools.filter((configured) => !permittedTools.some(
+    (tool) => tool.id === configured.toolId && String(tool.version) === configured.toolVersion,
+  ));
+
+  function toggleTool(tool: AiToolDto) {
+    const configured = aiTask.tools.some(
+      (item) => item.toolId === tool.id && item.toolVersion === String(tool.version),
+    );
+    set({
+      tools: configured
+        ? aiTask.tools.filter((item) => item.toolId !== tool.id || item.toolVersion !== String(tool.version))
+        : [...aiTask.tools, {
+            toolId: tool.id,
+            toolVersion: String(tool.version),
+            approval: tool.sideEffect === 'ReadOnly' ? 'automatic' : 'human',
+          }],
+    });
+  }
+
+  function setApproval(tool: AiToolDto, approval: 'automatic' | 'human' | 'preApproved') {
+    set({
+      tools: aiTask.tools.map((item) =>
+        item.toolId === tool.id && item.toolVersion === String(tool.version)
+          ? { ...item, approval }
+          : item),
+    });
+  }
+
+  function removeConfiguredTool(toolId: string, toolVersion: string) {
+    set({
+      tools: aiTask.tools.filter(
+        (item) => item.toolId !== toolId || item.toolVersion !== toolVersion,
+      ),
+    });
+  }
+
+  return (
+    <Section
+      icon="psychology"
+      title="KI-Aufgabe"
+      hint="Nur deklarierte Eingaben werden verarbeitet. Secret-Werte und Secret-Referenzen gehören nie ins BPMN."
+    >
+      <SelectRow
+        label="Verbindung"
+        value={ai.connectionId}
+        options={connectionOptions}
+        disabled={readOnly || connectionsUnavailable}
+        onChange={(connectionId) => set({ connectionId })}
+      />
+      {connectionsUnavailable && (
+        <Notice tone="warn">Die verwendbaren KI-Verbindungen konnten nicht geladen werden oder sind nicht berechtigt.</Notice>
+      )}
+      <TextRow
+        label="Modell (optional)"
+        value={ai.model}
+        disabled={readOnly}
+        placeholder="Leer verwendet das Standardmodell der Verbindung"
+        onCommit={(model) => set({ model })}
+      />
+      <TextRow
+        label="Version der Anweisung"
+        value={ai.instructionVersion}
+        disabled={readOnly}
+        placeholder="1"
+        monospace
+        onCommit={(instructionVersion) => set({ instructionVersion })}
+      />
+      <TextAreaRow
+        label="Anweisung"
+        value={ai.instruction}
+        disabled={readOnly}
+        placeholder="Beschreibe die fachliche Aufgabe und das erwartete Ergebnis."
+        onCommit={(instruction) => set({ instruction })}
+      />
+      <TextAreaRow
+        label="Ergebnisschema (JSON Schema)"
+        value={ai.resultSchema}
+        disabled={readOnly}
+        monospace
+        rows={7}
+        onCommit={(resultSchema) => set({ resultSchema })}
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <TextRow
+          label="Max. Eingabetokens"
+          value={ai.maxInputTokens}
+          disabled={readOnly}
+          monospace
+          onCommit={(maxInputTokens) => set({ maxInputTokens })}
+        />
+        <TextRow
+          label="Max. Ausgabetokens"
+          value={ai.maxOutputTokens}
+          disabled={readOnly}
+          monospace
+          onCommit={(maxOutputTokens) => set({ maxOutputTokens })}
+        />
+      </div>
+      <TextRow
+        label="Zeitlimit in Sekunden"
+        value={ai.timeoutSeconds}
+        disabled={readOnly}
+        monospace
+        onCommit={(timeoutSeconds) => set({ timeoutSeconds })}
+      />
+      <div className="border-border mt-2 border-t pt-3">
+        <div className="text-text text-xs font-semibold">Werkzeuge</div>
+        <p className="text-muted mt-1 text-xs">
+          Nur von der Verbindung erlaubte, versionierte Werkzeuge sind auswählbar. Die Ausführung folgt erst mit dem Freigabe-Slice.
+        </p>
+        {toolsUnavailable ? (
+          <Notice tone="warn">Der Werkzeugkatalog konnte nicht geladen werden.</Notice>
+        ) : !selectedConnection ? (
+          <Notice tone="muted">Wähle zuerst eine Verbindung.</Notice>
+        ) : permittedTools.length === 0 ? (
+          <Notice tone="muted">Diese Verbindung erlaubt keine registrierten Werkzeuge.</Notice>
+        ) : (
+          <div className="mt-2 grid gap-2">
+            {permittedTools.map((tool) => {
+              const configured = ai.tools.find(
+                (item) => item.toolId === tool.id && item.toolVersion === String(tool.version),
+              );
+              const permission = selectedConnection.allowedTools.find(
+                (item) => item.toolId === tool.id && item.toolVersion === tool.version,
+              );
+              const mayPreApprove = tool.allowsPreApproval && permission?.allowPreApproval;
+              const approvalOptions = [
+                ...(tool.sideEffect === 'ReadOnly'
+                  ? [{ value: 'automatic' as const, label: 'Automatisch' }]
+                  : []),
+                { value: 'human' as const, label: 'Menschliche Freigabe' },
+                ...(mayPreApprove
+                  ? [{ value: 'preApproved' as const, label: 'Im Workflow vorab freigegeben' }]
+                  : []),
+              ];
+              return (
+                <div key={`${tool.id}:${tool.version}`} className="bg-surface-2 rounded-[var(--r-sm)] p-2.5">
+                  <label className="flex cursor-pointer items-start gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(configured)}
+                      disabled={readOnly}
+                      onChange={() => toggleTool(tool)}
+                    />
+                    <span>
+                      <span className="block font-semibold">{tool.name} · v{tool.version}</span>
+                      <span className="text-muted block">{tool.description}</span>
+                    </span>
+                  </label>
+                  {configured && (
+                    <select
+                      className="bg-surface border-border text-text mt-2 w-full rounded border px-2 py-1.5 text-xs"
+                      aria-label={`Freigabe für ${tool.name}`}
+                      value={configured.approval}
+                      disabled={readOnly}
+                      onChange={(event) => setApproval(
+                        tool,
+                        event.target.value as 'automatic' | 'human' | 'preApproved',
+                      )}
+                    >
+                      {approvalOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {invalidConfiguredTools.length > 0 && (
+          <div className="mt-2 grid gap-2">
+            <Notice tone="warn">
+              Gespeicherte Werkzeugreferenzen sind nicht mehr erlaubt oder registriert. Entferne sie vor dem Speichern.
+            </Notice>
+            {invalidConfiguredTools.map((configured) => (
+              <div
+                key={`${configured.toolId}:${configured.toolVersion}`}
+                className="bg-surface-2 flex items-center justify-between gap-2 rounded-[var(--r-sm)] p-2.5"
+              >
+                <span className="text-muted min-w-0 truncate font-mono text-xs">
+                  {configured.toolId} · v{configured.toolVersion}
+                </span>
+                <Button
+                  size="sm"
+                  variant="danger"
+                  disabled={readOnly}
+                  onClick={() => removeConfiguredTool(configured.toolId, configured.toolVersion)}
+                >
+                  Entfernen
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {(properties.inputs.length === 0 || properties.outputs.length === 0) && (
+        <Notice tone="warn">KI-Aufgaben brauchen mindestens eine vollständige Ein- und Ausgangszuordnung.</Notice>
       )}
     </Section>
   );

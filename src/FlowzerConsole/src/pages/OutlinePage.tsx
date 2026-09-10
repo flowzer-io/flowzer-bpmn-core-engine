@@ -90,7 +90,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
     if (!written?.xml) return;
     const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
 
-    validateDefinition.mutate(written.xml, {
+    validateDefinition.mutate({ xml: written.xml, deployment: kind === 'deploy' }, {
       onSuccess: () => {
         mutation.mutate(
           { xml: written.xml!, previousGuid: latestQuery.data?.id },

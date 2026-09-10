@@ -1,8 +1,9 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/1` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v1.json` und unterscheidet je Elementart:
+`flowzer.bpmn-capabilities/3` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v3.json` und unterscheidet je Elementart. Version 1 und 2
+bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
 - **parsable:** Der bestehende Parser kann das Element lesen, etwa für historische Modelle.
@@ -10,14 +11,15 @@ Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
 
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
 Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
-nicht ausführbar abgelehnt. Flowzer errät keine Fähigkeiten aus einer konsumierenden
-Anwendung; der Vertrag ist vollständig hostneutral.
+nicht ausführbar abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
+persistenter Lauf, Recovery und Engine-Fortschritt nun denselben geprüften Vertrag verwenden.
 
 ## Öffentliche API
 
 - `GET /definition/capabilities` liefert den aktuellen Vertrag.
-- `POST /definition/validate` prüft BPMN-XML ohne Speicherung.
-- `POST /definition` und `POST /definition/deploy` erzwingen dieselbe Prüfung innerhalb
+- `POST /definition/validate` prüft einen speicherbaren Autorenstand,
+- `POST /definition/validate/deployment` prüft denselben Stand für eine Veröffentlichung.
+- `POST /definition` und `POST /definition/deploy` erzwingen die jeweils passende Prüfung innerhalb
   ihres serverseitigen Anwendungsfalls. Eine Browser-Vorprüfung ist daher keine
   Sicherheitsgrenze.
 
@@ -28,18 +30,18 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 1 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 3 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v1
+## Ausführbares Profil v3
 
 Offiziell ausführbar sind:
 
 - Plain-, Message-, Signal- und Timer-Start
 - Plain- und Terminate-Ende
-- User-, Service-, Receive- und generische Tasks
+- User-, Worker-Service-, KI-Service-, Receive- und generische Tasks
 - exklusive und parallele Gateways
 - Sequenzflüsse und lokale Subprozesse
 - Message-, Signal- und Timer-Intermediate-Catch-/Boundary-Events
@@ -50,9 +52,17 @@ Error-/Escalation-Pfade. Diese Grenzen werden erweitert, wenn der jeweilige Runt
 mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der
 Parser XML lesen kann.
 
+`serviceTask.aiTask` ist modellierbar, parsebar und ausführbar. Beim Deployment bindet
+Flowzer die konkrete Verbindungsrevision und das effektive Modell unveränderlich an die
+Definition. Seine vollständigen Vertrags-, Lauf- und Sicherheitsregeln stehen in
+[AI-TASKS.md](AI-TASKS.md). Der Autorenvertrag kann seit #254 / PR #255 zusätzlich typisierte
+Werkzeugreferenzen speichern. Eine solche Referenz blockiert das Deployment noch mit
+`bpmn.ai_task.tools_runtime_unavailable`, bis Aktionsjournal und parametergebundene
+Freigaben denselben Ausführungsschutz belegen. KI-Tasks ohne Werkzeuge bleiben ausführbar.
+
 ## Statische Prüfungen
 
-Neben der Elementmatrix prüft Version 1 vor Save und Deploy:
+Neben der Elementmatrix prüft Version 3 vor Save und Deploy:
 
 - mindestens einen ausführbaren Prozess
 - nichtleere und innerhalb eines Containers eindeutige Element-IDs
@@ -72,6 +82,10 @@ Der JSON-Vertrag wird als Ressource in die Engine eingebettet und über OpenAPI
 veröffentlicht. Eine Änderung der zugesagten Semantik benötigt eine neue Vertragsversion
 und Regressionstests. Laufende Instanzen werden nicht nachträglich gegen eine neuere
 Matrix validiert; ihre gebundene Definitions- und Formularversion bleibt maßgeblich.
+
+Version 3 erweitert Version 2 ausschließlich um die belegte KI-Service-Task-Runtime. Die
+historischen Dateien werden nicht umgeschrieben, damit gespeicherte Vertragsstände und
+generierte Clients nachvollziehbar bleiben.
 
 Der OpenAPI-Snapshot und die generierten TypeScript-Schemas werden gemeinsam aktualisiert.
 Konkrete Hosts können die generische API oder die öffentlichen Pakete verwenden, werden

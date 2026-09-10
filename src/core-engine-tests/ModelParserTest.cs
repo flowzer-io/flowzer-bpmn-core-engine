@@ -48,7 +48,7 @@ public class ModelParserTest
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalCatchEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateSignalThrowEvent>(process, 1);
             AssertFlowNodeOfTypes<FlowzerIntermediateTimerCatchEvent>(process, 1);
-            
+
             AssertFlowNodeOfTypes<SequenceFlow>(process, 21);
         });
 
@@ -323,6 +323,64 @@ public class ModelParserTest
             // Ein FEEL-Ausdruck lässt sich ohne Prozessdaten nicht auflösen; der Standardwert
             // ist ehrlicher als eine erfundene Zahl.
             serviceTasks["Activity_MitAusdruck"].FlowzerRetries.Should().Be(0);
+        }
+    }
+
+    // Testzweck: Der Parser übernimmt den vollständigen, versionierten KI-Vertrag in das
+    // Laufzeitmodell, ohne Secret-Referenzen oder implizite Prozessvariablen zu erfinden.
+    [Test]
+    public void ParseModel_ShouldReadAiTaskContract()
+    {
+        const string xml = """
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                              xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                              id="Definitions_Ai">
+              <bpmn:process id="Process_Ai" isExecutable="true">
+                <bpmn:serviceTask id="Ai_1">
+                  <bpmn:extensionElements>
+                    <zeebe:taskDefinition type="flowzer.ai.v1" retries="2" />
+                    <flowzer:aiTask contractVersion="1"
+                                     connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+                                     model="model-a"
+                                     instructionVersion="3"
+                                     maxInputTokens="4096"
+                                     maxOutputTokens="512"
+                                     timeoutSeconds="45">
+                      <flowzer:instruction>Classify the request.</flowzer:instruction>
+                      <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+                      <flowzer:tool id="flowzer.directory.lookup" version="2" approval="automatic" />
+                      <flowzer:tool id="flowzer.message.send" version="1" approval="human" />
+                    </flowzer:aiTask>
+                    <zeebe:ioMapping>
+                      <zeebe:input source="=request" target="request" />
+                      <zeebe:output source="=result" target="classification" />
+                    </zeebe:ioMapping>
+                  </bpmn:extensionElements>
+                </bpmn:serviceTask>
+              </bpmn:process>
+            </bpmn:definitions>
+            """;
+
+        var task = ModelParser.ParseModel(xml).GetProcesses().Single()
+            .FlowElements.OfType<ServiceTask>().Single();
+
+        using (new AssertionScope())
+        {
+            task.Implementation.Should().Be("flowzer.ai.v1");
+            task.FlowzerAiTask.Should().NotBeNull();
+            task.FlowzerAiTask!.ContractVersion.Should().Be(1);
+            task.FlowzerAiTask.ConnectionId.Should().Be(Guid.Parse("118adeb6-65a4-4e57-a03b-d3b0a3300ac9"));
+            task.FlowzerAiTask.Model.Should().Be("model-a");
+            task.FlowzerAiTask.InstructionVersion.Should().Be(3);
+            task.FlowzerAiTask.Instruction.Should().Be("Classify the request.");
+            task.FlowzerAiTask.ResultSchema.Should().Be("{\"type\":\"object\"}");
+            task.FlowzerAiTask.MaxInputTokens.Should().Be(4096);
+            task.FlowzerAiTask.MaxOutputTokens.Should().Be(512);
+            task.FlowzerAiTask.TimeoutSeconds.Should().Be(45);
+            task.FlowzerAiTask.Tools.Should().Equal(
+                new AiTaskToolReference("flowzer.directory.lookup", 2, AiToolApprovalMode.Automatic),
+                new AiTaskToolReference("flowzer.message.send", 1, AiToolApprovalMode.HumanRequired));
         }
     }
 
@@ -647,6 +705,27 @@ public class ModelParserTest
             .SetName("Assignment_contract_in_wrong_namespace");
         yield return new TestCaseData("""<flowzer:taskAssignment mode="directory" assigneeId="10000000-0000-0000-0000-000000000001" candidateUserId="10000000-0000-0000-0000-000000000002" />""")
             .SetName("Unknown_assignment_attribute");
+    }
+
+    // Testzweck: Fremde oder verschachtelte input/output-Elemente werden weder bei
+    // User-Tasks noch über den gemeinsam verwendeten KI-Parser in Laufzeitdaten übernommen.
+    [Test]
+    public void ParseMappings_ShouldReadOnlyDirectZeebeContractChildren()
+    {
+        var task = ParseAssignedUserTask("""
+            <other:ioMapping xmlns:other="urn:untrusted">
+              <other:input source="=privateValue" target="foreign" />
+            </other:ioMapping>
+            <zeebe:ioMapping>
+              <zeebe:input source="=request" target="request" />
+              <other:input xmlns:other="urn:untrusted" source="=privateValue" target="foreignChild" />
+              <zeebe:output source="=result" target="result" />
+              <zeebe:wrapper><zeebe:input source="=privateValue" target="nested" /></zeebe:wrapper>
+            </zeebe:ioMapping>
+            """);
+        task.InputMappings.Should().ContainSingle();
+        task.InputMappings!.Single().Target.Should().Be("request");
+        task.OutputMappings.Should().ContainSingle();
     }
 
     private static UserTask ParseAssignedUserTask(string assignmentXml)

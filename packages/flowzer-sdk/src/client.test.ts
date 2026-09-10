@@ -13,7 +13,7 @@ describe('FlowzerClient', () => {
   // Testzweck: Ein externer Host kann Aufgaben mit einem kurzlebig gelieferten
   // Bearer-Token laden, ohne dass der SDK globalen Auth-Zustand speichert.
   it('lädt Aufgaben über einen hostseitigen Bearer-Callback', async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
       successful: true,
       result: [{ id: 'task-1', name: 'Prüfen' }],
     }));
@@ -399,6 +399,133 @@ describe('FlowzerClient', () => {
     await expect(client.formSections.getVersion('section-1', {
       major: Number.NaN,
       minor: 0,
+    })).rejects.toThrow(TypeError);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Administrative Hosts können Verbindungsmetadaten anlegen, ohne
+  // dass der SDK-Antwortvertrag die nur schreibbare Secret-Referenz zurückspiegelt.
+  it('legt eine KI-Verbindung über den sicheren Metadatenvertrag an', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: {
+        id: '18e68e30-8bf1-4f67-9709-d403884df66f',
+        name: 'Lokales Modell',
+        provider: 1,
+        location: 1,
+        baseAddress: 'https://models.example.test/v1',
+        defaultModel: 'model-1',
+        enabled: true,
+        ready: true,
+        revision: 1,
+        updatedAtUtc: '2026-09-09T10:00:00Z',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    const connection = await client.aiConnections.create({
+      name: 'Lokales Modell',
+      provider: 1,
+      location: 1,
+      baseAddress: 'https://models.example.test/v1',
+      defaultModel: 'model-1',
+      secretReference: 'env:LOCAL_MODEL_KEY',
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/ai/connection');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toMatchObject({
+      secretReference: 'env:LOCAL_MODEL_KEY',
+    });
+    expect(connection).not.toHaveProperty('secretReference');
+  });
+
+  // Testzweck: Modellierungsoberflächen erhalten Werkzeugverträge über einen eigenen
+  // rein lesbaren SDK-Pfad; die Verbindung referenziert nur die erlaubte stabile Version.
+  it('lädt KI-Werkzeuge und bindet ihre Version an eine Verbindung', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(jsonResponse({
+        successful: true,
+        result: [{
+          id: 'flowzer.directory.lookup', version: 1, name: 'Directory lookup',
+          description: 'Reads one entry.', inputSchema: '{}', outputSchema: '{}',
+          sideEffect: 0, allowsPreApproval: false, contractHash: 'ABC',
+        }],
+      }))
+      .mockResolvedValueOnce(jsonResponse({ successful: true, result: {} }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.aiTools.list()).resolves.toMatchObject([
+      { id: 'flowzer.directory.lookup', version: 1 },
+    ]);
+    await client.aiConnections.create({
+      name: 'Cloud',
+      provider: 0,
+      location: 0,
+      defaultModel: 'model-1',
+      secretReference: 'env:FLOWZER_AI_KEY',
+      allowedTools: [{
+        toolId: 'flowzer.directory.lookup',
+        toolVersion: 1,
+        allowPreApproval: false,
+      }],
+    });
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/ai/tool');
+    expect(JSON.parse(String(fetch.mock.calls[1]![1]?.body))).toMatchObject({
+      allowedTools: [{ toolId: 'flowzer.directory.lookup', toolVersion: 1 }],
+    });
+  });
+
+  // Testzweck: Änderungen und Aktivierung bleiben revisionsgebunden und IDs
+  // werden auch bei ungewöhnlichen Hostwerten als einzelnes Pfadsegment kodiert.
+  it('ändert und aktiviert KI-Verbindungen mit Compare-and-Swap', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(async () => jsonResponse({
+      successful: true,
+      result: {
+        id: 'connection/id', name: 'Cloud', provider: 0, location: 0,
+        defaultModel: 'model-2', enabled: true, ready: true, revision: 3,
+        updatedAtUtc: '2026-09-09T10:00:00Z',
+      },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.aiConnections.update('connection/id', {
+      expectedRevision: 2,
+      name: 'Cloud',
+      provider: 0,
+      location: 0,
+      defaultModel: 'model-2',
+    });
+    await client.aiConnections.setEnabled('connection/id', {
+      expectedRevision: 3,
+      enabled: true,
+    });
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      '/api/ai/connection/connection%2Fid',
+      '/api/ai/connection/connection%2Fid/enabled',
+    ]);
+    expect(fetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
+      {
+        expectedRevision: 2,
+        name: 'Cloud',
+        provider: 0,
+        location: 0,
+        defaultModel: 'model-2',
+      },
+      { expectedRevision: 3, enabled: true },
+    ]);
+  });
+
+  // Testzweck: Untypisierte Aufrufer können den serverseitigen CAS nicht mit
+  // ungültigen Revisionen umgehen; in diesem Fall findet kein Request statt.
+  it('weist ungültige KI-Verbindungsrevisionen vor dem Request zurück', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>();
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.aiConnections.setEnabled('connection-1', {
+      expectedRevision: 0,
+      enabled: false,
     })).rejects.toThrow(TypeError);
     expect(fetch).not.toHaveBeenCalled();
   });

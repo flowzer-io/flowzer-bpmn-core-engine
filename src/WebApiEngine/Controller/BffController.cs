@@ -72,7 +72,9 @@ public sealed class BffController(
                      ("access", FlowzerPolicies.Access),
                      ("modeler", FlowzerPolicies.Modeler),
                      ("operator", FlowzerPolicies.Operator),
-                     ("worker", FlowzerPolicies.Worker)
+                     ("worker", FlowzerPolicies.Worker),
+                     ("aiConnectionUse", FlowzerPolicies.AiConnectionUse),
+                     ("aiConnectionManage", FlowzerPolicies.AiConnectionManage)
                  })
         {
             if ((await authorizationService.AuthorizeAsync(User, policy)).Succeeded)

@@ -9,6 +9,7 @@ using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
+using WebApiEngine.Ai;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +51,44 @@ builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddSingleton<AiToolRegistry>();
+builder.Services.AddScoped<AiConnectionService>();
+builder.Services.AddOptions<FlowzerAiOptions>()
+    .Bind(builder.Configuration.GetSection(FlowzerAiOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<IAiSecretStore, EnvironmentAiSecretStore>();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().AiConnectionStorage);
+builder.Services.AddHttpClient("flowzer-ai-provider", client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .RedactLoggedHeaders(["Authorization", "x-api-key"]);
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiResponsesAdapter(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+builder.Services.AddSingleton<IAiHostAddressResolver, SystemAiHostAddressResolver>();
+builder.Services.AddSingleton<IAiSocketDialer, SystemAiSocketDialer>();
+builder.Services.AddSingleton<AiResolvedEndpointResolver>();
+builder.Services.AddSingleton<PinnedAiSocketConnector>();
+builder.Services.AddSingleton<PinnedAiHttpClientLeaseFactory>();
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new OpenAiCompatibleChatAdapter(
+    serviceProvider.GetRequiredService<PinnedAiHttpClientLeaseFactory>()));
+builder.Services.AddSingleton<IAiProviderAdapter>(serviceProvider => new AnthropicMessagesAdapter(
+    serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-ai-provider")));
+builder.Services.AddSingleton<AiProviderRegistry>();
+builder.Services.AddSingleton<AiInferenceGateway>();
+builder.Services.AddSingleton<IAiInferenceGateway>(serviceProvider =>
+    serviceProvider.GetRequiredService<AiInferenceGateway>());
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<IStorageSystem>().AiRunStorage);
+builder.Services.AddOptions<AiRunExecutionOptions>()
+    .Bind(builder.Configuration.GetSection(AiRunExecutionOptions.SectionName))
+    .Validate(options => options.IsValid(), "AI run execution configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRunExecutionOptions>>()
+        .Value.ToPolicy());
+builder.Services.AddSingleton<AiRunExecutor>();
+builder.Services.AddHostedService<AiRunBackgroundService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()

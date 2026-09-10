@@ -56,4 +56,18 @@ public class CompleteJobRequestDtoTest
         request.Should().NotBeNull();
         request!.Variables.Should().BeNull();
     }
+
+    // Testzweck: Der Heartbeat-Vertrag uebernimmt die Worker-Kennung und die gewuenschte
+    // begrenzte Lease-Dauer, damit Worker den Request ohne Sonderkonverter senden koennen.
+    [Test]
+    public void RenewJobLeaseRequest_ShouldDeserializeThePublicContract()
+    {
+        var request = JsonSerializer.Deserialize<RenewJobLeaseRequestDto>(
+            """{ "workerId": "ai-worker-1", "lockSeconds": 900 }""",
+            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        request.Should().NotBeNull();
+        request!.WorkerId.Should().Be("ai-worker-1");
+        request.LockSeconds.Should().Be(900);
+    }
 }

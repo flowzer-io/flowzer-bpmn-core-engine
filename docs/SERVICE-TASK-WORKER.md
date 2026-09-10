@@ -1,6 +1,6 @@
 # Service-Tasks: Vertrag für externe Worker
 
-**Stand:** 5. September 2026
+**Stand:** 9. September 2026
 
 Die Engine führt Service-Tasks nicht selbst aus. Sie hätte dafür Netzwerkzugriff, Zugangsdaten und eine eigene Wiederholungslogik nötig, und jede fachliche Anbindung würde in der Engine landen. Stattdessen wird jeder wartende Service-Task ein **Auftrag**, den ein eigener Dienst holt, abarbeitet und zurückmeldet.
 
@@ -60,6 +60,26 @@ POST /job/fetch
 
 Die Antwort enthält die übernommenen Aufträge. Jeder gehört für `lockSeconds` diesem Worker; ein zweiter Worker bekommt ihn in dieser Zeit nicht. Läuft die Frist ab, ohne dass zurückgemeldet wurde, wird der Auftrag wieder vergeben. Ein abgestürzter Worker blockiert die Instanz damit nicht dauerhaft.
 
+**Lease eines laufenden Auftrags verlängern**
+
+```http
+POST /job/{jobId}/lease
+{ "workerId": "zahlungsdienst-1", "lockSeconds": 300 }
+```
+
+Ein länger laufender Worker sendet diesen Heartbeat rechtzeitig vor Ablauf. Die Dauer wird
+vom Serverzeitpunkt gerechnet und ist wie beim Abholen auf 1 bis 3.600 Sekunden begrenzt.
+Die Antwort enthält `jobId` und den tatsächlich gespeicherten UTC-Ablaufzeitpunkt
+`lockedUntil`; eine bereits länger gültige Lease wird nicht verkürzt. Worker-ID und
+authentifizierte Person müssen mit dem aktuellen Lease-Inhaber übereinstimmen.
+
+Eine abgelaufene Lease lässt sich nicht wiederbeleben: Der Heartbeat antwortet mit `409`,
+und der Worker muss den Auftrag wieder regulär abholen. PostgreSQL verbindet Besitzerprüfung,
+Ablaufprüfung und Aktualisierung in einem Statement. Damit kann auch bei mehreren API-Prozessen
+kein verspäteter Heartbeat die zwischenzeitlich einem anderen Worker gegebene Lease überschreiben.
+Die Dateiablage serialisiert diese Operation nur innerhalb eines API-Prozesses und bleibt ein
+Entwicklungsweg.
+
 **Ergebnis melden**
 
 ```http
@@ -78,7 +98,9 @@ POST /job/{jobId}/fail
 
 Bleiben Versuche übrig, wird der Auftrag nach der Wartezeit wieder vergeben. Ist der letzte verbraucht, bleibt er liegen und wartet auf einen Eingriff, statt still zu verschwinden. `GET /job` zeigt alle Aufträge samt Zustand; der Endpunkt verlangt die Betriebsrolle.
 
-Meldet ein Worker zurück, dem der Auftrag nicht mehr gehört, antwortet die API mit 409. Das passiert, wenn seine Frist abgelaufen war und inzwischen ein anderer Worker übernommen hat. Zwei Ergebnisse für denselben Token würden den Prozess doppelt weiterführen.
+Meldet ein Worker zurück oder verlängert eine Lease, die ihm nicht mehr gehört, antwortet die
+API mit 409. Das passiert, wenn seine Frist abgelaufen war oder inzwischen ein anderer Worker
+übernommen hat. Zwei Ergebnisse für denselben Token würden den Prozess doppelt weiterführen.
 
 ## Benachrichtigung statt Nachfragen
 

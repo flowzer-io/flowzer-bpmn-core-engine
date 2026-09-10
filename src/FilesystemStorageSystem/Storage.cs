@@ -27,6 +27,8 @@ public class Storage : IStorageSystem
         ServiceTaskStorage = new ServiceTaskStorage(this);
         IdempotencyStorage = new IdempotencyStorage(this);
         IdentityDirectoryStorage = new IdentityDirectoryStorage(this);
+        AiConnectionStorage = new AiConnectionStorage(this);
+        AiRunStorage = new AiRunStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
@@ -42,6 +44,8 @@ public class Storage : IStorageSystem
     public IUserTaskDeadlineStorage UserTaskDeadlineStorage { get; }
     public IUserTaskNotificationStorage UserTaskNotificationStorage { get; }
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
+    public IAiConnectionStorage AiConnectionStorage { get; }
+    public IAiRunStorage AiRunStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

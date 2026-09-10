@@ -20,6 +20,7 @@ describe('visibleNavItems', () => {
     expect(keys).toContain('forms');
     expect(keys).not.toContain('operations');
     expect(keys).not.toContain('form-sections');
+    expect(keys).not.toContain('ai-connections');
   });
 
   // Testzweck: Die Abschnittsbibliothek ist ein Modellierungswerkzeug und erscheint
@@ -33,6 +34,15 @@ describe('visibleNavItems', () => {
   // zu einer Ablehnung fuehrt, gehoert nicht in die Navigation.
   it('zeigt den Betrieb nur mit der Betriebsrolle', () => {
     expect(visibleNavItems(only('access', 'operator')).map((item) => item.key)).toContain('operations');
+  });
+
+  // Testzweck: Der Verwaltungsbereich fuer Providerziele und Secret-Referenzen erscheint
+  // nur mit der getrennten KI-Managerfaehigkeit, nicht bereits fuer Modellierende oder Nutzer.
+  it('zeigt KI-Verbindungen nur deren Verwaltung', () => {
+    expect(visibleNavItems(only('access', 'modeler', 'aiConnectionUse')).map((item) => item.key))
+      .not.toContain('ai-connections');
+    expect(visibleNavItems(only('access', 'aiConnectionManage')).map((item) => item.key))
+      .toContain('ai-connections');
   });
 
   // Testzweck: Die eigenen Aufgaben stehen im Menue. Sie waren frueher nur ueber das

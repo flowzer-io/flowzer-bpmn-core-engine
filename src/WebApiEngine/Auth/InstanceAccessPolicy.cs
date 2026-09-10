@@ -34,8 +34,8 @@ public static class InstanceAccessPolicy
         IReadOnlyDictionary<Guid, UserTaskWorkState>? workStates)
     {
         if (workStates?.TryGetValue(task.Id, out var state) == true
-            && state.AssigneeOwnerKey is { } owner)
-            return string.Equals(owner, UserTaskDraftOwnerKey.Create(currentUser), StringComparison.Ordinal);
+            && state.AssigneeOwnerKey is not null)
+            return UserTaskWorkAuthorization.IsActualAssignee(state, task, currentUser, directorySnapshot);
         UserTaskAssignment.EnsureAssignmentFromModel(task);
         return UserTaskAssignment.IsVisibleTo(task, currentUser, directorySnapshot, seeAll: false);
     }

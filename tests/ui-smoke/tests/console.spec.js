@@ -532,6 +532,9 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
+    // Die eigene KI-Kachel bleibt ein Service-Task, muss aber als eigener Autorenweg
+    // auffindbar sein und darf nicht hinter dem generischen Worker versteckt bleiben.
+    await expect(page.locator('.djs-palette [data-action="create.flowzer-ai-task"]')).toBeVisible();
   });
 
   // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des
@@ -743,6 +746,53 @@ test.describe('Konsole', () => {
 
     await reiter.getByRole('link', { name: /Instanzen/ }).click();
     await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+  });
+
+  // Testzweck: Die neue Verwaltungsseite ist im echten Browser erreichbar und zeigt
+  // bei vorhandenen Verbindungen niemals eine vom Server nicht gelieferte Secret-
+  // Referenz. Ein normales Metadatenupdate darf deshalb auch keine leere Referenz senden.
+  test('KI-Verbindungen lassen sich ohne Ruecklesen der Secret-Referenz pflegen', async ({ page }) => {
+    const id = randomUUID();
+    let updateBody;
+    await page.route('**/api/ai/connection**', async (route) => {
+      const request = route.request();
+      const connection = {
+        id,
+        name: 'Lokales Modell',
+        provider: 1,
+        location: 1,
+        baseAddress: 'http://127.0.0.1:11434/v1',
+        defaultModel: 'model-example',
+        enabled: true,
+        ready: true,
+        revision: request.method() === 'PUT' ? 2 : 1,
+        updatedAtUtc: '2026-09-09T16:00:00Z'
+      };
+      if (request.method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ successful: true, result: [connection] })
+        });
+        return;
+      }
+      updateBody = request.postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ successful: true, result: connection })
+      });
+    });
+
+    await page.goto('/ai-connections');
+    await expect(page.getByRole('heading', { name: 'KI-Verbindungen' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Lokales Modell/ })).toBeVisible();
+
+    const secretReference = page.getByRole('textbox', { name: 'Secret-Referenz' });
+    await expect(secretReference).toHaveValue('');
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect.poll(() => updateBody).toBeTruthy();
+    expect(updateBody).not.toHaveProperty('secretReference');
   });
 
   // Testzweck: Eine Auswahl mit `inline` steht nebeneinander, und ein verstecktes Feld

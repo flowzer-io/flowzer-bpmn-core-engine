@@ -25,11 +25,11 @@ public class ServiceTaskStorage : IServiceTaskStorage
     /// den Einzelknotenbetrieb, fuer den diese Ablage gedacht ist; im Mehrknotenbetrieb gehoert
     /// die PostgreSQL-Ablage darunter, die den Auftrag in einem Statement uebernimmt.
     /// </summary>
-    private static readonly SemaphoreSlim ClaimLock = new(1, 1);
+    private static readonly SemaphoreSlim LeaseLock = new(1, 1);
 
     public async Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs)
     {
-        await ClaimLock.WaitAsync();
+        await LeaseLock.WaitAsync();
         try
         {
             var claimed = ReadAll()
@@ -49,7 +49,36 @@ public class ServiceTaskStorage : IServiceTaskStorage
         }
         finally
         {
-            ClaimLock.Release();
+            LeaseLock.Release();
+        }
+    }
+
+    public async Task<ServiceTaskJob?> RenewJobLease(
+        Guid jobId,
+        string lockOwner,
+        DateTime now,
+        DateTime lockedUntil)
+    {
+        await LeaseLock.WaitAsync();
+        try
+        {
+            var job = await GetLockedJob(jobId, lockOwner, now);
+            if (job is null)
+            {
+                return null;
+            }
+
+            if (job.LockedUntil < lockedUntil)
+            {
+                job.LockedUntil = lockedUntil;
+                await SaveJob(job);
+            }
+
+            return job;
+        }
+        finally
+        {
+            LeaseLock.Release();
         }
     }
 

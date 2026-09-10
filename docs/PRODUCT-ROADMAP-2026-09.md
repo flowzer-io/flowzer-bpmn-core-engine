@@ -7,16 +7,22 @@ Umsetzungsstand fest. Eine Checkbox wird erst nach belegter Implementierung und
 Verifikation geschlossen. Vorhandene Grundlagen sind kein Nachweis für ein ganzes
 Paket. `docs/ROADMAP.md` verweist auf diesen führenden Plan.
 
-## Aktuelles Arbeitsmandat
+## Aktuelles Arbeitsmandat und Integrationsstand
 
-Am 8. September 2026 hat Christian die autonome Umsetzung aller Pakete beauftragt.
-Terra/Luna dürfen für begrenzte Teilaufgaben unterstützen; vor der finalen
-Zusammenführung prüft Astra mit hoher Reasoning-Stufe den Gesamtstand und erkannte
-Probleme werden behoben. Bis zur belegten Gesamt-Abnahme bleibt die Arbeit in
-Topic-Branches und PRs. Für den danach verifizierten Gesamtstand hat Christian den
-Merge nach `main` und das dadurch ausgelöste Deployment ausdrücklich freigegeben;
-direkte Zwischenstände werden weiterhin weder nach `main` noch `release` geschrieben
-oder produktiv ausgerollt.
+Am 10. September 2026 hat Christian die Gesamtprüfung der vorhandenen Pakete,
+die unmittelbare Korrektur belegter Fehler und eine Strategie für die Restarbeit
+beauftragt. Der aktuelle Auftrag umfasst keinen Merge und kein Deployment.
+Die frühere autonome Implementierungsphase ist nicht mit einer Produktabnahme
+oder einer pauschalen Freigabe für weitere neue Funktionen gleichzusetzen.
+
+Die Detail-PRs sind in sechs kumulativen Checkpoints konsolidiert:
+#189 → #201 → #217 → #227 → #237 → #255. Der aktuelle Gesamtstand einschließlich
+paketübergreifender Reviewkorrekturen liegt am Ende dieser Kette in #255.
+Die früheren Zwischenstände sind keine separat freigegebenen Produktivreleases.
+`main` ist Entwicklung; ausschließlich `release` ist der Produktivrelease-Zweig.
+
+Review, Grenzen und nächste abgegrenzte Pakete stehen in
+[REVIEW-CHECKPOINTS-2026-09.md](REVIEW-CHECKPOINTS-2026-09.md).
 
 ## Ziel und Grenzen
 
@@ -40,14 +46,14 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
+**Historischer Implementierungsschritt:** #228 / PR #229 ergänzt die zentrale, versionierte BPMN-Fähigkeitsmatrix und
 dieselbe serverseitige Vorab-/Save-/Deploy-Prüfung. Diagramm und Gliederung zeigen
 strukturierte Befunde dauerhaft und springen zum betroffenen Element. Die bereits
 umgesetzten SDK-/React-Pakete und die Flowzer-Konsole bleiben frei von konkreten Hosts.
 Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
 noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
-**Folgeslice:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
+**Instanzrechte:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
 aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
 Aufgaben-Leseprojektion ersetzt noch keine immutable Formularbindung oder
 serverseitige Submission-Validierung.
@@ -281,21 +287,46 @@ und Abschluss bleiben identisch.
 
 ## M5 – KI-Tasks und Werkzeuge
 
-- [ ] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
+- [x] KI-Kachel als BPMN-Service-Task mit dokumentierter Flowzer-Erweiterung:
   Verbindung, Modell, versionierte Anweisung, deklarierte Ein-/Ausgaben,
-  Ergebnisschema, Werkzeuge, Freigaben und Limits.
-- [ ] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
-  Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen.
-- [ ] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
-  von lokalen Modellen in die Cloud.
-- [ ] Verbindungen und Secret-Referenzen administrieren; Verwenden und Verwalten
-  getrennt berechtigen. Secrets nur über austauschbaren Secret-Store zur Laufzeit.
-- [ ] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
-  lokale Endpunkte nur mit expliziter administrativer Freigabe.
-- [ ] Worker-Vertrag um Lease-Verlängerung und dauerhafte, begrenzt fortsetzbare
-  KI-Läufe mit Störungsbehandlung erweitern.
-- [ ] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. Keine freie
-  Shell/SQL-Ausführung oder beliebigen HTTP-Ziele.
+  Ergebnisschema und Limits. #242 / PR #243 implementiert den Autorenvertrag; #252 / PR #253 bindet
+  Verbindungsrevision und Modell beim Deployment und gibt ihn mit
+  `flowzer.bpmn-capabilities/3` als ausführbar frei. Die historischen Fähigkeitsverträge
+  bleiben unverändert. #254 / PR #255 ergänzt den typisierten Autorenvertrag für Werkzeuge; die
+  tatsächliche Ausführung und Freigaben bleiben Folgeslices.
+- [x] Adapter für OpenAI, OpenAI-kompatible Cloud-/lokale Endpunkte und Anthropic;
+  Fähigkeiten prüfen, keine universelle Kompatibilität unterstellen. #244 / PR #245 implementiert
+  feste Standardziele, einen expliziten strukturierten Ausgabevertrag und keinen Provider-
+  oder Modellfallback; die BPMN-Runtime bleibt bewusst noch getrennt.
+- [x] Benutzerdefinierte Cloudziele nach DNS-Auflösung auf öffentliche Adressen begrenzen
+  und den Socketaufbau an den geprüften Host, Port und Adressvorrat binden (#248 / PR #249). Lokale
+  private Ziele bleiben nur bei ausdrücklichem Installations-Opt-in erreichbar.
+- [x] Cloud-Verarbeitung explizit je Installation freigeben, kein stiller Wechsel
+  von lokalen Modellen in die Cloud. #240 / PR #241 setzt die installationsweiten Opt-ins und
+  die explizite Standortangabe bereits am Verbindungsvertrag durch; #244 / PR #245 erzwingt dieselben
+  Grenzen unmittelbar vor jedem internen Provideraufruf erneut.
+- [x] Verbindungen und Secret-Referenzen administrieren; Verwenden und Verwalten
+  getrennt berechtigen. #240 / PR #241 implementiert revisionsgeschützte Metadaten in Dateiablage
+  und PostgreSQL, fail-closed Rollen, einen austauschbaren Secret-Store sowie Konsole,
+  OpenAPI und SDK. Deaktivierte Verbindungen bleiben historisch erhalten und sind für
+  reine Verwender nicht sichtbar.
+- [x] Keine Secrets in BPMN, Formularen, Exporten, Prompts oder Browserantworten;
+  lokale Endpunkte nur mit expliziter administrativer Freigabe. #240 / PR #241 hält Secret-Wert
+  und -Referenz bereits aus allen API-/Browserantworten und erlaubt lokale Ziele nur
+  nach Installations-Opt-in. #242 / PR #243 lehnt Secret-Attribute im BPMN-Vertrag ab; die
+  #252 / PR #253 speichert auch in Definition und Lauf ausschließlich die opake Verbindungskennung
+  und Revision; die Secret-Referenz bleibt in der internen Verbindungshistorie und wird erst
+  unmittelbar vor dem Provideraufruf aufgelöst. Werkzeuge bleiben ein eigener Folgeslice.
+- [x] Worker-Vertrag um eine besitzergebundene, atomare Lease-Verlängerung ergänzen
+  (#238; PR #239). #246 / PR #247 ergänzt dauerhafte KI-Laufzustände mit getrennten Provider-/
+  Ergebnis-Claims, Revisionen und konservativer Recovery; der ausführende Hintergrunddienst
+  folgt mit #250 / PR #251 bis zum validierten `ResultReady`. #252 / PR #253 erzeugt den Lauf aus dem
+  BPMN-Token und committed das Ergebnis zusammen mit Instanz, Subscriptions und Historie;
+  die vollständige Störungsbedienung bleibt offen.
+- [x] Typisierte Werkzeugregistry mit Schemas und expliziten Rechten. #254 / PR #255 bindet
+  registrierte Version, Vertragshash, Außenwirkung und Verbindungserlaubnis, stellt den
+  sicheren Katalog über API/SDK bereit und führt weder freie Shell-/SQL-Ausführung noch
+  beliebige HTTP-Ziele ein. Die Runtime ist noch bewusst blockiert.
 - [ ] Effektive Rechte als Schnittmenge von Verbindung, Workflow-Freigabe,
   Task-Werkzeugliste und fachlichem Kontext, niemals aus dem Prompt.
 - [ ] Außenwirkung standardmäßig mit menschlicher Freigabe; administrative

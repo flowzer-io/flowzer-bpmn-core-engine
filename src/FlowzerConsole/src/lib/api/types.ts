@@ -474,3 +474,64 @@ export interface OperationsDiagnosticsDto {
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
 }
+
+/** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */
+export const AI_PROVIDER_KINDS = ['OpenAi', 'OpenAiCompatible', 'Anthropic'] as const;
+export type AiProviderKind = (typeof AI_PROVIDER_KINDS)[number];
+
+/** Explizite Datenflussgrenze; es gibt keinen stillen Wechsel zwischen lokal und Cloud. */
+export const AI_PROCESSING_LOCATIONS = ['Cloud', 'Local'] as const;
+export type AiProcessingLocation = (typeof AI_PROCESSING_LOCATIONS)[number];
+
+export const AI_TOOL_SIDE_EFFECTS = ['ReadOnly', 'Write', 'Send'] as const;
+export type AiToolSideEffect = (typeof AI_TOOL_SIDE_EFFECTS)[number];
+
+export interface AiToolPermissionDto {
+  toolId: string;
+  toolVersion: number;
+  allowPreApproval: boolean;
+}
+
+/** Nur lesbarer Vertrag einer fest auf dem Server registrierten Werkzeugversion. */
+export interface AiToolDto {
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  inputSchema: string;
+  outputSchema: string;
+  sideEffect: AiToolSideEffect;
+  allowsPreApproval: boolean;
+  contractHash: string;
+}
+
+/** Sichere Projektion ohne Secret-Wert und ohne Secret-Referenz. */
+export interface AiConnectionDto {
+  id: string;
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  enabled: boolean;
+  ready: boolean;
+  revision: number;
+  updatedAtUtc: string;
+  allowedTools: AiToolPermissionDto[];
+}
+
+export interface CreateAiConnectionInput {
+  name: string;
+  provider: AiProviderKind;
+  location: AiProcessingLocation;
+  baseAddress?: string | null;
+  defaultModel: string;
+  secretReference: string;
+  allowedTools?: AiToolPermissionDto[];
+}
+
+export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, 'secretReference'> {
+  expectedRevision: number;
+  /** Leer behaelt die vorhandene Referenz; sie wird nie aus einer Antwort vorbefuellt. */
+  secretReference?: string;
+}

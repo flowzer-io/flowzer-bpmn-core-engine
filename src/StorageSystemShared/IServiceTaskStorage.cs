@@ -20,6 +20,14 @@ public interface IServiceTaskStorage
     Task<IReadOnlyList<ServiceTaskJob>> ClaimJobs(string type, string lockOwner, DateTime now, DateTime lockedUntil, int maxJobs);
 
     /// <summary>
+    /// Verlaengert eine noch gueltige Lease nur fuer ihren aktuellen Inhaber und liefert den
+    /// aktualisierten Auftrag. Pruefung und Schreiben muessen atomar erfolgen; ein Heartbeat
+    /// darf eine zwischenzeitlich abgelaufene oder neu vergebene Lease niemals wiederbeleben.
+    /// Eine bereits spaeter endende Lease wird nicht verkuerzt.
+    /// </summary>
+    Task<ServiceTaskJob?> RenewJobLease(Guid jobId, string lockOwner, DateTime now, DateTime lockedUntil);
+
+    /// <summary>
     /// Liefert den Auftrag nur, wenn er <paramref name="lockOwner"/> zum Zeitpunkt
     /// <paramref name="now"/> tatsaechlich gehoert; sonst <c>null</c>.
     /// </summary>

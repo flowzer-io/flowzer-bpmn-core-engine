@@ -111,6 +111,46 @@ public sealed class DirectoryFormSubjectControllerIntegrationTest
         manipulatedItems.GetArrayLength().Should().Be(0);
     }
 
+    // Testzweck: Ein weiterhin auswählbares Gruppenmitglied behält seine Beschriftung
+    // beim Neuladen eines privaten Entwurfs bzw. Startformulars; fremde IDs bleiben verborgen.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task FormResolution_ShouldResolveActiveGroupMember(bool startForm)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var seeded = await SeedDirectoryAsync(context);
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", Schema(seeded.GroupId));
+        using var client = context.CreateClient();
+        string route;
+        if (startForm)
+        {
+            await context.DeployAsync("", startFormKey: "Approval");
+            route = "/identity-directory/start-forms/Definitions_Completion/fields/representative/subjects/resolve";
+        }
+        else
+        {
+            var task = await context.StartAsync("assignee=\"bert\"");
+            (await client.PutAsJsonAsync($"/usertask/{task.Id}/draft", new
+            {
+                expectedRevision = 0,
+                data = new { representative = new { kind = "user", id = seeded.MemberId } }
+            })).EnsureSuccessStatusCode();
+            route = $"/identity-directory/user-tasks/{task.Id}/fields/representative/subjects/resolve";
+        }
+        var response = await client.PostAsJsonAsync(route, new
+        {
+            subjects = new[] { new { kind = "user", id = seeded.MemberId },
+                new { kind = "user", id = seeded.OutsiderId }, new { kind = "user", id = seeded.InactiveId } }
+        });
+        response.EnsureSuccessStatusCode();
+        var items = (await response.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("result").GetProperty("items").EnumerateArray().ToArray();
+        items.Should().ContainSingle();
+        items[0].GetProperty("subject").GetProperty("id").GetGuid().Should().Be(seeded.MemberId);
+        items[0].GetProperty("displayName").GetString().Should().Be("Anna Mitglied");
+        items[0].GetProperty("isSelectable").GetBoolean().Should().BeTrue();
+    }
+
     private static string Schema(Guid groupId, Guid? allowedUserId = null) => JsonSerializer.Serialize(new
     {
         flowzer = new { contractVersion = 2 },

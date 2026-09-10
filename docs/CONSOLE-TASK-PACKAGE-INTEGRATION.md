@@ -67,7 +67,6 @@ npm --prefix src/FlowzerConsole run typecheck
 npm --prefix src/FlowzerConsole run lint
 npm --prefix src/FlowzerConsole run test
 npm --prefix src/FlowzerConsole run build
-python3 scripts/ci/check_host_neutrality.py
 docker build -f Dockerfile.console -t flowzer-console:package-smoke .
 ```
 

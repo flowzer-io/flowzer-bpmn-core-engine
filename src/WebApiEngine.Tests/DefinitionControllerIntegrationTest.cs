@@ -13,6 +13,7 @@ using Model;
 using StorageSystem;
 using StorageSystem.Exceptions;
 using WebApiEngine.Auth;
+using WebApiEngine.Ai;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Tests;
@@ -20,6 +21,112 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class DefinitionControllerIntegrationTest
 {
+    // Testzweck: Ein vollständig gebundener KI-Vertrag ist in Autoren- und Deployment-Prüfung
+    // identisch ausführbar und speichert beim Deploy den unveraenderlichen Verbindungssnapshot.
+    [Test]
+    public async Task AiTask_ShouldBeAuthorableAndDeployableWithRuntimeBinding()
+    {
+        var storage = TestStorage.Create();
+        storage.AiConnections.Items.Add(ReadyAiConnection());
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = "workflow-ai-draft",
+            Name = "AI workflow"
+        });
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+        var xml = CreateAiTaskXml("workflow-ai-draft");
+
+        using var authoringValidation = await client.PostAsync(
+            "/definition/validate",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var save = await client.PostAsync(
+            "/definition",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploymentValidation = await client.PostAsync(
+            "/definition/validate/deployment",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploy = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+
+        authoringValidation.StatusCode.Should().Be(HttpStatusCode.OK);
+        save.StatusCode.Should().Be(HttpStatusCode.OK);
+        deploymentValidation.StatusCode.Should().Be(HttpStatusCode.OK);
+        deploy.StatusCode.Should().Be(HttpStatusCode.OK);
+        storage.DefinitionStorageSeed.Definitions.Should().HaveCount(2);
+        storage.DefinitionStorageSeed.Definitions.Single(definition => definition.IsActive)
+            .AiTaskBindings!["Ai_1"]
+            .Should().Be(new BoundAiTask(ReadyAiConnection().Id, 1, "model-a"));
+    }
+
+    // Testzweck: Ein Werkzeug darf nur aus der serverseitigen Registry und der Allowlist der
+    // Verbindung modelliert werden. Solange die Werkzeug-Runtime fehlt, bleibt der Entwurf
+    // speicherbar, der Deploy wird jedoch mit einem stabilen Fähigkeitsfehler verhindert.
+    [Test]
+    public async Task AiToolTask_ShouldBeAuthorableButNotDeployableBeforeRuntimeExists()
+    {
+        const string definitionId = "workflow-ai-tool-draft";
+        var storage = TestStorage.Create();
+        storage.AiConnections.Items.Add(ReadyAiConnection() with
+        {
+            AllowedTools = [new AiToolPermission("flowzer.directory.lookup", 1, false)]
+        });
+        storage.DefinitionStorageSeed.MetaDefinitions.Add(new ExtendedBpmnMetaDefinition
+        {
+            DefinitionId = definitionId,
+            Name = "AI tool workflow"
+        });
+        await using var factory = new TestWebApplicationFactory(storage, new DirectoryLookupTool());
+        using var client = factory.CreateClient();
+        var xml = CreateAiTaskXml(definitionId).Replace(
+            "</flowzer:aiTask>",
+            "<flowzer:tool id=\"flowzer.directory.lookup\" version=\"1\" approval=\"automatic\" /></flowzer:aiTask>",
+            StringComparison.Ordinal);
+
+        using var authoringValidation = await client.PostAsync(
+            "/definition/validate",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var save = await client.PostAsync(
+            "/definition",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploymentValidation = await client.PostAsync(
+            "/definition/validate/deployment",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        using var deploy = await client.PostAsync(
+            "/definition/deploy",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+
+        authoringValidation.StatusCode.Should().Be(HttpStatusCode.OK);
+        save.StatusCode.Should().Be(HttpStatusCode.OK);
+        deploymentValidation.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        deploy.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await deploy.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("issues")[0].GetProperty("code").GetString()
+            .Should().Be("bpmn.ai_task.tools_runtime_unavailable");
+        storage.DefinitionStorageSeed.Definitions.Should().ContainSingle(definition => !definition.IsActive);
+    }
+
+    // Testzweck: Auch die Autorenprüfung bindet die stabile Verbindungs-ID serverseitig;
+    // manipuliertes XML mit einer unbekannten ID darf keine Definition anlegen.
+    [Test]
+    public async Task UploadAiTask_ShouldRejectUnknownConnection()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync(
+            "/definition",
+            new StringContent(CreateAiTaskXml("workflow-ai-unknown"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("issues")[0].GetProperty("code").GetString()
+            .Should().Be("bpmn.ai_task.connection_not_found");
+        storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
+    }
+
     // Testzweck: Prüft, dass für eine deployte Plain-Start-Definition direkt über die API eine Instanz gestartet und persistiert werden kann.
     [Test]
     public async Task StartInstance_ShouldCreatePersistedInstance_ForDeployedPlainStartDefinition()
@@ -237,7 +344,7 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("1");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("3");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
                 && !element.GetProperty("executable").GetBoolean());
@@ -583,7 +690,8 @@ public class DefinitionControllerIntegrationTest
             ServiceSubscriptionCount = 0
         };
 
-    private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
+    private sealed class TestWebApplicationFactory(TestStorage storage, IAiTool? aiTool = null)
+        : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -600,10 +708,13 @@ public class DefinitionControllerIntegrationTest
                 services.RemoveAll<IStorageSystem>();
                 services.RemoveAll<ITransactionalStorageProvider>();
                 services.RemoveAll<ICurrentUserContextAccessor>();
+                services.RemoveAll<IAiSecretStore>();
 
                 services.AddSingleton<IStorageSystem>(storage);
                 services.AddSingleton<ITransactionalStorageProvider>(new TestTransactionalStorageProvider(storage));
                 services.AddSingleton<ICurrentUserContextAccessor>(new StubCurrentUserContextAccessor());
+                services.AddSingleton<IAiSecretStore>(new ReadySecretStore());
+                if (aiTool is not null) services.AddSingleton(aiTool);
             });
         }
     }
@@ -663,6 +774,8 @@ public class DefinitionControllerIntegrationTest
         public IInstanceStorage InstanceStorage => _instanceStorage;
         public IFormStorage FormStorage { get; } = new NoOpFormStorage();
         public IServiceTaskStorage ServiceTaskStorage { get; } = new InMemoryServiceTaskStorage();
+        public TestAiConnectionStorage AiConnections { get; } = new();
+        public IAiConnectionStorage AiConnectionStorage => AiConnections;
 
         public void CommitChanges()
         {
@@ -676,6 +789,84 @@ public class DefinitionControllerIntegrationTest
         {
         }
     }
+
+    private sealed class TestAiConnectionStorage : IAiConnectionStorage
+    {
+        public List<AiConnection> Items { get; } = [];
+        public Task<IReadOnlyList<AiConnection>> List() => Task.FromResult<IReadOnlyList<AiConnection>>(Items);
+        public Task<AiConnection?> Get(Guid id) => Task.FromResult(Items.SingleOrDefault(item => item.Id == id));
+        public Task<AiConnectionWriteResult> TryCreate(AiConnection connection) => throw new NotSupportedException();
+        public Task<AiConnectionWriteResult> TryUpdate(AiConnection connection, long expectedRevision) => throw new NotSupportedException();
+    }
+
+    private sealed class ReadySecretStore : IAiSecretStore
+    {
+        public ValueTask<bool> ExistsAsync(string reference, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(true);
+
+        public ValueTask<AiSecretValue?> ResolveAsync(string reference, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Die Autorenprüfung darf Secrets nicht auflösen.");
+    }
+
+    private sealed class DirectoryLookupTool : IAiTool
+    {
+        public AiToolDefinition Definition { get; } = new(
+            "flowzer.directory.lookup",
+            1,
+            "Directory lookup",
+            "Reads one bounded directory entry.",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}",
+            AiToolSideEffect.ReadOnly,
+            AllowsPreApproval: false);
+
+        public ValueTask<AiToolExecutionResult> ExecuteAsync(
+            AiToolExecutionRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Die Autorenprüfung darf Werkzeuge nicht ausführen.");
+    }
+
+    private static AiConnection ReadyAiConnection() => new(
+        Guid.Parse("118adeb6-65a4-4e57-a03b-d3b0a3300ac9"),
+        "AI",
+        AiProviderKind.OpenAi,
+        AiProcessingLocation.Cloud,
+        null,
+        "model-a",
+        "env:FLOWZER_AI_KEY",
+        true,
+        1,
+        DateTimeOffset.UtcNow,
+        Guid.NewGuid());
+
+    private static string CreateAiTaskXml(string definitionId) => $$"""
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                          xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                          xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                          id="{{definitionId}}">
+          <bpmn:process id="Process_1" isExecutable="true">
+            <bpmn:startEvent id="Start_1" />
+            <bpmn:serviceTask id="Ai_1">
+              <bpmn:extensionElements>
+                <zeebe:taskDefinition type="flowzer.ai.v1" />
+                <flowzer:aiTask contractVersion="1"
+                    connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+                    instructionVersion="1" maxInputTokens="4096" maxOutputTokens="1024" timeoutSeconds="60">
+                  <flowzer:instruction>Classify the request.</flowzer:instruction>
+                  <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+                </flowzer:aiTask>
+                <zeebe:ioMapping>
+                  <zeebe:input source="=request" target="request" />
+                  <zeebe:output source="=result" target="classification" />
+                </zeebe:ioMapping>
+              </bpmn:extensionElements>
+            </bpmn:serviceTask>
+            <bpmn:endEvent id="End_1" />
+            <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Ai_1" />
+            <bpmn:sequenceFlow id="Flow_2" sourceRef="Ai_1" targetRef="End_1" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """;
 
     private sealed class TestDefinitionStorage : IDefinitionStorage
     {

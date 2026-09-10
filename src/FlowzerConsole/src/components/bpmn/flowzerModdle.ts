@@ -22,5 +22,40 @@ export const FLOWZER_MODDLE = {
         { name: 'candidateGroupIds', isAttr: true, type: 'String' },
       ],
     },
+    {
+      name: 'AiTask',
+      superClass: ['Element'],
+      properties: [
+        { name: 'contractVersion', isAttr: true, type: 'String' },
+        { name: 'connectionId', isAttr: true, type: 'String' },
+        { name: 'model', isAttr: true, type: 'String' },
+        { name: 'instructionVersion', isAttr: true, type: 'String' },
+        { name: 'maxInputTokens', isAttr: true, type: 'String' },
+        { name: 'maxOutputTokens', isAttr: true, type: 'String' },
+        { name: 'timeoutSeconds', isAttr: true, type: 'String' },
+        { name: 'instruction', type: 'Instruction' },
+        { name: 'resultSchema', type: 'ResultSchema' },
+        { name: 'tools', type: 'Tool', isMany: true },
+      ],
+    },
+    {
+      name: 'Tool',
+      superClass: ['Element'],
+      properties: [
+        { name: 'id', isAttr: true, type: 'String' },
+        { name: 'version', isAttr: true, type: 'String' },
+        { name: 'approval', isAttr: true, type: 'String' },
+      ],
+    },
+    {
+      name: 'Instruction',
+      superClass: ['Element'],
+      properties: [{ name: 'body', isBody: true, type: 'String' }],
+    },
+    {
+      name: 'ResultSchema',
+      superClass: ['Element'],
+      properties: [{ name: 'body', isBody: true, type: 'String' }],
+    },
   ],
 } as const;

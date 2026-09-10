@@ -24,6 +24,7 @@ import {
   type OutlineIssue,
   type OutlineStep,
 } from './model';
+import { AI_WORKER_TYPE } from '@/lib/aiTaskContract';
 
 interface Builder {
   readonly document: OutlineDocument;
@@ -79,8 +80,15 @@ function taskNode(step: OutlineStep): GraphNode {
       directoryCandidateGroupIds: step.task === 'user' ? step.directoryCandidateGroupIds : undefined,
       dueDate: step.task === 'user' ? step.dueDate : undefined,
       followUpDate: step.task === 'user' ? step.followUpDate : undefined,
-      workerType: step.task === 'service' ? step.workerType : undefined,
+      workerType:
+        step.task === 'service'
+          ? step.serviceTaskMode === 'ai'
+            ? AI_WORKER_TYPE
+            : step.workerType
+          : undefined,
       retries: step.task === 'service' ? step.retries : undefined,
+      serviceTaskMode: step.task === 'service' ? step.serviceTaskMode : undefined,
+      aiTask: step.task === 'service' ? step.aiTask : undefined,
       inputs: step.inputs,
       outputs: step.outputs,
     },
@@ -262,6 +270,18 @@ function missingStepDetails(step: OutlineStep): OutlineIssue[] {
   if (step.task === 'service' && !step.workerType?.trim()) {
     return [{ level: 'blocker', elementId: step.id, message: `„${name}" braucht einen Typ des Dienstes.` }];
   }
+  if (step.task === 'service' && step.serviceTaskMode === 'ai') {
+    const ai = step.aiTask;
+    if (!ai?.connectionId.trim()) {
+      return [{ level: 'blocker', elementId: step.id, message: `„${name}“ braucht eine KI-Verbindung.` }];
+    }
+    if (!ai.instruction.trim() || !ai.resultSchema.trim()) {
+      return [{ level: 'blocker', elementId: step.id, message: `„${name}“ braucht Anweisung und Ergebnisschema.` }];
+    }
+    if (step.inputs.length === 0 || step.outputs.length === 0) {
+      return [{ level: 'blocker', elementId: step.id, message: `„${name}“ braucht Ein- und Ausgangszuordnungen.` }];
+    }
+  }
   if (
     step.task === 'user'
     && step.assignmentMode === 'directory'
@@ -352,6 +372,28 @@ function extensionXml(node: GraphNode, indent: string): string {
   }
   if (task.workerType || task.retries) {
     lines.push(`${indent}  <zeebe:taskDefinition${attributes({ type: task.workerType, retries: task.retries })} />`);
+  }
+  if (task.serviceTaskMode === 'ai' && task.aiTask) {
+    const ai = task.aiTask;
+    lines.push(
+      `${indent}  <flowzer:aiTask${attributes({
+        contractVersion: ai.contractVersion,
+        connectionId: ai.connectionId,
+        model: ai.model,
+        instructionVersion: ai.instructionVersion,
+        maxInputTokens: ai.maxInputTokens,
+        maxOutputTokens: ai.maxOutputTokens,
+        timeoutSeconds: ai.timeoutSeconds,
+      })}>`,
+      `${indent}    <flowzer:instruction>${escape(ai.instruction)}</flowzer:instruction>`,
+      `${indent}    <flowzer:resultSchema>${escape(ai.resultSchema)}</flowzer:resultSchema>`,
+      ...ai.tools.map((tool) => `${indent}    <flowzer:tool${attributes({
+        id: tool.toolId,
+        version: tool.toolVersion,
+        approval: tool.approval,
+      })} />`),
+      `${indent}  </flowzer:aiTask>`,
+    );
   }
   if (task.inputs.length > 0 || task.outputs.length > 0) {
     lines.push(`${indent}  <zeebe:ioMapping>`);
@@ -469,7 +511,9 @@ export function writeOutlineXml(document: OutlineDocument): { xml?: string; issu
   // Die Anordnung von links nach rechts ist auch die lesbarste Reihenfolge im XML.
   const order = new Map(layout.nodes.map((box, index) => [box.id, index]));
   const nodes = [...graph.nodes].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  const usesFlowzerExtensions = graph.nodes.some((node) => node.task?.assignmentMode !== undefined);
+  const usesFlowzerExtensions = graph.nodes.some(
+    (node) => node.task?.assignmentMode !== undefined || node.task?.serviceTaskMode === 'ai',
+  );
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',

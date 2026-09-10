@@ -49,7 +49,14 @@ const DEVELOPMENT_USER: SessionUser = {
   id: 'd266f2b6-e96e-4d4a-9c20-c8e541394df0',
   name: 'Entwicklungsbenutzer',
   initials: 'EB',
-  capabilities: new Set(['access', 'modeler', 'operator', 'worker']),
+  capabilities: new Set([
+    'access',
+    'modeler',
+    'operator',
+    'worker',
+    'aiConnectionUse',
+    'aiConnectionManage',
+  ]),
 };
 
 export const useSession = create<SessionState>()((set, get) => ({

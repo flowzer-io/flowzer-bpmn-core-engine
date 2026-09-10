@@ -180,12 +180,29 @@ kennt dabei keine konkrete Host-Anwendung. Details stehen in
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v1.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v3.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
 der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
 [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md).
+
+## KI-Verbindungen
+
+Flowzer verwaltet revisionsgeschützte, hostneutrale Metadaten für OpenAI, Anthropic
+und OpenAI-kompatible Cloud-/lokale Endpunkte. Cloud und lokale Verarbeitung sind
+getrennte Installations-Opt-ins; Verwenden und Verwalten besitzen getrennte Rollen.
+Secret-Referenzen sind nur schreibbar, Secret-Werte bleiben ausschließlich im
+serverseitigen `IAiSecretStore`. Beim Deployment bindet Flowzer eine unveränderliche
+Verbindungsrevision und ein Modell an jeden KI-Schritt. Pro wartendem Engine-Token entsteht
+ein interner, persistenter Lauf; der optional aktivierte Hintergrunddienst führt ihn ohne
+Provider- oder Cloud-Fallback aus und übernimmt ein erneut schema-validiertes Ergebnis
+atomar in die Prozessinstanz. PostgreSQL serialisiert konkurrierende Mutationen derselben
+Instanz. Typisierte Werkzeugversionen können über eine serverseitige Registry und eine
+Verbindungs-Allowlist bereits sicher modelliert werden; ihr Deployment bleibt bis zum
+persistenten Aktionsjournal und parametergebundenen Freigaben bewusst gesperrt.
+Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
+[docs/AI-TASKS.md](docs/AI-TASKS.md).
 
 ## Release und Deployment
 
@@ -203,6 +220,8 @@ der Gliederung anwählbar. Details und bewusste Runtime-Grenzen stehen in
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
+- [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
+- [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation

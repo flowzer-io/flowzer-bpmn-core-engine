@@ -205,6 +205,84 @@ public class OpenApiContractTest
         eventProperties.TryGetProperty("correlationId", out _).Should().BeFalse();
     }
 
+    // Testzweck: Der neue Worker-Heartbeat beschreibt Erfolg und jeden erwartbaren Fehler
+    // explizit; neue Clients duerfen nicht auf undokumentierte Legacy-Fehlerumschlaege treffen.
+    [Test]
+    public async Task ServiceTaskLeaseEndpoint_ShouldExposeProblemDetailsAndUtcExpiry()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(root.GetProperty("paths"), "/job/{jobId}/lease", "post");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/RenewJobLeaseResultDtoApiStatusResult");
+        GetProblemResponse(operation, "400").Should().Be("#/components/schemas/ProblemDetails");
+        GetProblemResponse(operation, "404").Should().Be("#/components/schemas/ProblemDetails");
+        GetProblemResponse(operation, "409").Should().Be("#/components/schemas/ProblemDetails");
+
+        var required = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("RenewJobLeaseResultDto").GetProperty("required")
+            .EnumerateArray().Select(value => value.GetString()).ToArray();
+        required.Should().BeEquivalentTo("jobId", "lockedUntil");
+    }
+
+    // Testzweck: KI-Verbindungen besitzen einen vollstaendigen, revisionsgeschuetzten
+    // OpenAPI-Vertrag; die Antwortprojektion enthaelt weder Secret-Wert noch Secret-Referenz.
+    [Test]
+    public async Task AiConnections_ShouldExposeSafeMetadataAndProblemDetails()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+        var list = GetOperation(paths, "/ai/connection", "get");
+        var create = GetOperation(paths, "/ai/connection", "post");
+        var get = GetOperation(paths, "/ai/connection/{connectionId}", "get");
+        var update = GetOperation(paths, "/ai/connection/{connectionId}", "put");
+        var status = GetOperation(paths, "/ai/connection/{connectionId}/enabled", "put");
+
+        GetResponseSchema(list, "200").Should().Be("#/components/schemas/AiConnectionDtoArrayApiStatusResult");
+        GetResponseSchema(create, "201").Should().Be("#/components/schemas/AiConnectionDtoApiStatusResult");
+        GetProblemResponse(create, "400").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(create, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(get, "404").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(update, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+        GetProblemResponse(status, "409").Should().Be("#/components/schemas/ApiProblemDetails");
+
+        var responseProperties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("AiConnectionDto").GetProperty("properties");
+        responseProperties.TryGetProperty("secretReference", out _).Should().BeFalse();
+        responseProperties.TryGetProperty("secret", out _).Should().BeFalse();
+        root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("CreateAiConnectionRequestDto").GetProperty("properties")
+            .TryGetProperty("secretReference", out _).Should().BeTrue();
+        responseProperties.TryGetProperty("allowedTools", out _).Should().BeTrue();
+        root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("CreateAiConnectionRequestDto").GetProperty("properties")
+            .TryGetProperty("allowedTools", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Der Werkzeugkatalog ist ein rein lesbarer, versionierter OpenAPI-Vertrag
+    // ohne Handler- oder Zielsystemdetails und kann deshalb von generischen Clients verwendet werden.
+    [Test]
+    public async Task AiTools_ShouldExposeOnlySafeVersionedContracts()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = GetOperation(root.GetProperty("paths"), "/ai/tool", "get");
+
+        GetResponseSchema(operation, "200").Should()
+            .Be("#/components/schemas/AiToolDtoArrayApiStatusResult");
+        var properties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("AiToolDto").GetProperty("properties");
+        properties.EnumerateObject().Select(property => property.Name).Should().BeEquivalentTo([
+            "id", "version", "name", "description", "inputSchema", "outputSchema",
+            "sideEffect", "allowsPreApproval", "contractHash"
+        ]);
+        properties.TryGetProperty("implementation", out _).Should().BeFalse();
+        properties.TryGetProperty("secretReference", out _).Should().BeFalse();
+        properties.TryGetProperty("baseAddress", out _).Should().BeFalse();
+    }
+
     // Testzweck: Capabilities, Vorabprüfung, Speichern und Deployment dokumentieren denselben
     // versionierten BPMN-Vertrag sowie strukturierte 422-Fehler für Modellieroberflächen.
     [Test]

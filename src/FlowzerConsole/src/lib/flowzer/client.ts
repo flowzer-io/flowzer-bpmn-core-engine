@@ -15,7 +15,9 @@ import { getRuntimeConfig } from '@/lib/config/runtime';
  */
 export function createConsoleFlowzerClient(): FlowzerClient {
   return new FlowzerClient({
-    baseUrl: API_BASE_URL,
+    // Der Runtime-Vertrag normalisiert den Container-Wurzelpfad zu ""; das SDK
+    // verlangt einen expliziten nichtleeren Pfad und normalisiert ihn selbst.
+    baseUrl: API_BASE_URL || "/",
     ...(getRuntimeConfig().bffEnabled
       ? { auth: { kind: 'cookie' as const, getCsrfToken: getConsoleCsrfToken } }
       : {}),

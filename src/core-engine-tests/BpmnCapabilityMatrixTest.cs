@@ -9,7 +9,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("1");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("3");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -39,7 +39,7 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("1");
+        exception.ContractVersion.Should().Be("3");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
@@ -257,8 +257,253 @@ public class BpmnCapabilityMatrixTest
         exception.PropertyPath.Should().Be("incoming");
     }
 
+    // Testzweck: KI-Aufgaben verwenden einen eindeutig versionierten Flowzer-Vertrag statt
+    // eines beliebigen Worker-Strings, damit Modellierer und Laufzeit dieselben Felder lesen.
+    [Test]
+    public void ValidateForAuthoring_ShouldAcceptCompleteAiTaskContract()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess(AiTask()));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Seit der dauerhafte KI-Executor Providerergebnis und Engine-Fortschritt
+    // atomar verbindet, ist der vollstaendige KI-Vertrag produktiv deploybar.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptAiTaskWithRuntimeContract()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(AiTask()));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Werkzeugreferenzen duerfen bereits verlustfrei als Autorenvertrag gespeichert
+    // werden, bleiben aber bis zur dauerhaften Tool-Call- und Freigabe-Runtime nicht deploybar.
+    [Test]
+    public void Validation_ShouldKeepToolEnabledAiTaskAuthorableButNotDeployable()
+    {
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            "<flowzer:tool id=\"flowzer.directory.lookup\" version=\"1\" approval=\"automatic\" /></flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(xml);
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.ai_task.tools_runtime_unavailable");
+        exception.ElementId.Should().Be("Ai_1");
+        exception.PropertyPath.Should().Be("extensionElements.aiTask.tool");
+    }
+
+    // Testzweck: Mehrdeutige oder ungueltige Werkzeugreferenzen werden bereits vor dem
+    // Speichern mit einem stabilen feldbezogenen Fehlervertrag abgelehnt.
+    [TestCase("FLOWZER.BAD", "1", "automatic", "bpmn.ai_task.tool_id_invalid")]
+    [TestCase("flowzer.good", "0", "automatic", "bpmn.ai_task.tool_version_invalid")]
+    [TestCase("flowzer.good", "1", "silent", "bpmn.ai_task.tool_approval_invalid")]
+    public void ValidateForAuthoring_ShouldRejectInvalidAiToolReference(
+        string id,
+        string version,
+        string approval,
+        string expectedCode)
+    {
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            $"<flowzer:tool id=\"{id}\" version=\"{version}\" approval=\"{approval}\" /></flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(expectedCode);
+        exception.PropertyPath.Should().StartWith("extensionElements.aiTask.tool");
+    }
+
+    // Testzweck: Ein KI-Task kann dieselbe Werkzeug-ID nicht mehrfach oder in mehreren
+    // Versionen anfordern; die effektive Berechtigung muss eindeutig bleiben.
+    [Test]
+    public void ValidateForAuthoring_ShouldRejectDuplicateAiToolId()
+    {
+        var tools = """
+            <flowzer:tool id="flowzer.directory.lookup" version="1" approval="automatic" />
+            <flowzer:tool id="flowzer.directory.lookup" version="2" approval="human" />
+            """;
+        var xml = CreateProcess(AiTask().Replace(
+            "</flowzer:aiTask>",
+            $"{tools}</flowzer:aiTask>",
+            StringComparison.Ordinal));
+
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(xml);
+
+        action.Should().Throw<BpmnCapabilityValidationException>()
+            .Which.Code.Should().Be("bpmn.ai_task.tool_duplicate");
+    }
+
+    // Testzweck: Der reservierte KI-Auftragstyp darf nicht ohne den zugehörigen Vertrag
+    // gespeichert werden; sonst sähe das Diagramm wie ein KI-Schritt aus, wäre aber unbestimmt.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectAiWorkerTypeWithoutContract()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess("""
+            <bpmn:serviceTask id="Ai_1">
+              <bpmn:extensionElements>
+                <zeebe:taskDefinition type="flowzer.ai.v1" />
+              </bpmn:extensionElements>
+            </bpmn:serviceTask>
+            """));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.ai_task.contract_required");
+        exception.ElementId.Should().Be("Ai_1");
+        exception.PropertyPath.Should().Be("extensionElements.aiTask");
+    }
+
+    // Testzweck: Unbekannte oder geheime Attribute dürfen nicht unbemerkt in BPMN gelangen;
+    // insbesondere darf eine Secret-Referenz nie Bestandteil des exportierbaren Modells sein.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectUnsupportedAiTaskAttribute()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess(
+            AiTask(" secretReference=\"env:FLOWZER_AI_KEY\"")));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.ai_task.attribute_unsupported");
+        exception.ElementId.Should().Be("Ai_1");
+        exception.PropertyPath.Should().Be("extensionElements.aiTask.secretReference");
+    }
+
+    // Testzweck: Prompt, Ergebnisschema und Grenzen werden serverseitig geprüft und können
+    // daher nicht durch einen API-Aufruf ohne Browser umgangen werden.
+    [TestCase("contractVersion=\"2\"", "bpmn.ai_task.contract_version_unsupported", "extensionElements.aiTask.contractVersion")]
+    [TestCase("instructionVersion=\"0\"", "bpmn.ai_task.instruction_version_invalid", "extensionElements.aiTask.instructionVersion")]
+    [TestCase("maxInputTokens=\"0\"", "bpmn.ai_task.limit_invalid", "extensionElements.aiTask.maxInputTokens")]
+    [TestCase("maxOutputTokens=\"32769\"", "bpmn.ai_task.limit_invalid", "extensionElements.aiTask.maxOutputTokens")]
+    [TestCase("timeoutSeconds=\"301\"", "bpmn.ai_task.limit_invalid", "extensionElements.aiTask.timeoutSeconds")]
+    public void ValidateForDeployment_ShouldRejectInvalidAiTaskAttribute(
+        string replacement,
+        string code,
+        string propertyPath)
+    {
+        var attribute = replacement.Split('=')[0];
+        var xml = AiTask().Replace($"{attribute}=\"{DefaultAiAttribute(attribute)}\"", replacement, StringComparison.Ordinal);
+
+        Action action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess(xml));
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(code);
+        exception.PropertyPath.Should().Be(propertyPath);
+    }
+
+    // Testzweck: Ein KI-Schritt muss Eingaben und eine Ergebniszuordnung deklarieren; die
+    // Laufzeit darf weder den gesamten Prozesskontext senden noch Ausgaben beliebig verteilen.
+    [TestCase("<zeebe:input source=\"=request\" target=\"request\" />", "bpmn.ai_task.output_mapping_required", "extensionElements.ioMapping.output")]
+    [TestCase("<zeebe:output source=\"=result\" target=\"classification\" />", "bpmn.ai_task.input_mapping_required", "extensionElements.ioMapping.input")]
+    public void ValidateForDeployment_ShouldRequireAiTaskDataMappings(
+        string onlyMapping,
+        string code,
+        string propertyPath)
+    {
+        var xml = AiTask().Replace(
+            "<zeebe:input source=\"=request\" target=\"request\" /><zeebe:output source=\"=result\" target=\"classification\" />",
+            onlyMapping,
+            StringComparison.Ordinal);
+
+        Action action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess(xml));
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(code);
+        exception.PropertyPath.Should().Be(propertyPath);
+    }
+
+    // Testzweck: Das Ergebnisschema ist kein beliebiger Text, sondern ein JSON-Objektschema,
+    // das spätere Providerantworten deterministisch prüfen kann.
+    [TestCase("not-json", "bpmn.ai_task.result_schema_invalid")]
+    [TestCase("{&quot;type&quot;:&quot;string&quot;}", "bpmn.ai_task.result_schema_object_required")]
+    [TestCase("{&quot;type&quot;:&quot;object&quot;,&quot;$ref&quot;:&quot;https://example.test/schema&quot;}", "bpmn.ai_task.result_schema_unsupported")]
+    public void ValidateForDeployment_ShouldRejectInvalidAiTaskResultSchema(string schema, string code)
+    {
+        var xml = AiTask().Replace(
+            "{&quot;type&quot;:&quot;object&quot;,&quot;properties&quot;:{&quot;category&quot;:{&quot;type&quot;:&quot;string&quot;} } }",
+            schema,
+            StringComparison.Ordinal);
+
+        Action action = () => BpmnCapabilityMatrix.ValidateForAuthoring(CreateProcess(xml));
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(code);
+        exception.PropertyPath.Should().Be("extensionElements.aiTask.resultSchema");
+    }
+
+    // Testzweck: Gleiche LocalNames in fremden Namespaces sind kein ausführbarer
+    // Zeebe-Datenvertrag; der KI-Deploymentpfad darf sie nicht als Freigabe akzeptieren.
+    [TestCase("extensionElements", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("ioMapping", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("input", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("output", "bpmn.ai_task.output_mapping_required")]
+    public void AiMappings_ShouldRequireZeebeNamespace(string element, string code)
+    {
+        var xml = AiTask().Replace("<bpmn:serviceTask ",
+            "<bpmn:serviceTask xmlns:other=\"urn:untrusted\" ")
+            .Replace($"{(element == "extensionElements" ? "bpmn" : "zeebe")}:{element}", $"other:{element}");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>().Which.Code.Should().Be(code);
+    }
+
+    // Testzweck: Mehrere gleichrangige Mapping-Verträge dürfen nicht zwischen Validator
+    // (bisher erster Treffer) und Runtime (bisher alle Nachfahren) auseinanderlaufen.
+    [Test]
+    public void AiMappings_ShouldRejectDuplicateContracts()
+    {
+        var xml = AiTask().Replace("</zeebe:ioMapping>",
+            "</zeebe:ioMapping><zeebe:ioMapping><zeebe:input source=\"=privateValue\" target=\"extra\" /></zeebe:ioMapping>");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>();
+    }
+
+    // Testzweck: Ein gültiges Mapping daneben darf unvollständige weitere Einträge nicht
+    // kaschieren und später einen NullReference-Fehler statt einer Deploymentmeldung erzeugen.
+    [TestCase("input", "bpmn.ai_task.input_mapping_required")]
+    [TestCase("output", "bpmn.ai_task.output_mapping_required")]
+    public void AiMappings_ShouldRejectIncompleteAdditionalMapping(string element, string code)
+    {
+        var xml = AiTask().Replace("</zeebe:ioMapping>",
+            $"<zeebe:{element} source=\"=privateValue\" /></zeebe:ioMapping>");
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(xml));
+        action.Should().Throw<BpmnCapabilityValidationException>().Which.Code.Should().Be(code);
+    }
+
+    private static string DefaultAiAttribute(string name) => name switch
+    {
+        "contractVersion" => "1",
+        "instructionVersion" => "1",
+        "maxInputTokens" => "4096",
+        "maxOutputTokens" => "1024",
+        "timeoutSeconds" => "60",
+        _ => throw new ArgumentOutOfRangeException(nameof(name))
+    };
+
+    private static string AiTask(string additionalAttributes = "") => $$$"""
+        <bpmn:serviceTask id="Ai_1">
+          <bpmn:extensionElements>
+            <zeebe:taskDefinition type="flowzer.ai.v1" retries="2" />
+            <flowzer:aiTask xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                           contractVersion="1"
+                           connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9"
+                           model="model-a"
+                           instructionVersion="1"
+                           maxInputTokens="4096"
+                           maxOutputTokens="1024"
+                           timeoutSeconds="60"{{{additionalAttributes}}}>
+              <flowzer:instruction>Classify the request.</flowzer:instruction>
+              <flowzer:resultSchema>{&quot;type&quot;:&quot;object&quot;,&quot;properties&quot;:{&quot;category&quot;:{&quot;type&quot;:&quot;string&quot;} } }</flowzer:resultSchema>
+            </flowzer:aiTask>
+            <zeebe:ioMapping><zeebe:input source="=request" target="request" /><zeebe:output source="=result" target="classification" /></zeebe:ioMapping>
+          </bpmn:extensionElements>
+        </bpmn:serviceTask>
+        """;
+
     private static string CreateProcess(string flowElements) => $"""
-        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_1">
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                          xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                          xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0"
+                          id="Definitions_1">
           <bpmn:process id="Process_1" isExecutable="true">
             {flowElements}
           </bpmn:process>

@@ -71,6 +71,33 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
             return (IReadOnlyList<ServiceTaskJob>)await ReadJobs(command);
         });
 
+    /// <summary>
+    /// Der Besitzervergleich, die Ablaufpruefung und das Schreiben liegen in einem Statement.
+    /// Damit kann selbst ein spaeter Heartbeat eine inzwischen neu vergebene Lease nicht
+    /// ueberschreiben. <c>GREATEST</c> verhindert zudem eine versehentliche Verkuerzung.
+    /// </summary>
+    public Task<ServiceTaskJob?> RenewJobLease(
+        Guid jobId,
+        string lockOwner,
+        DateTime now,
+        DateTime lockedUntil) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction, $$"""
+            UPDATE {schema}.service_task_jobs
+            SET locked_until = GREATEST(locked_until, @lockedUntil)
+            WHERE id = @id
+              AND locked_by = @lockOwner
+              AND locked_until > @now
+            RETURNING {{JobColumns}}
+            """);
+        command.Parameters.AddWithValue("id", jobId);
+        command.Parameters.AddWithValue("lockOwner", lockOwner);
+        AddTimestamp(command, "now", now);
+        AddTimestamp(command, "lockedUntil", lockedUntil);
+
+        return (await ReadJobs(command)).SingleOrDefault();
+    });
+
     public Task<ServiceTaskJob?> GetLockedJob(Guid jobId, string lockOwner, DateTime now) =>
         session.RunAsync(async (connection, transaction) =>
         {

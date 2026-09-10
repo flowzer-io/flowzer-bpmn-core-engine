@@ -2,7 +2,14 @@ export { FlowzerClient } from './client.js';
 export { FlowzerApiError } from './errors.js';
 export type { components, operations, paths } from './schema.generated.js';
 export type {
+  AiConnection,
+  AiProcessingLocation,
+  AiProviderKind,
+  AiTool,
+  AiToolPermission,
+  AiToolSideEffect,
   CompleteUserTaskCommand,
+  CreateAiConnectionCommand,
   CreateFormSectionCommand,
   DirectorySubject,
   DirectorySubjectResolutionResult,
@@ -30,11 +37,13 @@ export type {
   RenameFormSectionCommand,
   ReleaseUserTaskCommand,
   SaveUserTaskDraftCommand,
+  SetAiConnectionEnabledCommand,
   SaveFormSectionAuthoringDraftCommand,
   SubjectRef,
   TaskAssigneeSearchOptions,
   TaskAssigneeResolutionOptions,
   TransferUserTaskCommand,
+  UpdateAiConnectionCommand,
   UserTaskDraft,
   UserTaskRevisionCommand,
   UserTaskWorkState,

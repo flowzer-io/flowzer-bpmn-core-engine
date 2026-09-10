@@ -49,4 +49,10 @@ public interface IStorageSystem
 
     /// <summary>Append-only, datensparsame Engine-Knotenereignisse für Runtime-Diagnosen.</summary>
     IRuntimeNodeEventStorage RuntimeNodeEventStorage => UnsupportedRuntimeNodeEventStorage.Instance;
+
+    /// <summary>Revisionierte KI-Verbindungsmetadaten ohne geheime Werte.</summary>
+    IAiConnectionStorage AiConnectionStorage => UnsupportedAiConnectionStorage.Instance;
+
+    /// <summary>Dauerhafte, revisions- und leasegeschuetzte KI-Laufzustaende.</summary>
+    IAiRunStorage AiRunStorage => UnsupportedAiRunStorage.Instance;
 }

@@ -59,8 +59,14 @@ public sealed class UserTaskLifecycleService(
             try { snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
             catch (NotSupportedException) { /* Textaufgaben bleiben ohne Directory nutzbar. */ }
             var access = await UserTaskWorkAuthorization.EvaluateAsync(storage, task, currentUser, canOperate, snapshot);
+            // Ein entzogener tatsächlicher Besitzer erhält auch auf dem Claim-Nebenweg
+            // keine Existenzbestätigung; andere konkurrierende Kandidaten behalten ihren 409.
+            var isRevokedAssignee = access.State?.AssigneeOwnerKey is { } owner
+                                   && string.Equals(owner, UserTaskDraftOwnerKey.Create(currentUser), StringComparison.Ordinal)
+                                   && !access.IsAssignedToCurrentUser;
             if (action == "claim" && access.State?.AssigneeOwnerKey is not null
-                && (canOperate || UserTaskAssignment.IsVisibleTo(task, currentUser, snapshot, seeAll: false)))
+                && (canOperate || (!isRevokedAssignee
+                    && UserTaskAssignment.IsVisibleTo(task, currentUser, snapshot, seeAll: false))))
             {
                 // Ein konkurrierender Kandidat darf die Existenz weiterhin kennen, erhält aber
                 // den revisionsgebundenen Konflikt statt eines irreführenden 404.

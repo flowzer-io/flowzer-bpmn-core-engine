@@ -91,6 +91,45 @@ public sealed class ServiceTaskJobService(
     }
 
     /// <summary>
+    /// Verlaengert eine laufende Lease vom vertrauenswuerdigen Serverzeitpunkt aus. Die Ablage
+    /// prueft Besitzer und Ablauf atomar; die Prozesssperre haelt den lokalen Complete-/Fail-
+    /// Pfad waehrenddessen fern.
+    /// </summary>
+    public async Task<JobLeaseRenewalOutcome> RenewLease(
+        Guid jobId,
+        Guid userId,
+        string workerId,
+        TimeSpan lockDuration)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+        var lockOwner = BuildLockOwner(userId, workerId);
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            using var storage = storageProvider.GetTransactionalStorage();
+            var job = await storage.ServiceTaskStorage.RenewJobLease(
+                jobId,
+                lockOwner,
+                now,
+                now.Add(lockDuration));
+            if (job is null)
+            {
+                return new JobLeaseRenewalOutcome(
+                    await ClassifyMissingJob(storage, jobId),
+                    null);
+            }
+
+            storage.CommitChanges();
+            return new JobLeaseRenewalOutcome(JobOperationResult.Ok, job);
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Meldet einen Fehlschlag. Bleiben Versuche uebrig, wird der Auftrag nach einer Wartezeit
     /// wieder vergeben; sonst bleibt er liegen und wartet auf einen Eingriff, statt still zu
     /// verschwinden.
@@ -188,3 +227,6 @@ public enum JobOperationResult
     NotLockedByWorker,
     LockExpired
 }
+
+/// <summary>Ergebnis einer Lease-Verlaengerung samt neuem, serverseitigem Ablaufzeitpunkt.</summary>
+public sealed record JobLeaseRenewalOutcome(JobOperationResult Status, ServiceTaskJob? Job);

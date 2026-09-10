@@ -61,7 +61,7 @@ export function Meta({ block }: { block: OutlineBlock }) {
           )}
         </>
       ) : (
-        <Chip tone="run">{block.workerType ?? 'ohne Dienst'}</Chip>
+        <Chip tone="run">{block.serviceTaskMode === 'ai' ? 'KI-Aufgabe' : (block.workerType ?? 'ohne Dienst')}</Chip>
       )}
     </div>
   );

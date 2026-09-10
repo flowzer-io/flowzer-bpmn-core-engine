@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using WebApiEngine.Auth;
 using StorageSystem.Exceptions;
 using WebApiEngine.Idempotency;
+using WebApiEngine.Ai;
 using core_engine.Exceptions;
 
 namespace WebApiEngine.Controller;
@@ -24,7 +25,9 @@ public class DefinitionController(
     BpmnBusinessLogic bpmnBusinessLogic,
     FolderBusinessLogic folderBusinessLogic,
     FormKeyResolver formKeyResolver,
-    InstanceAccessService instanceAccess) : FlowzerControllerBase
+    InstanceAccessService instanceAccess,
+    IAiSecretStore aiSecretStore,
+    AiToolRegistry aiToolRegistry) : FlowzerControllerBase
 {
     /// <summary>
     /// Meldung, wenn die Zustaendigkeit fuer den Ordner fehlt. Bewusst dieselbe Formulierung an
@@ -115,7 +118,21 @@ public class DefinitionController(
     [HttpPost("validate")]
     [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition()
+    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition() =>
+        ValidateDefinition(BpmnCapabilityMatrix.ValidateForAuthoring);
+
+    /// <summary>
+    /// Prueft dieselbe Eingabe gegen die strengere ausfuehrbare Teilmenge. Ein eigener Pfad
+    /// verhindert, dass ein Requestparameter eine sicherheitsrelevante Pruefung abschwaecht.
+    /// </summary>
+    [HttpPost("validate/deployment")]
+    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDeployment() =>
+        ValidateDefinition(BpmnCapabilityMatrix.ValidateForDeployment);
+
+    private async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition(
+        Action<string> validateCapabilities)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!permissions.MayEditAnywhere)
@@ -129,7 +146,13 @@ public class DefinitionController(
             return denied;
         }
 
-        BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+        validateCapabilities(rawContent);
+        var model = ModelParser.ParseModel(rawContent);
+        await AiTaskDeploymentValidator.ValidateAsync(
+            model,
+            storageSystem.AiConnectionStorage,
+            aiSecretStore,
+            aiToolRegistry);
         return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
     }
 

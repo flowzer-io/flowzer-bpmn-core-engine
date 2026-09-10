@@ -1,10 +1,20 @@
 # Roadmap
 
-**Stand: 9. September 2026**
+**Stand: 10. September 2026**
 
 Die freigegebene, führende Produkt-Roadmap steht in
 [PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
 Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
+
+## Aktuelle Integration und Reststrategie
+
+Die folgenden Einzel-Slice-Verweise dokumentieren die Umsetzungsgeschichte.
+Aktiv sind nur noch die Checkpoints #189, #201, #217, #227, #237 und #255.
+Paketübergreifende Reviewfixes werden am vollständigen Stand in #255 geprüft;
+Zwischenstände erhalten dadurch nicht automatisch eine Releasefreigabe.
+Die nächste Arbeit wird in begrenzte Abnahmepakete statt eine neue kumulative
+Dauerimplementierung aufgeteilt. Details und Prioritäten:
+[Gesamtreview und Folgepakete](REVIEW-CHECKPOINTS-2026-09.md).
 
 ## Reihenfolge
 
@@ -55,7 +65,20 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    Human-Task-Auditspur objektberechtigt und datensparsam bereit; weitere Engine-
    Ereignisse bleiben getrennte Slices.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
-   parametergebundene Freigaben und sichere Wiederaufnahme.
+   parametergebundene Freigaben und sichere Wiederaufnahme. Der vorgezogene M6-Baustein
+   #238 ergänzt bereits die atomare Lease-Verlängerung für lang laufende Worker; der PR
+   folgt auf #237. #240 / PR #241 ergänzt darauf die sichere, revisionsgeschützte Verwaltung von
+   Verbindungsmetadaten und nur schreibbaren Secret-Referenzen in PostgreSQL und Dateiablage,
+   getrennte Use-/Manage-Rollen, Installations-Opt-ins sowie den austauschbaren
+   Laufzeit-Secret-Store. #242 / PR #243 ergänzt den serverseitig geprüften, in Diagramm und
+   Gliederung pflegbaren KI-Aufgabenvertrag. #244 / PR #245 liefert die providerneutrale
+   HTTP-Aufrufschicht und das portable serverseitige Ergebnisschema; #246 bis #251 ergänzen
+   Laufzustand, DNS-/Socketbindung und Provider-Executor. #252 / PR #253 bindet Verbindungsrevision und
+   Modell beim Deployment, erzeugt pro KI-Token genau einen Lauf und committed validierte
+   Ergebnisse atomar mit der BPMN-Instanz. `flowzer.bpmn-capabilities/3` gibt den Task damit
+   erstmals als ausführbar frei. #254 / PR #255 ergänzt typisierte Werkzeugverträge, Registry,
+   Verbindungs-Allowlist und unveränderliche Deploymentbindung; der Deploy bleibt für
+   Werkzeugreferenzen bis zum Ausführungsjournal und parametergebundenen Freigaben gesperrt.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
@@ -93,6 +116,46 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
   aktuellen Prozessscope; pro ausgewähltem Knoten bleiben gebundene Input- und
   Output-Snapshots aller Ausführungen getrennt sichtbar. Fehlende historische
   Snapshots werden benannt und nicht aus dem aktuellen Scope rekonstruiert.
+
+## M5-Slice-Status
+
+- [x] **#238 / PR #239 – verlängerbare Worker-Lease:** Ein noch gültiger Job kann seine
+  besitzergebundene Lease atomar verlängern; abgelaufene oder fremde Leases werden nicht
+  wiederbelebt.
+- [x] **#240 / PR #241 – KI-Verbindungen und Secret-Referenzen:** Persistente, revisionsgeschützte
+  und hostneutrale Verbindungsmetadaten, getrennte Rollen, Installationsgrenzen,
+  Secret-Store-Abstraktion, sichere API-/SDK-Verträge und eine Verwaltungsseite liegen vor.
+  Kein Provideradapter und keine KI-Task-Runtime werden damit vorgetäuscht.
+- [x] **#242 / PR #243 – versionierter KI-Aufgabenvertrag:** Eigene KI-Kachel als Standard-Service-Task,
+  stabile Verbindungs-ID, Modelloverride, versionierte Anweisung, JSON-Ergebnisschema,
+  deklarierte I/O-Zuordnungen und harte Limits werden serverseitig und in beiden
+  Modellieransichten gleich behandelt. Geheimnisattribute werden abgelehnt. Bis eine
+  dauerhafte Provider-Runtime folgt, blockiert der Fähigkeitsvertrag das Deployment.
+- [x] **#244 / PR #245 – Provideradapter und Ergebnisschema:** OpenAI Responses, Anthropic Messages
+  und administrativ gebundene OpenAI-kompatible Chat-Completions laufen über einen
+  gemeinsamen, timeout- und größenbegrenzten Gateway-Vertrag. Providerfähigkeit, Ziel,
+  Installations-Opt-in und Secret werden ohne Fallback erneut geprüft. Fremde Antworten
+  müssen das begrenzte Schema-Profil `flowzer.ai-result-schema/1` serverseitig erfüllen.
+  Die persistente KI-Laufzeit bleibt der nächste notwendige Slice.
+- [x] **#246 / PR #247 – Persistente KI-Laufzustände:** Ein unveränderlicher Auftragssnapshot,
+  eindeutige Tokenbindung, Revisionen, atomare Provider-/Ergebnis-Claims, Lease-Verlängerung
+  und konservative Recovery liegen in Dateiablage und PostgreSQL vor. Unklare Provider-
+  oder Engine-Ausgänge werden angehalten statt blind wiederholt. Der Executor und damit die
+  Aktivierung des Deploymentpfads bleiben der nächste Slice.
+- [x] **#248 / PR #249 – Gebundene Netzwerkziele:** Benutzerdefinierte Cloudendpunkte werden nur bei
+  ausschließlich öffentlichen DNS-Ergebnissen zugelassen. Der Socket verwendet danach
+  exakt die geprüften Adressen sowie denselben Host und Port; lokale Ziele bleiben an das
+  ausdrückliche Installations-Opt-in gebunden. Der Deploymentblocker bleibt bestehen.
+- [x] **#250 / PR #251 – Provider-Executor:** Bereits persistierte Läufe werden mit exakter
+  Verbindungsrevision, Lease-Heartbeat, fester Retry-Allowlist und konservativer Recovery
+  bis `ResultReady` verarbeitet. Der Dienst ist standardmäßig aus; Erzeugung und atomarer
+  Engine-Commit folgen vor dem Entfernen des Deploymentblockers.
+- [x] **#252 / PR #253 – Atomare Engine-Anbindung:** KI-Tokens erzeugen genau einen
+  internen Lauf; validierte Ergebnisse werden transaktional mit der Instanz fortgesetzt.
+- [x] **#254 / PR #255 – Typisierte Werkzeugverträge:** Eine geschlossene Registry, sichere Katalog-API,
+  Verbindungs-Allowlist und Taskreferenzen binden Version, Schemahash, Außenwirkung und
+  Freigabemodus. Die Autorenoberfläche ist vollständig; Deployments mit Werkzeugen bleiben
+  bis zum nächsten Runtime-Slice bewusst gesperrt.
 
 ## Vorhandenes nicht neu bauen
 

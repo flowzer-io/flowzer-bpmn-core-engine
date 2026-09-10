@@ -1,4 +1,5 @@
 import {
+  skipToken,
   useMutation,
   useQuery,
   useQueryClient,
@@ -33,6 +34,8 @@ import type {
   UserTaskRevisionCommand,
   UserTaskWorkState,
 } from '@flowzer/sdk';
+
+import { FlowzerApiError } from '@flowzer/sdk';
 
 import { useFlowzer } from './context.js';
 import { flowzerQueryKeys } from './queryKeys.js';
@@ -230,9 +233,20 @@ export function useUserTaskWorkspace(
 ): TaskWorkspaceState {
   const { client, cacheNamespace, sessionScope } = useFlowzer();
   const queryClient = useQueryClient();
+  const revocation = useQuery<Error | null, Error>({
+    queryKey: workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId),
+    queryFn: skipToken,
+    initialData: null,
+    staleTime: Infinity,
+    // Ein Remount darf den Entzug nicht vergessen; Logout räumt den gesamten Scope auf.
+    gcTime: Infinity,
+  });
+  const latchedAccessLoss = revocation.data ?? null;
   const task = useUserTask(userTaskId, options);
-  const canWork = task.data?.workState?.canWork === true;
-  const contentEnabled = Boolean(userTaskId) && canWork && (options.enabled ?? true);
+  const taskAccessLoss = firstResourceAccessLoss(task.error, task.failureReason);
+  const taskCanWork = taskAccessLoss === null && task.data?.workState?.canWork === true;
+  const contentEnabled = Boolean(userTaskId) && taskCanWork
+    && latchedAccessLoss === null && (options.enabled ?? true);
   const form = useQuery<FlowzerForm, Error>({
     queryKey: flowzerQueryKeys.userTaskForm(cacheNamespace, sessionScope, userTaskId),
     queryFn: ({ signal }) => client.userTasks.getForm(userTaskId, { signal }),
@@ -243,8 +257,20 @@ export function useUserTaskWorkspace(
     queryFn: ({ signal }) => client.userTasks.getDraft(userTaskId, { signal }),
     enabled: contentEnabled,
   });
+  const responseAccessLoss = firstResourceAccessLoss(
+    task.error, task.failureReason, form.error, form.failureReason, draft.error, draft.failureReason,
+  );
+  const accessLoss = responseAccessLoss ?? latchedAccessLoss;
+  const canWork = taskCanWork && accessLoss === null;
+  // Cacheentfernung darf den Rechtefehler nicht vergessen und automatische Neuladungen
+  // auslösen. Nur ein expliziter, vollständig erfolgreicher Reload hebt die Sperre auf.
   useEffect(() => {
-    if (!task.data || canWork) return;
+    if (responseAccessLoss) queryClient.setQueryData(
+      workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId), responseAccessLoss,
+    );
+  }, [cacheNamespace, queryClient, responseAccessLoss, sessionScope, userTaskId]);
+  useEffect(() => {
+    if (canWork || (!task.data && accessLoss === null)) return;
     // Ein Refetch kann ein entzogenes Arbeitsrecht sichtbar machen. Deaktivierte Queries
     // behalten standardmäßig alte Daten im Cache; diese dürfen nicht weitergereicht werden.
     queryClient.removeQueries({
@@ -253,7 +279,7 @@ export function useUserTaskWorkspace(
     queryClient.removeQueries({
       queryKey: flowzerQueryKeys.userTaskDraft(cacheNamespace, sessionScope, userTaskId),
     });
-  }, [cacheNamespace, canWork, queryClient, sessionScope, task.data, userTaskId]);
+  }, [accessLoss, cacheNamespace, canWork, queryClient, sessionScope, task.data, userTaskId]);
   const searchSubjects = useCallback(
     (fieldKey: string, search: DirectorySubjectSearchOptions) =>
       client.userTasks.searchFormSubjects(userTaskId, fieldKey, search),
@@ -266,22 +292,31 @@ export function useUserTaskWorkspace(
   );
 
   return {
-    task: task.data,
+    task: accessLoss ? undefined : task.data,
     form: canWork ? form.data : undefined,
     draft: canWork ? draft.data : undefined,
     canWork,
     isPending: task.isPending || (contentEnabled && (form.isPending || draft.isPending)),
     isRefreshing: task.isFetching || form.isFetching || draft.isFetching,
-    error: task.error ?? (canWork ? form.error ?? draft.error : null),
+    error: accessLoss ?? task.error ?? (taskCanWork ? form.error ?? draft.error : null),
     reload: async () => {
       const refreshed = await task.refetch();
-      if (refreshed.data?.workState?.canWork === true) {
-        await Promise.all([form.refetch(), draft.refetch()]);
+      if (!refreshed.error && !firstResourceAccessLoss(refreshed.failureReason)
+          && refreshed.data?.workState?.canWork === true) {
+        const [refreshedForm, refreshedDraft] = await Promise.all([form.refetch(), draft.refetch()]);
+        if (!refreshedForm.error && !refreshedDraft.error
+            && !firstResourceAccessLoss(refreshedForm.failureReason, refreshedDraft.failureReason)) {
+          queryClient.setQueryData(
+            workspaceRevocationKey(cacheNamespace, sessionScope, userTaskId), null,
+          );
+        }
       }
     },
     reloadDraft: async () => {
+      if (accessLoss) throw accessLoss;
       const result = await draft.refetch();
-      if (result.error) throw result.error;
+      const error = result.error ?? firstResourceAccessLoss(result.failureReason);
+      if (error) throw error;
       return result.data;
     },
     searchSubjects,
@@ -438,3 +473,19 @@ export type {
   ProcessInstance,
   UserTaskDraft,
 };
+
+/** Nur definitive Rechte-/Ressourcenverluste entwerten die letzte autorisierte Sicht.
+ * Ein vorübergehender Netzwerkfehler bleibt dagegen als solcher mit Daten sichtbar. */
+function isResourceAccessLost(error: Error | null): boolean {
+  return error instanceof FlowzerApiError && [401, 403, 404].includes(error.status);
+}
+
+/** Während automatischer Retries steht ein HTTP-Fehler zunächst nur in failureReason. */
+function firstResourceAccessLoss(...errors: (Error | null)[]): Error | null {
+  return errors.find(isResourceAccessLost) ?? null;
+}
+
+/** Rein lokaler Sitzungszustand ohne Netzwerkfunktion, gemeinsam für parallele Observer. */
+function workspaceRevocationKey(cacheNamespace: string, sessionScope: string, userTaskId: string) {
+  return [...flowzerQueryKeys.userTask(cacheNamespace, sessionScope, userTaskId), 'access-revocation'] as const;
+}

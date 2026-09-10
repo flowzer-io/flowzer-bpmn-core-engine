@@ -93,6 +93,13 @@ begrenztes Bearer-Token.
   und ausschließlich konkrete veröffentlichte `major.minor`-Versionen. Das SDK kennt
   bewusst keine freie oder implizite `latest`-Auflösung; gebundene Formularstände
   bleiben damit reproduzierbar.
+- `aiConnections` verwaltet revisionsgebundene Provider-Metadaten. Die Create-/Update-
+  Befehle dürfen eine Secret-Referenz schreiben; der Antworttyp enthält weder diese
+  Referenz noch einen Secret-Wert. Aktivstatuswechsel verlangen ebenfalls die geladene
+  Revision. `allowedTools` enthält nur konkrete, serverseitig registrierte Versionen.
+- `aiTools.list()` liefert den rein lesbaren Katalog typisierter Werkzeugverträge. Der
+  Vertrag enthält Schemas, Außenwirkung und Hash, aber weder Handlerdetails, Zieladressen
+  noch Secret-Referenzen.
 
 ## Kompatibilität
 

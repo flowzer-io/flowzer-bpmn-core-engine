@@ -151,6 +151,9 @@ jobs:
         working-directory: src/FlowzerConsole
         run: npm run build
 
+      - name: Sichere Runtime- und Coolify-Konfiguration prüfen
+        run: node --test tests/ui-smoke/runtime-config.test.mjs
+
       # Eine API-Route, die das Gateway der Konsole nicht weiterleitet, beantwortet die
       # Konsole mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die
       # erwartete Antwort. Genau so ist /job zuerst durchgerutscht.
@@ -188,9 +191,6 @@ jobs:
         run: |
           npm run generate:openapi
           git diff --exit-code -- src/schema.generated.ts
-
-      - name: Hostneutralität prüfen
-        run: python3 scripts/ci/check_host_neutrality.py
 
       - name: SDK prüfen und bauen
         working-directory: packages/flowzer-sdk

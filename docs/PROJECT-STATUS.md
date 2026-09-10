@@ -1,7 +1,9 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen Slices bis PR #233
-liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+**Stand:** 10. September 2026; Basis `212705a`. Die Implementierung liegt in den
+sechs noch ungemergten Checkpoints #189 → #201 → #217 → #227 → #237 → #255.
+Einzelne unten genannte Slice-PRs sind historische Nachweise, keine zusätzlichen
+Integrationsaufträge.
 
 ## Einordnung
 
@@ -13,6 +15,24 @@ Die erste Produktstufe verwendet getrennte Installationen je Kunde.
 Führend sind die [Produkt-Roadmap](PRODUCT-ROADMAP-2026-09.md) und #98.
 Das [September-Review](REVIEW-2026-09.md) ist eine historische Bestandsaufnahme,
 keine aktuelle Liste noch fehlender Funktionen.
+
+## Aktuelle Gesamtprüfung und nächste Abnahme
+
+Die [Checkpoint-Prüfung mit Folgepaketen](REVIEW-CHECKPOINTS-2026-09.md) ist die
+aktuelle Zusammenfassung. Bestätigte Rechtefehler bei deaktivierten tatsächlichen
+Directory-Bearbeitern und erhaltenen React-Arbeitsdaten nach Rechte-/Sessionwechsel
+wurden mit zunächst roten Regressionstests korrigiert. Zusätzlich wurden sichere
+Compose-Rollen, die Container-API-Wurzeladresse, KI-Opt-ins, exakte XML-Mappinggrenzen
+und die Beschriftung erlaubter Directory-Formularwerte nachgeschärft. Das ist eine kumulative
+Prüfung, keine Behauptung vollständiger Fehlerfreiheit jedes historischen Zwischenstands.
+
+Der lokale .NET-Lauf umfasst 180 Engine- und 892 API-/Storage-Tests ohne Skips,
+einschließlich isolierter PostgreSQL-Fälle. Der genaue Frontend-, Browser- und
+unabhängige Reviewstand steht im verlinkten Bericht. Kein Merge und kein Deployment
+sind Teil dieses Reviewauftrags. Nach der Integration folgen begrenzte Abnahmen
+für Installation/Auth, PostgreSQL-Upgrade/Restore und den generischen Beispielprozess.
+Die KI-Werkzeugausführung bleibt bis Aktionsjournal, konkreter Freigabe und sicherem
+Wiederanlauf gesperrt.
 
 ## Bereits vorhandene Grundlagen
 
@@ -145,8 +165,7 @@ Das eigenständig baubare Paket `@flowzer/sdk` kapselt die generische Flowzer-HT
 für Aufgabenliste, gebundene Formulare, private Entwürfe, Claim/Release/Assign/Delegate,
 idempotenten Abschluss, feld- und aktionsgebundene Verzeichnissuche sowie
 Vorgangsübersichten. Öffentliche DTOs werden aus dem versionierten OpenAPI-Snapshot
-erzeugt; die CI prüft Drift, Paketbau, Tests, Abhängigkeiten und konkrete
-Host-Anwendungsnamen im Produktcode.
+erzeugt; die CI prüft Drift, Paketbau, Tests und Abhängigkeiten.
 
 Das SDK besitzt keine React- oder Laufzeitabhängigkeit und keinen globalen
 Authentisierungszustand. Bearer-Token beziehungsweise BFF-CSRF-Werte kommen pro Aufruf
@@ -338,6 +357,155 @@ Der Slice liefert keine E-Mail-/Push-/Chat-Zustellung, keine automatische Delega
 und keine BPMN-Eskalationspropagation. Der eigene Operations-Diagnoseblock für den
 Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme bleiben offen.
 
+## Verlängerbare Worker-Leases – #238 ([PR #239](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/239))
+
+Lang laufende Service-Task-Worker können ihre noch gültige Lease über einen eigenen
+Heartbeat verlängern. Der Besitz bleibt an authentifizierte Person und Worker-Kennung
+gebunden; eine abgelaufene oder bereits fremde Lease wird nicht wiederbelebt. PostgreSQL
+prüft Besitzer, Ablauf und Aktualisierung atomar in einem Statement. Der öffentliche
+Vertrag liefert den tatsächlich gespeicherten UTC-Ablauf zurück und begrenzt jede
+angeforderte Dauer auf höchstens eine Stunde. Dieser M6-Baustein bereitet dauerhafte
+KI-Läufe vor, implementiert aber noch keinen Modellanbieter oder KI-Ausführungszustand.
+
+## KI-Verbindungen und Secret-Referenzen – #240 ([PR #241](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/241))
+
+Der erste M5-Verbindungsslice persistiert stabile, revisionsgeschützte Metadaten für
+OpenAI, Anthropic und ausdrücklich OpenAI-kompatible Endpunkte. Cloud- und lokale
+Verarbeitung bleiben getrennte Installations-Opt-ins; Standardprovider erlauben keine
+umgedeutete Basisadresse. PostgreSQL erzwingt Revisionen und case-insensitiv eindeutige
+Namen atomar, die Dateiablage bleibt ein Einzelprozess-Entwicklungsweg.
+
+Secret-Referenzen sind ausschließlich schreibbar und auf `env:FLOWZER_AI_*` begrenzt.
+Weder Referenz noch Wert stehen in API-, OpenAPI-, SDK- oder Browserantworten. Ein
+austauschbarer `IAiSecretStore` löst Werte erst serverseitig und kurzlebig auf. Use und
+Manage sind getrennte, im authentifizierten Betrieb fail-closed Rollen; reine Verwender
+sehen keine deaktivierten Verbindungen. Konsole und headless SDK verwenden denselben
+hostneutralen Vertrag. Provideraufrufe, KI-Task-Modellierung, Werkzeuge, Freigaben und
+dauerhafte Ausführung sind ausdrücklich noch nicht Bestandteil dieses Slices.
+
+## KI-Aufgabenmodellierung – #242 ([PR #243](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/243))
+
+Der KI-Schritt bleibt technisch ein BPMN-Service-Task und trägt den neuen
+`flowzer:aiTask`-Vertrag in Version 1. Verbindung, optionales Modell, versionierte
+Anweisung, objektförmiges JSON-Ergebnisschema, deklarierte I/O-Zuordnungen sowie Token-
+und Zeitgrenzen werden serverseitig geprüft. Unbekannte Attribute – insbesondere eine
+Secret-Referenz – blockieren das Modell. Die referenzierte Verbindung muss beim Speichern
+existieren, aktiv und serverseitig einsatzbereit sein.
+
+Diagramm und Gliederung pflegen denselben Vertrag; die Diagrammpalette besitzt eine eigene
+KI-Kachel. Der freie Worker-Textmodus normaler Service-Tasks bleibt erhalten. Mangels
+Provideradapter und dauerhaftem KI-Lauf war `serviceTask.aiTask` in diesem Autoren-Slice
+bewusst nicht deploybar. Die damaligen Save- und Deployment-Vorabprüfungen unterschieden diesen Zustand
+explizit, statt eine später hängenbleibende Instanz zu erzeugen. Details:
+[Versionierter KI-Aufgabenvertrag](AI-TASKS.md).
+
+Die additive Elementart erschien erstmals in `flowzer.bpmn-capabilities/2`; Version 3
+aktiviert später die durch #252 / PR #253 belegte Runtime. Beide historischen Verträge bleiben
+unverändert im Repository.
+
+## Provideradapter und Ergebnisschema – #244 / PR #245 (noch nicht gemergt)
+
+Ein interner, nicht öffentlich auslösbarer Gateway bindet den gespeicherten Provider ohne
+Fallback an OpenAI Responses, Anthropic Messages oder den administrierten
+OpenAI-kompatiblen Chat-Completions-Endpunkt. Feste Standardziele, erneut geprüfte
+Installationsgrenzen, deaktivierte Weiterleitungen, aufgabengebundene Timeouts,
+Envelope-Größe, kurzlebige Secret-Auflösung und redigierte Auth-Header bilden die
+gemeinsame Transportgrenze. Automatische Retries finden nicht statt.
+
+`flowzer.ai-result-schema/1` begrenzt unterstützte Typen und Validierungsregeln, verbietet
+externe Referenzen und prüft jede Providerantwort erneut lokal. Stabile Fehlerklassen
+unterscheiden Authentifizierung, Rate Limit, Timeout, Transport, Providerablehnung,
+ungültige Antwort, Schemaverletzung und Budgetüberschreitung, ohne fremde Rohantworten zu
+übernehmen. Die explizite Adapterfähigkeit ersetzt keine unzuverlässige Modellannahme:
+lehnt ein Ziel strukturierte Ausgabe ab, erfolgt insbesondere kein Wechsel auf ein anderes
+Modell oder in die Cloud.
+
+Dieser damalige Baustein führte noch keinen Provideraufruf aus einem BPMN-Prozess aus. Der
+nachfolgende Slice #252 / PR #253 verbindet inzwischen persistente Läufe, Recovery und
+Engine-Fortschritt und hebt den Deployment-Blocker kontrolliert auf.
+
+## Persistente KI-Laufzustände – #246 / PR #247 (noch nicht gemergt)
+
+Ein stabiler Lauf wird eindeutig an Prozessinstanz und Engine-Token gebunden. Der
+unveränderliche Snapshot enthält Verbindung und Revision, Modell, Anweisungsversion,
+deklarierte Eingaben, Ergebnisschema und Grenzen, jedoch keine Secret-Werte oder
+Secret-Referenzen. Pending, Running, RetryScheduled, ResultReady, Completing, Completed,
+Incident und Cancelled sind getrennte, revisionsgeschützte Zustände.
+
+Provider- und Engine-Claims besitzen getrennte Leases. PostgreSQL vergibt sie atomar mit
+Zeilensperren und `SKIP LOCKED`; Revision, Besitzer und Ablauf werden bei jedem Übergang
+erneut geprüft. Ergebnis, tatsächliches Modell und konsistente Tokenmessung überleben einen
+Neustart. Recovery gibt nur einen vor Aufrufbeginn verlorenen Claim erneut frei. Ein
+abgelaufener Lease nach markiertem Provideraufruf oder während des Engine-Commits wird als
+unklarer Ausgang angehalten und nicht blind wiederholt. Der Dateiadapter bleibt ausdrücklich
+auf einen Entwicklungsprozess begrenzt.
+
+Die Ablage allein aktiviert noch keine KI-Aufgabe. Hintergrund-Executor, DNS-Adressbindung
+für benutzerdefinierte Cloudziele und atomarer Engine-Fortschritt folgen vor dem Entfernen
+des Deployment-Blockers.
+
+## Netzwerkbindung benutzerdefinierter KI-Endpunkte – #248 / PR #249 (noch nicht gemergt)
+
+OpenAI-kompatible Cloudziele werden unmittelbar vor dem Aufruf aufgelöst und nur bei
+ausschließlich öffentlichen Unicast-Adressen zugelassen. Der Socketaufbau ist an genau
+diesen geprüften Adressvorrat sowie an Host und Port gebunden; eine zweite unkontrollierte
+DNS-Auflösung, Systemproxys und Weiterleitungen entfallen. Gemischte öffentliche/private
+Antworten werden insgesamt abgelehnt. Ausdrücklich lokale Verbindungen behalten bei
+Installations-Opt-in ihren privaten beziehungsweise Loopback-Zugriff. Der Slice aktiviert
+noch keine BPMN-KI-Aufgabe.
+
+## Provider-Executor für persistente KI-Läufe – #250 / PR #251 (noch nicht gemergt)
+
+Ein standardmäßig deaktivierter Hintergrunddienst claimt bereits persistierte Läufe,
+markiert den möglichen Provideraufruf vorher dauerhaft und hält die Lease per Heartbeat.
+Die gespeicherte Verbindungsrevision wird vor Secret und Netzwerk exakt geprüft. Ergebnisse
+werden erneut validiert und samt Modell- und Tokenmessung als `ResultReady` gespeichert.
+Nur feste temporäre Fehlercodes erhalten innerhalb des Laufbudgets einen begrenzten Retry;
+alle anderen Ausgänge werden Störungen. Lease-Verlust und Hostabbruch nach Aufrufmarkierung
+führen zu keinem blinden Retry. BPMN-Erzeugung und atomarer Engine-Commit waren in diesem
+Slice noch getrennt und folgen mit #252 / PR #253.
+
+## Atomare KI-Engine-Anbindung – #252 / PR #253 (noch nicht gemergt)
+
+Der BPMN-Fähigkeitsvertrag Version 3 gibt KI-Service-Tasks erst frei, nachdem das Deployment
+die aktuelle Verbindungsrevision und das effektive Modell unveränderlich an die Definition
+gebunden hat. Jede erfolgreiche Verbindungsfassung bleibt intern historisiert; API und
+Browser erhalten weiterhin weder Secret-Wert noch Secret-Referenz.
+
+Ein aktiver KI-Token erzeugt genau einen internen Lauf und keinen extern claimbaren
+Workerauftrag. Der Snapshot enthält nur deklarierte Eingaben. `ResultReady` wird auf
+Definition, Token und Bindung geprüft und zusammen mit Instanz, Subscriptions, Historie und
+Laufstatus in einer PostgreSQL-Transaktion fortgesetzt. Ein Rollback lässt Lauf und Instanz
+unverändert wiederholbar; ein zweiter Abschluss findet keinen offenen Claim mehr.
+
+PostgreSQL serialisiert Mutationen derselben Prozessinstanz mit einem transaktionsgebundenen
+Advisory Lock. Damit überschreiben parallele KI-Ergebnisse aus mehreren API-Prozessen keine
+gegenseitigen Tokenfortschritte; ein Batch claimt höchstens ein Ergebnis je Instanz. Reine
+Instanzansichten bleiben vom Schreib-Lock getrennt. Abgebrochene oder fehlgeschlagene
+KI-Token stornieren offene Läufe und entziehen vorhandene Leases. Die Dateiablage bleibt ein
+ausdrücklicher Einzelprozess-Entwicklungsweg ohne dokumentübergreifenden Rollback.
+
+## Typisierte KI-Werkzeugverträge – #254 / PR #255 (noch nicht gemergt)
+
+Eine geschlossene `IAiTool`-Registry validiert stabile ID und Version, portable Ein-/
+Ausgabeschemas, Außenwirkung und Vorabfreigabefähigkeit. Der neue, rollenberechtigte
+Katalog `GET /ai/tool` projiziert ausschließlich diese nicht geheimen Vertragsdaten und
+einen deterministischen SHA-256-Vertragshash. Es sind noch keine konkreten Werkzeuge in
+der Standardinstallation registriert.
+
+KI-Verbindungen speichern eine revisionsgeschützte Allowlist konkreter Werkzeugversionen.
+Registry und Verbindungsgrenze werden serverseitig geprüft; automatische Freigabe ist nur
+für `ReadOnly` möglich und eine Vorabfreigabe benötigt die ausdrückliche Erlaubnis von
+Werkzeug und Verbindung. Der BPMN-Autorenvertrag bindet diese Referenzen in Diagramm und
+Gliederung. Beim Deployment werden ID, Version, Hash, Außenwirkung und Freigabemodus
+unveränderlich festgehalten.
+
+Solange persistentes Aktionsjournal und parametergebundene Freigaben fehlen, bleiben
+Werkzeugreferenzen bewusst nicht ausführbar. Autorenprüfung und Speichern sind erlaubt,
+Deploymentprüfung und Deploy antworten dagegen strukturiert mit
+`bpmn.ai_task.tools_runtime_unavailable`. OpenAPI, SDK und React-Konsole verwenden denselben
+Vertrag. Die tatsächliche Ausführung ist damit nicht vorgetäuscht und folgt als eigener Slice.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -361,13 +529,20 @@ Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme blei
    Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
    Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
+   Worker-Lease-Verlängerung (#238), sichere Verbindungsverwaltung (#240 / PR #241),
+   Task-Vertrag (#242 / PR #243), Provider-/Schemaschicht (#244 / PR #245) und der
+   persistente Laufzustand (#246 / PR #247), die DNS-/Socketbindung (#248 / PR #249) sowie
+   der Provider-Executor (#250 / PR #251), die atomare Engine-Anbindung (#252 / PR #253)
+   sowie die Werkzeug-Vertragsgrenze (#254 / PR #255) liegen vor. Persistentes Aktionsjournal,
+   parametergebundene Freigaben, Testmodus und Störungsbedienung bleiben offen.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft; 32 Browser-Smokes
-sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal aus 139 Engine-,
-737 API-/Storage-, 329 Konsolen-, 21 SDK- und 20 React-Pakettests. Der vollständige UX-Audit und die erste
-Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
+Vorgangsübersichten und Laufzeitdiagramm wurden auf Desktop/Mobil visuell geprüft. Der
+aktuelle Stand besteht lokal aus 172 Engine-, 886 API-/Storage-, 345 Konsolen-, 25 SDK-
+und 20 React-Pakettests; zusätzlich bleiben die vorhandenen 33 Chromium-Smoke-Tests
+Bestandteil der CI. Der vollständige UX-Audit und die erste Produktabnahme aus der Roadmap
+stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell
 
