@@ -56,6 +56,25 @@ public class ApplicationRolesIntegrationTest
         response.StatusCode.Should().NotBe(HttpStatusCode.Forbidden);
     }
 
+    // Testzweck: Das Kompatibilitaetsinventar kann Hinweise auf problematische
+    // Bestandsformulare geben und bleibt deshalb wie die Formularpflege Modellierern
+    // vorbehalten; eine allgemeine Zugangsrolle darf es nicht lesen.
+    [Test]
+    public async Task FormCompatibilityInventory_ShouldRequireTheModelerRole()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+        var withoutRole = await client.GetAsync("/form/compatibility");
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["modeler"]));
+        var withRole = await client.GetAsync("/form/compatibility");
+
+        withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        withRole.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     // Testzweck: Auch das Anlegen eines Workflows verlangt die Modelliererrolle. Der Endpunkt
     // legt Daten an und war als einziger Schreibpfad des Katalogs ungeschuetzt — mit blosser
     // Zugangsrolle liess sich der Katalog fuellen.

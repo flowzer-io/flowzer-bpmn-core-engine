@@ -6,10 +6,14 @@ import type {
   ExtendedBpmnMetaDefinitionDto,
   ExtendedUserTaskSubscriptionDto,
   FormDto,
+  FormAuthoringDraftDto,
+  FormCompatibilityItemDto,
+  SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
   HealthStatusDto,
   MessageDto,
   MessageSubscriptionDto,
+  NotificationDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
@@ -17,6 +21,12 @@ import type {
   TimerSubscriptionDto,
   TokenDto,
   UserTaskResultDto,
+  UserTaskDraftDto,
+  UserTaskDraftRequest,
+  UserTaskClaimRequest,
+  UserTaskReleaseRequest,
+  UserTaskTransferRequest,
+  UserTaskWorkStateDto,
   VersionDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
@@ -148,6 +158,18 @@ export const identityDirectoryApi = {
       { query: { query, kind, limit: 20 }, signal },
     ),
 
+  /** Aktive Benutzer, die für genau diese Laufzeitaktion als Ziel zulässig sind. */
+  searchTaskAssignees: (
+    userTaskId: string,
+    query: string,
+    action: 'assign' | 'delegate',
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<DirectorySubjectSearchResultDto>(
+      `/identity-directory/user-tasks/${encodeURIComponent(userTaskId)}/assignees`,
+      { query: { query, action, limit: 20 }, signal },
+    ),
+
   /** Sucht nur im gebundenen Start- oder Aufgabenformular, nie im globalen Verzeichnis. */
   searchFormSubjects: (
     context: FormDirectorySearchContext,
@@ -239,11 +261,64 @@ export const userTasksApi = {
   getForm: (userTaskId: string, signal?: AbortSignal) =>
     requestStatusResult<FormDto>(`/usertask/${userTaskId}/form`, { signal }),
 
+  /** `GET /usertask/{id}/draft` — lädt den serverseitigen Eingabeentwurf. */
+  getDraft: (userTaskId: string, signal?: AbortSignal) =>
+    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, { signal }),
+
+  /** `PUT /usertask/{id}/draft` — speichert den Entwurf mit optimistischer Revision. */
+  saveDraft: (userTaskId: string, draft: UserTaskDraftRequest) =>
+    requestStatusResult<UserTaskDraftDto>(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
+      method: 'PUT',
+      body: draft,
+    }),
+
+  /** `DELETE /usertask/{id}/draft?expectedRevision=…` — verwirft den Entwurf. */
+  deleteDraft: (userTaskId: string, expectedRevision: number, expectedTaskRevision?: number) =>
+    requestStatus(`/usertask/${encodeURIComponent(userTaskId)}/draft`, {
+      method: 'DELETE',
+      query: { expectedRevision, expectedTaskRevision },
+    }),
+
+  /** Übernimmt eine freie Kandidatenaufgabe für die authentifizierte Person. */
+  claim: (userTaskId: string, command: UserTaskClaimRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/claim`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Gibt die eigene Übernahme mit protokolliertem Grund zurück in den Kandidatenpool. */
+  release: (userTaskId: string, command: UserTaskReleaseRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/release`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Administrative Zuweisung an einen aktiven Directory-Benutzer. */
+  assign: (userTaskId: string, command: UserTaskTransferRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/assign`, {
+      method: 'POST',
+      body: command,
+    }),
+
+  /** Berechtigte Übergabe an einen aktiven Directory-Kandidaten. */
+  delegate: (userTaskId: string, command: UserTaskTransferRequest) =>
+    requestStatusResult<UserTaskWorkStateDto>(`/usertask/${encodeURIComponent(userTaskId)}/delegate`, {
+      method: 'POST',
+      body: command,
+    }),
+
   /** `POST /usertask` — schließt eine Aufgabe mit Ergebnisdaten ab. */
   complete: (result: UserTaskResultDto) => requestStatus('/usertask', { method: 'POST', body: result }),
 };
 
 export const formsApi = {
+  /** Datensparsames Inventar veroeffentlichter Fassungen und Autorenentwuerfe. */
+  compatibility: (needsMigration?: boolean, signal?: AbortSignal) =>
+    requestStatusResult<FormCompatibilityItemDto[]>('/form/compatibility', {
+      query: { needsMigration },
+      signal,
+    }),
+
   /** `GET /form/meta` — alle Formulare, optional nach Namen gefiltert. */
   listMeta: (search?: string, signal?: AbortSignal) =>
     requestStatusResult<FormMetaDataDto[]>('/form/meta', { query: { search }, signal }),
@@ -275,6 +350,31 @@ export const formsApi = {
       body: { formId: form.formId, formData: form.formData, version: form.version ?? { major: 0, minor: 1 } },
     }),
 
+  /** Autorenentwurf oder Basis der neuesten Veroeffentlichung. */
+  getDraft: (formId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, { signal }),
+
+  /** Revisionierten Autorenentwurf speichern. */
+  saveDraft: (formId: string, draft: SaveFormAuthoringDraftRequestDto) =>
+    requestStatusResult<FormAuthoringDraftDto>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'PUT',
+      body: draft,
+    }),
+
+  /** Autorenentwurf bei passender Revision verwerfen. */
+  deleteDraft: (formId: string, expectedRevision: number) =>
+    request<void>(`/form/${encodeURIComponent(formId)}/draft`, {
+      method: 'DELETE',
+      query: { expectedRevision },
+    }),
+
+  /** Erwarteten Entwurf als naechste unveraenderliche Version veroeffentlichen. */
+  publishDraft: (formId: string, expectedRevision: number) =>
+    requestStatusResult<FormDto>(`/form/${encodeURIComponent(formId)}/publish`, {
+      method: 'POST',
+      body: { expectedRevision },
+    }),
+
   /** `POST /form/result` — reicht Formulardaten für einen User-Task ein. */
   submitResult: (result: UserTaskResultDto) =>
     requestStatus('/form/result', { method: 'POST', body: result }),
@@ -283,6 +383,15 @@ export const formsApi = {
 export const messagesApi = {
   /** `POST /message` — korreliert eine Nachricht in laufende Instanzen. */
   publish: (message: MessageDto) => requestStatusResult<string>('/message', { method: 'POST', body: message }),
+};
+
+export const notificationsApi = {
+  /** `GET /notifications` — persistenter Feed der angemeldeten Person. */
+  list: (signal?: AbortSignal) => requestStatusResult<NotificationDto[]>('/notifications', { signal }),
+
+  /** `POST /notifications/{id}/read` — idempotentes Lesestatus-Update. */
+  markRead: (id: string) =>
+    requestStatus(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }),
 };
 
 export const operationsApi = {

@@ -148,6 +148,15 @@ Damit lässt sich ein Ausschnitt des Katalogs an die Menschen übergeben, die ih
 
 Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_ROOT`. Für den Betrieb steht eine PostgreSQL-Ablage mit echten Transaktionen bereit (`Storage:Provider=PostgreSql`, Migrationen per `dotnet WebApiEngine.dll --migrate`). Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#ablage-dateisystem-oder-postgresql).
 
+## Aufgabenentwürfe
+
+Offene User-Tasks besitzen einen privaten serverseitigen Bearbeitungsstand mit
+optimistischer Revision. Die Konsole kann ihn speichern, nach einem Neustart wieder
+aufnehmen und bewusst verwerfen; konkurrierende Tabs überschreiben einander nicht still.
+Der Server akzeptiert nur deklarierte beschreibbare Felder des an die Workflow-Version
+gebundenen Formulars. Rechte, Lebenszyklus, API und Betriebsgrenzen stehen in
+[docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md).
+
 ## Release und Deployment
 
 `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
@@ -162,6 +171,9 @@ Standardmäßig persistiert die Web-API als JSON-Dateien unter `FLOWZER_STORAGE_
 - [docs/ICORE.md](docs/ICORE.md) – dokumentierter Kernvertrag und minimaler Integrationspfad
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
+- [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
+- [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
 - [src/FlowzerConsole/README.md](src/FlowzerConsole/README.md) – Oberfläche: Konfiguration, lokale Starts, Aufbau
 - [CONTRIBUTING.md](CONTRIBUTING.md) – Leitfaden für Beiträge über GitHub
 - [AGENTS.md](AGENTS.md) – Hinweise für KI, Codex und Copilot

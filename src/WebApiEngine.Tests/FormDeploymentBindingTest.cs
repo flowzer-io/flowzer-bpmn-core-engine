@@ -21,7 +21,8 @@ public class FormDeploymentBindingTest
     private const string ChangedSchema = """{"components":[{"type":"textfield","key":"privateSalary","input":true}]}""";
 
     // Testzweck: Eine neue Fassung und Umbenennung im Formularbestand verändern weder
-    // bestehende Aufgaben noch erst später aktivierte Aufgaben derselben Definitionsversion.
+    // bestehende Aufgaben noch erst später aktivierte Aufgaben derselben Definitionsversion;
+    // auch ein versuchtes Ueberschreiben der gebundenen Fassung wird abgelehnt.
     [Test]
     public async Task Tasks_ShouldKeepDeployedForm_AcrossVersionChangeRenameAndLaterActivation()
     {
@@ -36,9 +37,11 @@ public class FormDeploymentBindingTest
         var first = (await context.Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
         await SaveForm(context, form.FormId, major: 2, schema: ChangedSchema);
         await context.Storage.FormStorage.UpdateFormMetaData(new FormMetadata { FormId = form.FormId, Name = "Renamed" });
-        // Selbst eine beschädigte/quellenextern überschriebene Versionszeile ersetzt den Snapshot nicht.
+        // Veröffentlichte Versionen sind inzwischen unveränderlich. Der frühere Test hat
+        // hier die Storage-Zeile absichtlich beschädigt; heute muss genau das scheitern.
         form.FormData = ChangedSchema;
-        await context.Storage.FormStorage.SaveForm(form);
+        await context.Storage.FormStorage.Invoking(storage => storage.SaveForm(form))
+            .Should().ThrowAsync<StorageSystem.Exceptions.DefinitionStorageConflictException>();
         using var client = context.CreateClient();
 
         var response = await client.GetAsync($"/usertask/{first.Id}/form");

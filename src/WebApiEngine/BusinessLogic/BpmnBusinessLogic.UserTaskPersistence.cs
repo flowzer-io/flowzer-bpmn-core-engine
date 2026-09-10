@@ -9,7 +9,7 @@ public partial class BpmnBusinessLogic
     /// Aktualisiert wartende Aufgaben nach Tokenidentität statt alle IDs neu zu erzeugen.
     /// Unter der Engine-Sperre und innerhalb der bestehenden Storage-Transaktion aufrufen.
     /// </summary>
-    private static async Task SaveUserTasks(IStorageSystem storage, ICatchHandler catchHandler,
+    private async Task SaveUserTasks(IStorageSystem storage, ICatchHandler catchHandler,
         string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
     {
         var active = catchHandler.ActiveUserTasks().ToArray();
@@ -60,8 +60,28 @@ public partial class BpmnBusinessLogic
             }
             // Beide produktiven Implementierungen besitzen hier Upsert-Semantik nach ID.
             await storage.SubscriptionStorage.AddUserTaskSubscription(task);
+            try
+            {
+                await storage.UserTaskDeadlineStorage.AddIfAbsent(UserTaskScheduleResolver.Resolve(
+                    task.Id,
+                    ToUtc(token.StartTime),
+                    model.FlowzerDueDate,
+                    model.FlowzerFollowUpDate,
+                    _userTaskDeadlinePolicy));
+            }
+            catch (NotSupportedException)
+            {
+                // Externe Legacy-Adapter können zunächst ohne Deadline-Vertrag weiterlaufen.
+            }
         }
     }
+
+    private static DateTimeOffset ToUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => new DateTimeOffset(value),
+        DateTimeKind.Local => new DateTimeOffset(value).ToUniversalTime(),
+        _ => new DateTimeOffset(DateTime.SpecifyKind(value, DateTimeKind.Utc))
+    };
 
     private static void ValidateTaskIdentities(Token[] active, UserTaskSubscription[] existing,
         string metaDefinitionId, Guid definitionId, string processId, Guid? instanceId)

@@ -40,6 +40,11 @@
               Link="examples\formulare\%(Filename)%(Extension)">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        <!-- Gemeinsamer, versionierter Vertrag: dieselben Dateien liest auch Vitest. -->
+        <None Include="..\..\tests\form-contract-vectors\*.json"
+              Link="FormContractVectors\%(Filename)%(Extension)">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <ItemGroup>

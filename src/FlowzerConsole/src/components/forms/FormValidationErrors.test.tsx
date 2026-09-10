@@ -47,4 +47,23 @@ describe('Serverseitige Formularfehler', () => {
     const { container } = render(<FormValidationErrors error={new Error('Offline')} schema={schema} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  // Testzweck: Indexierte Serverpfade aus Wiederholgruppen werden als verstaendliche
+  // Zeilen-/Feldbezeichnung dargestellt, waehrend der Fehlercode lokal uebersetzt bleibt.
+  it('ordnet Wiederholgruppenfehler der sichtbaren Zeile zu', () => {
+    const repeatSchema = JSON.stringify({ components: [{
+      type: 'datagrid', key: 'positions', label: 'Positionen',
+      components: [{ type: 'textfield', key: 'name', label: 'Bezeichnung' }],
+    }] });
+    const error = new ApiError('Invalid input', {
+      status: 422,
+      url: '/usertask',
+      body: { errors: { 'positions[1].name': ['required'], positions: ['repeat.max'] } },
+    });
+
+    render(<FormValidationErrors error={error} schema={repeatSchema} />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Positionen 2 – Bezeichnung');
+    expect(screen.getByRole('alert')).toHaveTextContent('Liste enthält zu viele');
+  });
 });

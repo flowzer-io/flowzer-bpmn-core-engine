@@ -31,6 +31,14 @@ const messages = new Map(Object.entries({
   'directory.unavailable': 'Die ausgewählte Benutzer- oder Gruppenreferenz ist nicht mehr aktiv verfügbar.',
   'form.binding_missing': 'Der Formularstand muss vom Betrieb geklärt werden.',
   'form.contract_unsupported': 'Dieses Formular benötigt eine unterstützte serverseitige Regeldefinition.',
+  'repeat.array': 'Bitte eine Liste von Einträgen angeben.',
+  'repeat.row_object': 'Dieser Eintrag besitzt nicht die erwartete Feldstruktur.',
+  'repeat.min': 'Bitte weitere Einträge hinzufügen.',
+  'repeat.max': 'Die Liste enthält zu viele Einträge.',
+  'action.required': 'Bitte eine der vorgesehenen Entscheidungsaktionen auswählen.',
+  'action.invalid': 'Diese Entscheidungsaktion gehört nicht zur veröffentlichten Formularversion.',
+  'action.conflict': 'Ein festes Aktionsfeld darf nicht durch Formulardaten überschrieben werden.',
+  'action.not_allowed': 'Entscheidungsaktionen sind für diesen Formularweg nicht freigegeben.',
 }));
 
 function labelsOf(schema?: string): Map<string, string> {
@@ -44,6 +52,17 @@ function labelsOf(schema?: string): Map<string, string> {
   }
   try { visit(JSON.parse(schema ?? '{}') as unknown); } catch { /* Feldkennung bleibt lesbar. */ }
   return labels;
+}
+
+function labelOf(field: string, labels: Map<string, string>): string {
+  const direct = labels.get(field);
+  if (direct) return direct;
+  const repeat = /^([A-Za-z][A-Za-z0-9_]*)\[(\d+)](?:\.([A-Za-z][A-Za-z0-9_]*))?$/.exec(field);
+  if (!repeat) return field || 'Formular';
+  const [, groupKey, indexText, childKey] = repeat;
+  const group = labels.get(groupKey!) ?? groupKey!;
+  const row = Number(indexText) + 1;
+  return childKey ? `${group} ${row} – ${labels.get(childKey) ?? childKey}` : `${group} ${row}`;
 }
 
 /** Gemeinsame, wertefreie Fehleranzeige. Der Renderer und seine Eingaben bleiben bestehen. */
@@ -63,7 +82,7 @@ export function FormValidationErrors({ error, schema }: { error: unknown; schema
       <h3 className="font-semibold">Bitte die Angaben prüfen</h3>
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {entries.map(([field, codes]) => (
-          <li key={field}><strong>{labels.get(field) ?? (field || 'Formular')}:</strong>{' '}
+          <li key={field}><strong>{labelOf(field, labels)}:</strong>{' '}
             {[...new Set(codes.map(code => messages.get(code) ?? 'Die Eingabe ist nicht zulässig.'))].join(' ')}
           </li>
         ))}

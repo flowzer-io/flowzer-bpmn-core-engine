@@ -22,13 +22,39 @@ Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
    berechtigte Modellierende. #194 / PR #195 ergänzt den serverseitigen Text-/Directory-Vertrag für
    User-Task-Zuweisungen; #196 ergänzt die Auswahl in Diagramm und Gliederung. #198 ergänzt
    das gebundene `flowzerSubject`-Formularfeld; #200 verwendet dieselbe Auswahl für typisierte
-   Ordnerrechte und erhält daneben den expliziten Freitextmodus.
-3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
-   TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.
+   Ordnerrechte und erhält daneben den expliziten Freitextmodus. #202 ergänzt private,
+   revisionsgeschützte Aufgabenentwürfe samt Wiederaufnahme und Konfliktdarstellung
+   in PR #203. #208 / PR #209 sichert die Formularprofile mit demselben versionierten
+   Vertragsvektor-Katalog in .NET und Vitest ab. #210 / PR #211 trennt Formularautoren-Entwurf,
+   Vorschau und ausdrückliche unveränderliche Veröffentlichung.
+   #212 / PR #213 inventarisiert danach alle veröffentlichten Fassungen und Autorenentwürfe
+   anhand stabiler, datensparsamer Kompatibilitätscodes.
+   #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
+   Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
+   die Abschnittsbibliothek folgt separat.
+3. **M3/M4 – Aufgaben und Oberflächen:** #204 / PR #205 ergänzt Übernahme, Freigabe,
+   Operator-Zuweisung und berechtigte Delegation mit stabiler Revision und Auditspur.
+   #206 / PR #207 ergänzt darauf aufbauend serverseitig gebundene Fristen, Wiedervorlagen,
+   Erinnerungen, Eskalationsmeldungen und den deduplizierten In-App-Feed. Beide
+   Slices liegen auf `codex/m3-user-task-deadlines`; Merge nach `main` und die
+   fachliche Abnahme bleiben offen. SDK/Einbettung für TickyTask, Modellierungsprüfung,
+   Laufzeitdiagramm und belastbare Vorgangshistorie folgen.
 4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
    parametergebundene Freigaben und sichere Wiederaufnahme.
 5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
    Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
+
+## M3-Slice-Status
+
+- [x] **#204 / PR #205 – Human-Task-Lifecycle:** Claim, Release, Operator-Zuweisung
+  und berechtigte Delegation mit monotoner Revision, Akteur, Begründung und Auditspur
+  sind im Topic-Branch umgesetzt.
+- [x] **#206 / PR #207 – Human-Task-Fristen:** Due-/Follow-up-Werte werden einmalig serverseitig
+  aufgelöst und als UTC-Termine gebunden. Der Scheduler holt fällige Meilensteine nach;
+  Benachrichtigungen sind taskbezogen, persistent und per Unique-Schlüssel dedupliziert.
+  Die Dateiablage bleibt Einzelprozess-Entwicklung; PostgreSQL ist der vorgesehene
+  Mehrprozesspfad. BPMN-Eskalationspropagation, externe Zustellung und automatische
+  Vertretung sind ausdrücklich nicht enthalten.
 
 ## Vorhandenes nicht neu bauen
 

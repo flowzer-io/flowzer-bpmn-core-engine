@@ -91,5 +91,42 @@ public class FormContextProjectionTest
             }));
     }
 
+    // Testzweck: Profil-3-Wiederholgruppen projizieren nur deklarierte skalare
+    // Zeilenfelder und verwerfen private Nachbarwerte sowie ungueltige Zeilen.
+    [Test]
+    public void Projection_ShouldRetainOnlyDeclaredRepeatGroupRows()
+    {
+        var result = FormContextProjection.Project("""
+            {"flowzer":{"contractVersion":3},"components":[
+              {"type":"datagrid","key":"positions","flowzer":{"repeat":{"maxItems":2}},
+               "components":[{"type":"textfield","key":"name"},{"type":"number","key":"amount"}]}
+            ]}
+            """, Data("""
+            {"positions":[{"name":"Reise","amount":2,"secret":"private"},{"name":"Hotel"}],"other":"private"}
+            """));
+
+        JsonSerializer.Serialize(result).Should().Be(
+            """{"positions":[{"name":"Reise","amount":2},{"name":"Hotel"}]}""");
+    }
+
+    // Testzweck: Das additive Profil 4 bewahrt die sichere Profil-3-Projektion auch
+    // dann, wenn dasselbe Aufgabenformular zusätzlich Entscheidungsaktionen besitzt.
+    [Test]
+    public void Projection_ShouldRetainRepeatGroupsInDecisionActionProfile()
+    {
+        var result = FormContextProjection.Project("""
+            {"flowzer":{"contractVersion":4,"actions":[
+              {"id":"approve","label":"Freigeben","variant":"primary",
+               "set":[{"field":"decision","value":"approved"}]}
+             ]},"components":[
+              {"type":"datagrid","key":"positions","flowzer":{"repeat":{"maxItems":2}},
+               "components":[{"type":"textfield","key":"name"}]},
+              {"type":"hidden","key":"decision"}
+            ]}
+            """, Data("""{"positions":[{"name":"Reise","secret":"private"}]}"""));
+
+        JsonSerializer.Serialize(result).Should().Be("""{"positions":[{"name":"Reise"}]}""");
+    }
+
     private static ExpandoObject Data(string json) => JsonSerializer.Deserialize<ExpandoObject>(json)!;
 }

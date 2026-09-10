@@ -1,0 +1,937 @@
+{
+  "version": 1,
+  "directory": {
+    "users": [
+      {
+        "id": "20000000-0000-0000-0000-000000000001",
+        "subject": "active-user",
+        "displayName": "Aktive Person",
+        "active": true
+      },
+      {
+        "id": "20000000-0000-0000-0000-000000000002",
+        "subject": "inactive-user",
+        "displayName": "Historische Person",
+        "active": false
+      }
+    ],
+    "groups": [
+      {
+        "id": "10000000-0000-0000-0000-000000000001",
+        "externalId": "reviewers",
+        "name": "Review",
+        "path": "/Review",
+        "active": true
+      }
+    ],
+    "memberships": [
+      {
+        "userId": "20000000-0000-0000-0000-000000000001",
+        "groupId": "10000000-0000-0000-0000-000000000001"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "required-whitespace",
+      "purpose": "Pflichtfelder behandeln reinen Leerraum wie eine fehlende Eingabe.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "name",
+            "validate": {
+              "required": true
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "name": "   "
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "name": [
+            "required"
+          ]
+        }
+      }
+    },
+    {
+      "id": "number-rejects-string",
+      "purpose": "Numerische Felder akzeptieren keine wie Zahlen aussehenden Strings.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "number",
+            "key": "amount"
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "amount": "3"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "amount": [
+            "type.number"
+          ]
+        }
+      }
+    },
+    {
+      "id": "number-maximum",
+      "purpose": "Zahlbereiche werden mit einem stabilen Fehlercode begrenzt.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "number",
+            "key": "amount",
+            "validate": {
+              "min": 1,
+              "max": 5
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "amount": 6
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "amount": [
+            "number.max"
+          ]
+        }
+      }
+    },
+    {
+      "id": "text-maximum-length",
+      "purpose": "Textgrenzen werden in Browser und Server gleich ausgewertet.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "note",
+            "validate": {
+              "maxLength": 3
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "note": "vier"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "note": [
+            "text.max_length"
+          ]
+        }
+      }
+    },
+    {
+      "id": "static-selection-invalid",
+      "purpose": "Statische Auswahlen lassen keine manipulierten Fremdwerte zu.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "select",
+            "key": "choice",
+            "data": {
+              "values": [
+                {
+                  "value": "one"
+                },
+                {
+                  "value": "two"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "choice": "other"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "choice": [
+            "selection.invalid"
+          ]
+        }
+      }
+    },
+    {
+      "id": "multiple-selection-minimum",
+      "purpose": "Mehrfachauswahlen beachten ihre Mindestanzahl.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "select",
+            "key": "choices",
+            "multiple": true,
+            "data": {
+              "values": [
+                {
+                  "value": "one"
+                },
+                {
+                  "value": "two"
+                }
+              ]
+            },
+            "validate": {
+              "minSelectedCount": 2
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "choices": [
+          "one"
+        ]
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "choices": [
+            "selection.min"
+          ]
+        }
+      }
+    },
+    {
+      "id": "conditional-required-visible",
+      "purpose": "Ein sichtbares bedingtes Pflichtfeld bleibt verpflichtend.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "checkbox",
+            "key": "show"
+          },
+          {
+            "type": "textfield",
+            "key": "reason",
+            "conditional": {
+              "when": "show",
+              "eq": "true",
+              "show": true
+            },
+            "validate": {
+              "required": true
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "show": true
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "reason": [
+            "required"
+          ]
+        }
+      }
+    },
+    {
+      "id": "conditional-inactive-value",
+      "purpose": "Ein ausgeblendetes Feld darf nicht durch einen manipulierten Request geschrieben werden.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "checkbox",
+            "key": "show"
+          },
+          {
+            "type": "textfield",
+            "key": "reason",
+            "conditional": {
+              "when": "show",
+              "eq": "true",
+              "show": true
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "show": false,
+        "reason": "nicht zulässig"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "reason": [
+            "field.inactive"
+          ]
+        }
+      }
+    },
+    {
+      "id": "date-order-equality",
+      "purpose": "Datumsregeln lehnen gleiche Grenzen ab, wenn Gleichheit nicht erlaubt ist.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": {
+          "rules": [
+            {
+              "kind": "dateOrder",
+              "start": "from",
+              "end": "until",
+              "allowEqual": false
+            }
+          ]
+        },
+        "components": [
+          {
+            "type": "datetime",
+            "key": "from"
+          },
+          {
+            "type": "datetime",
+            "key": "until"
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "from": "2026-09-08",
+        "until": "2026-09-08"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "until": [
+            "date.order"
+          ]
+        }
+      }
+    },
+    {
+      "id": "invalid-calendar-date",
+      "purpose": "Kalenderdaten werden strikt geprüft und nicht durch JavaScript normalisiert.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "datetime",
+            "key": "date"
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "date": "2026-02-30"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "date": [
+            "date.invalid"
+          ]
+        }
+      }
+    },
+    {
+      "id": "readonly-context-manipulation",
+      "purpose": "Nur lesbare Kontextwerte dürfen nicht aus dem Browser verändert werden.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "department",
+            "disabled": true
+          }
+        ]
+      },
+      "context": {
+        "department": "Finanzen"
+      },
+      "input": {
+        "department": "Administration"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "department": [
+            "field.read_only"
+          ]
+        }
+      }
+    },
+    {
+      "id": "transport-user-id-is-ignored",
+      "purpose": "Der historische Transportwert UserId wird nicht als Formularausgabe übernommen.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "value"
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "value": "ok",
+        "UserId": "manipuliert"
+      },
+      "expected": {
+        "outcome": "accepted",
+        "output": {
+          "value": "ok"
+        }
+      }
+    },
+    {
+      "id": "unknown-field",
+      "purpose": "Nicht deklarierte Felder werden ohne Spiegelung ihres Inhalts abgewiesen.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "value"
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "value": "ok",
+        "intruder": "NICHT_SPIEGELN"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "intruder": [
+            "field.undeclared"
+          ]
+        }
+      }
+    },
+    {
+      "id": "directory-active-user",
+      "purpose": "Eine aktive stabile Benutzerreferenz ist serverseitig auswählbar.",
+      "phase": "submission",
+      "profile": "flowzer.forms/2",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 2
+        },
+        "components": [
+          {
+            "type": "flowzerSubject",
+            "key": "representative",
+            "flowzer": {
+              "subjectSelection": {
+                "allowUsers": true,
+                "allowGroups": false
+              }
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "representative": {
+          "kind": "user",
+          "id": "20000000-0000-0000-0000-000000000001"
+        }
+      },
+      "expected": {
+        "outcome": "accepted",
+        "output": {
+          "representative": {
+            "kind": "user",
+            "id": "20000000-0000-0000-0000-000000000001"
+          }
+        }
+      }
+    },
+    {
+      "id": "directory-inactive-user",
+      "purpose": "Eine deaktivierte historische Benutzerreferenz ist nicht neu auswählbar.",
+      "phase": "submission",
+      "profile": "flowzer.forms/2",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 2
+        },
+        "components": [
+          {
+            "type": "flowzerSubject",
+            "key": "representative",
+            "flowzer": {
+              "subjectSelection": {
+                "allowUsers": true,
+                "allowGroups": false
+              }
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "representative": {
+          "kind": "user",
+          "id": "20000000-0000-0000-0000-000000000002"
+        }
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "representative": [
+            "selection.invalid"
+          ]
+        }
+      }
+    },
+    {
+      "id": "directory-duplicate-user",
+      "purpose": "Mehrfachauswahlen übernehmen dieselbe stabile Referenz nicht doppelt.",
+      "phase": "submission",
+      "profile": "flowzer.forms/2",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 2
+        },
+        "components": [
+          {
+            "type": "flowzerSubject",
+            "key": "reviewers",
+            "multiple": true,
+            "flowzer": {
+              "subjectSelection": {
+                "allowUsers": true,
+                "allowGroups": false
+              }
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "reviewers": [
+          {
+            "kind": "user",
+            "id": "20000000-0000-0000-0000-000000000001"
+          },
+          {
+            "kind": "user",
+            "id": "20000000-0000-0000-0000-000000000001"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "reviewers": [
+            "selection.duplicate"
+          ]
+        }
+      }
+    },
+    {
+      "id": "named-calculation-output",
+      "purpose": "Eine benannte Berechnung erzeugt ihr Ergebnis ausschließlich auf dem Server.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "server-authoritative",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "name"
+          },
+          {
+            "type": "number",
+            "key": "days"
+          },
+          {
+            "type": "hidden",
+            "key": "summary",
+            "flowzer": {
+              "calculation": {
+                "name": "join.v1",
+                "fields": [
+                  "name",
+                  "days"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "name": "Anna",
+        "days": 3
+      },
+      "expected": {
+        "outcome": "accepted",
+        "output": {
+          "name": "Anna",
+          "days": 3,
+          "summary": "Anna · 3"
+        }
+      }
+    },
+    {
+      "id": "named-calculation-forged",
+      "purpose": "Ein vom Browser gefälschtes Ergebnis einer benannten Berechnung wird abgewiesen.",
+      "phase": "submission",
+      "profile": "flowzer.forms/1",
+      "comparison": "server-authoritative",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "name"
+          },
+          {
+            "type": "hidden",
+            "key": "summary",
+            "flowzer": {
+              "calculation": {
+                "name": "join.v1",
+                "fields": [
+                  "name"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "context": {},
+      "input": {
+        "name": "Anna",
+        "summary": "gefälscht"
+      },
+      "expected": {
+        "outcome": "rejected",
+        "errors": {
+          "summary": [
+            "field.calculated"
+          ]
+        }
+      }
+    },
+    {
+      "id": "repeat-group-accepted",
+      "purpose": "Eine begrenzte Profil-3-Wiederholgruppe erzeugt ausschließlich deklarierte Zeilenobjekte.",
+      "phase": "submission",
+      "profile": "flowzer.forms/3",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "positions",
+            "description": "Fachliche Positionen.",
+            "flowzer": { "repeat": { "minItems": 1, "maxItems": 2 } },
+            "components": [
+              { "type": "textfield", "key": "name", "validate": { "required": true } },
+              { "type": "number", "key": "amount", "validate": { "min": 1 } }
+            ]
+          }
+        ]
+      },
+      "context": {},
+      "input": { "positions": [{ "name": "Reise", "amount": 2 }] },
+      "expected": {
+        "outcome": "accepted",
+        "output": { "positions": [{ "name": "Reise", "amount": 2 }] }
+      }
+    },
+    {
+      "id": "repeat-group-rejects-unknown-row-field",
+      "purpose": "Unbekannte Werte innerhalb einer Wiederholzeile werden mit einem indexierten Pfad abgelehnt.",
+      "phase": "submission",
+      "profile": "flowzer.forms/3",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "positions",
+            "flowzer": { "repeat": { "maxItems": 2 } },
+            "components": [{ "type": "textfield", "key": "name" }]
+          }
+        ]
+      },
+      "context": {},
+      "input": { "positions": [{ "name": "Reise", "secret": "NICHT_SPIEGELN" }] },
+      "expected": {
+        "outcome": "rejected",
+        "errors": { "positions[0].secret": ["field.undeclared"] }
+      }
+    },
+    {
+      "id": "compile-rejects-nested-repeat-group",
+      "purpose": "Verschachtelte Wiederholgruppen werden im begrenzten Profil 3 auf Client und Server abgelehnt.",
+      "phase": "compile",
+      "profile": "flowzer.forms/3",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          {
+            "type": "datagrid",
+            "key": "rows",
+            "components": [{ "type": "datagrid", "key": "nested", "components": [] }]
+          }
+        ]
+      },
+      "expected": { "outcome": "rejected", "code": "repeat.nested" }
+    },
+    {
+      "id": "compile-rejects-html-help-text",
+      "purpose": "Profil-3-Hilfetexte bleiben Plaintext und koennen kein HTML einschleusen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/3",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": { "contractVersion": 3 },
+        "components": [
+          { "type": "textfield", "key": "name", "description": "<b>unsafe</b>" }
+        ]
+      },
+      "expected": { "outcome": "rejected", "code": "help.plain_text" }
+    },
+    {
+      "id": "action-applies-declared-assignment",
+      "purpose": "Eine Human-Task-Aktion setzt ausschließlich ihren veröffentlichten festen Entscheidungswert.",
+      "phase": "submission",
+      "profile": "flowzer.forms/4",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "decision", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [
+          { "type": "textfield", "key": "comment" },
+          { "type": "hidden", "key": "decision", "validate": { "required": true } }
+        ]
+      },
+      "input": { "comment": "Reviewed" },
+      "actionId": "approve",
+      "allowActions": true,
+      "expected": {
+        "outcome": "accepted",
+        "output": { "comment": "Reviewed", "decision": "approved" }
+      }
+    },
+    {
+      "id": "action-requires-explicit-selection",
+      "purpose": "Ein alter Client ohne Action-ID scheitert sicher und erzeugt keinen generischen Abschluss.",
+      "phase": "submission",
+      "profile": "flowzer.forms/4",
+      "comparison": "server-authoritative",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "decision", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [{ "type": "hidden", "key": "decision" }]
+      },
+      "input": {},
+      "allowActions": true,
+      "expected": {
+        "outcome": "rejected",
+        "errors": { "": ["action.required"] }
+      }
+    },
+    {
+      "id": "compile-rejects-action-unknown-field",
+      "purpose": "Eine Aktion darf kein nicht deklariertes Prozessfeld als Ausgabe öffnen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/4",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "approve",
+              "label": "Freigeben",
+              "variant": "primary",
+              "set": [{ "field": "other", "value": "approved" }]
+            }
+          ]
+        },
+        "components": [{ "type": "hidden", "key": "decision" }]
+      },
+      "expected": { "outcome": "rejected", "code": "action.field" }
+    },
+    {
+      "id": "compile-rejects-action-wrong-value-type",
+      "purpose": "Eine feste Aktionsbelegung muss bereits bei der Veröffentlichung zum Feldtyp passen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/4",
+      "comparison": "client-server",
+      "schema": {
+        "flowzer": {
+          "contractVersion": 4,
+          "actions": [
+            {
+              "id": "score",
+              "label": "Bewerten",
+              "variant": "primary",
+              "set": [{ "field": "score", "value": "not-a-number" }]
+            }
+          ]
+        },
+        "components": [{ "type": "number", "key": "score" }]
+      },
+      "expected": { "outcome": "rejected", "code": "action.value" }
+    },
+    {
+      "id": "compile-rejects-custom-script",
+      "purpose": "Beliebiges Formular-JavaScript wird nicht als veröffentlichbarer Vertrag akzeptiert.",
+      "phase": "compile",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "textfield",
+            "key": "value",
+            "calculateValue": "value = data.other"
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "rejected",
+        "code": "schema.script"
+      }
+    },
+    {
+      "id": "compile-rejects-dynamic-source",
+      "purpose": "Nicht administrierte dynamische Auswahldatenquellen bleiben gesperrt.",
+      "phase": "compile",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "select",
+            "key": "choice",
+            "dataSrc": "url",
+            "data": {
+              "url": "https://example.invalid"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "rejected",
+        "code": "selection.dynamic_source"
+      }
+    },
+    {
+      "id": "compile-rejects-unknown-component",
+      "purpose": "Eine nicht unterstützte Containerkomponente wird nicht still akzeptiert.",
+      "phase": "compile",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": [
+          {
+            "type": "container",
+            "key": "data",
+            "components": []
+          }
+        ]
+      },
+      "expected": {
+        "outcome": "rejected",
+        "code": "schema.field_type"
+      }
+    },
+    {
+      "id": "compile-rejects-oversized-schema",
+      "purpose": "Die gemeinsame Ein-MiB-Schemabegrenzung wird vor weiterer Verarbeitung erzwungen.",
+      "phase": "compile",
+      "profile": "flowzer.forms/1",
+      "comparison": "client-server",
+      "schema": {
+        "components": []
+      },
+      "schemaPaddingLength": 1048577,
+      "expected": {
+        "outcome": "rejected",
+        "code": "schema.size_limit"
+      }
+    }
+  ]
+}

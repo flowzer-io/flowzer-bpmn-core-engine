@@ -19,6 +19,8 @@ public static class InteractionMappingExtensions
             FlowNodeId = userTaskResultDto.FlowNodeId,
             TokenId = userTaskResultDto.TokenId,
             ProcessInstanceId = userTaskResultDto.ProcessInstanceId,
+            ExpectedTaskRevision = userTaskResultDto.ExpectedTaskRevision,
+            ActionId = userTaskResultDto.ActionId,
             Data = userTaskResultDto.Data
         };
     }

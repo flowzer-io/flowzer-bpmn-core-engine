@@ -22,13 +22,24 @@ public static class FormContextProjection
         try
         {
             using var document = JsonDocument.Parse(schema, new JsonDocumentOptions { MaxDepth = 32 });
-            if (document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("components", out var components))
+            var root = document.RootElement;
+            var version = root.ValueKind == JsonValueKind.Object
+                ? FormJson.Number(FormJson.Get(root, "flowzer"), "contractVersion") ?? 1
+                : 1;
+            var allowRepeatGroups = version >= 3;
+            if (allowRepeatGroups)
             {
-                ProjectComponents(components, source, result);
+                // Profil 3 darf verschachtelte Objektwerte nur nach erfolgreicher
+                // Compilerpruefung freigeben. Ein teilweise verstandenes Schema ist kein Recht.
+                _ = FormContractCompiler.Compile(schema);
+            }
+            if (root.ValueKind == JsonValueKind.Object
+                && root.TryGetProperty("components", out var components))
+            {
+                ProjectComponents(components, source, result, allowRepeatGroups);
             }
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or FormContractException)
         {
             // Ein beschädigtes oder unverständlich tiefes Schema ist nie eine Freigabe.
             return new ExpandoObject();
@@ -36,7 +47,11 @@ public static class FormContextProjection
         return result;
     }
 
-    private static void ProjectComponents(JsonElement components, object source, ExpandoObject result)
+    private static void ProjectComponents(
+        JsonElement components,
+        object source,
+        ExpandoObject result,
+        bool allowRepeatGroups = false)
     {
         if (components.ValueKind != JsonValueKind.Array) return;
         foreach (var component in components.EnumerateArray())
@@ -45,7 +60,7 @@ public static class FormContextProjection
             var type = Text(component, "type");
             if (LayoutTypes.Contains(type))
             {
-                ProjectLayout(component, source, result);
+                ProjectLayout(component, source, result, allowRepeatGroups);
                 continue;
             }
 
@@ -53,10 +68,16 @@ public static class FormContextProjection
             if (!IsSafePath(key) || IsFalse(component, "input")) continue;
             if (!TryReadPath(source, key, out var value)) continue;
 
-            if (type == "container" && component.TryGetProperty("components", out var nested))
+            if (allowRepeatGroups && type == "datagrid"
+                && component.TryGetProperty("components", out var rowComponents)
+                && TryProjectRepeatRows(component, rowComponents, value, out var rows))
+            {
+                WritePath(result, key, rows);
+            }
+            else if (type == "container" && component.TryGetProperty("components", out var nested))
             {
                 ExpandoObject selected = new();
-                if (value is not null) ProjectComponents(nested, value, selected);
+                if (value is not null) ProjectComponents(nested, value, selected, allowRepeatGroups: false);
                 WritePath(result, key, selected);
             }
             else if (ScalarTypes.Contains(type) && TryScalar(value, out var scalar))
@@ -74,21 +95,56 @@ public static class FormContextProjection
         }
     }
 
-    private static void ProjectLayout(JsonElement layout, object source, ExpandoObject result)
+    private static void ProjectLayout(JsonElement layout, object source, ExpandoObject result, bool allowRepeatGroups)
     {
-        if (layout.TryGetProperty("components", out var components)) ProjectComponents(components, source, result);
+        if (layout.TryGetProperty("components", out var components))
+            ProjectComponents(components, source, result, allowRepeatGroups);
         foreach (var property in new[] { "columns", "rows" })
         {
             if (!layout.TryGetProperty(property, out var children) || children.ValueKind != JsonValueKind.Array) continue;
             foreach (var child in children.EnumerateArray())
             {
-                if (child.ValueKind == JsonValueKind.Object) ProjectLayout(child, source, result);
+                if (child.ValueKind == JsonValueKind.Object) ProjectLayout(child, source, result, allowRepeatGroups);
                 if (child.ValueKind == JsonValueKind.Array)
                     foreach (var cell in child.EnumerateArray())
-                        if (cell.ValueKind == JsonValueKind.Object) ProjectLayout(cell, source, result);
+                        if (cell.ValueKind == JsonValueKind.Object) ProjectLayout(cell, source, result, allowRepeatGroups);
             }
         }
     }
+
+    private static bool TryProjectRepeatRows(
+        JsonElement component,
+        JsonElement rowComponents,
+        object? value,
+        out List<object?> rows)
+    {
+        rows = [];
+        IEnumerable<object?>? values = value switch
+        {
+            JsonElement { ValueKind: JsonValueKind.Array } json => json.EnumerateArray().Select(item => (object?)item),
+            System.Collections.IEnumerable sequence when value is not string => sequence.Cast<object?>(),
+            _ => null
+        };
+        if (values is null) return false;
+        var repeat = FormJson.Get(FormJson.Get(component, "flowzer"), "repeat");
+        var maximum = (int)(FormJson.Number(repeat, "maxItems") ?? 20);
+        foreach (var row in values)
+        {
+            if (rows.Count >= maximum || !IsObjectValue(row)) return false;
+            ExpandoObject selected = new();
+            ProjectComponents(rowComponents, row!, selected, allowRepeatGroups: false);
+            rows.Add(selected);
+        }
+        return true;
+    }
+
+    private static bool IsObjectValue(object? value) => value switch
+    {
+        IDictionary<string, object?> => true,
+        JsonElement { ValueKind: JsonValueKind.Object } => true,
+        JObject => true,
+        _ => false
+    };
 
     private static bool TryScalar(object? value, out object? scalar)
     {

@@ -66,7 +66,6 @@ internal sealed class PostgreSqlFormStorage(PostgreSqlSession session) : IFormSt
         await using var command = session.CreateCommand(connection, transaction, """
             INSERT INTO {schema}.forms (id, form_id, version_major, version_minor, body)
             VALUES (@id, @formId, @major, @minor, @body)
-            ON CONFLICT (id) DO UPDATE SET form_id = EXCLUDED.form_id, version_major = EXCLUDED.version_major, version_minor = EXCLUDED.version_minor, body = EXCLUDED.body
             """);
         command.Parameters.AddWithValue("id", form.Id);
         command.Parameters.AddWithValue("formId", form.FormId);
@@ -80,7 +79,7 @@ internal sealed class PostgreSqlFormStorage(PostgreSqlSession session) : IFormSt
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
         {
             throw new DefinitionStorageConflictException(
-                $"Form '{form.FormId}' already has a version {form.Version.Major}.{form.Version.Minor}.");
+                $"Published form '{form.FormId}' is immutable; ID '{form.Id}' or version {form.Version.Major}.{form.Version.Minor} already exists.");
         }
     });
 

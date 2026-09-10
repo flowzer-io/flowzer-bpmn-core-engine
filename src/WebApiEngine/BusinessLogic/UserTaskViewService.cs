@@ -8,10 +8,34 @@ namespace WebApiEngine.BusinessLogic;
 public sealed class UserTaskViewService(FormKeyResolver forms, IStorageSystem storage)
 {
     private readonly Dictionary<Guid, ProcessInstanceInfo?> _instances = [];
-    public async Task<ExtendedUserTaskSubscriptionDto> ProjectAsync(ExtendedUserTaskSubscription task, bool canInspect)
+    public async Task<ExtendedUserTaskSubscriptionDto> ProjectAsync(
+        ExtendedUserTaskSubscription task,
+        bool canInspect,
+        WebApiEngine.Auth.UserTaskAccess? access = null)
     {
         // Ohne Betriebsrecht nicht erst den Modellgraphen serialisieren und danach wegwerfen.
         var dto = task.ToDto(includeTokenContext: canInspect);
+        if (access is not null) dto.WorkState = WebApiEngine.Auth.UserTaskWorkAuthorization.ToDto(access);
+        try
+        {
+            var deadline = await storage.UserTaskDeadlineStorage.Get(task.Id);
+            if (deadline is not null)
+            {
+                dto.Deadline = new WebApiEngine.Shared.UserTaskDeadlineDto
+                {
+                    ScheduleState = deadline.ScheduleState,
+                    Status = deadline.Status,
+                    ActivatedAtUtc = deadline.ActivatedAtUtc,
+                    DueAtUtc = deadline.DueAtUtc,
+                    FollowUpAtUtc = deadline.FollowUpAtUtc,
+                    EscalationAtUtc = deadline.EscalationAtUtc
+                };
+            }
+        }
+        catch (NotSupportedException)
+        {
+            // Externe Legacy-Adapter liefern weiterhin ausschließlich die Rohwerte.
+        }
         var form = await forms.ResolveAsync(dto.FormKey, task.DefinitionId);
         // Auch Operator-Formulare dürfen keine unsichtbaren Zusatzvariablen zurücksenden.
         // Vollständige Diagnose bleibt über die separat berechtigte Instanz-API erreichbar.

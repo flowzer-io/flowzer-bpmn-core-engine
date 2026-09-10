@@ -1,6 +1,7 @@
 using FilesystemStorageSystem;
 using FluentAssertions;
 using Model;
+using StorageSystem.Exceptions;
 
 namespace WebApiEngine.Tests;
 
@@ -71,6 +72,28 @@ public class FormStorageTest
         forms.Should().ContainSingle();
         forms[0].Id.Should().Be(secondForm.Id);
         forms[0].Version.ToString().Should().Be("1.1");
+    }
+
+    // Testzweck: Eine bereits veroeffentlichte konkrete Form-ID und Versionsnummer duerfen
+    // nicht durch einen zweiten Schreibvorgang mit geaendertem Inhalt ersetzt werden.
+    [Test]
+    public async Task SaveForm_ShouldRejectOverwritingAPublishedVersion()
+    {
+        using var context = new FormStorageTestContext();
+        var form = context.CreateForm(1, 0, "{}");
+        await context.FormStorage.SaveForm(form);
+
+        var changed = new Form
+        {
+            Id = form.Id,
+            FormId = form.FormId,
+            Version = form.Version,
+            FormData = "{\"changed\":true}"
+        };
+
+        await context.FormStorage.Invoking(storage => storage.SaveForm(changed))
+            .Should().ThrowAsync<DefinitionStorageConflictException>();
+        (await context.FormStorage.GetForm(form.Id)).FormData.Should().Be("{}");
     }
 
     private sealed class FormStorageTestContext : IDisposable

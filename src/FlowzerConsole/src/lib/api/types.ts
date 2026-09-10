@@ -223,10 +223,87 @@ export interface FormDto {
   formData?: string | null;
 }
 
-/** Entspricht `UserTaskSubscriptionDto`. */
+/** Gemeinsamer Formularautoren-Entwurf oder die noch unveraenderte Veroeffentlichungsbasis. */
+export interface FormAuthoringDraftDto {
+  formId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedFormId?: string | null;
+  basedOnVersion?: VersionDto | null;
+  formData: string;
+}
+
+export interface SaveFormAuthoringDraftRequestDto {
+  expectedRevision: number;
+  formData: string;
+}
+
+export type FormCompatibilitySource = 'published' | 'draft';
+
+/** Datensparsamer Inventareintrag; Schema und Scriptinhalt bleiben serverseitig. */
+export interface FormCompatibilityItemDto {
+  formId: string;
+  formName: string;
+  source: FormCompatibilitySource;
+  publishedFormId?: string | null;
+  version?: VersionDto | null;
+  draftRevision?: number | null;
+  compatible: boolean;
+  validationProfile?: string | null;
+  issueCode?: string | null;
+}
+
+/** Serverseitiger Zwischenstand einer offenen User-Task. */
+export interface UserTaskDraftDto {
+  userTaskId: string;
+  revision: number;
+  updatedAtUtc: string | null;
+  data: ProcessVariables;
+}
+
+/** Vollständiger Schreibkörper für einen Aufgabenentwurf. */
+export interface UserTaskDraftRequest {
+  expectedRevision: number;
+  /** Bindet den privaten Stand zusätzlich an die aktuelle Übernahmegeneration. */
+  expectedTaskRevision?: number;
+  data: ProcessVariables;
+}
+
+/** Stabile Benutzer- oder Gruppenreferenz aus dem veröffentlichten Verzeichnis. */
 export interface SubjectRefDto {
   kind: 'user' | 'group';
   id: string;
+}
+
+/** Laufzeitzuweisung einer offenen Aufgabe, getrennt von der BPMN-Modellzuweisung. */
+export interface UserTaskWorkStateDto {
+  /** Eigene monotone Revision des Task-Lebenszyklus, nicht die Draft-Revision. */
+  revision: number;
+  claimed: boolean;
+  /** Tatsächlicher Bearbeiter, sofern er eine bekannte Directory-Identität ist. */
+  actualAssignee: SubjectRefDto | null;
+  actualAssigneeDisplayName: string | null;
+  isAssignedToCurrentUser: boolean;
+  /** Gemeinsame serverseitige Entscheidung für Formular, Draft und Abschluss. */
+  canWork: boolean;
+  canClaim: boolean;
+  canRelease: boolean;
+  canAssign: boolean;
+  canDelegate: boolean;
+}
+
+export interface UserTaskClaimRequest {
+  expectedRevision: number;
+}
+
+export interface UserTaskReleaseRequest extends UserTaskClaimRequest {
+  reason: string;
+}
+
+export interface UserTaskTransferRequest extends UserTaskReleaseRequest {
+  /** Die Console bietet bewusst nur aktive, serverseitig erlaubte Benutzer an. */
+  assignee: SubjectRefDto;
 }
 
 /** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
@@ -263,6 +340,8 @@ export interface UserTaskSubscriptionDto {
   directoryAssignee?: SubjectRefDto | null;
   directoryCandidateUsers: SubjectRefDto[];
   directoryCandidateGroups: SubjectRefDto[];
+  /** Additiver, revisionssicherer Laufzeitvertrag für Claim und Übergaben. */
+  workState: UserTaskWorkStateDto;
   processInstanceId?: string | null;
   definitionId: string;
   processId: string;
@@ -277,7 +356,29 @@ export interface ExtendedUserTaskSubscriptionDto extends UserTaskSubscriptionDto
   /** Ergänzt durch die Console-API: Fälligkeitsangabe aus dem BPMN-Modell. */
   dueDate?: string | null;
   followUpDate?: string | null;
+  /** Serverseitig gebundener Vertrag; Rohwerte sind nur noch Diagnoseinformation. */
+  deadline?: {
+    scheduleState: 'none' | 'resolved' | 'unsupported' | 'invalid';
+    status: 'none' | 'scheduled' | 'follow_up_due' | 'overdue' | 'escalated' | 'unsupported' | 'invalid';
+    activatedAtUtc: string;
+    dueAtUtc?: string | null;
+    followUpAtUtc?: string | null;
+    escalationAtUtc?: string | null;
+  } | null;
   priority?: string | null;
+}
+
+/** Persistente, benutzergebundene Meldung aus dem Server-Feed. */
+export interface NotificationDto {
+  id: string;
+  userTaskId: string;
+  kind: string;
+  occurredAtUtc: string;
+  readAtUtc: string | null;
+  title: string;
+  message: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  href: string;
 }
 
 /** Entspricht `TimerSubscriptionDto`. */
@@ -333,6 +434,10 @@ export interface UserTaskResultDto {
   flowNodeId: string;
   tokenId: string;
   processInstanceId?: string | null;
+  /** Additiv: ältere API-Nutzer dürfen das Feld während der Migration noch auslassen. */
+  expectedTaskRevision?: number;
+  /** Stabile Kennung der im veröffentlichten Aufgabenformular gewählten Aktion. */
+  actionId?: string | null;
   data?: ProcessVariables | null;
 }
 

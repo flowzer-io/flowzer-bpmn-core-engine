@@ -100,7 +100,7 @@ export interface TaskView {
   title: string;
   workflowName: string;
   dueDate: Date | null;
-  /** Rohwert der Fälligkeit, wenn sie sich nicht auswerten ließ. */
+  /** Legacy-Kompatibilität: wird nie mit einem BPMN-Rohwert befüllt. */
   dueRaw: string | null;
   dueLabel: string;
   dueBucket: DueBucket;
@@ -111,8 +111,16 @@ export interface TaskView {
 
 /** Bereitet eine Aufgabe für die Darstellung auf. */
 export function toTaskView(task: ExtendedUserTaskSubscriptionDto, now: Date = new Date()): TaskView {
-  const { date, raw } = parseDueDate(task.dueDate, now);
-  const bucket = dueBucket(date, now, raw);
+  const date = parseApiDate(task.deadline?.dueAtUtc);
+  const scheduleUnsupported = task.deadline?.scheduleState === 'unsupported'
+    || task.deadline?.scheduleState === 'invalid';
+  const bucket = scheduleUnsupported
+    ? 'undated'
+    : task.deadline?.status === 'overdue' || task.deadline?.status === 'escalated'
+      ? 'overdue'
+      : task.deadline?.status === 'follow_up_due'
+        ? 'today'
+        : date ? dueBucket(date, now, null) : 'undated';
 
   return {
     task,
@@ -120,8 +128,12 @@ export function toTaskView(task: ExtendedUserTaskSubscriptionDto, now: Date = ne
     title: task.name?.trim() || task.token.currentFlowNodeId || 'Aufgabe',
     workflowName: task.definitionMetaName || task.processId,
     dueDate: date,
-    dueRaw: date ? null : raw,
-    dueLabel: date ? formatTimestamp(date) : (raw ?? 'ohne Termin'),
+    dueRaw: null,
+    dueLabel: date
+      ? formatTimestamp(date)
+      : scheduleUnsupported
+        ? 'Termin nicht auswertbar'
+        : bucket === 'undated' ? 'ohne Termin' : DUE_BUCKET_LABEL[bucket],
     dueBucket: bucket,
     priority: normalizePriority(task.priority),
     startedAt: parseApiDate(task.token.startTime),

@@ -1,8 +1,7 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179,
-#181, #183, #185 und #187. BFF sowie die M1-Verzeichnis-/Zuweisungs-Slices bis PR #195
-liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
+**Stand:** 9. September 2026; Basis `212705a`. Die beschriebenen M0–M3-Slices bis
+#216 liegen in noch nicht nach `main` gemergten, gestapelten Arbeitsständen.
 
 ## Einordnung
 
@@ -72,6 +71,53 @@ Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datum
 und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
 Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
+## Gemeinsame Formularvertragsvektoren – #208 / PR #209 (noch nicht gemergt)
+
+Ein versionierter JSON-Katalog beschreibt Compile- und Submission-Fälle für
+`flowzer.forms/1` und `/2`. Serverseitiger Compiler/Validator und eine begrenzte
+Browser-Vorprüfung lesen dieselben Schemas, Eingaben und kanonischen Fehlercodes.
+Directory-Auswahl und benannte Berechnungen sind ausdrücklich `server-authoritative`;
+der Client erweitert weder Snapshotrechte noch Berechnungslogik. Der Slice verändert
+keine gespeicherten Formulare oder laufenden Instanzen. Details:
+[Prüfprofil](FORM-VALIDATION-PROFILE.md).
+
+## Formularpflege – #210 / PR #211 (noch nicht gemergt)
+
+Gemeinsame Autorenentwürfe besitzen eine Compare-and-swap-Revision und bleiben von
+veröffentlichten Versionen getrennt. Vorschau, Speichern, Verwerfen und Publish sind
+in der Konsole eigenständige Zustände. Publish prüft den Serververtrag, erzeugt unter
+PostgreSQL atomar genau die Folgeversion und löscht den Entwurf; konkrete Versionen
+sind insert-only. Revisionskonflikte erhalten lokale Eingaben und veröffentlichen
+keinen inzwischen geänderten Stand. Details: [Formularpflege](FORM-AUTHORING.md).
+
+## Formular-Kompatibilitätsinventar – #212 / PR #213 (noch nicht gemergt)
+
+Ein modellierergeschützter Bericht prüft jede veröffentlichte Formularversion und den
+aktuellen Autorenentwurf isoliert gegen den serverseitigen Vertrag. Schema- und
+Scriptinhalte bleiben serverseitig; die API liefert nur stabile Codes und Referenzen.
+Die Konsole markiert betroffene Formulare und bietet einen Migrationsfilter. Der
+Bericht verändert keine Bestände und ersetzt keine fachlich geprüfte Migration. Details:
+[Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
+
+## Wiederholbare Formulargruppen – #214 / PR #215 (noch nicht gemergt)
+
+`flowzer.forms/3` bindet Form.io-Datagrids als begrenzte Arrays deklarierter
+Zeilenobjekte. Servervalidierung, private Entwürfe und Kontextprojektion verwenden
+dieselbe Struktur- und Feldgrenze; Fehler tragen indexierte, wertefreie Pfade. Der
+Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole zeigt
+Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
+[Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
+
+## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
+
+`flowzer.forms/4` bindet fachlich benannte Human-Task-Aktionen an feste skalare
+Belegungen deklarierter Formularfelder. Beide Abschlussrouten lösen ausschließlich
+die stabile `actionId` im Deployment-Snapshot auf; fehlende, unbekannte oder
+widersprüchliche Entscheidungen enden wertefrei mit `422`. Die Wahl gehört zum
+Idempotenz-Hash. Die Konsole pflegt und rendert die Aktionen, Formulare ohne Aktionen
+behalten den generischen Abschluss. Startformulare bleiben im ersten Slice gesperrt.
+Details: [Entscheidungsaktionen](FORM-DECISION-ACTIONS.md).
+
 ## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
 Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.
@@ -132,6 +178,48 @@ serverseitig auf Aktivität und Art geprüft; die Rechteauswertung verwendet aus
 exakte OIDC-Subject beziehungsweise aktive Mitgliedschaften. Deaktivierte Referenzen bleiben
 mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 
+## Private Aufgabenentwürfe – #202 / PR #203 (noch nicht gemergt)
+
+Der Bearbeitungsstand einer offenen User-Task kann serverseitig gespeichert, wieder
+aufgenommen und verworfen werden. Er gehört der authentifizierten Person, nicht der
+Kandidatengruppe; auch Operatoren sehen nur ihren eigenen Entwurf. Eine monotone Revision
+meldet konkurrierende Tabs als 409, ohne den anderen Inhalt offenzulegen. Nur deklarierte,
+beschreibbare Felder der gebundenen Formularversion werden übernommen; Pflicht- und
+Geschäftsregeln bleiben dem Abschluss vorbehalten. Erfolgreicher Abschluss oder Abbruch
+entfernt die Entwürfe der Aufgabe. PostgreSQL sichert Compare-and-swap und Lebenszyklus
+atomar, die Entwicklungs-Dateiablage nur pro API-Prozess. Details:
+[Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
+## Human-Task-Lifecycle – #204 / PR #205 (noch nicht gemergt)
+
+Aufgaben können revisionssicher übernommen, freigegeben, als Operator zugewiesen und an
+einen aktiven Directory-Kandidaten delegiert werden. Nach einer Übernahme gelten Liste,
+Formular, Entwurf, Abschluss und Instanzübersicht nur noch für den tatsächlichen Bearbeiter
+oder den Betrieb. Gruppen bleiben Kandidatenmengen; tatsächliche Ziele sind Benutzer. Ein
+Task-gebundener Suchendpunkt liefert je Aktion ausschließlich zulässige aktive Ziele.
+PostgreSQL koppelt CAS-Zustand und Append-only-Audit atomar und bewahrt die Auditspur nach
+dem Taskende; die Dateiablage bleibt auf einen Entwicklungsprozess begrenzt. Details:
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+
+## Human-Task-Fristen – #206 / PR #207 (noch nicht gemergt)
+
+Der Fristenslice bindet `dueDate` und `followUpDate` beim ersten Auftreten einer
+stabilen Task-ID an absolute UTC-Zeitpunkte. ISO-8601-Zeitpunkte mit Offset und
+ISO-8601-Dauern werden unterstützt; lokale Zeitwerte ohne Offset und FEEL-Ausdrücke
+bleiben ausdrücklich `unsupported` und erzeugen keine automatische Fälligkeit.
+
+Der Deadline-Scheduler backfillt offene Altaufgaben, verarbeitet Follow-up-, Reminder-,
+Due- und Eskalationsmeilensteine nachholbar und begrenzt pro Tick. PostgreSQL dedupliziert
+Meldungen über einen eindeutigen Schlüssel und schützt den Fortschritt per Revision;
+die Dateiablage bleibt ein Einzelprozess-Entwicklungsadapter. Der Feed unter
+`/notifications` nutzt dieselbe objektbezogene Task-Autorisierung wie Liste, Formular,
+Entwurf und Abschluss. Abschluss oder Abbruch entfernt offene Meldungen per
+Fremdschlüssel. Details: [Human-Task-Fristen und Benachrichtigungen](HUMAN-TASK-DEADLINES.md).
+
+Der Slice liefert keine E-Mail-/Push-/Chat-Zustellung, keine automatische Delegation
+und keine BPMN-Eskalationspropagation. Der eigene Operations-Diagnoseblock für den
+Deadline-Scheduler und eine produktionsnahe Aufbewahrungs-/Alerting-Abnahme bleiben offen.
+
 ## Verbleibende Risiken und Reihenfolge
 
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
@@ -141,18 +229,26 @@ mit ihrem gespeicherten Anzeigenamen sichtbar, gewähren aber keine Rechte mehr.
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.
-   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200;
-   Formularentwürfe fehlen weiterhin. Legacy-Namen
-   und kurze Gruppenbezeichnungen bleiben bis zur Migration mehrdeutig;
-   historische externe Formularstände benötigen Klärung.
-3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
-   Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
+   Das generische Formular-Auswahlfeld liegt in #198 vor, Ordnerreferenzen in #200 und
+   private Aufgabenentwürfe in #202. Gemeinsame Client-/Server-Testvektoren, getrennte
+   Entwurfs-/Vorschau-/Veröffentlichungszustände, Wiederholgruppen und Entscheidungsaktionen
+   liegen in #208–#216. Wiederverwendbare Abschnitte, Anhänge und freigegebene dynamische
+   Quellen bleiben offen. Legacy-Namen und kurze Gruppenbezeichnungen bleiben bis zur
+   Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, private Entwürfe und der
+   serverseitige Fristen-/Benachrichtigungskern liegen als gestapelte Topic-Branch-Slices
+   vor (#202/#203, #204/#205, #206/#207). Merge/Abnahme, generisches Headless-SDK samt
+   optionalen React-Komponenten, Modellvalidierung, externe Zustellung und vollständige
+   Vorgangshistorie folgen. Flowzer erhält keine Abhängigkeit von einer konkreten Host-
+   Anwendung; diese konsumiert die generischen Verträge ausschließlich von außen.
+   Mobil-PR #153 nicht duplizieren.
 4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
 5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
    PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
 Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
-sichern Kernwege und Feldfehler. Der vollständige UX-Audit und die erste
+sichern Kernwege und Feldfehler. Der aktuelle Stand besteht lokal 111 Engine-,
+657 API-/Storage- und 288 Konsolentests. Der vollständige UX-Audit und die erste
 Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
 ## Arbeits- und Release-Modell

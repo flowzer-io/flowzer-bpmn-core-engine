@@ -5,6 +5,17 @@ using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Forms;
 
+/// <summary>
+/// Stabiler, maschinenlesbarer Grund fuer ein inkompatibles Formularschema.
+/// Die Nachricht bleibt absichtlich generisch, damit Schema-Details den Server
+/// ueber Kompatibilitaetsberichte nie verlassen.
+/// </summary>
+public sealed class FormContractException(string code)
+    : InvalidOperationException("Unsupported form contract: " + code + ".")
+{
+    public string Code { get; } = string.IsNullOrWhiteSpace(code) ? "schema.invalid" : code;
+}
+
 /// <summary>Explizites, begrenztes Prüfprofil; unbekannte Regeln sind keine Freigabe.</summary>
 public sealed record FormContract(
     string ValidationProfile,
@@ -14,9 +25,23 @@ public sealed record FormContract(
 {
     public const string ProfileV1 = "flowzer.forms/1";
     public const string ProfileV2 = "flowzer.forms/2";
+    public const string ProfileV3 = "flowzer.forms/3";
+    public const string ProfileV4 = "flowzer.forms/4";
+
+    /// <summary>
+    /// Begrenzte, echte Array-von-Objekten-Strukturen. Sie bleiben getrennt von den
+    /// flachen Feldern, damit bestehende Profile nicht unbemerkt Objektwerte freigeben.
+    /// </summary>
+    public IReadOnlyList<FormRepeatGroup> RepeatGroups { get; init; } = [];
+
+    /// <summary>
+    /// Explizite Human-Task-Entscheidungen. Die Aktion liefert nur eine stabile Kennung;
+    /// ihre Feldbelegungen stammen ausschließlich aus dem veröffentlichten Vertrag.
+    /// </summary>
+    public IReadOnlyList<FormAction> Actions { get; init; } = [];
 
     public static bool IsSupportedProfile(string? profile) =>
-        profile is null or ProfileV1 or ProfileV2;
+        profile is null or ProfileV1 or ProfileV2 or ProfileV3 or ProfileV4;
 }
 
 public sealed record FormField(
@@ -26,6 +51,23 @@ public sealed record FormField(
     bool ReadOnly,
     IReadOnlyList<JsonElement> Conditions,
     DirectorySubjectSelectionPolicy? SubjectSelection = null);
+
+public sealed record FormRepeatGroup(
+    string Key,
+    JsonElement Schema,
+    bool ReadOnly,
+    IReadOnlyList<JsonElement> Conditions,
+    IReadOnlyList<FormField> Fields,
+    int MinItems,
+    int MaxItems);
+
+public sealed record FormAction(
+    string Id,
+    string Label,
+    string Variant,
+    IReadOnlyList<FormActionAssignment> Assignments);
+
+public sealed record FormActionAssignment(string Field, JsonElement Value);
 
 internal static class FormJson
 {
@@ -47,7 +89,7 @@ internal static class FormJson
         var value = Get(node, key);
         if (value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null || value.ValueKind == JsonValueKind.String && value.GetString() == "") return null;
         if (decimal.TryParse(value.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number)) return number;
-        throw new InvalidOperationException("Unsupported form contract: invalid numeric constraint.");
+        throw new FormContractException("validation.numeric_constraint");
     }
     internal static bool SafeKey(string key) => key.Length is > 0 and <= 128
         && Regex.IsMatch(key, "^[A-Za-z][A-Za-z0-9_]*$", RegexOptions.CultureInvariant | RegexOptions.NonBacktracking)

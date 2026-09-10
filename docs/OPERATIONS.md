@@ -449,6 +449,19 @@ eingebettetem Formular läuft ohne Umbau.
 
 ## Formulare löschen
 
+Die Formularpflege verwendet revisionierte Autorenentwürfe und eine ausdrückliche
+Veröffentlichung. Betrieb, Konfliktvertrag, PostgreSQL-Migration und Grenzen der
+Dateiablage beschreibt [Formularpflege](FORM-AUTHORING.md). Der kompatible
+`POST /form`-Endpunkt veröffentlicht weiterhin direkt, prüft das Schema aber ebenfalls
+serverseitig und überschreibt keine bestehende konkrete Version.
+
+Vor einem Upgrade oder einer erneuten Veröffentlichung sollte ein Modellierer
+`GET /form/compatibility?needsMigration=true` beziehungsweise den Filter „Migration“
+in der Formularpflege prüfen. Die Antwort enthält absichtlich keine Schemas oder
+Scriptinhalte. Lesefehler der Ablage sind als Betriebsstörung zu untersuchen; einzelne
+Compilerfehler werden dagegen isoliert mit stabilen Codes gemeldet. Details:
+[Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
+
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 
 Braucht ein Workflow das Formular, antwortet die API mit 409 und nennt die betroffenen Workflows. Grund: Ein Formular wird über seinen *Namen* aufgelöst (`zeebe:formDefinition/@formKey`, wahlweise `Name:1.0`) oder über seine Kennung (`formId`). Wäre es weg, liefe jede Aufgabe dieses Schrittes in „No form named …" — und ein Startformular nähme dem Workflow den Start. Gezählt werden deshalb sowohl die menschlichen Aufgaben als auch die Startereignisse. Formulare, die im Workflow selbst liegen, stehen in keinem Bestand und sind hier deshalb nicht betroffen.
@@ -484,6 +497,50 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Namen des lokalen `Meter`- und `ActivitySource`-Setups
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
+
+### Human-Task-Deadline-Scheduler
+
+Der Deadline-Scheduler verarbeitet die serverseitig gebundenen Termine offener
+Human Tasks. Er startet nach der Engine-Startup-Recovery, legt fehlende Deadline-Zeilen
+für bestehende offene Aufgaben anhand des gespeicherten Token-Startzeitpunkts an und
+arbeitet danach in konfigurierten Poll-Intervallen höchstens `BatchSize` Kandidaten ab.
+Fällige Meilensteine werden nach einem Neustart nachgeholt; der persistierte
+Meilenstein-Schlüssel verhindert doppelte Meldungen.
+
+Die Konfiguration liegt in `src/WebApiEngine/appsettings.json` beziehungsweise in
+Environment-Variablen:
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `UserTaskDeadlines__Enabled` | `true` aktiviert den Scheduler, `false` deaktiviert ihn |
+| `UserTaskDeadlines__PollIntervalSeconds` | Poll-Intervall von 1 bis 3600 Sekunden |
+| `UserTaskDeadlines__BatchSize` | maximal 1 bis 1000 Deadline-Kandidaten je Tick |
+| `UserTaskDeadlines__PolicyVersion` | Version der gebundenen Reminder-/Eskalationsregeln |
+| `UserTaskDeadlines__ReminderLeadTimes__0` usw. | ISO-8601-Vorlaufzeiten wie `P1D` oder `PT1H` |
+| `UserTaskDeadlines__EscalationAfterDue` | ISO-8601-Dauer nach der Fälligkeit, mindestens `PT0S` |
+
+Die Konfiguration wird beim Hoststart validiert. Eine ungültige Dauer, ein ungültiges
+Intervall oder eine zu große Batch-Größe verhindert den Start statt einen teilweise
+aktiven Scheduler zu erzeugen. Eine neue `PolicyVersion` verschiebt bereits gebundene
+Termine nicht; sie ist nur für bewusst neue Regeln zu verwenden.
+
+Der Scheduler erzeugt ausschließlich persistente In-App-Meldungen über
+`GET /notifications` und `POST /notifications/{id}/read`. E-Mail, Push, Chat,
+automatische Delegation und BPMN-Eskalationsereignisse gehören nicht zu diesem Slice.
+Scheduler-Backfill, Tick-Erfolg und Tick-Fehler erscheinen derzeit im API-Log; ein
+eigener Deadline-Diagnoseblock im Operations-Endpunkt ist noch nicht vorhanden.
+
+PostgreSQL ist für mehrere API-Prozesse vorgesehen: Deadline-Fortschritt und
+Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per
+Compare-and-swap und Unique-Deduplication geschrieben. Die Dateiablage schützt nur
+innerhalb eines API-Prozesses und bleibt ein Entwicklungsadapter. Die Migration liegt
+unter `src/PostgreSqlStorageSystem/Migrations/008_user_task_deadlines.sql` und wird
+wie alle Migrationen getrennt über `dotnet WebApiEngine.dll --migrate` angewendet.
+
+Für lokale Prüfungen genügt die Default-Konfiguration. Nach einem Neustart sollten
+die Logs `Bound schedules for ...` und bei fälligen Aufgaben `Created ... due
+user-task notification(s).` zeigen. Bei einem dauerhaften Scheduler-Fehler bleibt
+der Prozess selbst aktiv; der Logeintrag muss geprüft und die Ursache behoben werden.
 
 ## Lokaler Start ohne Docker
 
@@ -701,6 +758,19 @@ Abschnitt `Storage`:
 
 PostgreSQL ist der Betriebspfad: Engine-Operationen (Deploy, Start, User-Task, Message, Timer, Abbruch) sowie das Speichern von Definitionen und Formularversionen laufen je in einer Datenbanktransaktion und werden atomar sichtbar; die übrigen Katalog- und Formular-Metadatenpfade schreiben je Aufruf in einer kurzen Transaktion. Die Dokumente werden mit derselben JSON-Serialisierung wie in der Dateiablage abgelegt; ein Wechsel zwischen beiden Ablagen ist damit ein reiner Kopiervorgang.
 
+Private Aufgabenentwürfe verwenden in PostgreSQL einen atomaren Revisionsvergleich und
+werden beim Entfernen der User-Task per Fremdschlüssel mitgelöscht. Die Dateiablage schützt
+deren Revision nur innerhalb eines API-Prozesses und bleibt wie alle dateibasierten
+Mutationen auf Entwicklung/Einzelprozess-Demos begrenzt. Vertrag, Rechte und Grenzen:
+[Private Aufgabenentwürfe](USER-TASK-DRAFTS.md).
+
+Human-Task-Claims, Freigaben und Übergaben verwenden in PostgreSQL eine eigene
+Lifecycle-Tabelle mit atomarem Revisionsvergleich. Zustand und Auditereignis werden in
+derselben Transaktion geschrieben; beim Taskende wird nur der aktuelle Zustand kaskadiert,
+die Auditspur bleibt erhalten. Die Dateiablage bietet dafür ebenfalls nur
+Einzelprozessschutz und keinen Rollback über mehrere Dokumente. Vertrag und Grenzen:
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md).
+
 Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_name.sql` und werden mit
 
 ```bash
@@ -711,7 +781,8 @@ genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-S
 
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
-Die dateibasierte Persistenz ist aktuell weiterhin die maßgebliche lokale Betriebsquelle. Für Diagnose, Backup und Restore gelten deshalb ein paar einfache Regeln:
+Die dateibasierte Persistenz ist die maßgebliche lokale Entwicklungsquelle. Für Diagnose,
+Backup und Restore von Einzelprozess-Demos gelten deshalb ein paar einfache Regeln:
 
 ### Nebenläufigkeit
 
@@ -721,6 +792,7 @@ Die Ablage kennt keine Transaktionen. Die Web-API serialisiert deshalb alle Engi
 
 - lokale Dev-/Compose-Daten: `.data/flowzer-storage`
 - runtime-nahe Containerdaten: `.data/runtime-storage`
+- Deadline-/Notification-Daten liegen darunter in `FileStorage/UserTaskDeadlines` und `FileStorage/UserTaskNotifications`.
 
 ### Sicheres Backup
 

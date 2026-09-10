@@ -14,7 +14,7 @@ export interface FormRendererHandle {
   /** Aktuelle Eingabedaten des Formulars. */
   getData: () => ProcessVariables;
   /** Prüft alle Felder und meldet, ob das Formular gültig ist. */
-  validate: () => Promise<boolean>;
+  validate: (trustedOverrides?: ProcessVariables) => Promise<boolean>;
 }
 
 interface FormRendererProps {
@@ -47,6 +47,12 @@ function parseSchema(schema: string | undefined): { value: unknown | null; error
   }
 }
 
+/** Form.io darf den Submission-Baum mutieren, niemals aber Query- oder Draft-Daten. */
+function cloneInitialData(data: ProcessVariables): ProcessVariables {
+  if (typeof structuredClone === 'function') return structuredClone(data);
+  return JSON.parse(JSON.stringify(data)) as ProcessVariables;
+}
+
 /**
  * Rendert ein Form.io-Formular.
  *
@@ -71,10 +77,17 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
     ref,
     () => ({
       getData: () => instanceRef.current?.submission.data ?? {},
-      validate: async () => {
+      validate: async (trustedOverrides = {}) => {
         const instance = instanceRef.current;
         if (!instance) return false;
-        return instance.checkValidity(instance.submission.data, true, {});
+        // Aktionsbelegungen stammen aus dem kompilierten veröffentlichten Schema. Die
+        // Vorschau dient nur der Form.io-Pflichtfeldprüfung; gesendet werden sie nicht,
+        // weil der Server sie erneut aus seinem gebundenen Snapshot ableitet.
+        return instance.checkValidity(
+          { ...instance.submission.data, ...trustedOverrides },
+          true,
+          {},
+        );
       },
     }),
     [],
@@ -123,7 +136,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         instanceRef.current = form;
 
         if (initialData && Object.keys(initialData).length > 0) {
-          form.submission = { data: { ...initialData } };
+          form.submission = { data: cloneInitialData(initialData) };
         }
 
         form.on('change', () => {

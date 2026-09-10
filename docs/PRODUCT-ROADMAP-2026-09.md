@@ -24,8 +24,11 @@ oder produktiv ausgerollt.
 - Zunächst eine getrennte Installation mit eigener Datenbank und Identitätsanbindung
   je Kunde; echtes Mehrmandanten-Hosting ist ein späteres eigenes Vorhaben.
 - Bestehenden modularen .NET-/React-Aufbau schrittweise verbessern, kein Rewrite.
-- TickyTask integriert dieselben Human Tasks und Formulare, ist aber keine Abhängigkeit
-  der Flowzer-Engine. Kein gemeinsamer Datenbankzugriff zwischen den Produkten.
+- Flowzer kennt keine konsumierende Fachanwendung: keine TickyTask-Abhängigkeit,
+  projektspezifischen Modelle, Routen, Konfiguration oder Laufzeitnamen. Flowzer stellt
+  ausschließlich generische, versionierte APIs, ein Headless-SDK und optionale
+  React-Komponenten bereit. TickyTask integriert diese von außen und bleibt Eigentümer
+  seiner Fachobjekte; zwischen den Produkten gibt es keinen gemeinsamen Datenbankzugriff.
 - Der Urlaubsantrag ist ein Beispiel für generische Fähigkeiten, keine vollständige
   Personalverwaltung und keine pauschale Übertragung von Rechten auf Vertretungen.
 - Produktivkonfiguration, echte Anbieteraufrufe und Deployment sind separate Freigaben.
@@ -37,10 +40,12 @@ Workflow-Ordner und eine BPMN-Gliederungsansicht sind bereits vorhanden.
 Die älteren Reviews bleiben historische Dokumente; ihre offenen Listen sind nicht
 automatisch der aktuelle Bestand. Ein visueller Audit des heutigen Stands ist noch offen.
 
-**Aktiver Slice:** #176 / PR #177 implementiert den gemeinsamen Aufgabenabschluss
-und die geschützte Akteurzuordnung. Offene Checkboxen bezeichnen noch nicht
-abgenommene Ergebnisse; weder dieser Slice noch vorhandene Grundlagen schließen
-die gesamte M0- oder Produktabnahme.
+**Aktiver Slice:** #216 / PR #217 erweitert den Formularvertrag additiv um servergebundene
+Human-Task-Entscheidungsaktionen. #214 / PR #215 liefert dafür bereits begrenzte
+Wiederholgruppen und Plaintext-Hilfetexte; #212 / PR #213 inventarisiert inkompatible
+Formularfassungen mit stabilen Codes, ohne Schema- oder Scriptinhalte auszugeben.
+Offene Checkboxen bezeichnen noch nicht abgenommene Ergebnisse; weder dieser Slice
+noch vorhandene Grundlagen schließen die gesamte Produktabnahme.
 
 **Folgeslice:** #178 / PR #179 ergänzt issuergebundene Antragstellerrechte,
 aufgabenbezogene Vorgangsübersichten und reduzierte API-/UI-Projektionen. Die
@@ -98,6 +103,11 @@ ein Namensfallback ist ausgeschlossen. Legacy-Modelle bleiben Text. Die grafisch
 Modellerauswahl folgt in #196: Diagramm und Gliederung bieten Freitext oder workflowgebunden
 gesuchte Benutzer/Gruppen an und schreiben denselben Vertrag. Das generische Formularfeld und
 typisierte Ordnerrechte bleiben davon getrennte M1-Pakete.
+
+**Private Aufgabenentwürfe:** #202 / PR #203 speichert pro offener stabiler Task-ID
+und authentifizierter Person einen begrenzten Entwurf. Revisionen verhindern stilles
+Überschreiben, die Konsole bewahrt lokale Eingaben bei Refetch/409. PostgreSQL sichert
+CAS und Lebenszyklus atomar; die Dateiablage bleibt ein Einzelprozess-Entwicklungsweg.
 
 ## M0 – Sicherheit und Verträge (zuerst)
 
@@ -165,20 +175,34 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 
 ## M2 – Verlässliche und wiederverwendbare Formulare
 
-- [ ] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
+- [x] Form.io behalten; versionierte, serverseitig prüfbare Profile 1/2 decken Typen,
   Pflichtwerte, Bereiche, Datumsvergleiche, Auswahlregeln und deklarative Bedingungen ab;
-  gemeinsame Client-/Server-Testvektoren fehlen noch.
-- [ ] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
+  #208 / PR #209 ergänzt einen gemeinsamen versionierten JSON-Katalog für .NET und Vitest.
+  Directory-Snapshot und benannte Berechnungen bleiben darin ausdrücklich
+  serverautoritativ statt im Browser nachgebildet zu werden.
+- [x] Vorhandene Custom-JavaScript-Regeln inventarisieren und vor erneuter
   Veröffentlichung in unterstützte Regeln oder benannte Serverberechnungen überführen.
+  #212 / PR #213 liefert dafür einen modellierergeschützten, datensparsamen Bericht über jede
+  veröffentlichte Fassung und den aktuellen Entwurf. Die eigentliche Migration bleibt
+  eine bewusste fachliche Bearbeitung; es gibt keinen automatischen Script-Fallback.
 - [x] Eingaben, Ausgaben und readonly Kontext trennen; unbekannte Ergebnisse dürfen
   keine geschützten Prozessvariablen überschreiben.
-- [ ] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
-  laufende Aufgaben behalten ihre Version. Die klare Trennung von Entwurf, Vorschau und
-  Veröffentlichung in der Formularpflege fehlt noch.
-- [ ] Serverseitige Bearbeitungsentwürfe mit Wiederaufnahme und Konflikterkennung;
-  Refetch darf keine ungespeicherten Eingaben zurücksetzen.
+- [x] Unveränderliche veröffentlichte Formularversionen sind beim Deployment gebunden;
+  laufende Aufgaben behalten ihre Version. #210 / PR #211 trennt gemeinsame, revisionierte
+  Autorenentwürfe, lokale Vorschau und ausdrückliche servervalidierte Veröffentlichung;
+  PostgreSQL veröffentlicht Version und Draft-Löschung atomar. Die Dateiablage bleibt
+  für diesen Mehrdateivorgang ausdrücklich Entwicklung ohne Rollback.
+- [x] Serverseitige private Bearbeitungsentwürfe mit Wiederaufnahme, Größen-/Feldgrenzen
+  und optimistischer Revision; Refetch setzt keine ungespeicherten Eingaben zurück.
+  #202 / PR #203
+  PostgreSQL-CAS und FK-Kaskade sichern Konkurrenz und Aufgabenlebenszyklus, die
+  Dateiablage bleibt ausdrücklich auf einen Prozess begrenzt.
 - [ ] Wiederverwendbare Abschnitte, bedingte Felder, wiederholbare Gruppen, Hilfetexte
   und explizite Entscheidungsaktionen ergänzen.
+  Bedingungen waren bereits Teil von Profil 1. #214 / PR #215 ergänzt Profil 3 für begrenzte
+  Datagrids und Plaintext-Hilfetexte. #216 / PR #217 ergänzt Profil 4 mit servergebundenen
+  Human-Task-Entscheidungsaktionen und einer begrenzten Autorenoberfläche;
+  die versionierte Abschnittsbibliothek bleibt als eigener Folgeslice offen.
 - [ ] Anhänge als eigener Slice: Größen-/Typgrenzen, Quarantäne, Prüfung,
   objektbezogene Downloadrechte und Aufbewahrung.
 - [ ] Dynamische Kunden-/Projekt-/andere Auswahldaten nur über administrativ
@@ -186,19 +210,27 @@ ausgeschlossene oder deaktivierte Werte werden serverseitig abgelehnt.
 - [ ] Urlaubsbeispiel auf strukturierte Benutzerwahl, Zeitraumprüfung, Freigabe und
   optionalen externen Abgleich umstellen.
 
-## M3 – Human Tasks und TickyTask-Einbettung
+## M3 – Human Tasks und generische Einbettung
 
 - [x] Stabile Aufgabenidentität je Token; bestehende Subscriptions aktualisieren
   statt bei jedem Instanzfortschritt neue IDs zu vergeben.
-- [ ] Claim, Release, Zuweisung und berechtigte Delegation mit Revision, Akteur und
-  Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe.
-- [ ] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
-  dauerhafte, deduplizierte Benachrichtigungen.
-- [ ] Entwürfe, Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
+- [x] Claim, Release, Zuweisung und berechtigte Delegation mit Revision, Akteur und
+  Begründung; tatsächlicher Bearbeiter ist nicht die Kandidatengruppe. #204 / PR #205
+  ist im Topic-Branch umgesetzt; Merge und Abnahme sind noch offen.
+- [x] Fälligkeiten, Wiedervorlagen, Erinnerungen und Eskalationen serverseitig;
+  dauerhafte, deduplizierte Benachrichtigungen. #206 / PR #207 bindet die unterstützte
+  Zeitteilmenge einmalig in UTC, verarbeitet Meilensteine nachholbar und liefert einen
+  objektberechtigten In-App-Feed. Externe Zustellung, automatische Vertretung und BPMN-
+  Eskalationspropagation bleiben bewusst außerhalb dieses Slices; Merge und Abnahme sind
+  noch offen.
+- [x] Private Aufgabenentwürfe mit eigener Sichtbarkeitsregel und Revision.
+  #202 / PR #203
+- [ ] Kommentare und Vorgangshistorie mit eigenen Sichtbarkeitsregeln.
 - [ ] Headless TypeScript-SDK und optionale React-Komponenten für Aufgabenliste,
   Formular, Aktionen und Status; Host-Adapter für Styling und Auswahlkomponenten.
-- [ ] Identischer API-/Formularvertrag in Konsole und TickyTask; Flowzer besitzt
-  Prozesse/Aufgaben, TickyTask seine Fachobjekte.
+- [ ] Identischer API-/Formularvertrag in Konsole und beliebigen Host-Anwendungen;
+  Flowzer besitzt Prozesse/Aufgaben, der jeweilige Host seine Fachobjekte. Eine
+  konkrete Host-Anwendung wird im Flowzer-Produktcode weder benannt noch referenziert.
 - [ ] Benutzergebundene Einbettung mit Flowzer-Audience, bei gemeinsamem Keycloak
   über korrekt berechtigten Token Exchange; keine frei übergebenen Benutzerheader
   und kein pauschales Administratorkonto.
@@ -295,8 +327,9 @@ vollständige Kompensation und echtes Mehrmandanten-Hosting bleiben separate Str
 - Append-only-Historie mit Akteur, Zeitpunkt, Korrelation und datensparsamen Änderungen.
 - Vorwärtsmigrationen; laufende Instanzen behalten Definition und gebundene Formulare.
 - Reihenfolge M0 → M1/M2 → M3/M4 → M5; notwendige M6-Bausteine jeweils vorziehen.
-- TDD, Testzweck-Kommentare und fokussierte PRs nach `main`. Vor nichttrivialen Pushes
-  zwei unabhängige Reviews über die zentralen Wrapper; keine direkten Main-Writes.
+- TDD, Testzweck-Kommentare und fokussierte PRs nach `main`. Für dieses autonome Mandat
+  entfallen Zwischenreviews; vor der finalen Zusammenführung prüft ein direkter
+  Astra-Subagent mit hoher Reasoning-Stufe den Gesamtstand und behebt Findings.
 - Negative Rechte-/Verzeichnis-/Formulartests, Konkurrenz und Neustart, Host-Parität,
   KI-Injection/Freigabe/Limits/unklarer Ausgang sowie echte DB-/Upgrade-/Restore-Tests.
 - CI um Architektur, OpenAPI-/Client-Drift, Migration, Secret- und Lizenzprüfungen

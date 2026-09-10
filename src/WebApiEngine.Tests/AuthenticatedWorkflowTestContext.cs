@@ -42,6 +42,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         {
             builder.UseEnvironment("Production");
             builder.UseSetting("TimerScheduler:Enabled", "false");
+            builder.UseSetting("UserTaskDeadlines:Enabled", "false");
             builder.UseSetting("ServiceTaskWebhooks:Enabled", "false");
             builder.UseSetting("RateLimiting:Enabled", "false");
             builder.UseSetting("Authentication:Scheme", "JwtBearer");
@@ -85,9 +86,11 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     internal async Task<UserTaskSubscription> StartAsync(
         string assignment,
         ExpandoObject? variables = null,
-        string? assignmentExtensionXml = null)
+        string? assignmentExtensionXml = null,
+        string? taskScheduleXml = null)
     {
-        var definition = await DeployAsync(assignment, assignmentExtensionXml: assignmentExtensionXml);
+        var definition = await DeployAsync(assignment, assignmentExtensionXml: assignmentExtensionXml,
+            taskScheduleXml: taskScheduleXml);
         var engine = Services.GetRequiredService<BpmnBusinessLogic>();
         var instance = await engine.StartProcessInstance(definition.DefinitionId, variables);
         return (await Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
@@ -96,7 +99,8 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     internal async Task<BpmnDefinition> DeployAsync(
         string assignment,
         string? startFormKey = null,
-        string? assignmentExtensionXml = null)
+        string? assignmentExtensionXml = null,
+        string? taskScheduleXml = null)
     {
         await FormTestSeed.StoreAsync(Storage, "Approval");
         var definition = new BpmnDefinition
@@ -122,6 +126,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
                   <bpmn:extensionElements>
                     <zeebe:formDefinition formKey="Approval" />
                     {{assignmentElement}}
+                    {{taskScheduleXml ?? ""}}
                   </bpmn:extensionElements>
                   <bpmn:incoming>ToReview</bpmn:incoming><bpmn:outgoing>ToEnd</bpmn:outgoing>
                 </bpmn:userTask>

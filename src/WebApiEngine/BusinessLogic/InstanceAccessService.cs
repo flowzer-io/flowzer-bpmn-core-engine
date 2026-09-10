@@ -39,10 +39,11 @@ public sealed class InstanceAccessService(
             .ToArray();
         var directorySnapshot = await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
             storage.IdentityDirectoryStorage, taskArray);
+        var workStates = await LoadWorkStates(taskArray);
         var tasks = taskArray.ToLookup(task => task.ProcessInstanceId!.Value);
         var visible = instances.Where(instance =>
             InstanceAccessPolicy.CanReadOverview(
-                instance, user, tasks[instance.InstanceId], directorySnapshot, canInspect: false));
+                instance, user, tasks[instance.InstanceId], directorySnapshot, canInspect: false, workStates));
         return await visible.ToDtosAsync(storage.DefinitionStorage, canInspect: false);
     }
 
@@ -58,8 +59,9 @@ public sealed class InstanceAccessService(
             ? null
             : await UserTaskAssignment.LoadDirectorySnapshotIfRequiredAsync(
                 storage.IdentityDirectoryStorage, tasks);
+        var workStates = canInspect ? null : await LoadWorkStates(tasks);
         return InstanceAccessPolicy.CanReadOverview(
-                instance, user, tasks, directorySnapshot, canInspect: canInspect)
+                instance, user, tasks, directorySnapshot, canInspect: canInspect, workStates)
             ? await instance.ToDtoAsync(storage.DefinitionStorage, canInspect: canInspect)
             : null;
     }
@@ -80,5 +82,12 @@ public sealed class InstanceAccessService(
         {
             return null;
         }
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, UserTaskWorkState>> LoadWorkStates(
+        IEnumerable<UserTaskSubscription> tasks)
+    {
+        try { return await storage.UserTaskLifecycleStorage.GetMany(tasks.Select(task => task.Id)); }
+        catch (NotSupportedException) { return new Dictionary<Guid, UserTaskWorkState>(); }
     }
 }
