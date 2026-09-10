@@ -1,132 +1,128 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 5. September 2026
+**Stand:** 8. September 2026; Basis `212705a`, M0/M2-Teilpakete in PR #177, #179, #181, #183, #185 und #187. Der BFF-Slice #188 liegt in einem noch nicht nach `main` gemergten PR.
 
-## Kurzfazit
+## Einordnung
 
-Das Projekt ist **nicht mehr im kritischen Stillstand**, sondern wieder in einer aktiven Stabilisierungs- und Ausbauphase. Das Review vom September 2026 ([REVIEW-2026-09.md](./REVIEW-2026-09.md)) hat die Betriebsvoraussetzungen für einen Firmeneinsatz nachgezogen: OIDC-Authentifizierung in der API, nebenläufigkeitsfeste Dateiablage, lauffähige Container, NuGet-Audit als CI-Gate und einen Engine-Fix für Standardflüsse an exklusiven Gateways.
+Flowzer ist eine eigenständige Open-Source-Workflow-Plattform in aktiver
+Stabilisierung. Der modulare .NET-/React-Aufbau bleibt erhalten. Eine allgemeine
+Produktionsfreigabe oder vollständige BPMN-2.0-Unterstützung ist damit nicht verbunden.
+Die erste Produktstufe verwendet getrennte Installationen je Kunde.
 
-Meine ehrliche Einschätzung auf dem heutigen Stand:
+Führend sind die [Produkt-Roadmap](PRODUCT-ROADMAP-2026-09.md) und #98.
+Das [September-Review](REVIEW-2026-09.md) ist eine historische Bestandsaufnahme,
+keine aktuelle Liste noch fehlender Funktionen.
 
-| Bereich | Einschätzung |
-|---|---|
-| Fachliche Idee | stark |
-| Architektur-Grundlage | gut |
-| Build-/CI-Zustand | solide |
-| Testbarkeit | solide mit Ausbaupotenzial |
-| Produktreife | mittel, Pilot mit Identity Provider möglich |
-| Wiederbelebungschance | sehr gut |
+## Bereits vorhandene Grundlagen
 
-Der wichtigste Unterschied zum früheren Stand: Das Repository ist wieder **arbeitsfähig**, das Branch-Modell ist auf `main` (Entwicklungsstand) und `release` (ausgerolltes Paket) reduziert, und die größten Basisprobleme wurden bereits systematisch angegangen.
+- Eine React-Konsole; die frühere Blazor-Oberfläche wurde entfernt.
+- BFF-Implementierung für serverseitigen OIDC-Code-Flow, `HttpOnly`/`Secure`-Host-Cookies und CSRF; externe JWT-Bearer-Prüfung bleibt kompatibel. Der BFF-Slice ist noch ungemergt und nicht abgenommen.
+- Aufgabenfilter anhand modellierter Personen und Gruppen; Workflow-Ordner mit
+  Bearbeitungs-/Delegationsrechten. Diese ersetzen keine Instanz-Datenschutzrechte.
+- PostgreSQL-Backend und dateibasierte Entwicklungsablage.
+- Service-Task-Worker-Vertrag, Timer-Scheduler und Wiederanlaufpfade.
+- Eingebettete/externe Aufgabenformulare, Startformulare und BPMN-Gliederungsansicht.
+- Reproduzierbare .NET-/Frontend-CI, OpenAPI-Snapshot, Testzweckprüfung,
+  Container-/Compose-Setup, Health-/Diagnose- und Telemetriegrundlagen.
 
-## Was inzwischen erreicht wurde
+## Aktuelles M0-Teilpaket – PR #177
 
-### 1. Arbeitsmodell und Projektorganisation
+Beide Abschlussrouten (`POST /usertask`, `POST /form/result`) verwenden denselben
+Anwendungsfall. Er prüft Subscription, geladenes Token, Definition und Zuweisung
+innerhalb des bestehenden serialisierten Storage-Zyklus. Fremde, fehlende oder
+inkonsistente Aufgaben liefern einheitlich `404`. Der authentifizierte Akteur wird
+separat am Token gespeichert; Formulardaten können ihn nicht ersetzen.
 
-- `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein PR von `main` nach `release`
-- größere Themen werden über eigene Topic-Branches und PRs nach `main` umgesetzt
-- die Dokumentation im Repository wurde auf einen realistischeren Stand gebracht
-- offene Frontend-Arbeit wurde in kleinere GitHub-Issues zerlegt, damit keine unklaren Sammelthemen mehr dominieren
+## Instanz-Datenschutz – PR #179 (aufbauend auf #177)
 
-### 2. Build, CI und Testbasis
+HTTP-Starts speichern den vertrauenswürdigen Initiator als `(Issuer, Subject)`.
+Antragsteller und aktuell berechtigte Aufgabenbearbeiter sehen eine Vorgangsübersicht,
+Operatoren die Diagnose. Listen, Details, Startantwort und alle technischen
+Subscription-Routen verwenden diese Rechte. Bloße Modellierungsrechte gewähren
+keinen Instanzzugriff. Aufgabenlisten geben nur deklarierte Formularwerte statt
+vollständiger Tokenscopes aus. Die Konsole unterscheidet beide Ansichten und fordert
+ohne `canInspect` keine Diagnosedaten an. Details: [Instanzrechte](INSTANCE-ACCESS.md).
 
-- die Solution baut auf dem aktuellen Arbeitsstand reproduzierbar
-- GitHub Actions für .NET und die Konsole sind vorhanden
-- die wichtigsten lokalen Testpfade laufen wieder:
-  - `dotnet build core-engine.sln`
-  - `dotnet test src/core-engine-tests/core-engine-tests.csproj`
-  - `dotnet test src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`
-  - `npm --prefix src/FlowzerConsole run test`
-  - `tests/ui-smoke` per Playwright
+Das ist **kein vollständiger M0-Abschluss**: Der BFF-Slice ist zwar in Arbeit,
+aber noch nicht nach `main` gemergt oder integriert abgenommen. Ohne `Idempotency-Key`
+liefert ein wiederholter Abschluss aus Kompatibilitätsgründen weiterhin `404`; mit dem
+in PR #187 ergänzten Schlüssel greift die persistente Erfolgswiederholung.
+Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
+API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
 
-### 3. Bereits umgesetzte Stabilisierung
+## Formularbindung – PR #181 (aufbauend auf #179)
 
-Unter anderem bereits umgesetzt:
+Externe und eingebettete Formulare erhalten beim Deployment einen festen Snapshot
+an der Definitionsversion. Neue Fassungen und Umbenennungen verändern weder
+Startformulare noch laufende oder später aktivierte Aufgaben. Fehlende/mehrdeutige
+Referenzen werden vor der Aktivierung abgelehnt. Historische externe Referenzen
+ohne belegten Stand werden bei der Auflösung nicht auf heutige Formulare geraten:
+Sie benötigen eine ausdrücklich geprüfte Zuordnung. Keine produktive Migration.
+Details: [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 
-- V8-/Expression-Fallback für CI-/lokale Umgebungen
-- Multi-Instance- und Engine-Stabilisierung aus dem früheren Testproblemfeld
-- Demo-Console-App für einen nachvollziehbaren Happy Path
-- DTO-/Warnungsbereinigung und API-Härtung in mehreren Teilbereichen
-- Signal- und Service-Task-Subscriptions im Web-API-Pfad
-- Timer-Ausführung im Engine-Kern für fällige Timer-Starts und Intermediate-Timer-Catches
-- Boundary-Timer im Parser, in der Runtime und im persistierten Timer-Subscription-Pfad
-- persistierte Timer-Subscriptions in Storage und Web-API
-- kleiner Scheduler-/Polling-Pfad im Web-API-Host für fällige Timer
-- wiederkehrende Start-Timer mit Restwiederholungen und Catch-up-Verhalten im Runtime-Pfad
-- Startup-Recovery für überfällige Start-Timer auf Basis persistierter Timer-Subscriptions
-- konsistentere Form-/Message-Fehlerverträge in Web-API und Business-Logic
-- geschützte Definition-, User-Task- und Form-Ergebnispfade verlangen jetzt einen aufgelösten Benutzerkontext statt stillen System-Fallback
-- lokaler Development- und UI-Smoke-Pfad sendet für diese geschützten Routen nun automatisch einen technischen Benutzerheader, ohne die strengeren Produktionspfade wieder aufzuweichen
-- Nullability- und Guard-Härtung in zentralen Frontend-Seiten
-- lokale Runtime-Containerbasis für API, Frontend und Gateway
-- Operations-/Diagnose-Endpunkt mit Scheduler-Status, Storage-Snapshot und lokalen Metrics-/Tracing-Namen
-- Request- und Timer-Scheduler-Diagnosepfad mit Dauer-, Status- und Tick-Signalen
-- optionale OpenTelemetry-Exporter für Console und OTLP inklusive Konfigurations- und Diagnosepfad
-- dokumentierte Recovery-/Backup-Hinweise für die dateibasierte Persistenz
-- September 2026: JWT-Bearer-/OIDC-Authentifizierung und konfigurierbares CORS in der Web-API
-- September 2026: Engine-Mutationen serialisiert, Dateiablage mit atomaren Schreibzugriffen
-- September 2026: `GET /usertask/{id}/form`, Zeitstempel und Form-Key in den API-Verträgen, 422 für Modellfehler
-- September 2026: Standardfluss an exklusiven Gateways funktioniert
-- September 2026: Docker/Compose auf .NET 10, NuGet-Audit als Restore-Gate, SDK-Band festgepinnt
-- September 2026: Formulare können im Workflow selbst liegen (`zeebe:userTaskForm`); der Modellierer hat ein eigenes Eigenschaften-Panel statt des Camunda-Panels
-- September 2026: `zeebe:taskDefinition/@retries` wird eingelesen — vorher bekam jeder Auftrag einen Versuch, obwohl das Diagramm etwas anderes sagte
-- September 2026: Startformular am Startereignis — `GET /definition/meta/{id}/start-form` liefert es, `POST …/instance` nimmt die ausgefüllten Werte als `variables` entgegen, und die Konsole fragt sie vor dem Start ab
+## Formularprüfung – PR #183 (aufbauend auf #181)
 
-## Was weiterhin bremst
+Das begrenzte Profil `flowzer.forms/1` prüft Starts und beide Abschlussrouten
+serverseitig. Deklarierte Typen/Pflichtwerte/Auswahl-/Datumsregeln sind verbindlich;
+Read-only-Kontext und unbekannte Felder gelangen nicht ins Ergebnis. Nicht unterstützte
+Regeln blockieren Veröffentlichung und Wiederaktivierung. Feldfehler erscheinen in
+Konsole und API ohne Eingabeverlust. Das Urlaubsbeispiel nutzt deklarative Datumsregeln
+und eine benannte serverseitige Zusammenfassung statt Custom-JavaScript.
+Details und Kompatibilitätsgrenzen: [Prüfprofil](FORM-VALIDATION-PROFILE.md).
 
-### 1. Produktpfade sind noch nicht komplett durchgehärtet
+## Aufgabenidentität – PR #185 (aufbauend auf #183)
 
-Besonders relevant sind noch:
+Fortschritt und Timer ersetzen wartende Aufgaben nicht länger durch neue IDs.
+Subscriptions werden nach Tokenidentität aktualisiert; gespeicherte Zuweisungen
+bleiben erhalten, nur erledigte/abgebrochene Aufgaben werden entfernt. Identische
+Regressionen prüfen Dateiablage und PostgreSQL einschließlich neuer Engine nach
+Persistierung. Mehrdeutige Bestände werden nicht automatisch zusammengeführt.
+Details und Grenzen: [Aufgabenidentität](STABLE-TASK-IDENTITY.md).
 
-- Identity-Provider-Anbindung im Frontend (die API prüft Tokens bereits)
-- Rollen, Kandidaten und Gruppen für Aufgaben; heute sieht jede angemeldete Person alles
-- Persistenz jenseits von JSON-Dateien (Einzelknoten, keine Historie, keine Abfragen)
-- Entscheidung für genau eine Oberfläche (Blazor oder React-Konsole aus `feat/react-console`)
-- Restlücken bei spezieller Boundary-/Spezialtimer-Recovery und weitergehender Scheduler-Semantik
-- Release-/Telemetrie-/Secret-/Recovery-Story über die jetzt vorhandene OTLP-/Console-Basis hinaus
+## Persistente HTTP-Idempotenz – PR #187 (aufbauend auf #185)
 
-### 2. Es gibt noch Restlücken im Codebestand
+Direkte Starts sowie beide Abschlussrouten akzeptieren einen an Operation, Ressource
+und `(Issuer, Subject)` gebundenen `Idempotency-Key`. Identische Wiederholungen liefern
+dieselbe Instanz beziehungsweise Erfolg; anderer Inhalt endet mit 409. PostgreSQL
+reserviert den Hash atomar in derselben Transaktion. Details, Sieben-Tage-Aufbewahrung
+und Datei-/Integrationsgrenzen: [HTTP-Idempotenz](IDEMPOTENCY.md).
 
-Noch offen sind unter anderem:
+## BFF-Slice #188 (noch nicht gemergt)
 
-- Restlücken in Timer-, Boundary- und Kompensationssemantik
-- provisorische Auth-/Identity-Platzhalter oberhalb des aktuellen Benutzerkontext-Guards
-- Betriebs- und Deployment-Themen wie Reverse Proxy, TLS, externe Logging-/Telemetrie-Backends und Recovery-Automatisierung
-- Altlasten und Doppelstrukturen im Repository
+Der laufende Slice verlagert die Browser-Anmeldung in den API-seitigen,
+vertraulichen OIDC-Code-Flow. Access-Tokens und das BFF-Client-Secret bleiben im
+API-Prozess; die Konsole erhält nur die minimal projizierte Sitzung über
+`HttpOnly`/`Secure` `__Host-`-Cookies. Schreibende Cookie-Anfragen benötigen
+`X-Flowzer-CSRF` und gleichen Origin. Externe Bearer-Clients bleiben ohne
+CSRF-Header kompatibel und ein fehlerhafter Bearer fällt nicht auf eine Cookie-
+Sitzung zurück. Compose persistiert den getrennten Data-Protection-Keyring.
 
-Für die inzwischen vorhandene lokale Start- und Diagnosebasis siehe zusätzlich [`docs/OPERATIONS.md`](./OPERATIONS.md).
-Eine aktuellere Einordnung der verbliebenen Engine-/Runtime-Lücken steht zusätzlich in [`docs/RUNTIME-GAPS.md`](./RUNTIME-GAPS.md).
+Das ist **kein vollständiger M0-Abschluss**: Der BFF-PR ist noch nicht nach
+`main` gemergt, nicht integriert abgenommen und ersetzt keine offenen Betriebs-
+und Recovery-Pakete.
 
-### 3. Dokumentation muss nun mit der Technik mitwachsen
+## Verbleibende Risiken und Reihenfolge
 
-Die Basisdokumentation ist deutlich besser als zuvor, aber für die nächste Reifestufe fehlen bzw. benötigen Updates:
+1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
+   abnehmen. Idempotenz externer Worker-/Connector-Effekte bleibt in den jeweiligen
+   späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
+   bleiben im vorhandenen Vertrag permissiv.
+2. **M1/M2:** Keycloak-Verzeichnis, stabile Identitätsreferenzen, generische Auswahl,
+   unveränderliche Formularstände und Entwürfe. Namen/kurze Gruppenbezeichnungen
+   bleiben bis zur Migration mehrdeutig; historische externe Formularstände benötigen Klärung.
+3. **M3/M4:** Aufgabenrevisionen, Übernahme/Delegation, SDK und TickyTask-Einbettung,
+   Modellvalidierung und tatsächliche Laufzeithistorie. Mobil-PR #153 nicht duplizieren.
+4. **M5:** Begrenzte KI-Tasks mit geprüften Werkzeugen, Freigaben und Wiederaufnahme.
+5. **M6 begleitend:** Call Activities/Fehlersemantik, explizite Expressions,
+   PostgreSQL-Konfliktschutz, Recovery/Upgrade und Open-Source-Produktreife.
 
-- Architekturübersicht
-- API-/Fehlervertragsdokumentation
-- Storage-/Persistenzdokumentation
-- Test- und E2E-Dokumentation
-- aktualisierte Status-/Roadmap-Texte bei größeren Fortschritten
+Vorgangsübersichten wurden auf Desktop/Mobil visuell geprüft; 29 Browser-Smokes
+sichern Kernwege und Feldfehler. Der vollständige UX-Audit und die erste
+Produktabnahme aus der Roadmap stehen weiterhin aus. Details zum bestehenden Betrieb: [OPERATIONS.md](OPERATIONS.md).
 
-## Offener Backlog auf dem aktuellen Stand
+## Arbeits- und Release-Modell
 
-Die erste große Revitalisierungs- und Stabilisierungswelle ist inzwischen weitgehend abgearbeitet. Der nächste sinnvolle Backlog ergibt sich aktuell weniger aus alten Sammel-Issues, sondern aus den noch verbleibenden Produktlücken:
-
-- weitergehende Boundary-/Spezialtimer-Recovery sowie BPMN-Fehler-/Eskalationssemantik
-- Auth-/Identity-Härtung über Claim-, Rollen- und Betriebsmodell
-- externe Telemetrie-Backends, Secrets, Recovery-Automatisierung und operationsnahe Doku
-- weitere Architektur- und Repo-Hygiene
-
-## Aktuelle Gesamtempfehlung
-
-Das Projekt sollte jetzt **nicht mehr primär gerettet**, sondern gezielt **zur produktionsnahen Nutzbarkeit weiterentwickelt** werden.
-
-Die sinnvolle Reihenfolge ist aus heutiger Sicht:
-
-1. Auth-/Identity- und API-Verträge über Claim-/Rollenmodell weiter schärfen
-2. Betriebsbasis um externe Telemetrie-Backends, Secrets, TLS und Recovery-Automatisierung erweitern
-3. Timer-Recovery nur noch in verbleibenden Spezialfällen weiter vertiefen
-4. E2E-, Architektur- und Operations-Dokumentation weiter vertiefen
-
-## Gesamturteil
-
-Flowzer BPMN Core Engine ist aktuell **kein gescheitertes Projekt**, sondern ein wieder belebtes Projekt mit belastbarer Basis. Der kritische Unterschied ist, dass jetzt nicht mehr an einer diffusen Vision gearbeitet wird, sondern in klaren, testbaren und reviewbaren Arbeitspaketen auf `main`.
+Topic-Branches und kleine, testgetriebene PRs gehen nach `main`. `release` wird
+nur über einen eigenen PR aus `main` befüllt; dessen Push ist ein Produktivrelease.
+Ein Feature-PR allein autorisiert kein Deployment. Keine direkten Writes auf
+`main` oder `release` ohne ausdrückliche Freigabe.

@@ -1,8 +1,8 @@
 # Betriebs- und Deployment-Basis
 
-**Stand:** 5. September 2026
+**Stand:** 8. September 2026 (Aufgabenabschluss aktualisiert)
 
-Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `main`: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade.
+Dieses Dokument beschreibt den realistischen Betriebsrahmen des laufenden M0-BFF-Slices: lokale Starts, Health-Signale, einfache Diagnose-Endpunkte, Compose-Setup und sinnvolle Prüfpfade. Bis der zugehörige PR nach `main` gemergt und abgenommen ist, ist dies kein Produktionsabschluss.
 
 > Wichtig: Das ist **noch keine produktionsfertige Deployment-Story**. Ziel dieses Pakets ist ein reproduzierbarer, dokumentierter Start- und Prüfpfad für API und Frontend.
 
@@ -18,18 +18,27 @@ Dieses Dokument beschreibt den derzeit realistischen Betriebsrahmen für `main`:
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 - optionale OpenTelemetry-Exporter für Console und OTLP
 
-## Authentifizierung (JWT Bearer / OIDC)
+## Authentifizierung (BFF und externe Bearer-Clients)
 
-Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
+`src/WebApiEngine/appsettings.json` bleibt bewusst mit `Authentication:Scheme=None`
+ein sicherer Entwicklungs-/Testdefault. Die produktiven Compose-Stacks setzen dagegen
+explizit `Authentication__Scheme=Bff`. `JwtBearer` bleibt ein kompatibler Modus für
+direkte/externe API-Clients; `None` ist nur für lokale Development-/CI-Prüfungen
+vorgesehen und kein Produktionspfad.
 
 | Schlüssel | Bedeutung |
 |---|---|
-| `Authentication__Scheme` | `None` (Default, kein Schutz) oder `JwtBearer` |
-| `Authentication__JwtBearer__Authority` | OIDC-Issuer, z. B. `https://login.microsoftonline.com/<tenant>/v2.0` oder `https://keycloak.example/realms/flowzer` |
-| `Authentication__JwtBearer__Audience` | erwartete Audience (Client-/App-Id der API) |
-| `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für lokale IdPs ohne TLS auf `false` |
+| `Authentication__Scheme` | `Bff` für die Browser-Konsole in Runtime/Produktion; `JwtBearer` für direkte Bearer-Clients; `None` nur lokal |
+| `Authentication__JwtBearer__Authority` | OIDC-Issuer für Bearer-Prüfung **und** den serverseitigen OIDC-Code-Flow |
+| `Authentication__JwtBearer__Audience` | erwartete API-Audience; validiert externe Bearer und das im Code-Flow erhaltene Access-Token |
+| `Authentication__JwtBearer__RequireHttpsMetadata` | Default `true`; nur für einen lokalen IdP ohne TLS auf `false` |
+| `Authentication__Bff__ClientId` | Client-ID eines **vertraulichen** OIDC-Clients |
+| `Authentication__Bff__ClientSecret` | ausschließlich beim API-Start aus dem Secret-Store injiziert; nie in JSON, `.env`, Logs, Browser oder Konsolen-Container |
+| `Authentication__Bff__Scopes__0` bis `__2` | zusätzliche OIDC-Scopes neben `openid profile email`; etwa der API-Scope bei Entra. Ein Keycloak-Audience-Mapper kann ohne zusätzlichen Scope auskommen |
+| `Authentication__Bff__DataProtectionKeysPath` | persistenter, ausschließlich für den API-Container beschreibbarer Keyring; Pflicht im BFF-Modus |
 | `ForwardedHeaders__KnownNetworks__0` | Netz des Reverse Proxy in CIDR-Schreibweise, z. B. `10.0.0.0/8`. Ohne Angabe werden Weiterleitungsheader ignoriert und alle anonymen Aufrufer teilen sich hinter dem Proxy ein Kontingent |
 | `ForwardedHeaders__KnownProxies__0` | einzelne Proxy-Adresse, alternativ zum Netz |
+| `ForwardedHeaders__ForwardLimit` | Zahl der vollständig vertrauenswürdigen Proxy-Stufen; Default `1`, im mitgelieferten Containerpfad `3` für TLS-Proxy, Gateway und Konsolen-nginx |
 | `RateLimiting__Enabled` | Default `true`; Kontingent je Aufrufer. Health-Endpunkte sind ausgenommen |
 | `RateLimiting__PermitLimit` / `RateLimiting__WindowSeconds` | Default 300 Anfragen je 60 Sekunden. Gezählt wird je angemeldeter Person; ohne Anmeldung je Adresse, die nur mit gesetztem `ForwardedHeaders` hinter einem Proxy stimmt |
 | `Limits__MaxUploadBytes` | Default 8 MiB, abgestimmt auf `client_max_body_size` des mitgelieferten Gateways; darüber antwortet die API 413 |
@@ -38,14 +47,49 @@ Abschnitt `Authentication` in `appsettings.json` bzw. per Environment-Variablen:
 | `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
 
-Verhalten bei `JwtBearer`:
+### BFF-Vertrag
 
-- Alle Endpunkte verlangen ein gültiges Token (Fallback-Policy). `GET /health` und `GET /health/ready` bleiben anonym für Orchestrator-Probes.
-- Die Benutzer-Id wird aus den Claims `nameidentifier`, `sub` oder `oid` gelesen (Originalnamen, kein Inbound-Claim-Mapping) und muss eine GUID sein. Entra ID liefert `oid` als GUID, Keycloak `sub`. Andere Formate führen zu 401 auf benutzerbezogenen Pfaden. Der gültige Issuer stammt aus den OIDC-Metadaten der Authority.
-- Der Development-Header `X-Flowzer-UserId` öffnet nichts mehr: Ohne Token greift die Fallback-Policy, mit Token wird der Header ignoriert.
-- Fehlt `Authority` oder `Audience`, bricht der Host-Start mit einer klaren Meldung ab.
+Bei `Bff` startet der Browser über `GET /bff/login?returnTo=/…` den serverseitigen
+Authorization-Code-Flow mit PKCE. Die Callback-URI des vertraulichen Clients lautet
+`https://<flowzer-host>/bff/signin-oidc`. Der BFF speichert keine Tokens im
+Browser und setzt stattdessen `__Host-Flowzer-Session` (HttpOnly, Secure,
+SameSite=Lax, `Path=/`). Der Antiforgery-Cookie `__Host-Flowzer-Csrf` ist ebenfalls
+HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTPS,
+einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
+kein funktionaler BFF-Testpfad.
 
-Die Konsole meldet sich über ihre zur Laufzeit geladene `config.json` (`oidcAuthority`, `oidcClientId`, `oidcAudience`, `oidcScopes`) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Bei aktivem `JwtBearer` müssen diese Werte gesetzt sein; eine halb gefüllte Konfiguration bricht den Start der Konsole bewusst mit einer Fehlermeldung ab, statt stillschweigend ohne Anmeldung weiterzulaufen.
+Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
+auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
+und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor
+Tokenablauf (Backchannel-Logout/Introspection) ist noch nicht implementiert; deshalb
+kurze Access-Token-Laufzeiten konfigurieren. Logout beendet die lokale Flowzer-Sitzung,
+nicht die zentrale SSO-Sitzung beim Identity Provider.
+
+`GET /bff/session` liefert nur die minimale Benutzerprojektion samt serverseitig
+ermittelten Fähigkeiten. Auch ein angemeldetes Konto ohne Freischaltung darf seine
+Sitzung sehen, CSRF anfordern und sich abmelden; es erhält keine Fachfähigkeiten und
+keinen Zugriff auf Fachendpunkte. Für jeden schreibenden Cookie-Aufruf lädt die Konsole über
+`GET /bff/csrf` einen Request-Token und sendet ihn im Header `X-Flowzer-CSRF`; der
+Token verbleibt nur im JavaScript-Speicher. Die Middleware verlangt zusätzlich einen
+gleichen `Origin`. Auch `POST /bff/logout` ist geschützt. Ungültige oder fehlende
+Nachweise liefern `400 application/problem+json` bevor ein Controller läuft.
+
+Externe Clients verwenden weiter `Authorization: Bearer <token>` gegen die
+Fachendpunkte. Sie sind nicht CSRF-gefährdet und benötigen deshalb keinen
+CSRF-Header. Sobald ein Bearer-Header vorhanden ist, wird auch ein ungültiger Header
+nicht auf eine Browser-Session zurückgefallen. Health-Endpunkte bleiben anonym.
+
+Fehlen bei `Bff` Authority, Audience, Client-ID, Client-Secret oder Keyring-Pfad,
+bricht der API-Host absichtlich mit einer klaren Konfigurationsmeldung ab. Der
+Keyring darf weder mit der Konsole noch mit nicht vertrauenswürdigen Containern
+gemeinsam gemountet werden, sonst wären geschützte Cookies nachbildbar.
+
+Der TLS-Proxy muss eingehende Forwarded-Header ersetzen und externes Schema sowie
+Host einschließlich eines Nichtstandardports weiterreichen. Die API wertet nur die
+konfigurierten Netze/Adressen und höchstens `ForwardLimit` Stufen aus. Das Runtime-
+Gateway und der Konsolen-nginx bewahren diese Werte; ein nicht zum Docker-Netz
+passendes `FLOWZER_TRUSTED_PROXY_NETWORK` führt deshalb bewusst zu internem HTTP und
+damit zu einer falschen OIDC-Callback-Adresse statt Forwarded-Headern blind zu trauen.
 
 ### Oberfläche
 
@@ -56,21 +100,16 @@ und ihr Image `flowzer-frontend` sind entfernt.
 | --- | --- | --- |
 | React-Konsole | `flowzer-console` | `flowzer.maass.it` |
 
-Die Konsole richtet ihre Anzeige nach den Rollen im Token: Was eine Rolle verlangt, die jemand
-nicht hat, bietet sie gar nicht erst an. Die Entscheidung trifft in jedem Fall die API — die
-Oberfläche erspart nur den Weg zu einer Ablehnung. Ihr Aufbau ist in
-`src/FlowzerConsole/README.md` beschrieben.
+Die Konsole richtet ihre Anzeige nach den serverseitig in `GET /bff/session`
+projizierten Fähigkeiten: Was eine Rolle verlangt, die jemand nicht hat, bietet sie gar nicht
+erst an. Die Entscheidung trifft in jedem Fall die API — die Oberfläche erspart nur den Weg
+zu einer Ablehnung. Ihr Aufbau ist in `src/FlowzerConsole/README.md` beschrieben.
 
-Der Umstieg ist am 6. September 2026 abgeschlossen: Der Coolify-Stack bildet nur noch den
-Dienst `console` auf `https://flowzer.maass.it` ab, der Client `flowzer-maass-it` im Realm
-MaassIT kennt genau drei Rückleitungen unter dieser Adresse (Anmeldung, Abmeldung, stille
-Erneuerung), und das GHCR-Paket `flowzer-frontend` ist gelöscht. Die Adresse
-`console.flowzer.maass.it` existiert nicht mehr.
-
-Die Keycloak-Seite ist deklarativ in
-`roles/keycloak/files/ensure-flowzer-maassit-client.sh` des Repositories
-`MaassIT/Serverkonfiguration` beschrieben; ein Lauf mit `FLOWZER_KEYCLOAK_DRY_RUN=1` meldet
-jede geplante Änderung, ohne zu schreiben.
+Der produktive OIDC-Client ist vertraulich und besitzt als einzige Browser-Callback-URI
+`https://<flowzer-host>/bff/signin-oidc`. SPA-Redirect-URIs, stille Token-Erneuerung und
+Browser-OIDC-Variablen gehören nicht mehr zum Flowzer-Deployment. Die konkrete
+Identity-Provider-Konfiguration ist installationsspezifisch und wird vor dem Einsatz gegen
+die tatsächliche Zielumgebung geprüft.
 
 ### API-Vertrag
 
@@ -99,7 +138,47 @@ Aufgaben, die vor der Einführung dieser Auswertung entstanden sind, tragen die 
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
-Ein fachliches Berechtigungsmodell innerhalb einer Aufgabe gibt es nicht; jede zugelassene Person sieht alle Aufgaben, Definitionen und die Diagnose. Was jemand *ändern* darf, richtet sich zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei gesetzter `RequiredRole` der Identity Provider über die Rollenzuweisung (bei Maass IT: Clientrolle `access` des Clients `flowzer-api`, vergeben über Gruppen im Realm `MaassIT`). Ohne `RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit Selbstregistrierung zu weit ist.
+Objektbezogene Instanzprojektionen beschränken Antragsteller und aktuell berechtigte
+Bearbeiter auf den benötigten Kontext; Diagnose verlangt die konfigurierte
+Operator-Fähigkeit. Weitere feldbezogene Rechte, Aufgabenrevisionen und belastbare
+Historie bleiben offene Pakete. Was jemand am Katalog *ändern* darf, richtet sich
+zusätzlich nach den Ordnern (nächster Abschnitt). Wer zugelassen ist, entscheidet bei
+konfigurierter `RequiredRole` der Identity Provider über die Rollenzuweisung. Ohne
+`RequiredRole` genügt jedes gültige Token des Issuers, was in Realms mit
+Selbstregistrierung zu weit ist.
+
+### Sicherer Aufgabenabschluss (M0-Teilpaket)
+
+`POST /usertask` und der kompatible Altpfad `POST /form/result` verwenden denselben
+`UserTaskCompletionService`. Der Body bleibt unverändert: `processInstanceId`,
+`tokenId`, `flowNodeId` und optionale `data`. Akteur und Operator-Fähigkeit kommen
+ausschließlich aus dem serverseitig geprüften Request-Kontext.
+
+Im bestehenden Engine-Mutationszyklus werden Subscription, aktives menschliches
+Token, Instanz-/Definitionsbindung und Zuweisung erneut geprüft. Fehlende,
+mehrdeutige, bereits abgeschlossene und fremde Aufgaben liefern denselben `404`-
+Umschlag (`successful: false`); fehlende Anmeldung liefert `401`. Eine fehlende
+Subscription ist auch für Operatoren keine Erlaubnis. Die bestehende Operator-
+Ausnahme sowie unzugewiesene, für alle Zugelassenen offene Aufgaben bleiben erhalten.
+**In Produktionskonfigurationen `Roles:Operator` ausdrücklich setzen:** Ein leerer
+Rollenname gewährt die Fähigkeit nach dem bisherigen Konfigurationsvertrag allen
+Zugelassenen, also auch den Zugriff auf fremd zugewiesene Aufgaben.
+
+`TokenDto.completedByUserId` und das persistierte Token enthalten den Akteur
+getrennt von Formulardaten. `data.UserId` wird als Kompatibilitätswert mit dem
+verifizierten Akteur überschrieben. Historische Tokens ohne diese neue Eigenschaft
+bleiben lesbar (`null`/nicht vorhanden); historische Formulardaten werden **nicht**
+nachträglich als verifizierter Akteur übernommen. Es ist keine Schemaänderung an
+bestehenden JSON-Token-Dokumenten erforderlich.
+
+Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
+eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
+ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
+die direkten HTTP-Starts und -Abschlüsse; eine append-only Audit-Historie und der
+allgemeine Mehrprozessschutz bleiben weitere M0/M6-Pakete. Instanzrechte und das
+begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
+`Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
+Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
 
 ### Ordner und Delegation
 
@@ -139,6 +218,17 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 ## Workflow starten
 
+### Wiederholte HTTP-Aufrufe
+
+Direkte Starts und Aufgabenabschlüsse können mit `Idempotency-Key` abgesichert werden.
+Identische Wiederholungen liefern dasselbe Ergebnis; anderer Inhalt 409. Der Schlüssel
+muss bereits beim ersten Versuch gesetzt sein und ist 1–200 sichtbare ASCII-Zeichen
+lang. Abgeschlossene Ergebnisse sind sieben Tage gültig; offene Reservierungen mit
+unklarem Ausgang werden nicht automatisch freigegeben. Details, PostgreSQL-Migration
+und Grenzen:
+[HTTP-Idempotenz](IDEMPOTENCY.md).
+
+
 `POST /definition/meta/{definitionId}/instance` startet eine Instanz. Der Rumpf ist optional:
 
 ```json
@@ -149,11 +239,14 @@ Ohne Rumpf startet der Workflow wie bisher ohne Angaben. Trägt sein reines Star
 Startformular (`zeebe:formDefinition/@formKey`, siehe unten), verlangt die API das
 `variables`-Objekt und antwortet sonst mit 400 und
 `The workflow "…" requires its start form. Send the form data as "variables".` Ein leeres
-Objekt `{}` gilt als Antwort und wird angenommen.
+Objekt `{}` wird anschließend wie jede andere Eingabe validiert.
 
-Die **Pflichtfelder des Formulars prüft der Server nicht.** Form.io kennt bedingt sichtbare
-Felder (`conditional`), die der Server nicht auswertet — er würde damit gültige Eingaben der
-Oberfläche ablehnen. Diese Prüfung sitzt im Renderer der Konsole.
+Pflichtwerte, Typen, statische Auswahlwerte, deklarative Sichtbarkeits- und Datumsregeln
+prüft der Server im [Formular-Prüfprofil 1](FORM-VALIDATION-PROFILE.md). Ungültige Eingaben
+liefern `422 application/problem+json` mit feldbezogenen Codes. Nicht unterstützte
+Geschäftsregeln blockieren das Deployment, statt nur im Browser zu gelten.
+Die Konsole zeigt Serverfehler unter Erhalt der Eingaben an. Vollständige Form.io-
+Kompatibilität und gemeinsame Client-/Server-Konformitätsvektoren stehen noch aus.
 
 `GET /definition/meta/{definitionId}/start-form` liefert das Startformular als
 `ApiStatusResult<FormDto>` — aufgelöst über die Kennung der deployten Version, damit auch ein
@@ -174,6 +267,20 @@ Der Rumpf wird auch bei einem Workflow **ohne** Startformular übernommen — so
 Workflow von außen mit Startvariablen anstoßen, ohne dass er dafür ein Formular braucht.
 
 ## Formulare im Workflow
+
+Ab PR #181 erhalten **alle** beim Deployment referenzierten Start-/Aufgabenformulare
+einen festen Snapshot an der Definitionsversion, auch externe Formulare ohne
+Versionssuffix. Eine neue Formularfassung wirkt erst mit einem neuen Workflow-Deployment.
+Umbenennen oder Wiederaktivieren einer bestehenden Workflow-Version bindet nicht neu.
+Nicht auflösbare Referenzen verhindern die Aktivierung; die bisher aktive Fassung bleibt.
+
+**Upgradehinweis:** Historische externe Referenzen ohne gespeicherten Snapshot werden
+bei Laufzeitabrufen nicht mehr automatisch auf `latest` aufgelöst. Neue Instanzen
+brauchen ein neues Deployment; laufende Altinstanzen eine ausdrücklich geprüfte
+Formularzuordnung im noch ausstehenden Migrationspaket. Eingebettete historische
+Formulare bleiben aus ihrer BPMN-Version lesbar. Vor einem Upgrade solche Referenzen
+inventarisieren; dieses Paket führt keine produktive Migration aus.
+Siehe [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 
 Ein Formular kann aus zwei Quellen kommen. Der Form-Key
 (`zeebe:formDefinition/@formKey`) sagt, aus welcher — am User-Task wie am Startereignis:
@@ -295,7 +402,7 @@ Für lokale Release-Checks liegt zusätzlich `compose.runtime.yml` mit echten Ru
 ./scripts/runtime/start-runtime-stack.sh
 ```
 
-Das Skript baut API- und Frontend-Images, startet anschließend den Gateway-Stack und wartet auf grüne Healthchecks.
+Das Skript baut API- und Konsolen-Images, startet anschließend den Gateway-Stack und wartet auf grüne Healthchecks. Der Runtime-Standard ist BFF; für einen Browser-Login muss vor dem Gateway ein TLS-terminierender Reverse Proxy stehen, weil die `__Host-`-Cookies immer `Secure` sind.
 
 ### Prüfen
 
@@ -310,7 +417,7 @@ Typische URLs:
 - [http://localhost:5288/health/ready](http://localhost:5288/health/ready)
 - [http://localhost:5288/operations/diagnostics](http://localhost:5288/operations/diagnostics)
 
-Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschrieben werden.
+Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschrieben werden. Das Gateway bindet sicherheitshalber nur an `${FLOWZER_RUNTIME_BIND_ADDRESS:-127.0.0.1}`; eine Öffnung ins Hostnetz setzt Firewall und einen vorgeschalteten TLS-Proxy voraus, der eingehende Forwarded-Header ersetzt. Der API-Container persistiert seinen Data-Protection-Keyring getrennt unter `.data/runtime-data-protection`; ihn nicht löschen oder mit der Konsole teilen. Für reine lokale HTTP-Prüfungen gemeinsam `FLOWZER_AUTH_SCHEME=None` und `FLOWZER_BFF_ENABLED=false` setzen; `JwtBearer` bleibt für direkte Bearer-Tests verfügbar.
 
 ### Stoppen
 
@@ -511,12 +618,24 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 
 ## Bewusst noch offen
 
+### Instanzdaten und Rollen
+
+`Roles:Operator` muss für produktive Installationen explizit auf eine eng vergebene
+Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist im bestehenden Vertrag permissiv.
+Die neuen Instanzansichten in PR #179 liefern ohne diese Rolle nur eine Übersicht
+für den authentifizierten Initiator oder einen aktuell berechtigten Bearbeiter.
+Technische Subscription-Routen und Tokenscopes bleiben der Diagnose vorbehalten.
+Historische `variables.UserId`-Werte werden nicht als Besitznachweis übernommen.
+Siehe [Instanzrechte](INSTANCE-ACCESS.md), insbesondere Grenzen der Formularprojektion.
+
+### Noch fehlende Betriebspakete
+
 Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus
 - vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
-- produktionsnahe Reverse-Proxy- oder TLS-Story
-- Secret-/Configuration-Story jenseits lokaler Entwicklungswerte
+- vollständige produktionsnahe Reverse-Proxy-/TLS- und Secret-Store-Automatisierung
+- Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring
 
 ## Sinnvolle nächste Ausbauschritte
 

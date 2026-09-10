@@ -1,3 +1,4 @@
+using WebApiEngine.Auth;
 using FilesystemStorageSystem;
 using System.Text.Json;
 using FluentAssertions;
@@ -194,7 +195,7 @@ public class ServiceTaskWorkerIntegrationTest
                 writable[entry.Key] = entry.Value;
             }
 
-            await BusinessLogic.HandleUserTask(
+            await BusinessLogic.CompleteUserTaskAsync(
                 new UserTaskResult
                 {
                     ProcessInstanceId = instanceId,
@@ -202,7 +203,7 @@ public class ServiceTaskWorkerIntegrationTest
                     FlowNodeId = flowNodeId,
                     Data = variables,
                 },
-                UserId);
+                new CurrentUserContext(UserId, "test", false));
         }
 
         public async Task<ProcessInstanceInfo> GetInstance(Guid instanceId)
@@ -233,6 +234,9 @@ public class ServiceTaskWorkerIntegrationTest
                 });
                 await storage.DefinitionStorage.StoreDefinition(definition);
                 await storage.DefinitionStorage.StoreBinary(definition.Id, xml);
+                await FormTestSeed.StoreAsync(storage, "Antrag", """
+                    {"components":[{"type":"textfield","key":"vertretung"},{"type":"textarea","key":"bemerkung"}]}
+                    """);
             }
 
             await BusinessLogic.DeployDefinition(definition);

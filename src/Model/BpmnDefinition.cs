@@ -20,4 +20,11 @@ public class BpmnDefinition
     public required Version Version { get; set; }
     
     public required bool IsActive { get; set; }
+
+    /// <summary>
+    /// Deployment-Snapshots nach ursprünglichem Form-Key. Null kennzeichnet einen
+    /// historischen Stand ohne belegte Bindung; leer bedeutet bewusst keine Formulare.
+    /// Nicht aus einem Client-DTO übernehmen oder beim Wiederaktivieren neu auflösen.
+    /// </summary>
+    public Dictionary<string, BoundForm>? FormBindings { get; set; }
 }

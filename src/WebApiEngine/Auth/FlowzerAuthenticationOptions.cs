@@ -4,7 +4,8 @@ namespace WebApiEngine.Auth;
 /// Konfiguration der API-Authentifizierung (Abschnitt <c>Authentication</c>).
 /// <c>None</c> behaelt das bisherige Verhalten (kein Schutz, im Development-Modus technischer
 /// Benutzerheader). <c>JwtBearer</c> verlangt fuer alle Fachendpunkte ein gueltiges OIDC-Token des
-/// konfigurierten Identity Providers; Health-Endpunkte bleiben anonym erreichbar.
+/// konfigurierten Identity Providers. <c>Bff</c> ergaenzt eine serverseitige Browser-Session, ohne
+/// den Bearer-Vertrag fuer externe Clients abzuschalten. Health-Endpunkte bleiben anonym erreichbar.
 /// </summary>
 public sealed class FlowzerAuthenticationOptions
 {
@@ -12,12 +13,19 @@ public sealed class FlowzerAuthenticationOptions
 
     public const string SchemeNone = "None";
     public const string SchemeJwtBearer = "JwtBearer";
+    public const string SchemeBff = "Bff";
 
     public string Scheme { get; set; } = SchemeNone;
 
     public JwtBearerSettings JwtBearer { get; set; } = new();
 
+    public BffSettings Bff { get; set; } = new();
+
     public bool IsJwtBearerEnabled => string.Equals(Scheme, SchemeJwtBearer, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsBffEnabled => string.Equals(Scheme, SchemeBff, StringComparison.OrdinalIgnoreCase);
+
+    public bool IsAuthenticationEnabled => IsJwtBearerEnabled || IsBffEnabled;
 
     public sealed class JwtBearerSettings
     {
@@ -61,14 +69,30 @@ public sealed class FlowzerAuthenticationOptions
         public string Worker { get; set; } = string.Empty;
     }
 
+    /// <summary>Vertraulicher OIDC-Client und persistenter Schluesselring fuer Browser-Sessions.</summary>
+    public sealed class BffSettings
+    {
+        /// <summary>Client-ID des vertraulichen OIDC-Clients.</summary>
+        public string ClientId { get; set; } = string.Empty;
+
+        /// <summary>Client-Secret; ausschliesslich serverseitig aus einem Secret Store laden.</summary>
+        public string ClientSecret { get; set; } = string.Empty;
+
+        /// <summary>OIDC-Scopes zusaetzlich zu openid/profile/email.</summary>
+        public string[] Scopes { get; set; } = [];
+
+        /// <summary>Persistentes, nur fuer die API beschreibbares Verzeichnis der Data-Protection-Schluessel.</summary>
+        public string DataProtectionKeysPath { get; set; } = string.Empty;
+    }
+
     public void Validate()
     {
-        if (!IsJwtBearerEnabled)
+        if (!IsAuthenticationEnabled)
         {
             if (!string.Equals(Scheme, SchemeNone, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException(
-                    $"Authentication:Scheme must be '{SchemeNone}' or '{SchemeJwtBearer}', but was '{Scheme}'.");
+                    $"Authentication:Scheme must be '{SchemeNone}', '{SchemeJwtBearer}' or '{SchemeBff}', but was '{Scheme}'.");
             }
 
             return;
@@ -77,13 +101,36 @@ public sealed class FlowzerAuthenticationOptions
         if (string.IsNullOrWhiteSpace(JwtBearer.Authority))
         {
             throw new InvalidOperationException(
-                "Authentication:JwtBearer:Authority must be set to the OIDC issuer when Authentication:Scheme is 'JwtBearer'.");
+                $"Authentication:JwtBearer:Authority must be set to the OIDC issuer when Authentication:Scheme is '{Scheme}'.");
         }
 
         if (string.IsNullOrWhiteSpace(JwtBearer.Audience))
         {
             throw new InvalidOperationException(
-                "Authentication:JwtBearer:Audience must be set when Authentication:Scheme is 'JwtBearer'.");
+                $"Authentication:JwtBearer:Audience must be set when Authentication:Scheme is '{Scheme}'.");
+        }
+
+        if (!IsBffEnabled)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Bff.ClientId))
+        {
+            throw new InvalidOperationException(
+                "Authentication:Bff:ClientId must be set when Authentication:Scheme is 'Bff'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Bff.ClientSecret))
+        {
+            throw new InvalidOperationException(
+                "Authentication:Bff:ClientSecret must be set when Authentication:Scheme is 'Bff'.");
+        }
+
+        if (string.IsNullOrWhiteSpace(Bff.DataProtectionKeysPath))
+        {
+            throw new InvalidOperationException(
+                "Authentication:Bff:DataProtectionKeysPath must be set when Authentication:Scheme is 'Bff'.");
         }
     }
 }

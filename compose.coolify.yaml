@@ -1,6 +1,6 @@
 # Produktions-Stack fuer Coolify (Projekt MIT Tools, Server cool4). Die Images kommen aus der
 # GitHub Container Registry; der Release-Workflow pinnt FLOWZER_IMAGE_TAG auf die Revision und
-# loest das Deployment aus. Geheime Werte liegen ausschliesslich in Coolify-Environment-Variablen.
+# loest das Deployment aus. Geheime Werte liegen ausschliesslich als Coolify-Secrets vor.
 services:
   migrate:
     image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
@@ -28,16 +28,30 @@ services:
       Storage__Provider: PostgreSql
       Storage__PostgreSql__ConnectionString: "${STORAGE_CONNECTION_STRING:?STORAGE_CONNECTION_STRING muss gesetzt sein}"
       Storage__PostgreSql__Schema: "${STORAGE_SCHEMA:-flowzer}"
-      Authentication__Scheme: "${FLOWZER_AUTH_SCHEME:-JwtBearer}"
+      Authentication__Scheme: "${FLOWZER_AUTH_SCHEME:-Bff}"
       Authentication__JwtBearer__Authority: "${FLOWZER_AUTH_AUTHORITY:?FLOWZER_AUTH_AUTHORITY muss gesetzt sein}"
       Authentication__JwtBearer__Audience: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
+      Authentication__JwtBearer__RequireHttpsMetadata: "${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}"
       Authentication__JwtBearer__RequiredRole: "${FLOWZER_AUTH_REQUIRED_ROLE:-}"
       Authentication__JwtBearer__Roles__Modeler: "${FLOWZER_AUTH_ROLE_MODELER:-}"
       Authentication__JwtBearer__Roles__Operator: "${FLOWZER_AUTH_ROLE_OPERATOR:-}"
       Authentication__JwtBearer__Roles__Worker: "${FLOWZER_AUTH_ROLE_WORKER:-}"
+      # Der vertrauliche Client-Schluessel ist ein Coolify-Secret und wird ausnahmslos
+      # im API-Container verwendet. Der Konsolen-Container erhaelt ihn nicht.
+      # Leere Werte bleiben nur fuer den expliziten JwtBearer-Modus erlaubt. Im BFF-Modus
+      # beendet die API den Start mit einer eindeutigen Validierungsmeldung.
+      Authentication__Bff__ClientId: "${FLOWZER_BFF_CLIENT_ID:-}"
+      Authentication__Bff__ClientSecret: "${FLOWZER_BFF_CLIENT_SECRET:-}"
+      Authentication__Bff__Scopes__0: "${FLOWZER_BFF_SCOPE_0:-}"
+      Authentication__Bff__Scopes__1: "${FLOWZER_BFF_SCOPE_1:-}"
+      Authentication__Bff__Scopes__2: "${FLOWZER_BFF_SCOPE_2:-}"
+      Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
       # Das Gateway laeuft im selben Docker-Netz; nur von dort wird der Weiterleitungsheader
       # geglaubt. Ohne diese Angabe zaehlt jedes anonyme Kontingent gegen die Proxy-Adresse.
       ForwardedHeaders__KnownNetworks__0: "${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}"
+      # Coolify-Proxy und Konsolen-nginx bilden zwei Stufen; drei erlaubt zusaetzlich
+      # ein installationsspezifisches Gateway, jedoch nur innerhalb des Netzes oben.
+      ForwardedHeaders__ForwardLimit: "${FLOWZER_FORWARDED_HEADER_LIMIT:-3}"
       # Ohne freigegebene Zieladresse nimmt die Engine keine Webhook-Anmeldung an.
       ServiceTaskWebhooks__Enabled: "${FLOWZER_WEBHOOKS_ENABLED:-true}"
       ServiceTaskWebhooks__AllowedHosts__0: "${FLOWZER_WEBHOOK_ALLOWED_HOST:-}"
@@ -48,6 +62,10 @@ services:
       TimerScheduler__Enabled: "true"
       TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
       TZ: Europe/Berlin
+    volumes:
+      # Persistiert Data-Protection-Schluessel fuer Session, OIDC-Korrelation und CSRF
+      # ueber Redeploys. Nicht mit Storage oder dem Konsolen-Container teilen.
+      - flowzer-bff-data-protection:/var/lib/flowzer/data-protection
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
       interval: 15s
@@ -55,8 +73,8 @@ services:
       retries: 12
       start_period: 30s
 
-  # Die Oberflaeche. Ihr nginx liefert die Konsole aus und leitet die API-Pfade an den
-  # API-Container weiter, sodass Browser und API denselben Ursprung teilen.
+  # Die Oberflaeche liefert nur statische Assets und nicht geheime Laufzeitwerte. Ihr nginx
+  # leitet die API-Pfade an den API-Container weiter, sodass Browser und API denselben Ursprung teilen.
   console:
     image: ghcr.io/flowzer-io/flowzer-console:${FLOWZER_IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -68,24 +86,16 @@ services:
     environment:
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
+      FLOWZER_BFF_ENABLED: "true"
       # Akzentfarbe fuer das Erscheinungsbild des Unternehmens: iris, teal, emerald,
       # amber oder rose. Gilt fuer alle; es gibt keine persoenliche Einstellung dafuer.
       FLOWZER_ACCENT: "${FLOWZER_ACCENT:-iris}"
-      FLOWZER_OIDC_AUTHORITY: "${FLOWZER_OIDC_AUTHORITY:?FLOWZER_OIDC_AUTHORITY muss gesetzt sein}"
-      FLOWZER_OIDC_CLIENT_ID: "${FLOWZER_CONSOLE_OIDC_CLIENT_ID:-${FLOWZER_OIDC_CLIENT_ID:?FLOWZER_OIDC_CLIENT_ID muss gesetzt sein}}"
-      # Unter dieser Audience stehen die Clientrollen im Token; sie entspricht der
-      # Audience, die die API prueft.
-      FLOWZER_OIDC_AUDIENCE: "${FLOWZER_AUTH_AUDIENCE:?FLOWZER_AUTH_AUDIENCE muss gesetzt sein}"
-      FLOWZER_OIDC_SCOPES: "${FLOWZER_OIDC_SCOPES:-}"
-      # Dieselben Rollennamen wie die API; heisst eine Rolle im Identity Provider anders,
-      # zeigt die Oberflaeche sonst trotz Berechtigung die reduzierte Ansicht.
-      FLOWZER_ROLE_ACCESS: "${FLOWZER_AUTH_REQUIRED_ROLE:-access}"
-      FLOWZER_ROLE_MODELER: "${FLOWZER_AUTH_ROLE_MODELER:-modeler}"
-      FLOWZER_ROLE_OPERATOR: "${FLOWZER_AUTH_ROLE_OPERATOR:-operator}"
-      FLOWZER_ROLE_WORKER: "${FLOWZER_AUTH_ROLE_WORKER:-worker}"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 12
       start_period: 20s
+
+volumes:
+  flowzer-bff-data-protection:

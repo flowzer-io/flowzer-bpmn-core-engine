@@ -2,8 +2,8 @@
 
 Eine BPMN-Ausführungsengine in C#/.NET mit Parser, Laufzeitmodell, Web-API, React-Oberfläche und ersten Beispielprozessen.
 
-> **Stand: 6. September 2026**
-> Das Repository ist arbeitsfähig, die Kernpfade sind getestet, die API ist gegen einen OIDC-Identity-Provider abgesichert und kennt ein Rollenmodell. Die Oberfläche ist die **React-Konsole** in `src/FlowzerConsole`; die frühere Blazor-Oberfläche wurde entfernt. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
+> **Stand: 8. September 2026**
+> Das Repository ist arbeitsfähig, die Kernpfade sind getestet. Der laufende, noch nicht nach `main` gemergte M0-BFF-Slice verlagert die Browser-Anmeldung in die Web-API; externe Bearer-Clients bleiben kompatibel. Die Oberfläche ist die **React-Konsole** in `src/FlowzerConsole`; die frühere Blazor-Oberfläche wurde entfernt. Die Bestandsaufnahme mit Empfehlungen steht in [docs/REVIEW-2026-09.md](docs/REVIEW-2026-09.md).
 
 ## Warum das Projekt spannend ist
 
@@ -100,29 +100,43 @@ Diese Punkte sollte man kennen, bevor man loslegt:
 3. **Timer-, Fehler- und Abbruchpfade sind verbessert, aber noch nicht vollständig**
    Der Engine-Kern kann fällige Timer jetzt weiterführen, Boundary-Timer im bestehenden Subscription-Pfad verarbeiten, wiederkehrende Start-Timer überfälligkeitstolerant nachziehen und rohe `NotImplementedException`-Abbrüche in mehreren Pfaden vermeiden. Offen bleiben weiterhin speziellere Recovery-Fragen, vollständige Fehler-/Eskalationssemantik und echte Kompensation.
 
-4. **Betrieb und Auth sind noch nicht am Ziel**
-   Lokale Compose- und Runtime-Container sind vorhanden, geschützte API-Pfade verlangen jetzt zwar einen aufgelösten Benutzerkontext und die Web-API liefert erste Operations-Diagnose-Informationen inklusive optionaler OpenTelemetry-Exporter-Konfiguration, aber Themen wie echte Authentifizierung, Rollenmodell, Secrets, TLS und Recovery-Automatisierung bleiben weiterhin Folgepakete.
+4. **Betrieb und Auth sind belastbarer, aber noch nicht vollständig abgenommen**
+   Der Runtime-Pfad besitzt OIDC/BFF, Bearer-Kompatibilität, Rollen, CSRF, einen persistenten Data-Protection-Keyring sowie Health-/Diagnose- und Telemetriegrundlagen. Vor einer Kundeninstallation fehlen weiterhin die echte Keycloak-/TLS-/Secret-Store-/Keyring-Restore-Abnahme und die weiterführende Recovery-Automatisierung.
 
 ## Authentifizierung und CORS
 
-Die Web-API läuft standardmäßig ohne Authentifizierung (`Authentication:Scheme=None`); im Development-Modus identifiziert der Header `X-Flowzer-UserId` den Benutzer. Für echte Umgebungen prüft die API OIDC-Tokens:
+Der Runtime-Standard ist `Authentication:Scheme=Bff`: Die Web-API führt den
+OIDC-Code-Flow mit PKCE als vertraulicher Client aus und hält Secret sowie Tokens
+serverseitig. Die Konsole erhält stattdessen ausschließlich `HttpOnly`, `Secure`
+`__Host-`-Cookies; Cookie-Mutationen benötigen den same-origin CSRF-Header
+`X-Flowzer-CSRF`. `config.json` und das Browser-Storage enthalten keine OIDC-
+Konfiguration, Secrets oder Tokens.
 
 ```json
 "Authentication": {
-  "Scheme": "JwtBearer",
+  "Scheme": "Bff",
   "JwtBearer": {
     "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0",
-    "Audience": "<client-id-der-api>"
+    "Audience": "api://<api-client-id>"
+  },
+  "Bff": {
+    "ClientId": "<confidential-client-id>",
+    "DataProtectionKeysPath": "/var/lib/flowzer/data-protection"
   }
-},
-"Cors": {
-  "AllowedOrigins": ["https://flowzer.example.com"]
 }
 ```
 
-Die Konsole meldet sich über die zur Laufzeit geladene `config.json` (Authority, Client-Id, Audience, Scopes) beim selben Identity Provider an und sendet das Access-Token als Bearer an die API. Die Werte kommen im Container aus Umgebungsvariablen, siehe `deploy/console/entrypoint.sh`.
+`ClientSecret` wird absichtlich nicht in JSON, `.env`, Browser oder Dokumentation
+hinterlegt, sondern beim API-Start aus dem Secret-Store injiziert. Der
+Data-Protection-Keyring benötigt ein ausschließlich für den API-Container
+beschreibbares persistentes Volume, weil Session-, OIDC-Korrelations- und
+Antiforgery-Cookies Redeploys überleben müssen.
 
-Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-jwt-bearer--oidc), der komplette Pilot-Ablauf (Identity Provider, Compose, Backup, Fehlerbilder) in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
+Direkte/externe API-Clients dürfen unverändert Bearer-Tokens senden. `JwtBearer`
+bleibt dafür als explizite Konfiguration vorhanden, `None` nur für lokale
+Development-/CI-Prüfungen. Beide ersetzen nicht den BFF-Browserpfad. Hinter dem
+Konsolen-nginx teilen Browser und API denselben Origin und benötigen kein CORS.
+Details stehen in [docs/OPERATIONS.md](docs/OPERATIONS.md#authentifizierung-bff-und-externe-bearer-clients), der komplette Pilot-Ablauf in [docs/RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md).
 
 ## Ordner und Fachverantwortung
 

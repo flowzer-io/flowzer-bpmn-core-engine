@@ -153,6 +153,14 @@ public class InstanceControllerIntegrationTest
     /// </summary>
     private sealed class TestWebApplicationFactory(TestStorage storage) : WebApplicationFactory<Program>
     {
+        // Reine Vertragsfixtures verwenden den erlaubten Development-Pfad. Negative
+        // Produktions-/JWT-Fälle liegen in den eigenen Sicherheitsintegrationstests.
+        protected override void ConfigureClient(HttpClient client)
+        {
+            base.ConfigureClient(client);
+            client.DefaultRequestHeaders.Add("X-Flowzer-UserId", "b9f69df6-f0ad-45d8-ab5a-520bf26ad78a");
+        }
+
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configBuilder) =>

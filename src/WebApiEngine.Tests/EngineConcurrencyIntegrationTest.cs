@@ -1,3 +1,4 @@
+using WebApiEngine.Auth;
 using BPMN.HumanInteraction;
 using FilesystemStorageSystem;
 using FluentAssertions;
@@ -30,6 +31,7 @@ public class EngineConcurrencyIntegrationTest
         var provider = new FileSystemTransactionalStorageProvider();
         var businessLogic = new BpmnBusinessLogic(provider);
         var definition = await context.StoreDefinitionAsync(provider, CreateUserTaskXml());
+        using (var seed = provider.GetTransactionalStorage()) await FormTestSeed.StoreAsync(seed, "Approval");
         await businessLogic.DeployDefinition(definition);
 
         // Parallele Leser wie GET /instance, GET /usertask und GET /instance/{id} laufen ohne
@@ -67,12 +69,12 @@ public class EngineConcurrencyIntegrationTest
         {
             var userTaskToken = instance.Tokens.Single(token =>
                 token.CurrentFlowNode is UserTask && token.State == FlowNodeState.Active);
-            await businessLogic.HandleUserTask(new UserTaskResult
+            await businessLogic.CompleteUserTaskAsync(new UserTaskResult
             {
                 ProcessInstanceId = instance.InstanceId,
                 TokenId = userTaskToken.Id,
                 FlowNodeId = "UserTask_Review"
-            }, UserId);
+            }, new CurrentUserContext(UserId, "test", false));
         })));
 
         readerCancellation.Cancel();

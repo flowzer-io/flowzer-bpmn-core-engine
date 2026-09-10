@@ -72,8 +72,7 @@
               "enableTime": false,
               "format": "dd.MM.yyyy",
               "validate": {
-                "required": true,
-                "custom": "valid = (!data.von || !input || new Date(input) >= new Date(data.von)) ? true : 'Der letzte Urlaubstag darf nicht vor dem ersten liegen.';"
+                "required": true
               },
               "allowInput": true,
               "placeholder": "TT.MM.JJJJ"
@@ -98,7 +97,7 @@
       "key": "vertretung",
       "label": "Vertretung",
       "input": true,
-      "description": "Wer übernimmt in dieser Zeit? Wird automatisch gegen bereits genehmigte Urlaube geprüft.",
+      "description": "Wer übernimmt in dieser Zeit? Die externe Prüfung ist ein optional anzubindender Beispiel-Konnektor.",
       "validate": {
         "required": true
       }
@@ -115,10 +114,33 @@
       "key": "vorgang",
       "label": "",
       "input": true,
-      "calculateValue": "var d = function (w) { if (!w) { return ''; } var t = new Date(w); if (isNaN(t)) { return String(w); } var p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(t.getDate()) + '.' + p(t.getMonth() + 1) + '.' + t.getFullYear(); }; var arten = { erholung: 'Erholungsurlaub', sonder: 'Sonderurlaub', unbezahlt: 'Unbezahlter Urlaub' }; value = [ data.mitarbeiter, arten[data.art] || data.art, (data.von && data.bis) ? (d(data.von) + ' bis ' + d(data.bis)) : '', data.arbeitstage ? (data.arbeitstage + ' Arbeitstage') : '', data.vertretung ? ('Vertretung: ' + data.vertretung) : '' ].filter(function (teil) { return teil; }).join(' · ');",
       "hideLabel": true,
       "tableView": false,
-      "clearOnHide": false
+      "clearOnHide": false,
+      "flowzer": {
+        "calculation": {
+          "name": "join.v1",
+          "fields": [
+            "mitarbeiter",
+            "art",
+            "von",
+            "bis",
+            "arbeitstage",
+            "vertretung"
+          ]
+        }
+      }
     }
-  ]
+  ],
+  "flowzer": {
+    "contractVersion": 1,
+    "rules": [
+      {
+        "kind": "dateOrder",
+        "start": "von",
+        "end": "bis",
+        "allowEqual": true
+      }
+    ]
+  }
 }

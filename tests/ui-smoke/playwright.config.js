@@ -3,7 +3,7 @@ const path = require('path');
 const { defineConfig } = require('@playwright/test');
 
 // Die Konsole laeuft im Smoke bewusst ueber den Vite-Entwicklungsserver:
-// Ohne konfigurierten Identity Provider meldet sie dort einen Entwicklungsbenutzer an.
+// Ohne BFF-Konfiguration zeigt sie dort den strikt lokalen Entwicklungsbenutzer an.
 // Ein Produktionsbuendel zeigte stattdessen die Anmeldeseite und kaeme nie zu den Seiten,
 // die hier geprueft werden sollen.
 const consoleUrl = process.env.FLOWZER_CONSOLE_URL || 'http://localhost:5290';

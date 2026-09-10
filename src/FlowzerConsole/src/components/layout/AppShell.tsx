@@ -15,10 +15,9 @@ import { WorkerShell } from './WorkerShell';
 /**
  * Rahmen der Anwendung.
  *
- * Wer veröffentlichen oder den Betrieb einsehen darf, sieht die vollständige
- * Konsole. Alle anderen sehen die reduzierte Aufgabenoberfläche — die zwei
- * Personas aus dem Design, jetzt an den Rollen aus dem Token festgemacht statt
- * an einem Schalter im Browser.
+ * Wer die serverseitig ermittelte Zugangsfähigkeit besitzt, sieht die vollständige
+ * Konsole. Alle anderen angemeldeten Personen sehen die reduzierte Aufgabenoberfläche;
+ * die API bleibt für jede einzelne Aktion maßgeblich.
  */
 export function AppShell() {
   const status = useSession((state) => state.status);

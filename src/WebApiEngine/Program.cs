@@ -38,6 +38,9 @@ builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddSingleton<DefinitionBusinessLogic>();
 builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
+builder.Services.AddScoped<UserTaskCompletionService>();
+builder.Services.AddScoped<InstanceAccessService>();
+builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.

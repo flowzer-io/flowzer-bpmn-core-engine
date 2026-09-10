@@ -89,10 +89,14 @@ export interface TokenDto {
   startTime?: string | null;
   /** Ergänzt durch die Console-API: letzter Statuswechsel (UTC). */
   lastStateChangeTime?: string | null;
+  /** Serverseitig verifizierter Abschlussakteur, unabhängig von Formulardaten. */
+  completedByUserId?: string | null;
 }
 
 /** Entspricht `ProcessInstanceInfoDto`. */
 export interface ProcessInstanceInfoDto {
+  /** Ohne explizite Freigabe nur datensparsame Übersicht, keine Token-Diagnose. */
+  canInspect?: boolean;
   instanceId: string;
   definitionId: string;
   relatedDefinitionId: string;
@@ -200,6 +204,7 @@ export interface FormMetaDataDto {
 
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
 export interface FormDto {
+  validationProfile?: string | null;
   id?: string | null;
   /**
    * Kennung im Formularbestand. Fehlt bei einem Formular, das im Workflow selbst liegt:

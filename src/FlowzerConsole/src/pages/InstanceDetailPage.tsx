@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { BpmnViewer } from '@/components/bpmn/BpmnViewer';
+import { InstanceOverview } from '@/components/instances/InstanceOverview';
 import { Button } from '@/components/ui/Button';
 import { EmptyState, SectionLabel } from '@/components/ui/Card';
 import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Chip';
@@ -36,8 +37,11 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
 
   const instanceQuery = useInstance(instanceId);
   const instance = instanceQuery.data;
-  const xmlQuery = useDefinitionXml(instance?.definitionId);
-  const subscriptionsQuery = useInstanceSubscriptions(instanceId);
+  // Keine technischen Requests auf Verdacht: Die öffentliche Projektion entscheidet,
+  // nicht die bloße Anmeldung oder ein im Browser sichtbarer Rollenname.
+  const canInspect = instance?.canInspect === true;
+  const xmlQuery = useDefinitionXml(canInspect ? instance.definitionId : undefined);
+  const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
 
   const model = useMemo(() => parseBpmn(xmlQuery.data), [xmlQuery.data]);
   const { markers, activeNodeIds } = useMemo(
@@ -64,6 +68,12 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
         <ErrorState error={instanceQuery.error} onRetry={() => void instanceQuery.refetch()} />
       </div>
     );
+  }
+
+  if (!canInspect) {
+    return <InstanceOverview instance={instance}
+      onBack={() => void navigate({ to: '/instances' })}
+      onTasks={() => void navigate({ to: '/tasks' })} />;
   }
 
   const bucket = instanceBucket(instance.state);

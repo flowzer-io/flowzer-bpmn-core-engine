@@ -87,6 +87,9 @@ export function instanceProgress(
   instance: ProcessInstanceInfoDto,
   model: BpmnModelSummary | undefined,
 ): InstanceProgress {
+  // Eine reduzierte Übersicht enthält absichtlich keine Tokenhistorie. Ein Anteil
+  // wäre erfunden, auch wenn die Workflow-Definition andernorts schon geladen ist.
+  if (instance.canInspect === false) return { ratio: null, visited: 0, total: 0 };
   const bucket = instanceBucket(instance.state);
 
   const visitedIds = new Set(

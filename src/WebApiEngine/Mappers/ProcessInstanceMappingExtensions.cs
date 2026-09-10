@@ -9,25 +9,27 @@ public static class ProcessInstanceMappingExtensions
 {
     public static async Task<ProcessInstanceInfoDto> ToDtoAsync(
         this ProcessInstanceInfo processInstanceInfo,
-        IDefinitionStorage definitionStorage)
+        IDefinitionStorage definitionStorage,
+        bool canInspect = true)
     {
         ArgumentNullException.ThrowIfNull(processInstanceInfo);
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
-        return processInstanceInfo.ToDto(metaNamesById);
+        return processInstanceInfo.ToDto(metaNamesById, canInspect);
     }
 
     public static async Task<List<ProcessInstanceInfoDto>> ToDtosAsync(
         this IEnumerable<ProcessInstanceInfo> processInstances,
-        IDefinitionStorage definitionStorage)
+        IDefinitionStorage definitionStorage,
+        bool canInspect = true)
     {
         ArgumentNullException.ThrowIfNull(processInstances);
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
         return processInstances
-            .Select(instance => instance.ToDto(metaNamesById))
+            .Select(instance => instance.ToDto(metaNamesById, canInspect))
             .ToList();
     }
 
@@ -41,7 +43,8 @@ public static class ProcessInstanceMappingExtensions
 
     private static ProcessInstanceInfoDto ToDto(
         this ProcessInstanceInfo processInstanceInfo,
-        IReadOnlyDictionary<string, string> metaNamesById)
+        IReadOnlyDictionary<string, string> metaNamesById,
+        bool canInspect)
     {
         // Instanzen ohne zugehörige Meta-Definition (z. B. nach einem Direkt-Deploy
         // an der Katalogpflege vorbei) dürfen die Instanzliste nicht zerstören —
@@ -56,12 +59,13 @@ public static class ProcessInstanceMappingExtensions
             DefinitionId = processInstanceInfo.DefinitionId,
             RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
             RelatedDefinitionName = relatedDefinitionName,
-            MessageSubscriptionCount = processInstanceInfo.MessageSubscriptionCount,
-            SignalSubscriptionCount = processInstanceInfo.SignalSubscriptionCount,
+            MessageSubscriptionCount = canInspect ? processInstanceInfo.MessageSubscriptionCount : 0,
+            SignalSubscriptionCount = canInspect ? processInstanceInfo.SignalSubscriptionCount : 0,
             UserTaskSubscriptionCount = processInstanceInfo.UserTaskSubscriptionCount,
-            ServiceSubscriptionCount = processInstanceInfo.ServiceSubscriptionCount,
+            ServiceSubscriptionCount = canInspect ? processInstanceInfo.ServiceSubscriptionCount : 0,
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
-            Tokens = processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList(),
+            Tokens = canInspect ? processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList() : [],
+            CanInspect = canInspect,
             StartedAt = GetStartedAt(processInstanceInfo),
             FinishedAt = GetFinishedAt(processInstanceInfo)
         };

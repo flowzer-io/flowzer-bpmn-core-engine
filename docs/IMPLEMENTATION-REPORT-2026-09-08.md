@@ -1,0 +1,103 @@
+# Umsetzungsbericht – 8. September 2026
+
+## Ergebnis
+
+Sieben aufeinander aufbauende Teilpakete der freigegebenen Flowzer-Roadmap sind
+implementiert und lokal getestet. Der **gesamte M0–M6-Produktplan ist noch nicht
+umgesetzt**. Alle Änderungen liegen in Topic-Branches/PRs nach `main`; kein Merge,
+kein Produktivdeployment, keine Änderung produktiver Benutzer oder Datenbanken.
+
+| Teilpaket | Ergebnis | PR |
+| --- | --- | --- |
+| Abschlussrechte | Beide HTTP-Abschlussrouten autorisieren dieselbe tatsächliche Aufgabe innerhalb des bestehenden Mutationszyklus. Fremde Aufgaben liefern 404; verifizierter Akteur getrennt von Formulardaten. | [#177](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/177) |
+| Instanzrechte | Vertrauenswürdiger Initiator über Issuer/Subject, datensparsame Vorgangsübersicht für Antragsteller/Bearbeiter und getrennte Betriebsdiagnose. Die Konsole fordert ohne Recht keine Diagnosedaten an. | [#179](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/179) |
+| Formularstände | Deployment bindet konkrete Formular-Snapshots. Spätere Fassungen oder Umbenennungen ändern laufende und später aktivierte Aufgaben nicht. | [#181](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/181) |
+| Formularprüfung | Begrenztes serverseitiges Prüfprofil für Pflichtfelder, Typen, Bereiche, statische Auswahl, Sichtbarkeit und Datumsvergleich. Read-only-Schutz und Feldfehler ohne Eingabeverlust. Zwei Beispielskripte durch deklarative/benannte Serverregeln ersetzt. | [#183](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/183) |
+| Aufgabenidentität | Bestehende Task-IDs/Zuweisungen bleiben über parallelen Fortschritt, Timer und Neuladen erhalten. Nur neue Tokens bekommen neue IDs; erledigte Aufgaben werden gezielt entfernt. | [#185](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/185) |
+| HTTP-Idempotenz | Direkte Starts und beide Abschlussrouten erhalten akteurs-/ressourcengebundene, persistente Wiederholungen; Inhaltswechsel liefert 409. | [#187](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/187) |
+| Browser-BFF | Vertraulicher OIDC-Code-Flow, kurzlebige HttpOnly-Cookie-Sitzung, Origin-/CSRF-Schutz, minimale Sitzungsprojektion und weiter kompatible Bearer-API. | [#189](https://github.com/flowzer-io/flowzer-bpmn-core-engine/pull/189) |
+
+Die PRs sind gestapelt: **177 → 179 → 181 → 183 → 185 → 187 → 189**. Deshalb zeigen spätere
+PRs bis zum Merge ihrer Vorgänger auch deren Änderungen. CI-Ergebnisse und
+slice-spezifische Testnachweise stehen jeweils im PR. Merges sind nicht beauftragt.
+
+## Nachweise
+
+- Abschließende lokale .NET-Suite: **100 Engine + 480 API-/Storage-Tests bestanden**,
+  keine übersprungenen Tests; einschließlich isolierter PostgreSQL-Integration,
+  Rechte-Negativfällen, Formular- und OpenAPI-Regressionsfällen.
+- React-Konsole einschließlich BFF: **209 Tests**, Typecheck und Build erfolgreich;
+  Lint ohne Fehler, acht bestehende Warnungen.
+- Lokale Playwright-Suite auf dem Formular-Slice: **29 Tests bestanden**. Insbesondere
+  Feldfehler/Fokus/Eingabeerhalt, Aufgaben-/Startformulare und Vorgangsübersichten.
+- Vorgangsübersichten auf Desktop und Mobil visuell geprüft. Das ersetzt noch nicht
+  den vollständigen M4-UX-Audit aller Modellierungs- und Betriebswege.
+- Neue Regressionen zuerst rot, danach implementiert; Testzweckprüfung und
+  `git diff --check` erfolgreich. Bestehende Nullable-/Obsoleszenz- und Vite-
+  Chunkwarnungen wurden nicht als neue Fehlerfreiheit der gesamten Codebasis ausgegeben.
+- Der verlangte abschließende **Astra-/High-Review** lief direkt als strikt lesender
+  Subagent. Drei Befunde wurden umgesetzt: unklare Datei-Commits behalten ihre offene
+  Reservierung, mathematisch gleiche JSON-Zahlen erhalten denselben Hash und der
+  Projektstatus unterscheidet korrekt zwischen Wiederholungen mit/ohne Header.
+  Zusätzliche Fault-Injection-, PostgreSQL-Rollback- und Retentionstests sichern die
+  Korrekturen. Der Re-Review meldete **keine blockierenden Findings**. Als spätere
+  Härtung bleiben weitere Zahlenvektoren/-größenlimits und ein auditierter Klärungsweg
+  für offene Reservierungen dokumentiert.
+- Ein zusätzlich verlangter direkter **Astra-/High-Review des BFF-Slices** fand und
+  behob die an das Access-Token gebundene, nicht gleitende Sitzungsdauer, Logout für
+  angemeldete Konten ohne Fachrolle, fehlgeschlagene Logout-Anzeige sowie abgeschaltete
+  BFF-Routen. Negativtests decken Signatur und CSRF ab. Unmittelbarer Provider-Widerruf
+  vor Tokenablauf, echter Keycloak-Code-Flow und Keyring-Restore bleiben Abnahmen.
+
+## Bewahrte Produktentscheidungen
+
+- Flowzer bleibt eigenständig, modular und unter MPL-2.0; kein Rewrite und keine
+  TickyTask-Abhängigkeit. Erste Kundenstufe mit getrennter Installation.
+- Bei Task-Zuweisungen bleibt **Text ausdrücklich erhalten**. Die spätere Auswahl
+  „Bekannter Benutzer / bekannte Gruppe“ oder „Text-String“ ist in Roadmap und
+  Auth-Epic verbindlich ergänzt. Kein stilles Umwandeln gleichnamiger Texte in IDs.
+- Der Mobil-PR #153 wurde gegen `main` auf Überschneidungen geprüft, nicht dupliziert
+  oder ungefragt gemergt. Prozessverbund #154 bleibt hinter lokalen Call Activities
+  und Fehlerbehandlung eingeordnet.
+- Die Bestandsissues #93–#96 und #98 wurden bereinigt bzw. mit Teilpaketen verknüpft.
+
+## Vor Installation oder Upgrade beachten
+
+1. **Formular-Kompatibilität:** `flowzer.forms/1` ist keine vollständige Form.io-
+   Unterstützung. Container/Datagrids, Verzeichnis-/Dateifelder, dynamische Quellen,
+   Custom-JavaScript und weitere nicht prüfbare Regeln blockieren Veröffentlichung.
+   Nicht unterstützte Altschemas können auch laufende Abschlüsse blockieren.
+2. **Historische Formularstände:** Externe Altverweise ohne belegten Snapshot werden
+   nicht auf das heutige `latest` geraten. Formularinventar und laufende Instanzen
+   brauchen eine geprüfte Migration in einer Testinstallation.
+3. **Rollen:** `Roles:Operator` ausdrücklich konfigurieren. Der alte permissive
+   Vertrag für leere Fähigkeitsrollen ist noch nicht ersetzt.
+4. **Persistenz:** Dateiablage besitzt keinen Rollback. Die prozesslokale Sperre und
+   vorhandene PostgreSQL-Transaktion sind noch kein Nachweis für sicheren
+   Mehrprozessbetrieb. Revisionen/Unique-Constraints/Konkurrenztests fehlen.
+5. **Zuweisungen:** Stabile Task-ID bedeutet noch keine Claim-/Delegationsfunktion.
+   Das Bewahren historischer Bearbeitermetadaten aktiviert keine neuen Rechte.
+
+Keine allgemeine Produktionsfreigabe durch grüne Tests oder diese Teilpakete.
+
+## Nächste Umsetzungsschritte
+
+1. **M0 weiter schließen:** Der BFF-Slice mit HttpOnly-/Secure-Host-Cookies,
+   `X-Flowzer-CSRF`, serverseitigem vertraulichem OIDC-Client und persistentem
+   Data-Protection-Keyring läuft in einem noch nicht gemergten PR. Nach Merge sind
+   HTTPS-/Secret-Store-/Keyring-Restore-Abnahme sowie später Idempotenz für explizite
+   Worker-/Connector-Außenwirkungen offen.
+2. **M1/M2:** Read-only-Keycloak-Verzeichnis mit atomarer Sync-Generation, Pagination,
+   Fehler-/Deaktivierungsschutz und stabilen Referenzen. Auswahlkomponente für
+   Formulare, Tasks und Ordner – inklusive des ausdrücklich separaten Textmodus.
+3. **M2:** Gemeinsame Client-/Server-Konformitätsfälle, weitere deklarative Regeln,
+   Versionierungsoberfläche, Entwürfe/Konflikte, Wiederholgruppen und geprüfte Migration.
+4. **M3/M4:** Taskrevision/Claim/Release/Delegation, Historie, Fristen und Benachrichtigungen;
+   SDK/TickyTask-Einbettung, Modellfähigkeiten und vollständiger UX-Audit.
+5. **M5/M6:** Sichere KI-Verbindungen/Werkzeuge/Freigaben/Wiederaufnahme; nötige
+   PostgreSQL-, Lease-, Runtime-, Betriebs- und Upgrade-Bausteine vorziehen.
+
+Die erste vollständige Produktabnahme – frische Installation mit Keycloak-Auswahl,
+Konsole/Host-Aufgabe und nach Neustart fortgesetztem KI-Task samt Werkzeugfreigabe –
+steht weiterhin aus. Verbindliche Details und Abnahmen:
+[Produkt-Roadmap](PRODUCT-ROADMAP-2026-09.md).

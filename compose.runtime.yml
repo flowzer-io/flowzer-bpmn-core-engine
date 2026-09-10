@@ -6,13 +6,30 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       FLOWZER_STORAGE_ROOT: /data/flowzer-storage
-      # Authentifizierung: None (Default) oder JwtBearer mit Authority und Audience des Identity Providers.
-      Authentication__Scheme: ${FLOWZER_AUTH_SCHEME:-None}
+      # BFF ist der Runtime-Default. None und JwtBearer bleiben fuer explizit lokale
+      # bzw. externe-kompatible Konfigurationen zulaessig, siehe OPERATIONS.md.
+      Authentication__Scheme: ${FLOWZER_AUTH_SCHEME:-Bff}
       Authentication__JwtBearer__Authority: ${FLOWZER_AUTH_AUTHORITY:-}
       Authentication__JwtBearer__Audience: ${FLOWZER_AUTH_AUDIENCE:-}
       Authentication__JwtBearer__RequireHttpsMetadata: ${FLOWZER_AUTH_REQUIRE_HTTPS_METADATA:-true}
+      # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
+      # Laufzeit uebergeben, nie dem Konsolen-Container oder dem Browser.
+      Authentication__Bff__ClientId: ${FLOWZER_BFF_CLIENT_ID:-}
+      Authentication__Bff__ClientSecret: ${FLOWZER_BFF_CLIENT_SECRET:-}
+      Authentication__Bff__Scopes__0: ${FLOWZER_BFF_SCOPE_0:-}
+      Authentication__Bff__Scopes__1: ${FLOWZER_BFF_SCOPE_1:-}
+      Authentication__Bff__Scopes__2: ${FLOWZER_BFF_SCOPE_2:-}
+      Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # API-Anfragen kommen ueber Gateway und Konsolen-nginx aus dem privaten
+      # Compose-Netz. Nur aus diesem explizit konfigurierten Netz werden Hostschema
+      # und Clientadresse fuer OIDC, Secure-Cookies und Rate-Limits uebernommen.
+      ForwardedHeaders__KnownNetworks__0: ${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}
+      ForwardedHeaders__ForwardLimit: ${FLOWZER_FORWARDED_HEADER_LIMIT:-3}
     volumes:
       - ./.data/runtime-storage:/data/flowzer-storage
+      # Session-, OIDC-Korrelations- und Antiforgery-Cookies muessen einen Container-
+      # Neustart ueberleben. Dieses Volume ist nur fuer den API-Container beschreibbar.
+      - ./.data/runtime-data-protection:/var/lib/flowzer/data-protection
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -27,14 +44,8 @@ services:
     environment:
       FLOWZER_API_UPSTREAM: api:8080
       FLOWZER_API_BASE_URL: /
+      FLOWZER_BFF_ENABLED: ${FLOWZER_BFF_ENABLED:-true}
       FLOWZER_ACCENT: ${FLOWZER_ACCENT:-iris}
-      # Diese Werte sind Pflicht: Das ausgelieferte Buendel ist ein Produktionsbuendel und
-      # zeigt ohne Identity Provider nur die Anmeldeseite. Der technische Benutzer greift
-      # ausschliesslich im Entwicklungsserver (npm run dev), nicht hier.
-      FLOWZER_OIDC_AUTHORITY: ${FLOWZER_OIDC_AUTHORITY:-}
-      FLOWZER_OIDC_CLIENT_ID: ${FLOWZER_OIDC_CLIENT_ID:-}
-      FLOWZER_OIDC_AUDIENCE: ${FLOWZER_AUTH_AUDIENCE:-}
-      FLOWZER_OIDC_SCOPES: ${FLOWZER_OIDC_SCOPES:-}
     depends_on:
       api:
         condition: service_healthy
@@ -53,7 +64,10 @@ services:
       console:
         condition: service_healthy
     ports:
-      - "${FLOWZER_RUNTIME_PORT:-5288}:8080"
+      # Sicherer lokaler Default: Nur ein Proxy auf dem Host erreicht den Port. Fuer
+      # einen TLS-Proxy in einem anderen Container muss das Zielnetz bzw. die Bindung
+      # installationsspezifisch und bewusst geoeffnet werden.
+      - "${FLOWZER_RUNTIME_BIND_ADDRESS:-127.0.0.1}:${FLOWZER_RUNTIME_PORT:-5288}:8080"
     volumes:
       - ./deploy/nginx/runtime.conf:/etc/nginx/nginx.conf:ro
     healthcheck:

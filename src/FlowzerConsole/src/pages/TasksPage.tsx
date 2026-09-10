@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FormRenderer, type FormRendererHandle } from '@/components/forms/FormRenderer';
+import { FormValidationErrors } from '@/components/forms/FormValidationErrors';
 import { Button } from '@/components/ui/Button';
 import { Chip, toneSurface } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/Card';
@@ -39,6 +40,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
   const [deferred, setDeferred] = useState<string[]>([]);
   const [fallbackSelection, setFallbackSelection] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProcessVariables>({});
+  const [submissionError, setSubmissionError] = useState<{ taskId: string; error: unknown } | null>(null);
 
   const views = useMemo(() => {
     const sorted = sortTasks((tasksQuery.data ?? []).map((task) => toTaskView(task)));
@@ -56,6 +58,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
 
   const select = (taskId: string | null) => {
     setFormData({});
+    setSubmissionError(null);
     if (onSelectTask) onSelectTask(taskId);
     else setFallbackSelection(taskId);
   };
@@ -75,6 +78,7 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
     }
 
     const data = renderer?.getData() ?? formData;
+    setSubmissionError(null);
 
     completeTask.mutate(
       {
@@ -90,10 +94,12 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
           const next = views.find((view) => view.id !== active.id);
           if (next) select(next.id);
         },
-        onError: (error) =>
+        onError: (error) => {
+          setSubmissionError({ taskId: active.id, error });
           toast.error('Aufgabe konnte nicht abgeschlossen werden', {
             description: error instanceof Error ? error.message : undefined,
-          }),
+          });
+        },
       },
     );
   }
@@ -279,6 +285,10 @@ export function TasksPage({ selectedTaskId, onSelectTask, variant = 'console' }:
                   </div>
                 )}
 
+                {formQuery.data && (
+                  <FormValidationErrors error={submissionError?.taskId === active.id ? submissionError.error : undefined}
+                    schema={formQuery.data.formData ?? undefined} />
+                )}
                 {formQuery.data && (
                   <FormRenderer
                     key={active.id}

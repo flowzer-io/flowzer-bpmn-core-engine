@@ -32,9 +32,22 @@ cat "$ready_file"
 echo
 
 echo "Checking runtime operations diagnostics: ${gateway_url}/operations/diagnostics"
-curl "${curl_opts[@]}" "${gateway_url}/operations/diagnostics" >"$diagnostics_file"
-grep -Eqi '"(successful|Successful)"[[:space:]]*:[[:space:]]*true' "$diagnostics_file"
-cat "$diagnostics_file"
+# Im BFF-Standard ist die Diagnose ohne Cookie-/Bearer-Sitzung absichtlich 401.
+# Der Probe muss den Schutz belegen, statt die bisher offene Diagnose zu erwarten.
+diagnostics_status="$(curl --silent --show-error --connect-timeout 5 --max-time 15 \
+  --output "$diagnostics_file" --write-out '%{http_code}' "${gateway_url}/operations/diagnostics")"
+case "$diagnostics_status" in
+  401) echo "Runtime diagnostics is protected by BFF authentication (expected)." ;;
+  200)
+    grep -Eqi '"(successful|Successful)"[[:space:]]*:[[:space:]]*true' "$diagnostics_file"
+    cat "$diagnostics_file"
+    ;;
+  *)
+    cat "$diagnostics_file" >&2 || true
+    echo "Unexpected diagnostics status: $diagnostics_status" >&2
+    exit 1
+    ;;
+esac
 echo
 
 # Die Laufzeitkonfiguration der Konsole entsteht erst beim Start des Containers. Sie ist
@@ -43,4 +56,6 @@ echo
 echo "Checking runtime console config: ${gateway_url}/config.json"
 curl "${curl_opts[@]}" "${gateway_url}/config.json" >"$console_file"
 grep -q '"apiBaseUrl"' "$console_file"
+expected_bff="${FLOWZER_BFF_ENABLED:-true}"
+grep -Eqi "\"bffEnabled\"[[:space:]]*:[[:space:]]*${expected_bff}" "$console_file"
 echo "Runtime console responded successfully."

@@ -18,12 +18,14 @@ public class Storage : IStorageSystem
         InstanceStorage = new InstanceStorage(this);
         FormStorage = new FormStorage(this);
         ServiceTaskStorage = new ServiceTaskStorage(this);
+        IdempotencyStorage = new IdempotencyStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
     public IInstanceStorage InstanceStorage { get; }
     public IFormStorage FormStorage { get; }
     public IServiceTaskStorage ServiceTaskStorage { get; }
+    public IIdempotencyStorage IdempotencyStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

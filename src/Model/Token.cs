@@ -38,6 +38,19 @@ public class Token
     public Variables? Variables { get; set; }
     public Variables? OutputData { get; set; }
 
+    /// <summary>
+    /// Serverseitig ermittelter Akteur des Aufgabenabschlusses, unabhängig von Formulardaten.
+    /// Null bei alten Tokens oder internen Abschlüssen ohne Benutzer-/Workeridentität.
+    /// </summary>
+    public Guid? CompletedByUserId { get; set; }
+
+    /// <summary>
+    /// Nur am Master-Token: verifizierter Initiator des direkten Starts. Bleibt mit dem
+    /// Tokenbestand bei jedem Speichern/Neuladen erhalten, ohne Variablen umzudeuten.
+    /// Null für historische und technische Starts. Nicht Teil gewöhnlicher Token-DTOs.
+    /// </summary>
+    public AuthenticatedSubject? Initiator { get; set; }
+
     public Guid? ParentTokenId { get; init; }
 
     public override string ToString()

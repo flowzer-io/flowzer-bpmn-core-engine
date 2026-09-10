@@ -41,6 +41,7 @@ export function useStartWorkflow() {
 
   const [state, setState] = useState<StartFlowState>(NO_STATE);
   const [pending, setPendingState] = useState<PendingForm | null>(null);
+  const [serverError, setServerError] = useState<{ definitionId: string; error: unknown } | null>(null);
 
   // Der offene Dialog auch als Ref: Die Rückmeldungen des Ablaufs kommen aus Promises und
   // müssten sonst mit dem State rechnen, den sie beim Anlegen gesehen haben.
@@ -76,6 +77,7 @@ export function useStartWorkflow() {
         }),
 
       onFormRequired: (workflow, schema) => {
+        setServerError(null);
         const previous = pendingRef.current;
         // Es gibt genau einen Dialog. Verdrängt ein anderer Workflow den offenen, muss dessen
         // Sperre fallen — sonst bliebe sein Startknopf für immer gesperrt.
@@ -105,6 +107,7 @@ export function useStartWorkflow() {
           toast.error('Das Startformular konnte nicht geladen werden', { description });
           return;
         }
+        setServerError({ definitionId: workflow.definitionId, error });
         toast.error(`„${workflow.name}" konnte nicht gestartet werden`, { description });
       },
 
@@ -136,8 +139,10 @@ export function useStartWorkflow() {
       },
       workflowName: pending?.workflow.name ?? '',
       schema: pending?.schema,
+      serverError: serverError?.definitionId === pending?.workflow.definitionId ? serverError?.error : undefined,
       busy: pending !== null && state.starting.has(pending.workflow.definitionId),
       onStart: (variables: ProcessVariables) => {
+        setServerError(null);
         if (pending) void flow.submit(pending.workflow, variables);
       },
     },

@@ -1,122 +1,40 @@
-# Roadmap-Vorschlag
+# Roadmap
 
-## Zielbild
+**Stand: 8. September 2026**
 
-Flowzer BPMN Core Engine soll von einem stabilisierten Entwicklungsstand zu einem **verlässlich nutzbaren BPMN-Kern mit API, Frontend, reproduzierbarer Testbasis und produktionsnaher Betriebsgrundlage** weiterentwickelt werden.
+Die freigegebene, führende Produkt-Roadmap steht in
+[PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
+Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
 
-## Was bereits erreicht ist
+## Reihenfolge
 
-Die erste große Stabilisierungsrunde ist bereits erfolgt:
+1. **M0 – Sicherheit und Verträge:** zentraler Aufgabenabschluss (#176, PR #177),
+   objektbezogene Instanzrechte, serverseitige Validierung und Idempotenz sind als
+   gestapelte PRs umgesetzt. #188 ist der laufende, noch nicht nach `main` gemergte
+   BFF-Slice: vertraulicher OIDC-Code-Flow, `HttpOnly`/`Secure`-Cookies,
+   `X-Flowzer-CSRF`, persistenter API-Keyring und kompatibler externer Bearer-Vertrag.
+   Bis Merge und HTTPS-/Secret-/Restore-Abnahme ist M0 nicht vollständig geschlossen.
+2. **M1/M2 – Verzeichnis und Formulare:** Keycloak, stabile Benutzer-/Gruppenreferenzen,
+   generische Auswahlfelder, Versionierung, validierte Eingaben und Entwürfe.
+3. **M3/M4 – Aufgaben und Oberflächen:** Human-Task-Lifecycle, SDK/Einbettung für
+   TickyTask, Modellierungsprüfung, Laufzeitdiagramm und belastbare Historie.
+4. **M5 – KI-Tasks:** Cloud/lokale Modelle, Secret-Referenzen, begrenzte Werkzeuge,
+   parametergebundene Freigaben und sichere Wiederaufnahme.
+5. **M6 begleitend:** Runtime, Persistenz, Recovery, Installation und Open Source.
+   Notwendige Grundlagen werden vor dem jeweils abhängigen Feature umgesetzt.
 
-- `next` als Integrationsbranch eingeführt
-- Grunddokumentation neu aufgesetzt
-- Build- und CI-Basis stabilisiert
-- Demo-Console-App ergänzt
-- wesentliche Engine-/Subscription-/Frontend-Härtungen umgesetzt
-- Timer-Ausführung im Engine-Kern für fällige Start- und Intermediate-Timer ergänzt
-- Boundary-Timer im Parser, in der Runtime und im persistierten Subscription-Pfad ergänzt
-- persistierte Timer-Subscriptions in Storage/Web-API ergänzt
-- Scheduler-/Polling-Pfad für fällige Timer im Web-API-Host ergänzt
-- wiederkehrende Start-Timer inklusive Restwiederholungen und Catch-up-Verhalten ergänzt
-- Startup-Recovery für überfällige Start-Timer über persistierte Timer-Subscriptions ergänzt
-- Form-/Message-Fehlerverträge in der Web-API weiter geschärft
-- lokale und CI-nahe Testpfade wieder grün gemacht
-- lokale Runtime-Containerbasis für Release-nahe Prüfpfade ergänzt
-- das ursprüngliche Frontend-Epic (#7) und seine Teilpakete #47–#50 sind abgeschlossen
-- der erste große Revitalisierungs-Backlog ist damit weitgehend abgearbeitet
+## Vorhandenes nicht neu bauen
 
-Die Roadmap startet also **nicht mehr bei Null**, sondern baut auf einer funktionierenden Basis auf.
+React-Konsole, API-seitiger BFF-/Bearer-Auth-Vertrag (laufender ungemergter Slice), PostgreSQL, Service-Task-Worker, Startformulare und
+Workflow-Ordner existieren. Der offene Mobil-PR #153 enthält noch nicht auf `main`
+enthaltene Korrekturen und bleibt ein eigener Strang; sie werden hier nicht dupliziert.
 
-Seit September 2026 zusätzlich vorhanden (siehe [REVIEW-2026-09.md](./REVIEW-2026-09.md)): OIDC-Token-Prüfung in der API, konfigurierbares CORS, nebenläufigkeitsfeste Dateiablage, lauffähige Container, NuGet-Audit-Gate, Standardfluss-Fix.
+#98 verfolgt die gesamte Roadmap; #93–#96 bleiben fachliche Folge-Epics.
+Prozessverbund #154 folgt auf lokale Call Activities und Fehlersemantik.
+Echtes Mehrmandanten-Hosting und vollständige Kompensation sind spätere Vorhaben.
 
-## Priorität 0: Firmeneinsatz vorbereiten
+## Arbeitsweise
 
-### 0.1 Identity Provider anbinden
-
-- API (`Authentication:Scheme=JwtBearer`) und Frontend (`Oidc`) sind konfigurierbar, siehe [RUNBOOK-PILOT.md](./RUNBOOK-PILOT.md)
-- offen: Registrierung im Unternehmens-IdP und Benutzer-Id-Format (GUID in `oid`/`sub`) verifizieren
-
-### 0.2 Pilot hinter Reverse Proxy
-
-- TLS-Terminierung, persistentes Volume für die Ablage, tägliches Backup
-- ein echter Prozess mit Formularen, User-Tasks und Timer
-
-### 0.3 Rollen und Zuweisungen
-
-- Kandidaten, Gruppen und Zuständigkeit aus `zeebe:assignmentDefinition` auswerten
-- Sichtbarkeit von Aufgaben, Definitionen und Diagnose nach Rolle
-
-### 0.4 Persistenz
-
-- PostgreSQL-Implementierung von `IStorageSystem` mit Migrationen
-- Dateiablage bleibt für Entwicklung und Tests
-
-### 0.5 Eine Oberfläche
-
-- React-Konsole in eigenem PR mit CI, Container und Smokes bewerten
-- danach Blazor ablösen oder den React-Branch schließen
-
-## Priorität 1: Timer- und Runtime-Restlücken schließen
-
-### 1.2 BPMN-Fehlerpfade und weitergehende Timer-Semantik vertiefen
-
-- Error-/Escalation-Semantik jenseits des Best-Effort-Fallbacks modellieren
-- Kompensations- und Abbruchpfade weiter präzisieren
-- Boundary-Timer bei Bedarf um speziellere Randfälle wie konkurrierende Timer oder komplexere Recovery-Szenarien vertiefen
-
-### 1.3 Timer-Recovery und wiederkehrende Strategien vertiefen
-
-- Recovery-Verhalten für bereits persistierte Boundary- und Spezialtimer nach Neustarts weiter härten
-- wiederkehrende Start-Timer nur noch bei komplexeren Spezialfällen vertiefen
-- wiederkehrende Boundary- oder Spezialtimer nur dann ergänzen, wenn sie fachlich wirklich benötigt werden
-
-## Priorität 2: Betriebs- und Auth-Reife erhöhen
-
-### 2.1 Operations-Basis über die lokale Compose-Story hinaus vertiefen
-
-- Collector-/Dashboard-/Alerting-Pfade auf Basis der jetzt vorhandenen OpenTelemetry-Exporter
-- Secret-/Konfigurationsstory
-- Recovery-/Backup-Hinweise
-- Reverse-Proxy-/TLS-Härtung für echte Zielumgebungen
-
-### 2.2 Auth-/Identity-Pfade weiter absichern
-
-- Claim-basierte Authentifizierung entlang echter Betriebsumgebungen verdrahten
-- Nutzer- und Rollenmodell klarer kapseln
-- API-Verträge und Betriebssignale entlang der Auth-Story ergänzen
-
-## Priorität 3: Test- und Dokumentationsreife nachziehen
-
-### 3.1 Weitere E2E-/Smoke-Pfade gezielt ausbauen
-
-- Kernpfade für Direktaufrufe, Refreshes und Betriebsfehler weiter ausbauen
-- Testdaten und Hilfslogik für reproduzierbare Läufe schaffen
-- die Suite klein und CI-tauglich halten
-
-### 3.2 Architektur-, Status- und Repo-Hygiene weiter verbessern
-
-- Altlasten und Doppelstrukturen bewerten und bereinigen
-- Status- und Roadmap-Dokumente laufend aktualisieren
-- technische Realität und Doku synchron halten
-
-## Empfohlene Reihenfolge der nächsten Sprints
-
-### Sprint A – Timer-Runtime vertiefen
-
-- Boundary-/Spezialtimer-Recovery
-- verbleibende wiederkehrende Spezialtimer
-- verbleibende Boundary-Timer-Randfälle
-
-### Sprint B – Betrieb und Auth
-
-- externe Telemetrie/Secrets/Recovery
-- Claim-/Rollenmodell und Auth-/Identity-Härtung
-
-### Sprint C – E2E und Dokumentation
-
-- zusätzliche E2E-/Smoke-Pfade
-- Architektur- und Operations-Dokumentation vertiefen
-
-## Leitprinzip für die weitere Arbeit
-
-Neue Features sollten weiterhin **nur dann** priorisiert werden, wenn die zugehörigen Kernpfade bereits belastbar getestet und dokumentiert sind. Die Stärke des Projekts liegt jetzt nicht in maximaler Breite, sondern in der Kombination aus **klaren Arbeitspaketen, reproduzierbarer Testbasis und schrittweise steigender Produktreife**.
+Kleine, testgetriebene PRs nach `main`; laufende Instanzen und öffentliche Verträge
+kompatibel migrieren. Kein Produktivdeployment allein durch einen Feature-PR.
+Tests, Reviews und nicht erfüllte Abnahmen werden pro Slice dokumentiert.

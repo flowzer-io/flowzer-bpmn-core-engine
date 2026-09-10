@@ -8,7 +8,7 @@ namespace WebApiEngine.Mappers;
 /// </summary>
 public static class RuntimeMappingExtensions
 {
-    public static TokenDto ToDto(this Token token)
+    public static TokenDto ToDto(this Token token, bool includeContext = true)
     {
         ArgumentNullException.ThrowIfNull(token);
 
@@ -17,11 +17,12 @@ public static class RuntimeMappingExtensions
             Id = token.Id,
             State = (FlowNodeStateDto)token.State,
             CurrentFlowNodeId = token.CurrentFlowNode?.Id ?? string.Empty,
-            CurrentFlowElement = token.CurrentFlowNode?.ToExpando(),
-            Variables = token.Variables,
-            OutputData = token.OutputData,
+            CurrentFlowElement = includeContext ? token.CurrentFlowNode?.ToExpando() : null,
+            Variables = includeContext ? token.Variables : null,
+            OutputData = includeContext ? token.OutputData : null,
             PreviousTokenId = token.PreviousToken?.Id,
             ParentTokenId = token.ParentTokenId,
+            CompletedByUserId = token.CompletedByUserId,
             StartTime = token.StartTime,
             LastStateChangeTime = token.LastStateChangeTime
         };
@@ -48,7 +49,7 @@ public static class RuntimeMappingExtensions
         };
     }
 
-    public static ExtendedUserTaskSubscriptionDto ToDto(this ExtendedUserTaskSubscription subscription)
+    public static ExtendedUserTaskSubscriptionDto ToDto(this ExtendedUserTaskSubscription subscription, bool includeTokenContext = true)
     {
         ArgumentNullException.ThrowIfNull(subscription);
 
@@ -61,7 +62,7 @@ public static class RuntimeMappingExtensions
         {
             Id = subscription.Id,
             Name = subscription.Name,
-            Token = subscription.Token.ToDto(),
+            Token = subscription.Token.ToDto(includeContext: includeTokenContext),
             UserCandidates = [.. subscription.UserCandidates],
             UserGroups = [.. subscription.UserGroups],
             CurrenAssignedUser = subscription.CurrenAssignedUser,

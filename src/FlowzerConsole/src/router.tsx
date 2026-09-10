@@ -9,7 +9,6 @@ import {
 } from '@tanstack/react-router';
 
 import { AppShell } from '@/components/layout/AppShell';
-import { AuthenticationCallbackPage, SignedOutPage, SilentCallbackPage } from '@/pages/AuthenticationCallbackPage';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -24,29 +23,6 @@ import { WorkflowsPage } from '@/pages/WorkflowsPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
-});
-
-/**
- * Die Rueckleitungen des Identity Providers liegen ausserhalb der Anwendungshuelle:
- * Zu diesem Zeitpunkt gibt es noch keine Anmeldung, und die Huelle wuerde sofort
- * wieder zur Anmeldeseite fuehren.
- */
-const loginCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/login-callback',
-  component: AuthenticationCallbackPage,
-});
-
-const logoutCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/logout-callback',
-  component: SignedOutPage,
-});
-
-const silentCallbackRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/authentication/silent-callback',
-  component: SilentCallbackPage,
 });
 
 /** Alles Uebrige laeuft in der Anwendungshuelle, die die Anmeldung voraussetzt. */
@@ -182,9 +158,6 @@ function NotFound() {
 }
 
 const routeTree = rootRoute.addChildren([
-  loginCallbackRoute,
-  logoutCallbackRoute,
-  silentCallbackRoute,
   shellRoute.addChildren([
     dashboardRoute,
     workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
