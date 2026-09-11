@@ -1,4 +1,5 @@
-import { render, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { BoundDirectorySubjectAdapter } from '@/components/bpmn/properties/DirectorySubjectPicker';
@@ -43,4 +44,34 @@ describe('FormRenderer', () => {
       flowzerDirectoryContext: undefined,
     });
   });
+});
+
+// Testzweck: Ein später fertiggestellter alter Renderer darf die neue Vorschau
+// nach einem Schemawechsel nicht durch sein destroy() leeren.
+it('isoliert asynchrone Vorschaugenerationen', async () => {
+  createForm.mockReset();
+  let completeOld: (() => void) | undefined;
+  createForm.mockImplementationOnce((host: HTMLElement) => new Promise((resolve) => {
+    completeOld = () => resolve({ destroy: () => host.replaceChildren() });
+  })).mockImplementationOnce(async (host: HTMLElement) => {
+    host.textContent = 'Neue Vorschau';
+    return { on: vi.fn(), destroy: () => host.replaceChildren() };
+  });
+  const view = render(<FormRenderer schema='{"components":[]}' />);
+  await waitFor(() => expect(createForm).toHaveBeenCalledTimes(1));
+  view.rerender(<FormRenderer schema='{"components":[],"title":"neu"}' />);
+  await waitFor(() => expect(view.getByText('Neue Vorschau')).toBeVisible());
+  await act(async () => completeOld?.());
+  expect(view.getByText('Neue Vorschau')).toBeVisible();
+});
+
+// Testzweck: Der separate React-Root eines Startformular-Pickers muss denselben
+// QueryClient wie sein Host erhalten, ohne einen zweiten Cache anzulegen.
+it('reicht den vorhandenen QueryClient an verschachtelte Form.io-Roots weiter', async () => {
+  createForm.mockReset();
+  createForm.mockResolvedValue({ on: vi.fn(), destroy: vi.fn() });
+  const client = new QueryClient();
+  render(<QueryClientProvider client={client}><FormRenderer schema='{"components":[]}' /></QueryClientProvider>);
+  await waitFor(() => expect(createForm).toHaveBeenCalledOnce());
+  expect(createForm.mock.calls[0]?.[2].flowzerQueryClient).toBe(client);
 });

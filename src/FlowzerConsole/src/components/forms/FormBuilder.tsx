@@ -89,6 +89,10 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
 
   useEffect(() => {
     let disposed = false;
+    let ownedInstance: BuilderInstance | null = null;
+    // Jede asynchrone Generation besitzt ihr eigenes DOM. Ein verspätetes destroy()
+    // darf nur den alten Host leeren, niemals die bereits sichtbare Nachfolgeversion.
+    const host = document.createElement('div');
 
     let parsed: unknown = EMPTY_SCHEMA;
     if (schema && schema.trim().length > 0) {
@@ -123,6 +127,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       const container = containerRef.current;
       if (!container) return;
 
+      container.appendChild(host);
       setStatus('loading');
 
       try {
@@ -131,16 +136,17 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         registerFormSectionComponent(Formio);
         if (disposed) return;
 
-        const builder = (await Formio.builder(container, parsed, {
+        const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
         })) as unknown as { instance: BuilderInstance } & BuilderInstance;
 
+        const instance = builder.instance ?? builder;
         if (disposed) {
-          builder.destroy?.();
+          instance.destroy?.();
           return;
         }
 
-        const instance = builder.instance ?? builder;
+        ownedInstance = instance;
         builderRef.current = instance;
 
         instance.on('change', () => onChangeRef.current?.());
@@ -162,8 +168,9 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
     return () => {
       disposed = true;
       onReadyChangeRef.current?.(false);
-      builderRef.current?.destroy();
-      builderRef.current = null;
+      ownedInstance?.destroy();
+      if (builderRef.current === ownedInstance) builderRef.current = null;
+      host.remove();
     };
   }, [contractScope, schema]);
 
