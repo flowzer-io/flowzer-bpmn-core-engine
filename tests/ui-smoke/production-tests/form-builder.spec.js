@@ -49,10 +49,12 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   const dialog = page.locator('.formio-dialog');
   await expect(dialog.getByText('Gruppen auswählbar', { exact: true })).toBeVisible();
   await dialog.locator('input[name="data[label]"]').fill('Vertretung');
+  await dialog.getByRole('checkbox', { name: 'Gruppen auswählbar', exact: true }).check();
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole('button', { name: 'Entwurf speichern', exact: true }).click();
-  await expect.poll(() => saved().components.some(component => component.type === 'flowzerSubject' && component.label === 'Vertretung')).toBe(true);
+  await expect.poll(() => saved().components.some(component => component.type === 'flowzerSubject'
+    && component.label === 'Vertretung' && component.flowzer.subjectSelection.allowGroups === true)).toBe(true);
   for (let i = 0; i < 3; i++) {
     await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
     await expect(page.getByText('Vertretung', { exact: true }).first()).toBeVisible();
@@ -63,6 +65,7 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await subjectComponent.hover();
   await subjectComponent.getByRole('button', { name: 'Edit button. Click to open component settings modal window', exact: true }).click();
   await expect(dialog.locator('input[name="data[label]"]')).toHaveValue('Vertretung');
+  await expect(dialog.getByRole('checkbox', { name: 'Gruppen auswählbar', exact: true })).toBeChecked();
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(errors).toEqual([]);
 });
