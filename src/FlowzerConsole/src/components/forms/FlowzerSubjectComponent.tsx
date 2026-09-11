@@ -1,4 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- Form.io registriert React-Bruecke und Vertragshilfen gemeinsam. */
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
+
+import { componentEditForm } from './componentEditForm';
+
 import { createRoot, type Root } from 'react-dom/client';
 
 import {
@@ -168,61 +172,58 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
 
     /** Deutsche, bewusst kleine Konfiguration statt eines undurchsichtigen JSON-Feldes. */
     static editForm() {
-      return {
-        display: 'form',
-        components: [
-          { type: 'textfield', key: 'label', label: 'Beschriftung', input: true },
-          { type: 'textfield', key: 'key', label: 'Technischer Schlüssel', input: true },
-          { type: 'checkbox', key: 'multiple', label: 'Mehrere Benutzer oder Gruppen erlauben', input: true },
-          {
-            type: 'checkbox',
-            key: 'flowzer.subjectSelection.allowUsers',
-            label: 'Benutzer auswählbar',
-            defaultValue: true,
-            input: true,
-          },
-          {
-            type: 'textarea',
-            key: 'flowzer.subjectSelection.allowedUserIds',
-            label: 'Bestimmte Benutzer (UUIDs als JSON-Array)',
-            description: 'Leer lassen, um die aktiven Benutzer nach der Suche auszuwählen.',
-            as: 'json',
-            editor: 'ace',
-            input: true,
-          },
-          {
-            type: 'textarea',
-            key: 'flowzer.subjectSelection.userMemberOfGroupIds',
-            label: 'Mitglieder bestimmter Gruppen (Gruppen-UUIDs als JSON-Array)',
-            as: 'json',
-            editor: 'ace',
-            input: true,
-          },
-          {
-            type: 'textarea',
-            key: 'flowzer.subjectSelection.allowedGroupIds',
-            label: 'Bestimmte Gruppen (UUIDs als JSON-Array)',
-            as: 'json',
-            editor: 'ace',
-            input: true,
-          },
-          {
-            type: 'checkbox',
-            key: 'flowzer.subjectSelection.allowGroups',
-            label: 'Gruppen auswählbar',
-            defaultValue: false,
-            input: true,
-          },
-          {
-            type: 'checkbox',
-            key: 'flowzer.subjectSelection.includeSubgroups',
-            label: 'Untergruppen einbeziehen',
-            description: 'Standardmäßig werden nur direkte Gruppenmitglieder berücksichtigt.',
-            defaultValue: false,
-            input: true,
-          },
-        ],
-      };
+      return componentEditForm([
+        { type: 'textfield', key: 'label', label: 'Beschriftung', input: true },
+        { type: 'textfield', key: 'key', label: 'Technischer Schlüssel', input: true },
+        { type: 'checkbox', key: 'multiple', label: 'Mehrere Benutzer oder Gruppen erlauben', input: true },
+        {
+          type: 'checkbox',
+          key: 'flowzer.subjectSelection.allowUsers',
+          label: 'Benutzer auswählbar',
+          defaultValue: true,
+          input: true,
+        },
+        {
+          type: 'textarea',
+          key: 'flowzer.subjectSelection.allowedUserIds',
+          label: 'Bestimmte Benutzer (UUIDs als JSON-Array)',
+          description: 'Leer lassen, um die aktiven Benutzer nach der Suche auszuwählen.',
+          as: 'json',
+          editor: 'ace',
+          input: true,
+        },
+        {
+          type: 'textarea',
+          key: 'flowzer.subjectSelection.userMemberOfGroupIds',
+          label: 'Mitglieder bestimmter Gruppen (Gruppen-UUIDs als JSON-Array)',
+          as: 'json',
+          editor: 'ace',
+          input: true,
+        },
+        {
+          type: 'textarea',
+          key: 'flowzer.subjectSelection.allowedGroupIds',
+          label: 'Bestimmte Gruppen (UUIDs als JSON-Array)',
+          as: 'json',
+          editor: 'ace',
+          input: true,
+        },
+        {
+          type: 'checkbox',
+          key: 'flowzer.subjectSelection.allowGroups',
+          label: 'Gruppen auswählbar',
+          defaultValue: false,
+          input: true,
+        },
+        {
+          type: 'checkbox',
+          key: 'flowzer.subjectSelection.includeSubgroups',
+          label: 'Untergruppen einbeziehen',
+          description: 'Standardmäßig werden nur direkte Gruppenmitglieder berücksichtigt.',
+          defaultValue: false,
+          input: true,
+        },
+      ]);
     }
 
     private pickerRoot: Root | null = null;
@@ -247,6 +248,16 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
       // gebundenen Host-Adapter erhalten. Der alte Context-Hook bleibt nur für
       // Startformulare und damit außerhalb des verschachtelten Task-Roots aktiv.
       const startFormContext = context?.kind === 'startForm' ? context : undefined;
+      const queryClient = this.options?.flowzerQueryClient as QueryClient | undefined;
+      // Im Autoreneditor gibt es keinen veröffentlichten, autorisierten Suchkontext.
+      // Auch deaktivierte Query-Hooks benötigen einen Provider: hier deshalb nur
+      // einen ehrlichen Platzhalter rendern, keine scheinbar aktive Live-Auswahl.
+      if (!directoryAdapter && (!startFormContext || !queryClient)) {
+        this.pickerRoot.render(<p role="note">
+          Benutzer-/Gruppenauswahl: Die Verzeichnissuche ist nur im gebundenen Start- oder Aufgabenformular verfügbar.
+        </p>);
+        return;
+      }
       const allowUsers = policy.allowUsers !== false;
       const allowGroups = policy.allowGroups === true;
       const kind = allowUsers && allowGroups ? 'all' : allowGroups ? 'group' : 'user';
@@ -256,7 +267,7 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
         detail: 'Stabile Verzeichnis-ID',
         available: false,
       }));
-      this.pickerRoot.render(
+      const picker = (
         <FlowzerSubjectBridge
           initialSelected={selected}
           pickerProps={{
@@ -277,8 +288,13 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
           onChange={(next) => {
             this.setValue(toSubjectRefValue(next, component.multiple === true));
           }}
-        />,
+        />
       );
+      // createRoot erbt keinen Kontext des Formular-Hosts. Den vorhandenen Cache
+      // weiterreichen, nicht je Feld einen neuen QueryClient oder neue Rechte erzeugen.
+      this.pickerRoot.render(startFormContext && queryClient
+        ? <QueryClientProvider client={queryClient}>{picker}</QueryClientProvider>
+        : picker);
     }
 
     attach(element: HTMLElement) {

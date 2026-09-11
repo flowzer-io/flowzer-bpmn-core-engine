@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // Alle Stilblätter in fester Reihenfolge; siehe formioStyles.ts.
 import './formioStyles';
@@ -73,6 +74,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
   { schema, initialData, readOnly = false, onChange, className, directoryContext, directoryAdapter },
   ref,
 ) {
+  const queryClient = useContext(QueryClientContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<FormioInstance | null>(null);
   const onChangeRef = useRef(onChange);
@@ -107,6 +109,10 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
   useEffect(() => {
     let disposed = false;
+    let ownedInstance: FormioInstance | null = null;
+    // Jede asynchrone Generation besitzt ihr eigenes DOM. Ein verspätetes destroy()
+    // darf nur den alten Host leeren, niemals die bereits sichtbare Nachfolgeversion.
+    const host = document.createElement('div');
     const parsed = parseSchema(schema);
 
     if (parsed.error) {
@@ -119,6 +125,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
       const container = containerRef.current;
       if (!container) return;
 
+      container.appendChild(host);
       setStatus('loading');
 
       try {
@@ -129,12 +136,13 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         registerFormSectionComponent(Formio);
         if (disposed) return;
 
-        const form = (await Formio.createForm(container, parsed.value, {
+        const form = (await Formio.createForm(host, parsed.value, {
           readOnly,
           noAlerts: true,
           // Der eingebaute Submit-Button würde mit den Prozessaktionen konkurrieren.
           buttonSettings: { showCancel: false, showSubmit: false },
           flowzerDirectoryContext: directoryContext,
+          flowzerQueryClient: queryClient,
           flowzerDirectoryAdapter: directoryAdapter,
         })) as unknown as FormioInstance;
 
@@ -143,6 +151,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
           return;
         }
 
+        ownedInstance = form;
         instanceRef.current = form;
 
         if (initialData && Object.keys(initialData).length > 0) {
@@ -166,11 +175,12 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
     return () => {
       disposed = true;
-      instanceRef.current?.destroy();
-      instanceRef.current = null;
+      ownedInstance?.destroy();
+      if (instanceRef.current === ownedInstance) instanceRef.current = null;
+      host.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, readOnly, initialDataKey, directoryContextKey, directoryAdapter]);
+  }, [schema, readOnly, initialDataKey, directoryContextKey, directoryAdapter, queryClient]);
 
   return (
     <div className={cn('formio-surface relative', className)}>

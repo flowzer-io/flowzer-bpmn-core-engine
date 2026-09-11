@@ -70,3 +70,28 @@ Veröffentlichung.
   die serverseitige Prüfung beim Publish.
 - Der vorhandene Direkt-Publish-Endpunkt ist ein Kompatibilitätsadapter und soll in
   neu generierten Clients nicht mehr als Autoren-Workflow angeboten werden.
+
+## Regressionen des Produktionseditors (#290)
+
+- Eigene Form.io-Komponenten liefern einen `tabs`-Knoten im Edit-Dialog. Dies ist
+  auch bei nur einer Einstellungsseite erforderlich: `WebformBuilder.hasEditTabs`
+  greift darauf beim Einfügen und erneuten Öffnen zu.
+- Builder und Vorschau besitzen je asynchroner Aufbau-Generation einen eigenen
+  DOM-Host. Ein verspätet fertiggestellter alter Aufbau darf nur seinen alten Host
+  zerstören, nicht das inzwischen geöffnete Formular.
+- Die allgemeine Autorenvorschau ist kein freigegebener Verzeichnis-Suchkontext.
+  Benutzer-/Gruppenfelder zeigen dort einen Hinweis. Im gebundenen Startformular
+  wird der bestehende QueryClient in den separaten React-Root weitergereicht;
+  Aufgaben verwenden weiterhin den gebundenen Directory-Adapter. Es entsteht kein
+  eigener Cache und keine zusätzliche Verzeichnisberechtigung.
+- Form.io-Zahlen-/Währungsfelder enthalten standardmäßig `validate.step="any"`.
+  Der Server akzeptiert exakt diesen neutralen Default; konkrete Schrittweiten,
+  Integerregeln und unbekannte aktive Validierungen bleiben ohne implementierten
+  Vertrag abgelehnt. Gespeicherte Formularversionen werden nicht verändert.
+
+Der Produktions-Smoke in `tests/ui-smoke/production-tests/form-builder.spec.js`
+verwendet den tatsächlichen ausgelieferten Form.io-Builder mit synthetischen
+API-Antworten. Er ersetzt keine Abnahme einer realen Verzeichnissynchronisierung.
+Die geplante Zusammenführung von Formularen, Ordnern und Abschnittsbibliothek ist
+als getrenntes Migrationspaket [#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291)
+erfasst; die bestehende Abschnittsablage wird durch diesen Hotfix nicht migriert.

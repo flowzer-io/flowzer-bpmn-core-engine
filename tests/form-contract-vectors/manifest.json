@@ -932,6 +932,8 @@
         "outcome": "rejected",
         "code": "schema.size_limit"
       }
-    }
+    },
+    {"id": "number-builder-neutral-step", "purpose": "Testzweck: Form.io step=any ist neutral und darf gültige Zahlen auf Client und Server nicht blockieren.", "phase": "submission", "profile": "flowzer.forms/1", "comparison": "client-server", "schema": {"components": [{"type": "number", "key": "amount", "validate": {"step": "any", "min": 1}}]}, "input": {"amount": 2}, "expected": {"outcome": "accepted", "output": {"amount": 2}}},
+    {"id": "currency-builder-neutral-step", "purpose": "Testzweck: Form.io step=any ist neutral und darf gültige Zahlen auf Client und Server nicht blockieren.", "phase": "submission", "profile": "flowzer.forms/1", "comparison": "client-server", "schema": {"components": [{"type": "currency", "key": "amount", "validate": {"step": "any", "min": 1}}]}, "input": {"amount": 2}, "expected": {"outcome": "accepted", "output": {"amount": 2}}}
   ]
 }

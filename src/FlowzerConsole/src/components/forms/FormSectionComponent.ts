@@ -1,3 +1,5 @@
+import { componentEditForm } from './componentEditForm';
+
 /**
  * Form.io-Brücke für eine Abschnittsreferenz. Die Oberfläche zeigt im Editor nur
  * einen nicht bearbeitbaren Platzhalter; der Server expandiert die konkrete Version
@@ -36,14 +38,11 @@ export function registerFormSectionComponent(Formio: any): void {
     }
 
     static editForm() {
-      return {
-        display: 'form',
-        components: [
-          { type: 'textfield', key: 'label', label: 'Beschriftung', input: true, disabled: true },
-          { type: 'textfield', key: 'sectionId', label: 'Abschnitt-ID', input: false, disabled: true },
-          { type: 'textfield', key: 'version', label: 'Version', input: false, disabled: true },
-        ],
-      };
+      return componentEditForm([
+        { type: 'textfield', key: 'label', label: 'Beschriftung', input: true, disabled: true },
+        { type: 'textfield', key: 'sectionId', label: 'Abschnitt-ID', input: false, disabled: true },
+        { type: 'textfield', key: 'version', label: 'Version', input: false, disabled: true },
+      ]);
     }
 
     render() {
