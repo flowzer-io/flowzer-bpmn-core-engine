@@ -95,7 +95,9 @@ public sealed class FormAuthoringService(
         try
         {
             publishedFormData = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormStorage,
                 storage.FormSectionStorage,
+                formId,
                 draft.FormData);
         }
         catch (InvalidOperationException exception)
@@ -128,7 +130,9 @@ public sealed class FormAuthoringService(
         try
         {
             var expanded = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormStorage,
                 storage.FormSectionStorage,
+                formId,
                 formData);
             return new FormAuthoringPreviewDto
             {

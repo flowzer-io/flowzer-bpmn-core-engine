@@ -10,7 +10,7 @@ function only(...capabilities: FlowzerCapability[]) {
 
 describe('visibleNavItems', () => {
   // Testzweck: Lesen darf jeder Zugelassene. Reine Pflegebereiche fuer Betrieb und
-  // Abschnittsbibliothek duerfen ohne ihre jeweilige Rolle nicht im Menue erscheinen.
+  // Verwaltungsbereiche duerfen ohne ihre jeweilige Rolle nicht im Menue erscheinen.
   it('zeigt Zugelassenen nur die allgemein lesbaren Bereiche', () => {
     const keys = visibleNavItems(only('access')).map((item) => item.key);
 
@@ -23,11 +23,11 @@ describe('visibleNavItems', () => {
     expect(keys).not.toContain('ai-connections');
   });
 
-  // Testzweck: Die Abschnittsbibliothek ist ein Modellierungswerkzeug und erscheint
-  // ausschließlich mit der serverseitig abgebildeten Modelliererfaehigkeit.
-  it('zeigt die Abschnittsbibliothek nur Modellierenden', () => {
+  // Testzweck: Nach der Migration ist ein Formular selbst eine Komponente. Ein zweiter
+  // Navigationspunkt würde fälschlich zwei getrennte Bibliotheken suggerieren.
+  it('zeigt auch Modellierenden keine separate Abschnittsbibliothek', () => {
     expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key))
-      .toContain('form-sections');
+      .not.toContain('form-sections');
   });
 
   // Testzweck: Der Betrieb erscheint erst mit der zugehoerigen Rolle. Ein Eintrag, der

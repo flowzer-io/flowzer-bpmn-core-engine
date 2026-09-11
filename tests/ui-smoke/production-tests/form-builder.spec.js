@@ -36,6 +36,9 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await expect(palette).toBeVisible();
   const target = page.locator('.formio-builder .drag-container').first();
   await target.scrollIntoViewIfNeeded();
+  // Oberhalb des Builders kann die Formularbibliothek zusätzliche Werkzeuge anzeigen.
+  // Deshalb muss auch die konkrete Palette sichtbar sein, bevor Mauskoordinaten ermittelt werden.
+  await palette.scrollIntoViewIfNeeded();
   const sourceBox = await palette.boundingBox();
   const targetBox = await target.boundingBox();
   expect(sourceBox).not.toBeNull();

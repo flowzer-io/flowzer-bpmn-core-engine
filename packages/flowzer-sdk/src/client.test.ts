@@ -343,6 +343,49 @@ describe('FlowzerClient', () => {
     expect(fetch.mock.calls[0]![0]).toBe('/api/form-section/section%2Fid/versions/1.2');
   });
 
+  // Testzweck: Host-Anwendungen verwenden dieselbe Formularbibliothek wie die Konsole und
+  // erhalten für Komponenten nur datensparsame, konkrete Versionsangaben.
+  it('lädt konkrete Formularversionen aus der gemeinsamen Bibliothek', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: [{ id: 'version-1', formId: 'form/id', version: { major: 1, minor: 2 } }],
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.forms.listVersions('form/id')).resolves.toEqual([
+      { id: 'version-1', formId: 'form/id', version: { major: 1, minor: 2 } },
+    ]);
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form/form%2Fid/versions');
+  });
+
+  // Testzweck: Die Ordnerzuordnung bleibt eine ausdrückliche API-Aktion und wird nicht in
+  // das Form.io-Schema oder den Namen des Formulars hineincodiert.
+  it('verschiebt ein Formular über seine stabile ID in einen Katalogordner', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: true,
+      result: { formId: 'form/id', name: 'Antrag', folderId: 'folder/id' },
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.forms.move('form/id', 'folder/id');
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form/meta/form%2Fid/folder');
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual({ folderId: 'folder/id' });
+  });
+
+  // Testzweck: Auch Entwürfe der gemeinsamen Formularbibliothek werden ausschließlich
+  // mit einer erwarteten Revision verworfen und ungewöhnliche Formular-IDs sicher kodiert.
+  it('verwirft einen Formularentwurf der gemeinsamen Bibliothek revisionsgebunden', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await client.forms.deleteDraft('form/id', 4);
+
+    expect(fetch.mock.calls[0]![0]).toBe('/api/form/form%2Fid/draft?expectedRevision=4');
+    expect(fetch.mock.calls[0]![1]?.method).toBe('DELETE');
+  });
+
   // Testzweck: Das revisionsgebundene Speichern eines Abschnittsentwurfs bleibt
   // als Compare-and-Swap-Vertrag auch für reine JavaScript-Hosts vollständig erhalten.
   it('speichert einen Formularabschnittsentwurf mit erwarteter Revision', async () => {

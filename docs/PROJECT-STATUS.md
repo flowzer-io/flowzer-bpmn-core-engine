@@ -139,15 +139,17 @@ Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
-## Wiederverwendbare Formularabschnitte – #230 / PR #231 (noch nicht gemergt)
+## Gemeinsame Formularbibliothek – #230 und #291
 
-Eine hostneutrale Bibliothek trennt Katalogmetadaten, revisionsgeschützte Entwürfe und
-append-only Abschnittsversionen. Formulare referenzieren nur konkrete Fassungen; beim
-Publish expandiert und validiert der Server sie, verwirft behauptete Browserbindungen
-und speichert einen eigenständigen Formularsnapshot mit nachvollziehbarem Inhalts-Hash.
-Neue Abschnittsversionen ändern keine veröffentlichten Formulare oder laufenden Instanzen.
-PostgreSQL publiziert Fassung und Draft-Löschung atomar, die Dateiablage bleibt
-Einzelprozess-Entwicklung. Details: [Formularabschnitte](FORM-SECTIONS.md).
+Die zunächst getrennte Abschnittsbibliothek ist in den Formularkatalog überführt: Jedes
+Formular ist selbst eine wiederverwendbare, konkret versionierte Komponente. Hierarchische
+Ordner strukturieren nur den Katalog. Beim Publish expandiert und validiert der Server die
+gewählten Fassungen, verwirft behauptete Browserbindungen und speichert einen eigenständigen
+Snapshot mit Inhalts-Hash. Root-Entscheidungsaktionen eines Komponentenformulars werden nicht
+geerbt; `latest`, fehlende Versionen, Schlüsselkonflikte und Referenzzyklen werden abgelehnt.
+PostgreSQL und die Dateiablage migrieren den Altbestand IDs-erhaltend; `/form-section` bleibt
+für bestehende Clients ein kompatibler Alias, in der Konsole existiert aber nur noch
+„Formulare“. Details: [Formularbibliothek](FORM-SECTIONS.md).
 
 ## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
 

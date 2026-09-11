@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuilder';
-import { FormSectionPicker } from '@/components/forms/FormSectionPicker';
+import { FormLibraryPicker } from '@/components/forms/FormLibraryPicker';
+import { FormFolderNavigation } from '@/components/forms/FormFolderNavigation';
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
@@ -20,8 +21,10 @@ import {
   useFormAuthoringDraft,
   useFormAuthoringPreview,
   useFormCompatibilityInventory,
+  useFormFolders,
   useForms,
   usePublishFormAuthoringDraft,
+  useMoveFormToFolder,
   useSaveFormAuthoringDraft,
   useSaveFormMeta,
 } from '@/lib/api/queries';
@@ -29,8 +32,9 @@ import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { describeCompatibilityIssue, incompatibleCountByForm } from '@/lib/forms/formCompatibility';
 import { iconForLabel } from '@/lib/taskView';
-import { appendSectionReference } from '@/lib/forms/sectionReferences';
-import type { FormSectionVersionSummaryDto } from '@/lib/api/types';
+import { appendFormReference } from '@/lib/forms/formReferences';
+import { descendantFormFolderIds, flattenFormFolders } from '@/lib/forms/formFolders';
+import type { FormVersionSummaryDto } from '@/lib/api/types';
 import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
@@ -47,6 +51,7 @@ export function FormsPage() {
   const [mode, setMode] = useState<Mode>('preview');
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  const [selectedFolder, setSelectedFolder] = useState<string>('all');
   const [inventoryFilter, setInventoryFilter] = useState<InventoryFilter>('all');
   const [editorSchema, setEditorSchema] = useState<string | undefined>();
   const [dirty, setDirty] = useState(false);
@@ -58,6 +63,8 @@ export function FormsPage() {
   const mayPublish = useCan()('modeler');
 
   const formsQuery = useForms();
+  const foldersQuery = useFormFolders();
+  const moveForm = useMoveFormToFolder();
   const saveDraft = useSaveFormAuthoringDraft();
   const discardDraft = useDiscardFormAuthoringDraft();
   const publishDraft = usePublishFormAuthoringDraft();
@@ -72,13 +79,27 @@ export function FormsPage() {
     return incompatibleCountByForm(compatibilityQuery.data ?? []);
   }, [compatibilityQuery.data]);
 
+  const flatFolders = useMemo(() => flattenFormFolders(foldersQuery.data ?? []), [foldersQuery.data]);
+  const folderPathById = useMemo(
+    () => new Map(flatFolders.map((entry) => [entry.folder.id, entry.path])),
+    [flatFolders],
+  );
+  const visibleFolderIds = useMemo(
+    () => selectedFolder === 'all' || selectedFolder === 'root'
+      ? null
+      : descendantFormFolderIds(selectedFolder, foldersQuery.data ?? []),
+    [foldersQuery.data, selectedFolder],
+  );
+
   const forms = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (formsQuery.data ?? [])
       .filter((form) => term.length === 0 || form.name.toLowerCase().includes(term))
+      .filter((form) => selectedFolder === 'all'
+        || (selectedFolder === 'root' ? !form.folderId : Boolean(form.folderId && visibleFolderIds?.has(form.folderId))))
       .filter((form) => inventoryFilter === 'all' || incompatibleByForm.has(form.formId))
       .sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  }, [formsQuery.data, incompatibleByForm, inventoryFilter, search]);
+  }, [formsQuery.data, incompatibleByForm, inventoryFilter, search, selectedFolder, visibleFolderIds]);
 
   // Beim ersten Laden das erste Formular auswählen, damit die Vorschau nicht leer bleibt.
   useEffect(() => {
@@ -136,6 +157,7 @@ export function FormsPage() {
     }
   }, [sourceData, editorSchema]);
 
+
   function handleCreate() {
     const name = newName.trim();
     if (!name) return;
@@ -143,7 +165,7 @@ export function FormsPage() {
     const formId = crypto.randomUUID();
 
     saveMeta.mutate(
-      { formId, name },
+      { formId, name, folderId: selectedFolder !== 'all' && selectedFolder !== 'root' ? selectedFolder : null },
       {
         onSuccess: () => {
           // Neu angelegte Formulare beginnen als Entwurf. Erst die ausdrueckliche
@@ -233,25 +255,26 @@ export function FormsPage() {
     setMode(next);
   }
 
-  function insertSection(version: FormSectionVersionSummaryDto, name: string) {
+  function insertForm(version: FormVersionSummaryDto, name: string) {
     const current = readEditorSchema();
     if (!current) return;
     try {
-      const next = appendSectionReference(current, {
-        sectionId: version.sectionId,
+      const next = appendFormReference(current, {
+        formId: version.formId,
         version: version.version,
         label: name,
       });
       setEditorSchema(next);
       setDirty(next !== draftQuery.data?.formData);
       setEditorGeneration((generation) => generation + 1);
-      toast.success(`Abschnitt „${name}" v${version.version.major}.${version.version.minor} eingefügt`);
+      toast.success(`Formular „${name}" v${version.version.major}.${version.version.minor} als Komponente eingefügt`);
     } catch (error) {
-      toast.error('Abschnitt konnte nicht eingefügt werden', {
+      toast.error('Formular-Komponente konnte nicht eingefügt werden', {
         description: error instanceof Error ? error.message : undefined,
       });
     }
   }
+
 
   return (
     <PageContainer>
@@ -293,6 +316,14 @@ export function FormsPage() {
 
       <div className="grid items-start gap-[22px] lg:grid-cols-[300px_minmax(0,1fr)]">
         <div className="flex flex-col gap-2">
+          <FormFolderNavigation
+            folders={foldersQuery.data ?? []}
+            selected={selectedFolder}
+            onSelect={setSelectedFolder}
+            mayEdit={mayPublish}
+            pending={foldersQuery.isPending}
+          />
+
           <SearchInput
             value={search}
             onChange={(event) => setSearch(event.target.value)}
@@ -359,6 +390,7 @@ export function FormsPage() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{form.name}</span>
                   <span className="text-muted mt-px block font-mono text-xs">
+                    {form.folderId ? `${folderPathById.get(form.folderId) ?? 'Unbekannter Ordner'} · ` : ''}
                     Form-Key: {form.name}
                   </span>
                 </span>
@@ -389,6 +421,35 @@ export function FormsPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-end gap-2.5">
+              {mayPublish && selected && (
+                <select
+                  value={selected.folderId ?? ''}
+                  disabled={moveForm.isPending}
+                  onChange={(event) => {
+                    const folderId = event.target.value || null;
+                    moveForm.mutate(
+                      { formId: selected.formId, folderId },
+                      {
+                        onSuccess: () => {
+                          if (selectedFolder !== 'all') setSelectedFolder(folderId ?? 'root');
+                          toast.success('Formular verschoben');
+                        },
+                        onError: (error) => toast.error('Formular konnte nicht verschoben werden', {
+                          description: error instanceof Error ? error.message : undefined,
+                        }),
+                      },
+                    );
+                  }}
+                  aria-label="Formularordner"
+                  title="Formular in einen Ordner verschieben"
+                  className="bg-surface border-border text-text rounded-[var(--r-sm)] border px-2 py-1.5 text-xs"
+                >
+                  <option value="">Ohne Ordner</option>
+                  {flatFolders.map(({ folder, depth }) => (
+                    <option key={folder.id} value={folder.id}>{'— '.repeat(depth)}{folder.name}</option>
+                  ))}
+                </select>
+              )}
               {mayPublish && mode === 'edit' && selectedId && (
                 <Button
                   variant="primary"
@@ -507,7 +568,7 @@ export function FormsPage() {
 
             {mayPublish && selectedId && draftQuery.data && mode === 'edit' && (
               <>
-                <FormSectionPicker onInsert={insertSection} />
+                <FormLibraryPicker currentFormId={selectedId} onInsert={insertForm} />
                 <FormBuilder
                   key={`edit-${selectedId}-${editorGeneration}`}
                   ref={builderRef}

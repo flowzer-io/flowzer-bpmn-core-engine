@@ -166,7 +166,12 @@ public class FormController(
         public async Task<ActionResult<ApiStatusResult>> SaveFormMetadata(Guid formId, FormMetaDataDto formMetadataDto)
         {
             formMetadataDto.FormId = formId;
-            
+            formMetadataDto.Name = formMetadataDto.Name?.Trim() ?? "";
+            if (formMetadataDto.Name.Length == 0)
+                return BadRequest(new ApiStatusResult("Name is required."));
+            if (formMetadataDto.FolderId is { } folderId
+                && await storageSystem.FormStorage.GetFolder(folderId) is null)
+                return NotFound(new ApiStatusResult("Form folder not found."));
             await storageSystem.FormStorage.SaveFormMetaData(formMetadataDto.ToModel());
             return Ok(new ApiStatusResult(){Successful = true});
         }
@@ -241,6 +246,5 @@ public class FormController(
     }
 
     #endregion
-    
 
 }

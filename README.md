@@ -169,13 +169,14 @@ in [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md),
 [packages/flowzer-react/README.md](packages/flowzer-react/README.md) und
 [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md).
 
-## Wiederverwendbare Formularabschnitte
+## Gemeinsame Formularbibliothek
 
-Die Modellierungs-API verwaltet deklarative Abschnitte als revisionsgeschützte Entwürfe
-und unveränderliche konkrete Versionen. Beim Formular-Publish expandiert der Server die
-gewählte Fassung, prüft den vollständigen Vertrag und speichert einen eigenständigen
-Snapshot; `latest` und clientseitig behauptete Bindungen sind nicht zulässig. Flowzer
-kennt dabei keine konkrete Host-Anwendung. Details stehen in
+Jedes Formular ist zugleich eine wiederverwendbare Komponente und kann in hierarchischen
+Katalogordnern organisiert werden. Beim Publish expandiert der Server die konkret gewählte
+Formularversion, prüft den vollständigen Vertrag und speichert einen eigenständigen Snapshot;
+`latest`, Selbst-/Zyklusreferenzen und clientseitig behauptete Bindungen sind nicht zulässig.
+Die frühere Abschnitts-API bleibt als kompatibler Alias erhalten, besitzt in der Konsole aber
+keinen zweiten Verwaltungsbereich mehr. Flowzer kennt dabei keine konkrete Host-Anwendung. Details stehen in
 [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md).
 
 ## BPMN-Fähigkeitsvertrag

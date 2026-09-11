@@ -50,9 +50,9 @@ Scope behält lokale Eingaben dagegen bei.
 - `useUserTaskWorkspace` und `UserTaskWorkspaceController`
 - `useUserTaskActions` für Claim/Release/Assign/Delegate, Draft und Abschluss
 - `useInstanceStatus` und `InstanceStatusController`
-- `useFormSections`, `useFormSectionDraft` und `useFormSectionActions` sowie die
-  darstellungsfreien `FormSectionListController`/`FormSectionEditorController`
-  für modellierungsberechtigte Abschnittsbibliotheken
+- Die bisherigen `useFormSections`-/`FormSection*`-Bausteine bleiben nur als
+  Kompatibilitätsschicht für ältere Hosts bestehen. Neue Modellierungsoberflächen
+  verwenden die gemeinsame Formularbibliothek über `client.forms` aus `@flowzer/sdk`.
 - `useTaskFormData` für lokale, durch Refetches nicht überschriebene Eingaben
 - `FlowzerTaskFormAdapterProps` als neutraler Formularadaptervertrag
 - `flowzerQueryKeys` und `clearFlowzerScope` für kontrollierte Cache-Integration
@@ -69,9 +69,9 @@ Mutationen setzen `retry: false`, auch wenn der Host-`QueryClient` global etwas 
 vorgibt. Der Host entscheidet über einen erneuten Versuch und bewahrt dafür denselben
 Idempotenzschlüssel. Fehler bleiben als `FlowzerApiError` aus dem SDK maschinenlesbar.
 
-Abschnittsversionen sind stets konkrete serverseitig veröffentlichte Fassungen. Das
-React-Paket erzeugt keine freie `latest`-Auswahl, rendert kein Schema und kennt keine
-konkrete konsumierende Fachanwendung.
+Auch die Kompatibilitätszugriffe verwenden stets konkrete serverseitig veröffentlichte
+Fassungen. Das React-Paket erzeugt keine freie `latest`-Auswahl, rendert kein Schema und
+kennt keine konkrete konsumierende Fachanwendung.
 
 ## Formularadapter
 
