@@ -101,6 +101,19 @@ am Zielsystem über Präsenz-/Gleichheitsprüfungen verifizieren, niemals
 
 ### BFF-Vertrag
 
+Bei Keycloak muss der BFF-Client den Default-Client-Scope `basic` (mit aktivem
+`sub`-Mapper für Access-Tokens) neben `profile`, `email` und `roles` behalten.
+Andernfalls fehlt die stabile Benutzerkennung im Access-Token und die notwendige
+Subjektbindung zwischen ID- und Access-Token lehnt den Login ab. Eine erfolgreiche
+Weiterleitung zur Anmeldeseite allein ist deshalb keine vollständige BFF-Abnahme;
+der Rücksprung bis zum angemeldeten Dashboard muss ebenfalls geprüft werden.
+
+Die Konsole dedupliziert React und React Query auch für lokale `file:`-Pakete.
+`npm --prefix src/FlowzerConsole run build` und anschließend
+`npm --prefix tests/ui-smoke run test:production` prüfen das echte Bundle mit
+synthetischen BFF-Sitzungen. Dieser Test ergänzt die Dev-Smokes, ersetzt aber
+keinen vollständigen Login gegen den installierten Identity Provider.
+
 Bei `Bff` startet der Browser über `GET /bff/login?returnTo=/…` den serverseitigen
 Authorization-Code-Flow mit PKCE. Die Callback-URI des vertraulichen Clients lautet
 `https://<flowzer-host>/bff/signin-oidc`. Der BFF speichert keine Tokens im

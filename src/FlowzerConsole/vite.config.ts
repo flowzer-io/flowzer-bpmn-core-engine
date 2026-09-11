@@ -12,6 +12,10 @@ const DEV_API_TARGET = process.env.FLOWZER_API_URL ?? 'http://localhost:5182';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
+    // Lokale file:-Pakete besitzen für ihre eigenen Tests separate node_modules.
+    // Provider und Hooks müssen im Auslieferungsbundle trotzdem dieselben React-/
+    // Query-Kontexte verwenden; zwei QueryClients würden den Cache nur aufspalten.
+    dedupe: ['react', 'react-dom', '@tanstack/react-query', '@tanstack/query-core'],
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
