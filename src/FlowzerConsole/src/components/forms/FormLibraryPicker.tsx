@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { FieldLabel } from '@/components/ui/Field';
+import { FieldLabel, SearchInput } from '@/components/ui/Field';
 import { InlineSpinner } from '@/components/ui/States';
 import { useFormFolders, useForms, useFormVersions } from '@/lib/api/queries';
 import type { FormVersionSummaryDto } from '@/lib/api/types';
@@ -20,6 +20,7 @@ interface FormLibraryPickerProps {
 export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }: FormLibraryPickerProps) {
   const formsQuery = useForms();
   const foldersQuery = useFormFolders();
+  const [search, setSearch] = useState('');
   const [formId, setFormId] = useState('');
   const [versionText, setVersionText] = useState('');
   const versionsQuery = useFormVersions(formId || undefined);
@@ -28,11 +29,14 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
     () => versionsQuery.data?.find((item) => `${item.version.major}.${item.version.minor}` === versionText),
     [versionText, versionsQuery.data],
   );
-  const choices = useMemo(() => (formsQuery.data ?? [])
+  const choices = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase('de');
+    return (formsQuery.data ?? [])
     .filter((item) => item.formId !== currentFormId)
     .map((item) => ({ ...item, catalogLabel: labelFor(item.folderId, foldersQuery.data ?? [], item.name) }))
-    .sort((a, b) => a.catalogLabel.localeCompare(b.catalogLabel, 'de')),
-  [currentFormId, foldersQuery.data, formsQuery.data]);
+    .filter((item) => !term || item.formId === formId || item.catalogLabel.toLocaleLowerCase('de').includes(term))
+    .sort((a, b) => a.catalogLabel.localeCompare(b.catalogLabel, 'de'));
+  }, [currentFormId, foldersQuery.data, formId, formsQuery.data, search]);
 
   function selectForm(next: string) {
     setFormId(next);
@@ -43,8 +47,14 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
     <Card className="mb-3 p-3.5">
       <div className="mb-1 text-sm font-semibold">Formular-Komponente einfügen</div>
       <p className="text-muted mb-2.5 mt-0 text-xs">
-        Jedes veröffentlichte Formular kann als fest gebundene Komponente verwendet werden.
+        Eingefügt werden die Felder einer festen Version; eigene Entscheidungsaktionen des Quellformulars werden nicht übernommen.
       </p>
+      <SearchInput
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+        placeholder="Formular oder Ordner suchen …"
+        wrapperClassName="mb-2.5"
+      />
       <div className="flex flex-wrap items-end gap-2.5">
         <div className="min-w-[210px] flex-1">
           <FieldLabel htmlFor="form-library-component">Formular</FieldLabel>
