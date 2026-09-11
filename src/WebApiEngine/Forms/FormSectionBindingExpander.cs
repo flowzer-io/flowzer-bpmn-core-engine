@@ -7,9 +7,11 @@ using StorageSystem;
 namespace WebApiEngine.Forms;
 
 /// <summary>
-/// Bindet ausschliesslich konkrete Abschnittsversionen und erzeugt daraus einen
-/// eigenstaendigen, serverseitig validierten Formularsnapshot. Die Laufzeit benoetigt
-/// deshalb weder Abschnittsbibliothek noch eine Aufloesung auf "latest".
+/// Bindet ausschliesslich konkrete Formular- und Abschnittsversionen und erzeugt daraus
+/// einen eigenstaendigen, serverseitig validierten Formularsnapshot. Die Laufzeit benoetigt
+/// deshalb weder Bibliothek noch eine Aufloesung auf "latest". Abschnitte bleiben nur als
+/// Abwaertskompatibilitaet fuer bereits gespeicherte Entwuerfe erhalten; neue Referenzen
+/// verwenden Formulare als Komponenten.
 /// </summary>
 public static class FormSectionBindingExpander
 {
@@ -22,7 +24,18 @@ public static class FormSectionBindingExpander
 
     public static async Task<string> ExpandAsync(IFormSectionStorage storage, string formData)
     {
-        ArgumentNullException.ThrowIfNull(storage);
+        // Kompatibler Einstieg fuer bestehende Abschnittstests und Altcode. Neue
+        // Veroeffentlichungspfade muessen den FormStorage und die Eigentuemerlkennung nennen.
+        return await ExpandAsync(null, storage, Guid.Empty, formData);
+    }
+
+    public static async Task<string> ExpandAsync(
+        IFormStorage? formStorage,
+        IFormSectionStorage sectionStorage,
+        Guid ownerFormId,
+        string formData)
+    {
+        ArgumentNullException.ThrowIfNull(sectionStorage);
         ArgumentNullException.ThrowIfNull(formData);
 
         JsonObject root;
@@ -44,15 +57,29 @@ public static class FormSectionBindingExpander
 
         var flowzer = ExistingTrustedFlowzerObject(root);
         flowzer?.Remove("boundSections");
-        List<JsonObject> bindings = [];
+        flowzer?.Remove("boundForms");
+        List<JsonObject> sectionBindings = [];
+        List<JsonObject> formBindings = [];
         if (root["components"] is JsonArray components)
-            await ExpandArrayAsync(components, storage, bindings);
+            await ExpandArrayAsync(
+                components,
+                formStorage,
+                sectionStorage,
+                ownerFormId,
+                ownerFormId == Guid.Empty
+                    ? new HashSet<Guid>()
+                    : new HashSet<Guid> { ownerFormId },
+                sectionBindings,
+                formBindings);
 
-        if (bindings.Count > 0)
+        if (sectionBindings.Count > 0 || formBindings.Count > 0)
         {
             flowzer ??= new JsonObject();
             root["flowzer"] = flowzer;
-            flowzer["boundSections"] = new JsonArray(bindings.Select(binding => (JsonNode)binding).ToArray());
+            if (sectionBindings.Count > 0)
+                flowzer["boundSections"] = new JsonArray(sectionBindings.Select(binding => (JsonNode)binding).ToArray());
+            if (formBindings.Count > 0)
+                flowzer["boundForms"] = new JsonArray(formBindings.Select(binding => (JsonNode)binding).ToArray());
         }
 
         var expanded = root.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
@@ -69,15 +96,48 @@ public static class FormSectionBindingExpander
 
     private static async Task ExpandArrayAsync(
         JsonArray nodes,
-        IFormSectionStorage storage,
-        List<JsonObject> bindings)
+        IFormStorage? formStorage,
+        IFormSectionStorage sectionStorage,
+        Guid ownerFormId,
+        IReadOnlySet<Guid> formPath,
+        List<JsonObject> sectionBindings,
+        List<JsonObject> formBindings)
     {
         for (var index = 0; index < nodes.Count; index++)
         {
+            // Form.io bildet Tabellenzeilen als verschachtelte Arrays ab. Sie werden im
+            // selben Durchlauf behandelt, ohne den restlichen Baum anschließend erneut
+            // zu traversieren (bei tiefen Layouts wäre das sonst exponentiell).
+            if (nodes[index] is JsonArray nestedArray)
+            {
+                await ExpandArrayAsync(
+                    nestedArray, formStorage, sectionStorage, ownerFormId, formPath,
+                    sectionBindings, formBindings);
+                continue;
+            }
             if (nodes[index] is not JsonObject component) continue;
             if (String(component, "type") == "flowzerSection")
             {
-                var replacement = await ResolveAsync(component, storage, bindings);
+                var replacement = await ResolveSectionAsync(component, sectionStorage, sectionBindings);
+                nodes.RemoveAt(index);
+                foreach (var child in replacement)
+                    nodes.Insert(index++, child?.DeepClone());
+                index--;
+                continue;
+            }
+
+            if (String(component, "type") == "flowzerForm")
+            {
+                if (formStorage is null)
+                    throw new FormContractException("form.reference_not_supported");
+                var replacement = await ResolveFormAsync(
+                    component,
+                    formStorage,
+                    sectionStorage,
+                    ownerFormId,
+                    formPath,
+                    sectionBindings,
+                    formBindings);
                 nodes.RemoveAt(index);
                 foreach (var child in replacement)
                     nodes.Insert(index++, child?.DeepClone());
@@ -87,28 +147,13 @@ public static class FormSectionBindingExpander
 
             foreach (var property in new[] { "components", "columns", "rows" })
                 if (component[property] is JsonArray children)
-                    await ExpandNestedAsync(children, storage, bindings);
+                    await ExpandArrayAsync(
+                        children, formStorage, sectionStorage, ownerFormId, formPath,
+                        sectionBindings, formBindings);
         }
     }
 
-    private static async Task ExpandNestedAsync(
-        JsonArray nodes,
-        IFormSectionStorage storage,
-        List<JsonObject> bindings)
-    {
-        await ExpandArrayAsync(nodes, storage, bindings);
-        foreach (var node in nodes)
-        {
-            if (node is JsonArray array)
-                await ExpandNestedAsync(array, storage, bindings);
-            else if (node is JsonObject container)
-                foreach (var property in new[] { "components", "columns", "rows" })
-                    if (container[property] is JsonArray children)
-                        await ExpandNestedAsync(children, storage, bindings);
-        }
-    }
-
-    private static async Task<JsonArray> ResolveAsync(
+    private static async Task<JsonArray> ResolveSectionAsync(
         JsonObject reference,
         IFormSectionStorage storage,
         List<JsonObject> bindings)
@@ -159,6 +204,81 @@ public static class FormSectionBindingExpander
         return components;
     }
 
+    private static async Task<JsonArray> ResolveFormAsync(
+        JsonObject reference,
+        IFormStorage formStorage,
+        IFormSectionStorage sectionStorage,
+        Guid ownerFormId,
+        IReadOnlySet<Guid> formPath,
+        List<JsonObject> sectionBindings,
+        List<JsonObject> formBindings)
+    {
+        if (reference.Any(property =>
+                ForbiddenReferenceProperties.Contains(property.Key) && IsActive(property.Value)))
+            throw new FormContractException("form.reference_property");
+
+        var referenceKey = String(reference, "key");
+        if (!FormJson.SafeKey(referenceKey))
+            throw new FormContractException("form.reference_key");
+        if (!Guid.TryParse(String(reference, "formId"), out var formId) || formId == Guid.Empty)
+            throw new FormContractException("form.reference_id");
+        if (formId == ownerFormId || formPath.Contains(formId))
+            throw new FormContractException("form.reference_cycle");
+        var versionText = String(reference, "version");
+        if (!TryParseVersion(versionText, out var version))
+            throw new FormContractException("form.reference_version");
+
+        Form form;
+        try
+        {
+            form = (await formStorage.GetForms(formId))
+                .SingleOrDefault(candidate => candidate.Version == version)
+                ?? throw new FileNotFoundException();
+        }
+        catch (FileNotFoundException)
+        {
+            throw new FormContractException("form.version_not_found");
+        }
+        if (form.FormId != formId || form.Version != version)
+            throw new FormContractException("form.version_mismatch");
+
+        JsonObject componentRoot;
+        try
+        {
+            componentRoot = JsonNode.Parse(
+                form.FormData,
+                documentOptions: new JsonDocumentOptions { MaxDepth = 32 })?.AsObject()
+                ?? throw new FormContractException("schema.object");
+        }
+        catch (JsonException)
+        {
+            throw new FormContractException("schema.json");
+        }
+
+        var components = componentRoot["components"] as JsonArray
+                         ?? throw new FormContractException("schema.components");
+        var nextPath = new HashSet<Guid>(formPath) { formId };
+        await ExpandArrayAsync(
+            components,
+            formStorage,
+            sectionStorage,
+            ownerFormId,
+            nextPath,
+            sectionBindings,
+            formBindings);
+
+        formBindings.Add(new JsonObject
+        {
+            ["referenceKey"] = referenceKey,
+            ["formId"] = form.FormId,
+            ["formVersionId"] = form.Id,
+            ["version"] = form.Version.ToString(),
+            ["contentSha256"] = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(form.FormData))).ToLowerInvariant()
+        });
+        return components;
+    }
+
     private static bool TryParseVersion(string value, out Model.Version? version)
     {
         version = null;
@@ -183,7 +303,9 @@ public static class FormSectionBindingExpander
         JsonValue value when value.TryGetValue<bool>(out var boolean) => boolean,
         JsonValue value when value.TryGetValue<string>(out var text) => !string.IsNullOrWhiteSpace(text),
         JsonArray array => array.Count > 0,
-        JsonObject value => value.Count > 0,
+        // Form.io schreibt z. B. conditional={show:null,when:null,eq:""} als
+        // inaktiven Standard. Entscheidend sind wirksame Werte, nicht die bloße Anzahl Keys.
+        JsonObject value => value.Any(property => IsActive(property.Value)),
         _ => true
     };
 }

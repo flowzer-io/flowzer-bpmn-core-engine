@@ -33,6 +33,9 @@ import type {
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
+  FormFolderDto,
+  FormFolderRequestDto,
+  FormVersionSummaryDto,
   OperationsDiagnosticsDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
@@ -88,6 +91,8 @@ export const queryKeys = {
     [...queryKeys.forms, 'preview', formId, formData] as const,
   formCompatibility: (needsMigration?: boolean) =>
     [...queryKeys.forms, 'compatibility', needsMigration ?? null] as const,
+  formFolders: () => [...queryKeys.forms, 'folders'] as const,
+  formVersions: (formId: string) => [...queryKeys.forms, 'versions', formId] as const,
 
   formSections: ['formSections'] as const,
   formSectionList: () => [...queryKeys.formSections, 'list'] as const,
@@ -508,6 +513,61 @@ export function useForms(search?: string, options?: QueryTuning<FormMetaDataDto[
   });
 }
 
+export function useFormFolders(options?: QueryTuning<FormFolderDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.formFolders(),
+    queryFn: ({ signal }) => formsApi.listFolders(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useFormVersions(formId: string | undefined) {
+  return useQuery<FormVersionSummaryDto[]>({
+    queryKey: queryKeys.formVersions(formId ?? ''),
+    queryFn: ({ signal }) => formsApi.listVersions(formId!, signal),
+    enabled: Boolean(formId),
+  });
+}
+
+export function useCreateFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (folder: FormFolderRequestDto) => formsApi.createFolder(folder),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useUpdateFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, folder }: { id: string; folder: FormFolderRequestDto }) =>
+      formsApi.updateFolder(id, folder),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useDeleteFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => formsApi.deleteFolder(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useMoveFormToFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formId, folderId }: { formId: string; folderId: string | null }) =>
+      formsApi.moveToFolder(formId, folderId),
+    onSuccess: (form) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formList() });
+      queryClient.setQueryData([...queryKeys.formList(), null], (current: FormMetaDataDto[] | undefined) =>
+        current?.map((item) => item.formId === form.formId ? form : item));
+    },
+  });
+}
+
 export function useForm(formId: string | undefined) {
   return useQuery<FormDto>({
     queryKey: queryKeys.form(formId ?? ''),
@@ -601,6 +661,7 @@ export function usePublishFormAuthoringDraft() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.form(variables.formId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.formVersions(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.formList() }),
         queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] }),
       ]);
@@ -611,7 +672,8 @@ export function usePublishFormAuthoringDraft() {
 export function useSaveFormMeta() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ formId, name }: { formId: string; name: string }) => formsApi.saveMeta(formId, name),
+    mutationFn: ({ formId, name, folderId }: { formId: string; name: string; folderId?: string | null }) =>
+      formsApi.saveMeta(formId, name, folderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.formList() });
     },

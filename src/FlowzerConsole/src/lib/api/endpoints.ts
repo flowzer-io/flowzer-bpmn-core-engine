@@ -13,6 +13,9 @@ import type {
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
+  FormFolderDto,
+  FormFolderRequestDto,
+  FormVersionSummaryDto,
   HealthStatusDto,
   MessageDto,
   MessageSubscriptionDto,
@@ -315,8 +318,22 @@ export const formsApi = {
     requestStatusResult<FormMetaDataDto>(`/form/meta/${formId}`, { signal }),
 
   /** `POST /form/meta/{formId}` — legt Metadaten an oder aktualisiert sie. */
-  saveMeta: (formId: string, name: string) =>
-    requestStatus(`/form/meta/${formId}`, { method: 'POST', body: { formId, name } }),
+  saveMeta: (formId: string, name: string, folderId?: string | null) =>
+    requestStatus(`/form/meta/${formId}`, { method: 'POST', body: { formId, name, folderId } }),
+
+  /** Reine Katalogordner; sie sind kein Teil der veröffentlichten Formularverträge. */
+  listFolders: (signal?: AbortSignal) =>
+    requestStatusResult<FormFolderDto[]>('/form/folders', { signal }),
+  createFolder: (folder: FormFolderRequestDto) =>
+    requestStatusResult<FormFolderDto>('/form/folders', { method: 'POST', body: folder }),
+  updateFolder: (id: string, folder: FormFolderRequestDto) =>
+    requestStatusResult<FormFolderDto>(`/form/folders/${encodeURIComponent(id)}`, { method: 'PUT', body: folder }),
+  deleteFolder: (id: string) =>
+    requestStatusResult<FormFolderDto>(`/form/folders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  moveToFolder: (formId: string, folderId: string | null) =>
+    requestStatusResult<FormMetaDataDto>(`/form/meta/${encodeURIComponent(formId)}/folder`, {
+      method: 'PUT', body: { folderId },
+    }),
 
   /** `DELETE /form/meta/{formId}` — loescht das Formular samt allen Versionen. */
   deleteMeta: (formId: string) =>
@@ -329,6 +346,10 @@ export const formsApi = {
   /** `GET /form/{formId}/{major}.{minor}` — konkrete Version. */
   getVersion: (formId: string, version: VersionDto, signal?: AbortSignal) =>
     requestStatusResult<FormDto>(`/form/${formId}/${version.major}.${version.minor}`, { signal }),
+
+  /** Versionsliste für die Auswahl eines Formulars als Komponente. */
+  listVersions: (formId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormVersionSummaryDto[]>(`/form/${encodeURIComponent(formId)}/versions`, { signal }),
 
   /** `POST /form` — speichert eine neue Formularversion. */
   save: (form: { formId: string; formData: string; version?: VersionDto }) =>

@@ -43,8 +43,9 @@ Dauerimplementierung aufgeteilt. Details und Prioritäten:
    anhand stabiler, datensparsamer Kompatibilitätscodes.
    #214 / PR #215 erweitert den Vertrag additiv um begrenzte Wiederholgruppen und sichere
    Hilfetexte. #216 / PR #217 ergänzt servergebundene Human-Task-Entscheidungsaktionen;
-   #230 / PR #231 ergänzt die hostneutrale Bibliothek unveränderlicher Formularabschnittsversionen
-   und vollständige, serverseitig gebundene Formularsnapshots.
+   #230 / PR #231 ergänzte zunächst Formularabschnitte. #291 vereinheitlicht diese anschließend:
+   Ein Formular ist selbst eine versionierte Komponente, hierarchische Ordner strukturieren den
+   gemeinsamen Katalog und der frühere Abschnittsendpunkt bleibt nur als kompatibler Alias.
    #234 / PR #237 ergänzt die exakte historische Anzeigeauflösung für gespeicherte Referenzen in
    Workflow, Ordner, Formular und Task-Lifecycle. `isActive` und `isSelectable` bleiben
    getrennt; beliebige UUIDs und fremde Kontexte liefern keine Verzeichnisdaten.

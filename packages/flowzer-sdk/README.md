@@ -89,10 +89,11 @@ begrenztes Bearer-Token.
 - `userTasks.resolveFormSubjects(...)` und `userTasks.resolveAssignees(...)` lösen kleine
   Mengen bereits gespeicherter Referenzen im selben gebundenen Kontext auf. `isActive`
   und `isSelectable` sind getrennt; nicht kontextgebundene UUIDs bleiben ohne Treffer.
-- `formSections` bietet Modellierungsoberflächen einen revisionsgesicherten Entwurf
-  und ausschließlich konkrete veröffentlichte `major.minor`-Versionen. Das SDK kennt
-  bewusst keine freie oder implizite `latest`-Auflösung; gebundene Formularstände
-  bleiben damit reproduzierbar.
+- `forms` bietet den gemeinsamen Formularkatalog, hierarchische Ordner, revisionsgesicherte
+  Entwürfe und ausschließlich konkrete veröffentlichte `major.minor`-Versionen. Damit kann
+  jedes Formular reproduzierbar als Komponente gewählt werden. `formSections` bleibt nur
+  als abwärtskompatibler Alias für bestehende Integrationen erhalten; neue Hosts verwenden
+  keine zweite Abschnittsbibliothek und keine freie oder implizite `latest`-Auflösung.
 - `aiConnections` verwaltet revisionsgebundene Provider-Metadaten. Die Create-/Update-
   Befehle dürfen eine Secret-Referenz schreiben; der Antworttyp enthält weder diese
   Referenz noch einen Secret-Wert. Aktivstatuswechsel verlangen ebenfalls die geladene

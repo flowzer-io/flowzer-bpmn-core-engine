@@ -9,37 +9,36 @@ using WebApiEngine.Shared;
 namespace WebApiEngine.BusinessLogic;
 
 /// <summary>
-/// Autorisierter Anwendungsfall fuer eine hostneutrale Bibliothek deklarativer
-/// Formularabschnitte. IDs, Versionen, Akteur und Zeit stammen nie aus Browserdaten.
+/// Abwärtskompatibler Adapter der früheren Abschnitts-API auf den gemeinsamen
+/// Formularkatalog. IDs, Versionen, Akteur und Zeit stammen nie aus Browserdaten.
 /// </summary>
 public sealed class FormSectionAuthoringService(
     ITransactionalStorageProvider storageProvider,
     ICurrentUserContextAccessor currentUserAccessor,
-    TimeProvider timeProvider)
+    FormAuthoringService formAuthoringService)
 {
     private const int MaximumSchemaBytes = 1_048_576;
     private const int MaximumNameLength = 200;
-    private const string EmptySection = "{\"display\":\"form\",\"components\":[]}";
 
     public async Task<IReadOnlyList<FormSectionMetadataDto>> ListAsync()
     {
         using var storage = storageProvider.GetTransactionalStorage();
-        return (await storage.FormSectionStorage.ListMetadata()).Select(ToDto).ToArray();
+        return (await storage.FormStorage.GetFormMetadatas()).Select(ToDto).ToArray();
     }
 
     public async Task<FormSectionMetadataDto> GetMetadataAsync(Guid sectionId)
     {
         using var storage = storageProvider.GetTransactionalStorage();
         await EnsureSectionExists(storage, sectionId);
-        return ToDto(await storage.FormSectionStorage.GetMetadata(sectionId));
+        return ToDto(await storage.FormStorage.GetFormMetaData(sectionId));
     }
 
     public async Task<FormSectionMetadataDto> CreateAsync(string name)
     {
         currentUserAccessor.GetCurrentUser().RequireResolvedUserId("creating a form section");
-        var metadata = new FormSectionMetadata(Guid.NewGuid(), ValidateName(name));
+        var metadata = new FormMetadata { FormId = Guid.NewGuid(), Name = ValidateName(name) };
         using var storage = storageProvider.GetTransactionalStorage();
-        await storage.FormSectionStorage.CreateMetadata(metadata);
+        await storage.FormStorage.SaveFormMetaData(metadata);
         storage.CommitChanges();
         return ToDto(metadata);
     }
@@ -49,8 +48,9 @@ public sealed class FormSectionAuthoringService(
         currentUserAccessor.GetCurrentUser().RequireResolvedUserId("renaming a form section");
         using var storage = storageProvider.GetTransactionalStorage();
         await EnsureSectionExists(storage, sectionId);
-        var metadata = await storage.FormSectionStorage.RenameMetadata(
-            sectionId, ValidateName(name));
+        var metadata = await storage.FormStorage.GetFormMetaData(sectionId);
+        metadata.Name = ValidateName(name);
+        await storage.FormStorage.UpdateFormMetaData(metadata);
         storage.CommitChanges();
         return ToDto(metadata);
     }
@@ -59,10 +59,10 @@ public sealed class FormSectionAuthoringService(
     {
         using var storage = storageProvider.GetTransactionalStorage();
         await EnsureSectionExists(storage, sectionId);
-        return (await storage.FormSectionStorage.ListVersions(sectionId)).Select(version => new FormSectionVersionSummaryDto
+        return (await storage.FormStorage.GetForms(sectionId)).Select(version => new FormSectionVersionSummaryDto
         {
             Id = version.Id,
-            SectionId = version.SectionId,
+            SectionId = version.FormId,
             Version = version.Version.ToDto()
         }).ToArray();
     }
@@ -72,7 +72,13 @@ public sealed class FormSectionAuthoringService(
         using var storage = storageProvider.GetTransactionalStorage();
         await EnsureSectionExists(storage, sectionId);
         var version = ParseVersion(versionText);
-        try { return ToDto(await storage.FormSectionStorage.GetVersion(sectionId, version)); }
+        try
+        {
+            var form = (await storage.FormStorage.GetForms(sectionId))
+                .SingleOrDefault(candidate => candidate.Version == version)
+                ?? throw new FileNotFoundException();
+            return ToDto(form);
+        }
         catch (FileNotFoundException) { throw UnknownSectionVersion(); }
         catch (InvalidOperationException) { throw UnknownSectionVersion(); }
     }
@@ -81,12 +87,7 @@ public sealed class FormSectionAuthoringService(
     {
         using var storage = storageProvider.GetTransactionalStorage();
         await EnsureSectionExists(storage, sectionId);
-        var draft = await storage.FormSectionStorage.GetDraft(sectionId);
-        if (draft is not null) return ToDto(draft);
-        var latest = (await storage.FormSectionStorage.ListVersions(sectionId))
-            .OrderByDescending(version => version.Version)
-            .FirstOrDefault();
-        return Baseline(sectionId, latest);
+        return ToDto(await formAuthoringService.GetAsync(sectionId));
     }
 
     public async Task<FormSectionAuthoringDraftDto> SaveDraftAsync(
@@ -97,69 +98,50 @@ public sealed class FormSectionAuthoringService(
         if (request.ExpectedRevision < 0)
             throw new ArgumentException("ExpectedRevision must not be negative.", nameof(request));
         ValidateDraftJson(request.SectionData);
-        var actor = currentUserAccessor.GetCurrentUser();
-        actor.RequireResolvedUserId("saving a form-section draft");
-
-        using var storage = storageProvider.GetTransactionalStorage();
-        await EnsureSectionExists(storage, sectionId);
-        var current = await storage.FormSectionStorage.GetDraft(sectionId);
-        var latest = current is null
-            ? (await storage.FormSectionStorage.ListVersions(sectionId))
-                .OrderByDescending(version => version.Version).FirstOrDefault()
-            : null;
-        var draft = new FormSectionAuthoringDraft(
-            sectionId,
-            checked(request.ExpectedRevision + 1),
-            actor.UserId,
-            timeProvider.GetUtcNow(),
-            current?.BasedOnPublishedSectionId ?? latest?.Id,
-            current?.BasedOnVersion ?? latest?.Version,
-            request.SectionData);
-        var result = await storage.FormSectionStorage.TrySave(draft, request.ExpectedRevision);
-        if (result.Status == FormSectionAuthoringWriteStatus.SectionNotFound) throw UnknownSection();
-        if (result.Status == FormSectionAuthoringWriteStatus.RevisionConflict)
-            throw new FormSectionAuthoringConflictException(request.ExpectedRevision, result.CurrentRevision);
-        storage.CommitChanges();
-        return ToDto(result.Draft!);
+        try
+        {
+            return ToDto(await formAuthoringService.SaveAsync(sectionId, new SaveFormAuthoringDraftRequestDto
+            {
+                ExpectedRevision = request.ExpectedRevision,
+                FormData = request.SectionData
+            }));
+        }
+        catch (FormAuthoringConflictException exception)
+        {
+            throw new FormSectionAuthoringConflictException(exception.ExpectedRevision, exception.CurrentRevision);
+        }
     }
 
     public async Task DeleteDraftAsync(Guid sectionId, long expectedRevision)
     {
         if (expectedRevision < 0)
             throw new ArgumentException("ExpectedRevision must not be negative.", nameof(expectedRevision));
-        currentUserAccessor.GetCurrentUser().RequireResolvedUserId("discarding a form-section draft");
-        using var storage = storageProvider.GetTransactionalStorage();
-        var result = await storage.FormSectionStorage.TryDelete(
-            RequireSectionId(sectionId), expectedRevision);
-        if (result.Status == FormSectionAuthoringDeleteStatus.SectionNotFound) throw UnknownSection();
-        if (result.Status == FormSectionAuthoringDeleteStatus.RevisionConflict)
-            throw new FormSectionAuthoringConflictException(expectedRevision, result.CurrentRevision);
-        storage.CommitChanges();
+        try { await formAuthoringService.DeleteAsync(RequireSectionId(sectionId), expectedRevision); }
+        catch (FormAuthoringConflictException exception)
+        {
+            throw new FormSectionAuthoringConflictException(exception.ExpectedRevision, exception.CurrentRevision);
+        }
     }
 
     public async Task<FormSectionVersionDto> PublishAsync(Guid sectionId, long expectedRevision)
     {
         if (expectedRevision <= 0)
             throw new ArgumentException("A positive ExpectedRevision is required for publication.", nameof(expectedRevision));
-        currentUserAccessor.GetCurrentUser().RequireResolvedUserId("publishing a form-section draft");
-        using var storage = storageProvider.GetTransactionalStorage();
-        await EnsureSectionExists(storage, sectionId);
-        var draft = await storage.FormSectionStorage.GetDraft(sectionId);
-        if (draft?.Revision != expectedRevision)
-            throw new FormSectionAuthoringConflictException(expectedRevision, draft?.Revision ?? 0);
+        var draft = await formAuthoringService.GetAsync(sectionId);
+        if (!draft.HasDraft || draft.Revision != expectedRevision)
+            throw new FormSectionAuthoringConflictException(expectedRevision, draft.Revision);
 
-        try { _ = FormSectionCompiler.Compile(draft.SectionData); }
+        try { _ = FormSectionCompiler.Compile(draft.FormData); }
         catch (InvalidOperationException exception)
         {
             throw new FormPublicationValidationException(exception.Message, exception);
         }
 
-        var result = await storage.FormSectionStorage.TryPublish(sectionId, expectedRevision, Guid.NewGuid());
-        if (result.Status == FormSectionAuthoringPublishStatus.SectionNotFound) throw UnknownSection();
-        if (result.Status == FormSectionAuthoringPublishStatus.RevisionConflict)
-            throw new FormSectionAuthoringConflictException(expectedRevision, result.CurrentRevision);
-        storage.CommitChanges();
-        return ToDto(result.PublishedSection!);
+        try { return ToDto(await formAuthoringService.PublishAsync(sectionId, expectedRevision)); }
+        catch (FormAuthoringConflictException exception)
+        {
+            throw new FormSectionAuthoringConflictException(exception.ExpectedRevision, exception.CurrentRevision);
+        }
     }
 
     private static void ValidateDraftJson(string sectionData)
@@ -210,7 +192,7 @@ public sealed class FormSectionAuthoringService(
     private static async Task EnsureSectionExists(IStorageSystem storage, Guid sectionId)
     {
         RequireSectionId(sectionId);
-        try { _ = await storage.FormSectionStorage.GetMetadata(sectionId); }
+        try { _ = await storage.FormStorage.GetFormMetaData(sectionId); }
         catch (FileNotFoundException) { throw UnknownSection(); }
         catch (InvalidOperationException) { throw UnknownSection(); }
     }
@@ -218,39 +200,29 @@ public sealed class FormSectionAuthoringService(
     private static FormSectionNotFoundException UnknownSection() => new();
     private static FormSectionVersionNotFoundException UnknownSectionVersion() => new();
 
-    private static FormSectionMetadataDto ToDto(FormSectionMetadata metadata) => new()
+    private static FormSectionMetadataDto ToDto(FormMetadata metadata) => new()
     {
-        SectionId = metadata.SectionId,
+        SectionId = metadata.FormId,
         Name = metadata.Name
     };
 
-    private static FormSectionVersionDto ToDto(FormSectionVersion version) => new()
+    private static FormSectionVersionDto ToDto(Form version) => new()
     {
         Id = version.Id,
-        SectionId = version.SectionId,
+        SectionId = version.FormId,
         Version = version.Version.ToDto(),
-        SectionData = version.SectionData
+        SectionData = version.FormData
     };
 
-    private static FormSectionAuthoringDraftDto Baseline(Guid sectionId, FormSectionVersion? latest) => new()
+    private static FormSectionAuthoringDraftDto ToDto(FormAuthoringDraftDto draft) => new()
     {
-        SectionId = sectionId,
-        Revision = 0,
-        HasDraft = false,
-        BasedOnPublishedSectionId = latest?.Id,
-        BasedOnVersion = latest?.Version.ToDto(),
-        SectionData = latest?.SectionData ?? EmptySection
-    };
-
-    private static FormSectionAuthoringDraftDto ToDto(FormSectionAuthoringDraft draft) => new()
-    {
-        SectionId = draft.SectionId,
+        SectionId = draft.FormId,
         Revision = draft.Revision,
-        HasDraft = true,
+        HasDraft = draft.HasDraft,
         UpdatedAtUtc = draft.UpdatedAtUtc,
-        BasedOnPublishedSectionId = draft.BasedOnPublishedSectionId,
-        BasedOnVersion = draft.BasedOnVersion?.ToDto(),
-        SectionData = draft.SectionData
+        BasedOnPublishedSectionId = draft.BasedOnPublishedFormId,
+        BasedOnVersion = draft.BasedOnVersion,
+        SectionData = draft.FormData
     };
 }
 

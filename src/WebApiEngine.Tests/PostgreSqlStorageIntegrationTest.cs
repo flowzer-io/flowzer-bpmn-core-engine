@@ -75,7 +75,7 @@ public partial class PostgreSqlStorageIntegrationTest
             "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der
             // Fremdschluessel steht bewusst auf RESTRICT.
-            "workflow_folders", "idempotency_records", "identity_directory_state"
+            "form_folders", "workflow_folders", "idempotency_records", "identity_directory_state"
         }.Select(table => $"DELETE FROM {Schema}.{table}"));
         await command.ExecuteNonQueryAsync();
     }
@@ -353,15 +353,24 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Should().BeEmpty();
     }
 
-    // Testzweck: Formulare werden versioniert abgelegt; das Loeschen der Metadaten entfernt alle
-    // Versionen; die hoechste Version faellt ohne Bestand auf 0.0 zurueck.
+    // Testzweck: Formulare werden samt Katalogordner versioniert abgelegt; das Loeschen der
+    // Metadaten entfernt alle Versionen, aber nicht den unabhaengigen Ordner.
     [Test]
     public async Task FormStorage_ShouldVersionFormsAndCascadeMetadataDeletion()
     {
         var storage = new PostgreSqlStorage(_dataSource!, Schema);
         var formId = Guid.NewGuid();
+        var parentFolder = new FormFolder { Id = Guid.NewGuid(), Name = "Personal" };
+        var folder = new FormFolder { Id = Guid.NewGuid(), ParentId = parentFolder.Id, Name = "Antraege" };
         (await storage.FormStorage.GetMaxVersion(formId)).Should().Be(new Model.Version());
-        await storage.FormStorage.SaveFormMetaData(new FormMetadata { FormId = formId, Name = "Approval" });
+        await storage.FormStorage.SaveFolder(parentFolder);
+        await storage.FormStorage.SaveFolder(folder);
+        await storage.FormStorage.SaveFormMetaData(new FormMetadata
+        {
+            FormId = formId,
+            Name = "Approval",
+            FolderId = folder.Id
+        });
         await storage.FormStorage.SaveForm(new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 0), FormData = "{}" });
         var latest = new Form { Id = Guid.NewGuid(), FormId = formId, Version = new Model.Version(1, 1), FormData = "{\"v\":2}" };
         await storage.FormStorage.SaveForm(latest);
@@ -369,13 +378,22 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.FormStorage.GetMaxVersion(formId)).Should().Be(new Model.Version(1, 1));
         (await storage.FormStorage.GetForm(latest.Id)).FormData.Should().Be("{\"v\":2}");
         (await storage.FormStorage.GetForms(formId)).Should().HaveCount(2);
-        (await storage.FormStorage.GetFormMetadatas()).Should().ContainSingle().Which.Name.Should().Be("Approval");
+        (await storage.FormStorage.GetFormMetadatas()).Should().ContainSingle().Which.Should().BeEquivalentTo(
+            new FormMetadata { FormId = formId, Name = "Approval", FolderId = folder.Id });
+        (await storage.FormStorage.GetFolders()).Should().HaveCount(2);
+        (await storage.FormStorage.GetFolder(folder.Id))!.ParentId.Should().Be(parentFolder.Id);
+        folder.Name = "Urlaub";
+        await storage.FormStorage.UpdateFolder(folder);
+        (await storage.FormStorage.GetFolder(folder.Id))!.Name.Should().Be("Urlaub");
         await storage.FormStorage.Invoking(s => s.GetFormMetaData(Guid.NewGuid())).Should().ThrowAsync<FileNotFoundException>();
         await storage.FormStorage.Invoking(s => s.UpdateFormMetaData(new FormMetadata { FormId = Guid.NewGuid(), Name = "x" })).Should().ThrowAsync<FileNotFoundException>();
 
         await storage.FormStorage.DeleteFormMetaData(formId);
         (await storage.FormStorage.GetForms(formId)).Should().BeEmpty();
         (await storage.FormStorage.GetFormMetadatas()).Should().BeEmpty();
+        (await storage.FormStorage.GetFolder(folder.Id)).Should().NotBeNull();
+        await storage.FormStorage.DeleteFolder(folder.Id);
+        (await storage.FormStorage.GetFolder(folder.Id)).Should().BeNull();
     }
 
     // Testzweck: Die transaktionale Ablage macht Aenderungen erst mit CommitChanges sichtbar;

@@ -20,8 +20,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'tasks', label: 'Meine Aufgaben', icon: 'inbox', path: '/tasks' },
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
-  { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
-  { key: 'form-sections', label: 'Abschnitte', icon: 'view_agenda', path: '/form-sections', requires: 'modeler' },
+  { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms', matches: ['/form-sections'] },
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
 ] as const;
@@ -44,7 +43,6 @@ export const PAGE_TITLES: Record<string, string> = {
   workflows: 'Workflows',
   instances: 'Instanzen',
   forms: 'Formulare',
-  'form-sections': 'Formularabschnitte',
   'ai-connections': 'KI-Verbindungen',
   operations: 'Betrieb & Diagnose',
   tasks: 'Meine Aufgaben',
