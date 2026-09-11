@@ -285,6 +285,14 @@ jobs:
         timeout-minutes: 15
         run: npm test
 
+      - name: Produktionsbundle der Konsole bauen
+        working-directory: src/FlowzerConsole
+        run: npm run build
+
+      - name: BFF-Sitzung gegen das Produktionsbundle prüfen
+        working-directory: tests/ui-smoke
+        run: npm run test:production
+
       - name: Playwright-Artefakte hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -293,6 +301,8 @@ jobs:
           path: |
             tests/ui-smoke/playwright-report
             tests/ui-smoke/test-results
+            tests/ui-smoke/playwright-report-production
+            tests/ui-smoke/test-results-production
           if-no-files-found: ignore
 
       - name: CI-Zusammenfassung schreiben

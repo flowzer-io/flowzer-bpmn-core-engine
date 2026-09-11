@@ -5,7 +5,8 @@
     "install:browsers": "playwright install --with-deps chromium",
     "test": "node ./scripts/run-playwright.js",
     "test:headed": "node ./scripts/run-playwright.js --headed",
-    "preview:screenshots": "node ./scripts/run-playwright.js --capture-design-preview tests/design-preview.spec.js"
+    "preview:screenshots": "node ./scripts/run-playwright.js --capture-design-preview tests/design-preview.spec.js",
+    "test:production": "node ./scripts/run-playwright.js --config playwright.production.config.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1"
