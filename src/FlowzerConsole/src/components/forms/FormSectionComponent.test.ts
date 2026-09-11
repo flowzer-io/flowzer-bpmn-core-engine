@@ -1,3 +1,4 @@
+import type { componentEditForm } from './componentEditForm';
 import { describe, expect, it } from 'vitest';
 
 import { registerFormSectionComponent } from './FormSectionComponent';
@@ -28,12 +29,14 @@ describe('flowzerSection Form.io component', () => {
     const component = formio.Components.registered.get('flowzerSection') as unknown as {
       schema: () => Record<string, unknown>;
       builderInfo: { title: string; group: string };
-      editForm: () => { components: Array<Record<string, unknown>> };
+      editForm: () => ReturnType<typeof componentEditForm>;
     };
+    // Testzweck: Der echte Form.io-Builder greift zwingend auf den tabs-Knoten zu.
+    expect(component.editForm().components[0]).toMatchObject({ type: 'tabs', key: 'tabs' });
     expect(component.schema()).toMatchObject({ type: 'flowzerSection', input: false });
     expect(component.builderInfo.title).toBe('Wiederverwendbarer Abschnitt');
     expect(component.builderInfo.group).not.toBe('basic');
-    expect(component.editForm().components.every((entry) => entry.disabled === true)).toBe(true);
+    expect(component.editForm().components[0]!.components[0]!.components.every((entry) => entry.disabled === true)).toBe(true);
   });
 
   it('registriert den Typ nur einmal', () => {

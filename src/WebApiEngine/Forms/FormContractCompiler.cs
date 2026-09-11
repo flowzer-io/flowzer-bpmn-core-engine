@@ -278,11 +278,17 @@ public static class FormContractCompiler
         }
     }
 
+    // Form.io speichert für Zahlen bereits ohne Einschränkung step="any".
+    // Ausschließlich dieser neutrale Wert ist erlaubt, keine ignorierten Schrittweiten.
+    private static bool IsNeutralNumericStep(JsonProperty property, string type) =>
+        type is "number" or "currency" && property.Name == "step"
+        && property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() == "any";
+
     private static DirectorySubjectSelectionPolicy? ValidateField(JsonElement component, string type)
     {
         var validate = Get(component, "validate");
         if (validate.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Object)) Fail("validation.object");
-        if (validate.ValueKind == JsonValueKind.Object && validate.EnumerateObject().Any(property => !ValidationKeys.Contains(property.Name) && Active(property.Value))) Fail("validation.unsupported");
+        if (validate.ValueKind == JsonValueKind.Object && validate.EnumerateObject().Any(property => !ValidationKeys.Contains(property.Name) && !IsNeutralNumericStep(property, type) && Active(property.Value))) Fail("validation.unsupported");
         ValidateBoolean(validate, "required");
         foreach (var (minimum, maximum) in new[] { ("minLength", "maxLength"), ("min", "max"), ("minSelectedCount", "maxSelectedCount") })
         {

@@ -1,3 +1,4 @@
+import type { componentEditForm } from './componentEditForm';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -96,9 +97,11 @@ describe('flowzerSubject Form.io component', () => {
     const component = formio.Components.registered.get('flowzerSubject') as unknown as {
       schema: () => Record<string, unknown>;
       builderInfo: { title: string };
-      editForm: () => { components: Array<Record<string, unknown>> };
+      editForm: () => ReturnType<typeof componentEditForm>;
     };
     expect(component).toBeDefined();
+    // Testzweck: Der echte Form.io-Builder greift zwingend auf den tabs-Knoten zu.
+    expect(component.editForm().components[0]).toMatchObject({ type: 'tabs', key: 'tabs' });
     expect(component.schema()).toMatchObject({
       type: 'flowzerSubject',
       flowzer: {
@@ -114,10 +117,10 @@ describe('flowzerSubject Form.io component', () => {
       },
     });
     expect(component.builderInfo.title).toBe('Benutzer-/Gruppenauswahl');
-    expect(component.editForm().components.map((entry) => entry.label)).toEqual(
+    expect(component.editForm().components[0]!.components[0]!.components.map((entry) => entry.label)).toEqual(
       expect.arrayContaining(['Benutzer auswählbar', 'Gruppen auswählbar', 'Untergruppen einbeziehen']),
     );
-    expect(component.editForm().components.find(
+    expect(component.editForm().components[0]!.components[0]!.components.find(
       (entry) => entry.key === 'flowzer.subjectSelection.allowedUserIds',
     )).toMatchObject({ as: 'json', editor: 'ace' });
   });
