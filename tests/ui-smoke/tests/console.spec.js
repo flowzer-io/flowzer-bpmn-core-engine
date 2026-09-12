@@ -730,13 +730,17 @@ test.describe('Konsole', () => {
   // gar nicht bedienbar: Die Seitenleiste nahm zwei Drittel der Breite, und Liste und
   // Formular standen als Streifen nebeneinander.
   test('Auf Telefonbreite fuehrt die untere Reiterleiste', async ({ page, request }) => {
-    await seedWorkflow(request);
+    const { name } = await seedFormTask(request);
     await page.setViewportSize({ width: 375, height: 812 });
 
     await page.goto('/tasks');
     const reiter = page.getByRole('navigation', { name: 'Hauptbereiche' });
     await expect(reiter).toBeVisible();
     await expect(page.locator('aside')).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'EB, Benutzermenü' }),
+      'Das sichtbare Kürzel bleibt Teil des zugänglichen Namens.',
+    ).toBeVisible();
 
     // Nichts darf seitlich aus dem Bild laufen.
     const ueberlauf = await page.evaluate(
@@ -744,8 +748,29 @@ test.describe('Konsole', () => {
     );
     expect(ueberlauf, 'Die Seite laesst sich seitlich schieben.').toBeLessThanOrEqual(0);
 
+    // Erst die Liste: Am grossen Schirm waere hier schon eine Aufgabe geoeffnet.
+    const liste = page.getByText('Zu erledigen');
+    await expect(liste, 'Auf dem Telefon faengt man bei der Liste an.').toBeVisible();
+    await expect(page.getByRole('button', { name: /Aufgabe abschliessen|Aufgabe abschließen/ })).toHaveCount(0);
+
+    // Genau die frisch angelegte Aufgabe öffnen: Der Workflowname ist pro Seed eindeutig.
+    const erzeugteAufgabe = page.getByRole('button').filter({ hasText: name });
+    await expect(erzeugteAufgabe, 'Die geseedete Aufgabe ist nicht eindeutig in der Liste.').toHaveCount(1);
+    await erzeugteAufgabe.click();
+    await expect(page.locator('main').getByText(name, { exact: true })).toBeVisible();
+    await expect(page.getByText('Freigabe erteilt?')).toBeVisible();
+    await expect(liste, 'Die Liste steht noch neben der Aufgabe.').toBeHidden();
+
+    // Und wieder zurueck.
+    await page.getByRole('button', { name: 'Alle Aufgaben' }).click();
+    await expect(liste).toBeVisible();
+    await expect(page.getByText('Freigabe erteilt?')).toBeHidden();
+
     await reiter.getByRole('link', { name: /Instanzen/ }).click();
     await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
+
+    // Die erzeugte Aufgabe wurde über den eindeutigen Workflownamen ausgewählt und
+    // die konkrete Formularfrage oben sichtbar verifiziert.
   });
 
   // Testzweck: Die neue Verwaltungsseite ist im echten Browser erreichbar und zeigt
