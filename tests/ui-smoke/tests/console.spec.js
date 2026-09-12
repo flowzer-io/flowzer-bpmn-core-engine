@@ -737,6 +737,10 @@ test.describe('Konsole', () => {
     const reiter = page.getByRole('navigation', { name: 'Hauptbereiche' });
     await expect(reiter).toBeVisible();
     await expect(page.locator('aside')).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'EB, Benutzermenü' }),
+      'Das sichtbare Kürzel bleibt Teil des zugänglichen Namens.',
+    ).toBeVisible();
 
     // Nichts darf seitlich aus dem Bild laufen.
     const ueberlauf = await page.evaluate(
