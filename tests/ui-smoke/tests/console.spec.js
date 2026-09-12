@@ -730,7 +730,7 @@ test.describe('Konsole', () => {
   // gar nicht bedienbar: Die Seitenleiste nahm zwei Drittel der Breite, und Liste und
   // Formular standen als Streifen nebeneinander.
   test('Auf Telefonbreite fuehrt die untere Reiterleiste', async ({ page, request }) => {
-    const { formularName } = await seedFormTask(request);
+    const { name } = await seedFormTask(request);
     await page.setViewportSize({ width: 375, height: 812 });
 
     await page.goto('/tasks');
@@ -749,8 +749,11 @@ test.describe('Konsole', () => {
     await expect(liste, 'Auf dem Telefon faengt man bei der Liste an.').toBeVisible();
     await expect(page.getByRole('button', { name: /Aufgabe abschliessen|Aufgabe abschließen/ })).toHaveCount(0);
 
-    // Aufgabe oeffnen: Die Liste weicht ihr, das Formular ist da.
-    await page.getByRole('button', { name: 'Freigeben', exact: false }).first().click();
+    // Genau die frisch angelegte Aufgabe öffnen: Der Workflowname ist pro Seed eindeutig.
+    const erzeugteAufgabe = page.getByRole('button').filter({ hasText: name });
+    await expect(erzeugteAufgabe, 'Die geseedete Aufgabe ist nicht eindeutig in der Liste.').toHaveCount(1);
+    await erzeugteAufgabe.click();
+    await expect(page.locator('main').getByText(name, { exact: true })).toBeVisible();
     await expect(page.getByText('Freigabe erteilt?')).toBeVisible();
     await expect(liste, 'Die Liste steht noch neben der Aufgabe.').toBeHidden();
 
@@ -762,9 +765,8 @@ test.describe('Konsole', () => {
     await reiter.getByRole('link', { name: /Instanzen/ }).click();
     await expect(page.getByRole('heading', { name: 'Instanzen' })).toBeVisible();
 
-    // Der Name des geseedeten Formulars taucht sonst nirgends auf; er belegt nur, dass
-    // die geoeffnete Aufgabe wirklich die frisch angelegte war.
-    expect(formularName).toBeTruthy();
+    // Die erzeugte Aufgabe wurde über den eindeutigen Workflownamen ausgewählt und
+    // die konkrete Formularfrage oben sichtbar verifiziert.
   });
 
   // Testzweck: Die neue Verwaltungsseite ist im echten Browser erreichbar und zeigt
