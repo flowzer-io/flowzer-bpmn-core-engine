@@ -20,7 +20,7 @@ public sealed class FormComponentBindingExpanderTest
             Id = versionId,
             FormId = childId,
             Version = new Model.Version(1, 2),
-            FormData = """{"flowzer":{"decisionActions":[{"key":"approve"}]},"components":[{"type":"textfield","key":"street"}]}"""
+            FormData = """{"flowzer":{"contractVersion":4,"actions":[{"id":"approve","label":"Freigeben","variant":"primary","set":[{"field":"street","value":"accepted"}]}]},"components":[{"type":"textfield","key":"street"}]}"""
         });
 
         var expanded = await FormSectionBindingExpander.ExpandAsync(
@@ -39,7 +39,7 @@ public sealed class FormComponentBindingExpanderTest
         binding["version"]!.GetValue<string>().Should().Be("1.2");
         binding["contentSha256"]!.GetValue<string>().Should().MatchRegex("^[0-9a-f]{64}$");
         expanded.Should().NotContain("flowzerForm");
-        expanded.Should().NotContain("decisionActions", "root actions of a component form are not inherited");
+        expanded.Should().NotContain("\"actions\"", "root actions of a component form are not inherited");
     }
 
     // Testzweck: Form.io ergänzt beim Speichern leere Standardobjekte. Diese Defaults dürfen
@@ -126,6 +126,40 @@ public sealed class FormComponentBindingExpanderTest
 
         (await expand.Should().ThrowAsync<FormContractException>()).Which.Code
             .Should().Be("schema.duplicate_key");
+    }
+
+    // Testzweck: Alte Clients duerfen nach der Bibliotheksmigration weiterhin einen
+    // flowzerSection-Marker fuer eine ueber die kompatible API neu veroeffentlichte
+    // Formularversion verwenden; diese Fassung liegt nur noch im gemeinsamen Katalog.
+    [Test]
+    public async Task Expand_ShouldResolveLegacySectionReferenceFromSharedFormCatalog()
+    {
+        var sectionId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var forms = new StubFormStorage(new Form
+        {
+            Id = versionId,
+            FormId = sectionId,
+            Version = new Model.Version(0, 2),
+            FormData = """{"components":[{"type":"textfield","key":"street"}]}"""
+        });
+        var parent = $$"""
+            {"components":[
+              {"type":"flowzerSection","key":"address","sectionId":"{{sectionId}}","version":"0.2"},
+              {"type":"textarea","key":"comment"}
+            ]}
+            """;
+
+        var expanded = await FormSectionBindingExpander.ExpandAsync(
+            forms, new StubSectionStorage(), Guid.NewGuid(), parent);
+
+        var root = JsonNode.Parse(expanded)!.AsObject();
+        root["components"]!.AsArray().Select(component => component!["key"]!.GetValue<string>())
+            .Should().Equal("street", "comment");
+        var binding = root["flowzer"]!["boundSections"]!.AsArray().Single()!.AsObject();
+        binding["sectionId"]!.GetValue<Guid>().Should().Be(sectionId);
+        binding["sectionVersionId"]!.GetValue<Guid>().Should().Be(versionId);
+        binding["version"]!.GetValue<string>().Should().Be("0.2");
     }
 
     private static Form Version(Guid formId, string version, string data)

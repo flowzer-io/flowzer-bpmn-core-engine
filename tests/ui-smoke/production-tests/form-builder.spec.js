@@ -3,6 +3,8 @@ const { test, expect } = require('@playwright/test');
 // Synthetische Autorenentwürfe: echter Form.io-Builder, aber keine produktiven Schreibzugriffe.
 async function mockAuthoring(page) {
   const formId = '11111111-1111-4111-8111-111111111111';
+  const componentFormId = '22222222-2222-4222-8222-222222222222';
+  const folderId = '33333333-3333-4333-8333-333333333333';
   const schema = { display: 'form', components: [{ type: 'textfield', key: 'reason', label: 'Begründung', input: true }] };
   let draft = { formId, revision: 1, hasDraft: true, formData: JSON.stringify(schema) };
   await page.route('**/config.json', route => route.fulfill({ json: { apiBaseUrl: '/api', bffEnabled: true, accent: 'iris' } }));
@@ -12,22 +14,37 @@ async function mockAuthoring(page) {
     const request = route.request();
     const path = new URL(request.url()).pathname;
     let result = [];
-    if (path === '/api/form/meta') result = [{ formId, name: 'Editor-Smoke' }];
+    if (path === '/api/form/meta') result = [
+      { formId, name: 'Editor-Smoke' },
+      { formId: componentFormId, name: 'Zustelladresse', folderId },
+    ];
+    if (path === '/api/form/folders') result = [{ id: folderId, name: 'Personal' }];
+    if (path === `/api/form/${componentFormId}/versions`) result = [{
+      id: '44444444-4444-4444-8444-444444444444',
+      formId: componentFormId,
+      version: { major: 0, minor: 1 },
+    }];
     if (path.endsWith('/draft')) {
       if (request.method() === 'PUT') draft = { ...draft, revision: draft.revision + 1, formData: request.postDataJSON().formData };
       result = draft;
     }
-    if (path.endsWith('/preview')) result = { formData: request.postDataJSON().formData, validationProfile: 'flowzer.forms/2' };
+    if (path.endsWith('/preview')) {
+      const requested = JSON.parse(request.postDataJSON().formData);
+      requested.components = requested.components.flatMap(component => component.type === 'flowzerForm'
+        ? [{ type: 'textfield', key: 'street', label: 'Straße', input: true }]
+        : [component]);
+      result = { formData: JSON.stringify(requested), validationProfile: 'flowzer.forms/2' };
+    }
     return route.fulfill({ json: { successful: true, result } });
   });
-  return () => JSON.parse(draft.formData);
+  return { componentFormId, readDraft: () => JSON.parse(draft.formData) };
 }
 
 // Testzweck: Die echte Form.io-Palette muss eigene Felder öffnen und speichern können;
 // Klassen-Mocks erkennen den obligatorischen tabs-Zugriff der Bibliothek nicht.
 test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneut bearbeiten', async ({ page }) => {
   test.setTimeout(60_000);
-  const saved = await mockAuthoring(page);
+  const { readDraft: saved } = await mockAuthoring(page);
   const errors = [];
   page.on('pageerror', error => { errors.push(error.message); console.error('Browserfehler:', error.message); });
   await page.goto('/forms');
@@ -72,3 +89,26 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   expect(errors).toEqual([]);
 });
+
+for (const [layout, viewport] of [
+  ['Desktop', { width: 1280, height: 900 }],
+  ['Mobil', { width: 390, height: 844 }],
+]) {
+  // Testzweck: Die gemeinsame Bibliothek muss im echten Produktionsbundle auf Desktop und
+  // Mobil eine konkrete Formularversion einfügen und über die Servervorschau darstellen.
+  test(`Formular-Komponente lässt sich im ${layout}-Layout einfügen und anzeigen`, async ({ page }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize(viewport);
+    const { componentFormId } = await mockAuthoring(page);
+
+    await page.goto('/forms');
+    await page.getByRole('tab', { name: 'Felder', exact: true }).click();
+    await page.getByLabel('Formular', { exact: true }).selectOption(componentFormId);
+    await page.getByLabel('Konkrete Version', { exact: true }).selectOption('0.1');
+    await page.getByRole('button', { name: 'Einfügen', exact: true }).click();
+
+    await expect(page.getByText('Zustelladresse · v0.1', { exact: true })).toBeVisible();
+    await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
+    await expect(page.getByText('Straße', { exact: true }).first()).toBeVisible();
+  });
+}
