@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { FormsPage } from '@/pages/FormsPage';
-import { FormSectionsPage } from '@/pages/FormSectionsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
@@ -118,7 +117,8 @@ const formsRoute = createRoute({
 const formSectionsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/form-sections',
-  component: FormSectionsPage,
+  // Bestehende Lesezeichen bleiben nutzbar, zeigen aber keine zweite Bibliothek mehr.
+  component: FormsPage,
 });
 
 const operationsRoute = createRoute({

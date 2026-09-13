@@ -16,4 +16,11 @@ public interface IFormStorage
     Task<IEnumerable<Form>> GetForms(Guid formId);
     Task DeleteForm(Guid id);
     Task<Model.Version> GetMaxVersion(Guid formId);
+
+    /// <summary>Hierarchische Katalogordner. Alte Test-/Hostadapter sehen ohne Implementierung einen leeren Katalog.</summary>
+    Task<IReadOnlyList<FormFolder>> GetFolders() => Task.FromResult<IReadOnlyList<FormFolder>>([]);
+    Task<FormFolder?> GetFolder(Guid folderId) => Task.FromResult<FormFolder?>(null);
+    Task SaveFolder(FormFolder folder) => throw new NotSupportedException("Form folders are not supported by this storage.");
+    Task UpdateFolder(FormFolder folder) => throw new NotSupportedException("Form folders are not supported by this storage.");
+    Task DeleteFolder(Guid folderId) => throw new NotSupportedException("Form folders are not supported by this storage.");
 }

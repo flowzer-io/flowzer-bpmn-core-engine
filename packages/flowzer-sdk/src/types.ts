@@ -49,7 +49,57 @@ export interface SetAiConnectionEnabledCommand {
 
 export type ProcessVariables = Record<string, unknown>;
 
-/** Hostneutraler Katalogeintrag eines wiederverwendbaren Formularabschnitts. */
+/** Stabiler Eintrag der gemeinsamen Formularbibliothek. */
+export interface FormMetadata {
+  formId: string;
+  name: string;
+  folderId?: string | null;
+}
+
+/** Ordner dienen nur der Katalogorganisation und sind kein Laufzeitvertrag. */
+export interface FormFolder {
+  id: string;
+  parentId?: string | null;
+  name: string;
+}
+
+export interface FormVersionNumber {
+  major: number;
+  minor: number;
+}
+
+export interface FormVersionSummary {
+  id: string;
+  formId: string;
+  version: FormVersionNumber;
+}
+
+export interface FormAuthoringDraft {
+  formId: string;
+  revision: number;
+  hasDraft: boolean;
+  updatedAtUtc?: string | null;
+  basedOnPublishedFormId?: string | null;
+  basedOnVersion?: FormVersionNumber | null;
+  formData: string;
+}
+
+export interface SaveFormMetadataCommand {
+  name: string;
+  folderId?: string | null;
+}
+
+export interface SaveFormAuthoringDraftCommand {
+  expectedRevision: number;
+  formData: string;
+}
+
+export interface FormFolderCommand {
+  name: string;
+  parentId?: string | null;
+}
+
+/** @deprecated Ein Formular selbst ist die wiederverwendbare Komponente; nur für Altclients. */
 export interface FormSectionMetadata {
   sectionId: string;
   name: string;

@@ -9,6 +9,7 @@ import {
 } from './FlowzerSubjectComponent';
 import { FormDecisionActionsEditor } from './FormDecisionActionsEditor';
 import { registerFormSectionComponent } from './FormSectionComponent';
+import { registerFormLibraryComponent } from './FormLibraryComponent';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
@@ -25,8 +26,6 @@ export interface FormBuilderHandle {
 
 interface FormBuilderProps {
   schema: string | undefined;
-  /** Abschnittsentwuerfe besitzen bewusst keine eigenen Root-Entscheidungsaktionen. */
-  contractScope?: 'form' | 'section';
   onChange?: () => void;
   /**
    * Meldet, ob der Editor sein Schema herausgeben kann. Erst dann darf eine Oberflaeche
@@ -53,7 +52,7 @@ const EMPTY_SCHEMA = { display: 'form', components: [] };
  * verlustbehaftete Zwischenrepräsentation.
  */
 export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(function FormBuilder(
-  { schema, contractScope = 'form', onChange, onReadyChange, className },
+  { schema, onChange, onReadyChange, className },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,15 +75,13 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         if (!builder) throw new Error('Der Formular-Editor ist noch nicht bereit.');
         const current = builder.form ?? builder.schema ?? EMPTY_SCHEMA;
         return JSON.stringify(
-          ensureFlowzerSubjectContract(contractScope === 'form'
-            ? writeFormDecisionActions(current, actionsRef.current)
-            : current),
+          ensureFlowzerSubjectContract(writeFormDecisionActions(current, actionsRef.current)),
           null,
           2,
         );
       },
     }),
-    [contractScope],
+    [],
   );
 
   useEffect(() => {
@@ -116,12 +113,6 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       onReadyChangeRef.current?.(false);
       return;
     }
-    if (contractScope === 'section' && actionInspection.actions.length > 0) {
-      setStatus('error');
-      setError('Abschnittsentwürfe dürfen keine eigenen Entscheidungsaktionen enthalten.');
-      onReadyChangeRef.current?.(false);
-      return;
-    }
 
     async function create() {
       const container = containerRef.current;
@@ -133,6 +124,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       try {
         const { Formio } = await import('@formio/js');
         registerFlowzerSubjectComponent(Formio);
+        registerFormLibraryComponent(Formio);
         registerFormSectionComponent(Formio);
         if (disposed) return;
 
@@ -172,7 +164,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       if (builderRef.current === ownedInstance) builderRef.current = null;
       host.remove();
     };
-  }, [contractScope, schema]);
+  }, [schema]);
 
   return (
     <div className={cn('formio-builder formio-surface relative', className)}>
@@ -187,7 +179,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
           {error}
         </div>
       )}
-      {status === 'ready' && contractScope === 'form' && (
+      {status === 'ready' && (
         <FormDecisionActionsEditor
           actions={actions}
           onChange={(next) => {

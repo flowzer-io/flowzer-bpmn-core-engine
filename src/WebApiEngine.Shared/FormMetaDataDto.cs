@@ -4,4 +4,5 @@ public class FormMetaDataDto
 {
     public required Guid FormId { get; set; }
     public required string Name { get; set; }
+    public Guid? FolderId { get; set; }
 }
