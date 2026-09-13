@@ -559,11 +559,12 @@ Scriptinhalte. Lesefehler der Ablage sind als Betriebsstörung zu untersuchen; e
 Compilerfehler werden dagegen isoliert mit stabilen Codes gemeldet. Details:
 [Formular-Kompatibilitätsinventar](FORM-COMPATIBILITY-INVENTORY.md).
 
-Wiederverwendbare Abschnitte werden separat unter `/form-section` gepflegt. Autoren
-wählen ausschließlich eine konkrete veröffentlichte Fassung; beim Formular-Publish
-erzeugt der Server daraus einen vollständigen, unabhängigen Snapshot. Es gibt weder
-eine automatische `latest`-Auflösung noch eine Runtime-Abhängigkeit von der Bibliothek.
-Vertrag und Migrationsdetails: [Formularabschnitte](FORM-SECTIONS.md).
+Wiederverwendbare Komponenten werden im gemeinsamen Formularkatalog gepflegt. Autoren
+wählen für eine Formular-Komponente ausschließlich eine konkrete veröffentlichte Fassung;
+beim Formular-Publish erzeugt der Server daraus einen vollständigen, unabhängigen Snapshot.
+Es gibt weder eine automatische `latest`-Auflösung noch eine Runtime-Abhängigkeit von der
+Bibliothek. `/form-section` bleibt ausschließlich als kompatibler Adapter für bestehende
+Integrationen erhalten. Vertrag und Migrationsdetails: [Formularbibliothek](FORM-SECTIONS.md).
 
 `DELETE /form/meta/{formId}` entfernt ein Formular samt allen seinen Versionen. Der Aufruf verlangt die Modelliererrolle.
 

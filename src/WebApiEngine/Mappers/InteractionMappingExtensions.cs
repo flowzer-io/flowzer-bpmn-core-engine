@@ -153,7 +153,8 @@ public static class InteractionMappingExtensions
         return new FormMetaDataDto
         {
             FormId = formMetadata.FormId,
-            Name = formMetadata.Name
+            Name = formMetadata.Name,
+            FolderId = formMetadata.FolderId
         };
     }
 
@@ -164,7 +165,8 @@ public static class InteractionMappingExtensions
         return new FormMetadata
         {
             FormId = formMetadataDto.FormId,
-            Name = formMetadataDto.Name
+            Name = formMetadataDto.Name,
+            FolderId = formMetadataDto.FolderId
         };
     }
 

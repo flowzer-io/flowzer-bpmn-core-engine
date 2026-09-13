@@ -242,6 +242,15 @@ public static class ApiExceptionHandlingExtensions
                         Type = "about:blank",
                         Instance = context.Request.Path
                     };
+                    if (exception is FormPublicationValidationException
+                        {
+                            InnerException: FormContractException contractException
+                        })
+                    {
+                        // Formularreferenzen werden serverseitig validiert. Der stabile,
+                        // wertefreie Code ist fuer UI/SDK belastbarer als der Detailtext.
+                        problem.Extensions["code"] = contractException.Code;
+                    }
                     problem.Extensions["traceId"] = context.TraceIdentifier;
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
                     return;

@@ -13,6 +13,12 @@ import type {
   FlowzerClientOptions,
   FlowzerCompletionOptions,
   FlowzerForm,
+  FormAuthoringDraft,
+  FormFolder,
+  FormFolderCommand,
+  FormMetadata,
+  FormVersionNumber,
+  FormVersionSummary,
   FormSectionAuthoringDraft,
   FormSectionMetadata,
   FormSectionVersion,
@@ -24,6 +30,8 @@ import type {
   RenameFormSectionCommand,
   ReleaseUserTaskCommand,
   SaveFormSectionAuthoringDraftCommand,
+  SaveFormAuthoringDraftCommand,
+  SaveFormMetadataCommand,
   SaveUserTaskDraftCommand,
   SetAiConnectionEnabledCommand,
   SubjectRef,
@@ -52,6 +60,14 @@ function sectionVersionPath(version: FormSectionVersionNumber) {
   if (!version || !Number.isSafeInteger(version.major) || !Number.isSafeInteger(version.minor)
     || version.major < 0 || version.minor < 0) {
     throw new TypeError('A form-section version requires non-negative safe integer major and minor values.');
+  }
+  return `${version.major}.${version.minor}`;
+}
+
+function formVersionPath(version: FormVersionNumber) {
+  if (!version || !Number.isSafeInteger(version.major) || !Number.isSafeInteger(version.minor)
+    || version.major < 0 || version.minor < 0) {
+    throw new TypeError('A form version requires non-negative safe integer major and minor values.');
   }
   return `${version.major}.${version.minor}`;
 }
@@ -245,11 +261,98 @@ export class FlowzerClient {
       (await this.transport.status<AiTool[]>('/ai/tool', options)) ?? [],
   };
 
-  /**
-   * Modellierungs-API für wiederverwendbare Abschnitte. Alle Versionszugriffe
-   * verlangen ein konkretes major.minor-Paar; eine implizite "latest"-Auflösung
-   * existiert im SDK absichtlich nicht.
-   */
+  /** Gemeinsame Formularbibliothek einschließlich Ordnern und unveränderlichen Versionen. */
+  readonly forms = {
+    list: async (options: FlowzerCallOptions = {}): Promise<FormMetadata[]> =>
+      (await this.transport.status<FormMetadata[]>('/form/meta', options)) ?? [],
+
+    get: (formId: string, options: FlowzerCallOptions = {}): Promise<FormMetadata> =>
+      this.transport.statusResult(`/form/meta/${segment(formId)}`, options),
+
+    saveMetadata: (
+      formId: string,
+      command: SaveFormMetadataCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<void> => this.transport.statusVoid(`/form/meta/${segment(formId)}`, {
+      method: 'POST', body: { formId, ...command }, signal: options.signal,
+    }),
+
+    delete: (formId: string, options: FlowzerCallOptions = {}): Promise<FormMetadata> =>
+      this.transport.statusResult(`/form/meta/${segment(formId)}`, {
+        method: 'DELETE', signal: options.signal,
+      }),
+
+    listVersions: async (formId: string, options: FlowzerCallOptions = {}): Promise<FormVersionSummary[]> =>
+      (await this.transport.status<FormVersionSummary[]>(`/form/${segment(formId)}/versions`, options)) ?? [],
+
+    getVersion: (formId: string, version: FormVersionNumber, options: FlowzerCallOptions = {}): Promise<FlowzerForm> =>
+      this.transport.statusResult(`/form/${segment(formId)}/${formVersionPath(version)}`, options),
+
+    getDraft: (formId: string, options: FlowzerCallOptions = {}): Promise<FormAuthoringDraft> =>
+      this.transport.statusResult(`/form/${segment(formId)}/draft`, options),
+
+    saveDraft: async (
+      formId: string,
+      command: SaveFormAuthoringDraftCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormAuthoringDraft> => {
+      revision(command.expectedRevision, 'Saving a form draft');
+      return this.transport.statusResult(`/form/${segment(formId)}/draft`, {
+        method: 'PUT', body: command, signal: options.signal,
+      });
+    },
+
+    deleteDraft: async (
+      formId: string,
+      expectedRevision: number,
+      options: FlowzerCallOptions = {},
+    ): Promise<void> => {
+      revision(expectedRevision, 'Deleting a form draft');
+      return this.transport.statusVoid(`/form/${segment(formId)}/draft`, {
+        method: 'DELETE', query: { expectedRevision }, signal: options.signal,
+      });
+    },
+
+    publish: async (
+      formId: string,
+      expectedRevision: number,
+      options: FlowzerCallOptions = {},
+    ): Promise<FlowzerForm> => {
+      revision(expectedRevision, 'Publishing a form draft', true);
+      return this.transport.statusResult(`/form/${segment(formId)}/publish`, {
+        method: 'POST', body: { expectedRevision }, signal: options.signal,
+      });
+    },
+
+    listFolders: async (options: FlowzerCallOptions = {}): Promise<FormFolder[]> =>
+      (await this.transport.status<FormFolder[]>('/form/folders', options)) ?? [],
+
+    createFolder: (command: FormFolderCommand, options: FlowzerCallOptions = {}): Promise<FormFolder> =>
+      this.transport.statusResult('/form/folders', { method: 'POST', body: command, signal: options.signal }),
+
+    updateFolder: (
+      folderId: string,
+      command: FormFolderCommand,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormFolder> => this.transport.statusResult(`/form/folders/${segment(folderId)}`, {
+      method: 'PUT', body: command, signal: options.signal,
+    }),
+
+    deleteFolder: (folderId: string, options: FlowzerCallOptions = {}): Promise<FormFolder> =>
+      this.transport.statusResult(`/form/folders/${segment(folderId)}`, {
+        method: 'DELETE', signal: options.signal,
+      }),
+
+    move: (
+      formId: string,
+      folderId: string | null,
+      options: FlowzerCallOptions = {},
+    ): Promise<FormMetadata> => this.transport.statusResult(`/form/meta/${segment(formId)}/folder`, {
+      method: 'PUT', body: { folderId }, signal: options.signal,
+    }),
+  };
+
+  /** @deprecated Kompatibilitäts-API für frühere Abschnitts-Clients; neue Hosts verwenden `forms`. */
   readonly formSections = {
     list: async (options: FlowzerCallOptions = {}): Promise<FormSectionMetadata[]> =>
       (await this.transport.status<FormSectionMetadata[]>('/form-section', options)) ?? [],

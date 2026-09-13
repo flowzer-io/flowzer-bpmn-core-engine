@@ -112,4 +112,67 @@ internal sealed class PostgreSqlFormStorage(PostgreSqlSession session) : IFormSt
         var forms = (await GetForms(formId)).ToList();
         return forms.Count == 0 ? new Version() : forms.Max(form => form.Version) ?? new Version();
     }
+
+    public Task<IReadOnlyList<FormFolder>> GetFolders() =>
+        session.RunAsync<IReadOnlyList<FormFolder>>(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "SELECT body FROM {schema}.form_folders ORDER BY name, id");
+            return (await PostgreSqlDefinitionStorage.ReadBodiesAsync<FormFolder>(command)).ToArray();
+        });
+
+    public Task<FormFolder?> GetFolder(Guid folderId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction,
+            "SELECT body FROM {schema}.form_folders WHERE id = @id");
+        command.Parameters.AddWithValue("id", folderId);
+        return await command.ExecuteScalarAsync() is string body
+            ? StorageJson.Deserialize<FormFolder>(body)
+            : null;
+    });
+
+    public Task SaveFolder(FormFolder folder) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction, """
+            INSERT INTO {schema}.form_folders (id, parent_id, name, body)
+            VALUES (@id, @parentId, @name, @body)
+            """);
+        AddFolderParameters(command, folder);
+        try { await command.ExecuteNonQueryAsync(); }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new DefinitionStorageConflictException($"Form folder '{folder.Id}' already exists.");
+        }
+    });
+
+    public async Task UpdateFolder(FormFolder folder)
+    {
+        var updated = await session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction, """
+                UPDATE {schema}.form_folders
+                SET parent_id = @parentId, name = @name, body = @body
+                WHERE id = @id
+                """);
+            AddFolderParameters(command, folder);
+            return await command.ExecuteNonQueryAsync();
+        });
+        if (updated != 1) throw new FileNotFoundException($"Form folder not found with id: {folder.Id}");
+    }
+
+    public Task DeleteFolder(Guid folderId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction,
+            "DELETE FROM {schema}.form_folders WHERE id = @id");
+        command.Parameters.AddWithValue("id", folderId);
+        await command.ExecuteNonQueryAsync();
+    });
+
+    private static void AddFolderParameters(NpgsqlCommand command, FormFolder folder)
+    {
+        command.Parameters.AddWithValue("id", folder.Id);
+        command.Parameters.AddWithValue("parentId", (object?)folder.ParentId ?? DBNull.Value);
+        command.Parameters.AddWithValue("name", folder.Name);
+        command.Parameters.AddWithValue("body", StorageJson.Serialize(folder));
+    }
 }

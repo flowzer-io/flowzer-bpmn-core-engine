@@ -2493,6 +2493,222 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/form/{formId}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    formId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormVersionSummaryDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["FormVersionSummaryDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["FormVersionSummaryDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormFolderDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["FormFolderDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["FormFolderDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["FormFolderRequestDto"];
+                    "text/json": components["schemas"]["FormFolderRequestDto"];
+                    "application/*+json": components["schemas"]["FormFolderRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form/folders/{folderId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["FormFolderRequestDto"];
+                    "text/json": components["schemas"]["FormFolderRequestDto"];
+                    "application/*+json": components["schemas"]["FormFolderRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    folderId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormFolderDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form/meta/{formId}/folder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    formId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["MoveFormRequestDto"];
+                    "text/json": components["schemas"]["MoveFormRequestDto"];
+                    "application/*+json": components["schemas"]["MoveFormRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormMetaDataDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormMetaDataDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormMetaDataDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/form-section": {
         parameters: {
             query?: never;
@@ -5418,10 +5634,34 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["FormDto"];
         };
+        FormFolderDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            parentId?: string | null;
+            name: string | null;
+        };
+        FormFolderDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormFolderDto"];
+        };
+        FormFolderDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormFolderDto"][] | null;
+        };
+        FormFolderRequestDto: {
+            /** Format: uuid */
+            parentId?: string | null;
+            name: string | null;
+        };
         FormMetaDataDto: {
             /** Format: uuid */
             formId: string;
             name: string | null;
+            /** Format: uuid */
+            folderId?: string | null;
         };
         FormMetaDataDtoApiStatusResult: {
             successful?: boolean;
@@ -5490,6 +5730,18 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["FormSectionVersionSummaryDto"][] | null;
+        };
+        FormVersionSummaryDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            formId: string;
+            version: components["schemas"]["VersionDto"];
+        };
+        FormVersionSummaryDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormVersionSummaryDto"][] | null;
         };
         HealthStatusDto: {
             status: string | null;
@@ -5572,6 +5824,10 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["MessageSubscriptionDto"][] | null;
+        };
+        MoveFormRequestDto: {
+            /** Format: uuid */
+            folderId?: string | null;
         };
         NotificationDto: {
             /** Format: uuid */

@@ -220,6 +220,26 @@ export interface ExtendedBpmnMetaDefinitionDto extends BpmnMetaDefinitionDto {
 export interface FormMetaDataDto {
   formId: string;
   name: string;
+  folderId?: string | null;
+}
+
+/** Hierarchischer Ordner der gemeinsamen Formularbibliothek. */
+export interface FormFolderDto {
+  id: string;
+  parentId?: string | null;
+  name: string;
+}
+
+export interface FormFolderRequestDto {
+  parentId?: string | null;
+  name: string;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Formularversion. */
+export interface FormVersionSummaryDto {
+  id: string;
+  formId: string;
+  version: VersionDto;
 }
 
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
