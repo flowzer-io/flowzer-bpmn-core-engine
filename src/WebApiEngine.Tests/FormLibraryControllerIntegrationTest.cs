@@ -180,6 +180,72 @@ public sealed class FormLibraryControllerIntegrationTest
         published.FormData.Should().Contain("boundForms");
     }
 
+    // Testzweck: Eine spaetere Quellversion veraendert weder die konkrete Bindung noch
+    // den bereits veroeffentlichten Snapshot des aufnehmenden Formulars.
+    [Test]
+    public async Task PublishedComponentSnapshot_ShouldRemainOnSelectedSourceVersion()
+    {
+        using var context = new Context();
+        using var client = context.CreateClient();
+        var componentId = Guid.NewGuid();
+        var parentId = Guid.NewGuid();
+        await SaveMetadata(client, componentId, "Adresse");
+        await SaveMetadata(client, parentId, "Antrag");
+        await Read<FormDto>(await client.PostAsJsonAsync("/form", new FormDto
+        {
+            FormId = componentId,
+            FormData = """{"components":[{"type":"textfield","key":"street"}]}"""
+        }));
+        var draft = await Read<FormAuthoringDraftDto>(await client.PutAsJsonAsync(
+            $"/form/{parentId}/draft",
+            new SaveFormAuthoringDraftRequestDto
+            {
+                ExpectedRevision = 0,
+                FormData = $$"""
+                    {"components":[{"type":"flowzerForm","key":"address","formId":"{{componentId}}","version":"0.1"}]}
+                    """
+            }));
+        var publishedParent = await Read<FormDto>(await client.PostAsJsonAsync(
+            $"/form/{parentId}/publish",
+            new PublishFormAuthoringDraftRequestDto { ExpectedRevision = draft.Revision }));
+
+        var newerComponent = await Read<FormDto>(await client.PostAsJsonAsync("/form", new FormDto
+        {
+            FormId = componentId,
+            FormData = """{"components":[{"type":"textfield","key":"city"}]}"""
+        }));
+        var reloadedParent = await Read<FormDto>(await client.GetAsync($"/form/{parentId}/0.1"));
+
+        newerComponent.Version!.ToString().Should().Be("0.2");
+        reloadedParent.FormData.Should().Be(publishedParent.FormData).And.Contain("street").And.NotContain("city");
+    }
+
+    // Testzweck: Ungueltige Komponentenreferenzen liefern beim Publish einen stabilen
+    // maschinenlesbaren Fehlercode; die Konsole muss Zyklen nicht aus Freitext erraten.
+    [Test]
+    public async Task AuthoringApi_ShouldReturnStableCodeForInvalidComponentReference()
+    {
+        using var context = new Context();
+        using var client = context.CreateClient();
+        var formId = Guid.NewGuid();
+        await SaveMetadata(client, formId, "Selbstreferenz");
+        var draftData = $$"""
+            {"components":[{"type":"flowzerForm","key":"self","formId":"{{formId}}","version":"0.1"}]}
+            """;
+        var draft = await Read<FormAuthoringDraftDto>(await client.PutAsJsonAsync(
+            $"/form/{formId}/draft",
+            new SaveFormAuthoringDraftRequestDto { ExpectedRevision = 0, FormData = draftData }));
+
+        var response = await client.PostAsJsonAsync(
+            $"/form/{formId}/publish",
+            new PublishFormAuthoringDraftRequestDto { ExpectedRevision = draft.Revision });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("form.reference_cycle");
+    }
+
     // Testzweck: Der frühere Abschnittsendpunkt bleibt kompatibel, bildet aber keinen
     // getrennten Bestand mehr; reguläre Formulare sind dort derselbe Katalogeintrag.
     [Test]

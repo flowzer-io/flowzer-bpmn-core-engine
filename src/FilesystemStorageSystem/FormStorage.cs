@@ -237,10 +237,9 @@ public class FormStorage : IFormStorage
             var section = JsonConvert.DeserializeObject<FormSectionMetadata>(
                 entry.Content, _storage.NewtonSoftDefaultSettings);
             if (section is null || File.Exists(GetMetaFilePath(section.SectionId))) continue;
-            StorageFile.WriteAllTextAtomicAsync(
+            StorageFile.WriteAllTextAtomic(
                 GetMetaFilePath(section.SectionId),
-                SafeStorageJson.Serialize(new FormMetadata { FormId = section.SectionId, Name = section.Name }))
-                .GetAwaiter().GetResult();
+                SafeStorageJson.Serialize(new FormMetadata { FormId = section.SectionId, Name = section.Name }));
         }
 
         foreach (var entry in StorageFile.ReadExistingFiles(legacyRoot, "*_*.json"))
@@ -250,13 +249,13 @@ public class FormStorage : IFormStorage
             if (section is null) continue;
             var target = Path.Combine(_basePath, $"{section.SectionId}_{section.Id}.json");
             if (File.Exists(target)) continue;
-            StorageFile.WriteAllTextAtomicAsync(target, SafeStorageJson.Serialize(new Form
+            StorageFile.WriteAllTextAtomic(target, SafeStorageJson.Serialize(new Form
             {
                 Id = section.Id,
                 FormId = section.SectionId,
                 Version = section.Version,
                 FormData = section.SectionData
-            })).GetAwaiter().GetResult();
+            }));
         }
 
         var legacyDrafts = _storage.GetBasePath("FileStorage/FormSectionAuthoringDrafts");
@@ -268,7 +267,7 @@ public class FormStorage : IFormStorage
             if (section is null) continue;
             var target = Path.Combine(formDrafts, $"draft_{section.SectionId:N}.json");
             if (File.Exists(target)) continue;
-            StorageFile.WriteAllTextAtomicAsync(target, JsonConvert.SerializeObject(new FormAuthoringDraft
+            StorageFile.WriteAllTextAtomic(target, JsonConvert.SerializeObject(new FormAuthoringDraft
             {
                 FormId = section.SectionId,
                 Revision = section.Revision,
@@ -277,7 +276,7 @@ public class FormStorage : IFormStorage
                 BasedOnPublishedFormId = section.BasedOnPublishedSectionId,
                 BasedOnVersion = section.BasedOnVersion,
                 FormData = section.SectionData
-            }, _storage.NewtonSoftDefaultSettings)).GetAwaiter().GetResult();
+            }, _storage.NewtonSoftDefaultSettings));
         }
     }
 }

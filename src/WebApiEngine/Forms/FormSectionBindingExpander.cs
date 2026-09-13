@@ -118,7 +118,11 @@ public static class FormSectionBindingExpander
             if (nodes[index] is not JsonObject component) continue;
             if (String(component, "type") == "flowzerSection")
             {
-                var replacement = await ResolveSectionAsync(component, sectionStorage, sectionBindings);
+                var replacement = await ResolveSectionAsync(
+                    component,
+                    formStorage,
+                    sectionStorage,
+                    sectionBindings);
                 nodes.RemoveAt(index);
                 foreach (var child in replacement)
                     nodes.Insert(index++, child?.DeepClone());
@@ -155,6 +159,7 @@ public static class FormSectionBindingExpander
 
     private static async Task<JsonArray> ResolveSectionAsync(
         JsonObject reference,
+        IFormStorage? formStorage,
         IFormSectionStorage storage,
         List<JsonObject> bindings)
     {
@@ -178,6 +183,21 @@ public static class FormSectionBindingExpander
         try
         {
             section = await storage.GetVersion(sectionId, version!);
+        }
+        catch (FileNotFoundException) when (formStorage is not null)
+        {
+            // Seit der Vereinigung der Bibliotheken schreibt auch die kompatible
+            // /form-section-API neue Fassungen ausschliesslich als Form. Alte Marker
+            // muessen diese Versionen trotzdem weiterhin aufloesen koennen.
+            var migratedVersion = (await formStorage.GetForms(sectionId))
+                .SingleOrDefault(candidate => candidate.Version == version);
+            section = migratedVersion is null
+                ? throw new FormContractException("section.version_not_found")
+                : new FormSectionVersion(
+                    migratedVersion.Id,
+                    migratedVersion.FormId,
+                    migratedVersion.Version,
+                    migratedVersion.FormData);
         }
         catch (FileNotFoundException)
         {

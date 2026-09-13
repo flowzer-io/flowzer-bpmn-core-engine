@@ -92,6 +92,7 @@ Veröffentlichung.
 Der Produktions-Smoke in `tests/ui-smoke/production-tests/form-builder.spec.js`
 verwendet den tatsächlichen ausgelieferten Form.io-Builder mit synthetischen
 API-Antworten. Er ersetzt keine Abnahme einer realen Verzeichnissynchronisierung.
-Die geplante Zusammenführung von Formularen, Ordnern und Abschnittsbibliothek ist
-als getrenntes Migrationspaket [#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291)
-erfasst; die bestehende Abschnittsablage wird durch diesen Hotfix nicht migriert.
+Formulare, Katalogordner und die frühere Abschnittsbibliothek sind durch
+[#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291) in einer
+gemeinsamen Formularbibliothek zusammengeführt. Die Vorwärtsmigration und der kompatible
+`/form-section`-Adapter sind in [FORM-SECTIONS.md](FORM-SECTIONS.md) beschrieben.
