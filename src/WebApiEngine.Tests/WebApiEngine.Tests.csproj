@@ -48,6 +48,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Update="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\FilesystemStorageSystem\FilesystemStorageSystem.csproj" />
         <ProjectReference Include="..\WebApiEngine\WebApiEngine.csproj" />
         <ProjectReference Include="..\PostgreSqlStorageSystem\PostgreSqlStorageSystem.csproj" />

@@ -8,6 +8,7 @@ import './bpmn.css';
 import { cn } from '@/lib/cn';
 
 import { type Box, fitViewport } from './fitViewport';
+import { ensureDiagram } from './ensureDiagram';
 import { FLOWZER_MODDLE } from './flowzerModdle';
 import { createTokenBadge } from './tokenBadge';
 
@@ -119,7 +120,7 @@ export function BpmnViewer({
           viewer.on('element.click', (event) => onElementClickRef.current?.(event.element.id));
         }
 
-        await viewer.importXML(xml);
+        await viewer.importXML(await ensureDiagram(xml));
 
         if (disposed) {
           viewer.destroy();

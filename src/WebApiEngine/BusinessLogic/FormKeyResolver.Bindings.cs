@@ -21,6 +21,15 @@ public sealed partial class FormKeyResolver
         return bindings;
     }
 
+    /// <summary>
+    /// Updatepfad für historische Referenzen: niemals auf „latest“ raten. Eine explizite
+    /// Version oder genau eine vorhandene Veröffentlichung ist eindeutig belegbar.
+    /// </summary>
+    public Task<Result> ResolveForUpgradeAsync(string key, Guid definitionId) =>
+        BPMN.Flowzer.FlowzerUserTaskForm.IdFromFormKey(key.Trim()) is not null
+            ? ResolveForDeploymentAsync(key, definitionId)
+            : ResolveFromStoreAsync(key, requireUnambiguousVersion: true);
+
     /// <summary>Erneutes Aktivieren behält Inhalte, muss aber aktuelle Prüfprofile erfüllen.</summary>
     public static void ValidateBindings(
         IReadOnlyDictionary<string, BoundForm> bindings,
@@ -48,7 +57,7 @@ public sealed partial class FormKeyResolver
         }
         return new Result(new FormDto
         {
-            Id = bound.Id, FormId = bound.FormId, FormData = bound.FormData, ValidationProfile = bound.ValidationProfile,
+            Id = bound.Id, FormId = bound.FormId, FormData = LegacyFormSchemaUpgrade.Normalize(bound.FormData), ValidationProfile = bound.ValidationProfile,
             Version = version is null ? null : new VersionDto { Major = version.Major, Minor = version.Minor }
         }, null);
     }

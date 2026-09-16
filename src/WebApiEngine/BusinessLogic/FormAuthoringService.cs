@@ -182,7 +182,7 @@ public sealed class FormAuthoringService(
         HasDraft = false,
         BasedOnPublishedFormId = latest?.Id,
         BasedOnVersion = latest?.Version.ToDto(),
-        FormData = latest?.FormData ?? EmptySchema
+        FormData = LegacyFormSchemaUpgrade.Normalize(latest?.FormData ?? EmptySchema)
     };
 
     private static FormAuthoringDraftDto ToDto(FormAuthoringDraft draft) => new()
@@ -193,7 +193,7 @@ public sealed class FormAuthoringService(
         UpdatedAtUtc = draft.UpdatedAtUtc,
         BasedOnPublishedFormId = draft.BasedOnPublishedFormId,
         BasedOnVersion = draft.BasedOnVersion?.ToDto(),
-        FormData = draft.FormData
+        FormData = LegacyFormSchemaUpgrade.Normalize(draft.FormData)
     };
 }
 

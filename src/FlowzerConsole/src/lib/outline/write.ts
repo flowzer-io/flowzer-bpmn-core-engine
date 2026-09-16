@@ -33,6 +33,8 @@ interface Builder {
   readonly issues: OutlineIssue[];
   readonly usedIds: Set<string>;
   counter: number;
+  /** Verlustbehaftete Strukturen dürfen auch als Entwurf nicht umgeschrieben werden. */
+  lossless: boolean;
 }
 
 interface FlowOptions {
@@ -66,7 +68,7 @@ function addFlow(builder: Builder, source: string, target: string, options: Flow
 function taskNode(step: OutlineStep): GraphNode {
   return {
     id: step.id,
-    type: step.task === 'user' ? 'userTask' : 'serviceTask',
+    type: step.task === 'user' ? 'userTask' : step.task === 'manual' ? 'manualTask' : step.task === 'task' ? 'task' : 'serviceTask',
     name: step.name.trim() || undefined,
     task: {
       formKey: step.task === 'user' ? step.formKey : undefined,
@@ -171,6 +173,7 @@ function emitBlock(builder: Builder, block: OutlineBlock, next: string | undefin
       for (const branch of block.branches) {
         const entry = emitSequence(builder, branch.blocks, branchExit);
         if (!entry) {
+          builder.lossless = false;
           builder.issues.push({
             level: 'blocker',
             elementId: block.id,
@@ -198,7 +201,7 @@ function emitBlock(builder: Builder, block: OutlineBlock, next: string | undefin
 }
 
 /** Erzeugt Knoten und Fluesse aus der Gliederung. */
-export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issues: OutlineIssue[] } {
+export function buildGraph(document: OutlineDocument, allowIncomplete = false): { graph?: BpmnGraph; issues: OutlineIssue[] } {
   // Die Knotenkennungen stehen von Anfang an in `usedIds`: Sonst koennte eine
   // erzeugte Flusskennung auf den Namen eines Knotens fallen.
   const usedIds = new Set<string>([document.startId]);
@@ -208,7 +211,7 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
     if (block.kind === 'choice' && block.joinId) usedIds.add(block.joinId);
   }
 
-  const builder: Builder = { document, nodes: [], flows: [], issues: [], usedIds, counter: 0 };
+  const builder: Builder = { document, nodes: [], flows: [], issues: [], usedIds, counter: 0, lossless: true };
 
   const entry = emitSequence(builder, document.blocks, undefined);
   builder.nodes.push({
@@ -225,7 +228,7 @@ export function buildGraph(document: OutlineDocument): { graph?: BpmnGraph; issu
     builder.issues.push({ level: 'blocker', elementId: duplicate.id, message: `Die Kennung „${duplicate.id}" kommt mehrfach vor.` });
   }
 
-  if (builder.issues.some((issue) => issue.level === 'blocker')) return { issues: builder.issues };
+  if (!builder.lossless || duplicates.length > 0 || (!allowIncomplete && builder.issues.some((issue) => issue.level === 'blocker'))) return { issues: builder.issues };
 
   return {
     graph: {
@@ -492,10 +495,10 @@ function diagramXml(graph: BpmnGraph, layout: DiagramLayout): string {
  * mitgelesene Diagramm unveraendert uebernommen; sonst wird neu angeordnet und
  * darauf hingewiesen.
  */
-export function writeOutlineXml(document: OutlineDocument): { xml?: string; issues: OutlineIssue[] } {
-  const { graph, issues } = buildGraph(document);
+export function writeOutlineXml(document: OutlineDocument, mode: 'draft' | 'deployment' = 'deployment'): { xml?: string; issues: OutlineIssue[] } {
+  const { graph, issues } = buildGraph(document, mode === 'draft');
   const missing = missingDetails(document);
-  if (!graph || missing.length > 0) return { issues: [...issues, ...missing] };
+  if (!graph || (mode === 'deployment' && missing.length > 0)) return { issues: [...issues, ...missing] };
 
   const unchanged = document.sourceDiagram !== undefined && structureSignature(graph) === document.sourceStructure;
   const layout = layoutGraph(graph);
@@ -542,5 +545,5 @@ export function writeOutlineXml(document: OutlineDocument): { xml?: string; issu
     '',
   ].join('\n');
 
-  return { xml, issues: notes };
+  return { xml, issues: [...notes, ...missing] };
 }

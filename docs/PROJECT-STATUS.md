@@ -1,9 +1,35 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 10. September 2026; Basis `212705a`. Die Implementierung liegt in den
-sechs noch ungemergten Checkpoints #189 → #201 → #217 → #227 → #237 → #255.
-Einzelne unten genannte Slice-PRs sind historische Nachweise, keine zusätzlichen
-Integrationsaufträge.
+**Aktualisierung: 16. September 2026 – Stabilisierung #297.**
+Die früheren Checkpoint-Ketten sind inzwischen in `main` integriert; der unten
+stehende September-Reviewtext bleibt als historische Einordnung erhalten.
+Aktuelle Basis dieser Korrekturen ist `a995dbb`, nicht der ältere Checkpointstand.
+
+## Stabilisierung der zentralen Bedienwege
+
+- BPMN-Entwürfe werden ohne Ausführbarkeitsprüfung gespeichert. Erst die
+  Veröffentlichung prüft Fähigkeiten, Formulare und KI-Konfiguration. Fehler sind
+  gesammelt, deutsch erläutert und mit Sprungziel im Diagramm verfügbar.
+- Bekannte ältere Urlaubsformularregeln werden automatisch in den unterstützten
+  Vertrag übersetzt; veröffentlichte Originalversionen bleiben erhalten.
+  Eindeutige fehlende Formularbindungen ergänzt der PostgreSQL-Updateschritt atomar.
+  Mehrdeutige Zuordnungen stoppen die technische Vorprüfung statt Daten umzudeuten.
+- KI-Task steht im normalen BPMN-Typmenü, Einstellungen rechts, mit atomarem Undo.
+- Generische/manuelle Tasks sind in der Gliederung lesbar; nicht verlustfrei
+  bearbeitbare Modelle erhalten eine schreibgeschützte Übersicht.
+- Die aktuelle Instanzposition kann auch aus vorhandenen Tokens ermittelt werden;
+  fehlende Koordinaten kleiner Einzelprozesse werden ausschließlich zur Darstellung ergänzt.
+- BFF-Tokens werden serverseitig erneuert und Rollen neu geprüft. Temporäre
+  Verbindungsfehler verwerfen keine Arbeitsdaten. Absolute Sitzungsgrenze acht Stunden;
+  Prozessneustarts erfordern weiterhin eine neue SSO-Anmeldung (prozesslokaler Store).
+
+Lokale Regression: **180 Engine- und 941 API-/Storage-Tests, keine Skips**,
+einschließlich echtem PostgreSQL und Update-Rollback; **363 Frontend-Tests**,
+Typecheck und Produktionsbuild erfolgreich. ESLint: keine Fehler, sieben bestehende
+Fast-Refresh-Warnungen. Auch 36 lokale Browser-Smokes und fünf Tests am Produktionsbundle sind erfolgreich.
+Der Rolloutnachweis wird im PR zu #297 festgehalten. Teststand ist keine Behauptung vollständiger BPMN-Unterstützung.
+
+## Historische Einordnung vom 10. September 2026
 
 ## Einordnung
 

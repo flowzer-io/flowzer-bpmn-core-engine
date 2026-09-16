@@ -15,6 +15,23 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public sealed class RuntimeDiagramIntegrationTest
 {
+    // Testzweck: Instanzen aus der Zeit vor der Ereignisspur behalten nach einem Update
+    // ihre sichtbaren aktuellen Marker; fehlende Historie ist kein leerer Laufzeitzustand.
+    [Test]
+    public async Task HistoricalInstanceWithoutEvents_ShouldShowCurrentTokenPosition()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var task = await context.StartAsync("assignee=\"anna\"");
+        var eventPath = context.Storage.GetBasePath(Path.Combine("FileStorage", "RuntimeNodeEvents"));
+        foreach (var file in Directory.GetFiles(eventPath, "event_*.json")) File.Delete(file);
+        using var client = context.CreateClient(isOperator: true);
+        var result = await client.GetFromJsonAsync<ApiStatusResult<RuntimeDiagramDto>>(
+            $"/instance/{task.ProcessInstanceId}/runtime-diagram");
+        result!.Result!.Nodes.Should().Contain(node => node.FlowNodeId == "Review"
+            && node.Status == RuntimeNodeStatusDto.Active && node.TokenCount == 1);
+        result.Result.Events.Should().BeEmpty("fehlende historische Ereignisse dürfen nicht erfunden werden");
+    }
+
     // Testzweck: Nur der Betrieb darf das Laufzeitdiagramm lesen; fremde und fehlende
     // Instanzen bleiben über denselben neutralen Problem-Details-Vertrag ununterscheidbar.
     [Test]
