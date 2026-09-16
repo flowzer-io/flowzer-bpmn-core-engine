@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuilder';
-import { FormLibraryPicker } from '@/components/forms/FormLibraryPicker';
 import { FormFolderNavigation } from '@/components/forms/FormFolderNavigation';
 import { FormRenderer } from '@/components/forms/FormRenderer';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +12,6 @@ import { toneSurface } from '@/components/ui/Chip';
 import { SearchInput, TextInput } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
-import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, InlineSpinner, Skeleton } from '@/components/ui/States';
 import {
   useDeleteForm,
@@ -31,17 +29,10 @@ import {
 import { ApiError } from '@/lib/api/client';
 import { cn } from '@/lib/cn';
 import { iconForLabel } from '@/lib/taskView';
-import { appendFormReference } from '@/lib/forms/formReferences';
 import { descendantFormFolderIds, flattenFormFolders } from '@/lib/forms/formFolders';
-import type { FormVersionSummaryDto } from '@/lib/api/types';
 import { useCan } from '@/stores/session';
 
 type Mode = 'preview' | 'edit';
-
-const MODE_OPTIONS = [
-  { value: 'preview' as const, label: 'Vorschau' },
-  { value: 'edit' as const, label: 'Felder' },
-];
 
 export function FormsPage() {
   const [search, setSearch] = useState('');
@@ -244,27 +235,6 @@ export function FormsPage() {
     setMode(next);
   }
 
-  function insertForm(version: FormVersionSummaryDto, name: string) {
-    const current = readEditorSchema();
-    if (!current) return;
-    try {
-      const next = appendFormReference(current, {
-        formId: version.formId,
-        version: version.version,
-        label: name,
-      });
-      setEditorSchema(next);
-      setDirty(next !== draftQuery.data?.formData);
-      setEditorGeneration((generation) => generation + 1);
-      toast.success(`Formular „${name}" v${version.version.major}.${version.version.minor} als Komponente eingefügt`);
-    } catch (error) {
-      toast.error('Formular-Komponente konnte nicht eingefügt werden', {
-        description: error instanceof Error ? error.message : undefined,
-      });
-    }
-  }
-
-
   return (
     <PageContainer>
       <PageHeader
@@ -303,8 +273,8 @@ export function FormsPage() {
         </Card>
       )}
 
-      <div className="grid items-start gap-[22px] lg:grid-cols-[300px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-2">
+      <div className={cn("grid items-start gap-[22px]", mode === 'preview' && "lg:grid-cols-[300px_minmax(0,1fr)]")}>
+        <div className={cn("flex flex-col gap-2", mode === 'edit' && "hidden")}>
           <FormFolderNavigation
             folders={foldersQuery.data ?? []}
             selected={selectedFolder}
@@ -457,7 +427,11 @@ export function FormsPage() {
                 </Button>
               )}
               {mayPublish && (
-                <Segmented options={MODE_OPTIONS} value={mode} onChange={handleModeChange} aria-label="Ansicht" />
+                <Button size="sm" variant="secondary" disabled={!selectedId || (mode === 'edit' && !builderReady)}
+                  icon={mode === 'preview' ? 'edit' : 'visibility'}
+                  onClick={() => handleModeChange(mode === 'preview' ? 'edit' : 'preview')}>
+                  {mode === 'preview' ? 'Bearbeiten' : 'Vorschau ansehen'}
+                </Button>
               )}
               {mayPublish && selected && (
                 <Button
@@ -529,7 +503,6 @@ export function FormsPage() {
 
             {mayPublish && selectedId && draftQuery.data && mode === 'edit' && (
               <>
-                <FormLibraryPicker currentFormId={selectedId} onInsert={insertForm} />
                 <FormBuilder
                   key={`edit-${selectedId}-${editorGeneration}`}
                   ref={builderRef}

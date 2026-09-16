@@ -98,3 +98,21 @@ Formulare, Katalogordner und die frühere Abschnittsbibliothek sind durch
 [#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291) in einer
 gemeinsamen Formularbibliothek zusammengeführt. Die Vorwärtsmigration und der kompatible
 `/form-section`-Adapter sind in [FORM-SECTIONS.md](FORM-SECTIONS.md) beschrieben.
+
+## Vereinfachte Bedienung (#306)
+
+Ein geöffnetes Formular zeigt zunächst die interaktive Vorschau. **Bearbeiten**
+öffnet den Editor in voller Breite; **Vorschau ansehen** übernimmt auch ungespeicherte
+Änderungen, ohne sie zu veröffentlichen.
+
+**Subformular** steht neben den anderen Feldern in der Palette. Einfügen geht per
+Ziehen, Klick oder Enter; im Dialog werden Formular und konkrete veröffentlichte
+Version ausgewählt. Die Referenz bleibt beim erneuten Bearbeiten erhalten.
+
+**Abschlussknöpfe** zeigen zuerst Beschriftung, Darstellung und eine wirkungslose
+Knopfvorschau. Ergebniszuweisungen und technische IDs stehen unter „Erweitert“.
+Sie beenden eine Aufgabe, sind also keine Weiter-/Zurück-Navigation.
+
+Das [UX-Zielbild und die Abgrenzung dynamischer Seiten](FORM-AUTHORING-UX.md)
+beschreiben den anschließenden Ausbau; mehrseitige Verzweigungen sind damit noch
+nicht als vollständiger Flowzer-Vertrag freigegeben.

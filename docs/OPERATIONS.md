@@ -175,8 +175,9 @@ Der optionale M1-Abgleich uebernimmt Benutzer, Gruppenhierarchie und Mitgliedsch
 Keycloak in einen lokalen, atomar publizierten Snapshot. Keycloak bleibt fuehrend; Flowzer
 ruft ausschließlich Token- und `GET`-Endpunkte der
 [Keycloak Admin REST API](https://www.keycloak.org/docs-api/latest/rest-api/index.html) auf.
-Passwoerter, Credentials, Rollen-Mappings, freie Attribute und E-Mail-Adressen werden nicht
-in das Verzeichnis kopiert.
+Passwoerter, Credentials, Rollen-Mappings und freie Attribute werden nicht in das
+Verzeichnis kopiert. Für die konfigurierbare Formularanzeige werden seit #303 optional
+E-Mail, Benutzername, Vorname und Nachname aus dem Standardprofil übernommen.
 
 | Einstellung | Bedeutung |
 |---|---|

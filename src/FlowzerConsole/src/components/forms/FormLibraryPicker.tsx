@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -9,6 +9,8 @@ import type { FormVersionSummaryDto } from '@/lib/api/types';
 
 interface FormLibraryPickerProps {
   currentFormId: string;
+  initialFormId?: string;
+  initialVersion?: string;
   disabled?: boolean;
   onInsert: (version: FormVersionSummaryDto, name: string) => void;
 }
@@ -17,12 +19,13 @@ interface FormLibraryPickerProps {
  * Ein Formular ist zugleich die wiederverwendbare Komponente. Die Auswahl liefert nur eine
  * stabile ID und konkrete Version; Schemaauflösung und Berechtigungsprüfung bleiben beim Server.
  */
-export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }: FormLibraryPickerProps) {
+export function FormLibraryPicker({ currentFormId, initialFormId = '', initialVersion = '', disabled = false, onInsert }: FormLibraryPickerProps) {
   const formsQuery = useForms();
   const foldersQuery = useFormFolders();
   const [search, setSearch] = useState('');
-  const [formId, setFormId] = useState('');
-  const [versionText, setVersionText] = useState('');
+  const [formId, setFormId] = useState(initialFormId);
+  const [versionText, setVersionText] = useState(initialVersion);
+  const fieldId = useId();
   const versionsQuery = useFormVersions(formId || undefined);
   const form = formsQuery.data?.find((item) => item.formId === formId);
   const selected = useMemo(
@@ -45,9 +48,9 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
 
   return (
     <Card className="mb-3 p-3.5">
-      <div className="mb-1 text-sm font-semibold">Formular-Komponente einfügen</div>
+      <div className="mb-1 text-sm font-semibold">Subformular auswählen</div>
       <p className="text-muted mb-2.5 mt-0 text-xs">
-        Eingefügt werden die Felder einer festen Version; eigene Entscheidungsaktionen des Quellformulars werden nicht übernommen.
+        Wähle ein veröffentlichtes Formular als wiederverwendbaren Bereich. Seine Abschlussknöpfe werden nicht übernommen; spätere Änderungen am Original verändern diese feste Version nicht.
       </p>
       <SearchInput
         value={search}
@@ -57,9 +60,9 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
       />
       <div className="flex flex-wrap items-end gap-2.5">
         <div className="min-w-[210px] flex-1">
-          <FieldLabel htmlFor="form-library-component">Formular</FieldLabel>
+          <FieldLabel htmlFor={`${fieldId}-form`}>Formular</FieldLabel>
           <select
-            id="form-library-component"
+            id={`${fieldId}-form`}
             value={formId}
             onChange={(event) => selectForm(event.target.value)}
             disabled={disabled || formsQuery.isPending}
@@ -72,9 +75,9 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
           </select>
         </div>
         <div className="min-w-[150px] flex-1">
-          <FieldLabel htmlFor="form-library-version">Konkrete Version</FieldLabel>
+          <FieldLabel htmlFor={`${fieldId}-version`}>Konkrete Version</FieldLabel>
           <select
-            id="form-library-version"
+            id={`${fieldId}-version`}
             value={versionText}
             onChange={(event) => setVersionText(event.target.value)}
             disabled={disabled || !formId || versionsQuery.isPending}
@@ -94,7 +97,7 @@ export function FormLibraryPicker({ currentFormId, disabled = false, onInsert }:
           disabled={disabled || !selected || !form}
           onClick={() => selected && form && onInsert(selected, form.name)}
         >
-          Einfügen
+          Auswahl übernehmen
         </Button>
       </div>
       {(formsQuery.isPending || foldersQuery.isPending) && <InlineSpinner label="Formularbibliothek wird geladen …" />}
