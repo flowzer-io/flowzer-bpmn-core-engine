@@ -8,6 +8,7 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 
+import { WorkflowEditorSession } from '@/components/workflow-editor/WorkflowEditorSession';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
@@ -51,9 +52,21 @@ const workflowsIndexRoute = createRoute({
   component: WorkflowsPage,
 });
 
-const workflowDetailRoute = createRoute({
+const workflowEditorRoute = createRoute({
   getParentRoute: () => workflowsRoute,
   path: '$definitionId',
+  component: WorkflowEditorRoute,
+});
+
+function WorkflowEditorRoute() {
+  const { definitionId } = useParams({ from: workflowEditorRoute.id });
+  const id = decodeURIComponent(definitionId);
+  return <WorkflowEditorSession key={id} definitionId={id}><Outlet /></WorkflowEditorSession>;
+}
+
+const workflowDetailRoute = createRoute({
+  getParentRoute: () => workflowEditorRoute,
+  path: '/',
   validateSearch: (search: Record<string, unknown>): WorkflowDetailSearch => ({
     element: typeof search.element === 'string' ? search.element : undefined,
   }),
@@ -72,11 +85,11 @@ function WorkflowDetailRoute() {
 
 /**
  * Die Gliederung ist eine eigene Adresse neben dem Diagramm, keine Umschaltung
- * darin: Beide Ansichten laden dasselbe Modell, arbeiten aber unterschiedlich.
+ * darin: Beide Ansichten teilen einen ungespeicherten, routegebundenen Arbeitsstand.
  */
 const workflowOutlineRoute = createRoute({
-  getParentRoute: () => workflowsRoute,
-  path: '$definitionId/gliederung',
+  getParentRoute: () => workflowEditorRoute,
+  path: 'gliederung',
   component: WorkflowOutlineRoute,
 });
 
@@ -182,7 +195,7 @@ function NotFound() {
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     dashboardRoute,
-    workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
+    workflowsRoute.addChildren([workflowsIndexRoute, workflowEditorRoute.addChildren([workflowOutlineRoute, workflowDetailRoute])]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
     formSectionsRoute,

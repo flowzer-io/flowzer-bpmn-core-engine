@@ -39,7 +39,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       className={cn(
         'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-[var(--r-sm)] border font-semibold',
-        'transition-[background-color,border-color,color,filter] duration-150',
+        // SVG-Pfade werden beim Blur neu gerendert. Das stabile Button-Element
+        // muss das Klickziel bleiben, sonst kann der Browser den Klick verlieren.
+        '[&_svg]:pointer-events-none transition-[background-color,border-color,color,filter] duration-150',
         'disabled:cursor-not-allowed disabled:opacity-55',
         VARIANTS[variant],
         SIZES[size],
