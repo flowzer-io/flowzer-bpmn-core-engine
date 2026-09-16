@@ -119,7 +119,7 @@ public class DefinitionController(
     [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition() =>
-        ValidateDefinition(BpmnCapabilityMatrix.ValidateForAuthoring);
+        ValidateDefinition(deployment: false);
 
     /// <summary>
     /// Prueft dieselbe Eingabe gegen die strengere ausfuehrbare Teilmenge. Ein eigener Pfad
@@ -129,10 +129,10 @@ public class DefinitionController(
     [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDeployment() =>
-        ValidateDefinition(BpmnCapabilityMatrix.ValidateForDeployment);
+        ValidateDefinition(deployment: true);
 
     private async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition(
-        Action<string> validateCapabilities)
+        bool deployment)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!permissions.MayEditAnywhere)
@@ -146,13 +146,13 @@ public class DefinitionController(
             return denied;
         }
 
-        validateCapabilities(rawContent);
-        var model = ModelParser.ParseModel(rawContent);
-        await AiTaskDeploymentValidator.ValidateAsync(
-            model,
-            storageSystem.AiConnectionStorage,
-            aiSecretStore,
-            aiToolRegistry);
+        _ = DefinitionDraftValidator.ReadDefinitionId(rawContent);
+        if (deployment)
+        {
+            BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+            var model = ModelParser.ParseModel(rawContent);
+            await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore, aiToolRegistry);
+        }
         return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
     }
 

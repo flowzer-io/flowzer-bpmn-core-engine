@@ -326,3 +326,44 @@ describe('Rückübersetzung', () => {
     expect(issues.some((issue) => issue.message.includes('neu berechnet'))).toBe(true);
   });
 });
+
+// Testzweck: Die Standardaufgabe und Manual Task aus der BPMN-Palette müssen ohne
+// Typwechsel in die Gliederung und zurück wechseln können.
+it.each(['task', 'manualTask'])('erhält einen %s beim Ansichtswechsel', (type) => {
+  const xml = MINIMAL.replace(/<bpmn:userTask[\s\S]*?<\/bpmn:userTask>/,
+    `<bpmn:${type} id="Task_1" name="Schritt" />`);
+  const read = readOutline(xml);
+  expect(read.issues.filter((issue) => issue.level === 'blocker')).toEqual([]);
+  expect(read.document).toBeDefined();
+  const written = writeOutlineXml(read.document!);
+  expect(written.xml).toContain(`<bpmn:${type}`);
+  expect(readOutline(written.xml!).issues.filter((issue) => issue.level === 'blocker')).toEqual([]);
+});
+
+// Testzweck: Eine Gliederung mit fehlendem Formular bleibt als Entwurf speicherbar;
+// dieselbe Lücke blockiert weiterhin die Veröffentlichung und bleibt im XML sichtbar.
+it('speichert fehlende Aufgabenkonfiguration nur im Entwurfsmodus', () => {
+  const source = readOutline(MINIMAL);
+  expect(source.document).toBeDefined();
+  const document = source.document!;
+  const incomplete = { ...document, blocks: document.blocks.map(block => block.kind === 'step'
+    ? { ...block, formKey: undefined, formId: undefined } : block) };
+  expect(writeOutlineXml(incomplete).xml).toBeUndefined();
+  const draft = writeOutlineXml(incomplete, 'draft');
+  expect(draft.xml).toContain('userTask');
+  expect(draft.issues.some(issue => issue.level === 'blocker')).toBe(true);
+});
+
+// Testzweck: Ein abgebrochener Entwurf ohne Endereignis bleibt speicherbar und
+// anschließend in derselben Gliederung bearbeitbar; Veröffentlichung bleibt gesperrt.
+it.each([true, false])('speichert einen Entwurf ohne Ende (mit Aufgabe: %s)', (withTask) => {
+  const { document } = readOutline(MINIMAL);
+  const incomplete = { ...document!, blocks: withTask ? document!.blocks.filter(block => block.kind !== 'end') : [] };
+  expect(writeOutlineXml(incomplete).xml).toBeUndefined();
+  const draft = writeOutlineXml(incomplete, 'draft');
+  expect(draft.xml).toBeDefined();
+  const reopened = readOutline(draft.xml);
+  expect(reopened.document?.blocks).toHaveLength(withTask ? 1 : 0);
+  expect(writeOutlineXml(reopened.document!, 'draft').xml).toBeDefined();
+  expect(writeOutlineXml(reopened.document!).xml).toBeUndefined();
+});

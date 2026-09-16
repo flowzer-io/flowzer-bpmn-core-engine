@@ -13,8 +13,9 @@ import type { BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
 import { focusBpmnElement } from '@/lib/modeling/bpmnFocus';
+import { ensureDiagram } from './ensureDiagram';
 import { FLOWZER_MODDLE } from './flowzerModdle';
-import { FLOWZER_PALETTE_MODULE } from './flowzerPalette';
+import { FLOWZER_TASK_TYPES_MODULE } from './flowzerTaskTypes';
 import { BpmnProperties } from './properties/BpmnProperties';
 import { READ_ONLY_MODULE } from './readOnly';
 
@@ -179,7 +180,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       const ModelerCtor = Modeler as unknown as new (options: Record<string, unknown>) => ModelerLike;
       const modeler = new ModelerCtor({
         container,
-        additionalModules: readOnly ? [READ_ONLY_MODULE] : [FLOWZER_PALETTE_MODULE],
+        additionalModules: readOnly ? [READ_ONLY_MODULE] : [FLOWZER_TASK_TYPES_MODULE],
         moddleExtensions: { zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE },
       });
 
@@ -246,7 +247,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
 
     async function load() {
       try {
-        await modeler!.importXML(xml!);
+        await modeler!.importXML(await ensureDiagram(xml!));
         if (cancelled) return;
         setError(null);
         setSelectedId(null);

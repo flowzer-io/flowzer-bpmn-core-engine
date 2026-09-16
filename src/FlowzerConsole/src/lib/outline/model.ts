@@ -18,7 +18,7 @@ export interface EmbeddedForm {
 }
 
 /** Ein Schritt ist entweder eine Aufgabe fuer Menschen oder ein Aufruf an einen Dienst. */
-export type TaskKind = 'user' | 'service';
+export type TaskKind = 'user' | 'service' | 'manual' | 'task';
 
 /** Eine Zeile aus `zeebe:ioMapping` — Quelle im Prozess, Name im Schritt. */
 export interface IoMapping {

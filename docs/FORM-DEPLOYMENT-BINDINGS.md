@@ -21,15 +21,19 @@ Directory-Stand; Details: [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md).
 
 ## Historischer Bestand
 
-Ein externes Formular ohne historisch gespeicherten Stand lässt sich nicht
-rückwirkend beweisbar rekonstruieren. Solche Laufzeitreferenzen müssen einen
-verständlichen Klärungsbedarf anzeigen, statt automatisch die heutige Fassung
-anzunehmen. Neue Instanzen erhalten einen neu deployten Workflow; laufende
-Altinstanzen benötigen eine ausdrücklich geprüfte Zuordnung in einem späteren
-Migrationspaket. Es erfolgt hier keine produktive Migration.
+Seit Stabilisierung #297 übernimmt der PostgreSQL-Updateschritt fehlende Bindungen
+für veröffentlichte historische Definitionen automatisch und transaktional. Eine
+explizite Version oder genau eine vorhandene Veröffentlichung ist zulässig;
+mehrere mögliche Versionen stoppen die technische Update-Vorprüfung. Es wird
+niemals stillschweigend die neueste Fassung gewählt. Vorhandene Snapshots,
+Originalformulare und Instanzen bleiben unverändert. Wiederholte Updates sind
+idempotent; ein Fehler rollt die gesamte Bindungsübernahme zurück.
 
-Historisch im BPMN eingebettete Formulare bleiben an ihre konkrete Definition
-gebunden und müssen nicht gegen einen externen Formularbestand aufgelöst werden.
+Historisch im BPMN eingebettete Formulare werden aus genau ihrer Definition gebunden.
+Die bekannten ausgelieferten Urlaubsformularregeln erhalten einen verlustfreien
+Leseadapter; unbekanntes JavaScript wird weder ausgeführt noch entfernt. Nutzende
+müssen keine Migrationsansicht bearbeiten. Details und Betriebsgrenzen:
+[Betriebsanleitung](OPERATIONS.md).
 
 ## Grenzen und Tests
 

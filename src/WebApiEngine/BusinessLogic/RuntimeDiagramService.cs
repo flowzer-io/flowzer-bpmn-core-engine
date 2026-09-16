@@ -60,7 +60,7 @@ public sealed class RuntimeDiagramService(
             State = (ProcessInstanceStateDto)instance.State,
             SnapshotAtUtc = timeProvider.GetUtcNow(),
             DiagramXml = diagramXml,
-            Nodes = AggregateNodes(orderedEvents),
+            Nodes = AggregateNodes(orderedEvents, instance.Tokens),
             Events = orderedEvents.Select(item => new RuntimeNodeEventDto
             {
                 Id = item.Id,
@@ -71,12 +71,23 @@ public sealed class RuntimeDiagramService(
         };
     }
 
-    private static RuntimeNodeSummaryDto[] AggregateNodes(IEnumerable<RuntimeNodeEvent> events)
+    private static RuntimeNodeSummaryDto[] AggregateNodes(IEnumerable<RuntimeNodeEvent> events, IEnumerable<Token> tokens)
     {
         // Pro Token und Knoten zählt nur der jüngste persistierte Zustand. Derselbe Token
         // kann über einen Loop denselben Knoten erneut erreichen, ohne dass alte Fakten
         // überschrieben werden.
-        return events
+        // Bestandsinstanzen besitzen eventuell noch keine Ereignisspur. Ihr persistierter
+        // Tokenzustand ist trotzdem verbindlich und hat für die aktuelle Position Vorrang.
+        // Diese Momentaufnahmen sind keine historischen Ereignisse und werden nicht gespeichert.
+        var current = tokens.Where(token => token.CurrentFlowNode is not null)
+            .Select(token => new RuntimeNodeEvent
+            {
+                Id = Guid.Empty, CorrelationId = Guid.Empty, TokenId = token.Id, FlowNodeId = token.CurrentFlowNode!.Id,
+                ProcessInstanceId = token.ProcessInstanceId, DefinitionId = Guid.Empty,
+                State = token.State, OccurredAtUtc = new DateTimeOffset(DateTime.SpecifyKind(token.LastStateChangeTime, DateTimeKind.Utc))
+            }).ToArray();
+        var keys = current.Select(item => (item.TokenId, item.FlowNodeId)).ToHashSet();
+        return events.Where(item => !keys.Contains((item.TokenId, item.FlowNodeId))).Concat(current)
             .GroupBy(item => new { item.TokenId, item.FlowNodeId })
             .Select(group => group
                 .OrderByDescending(item => item.OccurredAtUtc)
@@ -89,7 +100,10 @@ public sealed class RuntimeDiagramService(
                 Status = group.Select(item => ToStatus(item.State))
                     .OrderByDescending(StatusPrecedence)
                     .First(),
-                TokenCount = group.Select(item => item.TokenId).Distinct().Count(),
+                TokenCount = !group.Any(item => ToStatus(item.State) == RuntimeNodeStatusDto.Failed)
+                    && group.Any(item => ToStatus(item.State) == RuntimeNodeStatusDto.Active)
+                    ? group.Where(item => ToStatus(item.State) == RuntimeNodeStatusDto.Active).Select(item => item.TokenId).Distinct().Count()
+                    : group.Select(item => item.TokenId).Distinct().Count(),
                 LastChangedAtUtc = group.Max(item => item.OccurredAtUtc)
             })
             .OrderBy(item => item.LastChangedAtUtc)

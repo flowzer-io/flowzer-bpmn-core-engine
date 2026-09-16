@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 
 import { BlockEditor } from '@/components/outline/BlockEditor';
 import { OutlineIssues } from '@/components/outline/OutlineIssues';
+import { ReadOnlyOverview } from '@/components/outline/ReadOnlyOverview';
 import { OutlineView } from '@/components/outline/OutlineView';
 import { BpmnDiagnosticsPanel } from '@/components/bpmn/BpmnDiagnosticsPanel';
 import { Button } from '@/components/ui/Button';
@@ -76,9 +77,9 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [dirty]);
 
-  const written = useMemo(() => (draft ? writeOutlineXml(draft) : undefined), [draft]);
+  const written = useMemo(() => (draft ? writeOutlineXml(draft, 'draft') : undefined), [draft]);
   const issues = draft ? (written?.issues ?? []) : source.issues;
-  const canSave = mayPublish && Boolean(written?.xml) && !hasBlocker(issues);
+  const canSave = mayPublish && Boolean(written?.xml);
 
   function apply(next: OutlineDocument) {
     setDraft(next);
@@ -90,25 +91,23 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
     if (!written?.xml) return;
     const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
 
-    validateDefinition.mutate({ xml: written.xml, deployment: kind === 'deploy' }, {
-      onSuccess: () => {
-        mutation.mutate(
-          { xml: written.xml!, previousGuid: latestQuery.data?.id },
-          {
-            onSuccess: (result) => {
-              setDirty(false);
-              setDiagnostics([]);
-              toast.success(
-                kind === 'deploy'
-                  ? `v${result.version.major}.${result.version.minor} ist aktiv`
-                  : `Version v${result.version.major}.${result.version.minor} gespeichert`,
-              );
-              void latestQuery.refetch();
-            },
-            onError: (error) => handleMutationError(kind, error),
-          },
-        );
+    const persist = () => mutation.mutate(
+      { xml: written.xml!, previousGuid: latestQuery.data?.id },
+      {
+        onSuccess: (result) => {
+          setDirty(false);
+          setDiagnostics([]);
+          toast.success(kind === 'deploy'
+            ? `v${result.version.major}.${result.version.minor} ist aktiv`
+            : `Entwurf v${result.version.major}.${result.version.minor} gespeichert`);
+          void latestQuery.refetch();
+        },
+        onError: (error) => handleMutationError(kind, error),
       },
+    );
+    if (kind === 'save') persist();
+    else validateDefinition.mutate({ xml: written.xml, deployment: true }, {
+      onSuccess: persist,
       onError: (error) => handleMutationError(kind, error),
     });
   }
@@ -120,7 +119,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
       return;
     }
 
-    toast.error(kind === 'deploy' ? 'Deploy fehlgeschlagen' : 'Speichern fehlgeschlagen', {
+    toast.error(kind === 'deploy' ? 'Veröffentlichen fehlgeschlagen' : 'Speichern fehlgeschlagen', {
       description: error instanceof Error ? error.message : undefined,
     });
   }
@@ -168,7 +167,7 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
 
         <span className="flex-1" />
 
-        <Button size="sm" icon="account_tree" onClick={() => openDiagram()}>
+        <Button size="sm" icon="account_tree" disabled={dirty} title={dirty ? "Änderungen zuerst speichern" : "Zum Diagramm"} onClick={() => openDiagram()}>
           Diagramm
         </Button>
 
@@ -181,11 +180,11 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
               size="sm"
               variant="primary"
               icon="rocket_launch"
-              disabled={!canSave}
+              disabled={!canSave || hasBlocker(issues)}
               loading={deployDefinition.isPending || validateDefinition.isPending}
               onClick={() => store('deploy')}
             >
-              Deployen
+              Veröffentlichen
             </Button>
           </>
         ) : (
@@ -214,12 +213,27 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
                 contractVersion={capabilitiesQuery.data?.contractVersion}
                 onSelectElement={(elementId) => selectIssue({ elementId })}
               />
+              {!draft && xmlQuery.data && (
+                <ReadOnlyOverview xml={xmlQuery.data} onOpen={(id) => openDiagram(id)} />
+              )}
+              {!draft ? (
+                <details className="text-muted text-sm">
+                  <summary>Hinweise zur Bearbeitung im Diagramm</summary>
               <OutlineIssues
                 issues={issues}
                 outlineShown={Boolean(draft)}
                 onOpenDiagram={() => openDiagram()}
                 onSelectIssue={selectIssue}
               />
+                </details>
+              ) : (
+              <OutlineIssues
+                issues={issues}
+                outlineShown={Boolean(draft)}
+                onOpenDiagram={() => openDiagram()}
+                onSelectIssue={selectIssue}
+              />
+              )}
               {draft && (
                 <OutlineView
                   document={draft}

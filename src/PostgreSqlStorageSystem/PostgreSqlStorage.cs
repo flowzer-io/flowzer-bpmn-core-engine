@@ -102,6 +102,17 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
 
+    /// <summary>
+    /// Kurze exklusive Schreibphase für die Formular-Bestandsübernahme beim Deployment.
+    /// Andere Updater und Publikationen warten; normale Leser bleiben zugelassen.
+    /// </summary>
+    public Task LockForFormCompatibilityUpgradeAsync() => _session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = _session.CreateCommand(connection, transaction,
+            "LOCK TABLE {schema}.definitions, {schema}.definition_binaries, {schema}.forms, {schema}.form_metadata IN SHARE ROW EXCLUSIVE MODE");
+        await command.ExecuteNonQueryAsync();
+    });
+
     public void CommitChanges() => _session.Commit();
 
     public void RollbackTransaction() => _session.Rollback();

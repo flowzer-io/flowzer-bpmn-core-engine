@@ -23,6 +23,8 @@ interface SessionState {
   sessionScope: string | null;
   /** Die API hat einen Aufruf mit 403 abgelehnt, weil die Zugangsrolle fehlt. */
   accessDenied: boolean;
+  /** Vorübergehender Verbindungsfehler ist kein bestätigtes Sitzungsende. */
+  sessionError: string | null;
   refresh: () => Promise<void>;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -64,6 +66,7 @@ export const useSession = create<SessionState>()((set, get) => ({
   user: null,
   sessionScope: null,
   accessDenied: false,
+  sessionError: null,
 
   refresh: async () => {
     if (!getRuntimeConfig().bffEnabled) {
@@ -92,6 +95,7 @@ export const useSession = create<SessionState>()((set, get) => ({
 
       set({
         status: 'signed-in',
+        sessionError: null,
         sessionScope: subjectChanged || !current.sessionScope
           ? createSessionScope()
           : current.sessionScope,
@@ -105,8 +109,9 @@ export const useSession = create<SessionState>()((set, get) => ({
         },
       });
     } catch {
-      // Ein BFF-Ausfall darf nicht mit einer halbgültigen Sitzung weiterlaufen.
-      set(anonymousState(get()));
+      // Keine Authentifizierung fingieren: die API verweigert während des Fehlers
+      // weiter Zugriff. Nur die lokale Eingabe/Ansicht bleibt zur Wiederholung erhalten.
+      set({ sessionError: 'Die Sitzung konnte gerade nicht geprüft werden. Bitte erneut versuchen.' });
     }
   },
 
@@ -137,10 +142,10 @@ export const useSession = create<SessionState>()((set, get) => ({
  */
 function anonymousState(state: Pick<SessionState, 'sessionScope'>): Pick<
   SessionState,
-  'status' | 'user' | 'sessionScope' | 'accessDenied'
+  'status' | 'user' | 'sessionScope' | 'accessDenied' | 'sessionError'
 > {
   clearPublicPackageScope(state.sessionScope);
-  return { status: 'anonymous', user: null, sessionScope: null, accessDenied: false };
+  return { status: 'anonymous', user: null, sessionScope: null, accessDenied: false, sessionError: null };
 }
 
 /**

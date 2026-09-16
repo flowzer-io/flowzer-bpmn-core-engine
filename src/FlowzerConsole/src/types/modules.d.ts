@@ -35,3 +35,8 @@ declare module 'bpmn-moddle' {
   }
 
 }
+
+declare module 'bpmn-auto-layout' {
+  /** Version 1.3 liefert XML; spätere Versionen besitzen einen anderen Rückgabevertrag. */
+  export function layoutProcess(xml: string): Promise<string>;
+}

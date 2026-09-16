@@ -315,28 +315,6 @@ export function JobSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
-/** Ein Service-Task bleibt BPMN-seitig derselbe Knoten; hier wird seine Ausführungsart gewählt. */
-export function ServiceTaskModeSection({ properties, editor, readOnly }: SectionProps) {
-  return (
-    <Section
-      icon="settings_suggest"
-      title="Ausführungsart"
-      hint="Ein freier Worker-Typ bleibt möglich. KI verwendet den versionierten Flowzer-Vertrag."
-    >
-      <Segmented
-        options={[
-          { value: 'worker' as const, label: 'Worker' },
-          { value: 'ai' as const, label: 'KI' },
-        ]}
-        value={properties.serviceTaskMode}
-        aria-label="Ausführungsart des Service-Tasks"
-        disabled={readOnly}
-        onChange={(mode) => editor?.setServiceTaskMode(properties.id, mode)}
-      />
-    </Section>
-  );
-}
-
 export function AiTaskSection({
   properties,
   editor,

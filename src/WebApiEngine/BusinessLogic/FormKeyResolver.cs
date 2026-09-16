@@ -37,7 +37,7 @@ public sealed partial class FormKeyResolver(IStorageSystem storageSystem)
         /// Version — beides gehört dem Workflow, mit dem es ausgeliefert wurde.
         /// </summary>
         public static Result FromWorkflow(string formData) =>
-            new(new FormDto { FormData = formData, Version = null }, null);
+            new(new FormDto { FormData = WebApiEngine.Forms.LegacyFormSchemaUpgrade.Normalize(formData), Version = null }, null);
 
         public static Result Failure(string message) => new(null, message);
     }
@@ -149,7 +149,7 @@ public sealed partial class FormKeyResolver(IStorageSystem storageSystem)
         return Result.FromWorkflow(form.Schema);
     }
 
-    private async Task<Result> ResolveFromStoreAsync(string formKey)
+    private async Task<Result> ResolveFromStoreAsync(string formKey, bool requireUnambiguousVersion = false)
     {
         var (formName, requestedVersion, versionError) = SplitFormKey(formKey);
         if (versionError is not null)
@@ -186,6 +186,9 @@ public sealed partial class FormKeyResolver(IStorageSystem storageSystem)
         {
             return Result.Failure($"The form \"{formName}\" has no saved version yet.");
         }
+
+        if (requireUnambiguousVersion && requestedVersion is null && versions.Length != 1)
+            return Result.Failure("Historical form reference has more than one possible published version.");
 
         var match = requestedVersion is null
             ? versions.MaxBy(version => version.Version)

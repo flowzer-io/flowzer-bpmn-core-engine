@@ -58,13 +58,17 @@ public static class BpmnCapabilityMatrix
                 "The BPMN definition must contain at least one executable process.");
         }
 
-        foreach (var process in executableProcesses)
+        List<BpmnCapabilityIssue> issues = [];
+        foreach (var process in executableProcesses) ValidateContainer(process, allowToolAuthoring, issues);
+        if (issues.Count > 0)
         {
-            ValidateContainer(process, allowToolAuthoring);
+            var first = issues[0];
+            throw new BpmnCapabilityValidationException(first.Code, first.ElementId, first.PropertyPath,
+                Contract.ContractVersion, first.Message) { Issues = issues };
         }
     }
 
-    private static void ValidateContainer(XElement container, bool allowToolAuthoring)
+    private static void ValidateContainer(XElement container, bool allowToolAuthoring, List<BpmnCapabilityIssue> issues)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -74,19 +78,30 @@ public static class BpmnCapabilityMatrix
             .ToHashSet(StringComparer.Ordinal);
         var uniqueIds = new HashSet<string>(StringComparer.Ordinal);
 
+        var before = issues.Count;
         foreach (var element in flowElements)
         {
-            ValidateUniqueElementId(element, uniqueIds);
-            ValidateElement(element, knownIds, allowToolAuthoring);
+            try
+            {
+                ValidateUniqueElementId(element, uniqueIds);
+                ValidateElement(element, knownIds, allowToolAuthoring);
+            }
+            catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
         }
 
-        ValidateFlowGraph(flowElements);
+        // Graphprüfungen setzen valide IDs und Verweise voraus. Bei fehlerhaften
+        // Elementen nicht mit Folgefehlern oder Nullreferenzen die eigentlichen Befunde verdecken.
+        if (before == issues.Count)
+        {
+            try { ValidateFlowGraph(flowElements); }
+            catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
+        }
 
         foreach (var element in flowElements)
         {
             if (element.Name.LocalName == "subProcess")
             {
-                ValidateContainer(element, allowToolAuthoring);
+                ValidateContainer(element, allowToolAuthoring, issues);
             }
         }
     }

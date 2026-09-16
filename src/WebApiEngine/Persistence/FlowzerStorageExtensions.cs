@@ -65,6 +65,12 @@ public static class FlowzerStorageExtensions
             cancellationToken);
         logger.LogInformation("Applied {Count} PostgreSQL migration(s) to schema {Schema}: {Versions}",
             applied.Count, options.PostgreSql.Schema, string.Join(", ", applied));
+        await using var dataSource = NpgsqlDataSource.Create(options.PostgreSql.ResolveMigrationConnectionString());
+        using var storage = new PostgreSqlTransactionalStorage(dataSource, options.PostgreSql.Schema);
+        await storage.LockForFormCompatibilityUpgradeAsync();
+        var upgraded = await LegacyFormBindingUpgrade.ApplyAsync(storage);
+        storage.CommitChanges();
+        logger.LogInformation("Automatisch ergänzte historische Formularbindungen: {Count}", upgraded);
         return 0;
     }
 
@@ -76,5 +82,6 @@ public static class FlowzerStorageExtensions
         {
             await RunMigrationsAsync(app.Configuration, app.Logger);
         }
+
     }
 }
