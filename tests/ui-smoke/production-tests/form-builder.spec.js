@@ -67,10 +67,10 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 10, { steps: 20 });
   await page.mouse.up();
   const dialog = page.locator('.formio-dialog');
-  await expect(dialog.getByText('Gruppen auswählbar', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('Was darf ausgewählt werden?', { exact: true })).toHaveValue('user');
   await dialog.locator('input[name="data[label]"]').fill('Vertretung');
-  await dialog.getByRole('checkbox', { name: 'Gruppen auswählbar', exact: true }).check();
-  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  await dialog.getByLabel('Was darf ausgewählt werden?', { exact: true }).selectOption('all');
+  await dialog.getByRole('button', { name: 'Übernehmen', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole('button', { name: 'Entwurf speichern', exact: true }).click();
   await expect.poll(() => saved().components.some(component => component.type === 'flowzerSubject'
@@ -85,8 +85,8 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await subjectComponent.hover();
   await subjectComponent.getByRole('button', { name: 'Edit button. Click to open component settings modal window', exact: true }).click();
   await expect(dialog.locator('input[name="data[label]"]')).toHaveValue('Vertretung');
-  await expect(dialog.getByRole('checkbox', { name: 'Gruppen auswählbar', exact: true })).toBeChecked();
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog.getByLabel('Was darf ausgewählt werden?', { exact: true })).toHaveValue('all');
+  await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
   expect(errors).toEqual([]);
 });
 
