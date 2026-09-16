@@ -13,7 +13,7 @@ namespace WebApiEngine.Controller;
 /// Autorensuche ohne Prozessinstanz. Nur Modellierende dürfen Filter konfigurieren und
 /// lokale Formularstände ausprobieren. Die gebundenen Laufzeit-Endpunkte bleiben unverändert.
 /// </summary>
-[ApiController, Route("identity-directory/authoring-forms/{formId:guid}/subjects")]
+[ApiController, Route("identity-directory")]
 [Authorize(Policy = FlowzerPolicies.Modeler)]
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
 [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -22,7 +22,7 @@ namespace WebApiEngine.Controller;
 [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
 public sealed class DirectoryFormAuthoringController(IStorageSystem storage, FormAuthoringService authoring) : ControllerBase
 {
-    [HttpPost("search")]
+    [HttpPost("authoring-forms/{formId:guid}/subjects/search")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiStatusResult<DirectorySubjectSearchResultDto>>> Search(Guid formId, DirectoryAuthoringRequestDto request)
     {
@@ -39,7 +39,7 @@ public sealed class DirectoryFormAuthoringController(IStorageSystem storage, For
         { GenerationId = result.GenerationId, Items = result.Items.Select(ToDto).ToList() }));
     }
 
-    [HttpPost("resolve")]
+    [HttpPost("authoring-forms/{formId:guid}/subjects/resolve")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectResolutionResultDto>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<ApiStatusResult<DirectorySubjectResolutionResultDto>>> Resolve(Guid formId, DirectoryAuthoringRequestDto request)
     {
