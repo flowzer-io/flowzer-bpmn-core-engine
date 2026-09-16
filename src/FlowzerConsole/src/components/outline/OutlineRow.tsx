@@ -14,6 +14,8 @@ import {
 const STEP_ICON: Record<TaskKind, string> = {
   user: 'person',
   service: 'settings',
+  manual: 'pan_tool',
+  task: 'crop_square',
 };
 
 /** Die Schiene links neben einer Zeile: Knoten und weiterfuehrende Linie. */
@@ -61,7 +63,7 @@ export function Meta({ block }: { block: OutlineBlock }) {
           )}
         </>
       ) : (
-        <Chip tone="run">{block.serviceTaskMode === 'ai' ? 'KI-Aufgabe' : (block.workerType ?? 'ohne Dienst')}</Chip>
+        <Chip tone="run">{block.serviceTaskMode === 'ai' ? 'KI-Aufgabe' : (block.task === 'manual' ? 'Manueller Schritt' : block.task === 'task' ? 'Schritt' : block.workerType ?? 'ohne Dienst')}</Chip>
       )}
     </div>
   );

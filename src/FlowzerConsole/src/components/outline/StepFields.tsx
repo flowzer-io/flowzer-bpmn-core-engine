@@ -21,6 +21,8 @@ interface StepFieldsProps {
 const TASK_OPTIONS = [
   { value: 'user' as const, label: 'Mensch' },
   { value: 'service' as const, label: 'Dienst' },
+  { value: 'manual' as const, label: 'Manuell' },
+  { value: 'task' as const, label: 'Schritt' },
 ];
 
 const ASSIGNMENT_OPTIONS = [
@@ -53,7 +55,7 @@ export function StepFields({ definitionId, document, step, onChange }: StepField
         />
       </div>
 
-      {step.task === 'user' ? (
+      {step.task === 'user' && (
         <>
           <FormKeyField
             label="Formular"
@@ -150,7 +152,8 @@ export function StepFields({ definitionId, document, step, onChange }: StepField
             />
           </div>
         </>
-      ) : (
+      )}
+      {step.task === 'service' && (
         <>
           <div>
             <FieldLabel>Ausführungsart</FieldLabel>

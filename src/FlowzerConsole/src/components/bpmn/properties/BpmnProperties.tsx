@@ -19,7 +19,6 @@ import {
   MessageSection,
   MultiInstanceSection,
   ScheduleSection,
-  ServiceTaskModeSection,
   ScriptSection,
   SignalSection,
   TimerSection,
@@ -144,7 +143,6 @@ export function BpmnProperties({
           {properties.signalName !== null && <SignalSection {...section} />}
           {properties.calledProcess && <CallActivitySection {...section} />}
           {properties.isScriptTask && <ScriptSection {...section} />}
-          {properties.kind === 'serviceTask' && <ServiceTaskModeSection {...section} />}
           {properties.needsJobType && properties.serviceTaskMode !== 'ai' && <JobSection {...section} />}
           {properties.kind === 'serviceTask' && properties.serviceTaskMode === 'ai' && (
             <AiTaskSection

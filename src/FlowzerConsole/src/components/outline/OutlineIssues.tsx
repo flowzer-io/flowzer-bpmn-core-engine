@@ -30,7 +30,7 @@ export function OutlineIssues({ issues, outlineShown, onOpenDiagram, onSelectIss
     blockers.length === 0
       ? 'Hinweis zum Speichern'
       : outlineShown
-        ? 'Vor dem Speichern zu klären'
+        ? 'Vor dem Veröffentlichen zu klären'
         : 'Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden';
 
   return (
@@ -66,8 +66,8 @@ export function OutlineIssues({ issues, outlineShown, onOpenDiagram, onSelectIss
       {blockers.length > 0 && (
         <p className="text-muted mt-2.5 text-[12.5px]">
           {outlineShown
-            ? 'Speichern und Deployen bleiben gesperrt, bis das erledigt ist. '
-            : 'Die Gliederung zeigt ihn deshalb nicht an und speichert ihn nicht. '}
+            ? 'Ein speicherbarer Entwurf bleibt erhalten; vor dem Veröffentlichen bitte diese Angaben ergänzen. '
+            : 'Die Übersicht bleibt deshalb schreibgeschützt. '}
           {onOpenDiagram && (
             <button
               type="button"

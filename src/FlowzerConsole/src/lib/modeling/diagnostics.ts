@@ -1,3 +1,4 @@
+import { describeBpmnDiagnostic } from './diagnosticMessages';
 import { ApiError } from '@/lib/api/client';
 
 export type BpmnDiagnosticSeverity = 'error' | 'warning' | 'info';
@@ -46,7 +47,7 @@ export function normalizeBpmnDiagnostics(error: unknown): BpmnDiagnostic[] {
     return [{
       code: issue.code,
       severity: issue.severity,
-      message: issue.message,
+      message: describeBpmnDiagnostic(issue.code, issue.message),
       ...(elementId ? { elementId } : {}),
       ...(propertyPath ? { propertyPath } : {}),
       source: 'server' as const,

@@ -42,7 +42,7 @@ public static class FormSectionBindingExpander
         try
         {
             root = JsonNode.Parse(
-                formData,
+                LegacyFormSchemaUpgrade.Normalize(formData),
                 documentOptions: new JsonDocumentOptions { MaxDepth = 32 })?.AsObject()
                 ?? throw new FormContractException("schema.object");
         }

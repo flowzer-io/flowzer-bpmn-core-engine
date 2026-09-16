@@ -123,6 +123,52 @@ HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTP
 einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
 kein funktionaler BFF-Testpfad.
 
+### Sitzungsdauer und Erneuerung
+
+Das Browser-Cookie enthält nur einen zufälligen Sitzungsschlüssel. Das Refresh-Token
+bleibt im API-Prozess. Vor Ablauf des Access-Tokens erneuert der BFF die Anmeldung
+serverseitig und prüft Signatur, Issuer, API-Audience und Subject erneut; Rollen und
+Gruppen werden durch den aktuellen Providerstand ersetzt. Parallele Anfragen teilen
+einen Refresh. Ein widerrufener Grant beendet die Sitzung, ein vorübergehender
+Provider-Ausfall ergibt 503 statt einer irreführenden Abmeldung. Die absolute Grenze
+bleibt acht Stunden; ohne Refresh-Token gilt weiterhin die Access-Token-Laufzeit.
+
+**Betriebsgrenze:** Dieser Sitzungsspeicher ist prozesslokal (höchstens 10.000 Sitzungen).
+Ein API-Neustart verlangt einmalig eine neue SSO-Anmeldung. Mehrere API-Replikate
+benötigen Sitzungsaffinität; ein verteilter, verschlüsselter Sitzungsspeicher ist
+noch nicht implementiert. Weder Refresh-Token noch Access-Token stehen im Browser,
+im BPMN oder in der allgemeinen Prozessablage.
+
+### Update-Kompatibilität von Formularen und Workflows
+
+`--migrate` ergänzt nach den SQL-Migrationen fehlende historische Formularbindungen
+in einer eigenen PostgreSQL-Transaktion. Der Schritt prüft zunächst alle Kandidaten,
+serialisiert konkurrierende Updates/Veröffentlichungen über Tabellensperren und
+ändert erst danach die betroffenen Definitionen. Eine ausdrücklich referenzierte
+Version oder genau eine vorhandene Veröffentlichung ist eindeutig. Mehrere mögliche
+Fassungen werden **nicht** still auf „latest“ umgebogen: Die Update-Vorprüfung bricht
+mit Workflow-ID und Formularreferenz ab, bevor Bindungen geschrieben werden.
+Bereits vorhandene Snapshots, veröffentlichte Formulare und laufende Instanzen bleiben
+unverändert. Der Compose-Migrationsdienst führt diesen technischen Schritt aus;
+Nutzende bekommen dafür keine Migrationsansicht.
+
+Die exakt bekannten JavaScript-Regeln der früher ausgelieferten Urlaubsantragsvorlage
+werden beim Lesen automatisch in die serverprüfbare Zeitraumregel und eine benannte
+lokale Zusammenfassung überführt. Die gespeicherte Quellversion bleibt unverändert.
+Andere Scripts werden weder ausgeführt noch still entfernt. Individuelle inkompatible
+Regeln müssen vor einem produktiven Update im konkreten Bestand geklärt werden.
+
+### Entwurf und Veröffentlichung
+
+`POST /definition` und `/definition/validate` verlangen nur ein lesbares BPMN-Dokument
+mit sicherer Definitionskennung sowie die bestehenden Modellierungs-/Ordnerrechte.
+Fehlende Formulare, Worker-Typen, KI-Verbindungen und fachliche Modellfehler verhindern
+**nicht** das Speichern eines Entwurfs. Keine Secrets oder Provider werden dabei aufgelöst.
+Erst `/definition/validate/deployment` und `/definition/deploy` erzwingen die ausführbare
+Fähigkeitsmatrix und gebundene Fachkonfiguration. Ein gespeicherter oder abgewiesener
+Entwurf ersetzt weder die aktive Workflow-Version noch die Definition laufender Instanzen.
+
+
 ## Lesender Keycloak-Verzeichnisabgleich
 
 Der optionale M1-Abgleich uebernimmt Benutzer, Gruppenhierarchie und Mitgliedschaften aus
@@ -207,12 +253,11 @@ Der vorhandene Freitextvertrag von `zeebe:assignmentDefinition` bleibt davon unv
 Für neue Aufgaben kann das Modell zusätzlich den ausdrücklich getrennten Directory-Modus
 verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
 
-Die Sitzung läuft spätestens mit dem validierten Access Token ab, zusätzlich begrenzt
-auf acht Stunden. Sie wird nicht gleitend verlängert: erneute Anmeldung prüft Rollen
-und Gruppen wieder beim Provider. Ein unmittelbar wirksamer Provider-Widerruf vor
-Tokenablauf (Backchannel-Logout/Introspection) ist noch nicht implementiert; deshalb
-kurze Access-Token-Laufzeiten konfigurieren. Logout beendet die lokale Flowzer-Sitzung,
-nicht die zentrale SSO-Sitzung beim Identity Provider.
+Die Sitzung besitzt eine absolute Grenze von acht Stunden. Vor dem Access-Token-Ablauf
+prüft der serverseitige Refresh Rollen und Gruppen erneut. Ohne Refresh-Token endet
+sie weiterhin mit dem Zugriffstoken. Unmittelbarer Provider-Widerruf vor Tokenablauf
+(Backchannel-Logout/Introspection) ist noch nicht implementiert. Logout beendet die
+lokale Flowzer-Sitzung, nicht die zentrale SSO-Sitzung beim Identity Provider.
 
 `GET /bff/session` liefert nur die minimale Benutzerprojektion samt serverseitig
 ermittelten Fähigkeiten. Auch ein angemeldetes Konto ohne Freischaltung darf seine
@@ -364,7 +409,7 @@ ausschließlich stabile UUIDs. Bereits gespeicherte aktive UUIDs werden über de
 workflowgebundenen Pfad einzeln aufgelöst; deaktivierte oder nicht mehr bekannte Werte bleiben
 als warnender ID-Chip sichtbar und werden nicht automatisch ersetzt. Ein Wechsel in den
 Directory-Modus wird erst mit der ersten Auswahl in das Diagramm geschrieben. In der
-Gliederung sperrt ein noch leerer Directory-Entwurf Speichern und Deployment.
+Gliederung bleibt ein noch leerer Directory-Entwurf speicherbar; nur die Veröffentlichung ist gesperrt.
 
 Jede Ablehnung mit 403 trägt den Header `X-Flowzer-Access-Denied`: `application` heißt, dass das Konto Flowzer nicht benutzen darf, `capability` heißt, dass nur diese eine Handlung fehlt. Die Oberfläche zeigt nur im ersten Fall den Hinweis auf die fehlende Freischaltung.
 
@@ -517,12 +562,12 @@ Versionssuffix. Eine neue Formularfassung wirkt erst mit einem neuen Workflow-De
 Umbenennen oder Wiederaktivieren einer bestehenden Workflow-Version bindet nicht neu.
 Nicht auflösbare Referenzen verhindern die Aktivierung; die bisher aktive Fassung bleibt.
 
-**Upgradehinweis:** Historische externe Referenzen ohne gespeicherten Snapshot werden
-bei Laufzeitabrufen nicht mehr automatisch auf `latest` aufgelöst. Neue Instanzen
-brauchen ein neues Deployment; laufende Altinstanzen eine ausdrücklich geprüfte
-Formularzuordnung im noch ausstehenden Migrationspaket. Eingebettete historische
-Formulare bleiben aus ihrer BPMN-Version lesbar. Vor einem Upgrade solche Referenzen
-inventarisieren; dieses Paket führt keine produktive Migration aus.
+**Upgradehinweis:** Historische externe Referenzen werden niemals auf `latest`
+geraten. Der PostgreSQL-Updateschritt ergänzt fehlende Snapshots automatisch, wenn
+eine explizite Version oder genau eine Veröffentlichung eindeutig ist. Mehrdeutige
+Zuordnungen stoppen die technische Vorprüfung; bereits bestehende Bindungen,
+laufende Instanzen und veröffentlichte Originalformulare bleiben unverändert.
+Eingebettete historische Formulare werden aus ihrer BPMN-Version gebunden.
 Siehe [Formularbindungen](FORM-DEPLOYMENT-BINDINGS.md).
 
 Ein Formular kann aus zwei Quellen kommen. Der Form-Key
@@ -997,3 +1042,13 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 2. Collector-, Dashboard- und Alerting-Pfade auf Basis der jetzt vorhandenen Exporter ergänzen
 3. Secret-/Konfigurationsstory für Nicht-Entwicklungsumgebungen schärfen
 4. Reverse-Proxy-/TLS-Härtung und Backup-Automatisierung vertiefen
+
+### Diagramme älterer API-/Importmodelle
+
+Fehlen BPMN-DI-Koordinaten vollständig, erzeugt die Konsole für kleine Einzelprozesse
+(maximal 1 MB XML / 500 XML-Kindelemente im Prozess) automatisch eine Anordnung.
+Dabei werden ausschließlich Diagrammdaten übernommen, keine fachlichen Elemente
+oder unbekannten Erweiterungen aus der Layouter-Serialisierung. Vorhandene
+Positionen bleiben unverändert. Kollaborationen und größere Modelle benötigen
+weiterhin importierte Diagrammkoordinaten. Die automatische Anordnung ist keine
+Ausführbarkeitsprüfung und keine Änderung der laufenden Definition.

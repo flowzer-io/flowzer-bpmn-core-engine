@@ -286,6 +286,41 @@ public class FormDeploymentBindingTest
         await deploy.Should().ThrowAsync<InvalidOperationException>().WithMessage("*directory*");
     }
 
+    // Testzweck: Ein tatsächlich laufender Altvorgang bleibt nach dem Update über die
+    // öffentlichen Aufgaben-Endpunkte bearbeitbar. Bekannte Scripts werden automatisch
+    // ersetzt, die Zeitraumprüfung bleibt serverseitig wirksam und die Quellversion unverändert.
+    [Test]
+    public async Task RunningLegacyTask_ShouldRemainUsableAfterAutomaticUpgrade()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var schema = File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, "Fixtures", "legacy-leave-form.json"));
+        var form = await SaveForm(context, schema: schema);
+        var definition = await Deploy(context);
+        var instance = await context.Services.GetRequiredService<BpmnBusinessLogic>()
+            .StartProcessInstance(definition.DefinitionId);
+        var task = (await context.Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
+        var historical = await context.Storage.DefinitionStorage.GetDefinitionById(definition.Id);
+        historical.FormBindings = null;
+        await context.Storage.DefinitionStorage.StoreDefinition(historical);
+
+        await Persistence.LegacyFormBindingUpgrade.ApplyAsync(context.Storage);
+        using var client = context.CreateClient();
+        var shown = await client.GetFromJsonAsync<ApiStatusResult<FormDto>>($"/usertask/{task.Id}/form");
+        shown!.Result!.FormData.Should().NotContain("calculateValue").And.NotContain("valid =");
+        shown.Result.Id.Should().Be(form.Id);
+        dynamic input = new ExpandoObject();
+        input.mitarbeiter = "Testperson"; input.art = "erholung"; input.von = "2026-09-17";
+        input.bis = "2026-09-16"; input.arbeitstage = 2; input.vertretung = "Vertretung";
+        var result = Result(task);
+        result.Data = input;
+        (await client.PostAsJsonAsync("/usertask", result)).StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        input.bis = "2026-09-18";
+        (await client.PostAsJsonAsync("/usertask", result)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await context.Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single()
+            .Token.CurrentFlowNode!.Id.Should().Be("Second");
+        (await context.Storage.FormStorage.GetForm(form.Id)).FormData.Should().Be(schema);
+    }
+
     private static async Task<Form> SaveForm(AuthenticatedWorkflowTestContext context, Guid? formId = null,
         int major = 1, string schema = InitialSchema, string name = "Approval")
     {

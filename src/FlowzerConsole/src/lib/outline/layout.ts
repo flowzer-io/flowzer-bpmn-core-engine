@@ -38,6 +38,8 @@ const SIZES: Record<GraphNodeType, { width: number; height: number }> = {
   endEvent: { width: 36, height: 36 },
   userTask: { width: 140, height: 80 },
   serviceTask: { width: 140, height: 80 },
+  manualTask: { width: 140, height: 80 },
+  task: { width: 140, height: 80 },
   exclusiveGateway: { width: 50, height: 50 },
   parallelGateway: { width: 50, height: 50 },
 };

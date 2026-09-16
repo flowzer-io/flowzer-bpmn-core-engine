@@ -123,7 +123,7 @@ public static class InteractionMappingExtensions
             Id = form.Id,
             FormId = form.FormId,
             Version = form.Version.ToDto(),
-            FormData = form.FormData
+            FormData = WebApiEngine.Forms.LegacyFormSchemaUpgrade.Normalize(form.FormData)
         };
     }
 

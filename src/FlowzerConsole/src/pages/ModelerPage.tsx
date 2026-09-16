@@ -34,7 +34,7 @@ interface ModelerPageProps {
 
 /**
  * Modellierungsseite eines Workflows: bpmn-js mit dem Eigenschaften-Panel der Konsole,
- * plus Speichern (neue Version) und Deployen (Version aktivieren).
+ * plus Speichern (neue Version) und Veröffentlichen (Version aktivieren).
  *
  * Ohne Modelliererrolle wird daraus eine Ansicht: Das Diagramm ist gesperrt, das Panel
  * zeigt seine Werte, nimmt aber keine an. Sonst entstünden Änderungen, die sich nicht
@@ -103,23 +103,18 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
     const xml = await currentXml();
     if (!xml) return;
 
-    validateDefinition.mutate({ xml, deployment: false }, {
-      onSuccess: () => {
-        saveDefinition.mutate(
-          { xml, previousGuid: latestQuery.data?.id },
-          {
-            onSuccess: (saved) => {
-              setDirty(false);
-              setDiagnostics([]);
-              toast.success(`Version v${saved.version.major}.${saved.version.minor} gespeichert`);
-              void latestQuery.refetch();
-            },
-            onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
-          },
-        );
+    saveDefinition.mutate(
+      { xml, previousGuid: latestQuery.data?.id },
+      {
+        onSuccess: (saved) => {
+          setDirty(false);
+          setDiagnostics([]);
+          toast.success(`Entwurf v${saved.version.major}.${saved.version.minor} gespeichert`);
+          void latestQuery.refetch();
+        },
+        onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
       },
-      onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
-    });
+    );
   }
 
   async function handleDeploy() {
@@ -139,11 +134,11 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
               });
               void latestQuery.refetch();
             },
-            onError: (error) => handleMutationError('Deploy fehlgeschlagen', error),
+            onError: (error) => handleMutationError('Veröffentlichen fehlgeschlagen', error),
           },
         );
       },
-      onError: (error) => handleMutationError('Deploy fehlgeschlagen', error),
+      onError: (error) => handleMutationError('Veröffentlichen fehlgeschlagen', error),
     });
   }
 
@@ -248,7 +243,8 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
         <Button
           size="sm"
           icon="format_list_bulleted"
-          title="Denselben Workflow als Gliederung lesen und bearbeiten"
+          title={dirty ? "Änderungen zuerst speichern" : "Denselben Workflow als Gliederung lesen und bearbeiten"}
+          disabled={dirty}
           onClick={() => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}/gliederung` })}
         >
           Gliederung
@@ -346,7 +342,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
               loading={deployDefinition.isPending || validateDefinition.isPending}
               onClick={() => void handleDeploy()}
             >
-              Deployen
+              Veröffentlichen
             </Button>
           </>
         ) : (

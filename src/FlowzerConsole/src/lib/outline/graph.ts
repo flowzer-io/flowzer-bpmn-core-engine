@@ -16,6 +16,8 @@ export type GraphNodeType =
   | 'endEvent'
   | 'userTask'
   | 'serviceTask'
+  | 'manualTask'
+  | 'task'
   | 'exclusiveGateway'
   | 'parallelGateway';
 
@@ -129,6 +131,8 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
       'endEvent',
       'userTask',
       'serviceTask',
+      'manualTask',
+      'task',
       'exclusiveGateway',
       'parallelGateway',
       'sequenceFlow',
@@ -148,6 +152,8 @@ const ELEMENT_RULES: Readonly<Record<string, ElementRule>> = {
     children: ['incoming', 'outgoing', 'extensionElements'],
     single: ['extensionElements'],
   },
+  task: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['incoming', 'outgoing', 'extensionElements'], single: ['extensionElements'] },
+  manualTask: { namespace: BPMN_NS, attributes: ['id', 'name'], children: ['incoming', 'outgoing', 'extensionElements'], single: ['extensionElements'] },
   serviceTask: {
     namespace: BPMN_NS,
     attributes: ['id', 'name'],
@@ -229,6 +235,8 @@ const NODE_TYPES: readonly GraphNodeType[] = [
   'endEvent',
   'userTask',
   'serviceTask',
+  'manualTask',
+  'task',
   'exclusiveGateway',
   'parallelGateway',
 ];
@@ -425,7 +433,7 @@ function readNodes(process: Element, issues: OutlineIssue[]): GraphNode[] {
       type,
       name: attribute(element, 'name'),
       defaultFlowId: attribute(element, 'default'),
-      task: type === 'userTask' || type === 'serviceTask' ? readTaskProperties(element) : undefined,
+      task: ['userTask', 'serviceTask', 'manualTask', 'task'].includes(type) ? readTaskProperties(element) : undefined,
       startForm: type === 'startEvent' ? readStartForm(element) : undefined,
     });
   }
