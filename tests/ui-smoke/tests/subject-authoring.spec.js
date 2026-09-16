@@ -25,7 +25,7 @@ test('Benutzerfeld lässt sich einfach konfigurieren und ohne Instanz ausprobier
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/forms');
   await page.getByRole('button', { name, exact: false }).first().click();
-  await page.getByRole('tab', { name: 'Felder', exact: true }).click();
+  await page.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
   await page.locator('.formio-component-flowzerSubject').hover();
   await page.getByRole('button', { name: 'Edit button. Click to open component settings modal window', exact: true }).click();
   await expect(page.getByLabel('Was darf ausgewählt werden?')).toHaveValue('user');
@@ -36,7 +36,7 @@ test('Benutzerfeld lässt sich einfach konfigurieren und ohne Instanz ausprobier
   await expect(page.getByLabel('Technischer Schlüssel')).not.toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('subject-settings.png'), animations: 'disabled' });
   await page.locator('[ref="saveButton"]').click();
-  await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
+  await page.getByRole('button', { name: 'Vorschau ansehen', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Vertretung suchen' }).fill('anna');
   await expect(page.getByRole('option', { name: /Anna Beispiel.*anna@example.test/ })).toBeVisible();
   await page.getByRole('option', { name: /Anna Beispiel/ }).click();
@@ -58,7 +58,7 @@ test('Neues Benutzerfeld startet mit einfacher Standardkonfiguration', async ({ 
   await saveForm(request, { name, schema: JSON.stringify({ components: [] }) });
   await page.goto('/forms');
   await page.getByRole('button', { name, exact: false }).first().click();
-  await page.getByRole('tab', { name: 'Felder', exact: true }).click();
+  await page.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
   await page.locator('[data-type="flowzerSubject"]').dragTo(page.locator('.drag-container').first());
   await expect(page.getByLabel('Was darf ausgewählt werden?')).toHaveValue('user');
   await expect(page.getByLabel('Mehrere Benutzer oder Gruppen erlauben')).not.toBeChecked();
@@ -67,6 +67,6 @@ test('Neues Benutzerfeld startet mit einfacher Standardkonfiguration', async ({ 
   await expect(page.getByRole('searchbox', { name: 'Bestimmte Gruppen suchen' })).toBeVisible();
   await expect(page.getByRole('searchbox', { name: 'Bestimmte Benutzer suchen' })).toHaveCount(0);
   await page.locator('[ref="saveButton"]').click();
-  await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
+  await page.getByRole('button', { name: 'Vorschau ansehen', exact: true }).click();
   await expect(page.getByPlaceholder('Gruppe suchen …')).toBeVisible();
 });

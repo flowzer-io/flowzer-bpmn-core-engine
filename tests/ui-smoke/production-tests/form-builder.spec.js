@@ -48,7 +48,7 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   const errors = [];
   page.on('pageerror', error => { errors.push(error.message); console.error('Browserfehler:', error.message); });
   await page.goto('/forms');
-  await page.getByRole('tab', { name: 'Felder', exact: true }).click();
+  await page.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
   const palette = page.locator('[data-type="flowzerSubject"]');
   await expect(palette).toBeVisible();
   const target = page.locator('.formio-builder .drag-container').first();
@@ -76,9 +76,9 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
   await expect.poll(() => saved().components.some(component => component.type === 'flowzerSubject'
     && component.label === 'Vertretung' && component.flowzer.subjectSelection.allowGroups === true)).toBe(true);
   for (let i = 0; i < 3; i++) {
-    await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
+    await page.getByRole('button', { name: 'Vorschau ansehen', exact: true }).click();
     await expect(page.getByText('Vertretung', { exact: true }).first()).toBeVisible();
-    await page.getByRole('tab', { name: 'Felder', exact: true }).click();
+    await page.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
     await expect(page.locator('.formio-component-flowzerSubject')).toBeVisible();
   }
   const subjectComponent = page.locator('.builder-component').filter({ has: page.locator('.formio-component-flowzerSubject') });
@@ -92,6 +92,7 @@ test('Benutzer-/Gruppenfeld lässt sich im Produktionseditor einfügen und erneu
 
 for (const [layout, viewport] of [
   ['Desktop', { width: 1280, height: 900 }],
+  ['Schmal', { width: 820, height: 1000 }],
   ['Mobil', { width: 390, height: 844 }],
 ]) {
   // Testzweck: Die gemeinsame Bibliothek muss im echten Produktionsbundle auf Desktop und
@@ -99,16 +100,35 @@ for (const [layout, viewport] of [
   test(`Formular-Komponente lässt sich im ${layout}-Layout einfügen und anzeigen`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize(viewport);
-    const { componentFormId } = await mockAuthoring(page);
+    const { componentFormId, readDraft } = await mockAuthoring(page);
 
     await page.goto('/forms');
-    await page.getByRole('tab', { name: 'Felder', exact: true }).click();
-    await page.getByLabel('Formular', { exact: true }).selectOption(componentFormId);
-    await page.getByLabel('Konkrete Version', { exact: true }).selectOption('0.1');
-    await page.getByRole('button', { name: 'Einfügen', exact: true }).click();
+    await page.getByRole('button', { name: 'Bearbeiten', exact: true }).click();
+    const subformPalette = page.locator('[data-type="flowzerForm"]');
+    // Testzweck: Lange deutsche Palettennamen dürfen nicht horizontal abgeschnitten werden.
+    await expect.poll(() => page.locator('[data-type="flowzerSubject"]').evaluate(
+      element => element.scrollWidth <= element.clientWidth + 1,
+    )).toBe(true);
+    // Testzweck: Subformulare auch per Tastatur und auf Mobil ohne Ziehen hinzufügen.
+    if (layout === 'Desktop') await subformPalette.press('Enter');
+    else await subformPalette.click();
+    const dialog = page.locator('.formio-dialog');
+    await dialog.getByLabel('Formular', { exact: true }).selectOption(componentFormId);
+    await dialog.getByLabel('Konkrete Version', { exact: true }).selectOption('0.1');
+    await dialog.getByRole('button', { name: 'Auswahl übernehmen', exact: true }).click();
+    await dialog.locator('[ref="saveButton"]').click();
 
     await expect(page.getByText('Zustelladresse · v0.1', { exact: true })).toBeVisible();
-    await page.getByRole('tab', { name: 'Vorschau', exact: true }).click();
+    // Testzweck: Erneutes Bearbeiten behält die feste Referenz, ohne UUID oder Version einzutippen.
+    const subform = page.locator('.builder-component').filter({ has: page.locator('.formio-component-flowzerForm') });
+    await subform.getByRole('button', { name: 'Edit button. Click to open component settings modal window', exact: true }).click();
+    await expect(dialog.getByLabel('Formular', { exact: true })).toHaveValue(componentFormId);
+    await expect(dialog.getByLabel('Konkrete Version', { exact: true })).toHaveValue('0.1');
+    await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+    await page.getByRole('button', { name: 'Entwurf speichern', exact: true }).click();
+    await expect.poll(() => readDraft().components.some(component => component.type === 'flowzerForm'
+      && component.formId === componentFormId && component.version === '0.1')).toBe(true);
+    await page.getByRole('button', { name: 'Vorschau ansehen', exact: true }).click();
     await expect(page.getByText('Straße', { exact: true }).first()).toBeVisible();
   });
 }
