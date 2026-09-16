@@ -1,3 +1,4 @@
+import { useWorkflowEditor } from '@/components/workflow-editor/useWorkflowEditor';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -8,11 +9,9 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { ConfirmModal } from '@/components/ui/Modal';
-import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
 import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
-  useDefinitionXml,
   useDefinitions,
   useDeleteDefinition,
   useDeployDefinition,
@@ -46,7 +45,9 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
 
   const definitionsQuery = useDefinitions();
   const latestQuery = useLatestDefinition(definitionId);
-  const xmlQuery = useDefinitionXml(latestQuery.data?.id);
+  const editing = useWorkflowEditor();
+  const { registerCapture } = editing;
+  const [inputXml] = useState(editing.draft.xml);
 
   const saveDefinition = useSaveDefinition();
   const deployDefinition = useDeployDefinition();
@@ -59,7 +60,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
   const startWorkflow = useStartWorkflow();
   const deleteDefinition = useDeleteDefinition();
 
-  const [dirty, setDirty] = useState(false);
+  const dirty = editing.draft.dirty;
   const [zoom, setZoom] = useState(100);
   const [renaming, setRenaming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -70,16 +71,10 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
 
   useBreadcrumbs([{ label: 'Workflows', to: '/workflows' }, { label: name }]);
 
-  // Nach dem Laden eines anderen Diagramms gilt der Editor wieder als unverändert.
-  useEffect(() => setDirty(false), [xmlQuery.data]);
-
-  // Ungespeicherte Änderungen sollen beim Verlassen des Tabs nicht still verloren gehen.
-  useEffect(() => {
-    if (!dirty) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [dirty]);
+  useEffect(() => registerCapture(() => {
+    if (!modelerRef.current) throw new Error('Der Editor ist noch nicht bereit.');
+    return modelerRef.current.getXml();
+  }), [registerCapture]);
 
   const latestVersion = definition?.latestVersion;
   const deployedVersion = definition?.deployedVersion;
@@ -99,46 +94,27 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
     }
   }
 
-  async function handleSave() {
-    const xml = await currentXml();
-    if (!xml) return;
-
-    saveDefinition.mutate(
-      { xml, previousGuid: latestQuery.data?.id },
-      {
-        onSuccess: (saved) => {
-          setDirty(false);
-          setDiagnostics([]);
-          toast.success(`Entwurf v${saved.version.major}.${saved.version.minor} gespeichert`);
-          void latestQuery.refetch();
-        },
-        onError: (error) => handleMutationError('Speichern fehlgeschlagen', error),
-      },
-    );
-  }
-
-  async function handleDeploy() {
-    const xml = await currentXml();
-    if (!xml) return;
-
-    validateDefinition.mutate({ xml, deployment: true }, {
-      onSuccess: () => {
-        deployDefinition.mutate(
-          { xml, previousGuid: latestQuery.data?.id },
-          {
-            onSuccess: (deployed) => {
-              setDirty(false);
-              setDiagnostics([]);
-              toast.success(`v${deployed.version.major}.${deployed.version.minor} ist aktiv`, {
-                description: 'Neue Instanzen laufen ab sofort gegen diese Version.',
-              });
-              void latestQuery.refetch();
-            },
-            onError: (error) => handleMutationError('Veröffentlichen fehlgeschlagen', error),
-          },
-        );
-      },
-      onError: (error) => handleMutationError('Veröffentlichen fehlgeschlagen', error),
+  async function store(kind: 'save' | 'deploy') {
+    await editing.runSave(async () => {
+      // getXml beendet zunächst synchron eine laufende Diagramm-Beschriftung.
+      const pendingXml = currentXml();
+      const submittedRevision = editing.draft.revision;
+      const xml = await pendingXml;
+      if (!xml) return;
+      try {
+        if (kind === 'deploy') await validateDefinition.mutateAsync({ xml, deployment: true });
+        const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
+        // mutateAsync bleibt auch bei einem Ansichtswechsel zuverlässig auswertbar.
+        const result = await mutation.mutateAsync({ xml, previousGuid: editing.draft.baseId });
+        editing.saved(xml, result.id, submittedRevision);
+        setDiagnostics([]);
+        toast.success(kind === 'deploy'
+          ? `v${result.version.major}.${result.version.minor} ist aktiv`
+          : `Entwurf v${result.version.major}.${result.version.minor} gespeichert`);
+        void latestQuery.refetch();
+      } catch (error) {
+        handleMutationError(kind === 'deploy' ? 'Veröffentlichen fehlgeschlagen' : 'Speichern fehlgeschlagen', error);
+      }
     });
   }
 
@@ -170,19 +146,6 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
             description: error instanceof Error ? error.message : undefined,
           }),
       },
-    );
-  }
-
-  // `useDefinitionXml` ist abgeschaltet, solange die Version unbekannt ist — ein
-  // abgeschalteter Query bleibt in TanStack Query dauerhaft „pending“. Nur an
-  // `isPending` gemessen zeigte die Seite deshalb endlos den Ladehinweis.
-  const loadingDiagram = latestQuery.isPending || (Boolean(latestQuery.data?.id) && xmlQuery.isPending);
-
-  if (latestQuery.error) {
-    return (
-      <div className="p-8">
-        <ErrorState error={latestQuery.error} onRetry={() => void latestQuery.refetch()} />
-      </div>
     );
   }
 
@@ -228,7 +191,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
           )}
 
           {latestVersion && (
-            <Chip tone={isDeployedLatest ? 'done' : dirty ? 'wait' : 'muted'}>
+            <Chip className="w-[190px] shrink-0 justify-center" tone={dirty ? 'wait' : isDeployedLatest ? 'done' : 'muted'}>
               {dirty
                 ? 'Ungespeicherte Änderungen'
                 : isDeployedLatest
@@ -243,8 +206,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
         <Button
           size="sm"
           icon="format_list_bulleted"
-          title={dirty ? "Änderungen zuerst speichern" : "Denselben Workflow als Gliederung lesen und bearbeiten"}
-          disabled={dirty}
+          title="Denselben Arbeitsstand als Gliederung bearbeiten"
           onClick={() => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}/gliederung` })}
         >
           Gliederung
@@ -331,7 +293,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
               <span className="sr-only">Löschen</span>
             </Button>
 
-            <Button size="sm" icon="save" loading={saveDefinition.isPending || validateDefinition.isPending} onClick={() => void handleSave()}>
+            <Button size="sm" icon="save" loading={editing.draft.saving} onClick={() => void store('save')}>
               Speichern
             </Button>
 
@@ -339,8 +301,8 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
               size="sm"
               variant="primary"
               icon="rocket_launch"
-              loading={deployDefinition.isPending || validateDefinition.isPending}
-              onClick={() => void handleDeploy()}
+              loading={editing.draft.saving}
+              onClick={() => void store('deploy')}
             >
               Veröffentlichen
             </Button>
@@ -350,42 +312,26 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
         )}
       </div>
 
-      {loadingDiagram && (
-        <div className="grid flex-1 place-items-center">
-          <InlineSpinner label="Diagramm wird geladen …" />
-        </div>
-      )}
-
-      {!loadingDiagram && xmlQuery.error && (
-        <div className="grid flex-1 place-items-center p-8">
-          <ErrorState error={xmlQuery.error} onRetry={() => void xmlQuery.refetch()} />
-        </div>
-      )}
-
-      {!loadingDiagram && !xmlQuery.error && (
-        <>
-          <BpmnDiagnosticsPanel
-            diagnostics={diagnostics}
-            contractVersion={capabilitiesQuery.data?.contractVersion}
-            onSelectElement={(elementId) => modelerRef.current?.selectElement(elementId)}
-          />
-          <BpmnModeler
-            ref={modelerRef}
-            definitionId={definitionId}
-            xml={xmlQuery.data}
-            focusElementId={focusElementId}
-            diagnostics={diagnostics}
-            readOnly={!mayPublish}
-            onChange={() => {
-              setDirty(true);
-              // Ein neuer Modellierungsschritt macht den letzten Serverbefund potenziell
-              // veraltet; die nächste Prüfung liefert den aktuellen Elementbezug.
-              setDiagnostics([]);
-            }}
-            onZoomChange={setZoom}
-          />
-        </>
-      )}
+      <BpmnDiagnosticsPanel
+        diagnostics={diagnostics}
+        contractVersion={capabilitiesQuery.data?.contractVersion}
+        onSelectElement={(elementId) => modelerRef.current?.selectElement(elementId)}
+      />
+      <BpmnModeler
+        ref={modelerRef}
+        definitionId={definitionId}
+        xml={inputXml}
+        focusElementId={focusElementId}
+        diagnostics={diagnostics}
+        readOnly={!mayPublish}
+        onChange={() => {
+          editing.changed();
+          // Ein neuer Modellierungsschritt macht den letzten Serverbefund potenziell
+          // veraltet; die nächste Prüfung liefert den aktuellen Elementbezug.
+          setDiagnostics([]);
+        }}
+        onZoomChange={setZoom}
+      />
 
       <StartWorkflowDialog {...startWorkflow.dialog} />
 
@@ -402,7 +348,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
           deleteDefinition.mutate(definitionId, {
             onSuccess: () => {
               setConfirmDelete(false);
-              setDirty(false);
+              editing.allowDiscard();
               toast.success(`„${name}" gelöscht`);
               void navigate({ to: '/workflows' });
             },

@@ -16,6 +16,27 @@ nachjustieren**, nicht zeichnen: Schritte untereinander, parallele Blöcke
 eingerückt, Tore als Verzweigung mit ihren Bedingungen, Formular, Zuweisung
 und Frist direkt am Schritt bearbeitbar.
 
+## Ansichtswechsel und ungespeicherte Änderungen
+
+Diagramm und Gliederung teilen während eines Editorbesuchs denselben Arbeitsstand.
+Der Wechsel übernimmt Änderungen **ohne Speichern und ohne neue Serverversion**;
+auch Browser-Zurück zwischen diesen beiden Ansichten übernimmt den Stand.
+Eine nur lesbare Gliederung reicht das ursprüngliche XML unverändert zurück.
+Kann eine bearbeitete Gliederung nicht verlustfrei übertragen werden, bleibt sie
+mit einer erklärenden Meldung geöffnet, statt Eingaben zu verwerfen.
+
+Beim Verlassen des Editors fragt die Konsole nach: Abbrechen erhält die Änderungen,
+bewusstes Verwerfen öffnet beim nächsten Besuch wieder den gespeicherten Stand.
+Beim Neuladen oder Schließen eines Tabs verwendet sie die native Browserwarnung.
+Deren Wortlaut bestimmt der Browser; insbesondere mobile Betriebssysteme können
+sie beim Beenden einer App unterdrücken. Das ist keine automatische Sicherung.
+Der Arbeitsstand bleibt ausschließlich im Arbeitsspeicher, nicht in Browser-Storage.
+
+Hintergrundabfragen ersetzen den geöffneten Stand nicht. Ein laufender
+Speichervorgang wird auch beim Ansichtswechsel zu Ende ausgewertet; nachträgliche
+Änderungen bleiben ungespeichert markiert. Erst ein bestätigtes Speichern desselben
+Standes entfernt die Verlustwarnung.
+
 ## Die harte Regel
 
 > Ein Modell, das die Gliederung nicht vollständig abbilden kann, darf sie

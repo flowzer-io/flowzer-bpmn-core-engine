@@ -15,7 +15,7 @@ vi.mock('bpmn-js/lib/Modeler', () => ({
     constructor() { harness.models.push(this); }
     on() { /* Ereignisse sind für den Lifecycle-Test nicht erforderlich. */ }
     get() {
-      return { zoom: () => 1, viewbox: () => ({ outer: { width: 600, height: 400 } }),
+      return { zoom: () => 1, viewbox: () => ({ inner: { x: 0, y: 0, width: 0, height: 0 }, outer: { width: 600, height: 400 } }),
         remove: () => {}, add: () => {}, addMarker: () => {}, removeMarker: () => {} };
     }
   },
