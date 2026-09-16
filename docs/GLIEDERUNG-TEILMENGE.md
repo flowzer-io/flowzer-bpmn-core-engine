@@ -40,12 +40,15 @@ Das ist keine Absichtserklärung, sondern zweifach abgesichert:
 Ein Blocker führt zu einem von zwei Zuständen, die sich für den Nutzer
 grundverschieden anfühlen:
 
-- **Das Modell lässt sich nicht zerlegen.** Dann gibt es gar keine Gliederung:
-  Die Seite zeigt nur die Meldungen und den Weg ins Diagramm.
+- **Das Modell lässt sich nicht zerlegen.** Dann zeigt die Seite eine schreibgeschützte
+  Knoten-/Verbindungsübersicht mit Sprungzielen ins Diagramm. Sie behauptet keine
+  lineare Ausführungsreihenfolge und verändert das Originalmodell nicht.
 - **Die Gliederung steht, eine Angabe fehlt** — etwa ein Formular an einer
   Aufgabe oder eine Bedingung an einem Zweig. Dann ist die Liste sichtbar und
-  bearbeitbar, Speichern und Deployen sind gesperrt, bis die Lücke geschlossen
-  ist.
+  bearbeitbar und als Entwurf speicherbar. Nur Veröffentlichen ist gesperrt,
+  bis die Lücke geschlossen ist. Auch Start/Sequenz ohne Ende bleibt als Entwurf
+  speicherbar und wieder bearbeitbar. Verlustbehaftete Umwandlungen bleiben gesperrt;
+  das BPMN-Diagramm ist dafür weiterhin die vollständige Bearbeitungsansicht.
 
 Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 über die der Nutzer Bescheid wissen soll.
@@ -63,6 +66,10 @@ Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 | `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
 | `bpmn:process/bpmn:extensionElements/zeebe:userTaskForm` | Formulare, die der Workflow selbst mitbringt. Sie werden unverändert weitergereicht und im Diagramm bearbeitet, nicht in der Gliederung — ein Verweis darauf ist eine Kennung, kein Name |
 | `bpmndi:BPMNDiagram` | wird gelesen, aber nicht ausgewertet (siehe „Anordnung") |
+
+Generische `bpmn:task` und `bpmn:manualTask` werden ebenfalls unverändert als
+Schritte erhalten. Ihre Darstellung ist keine Runtime-Freigabe; darüber entscheidet
+weiter die serverseitige Veröffentlichungskontrolle.
 
 ### Startformular
 
