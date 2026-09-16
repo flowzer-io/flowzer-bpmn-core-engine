@@ -232,6 +232,7 @@ public sealed class IdentityDirectorySubjectController(
             Id = item.Subject.Id
         },
         DisplayName = item.DisplayName,
+        Email = item.Email, Username = item.Username, FirstName = item.FirstName, LastName = item.LastName,
         Detail = item.Detail,
         IsActive = item.IsActive,
         IsSelectable = item.IsSelectable

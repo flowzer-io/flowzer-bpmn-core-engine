@@ -1,3 +1,4 @@
+import { authoringDirectoryAdapter } from '@/components/forms/authoringDirectoryAdapter';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -127,6 +128,9 @@ export function FormsPage() {
     editorSchema,
     mayPublish && mode === 'preview',
   );
+  const previewDirectory = useMemo(() => selectedId && previewQuery.data
+    ? authoringDirectoryAdapter(selectedId, previewQuery.data.formData) : undefined,
+  [selectedId, previewQuery.data]);
 
   useEffect(() => {
     setEditorSchema(undefined);
@@ -513,7 +517,10 @@ export function FormsPage() {
             )}
 
             {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.data && (
-              <FormRenderer schema={previewQuery.data.formData} />
+              <>
+                <p className="text-muted mb-4 text-sm">Interaktive Vorschau: Testeingaben werden nicht gespeichert und starten keinen Workflow.</p>
+                <FormRenderer schema={previewQuery.data.formData} directoryAdapter={previewDirectory} />
+              </>
             )}
 
             {selectedId && sourceData && mode === 'preview' && !mayPublish && (
@@ -526,6 +533,7 @@ export function FormsPage() {
                 <FormBuilder
                   key={`edit-${selectedId}-${editorGeneration}`}
                   ref={builderRef}
+                  formId={selectedId}
                   schema={editorSchema}
                   onReadyChange={setBuilderReady}
                   // Form.io besitzt waehrend der Bearbeitung den aktuellen Zustand. Ein

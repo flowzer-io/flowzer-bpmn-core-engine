@@ -69,6 +69,8 @@ public static class DirectorySnapshotPublisher
             Issuer = imported.Issuer,
             Subject = imported.Subject,
             DisplayName = imported.DisplayName,
+            Email = imported.Email, Username = imported.Username,
+            FirstName = imported.FirstName, LastName = imported.LastName,
             IsActive = imported.IsActive
         };
     }
@@ -104,7 +106,8 @@ public static class DirectorySnapshotPublisher
             .Select(user => new DirectoryUser
             {
                 Id = user.Id, SourceKind = user.SourceKind, Issuer = user.Issuer, Subject = user.Subject,
-                DisplayName = user.DisplayName, IsActive = false
+                DisplayName = user.DisplayName, IsActive = false,
+                Email = user.Email, Username = user.Username, FirstName = user.FirstName, LastName = user.LastName
             });
         return histories.Concat(current).OrderBy(user => user.Issuer, StringComparer.Ordinal)
             .ThenBy(user => user.Subject, StringComparer.Ordinal).ToList();
