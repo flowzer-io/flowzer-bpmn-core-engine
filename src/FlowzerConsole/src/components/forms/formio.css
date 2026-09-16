@@ -543,6 +543,28 @@
 
 /* --------------------------------------------------------------- Flaechen des Editors */
 
+/* Nicht nach der Fensterbreite nur 2/12 Spalten zuweisen: Die App-Navigation
+ * verbraucht bereits Platz, deutsche Feldnamen brauchen eine lesbare Palette. */
+.formio-builder .formbuilder > .formcomponents {
+  flex: 0 0 210px;
+  width: 210px;
+  max-width: 100%;
+}
+
+.formio-builder .formbuilder > .formarea {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .formio-builder .formbuilder > .formcomponents,
+  .formio-builder .formbuilder > .formarea {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+}
+
 .formio-builder .builder-sidebar {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -572,6 +594,9 @@
 }
 
 .formio-builder .formcomponent {
+  /* Lange deutsche Bezeichnungen bleiben auch in schmalen Paletten lesbar. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -613,6 +638,29 @@
 
 .formio-builder .builder-component:hover {
   outline: 1px solid var(--border-strong);
+}
+
+/* Form.io versteckt Werkzeuge sonst ausschließlich hinter Hover. Auf schmalen
+ * Touch-Geräten müssen Bearbeiten/Entfernen ohne Maus erreichbar bleiben. */
+.formio-builder .builder-component:focus-within > .component-btn-group {
+  display: flex;
+}
+
+@media (hover: none), (max-width: 640px) {
+  .formio-builder .builder-component > .component-btn-group {
+    display: flex;
+    position: relative;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .formio-builder .component-btn-group .component-settings-button {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* ------------------------------------------------------------------ Code-Editoren */

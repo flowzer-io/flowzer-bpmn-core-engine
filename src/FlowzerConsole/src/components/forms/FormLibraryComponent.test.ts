@@ -21,19 +21,19 @@ function fakeFormio() {
 }
 
 describe('flowzerForm Form.io component', () => {
-  it('registriert eine nur über den Bibliothekspicker konfigurierte Komponente', () => {
-    // Testzweck: Der Form.io-Dialog darf die stabile ID und Version nicht frei änderbar machen.
+  it('bietet Subformulare direkt in der Palette und mit gebundener Auswahl an', () => {
+    // Testzweck: Der Form.io-Dialog bietet eine Bibliotheksauswahl statt freier IDs und behält seinen tabs-Vertrag.
     const formio = fakeFormio();
     registerFormLibraryComponent(formio);
     const component = formio.Components.registered.get('flowzerForm') as unknown as {
       schema: () => Record<string, unknown>;
-      builderInfo: { group: string };
+      builderInfo: { group: string; title: string };
       editForm: () => { components: Array<{ type: string; components: Array<{ components: Array<{ disabled: boolean }> }> }> };
     };
 
     expect(component.schema()).toMatchObject({ type: 'flowzerForm', input: false });
-    expect(component.builderInfo.group).not.toBe('basic');
+    expect(component.builderInfo).toMatchObject({ group: 'basic', title: 'Subformular' });
     expect(component.editForm().components[0]!.type).toBe('tabs');
-    expect(component.editForm().components[0]!.components[0]!.components.every((field) => field.disabled)).toBe(true);
+    expect(JSON.stringify(component.editForm())).toContain('flowzerFormSettings');
   });
 });
