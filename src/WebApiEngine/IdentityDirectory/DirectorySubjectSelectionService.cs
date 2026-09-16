@@ -39,7 +39,8 @@ public sealed record DirectorySubjectResult(
     string DisplayName,
     string Detail,
     bool IsActive = true,
-    bool IsSelectable = true);
+    bool IsSelectable = true,
+    string? Email = null, string? Username = null, string? FirstName = null, string? LastName = null);
 
 public sealed record DirectorySubjectSearchResult(
     Guid GenerationId,
@@ -204,7 +205,8 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
                     user.DisplayName,
                     user.Subject,
                     user.IsActive,
-                    IsSelectable: true);
+                    IsSelectable: true, Email: user.Email, Username: user.Username,
+                    FirstName: user.FirstName, LastName: user.LastName);
             }
         }
 
@@ -239,7 +241,8 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
             DirectorySubjectKind.User when policy.AllowUsers => snapshot.Users
                 .Where(user => user.Id == subject.Id)
                 .Select(user => new DirectorySubjectResult(
-                    subject, user.DisplayName, user.Subject, user.IsActive, IsSelectable: false))
+                    subject, user.DisplayName, user.Subject, user.IsActive, IsSelectable: false,
+                    Email: user.Email, Username: user.Username, FirstName: user.FirstName, LastName: user.LastName))
                 .SingleOrDefault(),
             DirectorySubjectKind.Group when policy.AllowGroups => snapshot.Groups
                 .Where(group => group.Id == subject.Id)
@@ -278,6 +281,8 @@ public sealed class DirectorySubjectSelectionService(IIdentityDirectoryStorage s
     private static bool MatchesQuery(DirectorySubjectResult item, string query) =>
         item.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
         || item.Detail.Contains(query, StringComparison.OrdinalIgnoreCase)
+        || item.Email?.Contains(query, StringComparison.OrdinalIgnoreCase) == true
+        || item.Username?.Contains(query, StringComparison.OrdinalIgnoreCase) == true
         // Bereits veröffentlichte BPMN-Verträge speichern absichtlich nur diese lokale ID.
         // Der workflowgebundene Suchpfad darf sie deshalb zur Anzeigeauflösung akzeptieren.
         || item.Subject.Id.ToString().Equals(query, StringComparison.OrdinalIgnoreCase);

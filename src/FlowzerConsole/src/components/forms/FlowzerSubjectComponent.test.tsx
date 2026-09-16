@@ -117,11 +117,9 @@ describe('flowzerSubject Form.io component', () => {
       },
     });
     expect(component.builderInfo.title).toBe('Benutzer-/Gruppenauswahl');
-    expect(component.editForm().components[0]!.components[0]!.components.map((entry) => entry.label)).toEqual(
-      expect.arrayContaining(['Benutzer auswählbar', 'Gruppen auswählbar', 'Untergruppen einbeziehen']),
-    );
-    expect(component.editForm().components[0]!.components[0]!.components.find(
-      (entry) => entry.key === 'flowzer.subjectSelection.allowedUserIds',
-    )).toMatchObject({ as: 'json', editor: 'ace' });
+    const fields = component.editForm().components[0]!.components[0]!.components;
+    expect(fields).toContainEqual(expect.objectContaining({ type: 'flowzerSubjectSettings', key: 'flowzer.subjectSelection' }));
+    expect(fields).toContainEqual(expect.objectContaining({ type: 'panel', title: 'Erweitert', collapsed: true }));
+    expect(JSON.stringify(fields)).not.toMatch(/UUID|JSON-Array|ace/);
   });
 });

@@ -17,7 +17,7 @@ public sealed class IdentityDirectorySynchronizerTest
         var storage = new RecordingStorage();
         var client = new StubClient(new KeycloakDirectorySnapshot(
             [
-                new KeycloakDirectoryUser("subject-anna", true, "anna", "Anna", "Muster", ["group-team"]),
+                new KeycloakDirectoryUser("subject-anna", true, "anna", "Anna", "Muster", ["group-team"], Email: "anna@example.test"),
                 new KeycloakDirectoryUser("subject-bert", false, "bert", null, null, [])
             ],
             [
@@ -34,6 +34,12 @@ public sealed class IdentityDirectorySynchronizerTest
         var snapshot = storage.Published!;
         snapshot.Users.Should().ContainSingle(user => user.Subject == "subject-anna" && user.DisplayName == "Anna Muster" && user.IsActive);
         snapshot.Users.Should().ContainSingle(user => user.Subject == "subject-bert" && user.DisplayName == "bert" && !user.IsActive);
+        // Testzweck: Standard-Profilfelder werden ohne zusätzliche Provideraufrufe übernommen.
+        var anna = snapshot.Users.Single(user => user.Subject == "subject-anna");
+        anna.Email.Should().Be("anna@example.test");
+        anna.Username.Should().Be("anna");
+        anna.FirstName.Should().Be("Anna");
+        anna.LastName.Should().Be("Muster");
         snapshot.Groups.Should().ContainSingle(group => group.ExternalId == "group-team" && group.ParentId.HasValue);
         snapshot.Memberships.Should().ContainSingle();
     }
