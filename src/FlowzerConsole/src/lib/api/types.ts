@@ -335,6 +335,10 @@ export interface SubjectRefDto {
 
 /** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
 export interface DirectorySubjectDto {
+  email?: string | null;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   subject: SubjectRefDto;
   displayName: string;
   detail: string;

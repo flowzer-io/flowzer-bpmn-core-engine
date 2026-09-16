@@ -1,3 +1,4 @@
+import { presentSubject } from './subjectPresentation';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import {
@@ -68,6 +69,8 @@ export interface DirectorySubjectPickerProps {
   multiple: boolean;
   disabled?: boolean;
   label: string;
+  displayFields?: Record<string, boolean>;
+  hideLabel?: boolean;
   onChange: (selected: DirectorySubjectSelection[]) => void;
 }
 
@@ -95,6 +98,8 @@ interface ResolutionState {
  */
 function DirectorySubjectPickerView({
   definitionId,
+  displayFields,
+  hideLabel,
   folderId,
   directoryContext,
   directoryAdapter,
@@ -120,7 +125,7 @@ function DirectorySubjectPickerView({
 }) {
   const fieldId = useId();
 
-  const items = search.data?.items ?? [];
+  const items = (search.data?.items ?? []).map(item => presentSubject(item, displayFields));
   const cacheScope = resolutionCacheScope({
     definitionId,
     folderId,
@@ -135,11 +140,11 @@ function DirectorySubjectPickerView({
   if (knownSubjects.current.scope !== cacheScope) {
     knownSubjects.current = { scope: cacheScope, items: new Map() };
   }
-  for (const item of [...items, ...resolution.data]) {
+  for (const item of [...items, ...resolution.data.map(item => presentSubject(item, displayFields))]) {
     knownSubjects.current.items.set(subjectKey(item.subject), item);
   }
   const displayedSelected = selected.map((entry) => {
-    const resolved = resolution.data.find(
+    const resolved = resolution.data.map(item => presentSubject(item, displayFields)).find(
       (candidate) =>
         candidate.subject.kind === entry.subject.kind && candidate.subject.id === entry.subject.id,
     ) ?? knownSubjects.current.items.get(subjectKey(entry.subject));
@@ -190,7 +195,7 @@ function DirectorySubjectPickerView({
 
   return (
     <div className="flex flex-col gap-2">
-      <FieldLabel htmlFor={fieldId}>{label}</FieldLabel>
+      <FieldLabel htmlFor={fieldId} className={hideLabel ? 'sr-only' : undefined}>{label}</FieldLabel>
 
       <div className="flex flex-wrap gap-1.5" aria-label={`${label} ausgewählt`}>
         {displayedSelected.map((entry) => (

@@ -30,6 +30,11 @@ public sealed class DirectoryUser
     public required string Issuer { get; set; }
     public required string Subject { get; set; }
     public required string DisplayName { get; set; }
+    // Optionale Standard-Profilfelder; alte Snapshots bleiben ohne Migration lesbar.
+    public string? Email { get; set; }
+    public string? Username { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
     public bool IsActive { get; set; }
 }
 

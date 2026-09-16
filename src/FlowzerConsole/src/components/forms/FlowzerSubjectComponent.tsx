@@ -2,6 +2,9 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 
 import { componentEditForm } from './componentEditForm';
+import { registerSubjectSettings } from './registerSubjectSettings';
+import { authoringDirectoryAdapter } from './authoringDirectoryAdapter';
+import type { SubjectSelectionPolicy } from './SubjectSelectionSettings';
 
 import { createRoot, type Root } from 'react-dom/client';
 
@@ -12,15 +15,6 @@ import {
 } from '@/components/bpmn/properties/DirectorySubjectPicker';
 import type { FormDirectorySearchContext, SubjectRefDto } from '@/lib/api/types';
 
-interface FlowzerDirectoryPolicy {
-  allowUsers?: boolean;
-  allowGroups?: boolean;
-  activeOnly?: boolean;
-  includeSubgroups?: boolean;
-  allowedUserIds?: string[];
-  userMemberOfGroupIds?: string[];
-  allowedGroupIds?: string[];
-}
 
 interface FlowzerSubjectSchema {
   type?: string;
@@ -28,7 +22,8 @@ interface FlowzerSubjectSchema {
   label?: string;
   multiple?: boolean;
   flowzer?: {
-    subjectSelection?: FlowzerDirectoryPolicy;
+    subjectSelection?: SubjectSelectionPolicy;
+    subjectDisplay?: Record<string, boolean>;
   };
 }
 
@@ -130,6 +125,7 @@ function FlowzerSubjectBridge({ initialSelected, pickerProps, onChange }: Flowze
 // die einzige Grenze zur untypisierten Drittanbieter-API.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function registerFlowzerSubjectComponent(Formio: any): void {
+  registerSubjectSettings(Formio);
   const Components = Formio.Components;
   if (!Components?.components?.field || Components.components.flowzerSubject) return;
 
@@ -174,59 +170,25 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
     static editForm() {
       return componentEditForm([
         { type: 'textfield', key: 'label', label: 'Beschriftung', input: true },
-        { type: 'textfield', key: 'key', label: 'Technischer Schlüssel', input: true },
         { type: 'checkbox', key: 'multiple', label: 'Mehrere Benutzer oder Gruppen erlauben', input: true },
-        {
-          type: 'checkbox',
-          key: 'flowzer.subjectSelection.allowUsers',
-          label: 'Benutzer auswählbar',
-          defaultValue: true,
-          input: true,
-        },
-        {
-          type: 'textarea',
-          key: 'flowzer.subjectSelection.allowedUserIds',
-          label: 'Bestimmte Benutzer (UUIDs als JSON-Array)',
-          description: 'Leer lassen, um die aktiven Benutzer nach der Suche auszuwählen.',
-          as: 'json',
-          editor: 'ace',
-          input: true,
-        },
-        {
-          type: 'textarea',
-          key: 'flowzer.subjectSelection.userMemberOfGroupIds',
-          label: 'Mitglieder bestimmter Gruppen (Gruppen-UUIDs als JSON-Array)',
-          as: 'json',
-          editor: 'ace',
-          input: true,
-        },
-        {
-          type: 'textarea',
-          key: 'flowzer.subjectSelection.allowedGroupIds',
-          label: 'Bestimmte Gruppen (UUIDs als JSON-Array)',
-          as: 'json',
-          editor: 'ace',
-          input: true,
-        },
-        {
-          type: 'checkbox',
-          key: 'flowzer.subjectSelection.allowGroups',
-          label: 'Gruppen auswählbar',
-          defaultValue: false,
-          input: true,
-        },
-        {
-          type: 'checkbox',
-          key: 'flowzer.subjectSelection.includeSubgroups',
-          label: 'Untergruppen einbeziehen',
-          description: 'Standardmäßig werden nur direkte Gruppenmitglieder berücksichtigt.',
-          defaultValue: false,
-          input: true,
-        },
+        { type: 'flowzerSubjectSettings', key: 'flowzer.subjectSelection', label: 'Auswahl und Filter', hideLabel: true, input: true },
+        { type: 'selectboxes', key: 'flowzer.subjectDisplay', label: 'Informationen zu Benutzern anzeigen', input: true,
+          defaultValue: { name: true, email: true }, values: [
+            { label: 'Name', value: 'name' }, { label: 'E-Mail-Adresse', value: 'email' },
+            { label: 'Benutzername', value: 'username' }, { label: 'Vorname', value: 'firstName' }, { label: 'Nachname', value: 'lastName' },
+          ], description: 'Gruppen zeigen ihren Namen und vollständigen Pfad. Fehlende Profilangaben werden ausgelassen.' },
+        { type: 'panel', key: 'advanced', title: 'Erweitert', collapsible: true, collapsed: true, components: [
+          { type: 'textfield', key: 'key', label: 'Technischer Schlüssel', input: true },
+          { type: 'checkbox', key: 'validate.required', label: 'Pflichtfeld', input: true },
+          { type: 'number', key: 'validate.minSelectedCount', label: 'Mindestanzahl bei Mehrfachauswahl', input: true, validate: { min: 0 } },
+          { type: 'number', key: 'validate.maxSelectedCount', label: 'Höchstanzahl bei Mehrfachauswahl', input: true, validate: { min: 1 } },
+        ] },
       ]);
     }
 
     private pickerRoot: Root | null = null;
+    private authoringAdapter: BoundDirectorySubjectAdapter | undefined;
+    private authoringSchema = '';
     private pickerHost: Element | null = null;
 
     get emptyValue() {
@@ -243,15 +205,24 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
       const component = this.component as FlowzerSubjectSchema;
       const policy = component.flowzer?.subjectSelection ?? {};
       const context = this.options?.flowzerDirectoryContext as FormDirectorySearchContext | undefined;
-      const directoryAdapter = this.options?.flowzerDirectoryAdapter as BoundDirectorySubjectAdapter | undefined;
+      let directoryAdapter = this.options?.flowzerDirectoryAdapter as BoundDirectorySubjectAdapter | undefined;
+      const authoringFormId = this.options?.flowzerAuthoringFormId as string | undefined;
+      if (!directoryAdapter && authoringFormId) {
+        // Die Komponenten-Vorschau testet genau diesen lokalen Feldvertrag, ohne Instanz.
+        const schema = JSON.stringify({ flowzer: { contractVersion: 2 }, components: [component] });
+        if (schema !== this.authoringSchema) {
+          this.authoringSchema = schema;
+          this.authoringAdapter = authoringDirectoryAdapter(authoringFormId, schema);
+        }
+        directoryAdapter = this.authoringAdapter;
+      }
       // Aufgabenformulare dürfen ihren Task-Kontext ausschließlich über den
       // gebundenen Host-Adapter erhalten. Der alte Context-Hook bleibt nur für
       // Startformulare und damit außerhalb des verschachtelten Task-Roots aktiv.
       const startFormContext = context?.kind === 'startForm' ? context : undefined;
       const queryClient = this.options?.flowzerQueryClient as QueryClient | undefined;
-      // Im Autoreneditor gibt es keinen veröffentlichten, autorisierten Suchkontext.
-      // Auch deaktivierte Query-Hooks benötigen einen Provider: hier deshalb nur
-      // einen ehrlichen Platzhalter rendern, keine scheinbar aktive Live-Auswahl.
+      // Ohne gebundenen Laufzeit- oder Modellierer-Kontext keine Directory-Suche.
+      // Auch deaktivierte Query-Hooks benötigen einen Provider: hier nur einen Hinweis rendern.
       if (!directoryAdapter && (!startFormContext || !queryClient)) {
         this.pickerRoot.render(<p role="note">
           Benutzer-/Gruppenauswahl: Die Verzeichnissuche ist nur im gebundenen Start- oder Aufgabenformular verfügbar.
@@ -284,6 +255,8 @@ export function registerFlowzerSubjectComponent(Formio: any): void {
               ? 'Die Verzeichnissuche ist nur im gebundenen Start- oder Aufgabenformular verfügbar.'
               : undefined,
             label: component.label ?? 'Benutzer oder Gruppe',
+            hideLabel: true,
+            displayFields: component.flowzer?.subjectDisplay ?? { name: true, email: true },
           }}
           onChange={(next) => {
             this.setValue(toSubjectRefValue(next, component.multiple === true));

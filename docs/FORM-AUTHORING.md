@@ -79,11 +79,13 @@ Veröffentlichung.
 - Builder und Vorschau besitzen je asynchroner Aufbau-Generation einen eigenen
   DOM-Host. Ein verspätet fertiggestellter alter Aufbau darf nur seinen alten Host
   zerstören, nicht das inzwischen geöffnete Formular.
-- Die allgemeine Autorenvorschau ist kein freigegebener Verzeichnis-Suchkontext.
-  Benutzer-/Gruppenfelder zeigen dort einen Hinweis. Im gebundenen Startformular
-  wird der bestehende QueryClient in den separaten React-Root weitergereicht;
-  Aufgaben verwenden weiterhin den gebundenen Directory-Adapter. Es entsteht kein
-  eigener Cache und keine zusätzliche Verzeichnisberechtigung.
+- Seit #303 können Modellierende Benutzer-/Gruppenfelder im Bibliothekseditor und
+  in der Vorschau interaktiv ausprobieren, auch ohne Prozessinstanz. Ein eigener
+  rollen- und formulargebundener Autoren-Adapter prüft den lokalen Formularvertrag;
+  Testeingaben werden nicht gespeichert. Ohne Autoren- oder Laufzeitkontext bleibt
+  die Verzeichnissuche deaktiviert. Im gebundenen Startformular wird der bestehende
+  QueryClient in den separaten React-Root weitergereicht; Aufgaben behalten ihren
+  gebundenen Directory-Adapter. Details: [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md).
 - Form.io-Zahlen-/Währungsfelder enthalten standardmäßig `validate.step="any"`.
   Der Server akzeptiert exakt diesen neutralen Default; konkrete Schrittweiten,
   Integerregeln und unbekannte aktive Validierungen bleiben ohne implementierten

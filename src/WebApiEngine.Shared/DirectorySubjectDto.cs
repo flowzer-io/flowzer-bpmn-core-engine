@@ -15,6 +15,11 @@ public sealed class DirectorySubjectDto
 {
     public required SubjectRefDto Subject { get; set; }
     public required string DisplayName { get; set; }
+    /// <summary>Optionale Standard-Profilfelder; keine beliebigen Providerattribute.</summary>
+    public string? Email { get; set; }
+    public string? Username { get; set; }
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
 
     /// <summary>Bei Benutzern der stabile Subject-Wert, bei Gruppen der vollständige Pfad.</summary>
     public required string Detail { get; set; }

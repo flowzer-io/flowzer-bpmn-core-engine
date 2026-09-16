@@ -1283,6 +1283,190 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/identity-directory/authoring-forms/{formId}/subjects/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    formId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                    "text/json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                    "application/*+json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectSearchResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectSearchResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectSearchResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/identity-directory/authoring-forms/{formId}/subjects/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    formId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                    "text/json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                    "application/*+json": components["schemas"]["DirectoryAuthoringRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["DirectorySubjectResolutionResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/identity-directory/user-tasks/{taskId}/assignees": {
         parameters: {
             query?: never;
@@ -5452,9 +5636,20 @@ export interface components {
         CreateFormSectionRequestDto: {
             name: string | null;
         };
+        DirectoryAuthoringRequestDto: {
+            formData?: string | null;
+            fieldKey?: string | null;
+            query?: string | null;
+            kind?: string | null;
+            subjects?: components["schemas"]["SubjectRefDto"][] | null;
+        };
         DirectorySubjectDto: {
             subject: components["schemas"]["SubjectRefDto"];
             displayName: string | null;
+            email?: string | null;
+            username?: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
             detail: string | null;
             isActive: boolean;
             isSelectable: boolean;

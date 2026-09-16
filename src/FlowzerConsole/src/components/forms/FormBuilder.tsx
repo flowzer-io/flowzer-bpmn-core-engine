@@ -25,6 +25,7 @@ export interface FormBuilderHandle {
 }
 
 interface FormBuilderProps {
+  formId?: string;
   schema: string | undefined;
   onChange?: () => void;
   /**
@@ -52,7 +53,7 @@ const EMPTY_SCHEMA = { display: 'form', components: [] };
  * verlustbehaftete Zwischenrepräsentation.
  */
 export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(function FormBuilder(
-  { schema, onChange, onReadyChange, className },
+  { schema, formId, onChange, onReadyChange, className },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -130,6 +131,10 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
 
         const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
+          language: 'de',
+          i18n: { de: { component: '– Einstellungen', help: 'Hilfe', save: 'Übernehmen', cancel: 'Abbrechen', remove: 'Entfernen',
+            preview: 'Vorschau', showPreview: 'Vorschau anzeigen', hidePreview: 'Vorschau ausblenden' } },
+          flowzerAuthoringFormId: formId,
         })) as unknown as { instance: BuilderInstance } & BuilderInstance;
 
         const instance = builder.instance ?? builder;
@@ -164,7 +169,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       if (builderRef.current === ownedInstance) builderRef.current = null;
       host.remove();
     };
-  }, [schema]);
+  }, [schema, formId]);
 
   return (
     <div className={cn('formio-builder formio-surface relative', className)}>

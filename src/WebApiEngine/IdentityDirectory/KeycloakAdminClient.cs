@@ -78,7 +78,8 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
                 user.Username,
                 user.FirstName,
                 user.LastName,
-                groupIds));
+                groupIds,
+                user.Email));
         }
 
         return new KeycloakDirectorySnapshot(
@@ -380,6 +381,7 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     {
         public string? Id { get; init; }
         public bool? Enabled { get; init; }
+        public string? Email { get; init; }
         public string? Username { get; init; }
         public string? FirstName { get; init; }
         public string? LastName { get; init; }
