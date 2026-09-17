@@ -39,6 +39,79 @@ public class InstanceController(
         }
     }
 
+    /// <summary>
+    /// Trockenlauf der Instanzmigration: Quell- und Zielversion sowie je Instanz, ob sie
+    /// migrierbar ist und was der Umzug mitnimmt. Veraendert nichts.
+    /// </summary>
+    [HttpPost("migration/preview")]
+    // Ein Versionswechsel greift in fremde Vorgaenge ein; das ist eine Betriebsentscheidung.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType<ApiStatusResult<InstanceMigrationPreviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<InstanceMigrationPreviewDto>>> PreviewInstanceMigration(
+        [FromBody] InstanceMigrationPreviewRequestDto request)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("migrating instances");
+
+        var preview = await bpmnBusinessLogic.PreviewInstanceMigration(request.InstanceIds);
+        if (preview.Status != InstanceMigrationRequestStatus.Accepted)
+            return MigrationProblem<InstanceMigrationPreviewDto>(preview.Status, preview.Message);
+
+        return Ok(new ApiStatusResult<InstanceMigrationPreviewDto>(
+            await preview.ToDtoAsync(storageSystem.DefinitionStorage)));
+    }
+
+    /// <summary>
+    /// Migriert die genannten Instanzen auf die deployte Version. Ist inzwischen eine andere
+    /// Version deployt, antwortet die API mit 409, ohne etwas zu veraendern.
+    /// </summary>
+    [HttpPost("migration")]
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType<ApiStatusResult<InstanceMigrationResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<InstanceMigrationResultDto>>> MigrateInstances(
+        [FromBody] InstanceMigrationRequestDto request)
+    {
+        var user = currentUserContextAccessor.GetCurrentUser();
+        user.RequireResolvedUserId("migrating instances");
+
+        var outcome = await bpmnBusinessLogic.MigrateInstances(
+            request.InstanceIds, request.TargetDefinitionId, user.UserId);
+        if (outcome.Status != InstanceMigrationRequestStatus.Accepted)
+            return MigrationProblem<InstanceMigrationResultDto>(outcome.Status, outcome.Message);
+
+        return Ok(new ApiStatusResult<InstanceMigrationResultDto>(outcome.ToDto()));
+    }
+
+    /// <summary>
+    /// Bildet die Ablehnung einer ganzen Anfrage auf ihren Statuscode ab: Was es nicht gibt,
+    /// ist 404, ein ueberholter Zielstand ist 409, alles andere eine unbrauchbare Angabe.
+    /// </summary>
+    private ActionResult<ApiStatusResult<T>> MigrationProblem<T>(
+        InstanceMigrationRequestStatus status,
+        string? message)
+    {
+        var statusCode = status switch
+        {
+            InstanceMigrationRequestStatus.UnknownInstance => StatusCodes.Status404NotFound,
+            InstanceMigrationRequestStatus.TargetVersionChanged => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status422UnprocessableEntity
+        };
+
+        return Problem(
+            statusCode: statusCode,
+            title: statusCode switch
+            {
+                StatusCodes.Status404NotFound => "Process instance not found",
+                StatusCodes.Status409Conflict => "The deployed version has changed",
+                _ => "The migration request could not be processed"
+            },
+            detail: message);
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiStatusResult<List<ProcessInstanceInfoDto>>>> GetAllInstances()
     {

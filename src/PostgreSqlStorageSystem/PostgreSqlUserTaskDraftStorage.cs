@@ -108,6 +108,62 @@ internal sealed class PostgreSqlUserTaskDraftStorage(PostgreSqlSession session) 
             UserTaskDraftDeleteStatus.RevisionConflict, state.Draft?.Revision ?? 0);
     });
 
+    public Task<int> CountForTask(Guid userTaskId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction,
+            "SELECT count(*) FROM {schema}.user_task_drafts WHERE user_task_id = @taskId");
+        command.Parameters.AddWithValue("taskId", userTaskId);
+        return (int)(long)(await command.ExecuteScalarAsync())!;
+    });
+
+    public Task<int> DeleteAllForTask(Guid userTaskId) => session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = session.CreateCommand(connection, transaction,
+            "DELETE FROM {schema}.user_task_drafts WHERE user_task_id = @taskId");
+        command.Parameters.AddWithValue("taskId", userTaskId);
+        return await command.ExecuteNonQueryAsync();
+    });
+
+    /// <summary>
+    /// Spalte und Rumpf tragen die Version doppelt; beide werden in einem Statement je Entwurf
+    /// gesetzt. Der Rumpf wird dafuer gelesen und neu geschrieben statt im JSON manipuliert:
+    /// So entsteht genau derselbe Stand, den auch die Dateiablage schreibt.
+    /// </summary>
+    public Task<int> RebindAllForTask(Guid userTaskId, Guid definitionId) =>
+        session.RunAsync(async (connection, transaction) =>
+        {
+            var drafts = new List<UserTaskDraft>();
+            await using (var select = session.CreateCommand(connection, transaction, """
+                             SELECT body FROM {schema}.user_task_drafts
+                             WHERE user_task_id = @taskId
+                             FOR UPDATE
+                             """))
+            {
+                select.Parameters.AddWithValue("taskId", userTaskId);
+                await using var reader = await select.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    drafts.Add(StorageJson.Deserialize<UserTaskDraft>(reader.GetString(0)));
+            }
+
+            var rebound = 0;
+            foreach (var draft in drafts)
+            {
+                await using var update = session.CreateCommand(connection, transaction, """
+                    UPDATE {schema}.user_task_drafts
+                    SET definition_id = @definitionId, body = @body
+                    WHERE user_task_id = @taskId AND owner_key = @ownerKey
+                    """);
+                update.Parameters.AddWithValue("taskId", draft.UserTaskId);
+                update.Parameters.AddWithValue("ownerKey", draft.OwnerKey);
+                update.Parameters.AddWithValue("definitionId", definitionId);
+                update.Parameters.AddWithValue(
+                    "body", StorageJson.Serialize(UserTaskDraftRebinding.To(draft, definitionId)));
+                rebound += await update.ExecuteNonQueryAsync();
+            }
+
+            return rebound;
+        });
+
     private async Task<(bool TaskExists, UserTaskDraft? Draft)> ReadState(
         NpgsqlConnection connection,
         NpgsqlTransaction? transaction,

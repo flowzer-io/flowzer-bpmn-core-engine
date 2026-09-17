@@ -61,6 +61,49 @@ public sealed class UserTaskDraftStorageTest
         (await context.Storage.UserTaskDraftStorage.Get(remainingTask.Id, firstOwner)).Should().NotBeNull();
     }
 
+    // Testzweck: Die Instanzmigration muss vor dem Umzug sagen koennen, wie viele fremde
+    // Entwuerfe sie verwirft — gezaehlt ueber alle Eigentuemer, aber nur dieser einen Aufgabe.
+    [Test]
+    public async Task CountAndDeleteForTask_ShouldCoverAllOwnersOfExactlyThatTask()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var otherTask = await context.AddUserTaskAsync();
+        var firstOwner = new string('1', 64);
+        var secondOwner = new string('2', 64);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, firstOwner, "eins"), 0);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, secondOwner, "zwei"), 0);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(otherTask, firstOwner, "fremd"), 0);
+
+        (await context.Storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(2);
+
+        (await context.Storage.UserTaskDraftStorage.DeleteAllForTask(task.Id)).Should().Be(2);
+        (await context.Storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(0);
+        (await context.Storage.UserTaskDraftStorage.CountForTask(otherTask.Id)).Should().Be(1);
+    }
+
+    // Testzweck: Beim Umbinden auf die Zielversion bleibt der Entwurf samt Revision lesbar;
+    // eine hochgezaehlte Revision machte den offenen Browser-Tab des Bearbeiters zum Konflikt.
+    [Test]
+    public async Task RebindAllForTask_ShouldChangeOnlyTheDefinitionBinding()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var ownerKey = new string('3', 64);
+        var draft = CreateDraft(task, ownerKey, "bleibt");
+        await context.Storage.UserTaskDraftStorage.TrySave(draft, 0);
+        var target = Guid.NewGuid();
+
+        (await context.Storage.UserTaskDraftStorage.RebindAllForTask(task.Id, target)).Should().Be(1);
+
+        var stored = (await context.Storage.UserTaskDraftStorage.Get(task.Id, ownerKey))!;
+        stored.DefinitionId.Should().Be(target);
+        stored.Revision.Should().Be(draft.Revision);
+        stored.DataJson.Should().Be(draft.DataJson);
+        stored.TokenId.Should().Be(draft.TokenId);
+        stored.UpdatedAtUtc.Should().Be(draft.UpdatedAtUtc);
+    }
+
     private static UserTaskDraft CreateDraft(
         UserTaskSubscription subscription,
         string ownerKey,

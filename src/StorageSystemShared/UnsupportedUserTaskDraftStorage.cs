@@ -15,6 +15,12 @@ internal sealed class UnsupportedUserTaskDraftStorage : IUserTaskDraftStorage
     public Task<UserTaskDraftDeleteResult> TryDelete(Guid userTaskId, string ownerKey, long expectedRevision) =>
         Unsupported<UserTaskDraftDeleteResult>();
 
+    public Task<int> CountForTask(Guid userTaskId) => Unsupported<int>();
+
+    public Task<int> DeleteAllForTask(Guid userTaskId) => Unsupported<int>();
+
+    public Task<int> RebindAllForTask(Guid userTaskId, Guid definitionId) => Unsupported<int>();
+
     private static Task<T> Unsupported<T>() => Task.FromException<T>(
         new NotSupportedException("This storage adapter does not support user-task drafts."));
 }

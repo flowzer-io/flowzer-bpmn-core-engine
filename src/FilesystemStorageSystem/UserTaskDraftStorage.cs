@@ -80,12 +80,53 @@ internal sealed class UserTaskDraftStorage(Storage storage) : IUserTaskDraftStor
         }
     }
 
-    /// <summary>Bereinigt alle privaten Entwuerfe, sobald die zugehoerige Aufgabe verschwindet.</summary>
-    internal void DeleteAllFiles(Guid userTaskId)
+    public Task<int> CountForTask(Guid userTaskId) => Task.FromResult(FilesOf(userTaskId).Length);
+
+    public Task<int> DeleteAllForTask(Guid userTaskId) => Task.FromResult(DeleteFiles(userTaskId));
+
+    public async Task<int> RebindAllForTask(Guid userTaskId, Guid definitionId)
     {
-        foreach (var file in Directory.GetFiles(_path, $"draft_{userTaskId:N}_*.json"))
-            StorageFile.DeleteIfExists(file);
+        var rebound = 0;
+        foreach (var file in FilesOf(userTaskId))
+        {
+            var content = await StorageFile.ReadAllTextIfExistsAsync(file);
+            if (content is null) continue;
+            var draft = JsonConvert.DeserializeObject<UserTaskDraft>(content, storage.NewtonSoftDefaultSettings)
+                        ?? throw new InvalidDataException("Stored user-task draft is empty.");
+
+            // Der Eigentuemerschluessel steckt im Dateinamen; die Sperre dieses Schluessels
+            // haelt ein gleichzeitiges Speichern desselben Entwurfs heraus.
+            var gate = Locks.GetOrAdd(Key(draft.UserTaskId, draft.OwnerKey), static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync();
+            try
+            {
+                await StorageFile.WriteAllTextAtomicAsync(
+                    file,
+                    JsonConvert.SerializeObject(
+                        UserTaskDraftRebinding.To(draft, definitionId), storage.NewtonSoftDefaultSettings));
+                rebound++;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        return rebound;
     }
+
+    /// <summary>Bereinigt alle privaten Entwuerfe, sobald die zugehoerige Aufgabe verschwindet.</summary>
+    internal void DeleteAllFiles(Guid userTaskId) => DeleteFiles(userTaskId);
+
+    private int DeleteFiles(Guid userTaskId)
+    {
+        var files = FilesOf(userTaskId);
+        foreach (var file in files)
+            StorageFile.DeleteIfExists(file);
+        return files.Length;
+    }
+
+    private string[] FilesOf(Guid userTaskId) => Directory.GetFiles(_path, $"draft_{userTaskId:N}_*.json");
 
     private string File(Guid userTaskId, string ownerKey) =>
         Path.Combine(_path, $"draft_{userTaskId:N}_{ownerKey}.json");

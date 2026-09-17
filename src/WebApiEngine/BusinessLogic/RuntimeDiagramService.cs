@@ -45,8 +45,18 @@ public sealed class RuntimeDiagramService(
             events = [];
         }
 
+        // Eine migrierte Instanz ist unter mehreren Versionen gelaufen. Wuerde nur die aktuelle
+        // gelten, verschwaende das Diagramm alles, was vor dem Umzug geschah. Beim Umzug werden
+        // die gerade sichtbaren Tokenzustaende unter der neuen Version erneut festgehalten;
+        // dieselbe Tatsache erscheint dadurch doppelt und wird hier auf eine zusammengezogen.
+        var visibleDefinitionIds = instance.Migrations
+            .Select(migration => migration.SourceDefinitionId)
+            .Append(instance.DefinitionId)
+            .ToHashSet();
         var orderedEvents = events
-            .Where(item => item.DefinitionId == instance.DefinitionId)
+            .Where(item => visibleDefinitionIds.Contains(item.DefinitionId))
+            .GroupBy(item => new { item.TokenId, item.FlowNodeId, item.State, item.OccurredAtUtc })
+            .Select(group => group.OrderBy(item => item.Id).First())
             .OrderBy(item => item.OccurredAtUtc)
             .ThenBy(item => item.TokenId)
             .ThenBy(item => item.Id)
