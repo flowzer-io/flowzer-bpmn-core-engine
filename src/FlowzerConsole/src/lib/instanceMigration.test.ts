@@ -229,15 +229,17 @@ describe('Knoten von Hand zuordnen', () => {
     expect(mapping).toEqual({ Review: 'Freigabe' });
   });
 
-  // Testzweck: Kennt die deployte Version den zugeordneten Knoten nicht, bleibt die Instanz
-  // unverändert. Der Grund muss auf die Zuordnung zeigen, sonst sucht der Betrieb im Modell.
-  it('erklärt einen fehlenden Zielknoten der Zuordnung', () => {
+  // Testzweck: Kennt die deployte Version das zugeordnete Ziel nicht, bleibt die Instanz
+  // unverändert. Der Befund nennt den **wartenden** Schritt, nicht das fehlende Ziel — wer den
+  // Satz andersherum liest, sucht im Modell nach einem Knoten, der dort nie stand.
+  it('erklärt ein fehlendes Ziel über den wartenden Schritt', () => {
     const text = migrationFindingText({
-      code: 'MappingTargetMissing', flowNodeId: 'Freigabe', message: 'Mapping target missing.',
+      code: 'MappingTargetMissing', flowNodeId: 'Review', message: 'Mapping target missing.',
     });
 
-    expect(text).toContain('„Freigabe“');
-    expect(text).toMatch(/zugeordnete/i);
+    expect(text).toContain('„Review“');
+    expect(text).toMatch(/Schritt „Review“/);
+    expect(text).not.toMatch(/Zielknoten „Review“/);
     expect(text).not.toContain('missing');
   });
 });

@@ -139,8 +139,10 @@ const FINDING_TEXT: Record<string, (flowNodeId: string | null | undefined) => st
   BoundaryEventAlreadyTriggered: (node) =>
     `An ${step(node, 'einem Schritt')} hat bereits ein angeheftetes Ereignis (z. B. ein Timer) ausgelöst; die Migration würde es erneut scharf schalten.`,
   AlreadyOnTargetVersion: () => 'Die Instanz läuft bereits auf der Zielversion.',
+  // Der Befund nennt den wartenden Schritt, nicht das fehlende Ziel: Nur so findet der
+  // Betrieb die Zeile wieder, in der er zuordnen muss.
   MappingTargetMissing: (node) =>
-    `Der zugeordnete Zielknoten ${step(node, 'dieser Instanz')} existiert in der deployten Version nicht. Ordne den Schritt erneut zu.`,
+    `Das Ziel, das dem Schritt ${step(node, 'dieser Instanz')} zugeordnet wurde, gibt es in der deployten Version nicht. Ordne ihn erneut zu.`,
   MigrationFailed: () =>
     'Die Migration ist an einem unerwarteten Fehler gescheitert. Die Instanz ist unverändert; Einzelheiten stehen im Protokoll der API.',
   TargetVersionChanged: () =>

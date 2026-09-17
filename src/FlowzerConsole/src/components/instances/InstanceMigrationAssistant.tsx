@@ -86,12 +86,15 @@ export function InstanceMigrationAssistant({
    * Dieselbe Wahl noch einmal ist keine Änderung und löst deshalb keine neue Prüfung aus.
    */
   function chooseTarget(source: MigrationFlowNodeDto, targetId: string) {
-    setChoices((previous) => {
-      if (previous.some((entry) => entry.source.id === source.id && entry.targetId === targetId)) {
-        return previous;
-      }
-      return [...previous.filter((entry) => entry.source.id !== source.id), { source, targetId }];
-    });
+    if (choices.some((entry) => entry.source.id === source.id && entry.targetId === targetId)) return;
+
+    // Die Zuordnung verschiebt, welche Instanzen migriert werden. Die Zustimmung galt der
+    // vorigen Menge und muss deshalb erneut gegeben werden.
+    setAcknowledged(false);
+    setChoices((previous) => [
+      ...previous.filter((entry) => entry.source.id !== source.id),
+      { source, targetId },
+    ]);
   }
 
   function recheck() {

@@ -242,6 +242,24 @@ describe('Migrationsassistent — Zuordnung', () => {
     expect(mocks.preview).toHaveBeenLastCalledWith([FIRST, SECOND], { Review: 'Freigabe' });
   });
 
+  // Testzweck: Eine geänderte Zuordnung ändert, welche Instanzen migriert werden. Die
+  // Zustimmung galt dann der alten Menge; sie muss erneut gegeben werden, sonst genügt ein
+  // Klick für einen Umzug, den so niemand bestätigt hat.
+  it('verlangt nach einer geänderten Zuordnung erneut die Bestätigung', async () => {
+    showPreview(mappable);
+    const user = userEvent.setup();
+    renderAssistant();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Prüfung/ }), 'Freigabe');
+    const bestaetigung = screen.getByRole('checkbox', { name: /nicht rückgängig/i });
+    await user.click(bestaetigung);
+    expect(bestaetigung).toBeChecked();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Prüfung/ }), '');
+
+    expect(screen.getByRole('checkbox', { name: /nicht rückgängig/i })).not.toBeChecked();
+  });
+
   // Testzweck: Die Zuordnung gilt für alle Instanzen der Anfrage. Fehlte sie beim Migrieren,
   // bliebe genau die Instanz zurück, für die der Betrieb sie gerade gesetzt hat.
   it('migriert mit der getroffenen Zuordnung', async () => {
