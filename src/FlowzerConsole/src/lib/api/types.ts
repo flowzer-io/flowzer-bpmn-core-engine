@@ -497,6 +497,8 @@ export interface OperationsStorageSnapshotDto {
   activeInstances: number;
   completedInstances: number;
   failedInstances: number;
+  /** Abbrüche zählen getrennt von den Fehlern; sie sind ein regulärer Ausgang. */
+  cancelledInstances: number;
   pendingMessages: number;
   pendingTimers: number;
   openUserTasks: number;

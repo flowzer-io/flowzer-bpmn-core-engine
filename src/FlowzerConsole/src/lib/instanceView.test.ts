@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { ProcessInstanceInfoDto } from '@/lib/api/types';
 
-import { nodeExecutions, processScopeVariables } from './instanceView';
+import { instanceTone, nodeExecutions, processScopeVariables, STATE_LABEL } from './instanceView';
 
 const instance = {
   instanceId: 'instance-1', definitionId: 'definition-1', relatedDefinitionId: 'workflow-1',
@@ -41,5 +41,26 @@ describe('Instanzdatenprojektion', () => {
     expect(nodeExecutions(instance, 'Review').map((token) => token.id))
       .toEqual(['review-1', 'review-2']);
     expect(nodeExecutions(instance, 'Review')[0]?.outputData).toEqual({ decision: 'approved' });
+  });
+});
+
+describe('Anzeige der Instanzzustände', () => {
+  // Testzweck: „Beendet“ liest sich wie ein neutrales Ende und verschweigt, dass jemand
+  // die Instanz abgebrochen hat. Die Tokenliste nennt denselben Zustand längst
+  // „Abgebrochen“; beides muss dasselbe Wort benutzen.
+  it('benennt den Abbruch als Abbruch', () => {
+    expect(STATE_LABEL.Terminated).toBe('Abgebrochen');
+    expect(STATE_LABEL.Terminating).toBe('Wird abgebrochen');
+    expect(STATE_LABEL.Completed).toBe('Abgeschlossen');
+  });
+
+  // Testzweck: Der Statuschip färbt den Ausgang. Rot behauptete eine Störung, Grün einen
+  // fachlichen Erfolg — ein Abbruch ist weder das eine noch das andere.
+  it('färbt einen Abbruch weder als Fehler noch als Erfolg', () => {
+    expect(instanceTone('Terminated')).toBe('wait');
+    expect(instanceTone('Terminating')).toBe('wait');
+    expect(instanceTone('Completed')).toBe('done');
+    expect(instanceTone('Failed')).toBe('fail');
+    expect(instanceTone('Waiting')).toBe('run');
   });
 });

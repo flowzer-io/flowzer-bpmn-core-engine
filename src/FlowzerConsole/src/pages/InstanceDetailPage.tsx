@@ -22,7 +22,7 @@ import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
 import { formatDueIn, formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
-import { BUCKET_TONE, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
+import { instanceTone, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 
 interface InstanceDetailPageProps {
@@ -94,7 +94,7 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   }
 
   const bucket = instanceBucket(instance.state);
-  const tone = BUCKET_TONE[bucket];
+  const tone = instanceTone(instance.state);
   // Der Master-Token ist der persistierte Prozessscope. Fachknoten enthalten
   // dagegen ihre eigenen gebundenen Eingaben und dürfen ihn nicht ersetzen.
   const variables = processScopeVariables(instance);

@@ -115,7 +115,7 @@ export function DashboardPage() {
           value={storage?.activeInstances ?? 0}
           hint={
             storage
-              ? `${formatNumber(storage.completedInstances)} abgeschlossen · ${formatNumber(storage.failedInstances)} fehlerhaft`
+              ? `${formatNumber(storage.completedInstances)} abgeschlossen · ${formatNumber(storage.cancelledInstances)} abgebrochen · ${formatNumber(storage.failedInstances)} fehlerhaft`
               : 'wird geladen …'
           }
           delay={0.16}

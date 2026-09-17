@@ -14,6 +14,24 @@
   background: transparent;
 }
 
+/*
+ * Die Zeichenflaeche traegt `tabindex="0"`, weil man in ihr mit den Pfeiltasten navigieren
+ * kann. Schon ein Mausklick auf ein Element gibt ihr den Fokus — und der Browser rahmte sie
+ * daraufhin ueber ihre volle Groesse ein (unter macOS in Systemblau). Der Rahmen blieb
+ * stehen, bis der Fokus zufaellig weiterwanderte, und sagte bei Mausbedienung nichts aus.
+ *
+ * Sichtbar bleibt der Fokus deshalb nur bei Tastaturbedienung, in der Akzentfarbe und nach
+ * innen gezogen: Ein aeusserer Rahmen laege ausserhalb der Flaeche und waere angeschnitten.
+ */
+.bpmn-surface .djs-container svg:focus {
+  outline: none;
+}
+
+.bpmn-surface .djs-container svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* --- Grundfarben: Formen, Kanten, Beschriftungen --------------------------- */
 
 .bpmn-surface .djs-visual > :where(rect, circle, polygon, path, polyline) {
