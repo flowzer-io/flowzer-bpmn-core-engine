@@ -83,6 +83,9 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         return client;
     }
 
+    /// <summary>Ein Aufrufer ohne jede Anmeldung — fuer die fail-closed-Faelle.</summary>
+    internal HttpClient CreateAnonymousClient() => _factory.CreateClient();
+
     internal async Task<UserTaskSubscription> StartAsync(
         string assignment,
         ExpandoObject? variables = null,

@@ -61,10 +61,107 @@ public sealed class UserTaskDraftStorageTest
         (await context.Storage.UserTaskDraftStorage.Get(remainingTask.Id, firstOwner)).Should().NotBeNull();
     }
 
+    // Testzweck: Die Instanzmigration muss vor dem Umzug sagen koennen, wie viele fremde
+    // Entwuerfe sie verwirft — gezaehlt ueber alle Eigentuemer, aber nur dieser einen Aufgabe.
+    [Test]
+    public async Task CountAndDeleteForTask_ShouldCoverAllOwnersOfExactlyThatTask()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var otherTask = await context.AddUserTaskAsync();
+        var firstOwner = new string('1', 64);
+        var secondOwner = new string('2', 64);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, firstOwner, "eins"), 0);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, secondOwner, "zwei"), 0);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(otherTask, firstOwner, "fremd"), 0);
+
+        (await context.Storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(2);
+
+        (await context.Storage.UserTaskDraftStorage.DeleteAllForTask(task.Id)).Should().Be(2);
+        (await context.Storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(0);
+        (await context.Storage.UserTaskDraftStorage.CountForTask(otherTask.Id)).Should().Be(1);
+    }
+
+    // Testzweck: Beim Umbinden auf die Zielversion bleibt der Entwurf samt Revision lesbar;
+    // eine hochgezaehlte Revision machte den offenen Browser-Tab des Bearbeiters zum Konflikt.
+    [Test]
+    public async Task RebindAllForTask_ShouldChangeOnlyTheDefinitionBinding()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var ownerKey = new string('3', 64);
+        var draft = CreateDraft(task, ownerKey, "bleibt");
+        await context.Storage.UserTaskDraftStorage.TrySave(draft, 0);
+        var target = Guid.NewGuid();
+
+        (await context.Storage.UserTaskDraftStorage.RebindAllForTask(task.Id, target)).Should().Be(1);
+
+        var stored = (await context.Storage.UserTaskDraftStorage.Get(task.Id, ownerKey))!;
+        stored.DefinitionId.Should().Be(target);
+        stored.Revision.Should().Be(draft.Revision);
+        stored.DataJson.Should().Be(draft.DataJson);
+        stored.TokenId.Should().Be(draft.TokenId);
+        stored.UpdatedAtUtc.Should().Be(draft.UpdatedAtUtc);
+    }
+
+    // Testzweck: Zwischen dem Lesen eines Entwurfs und seinem Umbinden darf nichts verloren
+    // gehen. Liest das Umbinden ausserhalb der Entwurfssperre, schreibt es den Stand von vor
+    // dem letzten Speichern zurueck — der Bearbeiter verlaere seine Eingabe unbemerkt.
+    [Test]
+    public async Task RebindAllForTask_ShouldNotOverwriteASaveThatLandedBeforeTheLockWasGranted()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var ownerKey = new string('4', 64);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, ownerKey, "alt"), 0);
+        var target = Guid.NewGuid();
+
+        var gate = UserTaskDraftStorage.Locks.GetOrAdd(
+            UserTaskDraftStorage.Key(task.Id, ownerKey), static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        var rebind = context.Storage.UserTaskDraftStorage.RebindAllForTask(task.Id, target);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        rebind.IsCompleted.Should().BeFalse("das Umbinden muss auf die Entwurfssperre warten");
+
+        // Der Stand, den ein Speichervorgang hinterlassen hat, waehrend das Umbinden wartete.
+        await context.WriteDraftFileAsync(CreateDraft(task, ownerKey, "neu", revision: 2));
+        gate.Release();
+        (await rebind).Should().Be(1);
+
+        var stored = (await context.Storage.UserTaskDraftStorage.Get(task.Id, ownerKey))!;
+        stored.DataJson.Should().Be("""{"value":"neu"}""");
+        stored.Revision.Should().Be(2);
+        stored.DefinitionId.Should().Be(target);
+    }
+
+    // Testzweck: Auch das Verwerfen aller Entwuerfe einer Aufgabe gehoert unter die
+    // Entwurfssperre; sonst koennte ein gleichzeitiges Speichern den verworfenen Entwurf
+    // wiederauferstehen lassen.
+    [Test]
+    public async Task DeleteAllForTask_ShouldWaitForTheDraftLock()
+    {
+        using var context = new StorageContext();
+        var task = await context.AddUserTaskAsync();
+        var ownerKey = new string('5', 64);
+        await context.Storage.UserTaskDraftStorage.TrySave(CreateDraft(task, ownerKey, "weg"), 0);
+
+        var gate = UserTaskDraftStorage.Locks.GetOrAdd(
+            UserTaskDraftStorage.Key(task.Id, ownerKey), static _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        var delete = context.Storage.UserTaskDraftStorage.DeleteAllForTask(task.Id);
+        await Task.Delay(TimeSpan.FromMilliseconds(100));
+        delete.IsCompleted.Should().BeFalse("das Verwerfen muss auf die Entwurfssperre warten");
+
+        gate.Release();
+        (await delete).Should().Be(1);
+        (await context.Storage.UserTaskDraftStorage.Get(task.Id, ownerKey)).Should().BeNull();
+    }
+
     private static UserTaskDraft CreateDraft(
         UserTaskSubscription subscription,
         string ownerKey,
-        string value) => new()
+        string value,
+        long revision = 1) => new()
         {
             UserTaskId = subscription.Id,
             OwnerKey = ownerKey,
@@ -72,7 +169,7 @@ public sealed class UserTaskDraftStorageTest
             TokenId = subscription.Token.Id,
             ProcessInstanceId = subscription.Token.ProcessInstanceId,
             DefinitionId = subscription.DefinitionId,
-            Revision = 1,
+            Revision = revision,
             UpdatedAtUtc = DateTimeOffset.UtcNow,
             DataJson = $$"""{"value":"{{value}}"}"""
         };
@@ -120,6 +217,19 @@ public sealed class UserTaskDraftStorageTest
             };
             await Storage.SubscriptionStorage.AddUserTaskSubscription(subscription);
             return subscription;
+        }
+
+        /// <summary>
+        /// Legt eine Entwurfsdatei unter Umgehung der Ablage ab. Damit laesst sich ein
+        /// Speichervorgang nachstellen, der genau waehrend eines anderen Zugriffs landet.
+        /// </summary>
+        public async Task WriteDraftFileAsync(UserTaskDraft draft)
+        {
+            var path = Path.Combine(
+                Storage.GetBasePath(Path.Combine("FileStorage", UserTaskDraftStorage.DirectoryName)),
+                $"draft_{draft.UserTaskId:N}_{draft.OwnerKey}.json");
+            await File.WriteAllTextAsync(
+                path, Newtonsoft.Json.JsonConvert.SerializeObject(draft, Storage.NewtonSoftDefaultSettings));
         }
 
         public void Dispose()

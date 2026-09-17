@@ -10,4 +10,10 @@
       <ProjectReference Include="..\StorageSystemShared\StorageSystemShared.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <!-- Die Entwurfssperre ist nur von innen sichtbar; der Test belegt damit, dass Lesen und
+           Schreiben eines Entwurfs innerhalb derselben Sperre liegen. -->
+      <InternalsVisibleTo Include="WebApiEngine.Tests" />
+    </ItemGroup>
+
 </Project>

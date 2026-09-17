@@ -101,6 +101,17 @@ internal sealed class InMemoryServiceTaskStorage : IServiceTaskStorage
         return Task.CompletedTask;
     }
 
+    /// <summary>Wie die echten Ablagen: nur die Versionsbindung, nie der Vergabezustand.</summary>
+    public Task<int> RebindJobsOfInstance(Guid processInstanceId, Guid definitionId)
+    {
+        lock (_jobs)
+        {
+            var jobs = _jobs.Values.Where(job => job.ProcessInstanceId == processInstanceId).ToList();
+            foreach (var job in jobs) job.DefinitionId = definitionId;
+            return Task.FromResult(jobs.Count);
+        }
+    }
+
     public Task SaveWebhook(ServiceTaskWebhook webhook)
     {
         _webhooks[webhook.Id] = webhook;

@@ -73,7 +73,7 @@ vorgesehen und kein Produktionspfad.
 | `Limits__MaxUploadBytes` | Default 8 MiB, abgestimmt auf `client_max_body_size` des mitgelieferten Gateways; darüber antwortet die API 413 |
 | `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
-| `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch, Instanzmigration und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
 | `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
 | `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
 | `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
@@ -503,6 +503,12 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 ## Instanzen abbrechen
 
 `POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
+
+In der Konsole steht der Abbruch in der Instanzansicht („Instanz abbrechen"), nur für laufende Instanzen und nur mit Betriebsrecht; er verlangt eine ausdrückliche Bestätigung. Instanzliste und Instanzansicht nennen die Workflow-Version, an die eine Instanz gebunden ist (`definitionVersion` in `ProcessInstanceInfoDto`; `null`, wenn die gebundene Definition nicht mehr vorliegt).
+
+## Instanzen migrieren
+
+Ein Deployment verändert keine laufende Instanz. Wer laufende Instanzen einer älteren Version bewusst auf die deployte Version heben will, nutzt den Migrationsassistenten der Konsole: in der Instanzliste laufende Instanzen desselben Workflows und derselben Version ankreuzen und „Migrieren …" wählen, oder in der Instanzansicht „Migrieren …". Der Assistent prüft zuerst folgenlos (`POST /instance/migration/preview`), nennt je Instanz Hindernisse und Folgen — etwa einen verworfenen Aufgabenentwurf — und migriert erst nach ausdrücklicher Bestätigung (`POST /instance/migration`). Beides verlangt das Betriebsrecht. Nicht migrierbare Instanzen bleiben unverändert; jede Migration wird an der Instanz festgehalten und mit Instanz, Quell-/Zielversion und auslösender Person protokolliert. Regeln, Grenzen und Vertrag: [INSTANCE-MIGRATION.md](INSTANCE-MIGRATION.md).
 
 ## Workflow starten
 

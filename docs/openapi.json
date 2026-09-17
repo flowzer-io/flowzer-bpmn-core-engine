@@ -4615,6 +4615,152 @@
         }
       }
     },
+    "/Instance/migration/preview": {
+      "post": {
+        "tags": [
+          "Instance"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationPreviewRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationPreviewRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationPreviewRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationPreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationPreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationPreviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Instance/migration": {
+      "post": {
+        "tags": [
+          "Instance"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceMigrationRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceMigrationResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiValidationProblem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance": {
       "get": {
         "tags": [
@@ -8438,6 +8584,225 @@
         },
         "additionalProperties": false
       },
+      "InstanceMigrationFindingDto": {
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationPreviewDto": {
+        "required": [
+          "instances",
+          "relatedDefinitionId",
+          "relatedDefinitionName",
+          "sourceDefinitionId",
+          "targetDefinitionId",
+          "targetVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "relatedDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "relatedDefinitionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceDefinitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "targetDefinitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "instances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstanceMigrationPreviewItemDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationPreviewDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/InstanceMigrationPreviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationPreviewItemDto": {
+        "required": [
+          "instanceId",
+          "migratable",
+          "notices",
+          "problems"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "migratable": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstanceMigrationFindingDto"
+            },
+            "nullable": true
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstanceMigrationFindingDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationPreviewRequestDto": {
+        "required": [
+          "instanceIds"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationRequestDto": {
+        "required": [
+          "instanceIds",
+          "targetDefinitionId"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          },
+          "targetDefinitionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationResultDto": {
+        "required": [
+          "instances",
+          "targetDefinitionId",
+          "targetVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "targetDefinitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "instances": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstanceMigrationResultItemDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/InstanceMigrationResultDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InstanceMigrationResultItemDto": {
+        "required": [
+          "instanceId",
+          "migrated",
+          "problems"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "migrated": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InstanceMigrationFindingDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "MessageDefinitionDto": {
         "required": [
           "name"
@@ -8950,6 +9315,9 @@
           "definitionId": {
             "type": "string",
             "format": "uuid"
+          },
+          "definitionVersion": {
+            "$ref": "#/components/schemas/VersionDto"
           },
           "relatedDefinitionId": {
             "type": "string",

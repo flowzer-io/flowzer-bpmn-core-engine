@@ -36,6 +36,7 @@ const ICONS = [
   'calendar_today',
   'call_merge',
   'call_split',
+  'cancel',
   'check',
   'check_circle',
   'chevron_right',
@@ -115,8 +116,9 @@ const ICONS = [
   'touch_app',
   'undo',
   'unfold_more',
+  'upgrade',
   'upload',
-  'warning'
+  'warning',
 ];
 
 /** Schneidet den Inhalt zwischen den <svg>-Tags heraus. */

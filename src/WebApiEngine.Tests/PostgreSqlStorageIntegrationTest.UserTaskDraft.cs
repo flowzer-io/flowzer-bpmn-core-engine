@@ -65,6 +65,36 @@ public partial class PostgreSqlStorageIntegrationTest
             .Should().Be(UserTaskDraftWriteStatus.TaskNotFound);
     }
 
+    // Testzweck: Zaehlen, Loeschen und Umbinden je Aufgabe wirken in PostgreSQL genau auf deren
+    // Entwuerfe; das Umbinden aktualisiert Spalte und Rumpf gemeinsam und laesst die Revision.
+    [Test]
+    public async Task UserTaskDraftStorage_ShouldCountDeleteAndRebindPerTask()
+    {
+        using var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var task = await AddDraftUserTaskAsync(storage);
+        var otherTask = await AddDraftUserTaskAsync(storage);
+        var firstOwner = new string('1', 64);
+        var secondOwner = new string('2', 64);
+        await storage.UserTaskDraftStorage.TrySave(CreateDraft(task, firstOwner, "eins", 1), 0);
+        await storage.UserTaskDraftStorage.TrySave(CreateDraft(task, secondOwner, "zwei", 1), 0);
+        await storage.UserTaskDraftStorage.TrySave(CreateDraft(otherTask, firstOwner, "fremd", 1), 0);
+
+        (await storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(2);
+
+        var target = Guid.NewGuid();
+        (await storage.UserTaskDraftStorage.RebindAllForTask(task.Id, target)).Should().Be(2);
+        var rebound = (await storage.UserTaskDraftStorage.Get(task.Id, firstOwner))!;
+        rebound.DefinitionId.Should().Be(target);
+        rebound.Revision.Should().Be(1);
+        rebound.DataJson.Should().Be("""{"value":"eins"}""");
+        (await storage.UserTaskDraftStorage.Get(otherTask.Id, firstOwner))!.DefinitionId
+            .Should().Be(otherTask.DefinitionId);
+
+        (await storage.UserTaskDraftStorage.DeleteAllForTask(task.Id)).Should().Be(2);
+        (await storage.UserTaskDraftStorage.CountForTask(task.Id)).Should().Be(0);
+        (await storage.UserTaskDraftStorage.CountForTask(otherTask.Id)).Should().Be(1);
+    }
+
     private static async Task<UserTaskSubscription> AddDraftUserTaskAsync(
         PostgreSqlStorage storage, Guid? processInstanceId = null)
     {

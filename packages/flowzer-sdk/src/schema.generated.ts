@@ -3821,6 +3821,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/migration/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["InstanceMigrationPreviewRequestDto"];
+                    "text/json": components["schemas"]["InstanceMigrationPreviewRequestDto"];
+                    "application/*+json": components["schemas"]["InstanceMigrationPreviewRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InstanceMigrationPreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InstanceMigrationPreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InstanceMigrationPreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Instance/migration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["InstanceMigrationRequestDto"];
+                    "text/json": components["schemas"]["InstanceMigrationRequestDto"];
+                    "application/*+json": components["schemas"]["InstanceMigrationRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InstanceMigrationResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InstanceMigrationResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InstanceMigrationResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance": {
         parameters: {
             query?: never;
@@ -5990,6 +6121,59 @@ export interface components {
             inheritedFromId?: string;
             inheritedFromName: string | null;
         };
+        InstanceMigrationFindingDto: {
+            code: string | null;
+            flowNodeId?: string | null;
+            message: string | null;
+        };
+        InstanceMigrationPreviewDto: {
+            relatedDefinitionId: string | null;
+            relatedDefinitionName: string | null;
+            /** Format: uuid */
+            sourceDefinitionId: string;
+            sourceVersion?: components["schemas"]["VersionDto"];
+            /** Format: uuid */
+            targetDefinitionId: string;
+            targetVersion: components["schemas"]["VersionDto"];
+            instances: components["schemas"]["InstanceMigrationPreviewItemDto"][] | null;
+        };
+        InstanceMigrationPreviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InstanceMigrationPreviewDto"];
+        };
+        InstanceMigrationPreviewItemDto: {
+            /** Format: uuid */
+            instanceId: string;
+            migratable: boolean;
+            problems: components["schemas"]["InstanceMigrationFindingDto"][] | null;
+            notices: components["schemas"]["InstanceMigrationFindingDto"][] | null;
+        };
+        InstanceMigrationPreviewRequestDto: {
+            instanceIds: string[] | null;
+        };
+        InstanceMigrationRequestDto: {
+            instanceIds: string[] | null;
+            /** Format: uuid */
+            targetDefinitionId: string;
+        };
+        InstanceMigrationResultDto: {
+            /** Format: uuid */
+            targetDefinitionId: string;
+            targetVersion: components["schemas"]["VersionDto"];
+            instances: components["schemas"]["InstanceMigrationResultItemDto"][] | null;
+        };
+        InstanceMigrationResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InstanceMigrationResultDto"];
+        };
+        InstanceMigrationResultItemDto: {
+            /** Format: uuid */
+            instanceId: string;
+            migrated: boolean;
+            problems: components["schemas"]["InstanceMigrationFindingDto"][] | null;
+        };
         MessageDefinitionDto: {
             name: string | null;
             flowzerId?: string | null;
@@ -6142,6 +6326,7 @@ export interface components {
             instanceId: string;
             /** Format: uuid */
             definitionId: string;
+            definitionVersion?: components["schemas"]["VersionDto"];
             relatedDefinitionId: string | null;
             relatedDefinitionName: string | null;
             /** Format: int32 */

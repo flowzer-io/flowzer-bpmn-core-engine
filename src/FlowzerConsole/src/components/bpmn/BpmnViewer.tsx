@@ -10,6 +10,7 @@ import { cn } from '@/lib/cn';
 import { type Box, fitViewport } from './fitViewport';
 import { ensureDiagram } from './ensureDiagram';
 import { FLOWZER_MODDLE } from './flowzerModdle';
+import { createSelectionFrame, SELECTION_FRAME_OFFSET } from './selectionFrame';
 import { createTokenBadge } from './tokenBadge';
 
 /** Darstellungszustand eines BPMN-Elements im Instanzverlauf. */
@@ -21,6 +22,8 @@ interface BpmnViewerProps {
   markers?: Record<string, NodeMarker>;
   /** Aktive Token je Element-Id; mehrere Tokens teilen sich einen Zähler. */
   tokenCounts?: Record<string, number>;
+  /** Das vom Betrachter gewählte Element; bekommt einen Auswahlrahmen zusätzlich zum Zustand. */
+  selectedElementId?: string;
   onElementClick?: (elementId: string) => void;
   className?: string;
   /** Interaktion (Zoom/Pan) erlauben. Für Vorschaubilder abschalten. */
@@ -41,8 +44,12 @@ interface CanvasLike {
 }
 
 interface OverlaysLike {
-  add: (elementId: string, config: unknown) => string;
-  clear: () => void;
+  add: (elementId: string, type: string, config: unknown) => string;
+  remove: (filter: string | { type: string }) => void;
+}
+
+interface ElementRegistryLike {
+  get: (elementId: string) => { width?: number; height?: number } | undefined;
 }
 
 interface ViewerLike {
@@ -53,6 +60,8 @@ interface ViewerLike {
 }
 
 const ALL_MARKERS = ['flowzer-completed', 'flowzer-active', 'flowzer-cancelled', 'flowzer-failed'] as const;
+const TOKEN_OVERLAY = 'flowzer-token';
+const SELECTION_OVERLAY = 'flowzer-selection';
 
 /**
  * Nur-Lese-Ansicht eines BPMN-Diagramms mit Zustandsmarkierungen.
@@ -69,6 +78,7 @@ export function BpmnViewer({
   xml,
   markers,
   tokenCounts,
+  selectedElementId,
   onElementClick,
   className,
   interactive = true,
@@ -182,6 +192,32 @@ export function BpmnViewer({
     );
   }, [imported, markerKey, tokenKey]);
 
+  // Die Auswahl steht neben den Zustandsmarkern: Ein Knoten bleibt „aktiv" oder
+  // „abgeschlossen", auch während er ausgewählt ist.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!imported || !viewer || !selectedElementId) return;
+
+    // Kanten haben keine Ausdehnung, und eine Auswahl aus der Knotenliste kann auf ein
+    // Element zeigen, das dieses Diagramm nicht zeichnet — dann gibt es nichts zu rahmen.
+    const element = viewer.get<ElementRegistryLike>('elementRegistry').get(selectedElementId);
+    if (!element?.width || !element.height) return;
+
+    const overlays = viewer.get<OverlaysLike>('overlays');
+    const overlayId = overlays.add(selectedElementId, SELECTION_OVERLAY, {
+      position: { top: -SELECTION_FRAME_OFFSET, left: -SELECTION_FRAME_OFFSET },
+      html: createSelectionFrame(element.width, element.height),
+    });
+
+    return () => {
+      try {
+        overlays.remove(overlayId);
+      } catch {
+        // Der Viewer kann inzwischen zerstört sein; dann ist das Overlay ohnehin weg.
+      }
+    };
+  }, [imported, selectedElementId]);
+
   return (
     <div className={cn('bpmn-surface relative', className)} role={ariaLabel ? 'img' : undefined} aria-label={ariaLabel}>
       <div ref={containerRef} className="h-full w-full" />
@@ -223,7 +259,8 @@ function applyMarkers(
   const canvas = viewer.get<CanvasLike>('canvas');
   const overlays = viewer.get<OverlaysLike>('overlays');
 
-  overlays.clear();
+  // Nur die eigenen Zähler entfernen — der Auswahlrahmen gehört einem anderen Effekt.
+  overlays.remove({ type: TOKEN_OVERLAY });
 
   // Auch Markierungen entfernen, die in der neuen Serverprojektion nicht mehr
   // vorkommen. Andernfalls bliebe beispielsweise ein alter Active-Ring sichtbar.
@@ -248,7 +285,7 @@ function applyMarkers(
   for (const [elementId, count] of Object.entries(tokenCounts)) {
     try {
       const badge = createTokenBadge(count);
-      overlays.add(elementId, { position: { top: -11, left: -11 }, html: badge });
+      overlays.add(elementId, TOKEN_OVERLAY, { position: { top: -11, left: -11 }, html: badge });
     } catch {
       // siehe oben
     }
