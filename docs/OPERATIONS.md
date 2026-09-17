@@ -504,6 +504,8 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 `POST /instance/{instanceId}/cancel` terminiert aktive und wartende Tokens und entfernt offene Subscriptions. Beendete Instanzen antworten mit 409, unbekannte mit 404. Der Aufruf verlangt einen aufgelösten Benutzerkontext. Eine BPMN-Kompensation bereits ausgeführter Aktivitäten findet nicht statt.
 
+In der Konsole steht der Abbruch in der Instanzansicht („Instanz abbrechen"), nur für laufende Instanzen und nur mit Betriebsrecht; er verlangt eine ausdrückliche Bestätigung. Instanzliste und Instanzansicht nennen die Workflow-Version, an die eine Instanz gebunden ist (`definitionVersion` in `ProcessInstanceInfoDto`; `null`, wenn die gebundene Definition nicht mehr vorliegt).
+
 ## Workflow starten
 
 ### Wiederholte HTTP-Aufrufe

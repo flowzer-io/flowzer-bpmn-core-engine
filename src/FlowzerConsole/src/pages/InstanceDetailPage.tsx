@@ -5,6 +5,7 @@ import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
@@ -19,7 +20,7 @@ import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
-import { formatDueIn, formatTimestamp, parseApiDate, shortId } from '@/lib/format';
+import { formatDueIn, formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
 import { BUCKET_TONE, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 
@@ -117,6 +118,14 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
               {instance.relatedDefinitionName}
             </span>
             <Chip tone={tone}>{STATE_LABEL[instance.state]}</Chip>
+            <span
+              className="bg-surface-2 text-muted rounded-[7px] px-2 py-0.5 font-mono text-xs font-semibold"
+              title={instance.definitionVersion
+                ? 'Workflow-Version, an die diese Instanz gebunden ist'
+                : 'Die Workflow-Version dieser Instanz liegt nicht mehr vor'}
+            >
+              {formatVersion(instance.definitionVersion)}
+            </span>
           </div>
           <div className="text-faint mt-0.5 font-mono text-xs">
             #{shortId(instance.instanceId)} · gestartet {formatTimestamp(instance.startedAt)}
@@ -136,6 +145,8 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             Offene Aufgabe bearbeiten
           </Button>
         )}
+
+        {bucket === 'active' && <CancelInstanceAction instance={instance} />}
 
         <Button
           size="sm"

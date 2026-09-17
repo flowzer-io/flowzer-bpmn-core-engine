@@ -6142,6 +6142,7 @@ export interface components {
             instanceId: string;
             /** Format: uuid */
             definitionId: string;
+            definitionVersion?: components["schemas"]["VersionDto"];
             relatedDefinitionId: string | null;
             relatedDefinitionName: string | null;
             /** Format: int32 */

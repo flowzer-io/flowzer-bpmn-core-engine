@@ -10,7 +10,7 @@ import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, LoadingRows } from '@/components/ui/States';
 import { instanceBucket, type InstanceBucket } from '@/lib/api/normalize';
 import { useInstances } from '@/lib/api/queries';
-import { formatTimestamp, parseApiDate, shortId } from '@/lib/format';
+import { formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
 import { nodeLabel } from '@/lib/bpmnModel';
 import {
   BUCKET_LABEL,
@@ -153,7 +153,9 @@ export function InstancesPage() {
             >
               <div className="w-full min-w-0 md:w-auto">
                 <div className="truncate text-[14.5px] font-semibold">{instance.relatedDefinitionName}</div>
-                <div className="text-faint mt-0.5 font-mono text-xs">#{shortId(instance.instanceId)}</div>
+                <div className="text-faint mt-0.5 font-mono text-xs">
+                  #{shortId(instance.instanceId)} · {formatVersion(instance.definitionVersion)}
+                </div>
               </div>
 
               <div className="w-full min-w-0 md:w-auto">

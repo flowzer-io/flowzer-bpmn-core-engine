@@ -280,6 +280,14 @@ export const instancesApi = {
     return normalizeInstance(instance);
   },
 
+  /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */
+  cancel: async (instanceId: string) => {
+    const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}/cancel`, {
+      method: 'POST',
+    });
+    return normalizeInstance(instance);
+  },
+
   /** `GET /instance/{id}/subscription/messages` */
   messageSubscriptions: (instanceId: string, signal?: AbortSignal) =>
     requestStatusResult<MessageSubscriptionDto[]>(`/instance/${instanceId}/subscription/messages`, { signal }),

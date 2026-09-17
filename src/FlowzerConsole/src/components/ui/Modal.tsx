@@ -97,6 +97,11 @@ interface ConfirmModalProps {
   /** Beschriftung der bestaetigenden Schaltflaeche, z. B. „Löschen“. */
   confirmLabel: string;
   confirmIcon?: string;
+  /**
+   * Beschriftung der Schaltflaeche, die den Dialog ohne Aktion schliesst. Nur noetig, wo
+   * „Abbrechen" doppeldeutig waere — etwa wenn die Aktion selbst ein Abbruch ist.
+   */
+  dismissLabel?: string;
   /** Zerstoererische Aktionen bekommen die Warnfarbe. */
   destructive?: boolean;
   busy?: boolean;
@@ -112,6 +117,7 @@ export function ConfirmModal({
   description,
   confirmLabel,
   confirmIcon,
+  dismissLabel = 'Abbrechen',
   destructive = false,
   busy = false,
   onConfirm,
@@ -127,7 +133,7 @@ export function ConfirmModal({
       footer={
         <>
           <Button size="sm" onClick={() => onOpenChange(false)} disabled={busy}>
-            Abbrechen
+            {dismissLabel}
           </Button>
           <Button
             size="sm"

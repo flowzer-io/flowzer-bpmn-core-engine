@@ -99,6 +99,8 @@ export interface ProcessInstanceInfoDto {
   canInspect?: boolean;
   instanceId: string;
   definitionId: string;
+  /** Version des Workflows, an die die Instanz gebunden ist; null, wenn die Definition fehlt. */
+  definitionVersion?: VersionDto | null;
   relatedDefinitionId: string;
   relatedDefinitionName: string;
   messageSubscriptionCount: number;

@@ -476,7 +476,7 @@ public class ManualMappingExtensionsTest
         public Task StoreBinary(Guid guid, string data) => throw new NotSupportedException();
         public Task<string> GetBinary(Guid guid) => throw new NotSupportedException();
         public Task<Guid[]> GetAllBinaryDefinitions() => throw new NotSupportedException();
-        public Task<BpmnDefinition[]> GetAllDefinitions() => throw new NotSupportedException();
+        public Task<BpmnDefinition[]> GetAllDefinitions() => Task.FromResult(Array.Empty<BpmnDefinition>());
         public Task StoreDefinition(BpmnDefinition definition) => throw new NotSupportedException();
         public Task<Model.Version?> GetMaxVersionId(string modelId) => throw new NotSupportedException();
         public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();

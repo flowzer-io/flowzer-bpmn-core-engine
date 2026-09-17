@@ -1,10 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InstanceDetailPage } from './InstanceDetailPage';
 
-const mocks = vi.hoisted(() => ({ instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn(),
+  cancel: vi.fn(),
+}));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@flowzer/react', () => ({
   useInstanceHistory: mocks.history,
@@ -13,6 +16,7 @@ vi.mock('@flowzer/react', () => ({
 vi.mock('@/stores/breadcrumbs', () => ({ useBreadcrumbs: vi.fn() }));
 vi.mock('@/lib/api/queries', () => ({
   useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
+  useCancelInstance: () => ({ mutate: mocks.cancel, isPending: false }),
   queryKeys: {},
 }));
 vi.mock('@/components/bpmn/BpmnViewer', () => ({ BpmnViewer: () => <div>Technisches Diagramm</div> }));
@@ -153,5 +157,67 @@ describe('Datensparsame Instanzansicht', () => {
     expect(screen.getByText('Erzeugter Output')).toBeInTheDocument();
     expect(screen.getByText('decision')).toBeInTheDocument();
     expect(screen.getByText('"approved"')).toBeInTheDocument();
+  });
+});
+
+describe('Abbruch und Version in der Betriebsansicht', () => {
+  const inspectable = {
+    ...overview, canInspect: true, definitionVersion: { major: 2, minor: 1 },
+  };
+
+  beforeEach(() => {
+    mocks.runtime.mockReturnValue({
+      data: {
+        instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1', state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />', events: [], nodes: [],
+      },
+      isPending: false,
+    });
+  });
+
+  // Testzweck: Wer abbricht oder später migriert, muss sehen, auf welcher Workflow-Version
+  // die Instanz läuft — im Kopf der Instanz, nicht erst in einer Diagnoseliste.
+  it('zeigt die Workflow-Version der Instanz', () => {
+    mocks.instance.mockReturnValue({ data: inspectable, isPending: false });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(screen.getByText('v2.1')).toBeInTheDocument();
+  });
+
+  // Testzweck: Ein Abbruch beendet fremde Arbeit und lässt sich nicht zurücknehmen. Er
+  // geschieht deshalb nie mit einem einzelnen Klick, sondern erst nach der Rückfrage.
+  it('bricht die Instanz erst nach ausdrücklicher Bestätigung ab', async () => {
+    mocks.instance.mockReturnValue({ data: inspectable, isPending: false });
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Instanz abbrechen' }));
+    expect(mocks.cancel).not.toHaveBeenCalled();
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Urlaubsantrag');
+    // „Abbrechen" wäre hier doppeldeutig: Dialog schließen oder Instanz abbrechen?
+    expect(within(dialog).getByRole('button', { name: 'Instanz weiterlaufen lassen' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Abbrechen' })).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Instanz abbrechen' }));
+
+    expect(mocks.cancel).toHaveBeenCalledWith('instance-1', expect.anything());
+  });
+
+  // Testzweck: Beendete Instanzen lassen sich nicht abbrechen (die API antwortet mit 409);
+  // die Oberfläche bietet es dann gar nicht erst an.
+  it('bietet den Abbruch für beendete Instanzen nicht an', () => {
+    mocks.instance.mockReturnValue({
+      data: { ...inspectable, state: 'Completed', finishedAt: '2026-09-09T10:00:00Z' },
+      isPending: false,
+    });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(screen.queryByRole('button', { name: 'Instanz abbrechen' })).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Ohne Betriebsrecht lehnt die API den Abbruch ab; die datensparsame
+  // Übersicht zeigt die Schaltfläche deshalb nicht.
+  it('bietet den Abbruch ohne Betriebsrecht nicht an', () => {
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(screen.queryByRole('button', { name: 'Instanz abbrechen' })).not.toBeInTheDocument();
   });
 });

@@ -16,7 +16,8 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
-        return processInstanceInfo.ToDto(metaNamesById, canInspect);
+        var versionsById = await GetVersionsByIdAsync(definitionStorage);
+        return processInstanceInfo.ToDto(metaNamesById, versionsById, canInspect);
     }
 
     public static async Task<List<ProcessInstanceInfoDto>> ToDtosAsync(
@@ -28,8 +29,9 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
+        var versionsById = await GetVersionsByIdAsync(definitionStorage);
         return processInstances
-            .Select(instance => instance.ToDto(metaNamesById, canInspect))
+            .Select(instance => instance.ToDto(metaNamesById, versionsById, canInspect))
             .ToList();
     }
 
@@ -41,9 +43,22 @@ public static class ProcessInstanceMappingExtensions
             .ToDictionary(group => group.Key, group => group.First().Name);
     }
 
+    // Einmal für alle Instanzen geladen statt je Instanz einzeln nachgeschlagen: Eine fehlende
+    // Definition (Altbestand, gelöschte Version) ist hier ein normaler Fall und kein Fehler.
+    private static async Task<Dictionary<Guid, VersionDto>> GetVersionsByIdAsync(IDefinitionStorage definitionStorage)
+    {
+        var definitions = await definitionStorage.GetAllDefinitions();
+        return definitions
+            .GroupBy(definition => definition.Id)
+            .ToDictionary(
+                group => group.Key,
+                group => new VersionDto(group.First().Version.Major, group.First().Version.Minor));
+    }
+
     private static ProcessInstanceInfoDto ToDto(
         this ProcessInstanceInfo processInstanceInfo,
         IReadOnlyDictionary<string, string> metaNamesById,
+        IReadOnlyDictionary<Guid, VersionDto> versionsById,
         bool canInspect)
     {
         // Instanzen ohne zugehörige Meta-Definition (z. B. nach einem Direkt-Deploy
@@ -57,6 +72,7 @@ public static class ProcessInstanceMappingExtensions
         {
             InstanceId = processInstanceInfo.InstanceId,
             DefinitionId = processInstanceInfo.DefinitionId,
+            DefinitionVersion = versionsById.GetValueOrDefault(processInstanceInfo.DefinitionId),
             RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
             RelatedDefinitionName = relatedDefinitionName,
             MessageSubscriptionCount = canInspect ? processInstanceInfo.MessageSubscriptionCount : 0,

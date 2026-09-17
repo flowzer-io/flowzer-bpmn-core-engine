@@ -456,6 +456,28 @@ export function useInstance(instanceId: string | undefined) {
   });
 }
 
+/**
+ * Bricht eine laufende Instanz ab. Danach stimmt nichts mehr, was aus ihr abgeleitet war:
+ * Liste, Detail, Warteobjekte, Laufzeitdiagramm — und die Aufgabenliste, denn offene
+ * Aufgaben der Instanz entfallen mit.
+ */
+export function useCancelInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: (instanceId: string) => instancesApi.cancel(instanceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
+      void queryClient.invalidateQueries({
+        queryKey: flowzerQueryKeys.instances(cacheNamespace, sessionScope),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+      });
+    },
+  });
+}
+
 /** Bündelt alle vier Subscription-Listen einer Instanz in einem Hook. */
 export function useInstanceSubscriptions(instanceId: string | undefined) {
   return useQuery({
