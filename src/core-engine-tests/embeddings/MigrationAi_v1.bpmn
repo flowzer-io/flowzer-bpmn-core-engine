@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0" id="Definitions_MigrationAi_v1" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_MigrationAi" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="ServiceTask_Classify" name="Classify">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="flowzer.ai.v1" />
+        <flowzer:aiTask contractVersion="1" connectionId="118adeb6-65a4-4e57-a03b-d3b0a3300ac9" model="model-a" instructionVersion="1" maxInputTokens="4096" maxOutputTokens="512" timeoutSeconds="45">
+          <flowzer:instruction>Classify the request.</flowzer:instruction>
+          <flowzer:resultSchema>{"type":"object"}</flowzer:resultSchema>
+        </flowzer:aiTask>
+        <zeebe:ioMapping>
+          <zeebe:input source="=Anfrage" target="request" />
+          <zeebe:output source="=result" target="Einordnung" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="ServiceTask_Classify" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="ServiceTask_Classify" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>
