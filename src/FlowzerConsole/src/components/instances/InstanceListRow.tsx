@@ -3,7 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { instanceBucket } from '@/lib/api/normalize';
 import type { ProcessInstanceInfoDto } from '@/lib/api/types';
 import { formatTimestamp, formatVersion, shortId } from '@/lib/format';
-import { BUCKET_TONE, STATE_LABEL, waitingBadges } from '@/lib/instanceView';
+import { instanceTone, STATE_LABEL, waitingBadges } from '@/lib/instanceView';
 
 /**
  * Die Tabellenspalten gelten erst ab `md`. Auf einem Telefon blieben von fuenf festen
@@ -75,7 +75,9 @@ export function InstanceListRow({ instance, stepName, onOpen, selection }: Insta
 
         <div className="w-full min-w-0 md:w-auto">
           <div className="text-muted truncate text-[13px]">
-            {bucket === 'done' ? 'Abgeschlossen' : stepName}
+            {/* Fertige Vorgänge haben keinen aktuellen Schritt mehr; der Ausgang muss den
+                Abbruch aber vom Abschluss unterscheiden. */}
+            {bucket === 'done' ? STATE_LABEL[instance.state] : stepName}
           </div>
         </div>
 
@@ -93,7 +95,7 @@ export function InstanceListRow({ instance, stepName, onOpen, selection }: Insta
         </div>
 
         <div>
-          <Chip tone={BUCKET_TONE[bucket]}>{STATE_LABEL[instance.state]}</Chip>
+          <Chip tone={instanceTone(instance.state)}>{STATE_LABEL[instance.state]}</Chip>
         </div>
 
         <div className="text-muted font-mono text-xs">{formatTimestamp(instance.startedAt)}</div>

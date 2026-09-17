@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 
 import type { Tone } from '@/components/ui/Chip';
-import { instanceBucket } from '@/lib/api/normalize';
+import { instanceBucket, isCancelledInstance } from '@/lib/api/normalize';
 import { useDiagnostics, useInstances, useTimers } from '@/lib/api/queries';
 import type { ProcessInstanceInfoDto, TimerSubscriptionDto } from '@/lib/api/types';
 import { formatDueIn, formatRelative, parseApiDate, shortId } from '@/lib/format';
@@ -25,6 +25,22 @@ function instanceEntries(instances: ProcessInstanceInfoDto[]): ActivityEntry[] {
     const bucket = instanceBucket(instance.state);
     const href = `/instances/${instance.instanceId}`;
     const label = instance.relatedDefinitionName;
+
+    // Vor dem Eimer geprüft: Ein Abbruch liegt bei den fertigen Vorgängen, ist aber weder
+    // ein Fehlschlag noch ein Abschluss — beide Sätze wären für den Betrieb falsch.
+    if (isCancelledInstance(instance.state)) {
+      const at = finishedAt ?? startedAt;
+      return [
+        {
+          id: `${instance.instanceId}-cancelled`,
+          text: `Instanz #${shortId(instance.instanceId)} („${label}") wurde abgebrochen`,
+          time: formatRelative(at),
+          tone: 'wait' as const,
+          at: at?.getTime() ?? 0,
+          href,
+        },
+      ];
+    }
 
     if (bucket === 'error') {
       const at = finishedAt ?? startedAt;
@@ -92,8 +108,9 @@ function timerEntries(timers: TimerSubscriptionDto[]): ActivityEntry[] {
 }
 
 /**
- * Baut den Aktivitätsstrom aus echten Laufzeitdaten: gestartete, beendete und
- * fehlgeschlagene Instanzen, bald fällige Timer sowie der letzte Scheduler-Fehler.
+ * Baut den Aktivitätsstrom aus echten Laufzeitdaten: gestartete, abgeschlossene,
+ * abgebrochene und fehlgeschlagene Instanzen, bald fällige Timer sowie der letzte
+ * Scheduler-Fehler.
  */
 export function useActivityFeed(): ActivityEntry[] {
   const instancesQuery = useInstances();
