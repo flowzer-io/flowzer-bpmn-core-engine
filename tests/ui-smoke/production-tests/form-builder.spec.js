@@ -1,11 +1,11 @@
 const { test, expect } = require('@playwright/test');
 
 // Synthetische Autorenentwürfe: echter Form.io-Builder, aber keine produktiven Schreibzugriffe.
-async function mockAuthoring(page) {
+async function mockAuthoring(page, schemaOverride) {
   const formId = '11111111-1111-4111-8111-111111111111';
   const componentFormId = '22222222-2222-4222-8222-222222222222';
   const folderId = '33333333-3333-4333-8333-333333333333';
-  const schema = { display: 'form', components: [{ type: 'textfield', key: 'reason', label: 'Begründung', input: true }] };
+  const schema = schemaOverride ?? { display: 'form', components: [{ type: 'textfield', key: 'reason', label: 'Begründung', input: true }] };
   let draft = { formId, revision: 1, hasDraft: true, formData: JSON.stringify(schema) };
   await page.route('**/config.json', route => route.fulfill({ json: { apiBaseUrl: '/api', bffEnabled: true, accent: 'iris' } }));
   await page.route('**/bff/session', route => route.fulfill({ json: { id: 'author', name: 'Autor', capabilities: ['access', 'modeler'] } }));
@@ -130,5 +130,54 @@ for (const [layout, viewport] of [
       && component.formId === componentFormId && component.version === '0.1')).toBe(true);
     await page.getByRole('button', { name: 'Vorschau ansehen', exact: true }).click();
     await expect(page.getByText('Straße', { exact: true }).first()).toBeVisible();
+  });
+}
+
+for (const width of [1280, 390]) {
+  // Testzweck: Echtes Form.io übernimmt JSON und verschachtelte Werte, liefert Live-Ausgabe
+  // und Standardwerte; Fehler oder Kopieren dürfen weder Datenverlust noch Schreibaufrufe auslösen.
+  test(`JSON-Vorschau belegt Felder vor und zeigt echte Ausgaben bei ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockAuthoring(page, { display: 'form', components: [
+      { type: 'textfield', key: 'reason', label: 'Begründung', input: true, defaultValue: 'Standard' },
+      { type: 'container', key: 'address', label: 'Adresse', input: true, components: [
+        { type: 'textfield', key: 'city', label: 'Ort', input: true, defaultValue: 'Standardort' },
+      ] },
+    ] });
+    const writes = [];
+    page.on('request', request => {
+      const path = new URL(request.url()).pathname;
+      if (path.startsWith('/api/') && request.method() !== 'GET' && !path.endsWith('/preview')) writes.push(path);
+    });
+    await page.goto('/forms');
+    await page.getByText('JSON-Eingabe', { exact: true }).click();
+    await page.getByText('JSON-Ausgabe', { exact: true }).click();
+    const input = page.getByLabel('JSON-Testdaten', { exact: true });
+    const output = page.getByLabel('Aktuelle Formularwerte als JSON', { exact: true });
+    await expect.poll(async () => JSON.parse(await output.inputValue() || '{}').reason).toBe('Standard');
+    await input.fill(JSON.stringify({ reason: 'Urlaub', address: { city: 'Bocholt' } }));
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Standard');
+    await page.getByRole('button', { name: 'Eingabe übernehmen', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Urlaub');
+    await expect(page.getByRole('textbox', { name: 'Ort', exact: true })).toHaveValue('Bocholt');
+    await page.getByRole('textbox', { name: 'Begründung', exact: true }).fill('Bearbeitet');
+    await expect.poll(async () => JSON.parse(await output.inputValue() || '{}').reason).toBe('Bearbeitet');
+    expect(JSON.parse(await output.inputValue()).address.city).toBe('Bocholt');
+    await input.fill('{invalid}');
+    await page.getByRole('button', { name: 'Eingabe übernehmen', exact: true }).click();
+    await expect(page.getByRole('alert')).toContainText('Ungültiges JSON');
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Bearbeitet');
+    await page.getByRole('button', { name: 'Testdaten zurücksetzen', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Standard');
+    await expect.poll(async () => JSON.parse(await output.inputValue() || '{}').address?.city).toBe('Standardort');
+    // Testzweck: Testdaten dürfen beim Wechsel des Katalogformulars nicht übertragen werden.
+    await input.fill('{"reason":"Nur für dieses Formular"}');
+    await page.getByRole('button', { name: 'Eingabe übernehmen', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Nur für dieses Formular');
+    await page.getByRole('button', { name: 'Zustelladresse Personal · Form-Key: Zustelladresse', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Begründung', exact: true })).toHaveValue('Standard');
+    await page.getByText('JSON-Eingabe', { exact: true }).click();
+    await expect(input).toHaveValue('{}');
+    expect(writes).toEqual([]);
   });
 }
