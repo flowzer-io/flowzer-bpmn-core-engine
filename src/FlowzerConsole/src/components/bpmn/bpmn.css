@@ -90,6 +90,19 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--fail) 45%, transparent));
 }
 
+/*
+ * Rahmen um das vom Betrachter gewählte Element (`selectionFrame.ts`). Gestrichelt und mit
+ * Abstand, damit er sich auch ohne Farbsehen vom Laufzeitzustand der Form abhebt.
+ * Ohne Mausereignisse: Er liegt über der Form, und ein Klick soll die Form treffen.
+ */
+.flowzer-selection-frame {
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  border: 2.5px dashed var(--accent);
+  border-radius: 10px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 /* Elementbezogene Modellfehler bleiben auch neben der Diagnoseliste sichtbar. */
 .bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;

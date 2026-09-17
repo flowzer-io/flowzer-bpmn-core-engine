@@ -16,7 +16,8 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
-        return processInstanceInfo.ToDto(metaNamesById, canInspect);
+        var versionsById = await GetVersionsByIdAsync(definitionStorage, [processInstanceInfo.DefinitionId]);
+        return processInstanceInfo.ToDto(metaNamesById, versionsById, canInspect);
     }
 
     public static async Task<List<ProcessInstanceInfoDto>> ToDtosAsync(
@@ -27,9 +28,12 @@ public static class ProcessInstanceMappingExtensions
         ArgumentNullException.ThrowIfNull(processInstances);
         ArgumentNullException.ThrowIfNull(definitionStorage);
 
+        var instances = processInstances.ToList();
         var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
-        return processInstances
-            .Select(instance => instance.ToDto(metaNamesById, canInspect))
+        var versionsById = await GetVersionsByIdAsync(
+            definitionStorage, instances.Select(instance => instance.DefinitionId));
+        return instances
+            .Select(instance => instance.ToDto(metaNamesById, versionsById, canInspect))
             .ToList();
     }
 
@@ -41,9 +45,36 @@ public static class ProcessInstanceMappingExtensions
             .ToDictionary(group => group.Key, group => group.First().Name);
     }
 
+    // Gezielt je tatsächlich gebundener Version statt über den ganzen Bestand: Die Ansichten
+    // fragen alle paar Sekunden nach, und eine Definition trägt ihre Formular-Snapshots mit.
+    // Viele Instanzen teilen sich wenige Versionen. Eine fehlende Definition (Altbestand,
+    // gelöschte Version) ist hier ein normaler Fall und kein Fehler.
+    private static async Task<Dictionary<Guid, VersionDto>> GetVersionsByIdAsync(
+        IDefinitionStorage definitionStorage,
+        IEnumerable<Guid> definitionIds)
+    {
+        var versionsById = new Dictionary<Guid, VersionDto>();
+        foreach (var definitionId in definitionIds.Distinct())
+        {
+            try
+            {
+                var version = (await definitionStorage.GetDefinitionById(definitionId)).Version;
+                versionsById[definitionId] = new VersionDto(version.Major, version.Minor);
+            }
+            // Beide Ablagen melden eine fehlende Definition als (abgeleitete) FileNotFoundException.
+            catch (FileNotFoundException)
+            {
+                // Bleibt unbekannt; die Version wird nicht geraten.
+            }
+        }
+
+        return versionsById;
+    }
+
     private static ProcessInstanceInfoDto ToDto(
         this ProcessInstanceInfo processInstanceInfo,
         IReadOnlyDictionary<string, string> metaNamesById,
+        IReadOnlyDictionary<Guid, VersionDto> versionsById,
         bool canInspect)
     {
         // Instanzen ohne zugehörige Meta-Definition (z. B. nach einem Direkt-Deploy
@@ -57,6 +88,7 @@ public static class ProcessInstanceMappingExtensions
         {
             InstanceId = processInstanceInfo.InstanceId,
             DefinitionId = processInstanceInfo.DefinitionId,
+            DefinitionVersion = versionsById.GetValueOrDefault(processInstanceInfo.DefinitionId),
             RelatedDefinitionId = processInstanceInfo.metaDefinitionId,
             RelatedDefinitionName = relatedDefinitionName,
             MessageSubscriptionCount = canInspect ? processInstanceInfo.MessageSubscriptionCount : 0,

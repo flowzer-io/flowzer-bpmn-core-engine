@@ -63,6 +63,11 @@ export function formatDuration(milliseconds: number | null | undefined): string 
   return `${Math.round(milliseconds / 60_000)} min`;
 }
 
+/** Workflow- und Formularversionen in der Schreibweise der Konsole, z. B. „v1.2". */
+export function formatVersion(version: { major: number; minor: number } | null | undefined): string {
+  return version ? `v${version.major}.${version.minor}` : 'v?';
+}
+
 /** Kürzt technische Guids auf eine lesbare Instanzkennung („A3F9-2E7“ im Design). */
 export function shortId(id: string | null | undefined): string {
   if (!id) return '—';

@@ -5,7 +5,13 @@ public class ProcessInstanceInfoDto
     public required Guid InstanceId { get; set; }
     
     public required Guid DefinitionId { get; set; }
-    
+
+    /// <summary>
+    /// Version des Workflows, an die die Instanz gebunden ist. Null, wenn die gebundene
+    /// Definition nicht mehr vorliegt — die Version wird dann nicht geraten.
+    /// </summary>
+    public VersionDto? DefinitionVersion { get; set; }
+
     public required string RelatedDefinitionId { get; set; }
     public required string RelatedDefinitionName { get; set; }
     public int MessageSubscriptionCount { get; set; }

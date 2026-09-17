@@ -5,7 +5,9 @@ import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
+import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
 import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
@@ -19,7 +21,7 @@ import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
-import { formatDueIn, formatTimestamp, parseApiDate, shortId } from '@/lib/format';
+import { formatDueIn, formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
 import { BUCKET_TONE, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 
@@ -56,9 +58,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
   const selectedFlowNodeId = useMemo(() => {
     const nodes = (runtimeQuery.data?.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
-    if (selectedNodeId && nodes.some((node) => node.flowNodeId === selectedNodeId)) return selectedNodeId;
+    // Auch ein noch nicht erreichter Schritt lässt sich wählen — sonst spränge die
+    // Markierung beim Klick darauf kommentarlos zum aktiven Knoten zurück.
+    const isKnown = (flowNodeId: string) =>
+      nodes.some((node) => node.flowNodeId === flowNodeId) || model.nodeById.has(flowNodeId);
+    if (selectedNodeId && isKnown(selectedNodeId)) return selectedNodeId;
     return nodes.find((node) => node.status === 0)?.flowNodeId ?? nodes[0]?.flowNodeId ?? undefined;
-  }, [runtimeQuery.data?.nodes, selectedNodeId]);
+  }, [runtimeQuery.data?.nodes, model, selectedNodeId]);
 
   useBreadcrumbs([
     { label: 'Instanzen', to: '/instances' },
@@ -113,6 +119,14 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
               {instance.relatedDefinitionName}
             </span>
             <Chip tone={tone}>{STATE_LABEL[instance.state]}</Chip>
+            <span
+              className="bg-surface-2 text-muted rounded-[7px] px-2 py-0.5 font-mono text-xs font-semibold"
+              title={instance.definitionVersion
+                ? 'Workflow-Version, an die diese Instanz gebunden ist'
+                : 'Die Workflow-Version dieser Instanz liegt nicht mehr vor'}
+            >
+              {formatVersion(instance.definitionVersion)}
+            </span>
           </div>
           <div className="text-faint mt-0.5 font-mono text-xs">
             #{shortId(instance.instanceId)} · gestartet {formatTimestamp(instance.startedAt)}
@@ -132,6 +146,10 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             Offene Aufgabe bearbeiten
           </Button>
         )}
+
+        {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
+
+        {bucket === 'active' && <CancelInstanceAction instance={instance} />}
 
         <Button
           size="sm"
@@ -167,8 +185,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           {runtimeQuery.data && (
             <RuntimeDiagram
               runtime={runtimeQuery.data}
-              onNodeSelect={(flowNodeId) => {
-                setSelectedNodeId(flowNodeId);
+              selectedNodeId={selectedFlowNodeId}
+              onNodeSelect={(elementId) => {
+                // Das Diagramm meldet jeden Klick, auch auf Kanten, Beschriftungen und die
+                // Zeichenfläche. Nur ein Prozessschritt ändert die Auswahl.
+                if (!model.nodeById.has(elementId)
+                  && !runtimeQuery.data.nodes?.some((node) => node.flowNodeId === elementId)) return;
+                setSelectedNodeId(elementId);
                 setTab('nodeData');
               }}
             />

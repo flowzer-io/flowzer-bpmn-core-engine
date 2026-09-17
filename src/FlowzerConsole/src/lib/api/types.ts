@@ -99,6 +99,8 @@ export interface ProcessInstanceInfoDto {
   canInspect?: boolean;
   instanceId: string;
   definitionId: string;
+  /** Version des Workflows, an die die Instanz gebunden ist; null, wenn die Definition fehlt. */
+  definitionVersion?: VersionDto | null;
   relatedDefinitionId: string;
   relatedDefinitionName: string;
   messageSubscriptionCount: number;
@@ -111,6 +113,56 @@ export interface ProcessInstanceInfoDto {
   startedAt?: string | null;
   /** Ergänzt durch die Console-API: Endzeitpunkt der Instanz (UTC). */
   finishedAt?: string | null;
+}
+
+/**
+ * Entspricht `InstanceMigrationFindingDto`.
+ *
+ * `code` ist bewusst offen typisiert: Die Engine darf Gründe ergänzen, ohne dass die
+ * Konsole bricht. Unbekannte Codes zeigt die Oberfläche als `message` an.
+ */
+export interface InstanceMigrationFindingDto {
+  code: string;
+  flowNodeId?: string | null;
+  /** Technische Begründung der API auf Englisch — nur der Rückfall für neue Codes. */
+  message: string;
+}
+
+/** Entspricht `InstanceMigrationPreviewItemDto`. */
+export interface InstanceMigrationPreviewItemDto {
+  instanceId: string;
+  migratable: boolean;
+  /** Nicht leer genau dann, wenn `migratable` falsch ist. */
+  problems: InstanceMigrationFindingDto[];
+  /** Folgen, die der Betrieb vor der Migration kennen muss, z. B. ein verworfener Entwurf. */
+  notices: InstanceMigrationFindingDto[];
+}
+
+/** Entspricht `InstanceMigrationPreviewDto` — die folgenlose Prüfung vor der Migration. */
+export interface InstanceMigrationPreviewDto {
+  relatedDefinitionId: string;
+  relatedDefinitionName: string;
+  /** Versions-Guid, an die die geprüften Instanzen gebunden sind. */
+  sourceDefinitionId: string;
+  sourceVersion: VersionDto | null;
+  /** Versions-Guid der aktuell deployten Fassung; einziges zulässiges Ziel. */
+  targetDefinitionId: string;
+  targetVersion: VersionDto;
+  instances: InstanceMigrationPreviewItemDto[];
+}
+
+/** Entspricht `InstanceMigrationResultItemDto`. */
+export interface InstanceMigrationResultItemDto {
+  instanceId: string;
+  migrated: boolean;
+  problems: InstanceMigrationFindingDto[];
+}
+
+/** Entspricht `InstanceMigrationResultDto`; Teilerfolge sind möglich. */
+export interface InstanceMigrationResultDto {
+  targetDefinitionId: string;
+  targetVersion: VersionDto;
+  instances: InstanceMigrationResultItemDto[];
 }
 
 /** Entspricht `BpmnDefinitionDto`. */

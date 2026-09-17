@@ -741,7 +741,8 @@ public partial class BpmnBusinessLogic(
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
             storageSystem.CommitChanges();
 
-            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId, processInstance.ProcessId, instance);
+            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
+                processInstance.ProcessId, instance, processInstance.Migrations);
         }
         finally
         {
@@ -822,7 +823,8 @@ public partial class BpmnBusinessLogic(
                     deployedDefinition.Id,
                     relatedDefinitionId,
                     process.Id,
-                    instance);
+                    instance,
+                    []);
 
                 // Ab hier kann ein nichttransaktionaler Adapter bereits einzelne Dateien
                 // dauerhaft geschrieben haben. Bei einem späteren Fehler muss die offene
@@ -904,10 +906,16 @@ public partial class BpmnBusinessLogic(
         return startForm.FormKey;
     }
 
-    private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance, string relatedDefinitionId, Guid definitionId, string processId)
+    /// <param name="migrations">
+    /// Die Migrationsspur, die geschrieben werden soll. <c>null</c> heisst „die gespeicherte
+    /// uebernehmen" — der Normalfall jeder gewoehnlichen Mutation.
+    /// </param>
+    private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
+        string relatedDefinitionId, Guid definitionId, string processId,
+        IReadOnlyList<InstanceMigrationRecord>? migrations = null)
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
-        await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance);
+        await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations);
         await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }
 
@@ -920,10 +928,30 @@ public partial class BpmnBusinessLogic(
     }
 
     private async Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
-        ITransactionalStorage storageSystem, InstanceEngine instance)
+        ITransactionalStorage storageSystem, InstanceEngine instance,
+        IReadOnlyList<InstanceMigrationRecord>? migrations)
     {
+        // Der Datensatz einer Instanz wird bei jedem Speichern frisch aus dem Engine-Zustand
+        // gebaut; die Migrationsspur steht aber ausschliesslich in der Ablage. Ohne dieses
+        // Nachlesen loeschte der naechste gewoehnliche Schreibvorgang — etwa der Abschluss
+        // einer Aufgabe — die Geschichte der Versionswechsel still weg.
+        var carried = migrations ?? await ReadMigrations(storageSystem, instance.InstanceId);
         await storageSystem.InstanceStorage.AddOrUpdateInstance(
-            CreateProcessInstanceInfo(definitionId, relatedDefinitionId, processId, instance));
+            CreateProcessInstanceInfo(definitionId, relatedDefinitionId, processId, instance, carried));
+    }
+
+    private static async Task<IReadOnlyList<InstanceMigrationRecord>> ReadMigrations(
+        ITransactionalStorage storageSystem, Guid instanceId)
+    {
+        try
+        {
+            return (await storageSystem.InstanceStorage.GetProcessInstance(instanceId)).Migrations;
+        }
+        // Eine neu gestartete Instanz liegt noch nicht in der Ablage; sie hat keine Spur.
+        catch (Exception exception) when (exception is FileNotFoundException or KeyNotFoundException)
+        {
+            return [];
+        }
     }
 
     private async Task RestoreInstanceTimerSubscriptions()
@@ -1115,10 +1143,12 @@ public partial class BpmnBusinessLogic(
         Guid definitionId,
         string relatedDefinitionId,
         string processId,
-        InstanceEngine instance)
+        InstanceEngine instance,
+        IReadOnlyList<InstanceMigrationRecord> migrations)
     {
         return new ProcessInstanceInfo
         {
+            Migrations = [.. migrations],
             InstanceId = instance.InstanceId,
             metaDefinitionId = relatedDefinitionId,
             DefinitionId = definitionId,

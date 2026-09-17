@@ -377,6 +377,7 @@ vollständige Kompensation und echtes Mehrmandanten-Hosting bleiben separate Str
   Fehlerverträge, kompatible Adapter statt abruptem Bruch vorhandener Endpunkte.
 - Append-only-Historie mit Akteur, Zeitpunkt, Korrelation und datensparsamen Änderungen.
 - Vorwärtsmigrationen; laufende Instanzen behalten Definition und gebundene Formulare.
+  Einzige Ausnahme ist die ausdrücklich ausgelöste [Instanzmigration](INSTANCE-MIGRATION.md).
 - Reihenfolge M0 → M1/M2 → M3/M4 → M5; notwendige M6-Bausteine jeweils vorziehen.
 - TDD, Testzweck-Kommentare und fokussierte PRs nach `main`. Für dieses autonome Mandat
   entfallen Zwischenreviews; vor der finalen Zusammenführung prüft ein direkter

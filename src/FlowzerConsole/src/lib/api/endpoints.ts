@@ -17,6 +17,8 @@ import type {
   FormFolderRequestDto,
   FormVersionSummaryDto,
   HealthStatusDto,
+  InstanceMigrationPreviewDto,
+  InstanceMigrationResultDto,
   MessageDto,
   MessageSubscriptionDto,
   NotificationDto,
@@ -279,6 +281,37 @@ export const instancesApi = {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}`, { signal });
     return normalizeInstance(instance);
   },
+
+  /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */
+  cancel: async (instanceId: string) => {
+    const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}/cancel`, {
+      method: 'POST',
+    });
+    return normalizeInstance(instance);
+  },
+
+  /**
+   * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
+   * zur aktuell deployten Version sind. Verlangt das Betriebsrecht; 400/422, wenn die
+   * Auswahl verschiedene Workflows oder Quellversionen mischt.
+   */
+  migrationPreview: (instanceIds: string[], signal?: AbortSignal) =>
+    requestStatusResult<InstanceMigrationPreviewDto>('/instance/migration/preview', {
+      method: 'POST',
+      body: { instanceIds },
+      signal,
+    }),
+
+  /**
+   * `POST /instance/migration` — hängt die Instanzen auf `targetDefinitionId` um.
+   * Wurde inzwischen eine andere Version deployt, antwortet die API mit 409; dann muss
+   * die Vorschau wiederholt werden. Teilerfolge sind möglich.
+   */
+  migrate: (instanceIds: string[], targetDefinitionId: string) =>
+    requestStatusResult<InstanceMigrationResultDto>('/instance/migration', {
+      method: 'POST',
+      body: { instanceIds, targetDefinitionId },
+    }),
 
   /** `GET /instance/{id}/subscription/messages` */
   messageSubscriptions: (instanceId: string, signal?: AbortSignal) =>
