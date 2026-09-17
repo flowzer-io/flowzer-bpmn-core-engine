@@ -116,3 +116,29 @@ Sie beenden eine Aufgabe, sind also keine Weiter-/Zurück-Navigation.
 Das [UX-Zielbild und die Abgrenzung dynamischer Seiten](FORM-AUTHORING-UX.md)
 beschreiben den anschließenden Ausbau; mehrseitige Verzweigungen sind damit noch
 nicht als vollständiger Flowzer-Vertrag freigegeben.
+
+## JSON-Testdaten in der Vorschau (#311)
+
+Unter **JSON-Eingabe** lassen sich Feldwerte als Objekt ohne `data`-Hülle einsetzen:
+
+```json
+{ "reason": "Urlaub", "address": { "city": "Bocholt" } }
+```
+
+Erst **Eingabe übernehmen** ersetzt die Testwerte. Nicht angegebene Felder verwenden
+ihre Standardwerte; **Testdaten zurücksetzen** stellt diese wieder her. Ungültiges
+JSON verändert die bereits ausgefüllte Vorschau nicht. Objekte dürfen höchstens
+100.000 Zeichen und 64 Verschachtelungsebenen enthalten; gefährliche Merge-Schlüssel
+und nicht endliche Zahlen werden zurückgewiesen.
+
+**JSON-Ausgabe** zeigt live die tatsächlichen Formularwerte einschließlich
+Standardwerten und verschachtelten Feldern; **JSON kopieren** kopiert diesen Stand.
+Dies ist kein serverseitig validiertes Prozessergebnis: Ausgabezuordnungen,
+geschützte Variablen, ausgeblendete Felder und Abschlussaktionen werden beim echten
+Abschluss gesondert geprüft.
+
+Testdaten bleiben ausschließlich im Arbeitsspeicher der geöffneten Vorschau.
+Wechsel zu einem anderen Formular, zum Bearbeiten oder Verlassen der Seite verwirft
+sie. Sie werden weder gespeichert noch an einen Prozessstart oder Aufgabenabschluss
+gesendet. Die Schema- und Verzeichnisvorschau verwendet weiterhin ihre bestehenden,
+berechtigungsgeprüften API-Endpunkte.
