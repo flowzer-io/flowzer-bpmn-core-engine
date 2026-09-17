@@ -320,7 +320,7 @@
 
 .formio-surface :where(input.form-control, textarea.form-control, select.form-control, .form-control),
 .formio-dialog :where(input.form-control, textarea.form-control, select.form-control, .form-control) {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   box-sizing: border-box;
@@ -336,6 +336,22 @@
   border-color: var(--accent);
   box-shadow: none;
   outline: none;
+}
+
+/*
+ * Gesperrte Felder. Form.io setzt `disabled` am Feld selbst, auch wenn das ganze Formular
+ * nur gelesen wird. Ohne diese Regel sah ein gesperrtes Feld exakt wie ein bedienbares aus.
+ * Nicht nur Farbe: Der Mauszeiger sagt dasselbe. `readonly` gehoert bewusst nicht dazu —
+ * flatpickr setzt es an bedienbaren Datumsfeldern, damit nur der Kalender schreibt.
+ */
+.formio-surface :where(input.form-control, textarea.form-control, select.form-control):disabled,
+.formio-dialog :where(input.form-control, textarea.form-control, select.form-control):disabled,
+/* Form.io faerbt gesperrte Datumsfelder dreistufig fest auf #eee — im dunklen Thema ein heller Block. */
+.formio-surface .formio-disabled-input .form-control.flatpickr-input,
+.formio-dialog .formio-disabled-input .form-control.flatpickr-input {
+  background: var(--field-disabled);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .formio-surface .form-control::placeholder,
@@ -673,7 +689,7 @@
  */
 .formio-surface .ace_editor,
 .formio-dialog .ace_editor {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -730,7 +746,7 @@
  */
 .formio-surface .choices__inner,
 .formio-dialog .choices__inner {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -796,8 +812,8 @@
 .formio-dialog .choices.is-disabled .choices__inner,
 .formio-surface .choices.is-disabled .choices__input,
 .formio-dialog .choices.is-disabled .choices__input {
-  background-color: var(--surface-2);
-  color: var(--faint);
+  background-color: var(--field-disabled);
+  color: var(--muted);
 }
 
 /* Das Dreieck der Einfachauswahl ist eine Rahmenfarbe, kein Zeichen. */

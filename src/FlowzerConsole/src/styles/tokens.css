@@ -21,6 +21,15 @@
   --surface-2: #f1efea;
   --inset: #f7f5f1;
 
+  /*
+   * Flaeche von Eingabefeldern. Ein bedienbares Feld ist die hellste Flaeche, ein gesperrtes
+   * tritt grau zurueck — so herum kennt man es. Eigene Tokens, weil das dunkle Thema das
+   * Verhaeltnis nicht ueber dieselben Flaechen ausdrueckt: Dort ist das bedienbare Feld
+   * eine dunkle Mulde und das gesperrte die flachere, hellere Flaeche.
+   */
+  --field: #ffffff;
+  --field-disabled: #ebe8e1;
+
   --text: #1b1b22;
   --muted: #6c6a77;
   --faint: #9c99a5;
@@ -67,6 +76,9 @@
   --surface: #18181f;
   --surface-2: #20202a;
   --inset: #14141a;
+
+  --field: #14141a;
+  --field-disabled: #20202a;
 
   --text: #f1f0ed;
   --muted: #a3a1ac;
