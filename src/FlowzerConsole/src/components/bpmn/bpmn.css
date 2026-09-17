@@ -59,9 +59,19 @@
 
 /* --- Zustandsmarkierungen einer Instanz ----------------------------------- */
 
+/*
+ * Die Zustandsstaerke gehoert nur an die Grundform. bpmn-js zeichnet sie als erstes Kind;
+ * danach folgen Beschriftung und das kleine Typsymbol (Person, Zahnrad, Umschlag). Eine
+ * 2,5-px-Kontur auf einem 17x20 grossen Symbol laesst es zu einem Fleck verschmieren.
+ * Die Farbe traegt dagegen die ganze Zeichnung, damit das Element als Einheit wirkt.
+ */
+
 /* Bereits durchlaufene Elemente. */
 .bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--accent) !important;
+}
+
+.bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2px !important;
 }
 
@@ -72,6 +82,9 @@
 /* Das Element, auf dem die Instanz gerade steht. */
 .bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--accent) !important;
+}
+
+.bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2.5px !important;
 }
 
@@ -86,6 +99,9 @@
 /* Abgebrochene oder zurückgezogene Ausführungspfade: gestrichelt und nicht nur farblich. */
 .bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--muted) !important;
+}
+
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2px !important;
   stroke-dasharray: 5 3 !important;
 }
@@ -97,6 +113,9 @@
 /* Fehlgeschlagene Elemente. */
 .bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;
+}
+
+.bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2.5px !important;
 }
 
