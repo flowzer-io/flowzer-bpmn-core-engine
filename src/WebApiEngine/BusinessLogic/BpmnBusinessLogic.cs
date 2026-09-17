@@ -284,11 +284,11 @@ public partial class BpmnBusinessLogic(
     }
 
 
-    private async Task SaveSubscriptions(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId = null)
+    private async Task SaveSubscriptions(IStorageSystem storageSystem, ICatchHandler catchHandler, string relatedDefinitionId, Guid definitionId, string processId, Guid? processInstanceId = null, IReadOnlySet<Guid>? movedTaskTokenIds = null)
     {
         await SaveCatchMessages(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         SaveActiveSignals(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
-        await SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
+        await SaveUserTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId, movedTaskTokenIds);
         await SaveServiceTasks(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
         await SaveActiveTimers(storageSystem, catchHandler, relatedDefinitionId, definitionId, processId, processInstanceId);
     }
@@ -910,11 +910,18 @@ public partial class BpmnBusinessLogic(
     /// Die Migrationsspur, die geschrieben werden soll. <c>null</c> heisst „die gespeicherte
     /// uebernehmen" — der Normalfall jeder gewoehnlichen Mutation.
     /// </param>
+    /// <param name="movedTaskTokenIds">
+    /// Tokens, deren Knoten sich durch eine Zuordnung von Hand aendert. Nur der Instanzumzug
+    /// kennt diesen Fall; fuer jeden anderen Schreibvorgang bleibt ein Knotenwechsel unter
+    /// derselben Tokenkennung ein mehrdeutiger Altbestand.
+    /// </param>
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
         string relatedDefinitionId, Guid definitionId, string processId,
-        IReadOnlyList<InstanceMigrationRecord>? migrations = null)
+        IReadOnlyList<InstanceMigrationRecord>? migrations = null,
+        IReadOnlySet<Guid>? movedTaskTokenIds = null)
     {
-        await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId, instance.InstanceId);
+        await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            instance.InstanceId, movedTaskTokenIds);
         await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations);
         await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }

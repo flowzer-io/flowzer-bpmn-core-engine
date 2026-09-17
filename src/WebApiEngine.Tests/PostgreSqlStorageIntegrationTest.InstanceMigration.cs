@@ -59,6 +59,24 @@ public partial class PostgreSqlStorageIntegrationTest
             new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
     }
 
+    // Testzweck: Auch auf dem Betriebspfad zieht eine Instanz mit einer Zuordnung von Hand um;
+    // die Transaktion je Instanz muss den Plan mit derselben Zuordnung neu fassen.
+    [Test]
+    public async Task Migration_ShouldLiftAnInstanceWithAManualMappingOnPostgreSql()
+    {
+        await InstanceMigrationScenarios.MappingAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
+    }
+
+    // Testzweck: Eine Zuordnung auf einen unbekannten Knoten laesst auch in PostgreSQL nichts
+    // zurueck — weder an der Instanz noch an ihrer Aufgabe.
+    [Test]
+    public async Task Migration_ShouldWriteNothingWhenTheMappingTargetIsMissingOnPostgreSql()
+    {
+        await InstanceMigrationScenarios.MappingTargetMissingAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
+    }
+
     // Testzweck: Ein Entwurf, der waehrend des Umzugs gespeichert wird, darf die Aufgabe nicht
     // an die Quellversion zurueckbinden — weder als Ersatz eines bestehenden Entwurfs noch als
     // neu angelegter. Nimmt der Umzug die Aufgabensperre nicht, liest der Speichervorgang die

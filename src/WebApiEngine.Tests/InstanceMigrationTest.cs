@@ -91,6 +91,52 @@ public sealed class InstanceMigrationTest
             new FileSystemTransactionalStorageProvider(), boundaryTimer);
     }
 
+    // Testzweck: Ein fehlender Knoten laesst sich von Hand zuordnen; der Trockenlauf fragt
+    // danach, und der Umzug fasst den Plan mit der Zuordnung auch in seiner eigenen Transaktion
+    // neu — sonst bliebe die Instanz trotz Zuordnung liegen.
+    [Test]
+    public async Task Migration_ShouldLiftAnInstanceWithAManualMappingOnFilesystem()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingAsync(new FileSystemTransactionalStorageProvider());
+    }
+
+    // Testzweck: Eine Zuordnung auf einen unbekannten Knoten veraendert nichts und wird erneut
+    // abgefragt, statt die Instanz stillschweigend liegen zu lassen.
+    [Test]
+    public async Task Migration_ShouldAskAgainWhenTheMappingTargetIsMissing()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingTargetMissingAsync(new FileSystemTransactionalStorageProvider());
+    }
+
+    // Testzweck: Fehlt das Modell der Quellversion, bleibt die Frage nach der Zuordnung
+    // stellbar — mit Kennung und Typ aus dem wartenden Token und ohne geratenen Namen.
+    [Test]
+    public async Task MigrationPreview_ShouldAskForAMappingWithoutTheSourceModel()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingWithoutSourceModelAsync(
+            new FileSystemTransactionalStorageProvider());
+    }
+
+    // Testzweck: Eine Zuordnung ueber Elementtypen hinweg ist beantwortet, aber unzulaessig.
+    [Test]
+    public async Task Migration_ShouldRefuseAMappingAcrossElementTypes()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingTypeChangedAsync(new FileSystemTransactionalStorageProvider());
+    }
+
+    // Testzweck: Die Zuordnung gilt fuer die ganze Anfrage und laesst die Instanz an einem
+    // unveraenderten Knoten unberuehrt weiterziehen.
+    [Test]
+    public async Task Migration_ShouldApplyTheMappingOnlyWhereItIsNeeded()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingPartialAsync(new FileSystemTransactionalStorageProvider());
+    }
+
     // Testzweck: Eine Instanz auf der deployten Version ist kein Umzug, sondern ein Befund.
     [Test]
     public async Task Migration_ShouldReportInstancesAlreadyOnTheDeployedVersion()

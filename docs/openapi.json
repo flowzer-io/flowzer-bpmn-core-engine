@@ -8606,9 +8606,34 @@
         },
         "additionalProperties": false
       },
+      "InstanceMigrationMappingDto": {
+        "required": [
+          "required",
+          "targets"
+        ],
+        "type": "object",
+        "properties": {
+          "required": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationFlowNodeDto"
+            },
+            "nullable": true
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MigrationFlowNodeDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "InstanceMigrationPreviewDto": {
         "required": [
           "instances",
+          "mapping",
           "relatedDefinitionId",
           "relatedDefinitionName",
           "sourceDefinitionId",
@@ -8645,6 +8670,9 @@
               "$ref": "#/components/schemas/InstanceMigrationPreviewItemDto"
             },
             "nullable": true
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/InstanceMigrationMappingDto"
           }
         },
         "additionalProperties": false
@@ -8711,6 +8739,13 @@
               "format": "uuid"
             },
             "nullable": true
+          },
+          "flowNodeMapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8733,6 +8768,13 @@
           "targetDefinitionId": {
             "type": "string",
             "format": "uuid"
+          },
+          "flowNodeMapping": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8902,6 +8944,28 @@
             "items": {
               "$ref": "#/components/schemas/MessageSubscriptionDto"
             },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MigrationFlowNodeDto": {
+        "required": [
+          "id",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
             "nullable": true
           }
         },

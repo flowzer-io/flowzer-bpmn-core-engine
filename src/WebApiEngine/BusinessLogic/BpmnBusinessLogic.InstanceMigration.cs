@@ -22,18 +22,33 @@ public partial class BpmnBusinessLogic
     private const int MaxMigrationInstances = 200;
 
     /// <summary>
+    /// Obergrenze der Zuordnung. Sie beantwortet die wartenden Knoten einer Quellversion; mehr
+    /// Eintraege als migrierbare Instanzen kann eine Anfrage nicht sinnvoll brauchen.
+    /// </summary>
+    private const int MaxMappingEntries = 200;
+
+    /// <summary>
     /// Trockenlauf: Was wuerde der Umzug tun, und was ginge dabei verloren? Veraendert nichts
     /// und nimmt deshalb weder die Engine-Sperre noch eine Instanzsperre.
     /// </summary>
-    public async Task<InstanceMigrationPreview> PreviewInstanceMigration(IReadOnlyCollection<Guid> instanceIds)
+    public async Task<InstanceMigrationPreview> PreviewInstanceMigration(
+        IReadOnlyCollection<Guid> instanceIds,
+        IReadOnlyDictionary<string, string>? flowNodeMapping = null)
     {
         ArgumentNullException.ThrowIfNull(instanceIds);
 
+        // Vor allem anderen: Eine unbrauchbare Zuordnung ist eine unbrauchbare Angabe und darf
+        // nicht erst als Befund einzelner Instanzen auftauchen.
+        if (MappingProblem(flowNodeMapping) is { } mappingMessage)
+            return InstanceMigrationPreview.Rejected(
+                InstanceMigrationRequestStatus.InvalidFlowNodeMapping, mappingMessage);
+
         using var storage = storageProvider.GetTransactionalStorage();
-        var (status, message, resolved) = await ResolveMigrationRequest(storage, instanceIds);
+        var (status, message, resolved) = await ResolveMigrationRequest(storage, instanceIds, flowNodeMapping);
         if (resolved is null) return InstanceMigrationPreview.Rejected(status, message!);
 
         var items = new List<InstanceMigrationPreviewItem>(resolved.Instances.Count);
+        var openFlowNodeIds = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var instance in resolved.Instances)
         {
             var evaluation = await EvaluateInstance(storage, resolved, instance);
@@ -44,6 +59,7 @@ public partial class BpmnBusinessLogic
                 evaluation.Migratable,
                 evaluation.Problems,
                 await CollectNotices(storage, resolved, instance, draftsReadable)));
+            openFlowNodeIds.UnionWith(OpenMappingFlowNodeIds(evaluation));
         }
 
         return new InstanceMigrationPreview(
@@ -54,7 +70,114 @@ public partial class BpmnBusinessLogic
             resolved.SourceDefinition?.Version,
             resolved.Target.Id,
             resolved.Target.Version,
-            items);
+            items,
+            await DescribeSourceFlowNodes(storage, resolved, openFlowNodeIds),
+            DescribeTargetFlowNodes(resolved));
+    }
+
+    /// <summary>
+    /// Die Knoten, zu denen die Bedienung noch etwas sagen muss: die ohne Zuordnung fehlenden
+    /// und die, deren Zuordnung ins Leere zeigt. Letztere stehen absichtlich nicht in
+    /// <see cref="InstanceMigrationPlan.FlowNodeIdsNeedingMapping"/> — sie sind beantwortet,
+    /// nur eben falsch, und werden deshalb hier wieder aufgenommen.
+    /// </summary>
+    private static IEnumerable<string> OpenMappingFlowNodeIds(InstanceEvaluation evaluation) =>
+        (evaluation.Plan?.FlowNodeIdsNeedingMapping ?? [])
+        .Concat(evaluation.Problems
+            .Where(problem => problem.Code == nameof(InstanceMigrationProblemCode.MappingTargetMissing))
+            .Select(problem => problem.FlowNodeId)
+            .OfType<string>());
+
+    /// <summary>
+    /// Beschreibt die offenen Quellknoten aus dem Modell der Quellversion: Sie gibt es in der
+    /// Zielversion nicht mehr, also kann nur die Quellversion Name und Typ nennen. Fehlt sie,
+    /// bleibt der Typ aus dem Element des wartenden Tokens — der Name waere dort der bereits
+    /// aufgeloeste Text einer einzelnen Instanz und wird deshalb nicht geraten.
+    /// </summary>
+    private static async Task<IReadOnlyList<InstanceMigrationFlowNode>> DescribeSourceFlowNodes(
+        ITransactionalStorage storage,
+        ResolvedMigration resolved,
+        IReadOnlyCollection<string> flowNodeIds)
+    {
+        if (flowNodeIds.Count == 0) return [];
+
+        var sourceFlowNodes = await SourceFlowNodesById(storage, resolved);
+        var waitingFlowNodes = resolved.Instances
+            .SelectMany(WaitingTokens)
+            .Select(token => token.CurrentFlowNode)
+            .OfType<FlowNode>()
+            .GroupBy(flowNode => flowNode.Id, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        return [.. flowNodeIds.Select(flowNodeId => sourceFlowNodes.TryGetValue(flowNodeId, out var fromModel)
+            ? Describe(fromModel)
+            : new InstanceMigrationFlowNode(
+                flowNodeId,
+                null,
+                waitingFlowNodes.TryGetValue(flowNodeId, out var fromToken)
+                    ? fromToken.GetType().Name
+                    : nameof(FlowNode)))];
+    }
+
+    /// <summary>Die angebotene Auswahl: alle Knoten der obersten Ebene der Zielversion.</summary>
+    private static IReadOnlyList<InstanceMigrationFlowNode> DescribeTargetFlowNodes(ResolvedMigration resolved) =>
+    [
+        .. resolved.ProcessIds
+            .Select(resolved.ProcessOf)
+            .OfType<Process>()
+            .SelectMany(TopLevelFlowNodesById)
+            .GroupBy(entry => entry.Key, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => Describe(group.First().Value))
+    ];
+
+    /// <summary>
+    /// Die Knoten der obersten Ebene der Quellversion. Fehlt die Quellversion — Altbestand oder
+    /// geloeschte Version —, bleibt die Auskunft leer statt geraten.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, FlowNode>> SourceFlowNodesById(
+        ITransactionalStorage storage,
+        ResolvedMigration resolved)
+    {
+        Definitions sourceModel;
+        try
+        {
+            sourceModel = ModelParser.ParseModel(
+                await storage.DefinitionStorage.GetBinary(resolved.SourceDefinitionId));
+        }
+        catch (FileNotFoundException)
+        {
+            return new Dictionary<string, FlowNode>(StringComparer.Ordinal);
+        }
+
+        return sourceModel
+            .GetProcesses()
+            .Where(process => resolved.ProcessIds.Contains(process.Id, StringComparer.Ordinal))
+            .SelectMany(TopLevelFlowNodesById)
+            .GroupBy(entry => entry.Key, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First().Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>Ein Knoten ohne Namen traegt im Modell die leere Zeichenkette; nach aussen ist das nichts.</summary>
+    private static InstanceMigrationFlowNode Describe(FlowNode flowNode) => new(
+        flowNode.Id,
+        string.IsNullOrWhiteSpace(flowNode.Name) ? null : flowNode.Name,
+        flowNode.GetType().Name);
+
+    /// <summary>
+    /// Prueft die Zuordnung fuer sich allein und nennt den Grund, aus dem die ganze Anfrage
+    /// unbrauchbar ist. Ein Knoten ohne Kennung waere weder zu finden noch zu beantworten.
+    /// </summary>
+    private static string? MappingProblem(IReadOnlyDictionary<string, string>? flowNodeMapping)
+    {
+        if (flowNodeMapping is null || flowNodeMapping.Count == 0) return null;
+        if (flowNodeMapping.Count > MaxMappingEntries)
+            return $"A flow node mapping can name at most {MaxMappingEntries} flow nodes.";
+
+        return flowNodeMapping.Any(entry =>
+            string.IsNullOrWhiteSpace(entry.Key) || string.IsNullOrWhiteSpace(entry.Value))
+            ? "A flow node mapping must name a non-empty source and target flow node id."
+            : null;
     }
 
     /// <summary>
@@ -66,9 +189,15 @@ public partial class BpmnBusinessLogic
     public async Task<InstanceMigrationOutcome> MigrateInstances(
         IReadOnlyCollection<Guid> instanceIds,
         Guid targetDefinitionId,
-        Guid migratedByUserId)
+        Guid migratedByUserId,
+        IReadOnlyDictionary<string, string>? flowNodeMapping = null)
     {
         ArgumentNullException.ThrowIfNull(instanceIds);
+
+        // Vor der Engine-Sperre: Eine unbrauchbare Zuordnung haelt keinen anderen Schreibvorgang auf.
+        if (MappingProblem(flowNodeMapping) is { } mappingMessage)
+            return InstanceMigrationOutcome.Rejected(
+                InstanceMigrationRequestStatus.InvalidFlowNodeMapping, mappingMessage);
 
         await _engineMutationLock.WaitAsync();
         try
@@ -76,7 +205,7 @@ public partial class BpmnBusinessLogic
             ResolvedMigration resolved;
             using (var storage = storageProvider.GetTransactionalStorage())
             {
-                var request = await ResolveMigrationRequest(storage, instanceIds);
+                var request = await ResolveMigrationRequest(storage, instanceIds, flowNodeMapping);
                 if (request.Resolved is null)
                     return InstanceMigrationOutcome.Rejected(request.Status, request.Message!);
 
@@ -151,7 +280,8 @@ public partial class BpmnBusinessLogic
                 new(sourceDefinitionId, resolved.Target.Id, DateTimeOffset.UtcNow, migratedByUserId)
             };
             await SaveInstance(
-                storage, engine, instance.metaDefinitionId, resolved.Target.Id, instance.ProcessId, migrations);
+                storage, engine, instance.metaDefinitionId, resolved.Target.Id, instance.ProcessId, migrations,
+                MovedTokenIds(evaluation.Plan));
             storage.CommitChanges();
 
             (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogInformation(
@@ -176,6 +306,17 @@ public partial class BpmnBusinessLogic
             ]);
         }
     }
+
+    /// <summary>
+    /// Die Tokens, die eine Zuordnung von Hand auf einen anders benannten Knoten setzt. Der
+    /// Aufgabenabgleich haelt einen Knotenwechsel unter derselben Tokenkennung sonst fuer einen
+    /// mehrdeutigen Altbestand; hier ist er die Absicht des Umzugs.
+    /// </summary>
+    private static IReadOnlySet<Guid> MovedTokenIds(InstanceMigrationPlan plan) => plan.WaitingTokens
+        .Where(token => !string.Equals(
+            token.CurrentBaseElement.Id, plan.TargetFlowNodeOf(token.Id).Id, StringComparison.Ordinal))
+        .Select(token => token.Id)
+        .ToHashSet();
 
     /// <summary>
     /// Bindet die bestehenden Aufgaben-Subscriptions auf die Zielversion um und entscheidet je
@@ -309,7 +450,9 @@ public partial class BpmnBusinessLogic
                     $"The deployed version contains no process \"{instance.ProcessId}\".")
             ], null);
 
-        var plan = InstanceMigration.Plan(instance.Tokens, targetProcess);
+        // Die Zuordnung gehoert in jeden Plan — auch in den, den die Transaktion des Umzugs neu
+        // fasst. Sonst faende der Umzug den Knoten dort wieder nicht und liesse die Instanz liegen.
+        var plan = InstanceMigration.Plan(instance.Tokens, targetProcess, resolved.FlowNodeMapping);
         return new InstanceEvaluation(plan.IsMigratable, [.. plan.Problems.Select(ToFinding)], plan);
     }
 
@@ -335,7 +478,7 @@ public partial class BpmnBusinessLogic
 
         var notices = new List<InstanceMigrationFinding>();
         var tasks = (await storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).ToArray();
-        var targetFlowNodes = TargetFlowNodesById(targetProcess);
+        var targetFlowNodes = TopLevelFlowNodesById(targetProcess);
 
         foreach (var token in WaitingTokens(instance))
         {
@@ -422,7 +565,7 @@ public partial class BpmnBusinessLogic
 
     // Nur die oberste Ebene, wie im Plan der Engine: Ein gleichnamiger Knoten in einem
     // Teilprozess ist ein anderer Knoten.
-    private static Dictionary<string, FlowNode> TargetFlowNodesById(Process targetProcess) => targetProcess.FlowElements
+    private static Dictionary<string, FlowNode> TopLevelFlowNodesById(Process process) => process.FlowElements
         .OfType<FlowNode>()
         .GroupBy(flowNode => flowNode.Id, StringComparer.Ordinal)
         .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
@@ -432,7 +575,10 @@ public partial class BpmnBusinessLogic
     /// gemeinsame Quellversion und das Modell der deployten Zielversion.
     /// </summary>
     private static async Task<(InstanceMigrationRequestStatus Status, string? Message, ResolvedMigration? Resolved)>
-        ResolveMigrationRequest(ITransactionalStorage storage, IReadOnlyCollection<Guid> instanceIds)
+        ResolveMigrationRequest(
+            ITransactionalStorage storage,
+            IReadOnlyCollection<Guid> instanceIds,
+            IReadOnlyDictionary<string, string>? flowNodeMapping)
     {
         if (instanceIds.Count == 0)
             return (InstanceMigrationRequestStatus.NoInstances, "No process instance was named.", null);
@@ -474,7 +620,8 @@ public partial class BpmnBusinessLogic
         var targetModel = ModelParser.ParseModel(await storage.DefinitionStorage.GetBinary(target.Id));
 
         return (InstanceMigrationRequestStatus.Accepted, null, new ResolvedMigration(
-            relatedDefinitionId, sourceDefinitionId, sourceDefinition, target, targetModel, instances));
+            relatedDefinitionId, sourceDefinitionId, sourceDefinition, target, targetModel, instances,
+            flowNodeMapping));
     }
 
     /// <summary>Die Quellversion darf fehlen (Altbestand, geloeschte Version); dann wird nichts geraten.</summary>
@@ -491,8 +638,16 @@ public partial class BpmnBusinessLogic
         BpmnDefinition? SourceDefinition,
         BpmnDefinition Target,
         Definitions TargetModel,
-        IReadOnlyList<ProcessInstanceInfo> Instances)
+        IReadOnlyList<ProcessInstanceInfo> Instances,
+        // Die Zuordnung der Anfrage: Quellknoten auf Zielknoten, gueltig fuer jede Instanz und
+        // damit auch fuer jeden Plan, den eine Instanztransaktion neu fasst.
+        IReadOnlyDictionary<string, string>? FlowNodeMapping)
     {
+        /// <summary>Die Prozesse, in denen die Instanzen dieser Anfrage laufen.</summary>
+        internal IReadOnlyCollection<string> ProcessIds => [.. Instances
+            .Select(instance => instance.ProcessId)
+            .Distinct(StringComparer.Ordinal)];
+
         /// <summary>
         /// Der gleichnamige Prozess der Zielversion. Fehlt er, ist die Instanz nicht migrierbar:
         /// Ein anderer Prozess ist ein anderes Modell, kein neuer Stand desselben.
