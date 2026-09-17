@@ -56,9 +56,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
   const selectedFlowNodeId = useMemo(() => {
     const nodes = (runtimeQuery.data?.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
-    if (selectedNodeId && nodes.some((node) => node.flowNodeId === selectedNodeId)) return selectedNodeId;
+    // Auch ein noch nicht erreichter Schritt lässt sich wählen — sonst spränge die
+    // Markierung beim Klick darauf kommentarlos zum aktiven Knoten zurück.
+    const isKnown = (flowNodeId: string) =>
+      nodes.some((node) => node.flowNodeId === flowNodeId) || model.nodeById.has(flowNodeId);
+    if (selectedNodeId && isKnown(selectedNodeId)) return selectedNodeId;
     return nodes.find((node) => node.status === 0)?.flowNodeId ?? nodes[0]?.flowNodeId ?? undefined;
-  }, [runtimeQuery.data?.nodes, selectedNodeId]);
+  }, [runtimeQuery.data?.nodes, model, selectedNodeId]);
 
   useBreadcrumbs([
     { label: 'Instanzen', to: '/instances' },
@@ -167,8 +171,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           {runtimeQuery.data && (
             <RuntimeDiagram
               runtime={runtimeQuery.data}
-              onNodeSelect={(flowNodeId) => {
-                setSelectedNodeId(flowNodeId);
+              selectedNodeId={selectedFlowNodeId}
+              onNodeSelect={(elementId) => {
+                // Das Diagramm meldet jeden Klick, auch auf Kanten, Beschriftungen und die
+                // Zeichenfläche. Nur ein Prozessschritt ändert die Auswahl.
+                if (!model.nodeById.has(elementId)
+                  && !runtimeQuery.data.nodes?.some((node) => node.flowNodeId === elementId)) return;
+                setSelectedNodeId(elementId);
                 setTab('nodeData');
               }}
             />
