@@ -9110,6 +9110,7 @@
         "required": [
           "activeDefinitions",
           "activeInstances",
+          "cancelledInstances",
           "completedInstances",
           "definitionMetadataEntries",
           "failedInstances",
@@ -9158,6 +9159,10 @@
             "format": "int32"
           },
           "failedInstances": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelledInstances": {
             "type": "integer",
             "format": "int32"
           },

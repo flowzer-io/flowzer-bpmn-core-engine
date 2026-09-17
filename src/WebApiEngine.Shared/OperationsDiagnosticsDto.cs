@@ -21,6 +21,12 @@ public class OperationsStorageSnapshotDto
     public required int ActiveInstances { get; set; }
     public required int CompletedInstances { get; set; }
     public required int FailedInstances { get; set; }
+
+    // Abbrueche sind ein regulaerer Ausgang (Terminate-Endereignis oder die Betriebsaktion
+    // „Instanz abbrechen“) und werden deshalb getrennt von den Fehlern gezaehlt. `required`
+    // wie alle anderen Zaehler: Der Snapshot wird ausschliesslich im OperationsController
+    // gebaut, ein vergessener Zaehler soll dort ein Compilerfehler sein.
+    public required int CancelledInstances { get; set; }
     public required int PendingMessages { get; set; }
     public required int PendingTimers { get; set; }
     public required int OpenUserTasks { get; set; }
