@@ -6,7 +6,7 @@ import { InstanceDetailPage } from './InstanceDetailPage';
 
 const mocks = vi.hoisted(() => ({
   instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn(),
-  cancel: vi.fn(),
+  cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(),
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@flowzer/react', () => ({
@@ -17,6 +17,10 @@ vi.mock('@/stores/breadcrumbs', () => ({ useBreadcrumbs: vi.fn() }));
 vi.mock('@/lib/api/queries', () => ({
   useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
   useCancelInstance: () => ({ mutate: mocks.cancel, isPending: false }),
+  useInstanceMigrationPreview: mocks.migrationPreview,
+  useMigrateInstances: () => ({
+    mutate: mocks.migrate, isPending: false, data: undefined, error: null, reset: vi.fn(),
+  }),
   queryKeys: {},
 }));
 vi.mock('@/components/bpmn/BpmnViewer', () => ({ BpmnViewer: () => <div>Technisches Diagramm</div> }));
@@ -34,6 +38,9 @@ beforeEach(() => {
   mocks.runtime.mockReturnValue({ data: undefined, isPending: false });
   mocks.history.mockReturnValue({ data: undefined, isPending: false });
   mocks.subscriptions.mockReturnValue({ data: undefined, isPending: false });
+  mocks.migrationPreview.mockReturnValue({
+    data: undefined, isPending: true, error: null, refetch: vi.fn(),
+  });
 });
 
 describe('Datensparsame Instanzansicht', () => {
@@ -219,5 +226,36 @@ describe('Abbruch und Version in der Betriebsansicht', () => {
   it('bietet den Abbruch ohne Betriebsrecht nicht an', () => {
     render(<InstanceDetailPage instanceId="instance-1" />);
     expect(screen.queryByRole('button', { name: 'Instanz abbrechen' })).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Wer eine einzelne laufende Instanz vor sich hat, soll sie von dort aus
+  // migrieren können — ohne den Umweg über die Liste und die Mehrfachauswahl.
+  it('bietet den Migrationsassistenten für eine laufende Instanz an', async () => {
+    mocks.instance.mockReturnValue({ data: inspectable, isPending: false });
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    // Die Prüfung startet erst mit dem Dialog, nicht schon beim Betrachten der Instanz.
+    expect(mocks.migrationPreview).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Migrieren …' }));
+
+    expect(mocks.migrationPreview).toHaveBeenCalledWith(['instance-1']);
+    expect(screen.getByRole('dialog')).toHaveTextContent('Instanzen migrieren');
+  });
+
+  // Testzweck: Eine beendete Instanz hat keinen Token mehr, den man umhängen könnte;
+  // ohne Betriebsrecht lehnt die API ohnehin ab. Beides bietet die Oberfläche nicht an.
+  it('bietet die Migration für beendete Instanzen und ohne Betriebsrecht nicht an', () => {
+    mocks.instance.mockReturnValue({
+      data: { ...inspectable, state: 'Completed', finishedAt: '2026-09-09T10:00:00Z' },
+      isPending: false,
+    });
+    const { unmount } = render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(screen.queryByRole('button', { name: 'Migrieren …' })).not.toBeInTheDocument();
+    unmount();
+
+    mocks.instance.mockReturnValue({ data: overview, isPending: false });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(screen.queryByRole('button', { name: 'Migrieren …' })).not.toBeInTheDocument();
   });
 });

@@ -116,6 +116,7 @@ const ICONS = [
   'touch_app',
   'undo',
   'unfold_more',
+  'upgrade',
   'upload',
   'warning',
 ];

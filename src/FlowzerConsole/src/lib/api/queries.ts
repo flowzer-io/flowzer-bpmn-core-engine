@@ -82,6 +82,9 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
+  /** Die Kennungen stehen sortiert im Schlüssel: dieselbe Auswahl ist dieselbe Prüfung. */
+  instanceMigrationPreview: (instanceIds: readonly string[]) =>
+    [...queryKeys.instances, 'migration-preview', [...instanceIds].sort()] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -457,24 +460,75 @@ export function useInstance(instanceId: string | undefined) {
 }
 
 /**
- * Bricht eine laufende Instanz ab. Danach stimmt nichts mehr, was aus ihr abgeleitet war:
- * Liste, Detail, Warteobjekte, Laufzeitdiagramm — und die Aufgabenliste, denn offene
- * Aufgaben der Instanz entfallen mit.
+ * Verwirft alles, was von einem Eingriff in eine laufende Instanz abhängt.
+ *
+ * Abbruch und Migration greifen an derselben Stelle an, deshalb steht die Liste hier
+ * einmal: Instanzliste, Detail, Warteobjekte und Laufzeitdiagramm, die Aufgabenliste
+ * (offene Aufgaben entfallen bzw. hängen danach an einem anderen Formular) — und die
+ * Betriebssicht, denn deren Timer- und Diagnoselisten zählen genau diese Warteobjekte.
+ */
+function invalidateInstanceViews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  cacheNamespace: string,
+  sessionScope: string,
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.operations });
+  void queryClient.invalidateQueries({
+    queryKey: flowzerQueryKeys.instances(cacheNamespace, sessionScope),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+  });
+}
+
+/**
+ * Bricht eine laufende Instanz ab.
+ *
+ * Die API antwortet mit der bereits beendeten Instanz. Sie wird sofort in den Cache
+ * geschrieben, damit das Detail nicht bis zum nächsten Abruf weiter „Wartet“ anzeigt und
+ * den Abbruch ein zweites Mal anbietet.
  */
 export function useCancelInstance() {
   const queryClient = useQueryClient();
   const { cacheNamespace, sessionScope } = useFlowzer();
   return useMutation({
     mutationFn: (instanceId: string) => instancesApi.cancel(instanceId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
-      void queryClient.invalidateQueries({
-        queryKey: flowzerQueryKeys.instances(cacheNamespace, sessionScope),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
-      });
+    onSuccess: (instance) => {
+      queryClient.setQueryData(queryKeys.instance(instance.instanceId), instance);
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
     },
+  });
+}
+
+/**
+ * Prüft folgenlos, welche der ausgewählten Instanzen sich auf die aktuell deployte
+ * Version heben lassen.
+ *
+ * Bewusst ohne Nachladeintervall und ohne Frischezeit: Das Ergebnis wird zur
+ * Betriebsentscheidung gelesen, nicht überwacht — und ein zwischenzeitliches Deployment
+ * darf nie als noch gültige Vorschau aus dem Cache kommen.
+ */
+export function useInstanceMigrationPreview(instanceIds: string[] | undefined) {
+  const ids = [...(instanceIds ?? [])].sort();
+  return useQuery({
+    queryKey: queryKeys.instanceMigrationPreview(ids),
+    queryFn: ({ signal }) => instancesApi.migrationPreview(ids, signal),
+    enabled: ids.length > 0,
+    staleTime: 0,
+    refetchInterval: false,
+    retry: false,
+  });
+}
+
+/** Hebt die Instanzen auf die Zielversion; danach veraltet dasselbe wie nach einem Abbruch. */
+export function useMigrateInstances() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ instanceIds, targetDefinitionId }: { instanceIds: string[]; targetDefinitionId: string }) =>
+      instancesApi.migrate(instanceIds, targetDefinitionId),
+    onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
   });
 }
 

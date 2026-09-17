@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
+import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
 import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
@@ -145,6 +146,8 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             Offene Aufgabe bearbeiten
           </Button>
         )}
+
+        {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
 
         {bucket === 'active' && <CancelInstanceAction instance={instance} />}
 
