@@ -344,10 +344,10 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("3");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("4");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
-                && !element.GetProperty("executable").GetBoolean());
+                && element.GetProperty("executable").GetBoolean());
     }
 
     // Testzweck: Prüft, dass ein fehlgeschlagener Deploy-Versuch keine halb persistierte Definitionsversion zurücklässt.

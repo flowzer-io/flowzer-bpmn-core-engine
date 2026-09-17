@@ -75,3 +75,36 @@ it('reicht den vorhandenen QueryClient an verschachtelte Form.io-Roots weiter', 
   await waitFor(() => expect(createForm).toHaveBeenCalledOnce());
   expect(createForm.mock.calls[0]?.[2].flowzerQueryClient).toBe(client);
 });
+
+// Testzweck: Der Vorschau-Host erfährt, wann Standardwerte wirklich lesbar sind,
+// ohne ein fachliches Change-Ereignis oder eine Absendung künstlich auszulösen.
+it('meldet den bereiten Renderer und beim Abbau nicht bereit', async () => {
+  createForm.mockReset();
+  const onReadyChange = vi.fn();
+  createForm.mockResolvedValue({ submission: { data: { reason: 'Standard' } }, on: vi.fn(), destroy: vi.fn() });
+  const view = render(<FormRenderer schema='{"components":[]}' onReadyChange={onReadyChange} />);
+  await waitFor(() => expect(onReadyChange).toHaveBeenLastCalledWith(true));
+  view.unmount();
+  expect(onReadyChange).toHaveBeenLastCalledWith(false);
+});
+
+// Testzweck: Verzögerte Change-Ereignisse zerstörter Form.io-Instanzen dürfen nach
+// Reset oder Formularwechsel keine alten Werte in die aktuelle Vorschau zurückschreiben.
+it('ignoriert verspätete Änderungen abgebauter Renderer', async () => {
+  createForm.mockReset();
+  const listeners: Array<() => void> = [];
+  createForm.mockImplementation(async () => ({
+    submission: { data: { old: true } },
+    on: (_event: string, callback: () => void) => listeners.push(callback),
+    destroy: vi.fn(),
+  }));
+  const onChange = vi.fn();
+  const view = render(<FormRenderer schema='{"components":[]}' onChange={onChange} />);
+  await waitFor(() => expect(listeners).toHaveLength(1));
+  view.rerender(<FormRenderer schema='{"components":[],"title":"neu"}' onChange={onChange} />);
+  await waitFor(() => expect(listeners).toHaveLength(2));
+  act(() => listeners[0]?.());
+  expect(onChange).not.toHaveBeenCalled();
+  act(() => listeners[1]?.());
+  expect(onChange).toHaveBeenCalledOnce();
+});

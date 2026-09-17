@@ -1,8 +1,21 @@
 # Laufzeitlücken und aktueller Restbestand
 
-**Stand:** 9. September 2026
+**Stand:** 17. September 2026
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
+
+## Korrektur #310: Manual Tasks und Timerdiagnose
+
+Manual Tasks durchlaufen wie generische Tasks ohne Wartezustand den Sequenzfluss.
+Die Fähigkeitsmatrix v4 erlaubt sie bei neuer Veröffentlichung; historische Verträge
+und gespeicherte Definitionen bleiben unverändert. Regressionen prüfen normalen
+Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
+
+Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
+solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
+für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
+Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
+Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
 
 ## In diesem Strang bereits geschlossen
 

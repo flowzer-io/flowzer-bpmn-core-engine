@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { FormBuilder, type FormBuilderHandle } from '@/components/forms/FormBuilder';
 import { FormFolderNavigation } from '@/components/forms/FormFolderNavigation';
 import { FormRenderer } from '@/components/forms/FormRenderer';
+import { FormAuthoringPreview } from '@/components/forms/FormAuthoringPreview';
 import { Button } from '@/components/ui/Button';
 import { Card, EmptyState } from '@/components/ui/Card';
 import { ConfirmModal } from '@/components/ui/Modal';
@@ -491,10 +492,7 @@ export function FormsPage() {
             )}
 
             {selectedId && sourceData && mode === 'preview' && mayPublish && previewQuery.data && (
-              <>
-                <p className="text-muted mb-4 text-sm">Interaktive Vorschau: Testeingaben werden nicht gespeichert und starten keinen Workflow.</p>
-                <FormRenderer schema={previewQuery.data.formData} directoryAdapter={previewDirectory} />
-              </>
+              <FormAuthoringPreview key={selectedId} schema={previewQuery.data.formData} directoryAdapter={previewDirectory} />
             )}
 
             {selectedId && sourceData && mode === 'preview' && !mayPublish && (

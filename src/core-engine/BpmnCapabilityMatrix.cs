@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v3.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v4.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>

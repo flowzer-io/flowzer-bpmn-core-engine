@@ -26,6 +26,8 @@ export interface FormRendererProps {
   initialData?: ProcessVariables;
   readOnly?: boolean;
   onChange?: (data: ProcessVariables) => void;
+  /** Meldet, wann Initial-/Standardwerte über getData() gelesen werden können. */
+  onReadyChange?: (ready: boolean) => void;
   className?: string;
   /** Kontext, der die serverseitige Directory-Suche auf genau dieses Formular bindet. */
   directoryContext?: FormDirectorySearchContext;
@@ -71,17 +73,19 @@ function cloneInitialData(data: ProcessVariables): ProcessVariables {
  * damit „Freigeben“ und „Ablehnen“ als eigene Prozessentscheidungen sichtbar sind.
  */
 export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(function FormRenderer(
-  { schema, initialData, readOnly = false, onChange, className, directoryContext, directoryAdapter },
+  { schema, initialData, readOnly = false, onChange, onReadyChange, className, directoryContext, directoryAdapter },
   ref,
 ) {
   const queryClient = useContext(QueryClientContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<FormioInstance | null>(null);
   const onChangeRef = useRef(onChange);
+  const onReadyChangeRef = useRef(onReadyChange);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   onChangeRef.current = onChange;
+  onReadyChangeRef.current = onReadyChange;
 
   useImperativeHandle(
     ref,
@@ -109,6 +113,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
   useEffect(() => {
     let disposed = false;
+    onReadyChangeRef.current?.(false);
     let ownedInstance: FormioInstance | null = null;
     // Jede asynchrone Generation besitzt ihr eigenes DOM. Ein verspätetes destroy()
     // darf nur den alten Host leeren, niemals die bereits sichtbare Nachfolgeversion.
@@ -159,11 +164,14 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         }
 
         form.on('change', () => {
+          // Form.io kann nach destroy() noch entprellte Change-Ereignisse liefern.
+          if (disposed) return;
           onChangeRef.current?.(form.submission.data);
         });
 
         setStatus('ready');
         setError(null);
+        onReadyChangeRef.current?.(true);
       } catch (cause) {
         if (disposed) return;
         setStatus('error');
@@ -175,6 +183,7 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
 
     return () => {
       disposed = true;
+      onReadyChangeRef.current?.(false);
       ownedInstance?.destroy();
       if (instanceRef.current === ownedInstance) instanceRef.current = null;
       host.remove();
