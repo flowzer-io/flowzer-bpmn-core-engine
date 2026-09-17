@@ -57,7 +57,15 @@ describe('Migrierbare Instanzen der Liste', () => {
   // Testzweck: Beendete Instanzen haben keinen Token mehr, der umgehängt werden könnte.
   it('schließt beendete Instanzen aus', () => {
     expect(isMigrationCandidate({ ...instance, state: 'Completed' })).toBe(false);
+    expect(isMigrationCandidate({ ...instance, state: 'Failed' })).toBe(false);
+  });
+
+  // Testzweck: Abgebrochene Instanzen zählen fachlich zu den fertigen. Genau deshalb darf
+  // die Umbuchung sie nicht plötzlich als Migrationsquelle anbieten — die API lehnt sie
+  // mit `InstanceNotRunning` ab, und der Abbruch ist nicht rückholbar.
+  it('schließt abgebrochene Instanzen aus', () => {
     expect(isMigrationCandidate({ ...instance, state: 'Terminated' })).toBe(false);
+    expect(isMigrationCandidate({ ...instance, state: 'Terminating' })).toBe(false);
   });
 });
 

@@ -54,6 +54,25 @@ describe('Instanzliste', () => {
     expect(screen.getByText(/v2\.0/)).toBeInTheDocument();
   });
 
+  // Testzweck: Wer eine Instanz abbricht, sucht sie anschließend bei den fertigen
+  // Vorgängen. Unter „Fehler“ stünde sie als Störung, der jemand nachgehen müsste — und
+  // die Schrittspalte behauptete mit „Abgeschlossen“ einen fachlichen Erfolg.
+  it('führt eine abgebrochene Instanz unter „Fertig“ statt unter „Fehler“', async () => {
+    mocks.instances.mockReturnValue({
+      data: [{ ...instance, state: 'Terminated', finishedAt: '2026-09-08T11:00:00Z' }],
+      isPending: false,
+    });
+    const user = userEvent.setup();
+    render(<InstancesPage />);
+
+    expect(screen.getByRole('tab', { name: 'Fertig 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Fehler 0' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Fertig 1' }));
+    expect(screen.getAllByText('Abgebrochen').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Abgeschlossen')).not.toBeInTheDocument();
+  });
+
   // Testzweck: Liegt die gebundene Definition nicht mehr vor, steht dort eine erkennbar
   // unbekannte Version statt einer geratenen oder gar keiner.
   it('kennzeichnet eine unbekannte Version', () => {

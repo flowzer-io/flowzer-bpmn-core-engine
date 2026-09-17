@@ -177,6 +177,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Storage.ActiveInstances.Should().Be(1);
         payload.Result.Storage.CompletedInstances.Should().Be(1);
         payload.Result.Storage.FailedInstances.Should().Be(0);
+        payload.Result.Storage.CancelledInstances.Should().Be(0);
         payload.Result.Storage.PendingMessages.Should().Be(1);
         payload.Result.Storage.PendingTimers.Should().Be(1);
         payload.Result.Storage.OpenUserTasks.Should().Be(3);
@@ -195,6 +196,69 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi");
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
+
+    // Testzweck: Ein Abbruch (Terminate-Endereignis oder Betriebsaktion „Instanz abbrechen“) ist ein
+    // regulaerer Ausgang und darf die Fehlerzahl im Betriebsbild nicht erhoehen; er bekommt einen
+    // eigenen Zaehler. Zusaetzlich wird geprueft, dass jede Instanz in genau einem Eimer landet.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldCountTerminatedInstancesAsCancelled_NotAsFailed()
+    {
+        var storage = new TestStorage();
+        storage.StoredDefinitions.Add(new BpmnDefinition
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = "definition-active",
+            Hash = "hash-active",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = true
+        });
+        storage.Instances.AddRange(
+        [
+            CreateInstance(storage, ProcessInstanceState.Waiting),
+            CreateInstance(storage, ProcessInstanceState.Completed),
+            CreateInstance(storage, ProcessInstanceState.Compensated),
+            CreateInstance(storage, ProcessInstanceState.Failed),
+            CreateInstance(storage, ProcessInstanceState.Terminated),
+            CreateInstance(storage, ProcessInstanceState.Terminated)
+        ]);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result.Should().NotBeNull();
+
+        var snapshot = payload.Result!.Storage;
+        snapshot.TotalInstances.Should().Be(6);
+        snapshot.ActiveInstances.Should().Be(1);
+        snapshot.CompletedInstances.Should().Be(2);
+        snapshot.FailedInstances.Should().Be(1);
+        snapshot.CancelledInstances.Should().Be(2);
+        (snapshot.ActiveInstances + snapshot.CompletedInstances + snapshot.FailedInstances + snapshot.CancelledInstances)
+            .Should().Be(snapshot.TotalInstances);
+    }
+
+    private static ProcessInstanceInfo CreateInstance(TestStorage storage, ProcessInstanceState state) =>
+        new()
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "definition-active",
+            DefinitionId = storage.StoredDefinitions[0].Id,
+            ProcessId = "Process_Invoice",
+            Tokens = [],
+            IsFinished = state is not ProcessInstanceState.Waiting,
+            State = state,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0
+        };
 
     // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Service Unavailable When Storage Snapshot Fails“ ab.
     [Test]

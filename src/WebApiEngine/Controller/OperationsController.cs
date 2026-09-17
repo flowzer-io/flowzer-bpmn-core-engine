@@ -51,8 +51,15 @@ public class OperationsController(
                     ActiveInstances = activeInstances.Length,
                     CompletedInstances = instances.Count(instance =>
                         instance.State is ProcessInstanceState.Completed or ProcessInstanceState.Compensated),
-                    FailedInstances = instances.Count(instance =>
-                        instance.State is ProcessInstanceState.Failed or ProcessInstanceState.Terminated),
+                    FailedInstances = instances.Count(instance => instance.State is ProcessInstanceState.Failed),
+                    // Ein Abbruch ist kein Fehler: Er entsteht durch die Betriebsaktion „Instanz abbrechen“
+                    // oder durch ein Terminate-Endereignis (etwa beim abgelehnten Urlaubsantrag) und ist damit
+                    // ein regulaerer Ausgang. Die Konsole zeigt ihn als „Abgebrochen“; das Betriebsbild muss
+                    // dieselbe Aussage treffen. Die drei Endzustaende ergaenzen zusammen mit ActiveInstances
+                    // genau TotalInstances — die Zwischenzustaende (Completing, Failing, Terminating,
+                    // Compensating) erreicht die Ablage laut InstanceEngine.State nie, faellt aber trotzdem
+                    // einer von ihnen an, zaehlt er als aktiv und geht damit nicht verloren.
+                    CancelledInstances = instances.Count(instance => instance.State is ProcessInstanceState.Terminated),
                     PendingMessages = messages.Length,
                     PendingTimers = timers.Length,
                     OpenUserTasks = activeInstances.Sum(instance => instance.UserTaskSubscriptionCount),

@@ -506,6 +506,8 @@ Cors__AllowedOrigins__0=https://flowzer.example.com
 
 In der Konsole steht der Abbruch in der Instanzansicht („Instanz abbrechen"), nur für laufende Instanzen und nur mit Betriebsrecht; er verlangt eine ausdrückliche Bestätigung. Instanzliste und Instanzansicht nennen die Workflow-Version, an die eine Instanz gebunden ist (`definitionVersion` in `ProcessInstanceInfoDto`; `null`, wenn die gebundene Definition nicht mehr vorliegt).
 
+Eine abgebrochene Instanz gilt als **fertig**, nicht als fehlgeschlagen: Sie erscheint in der Instanzliste unter „Fertig" mit dem Status „Abgebrochen". Denselben Zustand (`Terminated`) erreicht auch ein Terminate-Endereignis im Modell — etwa der abgelehnte Urlaubsantrag aus `examples/urlaubsantrag`. Als Fehler zählen nur `Failed`-Instanzen.
+
 ## Instanzen migrieren
 
 Ein Deployment verändert keine laufende Instanz. Wer laufende Instanzen einer älteren Version bewusst auf die deployte Version heben will, nutzt den Migrationsassistenten der Konsole: in der Instanzliste laufende Instanzen desselben Workflows und derselben Version ankreuzen und „Migrieren …" wählen, oder in der Instanzansicht „Migrieren …". Der Assistent prüft zuerst folgenlos (`POST /instance/migration/preview`), nennt je Instanz Hindernisse und Folgen — etwa einen verworfenen Aufgabenentwurf — und migriert erst nach ausdrücklicher Bestätigung (`POST /instance/migration`). Beides verlangt das Betriebsrecht. Nicht migrierbare Instanzen bleiben unverändert; jede Migration wird an der Instanz festgehalten und mit Instanz, Quell-/Zielversion und auslösender Person protokolliert. Regeln, Grenzen und Vertrag: [INSTANCE-MIGRATION.md](INSTANCE-MIGRATION.md).

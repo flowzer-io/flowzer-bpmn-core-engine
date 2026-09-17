@@ -255,6 +255,9 @@ export function OperationsPage() {
                   segments={[
                     { label: 'aktiv', value: diagnostics.storage.activeInstances, tone: 'run' },
                     { label: 'abgeschlossen', value: diagnostics.storage.completedInstances, tone: 'done' },
+                    // Ein Abbruch ist ein regulärer Ausgang und darf deshalb nicht rot erscheinen;
+                    // die Instanzliste führt denselben Zustand als „Abgebrochen“ im Ton `wait`.
+                    { label: 'abgebrochen', value: diagnostics.storage.cancelledInstances, tone: 'wait' },
                     { label: 'fehlerhaft', value: diagnostics.storage.failedInstances, tone: 'fail' },
                   ]}
                 />

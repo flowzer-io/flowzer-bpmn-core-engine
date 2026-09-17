@@ -6276,6 +6276,8 @@ export interface components {
             /** Format: int32 */
             failedInstances: number;
             /** Format: int32 */
+            cancelledInstances: number;
+            /** Format: int32 */
             pendingMessages: number;
             /** Format: int32 */
             pendingTimers: number;

@@ -57,12 +57,23 @@ const BUCKET_BY_STATE: Record<ProcessInstanceState, InstanceBucket> = {
   Compensated: 'done',
   Failing: 'error',
   Failed: 'error',
-  Terminating: 'error',
-  Terminated: 'error',
+  // Ein Abbruch ist kein Fehler: Er entsteht durch die Betriebsaktion „Instanz abbrechen“
+  // oder durch ein Terminate-Endereignis (etwa der abgelehnte Urlaubsantrag) und ist damit
+  // ein regulärer Ausgang. `Terminating` liegt im selben Eimer, weil der Abbruch dann schon
+  // läuft — Abbruch und Migration dürfen dafür nicht erneut angeboten werden.
+  Terminating: 'done',
+  Terminated: 'done',
 };
 
 export function instanceBucket(state: ProcessInstanceState): InstanceBucket {
   return BUCKET_BY_STATE[state] ?? 'active';
+}
+
+const CANCELLED_STATES = new Set<ProcessInstanceState>(['Terminating', 'Terminated']);
+
+/** Trennt den Abbruch vom fachlichen Abschluss — beide liegen im Eimer `done`. */
+export function isCancelledInstance(state: ProcessInstanceState): boolean {
+  return CANCELLED_STATES.has(state);
 }
 
 /** Tokens, die noch aktiv im Prozess stehen (also nicht abgeschlossen/verworfen sind). */

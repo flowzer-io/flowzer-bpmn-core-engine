@@ -221,6 +221,23 @@ describe('Abbruch und Version in der Betriebsansicht', () => {
     expect(screen.queryByRole('button', { name: 'Instanz abbrechen' })).not.toBeInTheDocument();
   });
 
+  // Testzweck: Eine abgebrochene Instanz ist zu Ende. Ein zweiter Abbruch liefe ins Leere,
+  // und migrieren ließe sich nichts mehr — beides darf gar nicht erst angeboten werden.
+  it('bietet für eine abgebrochene Instanz weder Abbruch noch Migration an', () => {
+    mocks.instance.mockReturnValue({
+      data: { ...inspectable, state: 'Terminated', finishedAt: '2026-09-09T10:00:00Z' },
+      isPending: false,
+    });
+    // Ohne Laufzeitdiagramm bleibt „Abgebrochen“ eindeutig der Statuschip und nicht
+    // die Legende des Diagramms, die dasselbe Wort für einzelne Knoten führt.
+    mocks.runtime.mockReturnValue({ data: undefined, isPending: false });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    expect(screen.getByText('Abgebrochen')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Instanz abbrechen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Migrieren …' })).not.toBeInTheDocument();
+  });
+
   // Testzweck: Ohne Betriebsrecht lehnt die API den Abbruch ab; die datensparsame
   // Übersicht zeigt die Schaltfläche deshalb nicht.
   it('bietet den Abbruch ohne Betriebsrecht nicht an', () => {

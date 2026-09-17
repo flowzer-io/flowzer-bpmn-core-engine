@@ -3,12 +3,19 @@ import { useMemo } from 'react';
 
 import type { Tone } from '@/components/ui/Chip';
 import { definitionsApi } from '@/lib/api/endpoints';
-import { isFailedToken, isFinishedToken, isLiveToken, type InstanceBucket } from '@/lib/api/normalize';
+import {
+  instanceBucket,
+  isCancelledInstance,
+  isFailedToken,
+  isFinishedToken,
+  isLiveToken,
+  type InstanceBucket,
+} from '@/lib/api/normalize';
 import { queryKeys } from '@/lib/api/queries';
 import type { ProcessInstanceInfoDto, ProcessInstanceState, ProcessVariables, TokenDto } from '@/lib/api/types';
 import { parseBpmn, type BpmnModelSummary } from '@/lib/bpmnModel';
 
-export const BUCKET_TONE: Record<InstanceBucket, Tone> = {
+const BUCKET_TONE: Record<InstanceBucket, Tone> = {
   active: 'run',
   done: 'done',
   error: 'fail',
@@ -29,11 +36,25 @@ export const STATE_LABEL: Record<ProcessInstanceState, string> = {
   Completed: 'Abgeschlossen',
   Failing: 'Fehler tritt auf',
   Failed: 'Fehlgeschlagen',
-  Terminating: 'Wird beendet',
-  Terminated: 'Beendet',
+  // Dieselben Wörter wie für die Tokens in `InstanceDataPanels`: „beendet“ verschwiege,
+  // dass jemand die Instanz abgebrochen hat oder ein Terminate-Endereignis griff.
+  Terminating: 'Wird abgebrochen',
+  Terminated: 'Abgebrochen',
   Compensating: 'Kompensiert',
   Compensated: 'Kompensiert',
 };
+
+/**
+ * Ton des Statuschips einer Instanz.
+ *
+ * Ein Abbruch liegt fachlich bei den fertigen Vorgängen, ist aber kein Erfolg. Er bekommt
+ * deshalb den zurückhaltenden Ton, den die Konsole Abgebrochenem ohnehin gibt — wie die
+ * Tokenliste und das gestrichelte Grau abgebrochener Knoten im Laufzeitdiagramm.
+ */
+export function instanceTone(state: ProcessInstanceState): Tone {
+  if (isCancelledInstance(state)) return 'wait';
+  return BUCKET_TONE[instanceBucket(state)];
+}
 
 /**
  * Lädt das BPMN-XML für einen Satz von Definitionsversionen.
