@@ -420,7 +420,10 @@ public class InstanceControllerIntegrationTest
         public Task StoreDefinition(BpmnDefinition definition) => Task.CompletedTask;
         public Task StoreBinary(Guid guid, string data) => Task.CompletedTask;
         public Task<Model.Version?> GetMaxVersionId(string modelId) => Task.FromResult<Model.Version?>(null);
-        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) =>
+            Definitions.SingleOrDefault(definition => definition.Id == id) is { } definition
+                ? Task.FromResult(definition)
+                : throw new StorageSystem.Exceptions.DefinitionStorageNotFoundException($"No definition found for definitionId {id}");
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => Task.FromResult<BpmnDefinition?>(null);
         public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(new[]
