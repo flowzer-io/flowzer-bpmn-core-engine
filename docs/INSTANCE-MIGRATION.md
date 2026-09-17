@@ -93,7 +93,9 @@ Im selben Vorgang und derselben Transaktion bindet die API um:
   `TimerRecalculated` aus.
 - **Ereignisspur:** Die Instanz merkt sich jede Migration (Quell- und Zielversion,
   Zeitpunkt, auslösende Person). Laufzeitdiagramm und Verlauf zeigen das Diagramm der
-  Zielversion und die Ereignisse aller Versionen, auf denen die Instanz gelaufen ist.
+  Zielversion und die Ereignisse aller Versionen, auf denen die Instanz gelaufen ist. Ein
+  durch eine Zuordnung verlassener Knoten gilt danach als durchlaufen: Wo eine Instanz
+  steht, sagt ihr Tokenstand, nicht der jüngste Eintrag der Spur.
 
 Mehrere Instanzen werden **einzeln** migriert: Scheitert eine, bleiben die übrigen
 Ergebnisse bestehen, und die Antwort nennt das Ergebnis je Instanz.

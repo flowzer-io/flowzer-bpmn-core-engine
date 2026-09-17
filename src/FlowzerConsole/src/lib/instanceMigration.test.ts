@@ -168,6 +168,7 @@ describe('Anzahl der Instanzen im Text', () => {
 describe('Knoten von Hand zuordnen', () => {
   const review: MigrationFlowNodeDto = { id: 'Review', name: 'Prüfung', type: 'UserTask' };
   const check: MigrationFlowNodeDto = { id: 'Check', name: null, type: 'UserTask' };
+  const ohneNamen: MigrationFlowNodeDto = { id: 'Ohne', type: 'UserTask' };
   const targets: MigrationFlowNodeDto[] = [
     { id: 'Freigabe', name: 'Freigabe', type: 'UserTask' },
     { id: 'Weiche', name: 'Weiche', type: 'ExclusiveGateway' },
@@ -178,6 +179,8 @@ describe('Knoten von Hand zuordnen', () => {
   it('nennt den Namen des Knotens, sonst seine Id', () => {
     expect(flowNodeLabel(review)).toBe('Prüfung');
     expect(flowNodeLabel(check)).toBe('Check');
+    // Die API laesst ein leeres Feld ganz weg; ein fehlender Name ist derselbe Fall wie null.
+    expect(flowNodeLabel(ohneNamen)).toBe('Ohne');
   });
 
   // Testzweck: Die Vorschau nennt nur noch die offenen Forderungen. Fiele die Zeile eines

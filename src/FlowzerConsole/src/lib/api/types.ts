@@ -146,7 +146,8 @@ export interface InstanceMigrationPreviewItemDto {
  */
 export interface MigrationFlowNodeDto {
   id: string;
-  name: string | null;
+  /** Fehlt ganz, wenn der Knoten im Modell unbenannt ist — die API laesst leere Felder weg. */
+  name?: string | null;
   type: string;
 }
 
