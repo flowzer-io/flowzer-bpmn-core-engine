@@ -25,6 +25,7 @@ const preview: InstanceMigrationPreviewDto = {
   sourceVersion: { major: 1, minor: 0 },
   targetDefinitionId: 'definition-2',
   targetVersion: { major: 2, minor: 0 },
+  mapping: { required: [], targets: [] },
   instances: [
     { instanceId: FIRST, migratable: true, problems: [], notices: [] },
     {
@@ -193,5 +194,72 @@ describe('Migrationsassistent — Ergebnis', () => {
     await user.click(screen.getByRole('button', { name: 'Erneut prüfen' }));
     expect(mocks.reset).toHaveBeenCalled();
     expect(mocks.refetch).toHaveBeenCalled();
+  });
+});
+
+describe('Migrationsassistent — Zuordnung', () => {
+  const mappable: InstanceMigrationPreviewDto = {
+    ...preview,
+    mapping: {
+      required: [{ id: 'Review', name: 'Prüfung', type: 'UserTask' }],
+      targets: [
+        { id: 'Freigabe', name: 'Freigabe', type: 'UserTask' },
+        { id: 'Weiche', name: null, type: 'ExclusiveGateway' },
+      ],
+    },
+  };
+
+  // Testzweck: Ein Ziel anderer Elementart ergäbe einen Zustand, den das Zielmodell nicht
+  // kennt. Was die Auswahl gar nicht erst anbietet, kann auch niemand versehentlich wählen.
+  it('bietet zu einem fehlenden Knoten nur Ziele derselben Elementart an', () => {
+    showPreview(mappable);
+    renderAssistant();
+
+    const select = screen.getByRole('combobox', { name: /Prüfung/ });
+    expect(within(select).getByRole('option', { name: 'nicht zuordnen' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Freigabe' })).toBeInTheDocument();
+    expect(within(select).queryByRole('option', { name: 'Weiche' })).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Ohne fehlende Knoten gibt es nichts zuzuordnen. Ein leerer Block kostete nur
+  // Platz und ließe den Betrieb nach einer Aufgabe suchen, die es nicht gibt.
+  it('zeigt ohne fehlenden Knoten keine Zuordnung', () => {
+    showPreview();
+    renderAssistant();
+
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Erst der erneute Trockenlauf sagt, welche Instanzen durch die Zuordnung
+  // migrierbar werden. Bliebe er aus, wählte der Betrieb ins Blaue.
+  it('prüft nach einer Zuordnung sofort erneut', async () => {
+    showPreview(mappable);
+    const user = userEvent.setup();
+    renderAssistant();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Prüfung/ }), 'Freigabe');
+
+    expect(mocks.preview).toHaveBeenLastCalledWith([FIRST, SECOND], { Review: 'Freigabe' });
+  });
+
+  // Testzweck: Die Zuordnung gilt für alle Instanzen der Anfrage. Fehlte sie beim Migrieren,
+  // bliebe genau die Instanz zurück, für die der Betrieb sie gerade gesetzt hat.
+  it('migriert mit der getroffenen Zuordnung', async () => {
+    showPreview(mappable);
+    const user = userEvent.setup();
+    renderAssistant();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: /Prüfung/ }), 'Freigabe');
+    await user.click(screen.getByRole('checkbox', { name: /nicht rückgängig/i }));
+    await user.click(screen.getByRole('button', { name: '1 Instanz migrieren' }));
+
+    expect(mocks.mutate).toHaveBeenCalledWith(
+      {
+        instanceIds: [FIRST],
+        targetDefinitionId: 'definition-2',
+        flowNodeMapping: { Review: 'Freigabe' },
+      },
+      expect.anything(),
+    );
   });
 });
