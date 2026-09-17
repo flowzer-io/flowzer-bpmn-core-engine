@@ -95,4 +95,19 @@ describe('Eingriffe in laufende Instanzen', () => {
     expect(invalidated).toContainEqual(['flowzer', 'console', 'session', 'instances']);
     expect(invalidated).toContainEqual(['flowzer', 'console', 'session', 'userTasks']);
   });
+
+  // Testzweck: Die Vorschau ist die Grundlage einer einmaligen Entscheidung. Würde die
+  // Migration sie mitverwerfen, lüde der offene Assistent sie neu und zeigte im Ergebnis
+  // „v2 → v2" statt des Wegs, den die Instanzen tatsächlich genommen haben.
+  it('lässt die Vorschau der Migration beim Verwerfen der Instanzansichten stehen', async () => {
+    const { queryClient, wrapper } = setup();
+    const previewKey = queryKeys.instanceMigrationPreview(['instance-1']);
+    queryClient.setQueryData(previewKey, { sourceVersion: { major: 1, minor: 0 } });
+    const { result } = renderHook(() => useMigrateInstances(), { wrapper });
+
+    result.current.mutate({ instanceIds: ['instance-1'], targetDefinitionId: 'definition-2' });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(queryClient.getQueryState(previewKey)?.isInvalidated).toBe(false);
+  });
 });

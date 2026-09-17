@@ -82,9 +82,13 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
-  /** Die Kennungen stehen sortiert im Schlüssel: dieselbe Auswahl ist dieselbe Prüfung. */
+  /**
+   * Die Kennungen stehen sortiert im Schlüssel: dieselbe Auswahl ist dieselbe Prüfung.
+   * Bewusst nicht unter `instances`: Die Migration verwirft die Instanzansichten, die
+   * Vorschau aber ist die Grundlage genau dieser Entscheidung und bleibt dabei stehen.
+   */
   instanceMigrationPreview: (instanceIds: readonly string[]) =>
-    [...queryKeys.instances, 'migration-preview', [...instanceIds].sort()] as const,
+    ['instance-migration-preview', [...instanceIds].sort()] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -517,6 +521,10 @@ export function useInstanceMigrationPreview(instanceIds: string[] | undefined) {
     enabled: ids.length > 0,
     staleTime: 0,
     refetchInterval: false,
+    // Die Grundlage einer Entscheidung wechselt nicht still unter dem Lesenden. Ob sie noch
+    // gilt, prüft die API beim Migrieren (409), nicht ein Fokuswechsel des Fensters.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     retry: false,
   });
 }

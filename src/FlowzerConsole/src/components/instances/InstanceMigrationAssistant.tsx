@@ -196,7 +196,9 @@ export function InstanceMigrationAssistant({
               </p>
             ) : (
               <MigrationConfirmation
-                summary={`${migratableIds.length} von ${countLabel(preview.instances.length)} werden migriert. Nicht migrierbare bleiben unverändert auf ${formatVersion(preview.sourceVersion)}.`}
+                summary={migratableIds.length === preview.instances.length
+                  ? `${countLabel(migratableIds.length)} ${migratableIds.length === 1 ? 'wird' : 'werden'} auf ${formatVersion(preview.targetVersion)} migriert.`
+                  : `${migratableIds.length} von ${countLabel(preview.instances.length)} werden migriert. Nicht migrierbare bleiben unverändert auf ${formatVersion(preview.sourceVersion)}.`}
                 acknowledged={acknowledged}
                 onAcknowledgedChange={setAcknowledged}
               />
