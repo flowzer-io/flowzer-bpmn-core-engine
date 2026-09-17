@@ -45,6 +45,15 @@ describe('Aktivitätsstrom', () => {
     expect(entry?.tone).toBe('wait');
   });
 
+  // Testzweck: Solange der Abbruch noch läuft, ist er nicht geschehen. „Wurde abgebrochen"
+  // im Aktivitätsstrom widerspräche dem Status „Wird abgebrochen" eine Seite weiter.
+  it('unterscheidet den laufenden Abbruch vom abgeschlossenen', () => {
+    const [entry] = feedFor([{ ...instance, state: 'Terminating', finishedAt: null }]);
+
+    expect(entry?.text).toMatch(/wird gerade abgebrochen$/);
+    expect(entry?.tone).toBe('wait');
+  });
+
   // Testzweck: Der Abbruch darf den echten Fehlschlag nicht mit sich ziehen — eine
   // gestörte Instanz bleibt eine Meldung, der der Betrieb nachgehen muss.
   it('meldet gescheiterte Instanzen weiterhin als Fehlschlag', () => {

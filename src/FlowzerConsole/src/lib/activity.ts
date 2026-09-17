@@ -29,11 +29,14 @@ function instanceEntries(instances: ProcessInstanceInfoDto[]): ActivityEntry[] {
     // Vor dem Eimer geprüft: Ein Abbruch liegt bei den fertigen Vorgängen, ist aber weder
     // ein Fehlschlag noch ein Abschluss — beide Sätze wären für den Betrieb falsch.
     if (isCancelledInstance(instance.state)) {
-      const at = finishedAt ?? startedAt;
+      // Solange er läuft, ist er nicht geschehen; der Status nennt ihn dann „Wird abgebrochen".
+      const finished = instance.state === 'Terminated';
+      const at = finished ? (finishedAt ?? startedAt) : startedAt;
       return [
         {
           id: `${instance.instanceId}-cancelled`,
-          text: `Instanz #${shortId(instance.instanceId)} („${label}") wurde abgebrochen`,
+          text: `Instanz #${shortId(instance.instanceId)} („${label}") `
+            + `${finished ? 'wurde abgebrochen' : 'wird gerade abgebrochen'}`,
           time: formatRelative(at),
           tone: 'wait' as const,
           at: at?.getTime() ?? 0,
