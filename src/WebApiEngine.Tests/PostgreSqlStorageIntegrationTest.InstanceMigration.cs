@@ -77,6 +77,34 @@ public partial class PostgreSqlStorageIntegrationTest
             new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
     }
 
+    // Testzweck: Auch auf dem Betriebspfad muss der Trockenlauf das Formular des zugeordneten
+    // Knotens vergleichen; sonst wird ein Entwurf unangekuendigt verworfen.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task MigrationPreview_ShouldAnnounceAChangedFormBehindAMappingOnPostgreSql(bool withDraft)
+    {
+        await InstanceMigrationScenarios.MappingFormChangedAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema), withDraft);
+    }
+
+    // Testzweck: Auch auf dem Betriebspfad kuendigt der Trockenlauf den Timer des zugeordneten
+    // Knotens an — am Knoten der Quellversion, den die Bedienung vor sich hat.
+    [Test]
+    public async Task MigrationPreview_ShouldAnnounceATimerBehindAMappingOnPostgreSql()
+    {
+        await InstanceMigrationScenarios.MappingTimerAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
+    }
+
+    // Testzweck: In PostgreSQL liegt der Vergabezustand in eigenen Spalten. Der Auftrag muss dem
+    // zugeordneten Knoten folgen, ohne die Sperre des arbeitenden Workers zu verlieren.
+    [Test]
+    public async Task Migration_ShouldMoveTheServiceTaskJobWithTheMappingOnPostgreSql()
+    {
+        await InstanceMigrationScenarios.MappingServiceTaskAsync(
+            new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema));
+    }
+
     // Testzweck: Ein Entwurf, der waehrend des Umzugs gespeichert wird, darf die Aufgabe nicht
     // an die Quellversion zurueckbinden — weder als Ersatz eines bestehenden Entwurfs noch als
     // neu angelegter. Nimmt der Umzug die Aufgabensperre nicht, liest der Speichervorgang die

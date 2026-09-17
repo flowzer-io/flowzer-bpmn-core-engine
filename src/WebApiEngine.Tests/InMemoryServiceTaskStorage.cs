@@ -101,13 +101,28 @@ internal sealed class InMemoryServiceTaskStorage : IServiceTaskStorage
         return Task.CompletedTask;
     }
 
-    /// <summary>Wie die echten Ablagen: nur die Versionsbindung, nie der Vergabezustand.</summary>
-    public Task<int> RebindJobsOfInstance(Guid processInstanceId, Guid definitionId)
+    /// <summary>
+    /// Wie die echten Ablagen: Versionsbindung und der Knoten eines bewegten Tokens, nie der
+    /// Vergabezustand.
+    /// </summary>
+    public Task<int> RebindJobsOfInstance(
+        Guid processInstanceId,
+        Guid definitionId,
+        IReadOnlyDictionary<Guid, ServiceTaskJobNode>? movedTokens = null)
     {
         lock (_jobs)
         {
             var jobs = _jobs.Values.Where(job => job.ProcessInstanceId == processInstanceId).ToList();
-            foreach (var job in jobs) job.DefinitionId = definitionId;
+            foreach (var job in jobs)
+            {
+                job.DefinitionId = definitionId;
+                if (movedTokens?.TryGetValue(job.TokenId, out var movedNode) == true)
+                {
+                    job.FlowNodeId = movedNode.FlowNodeId;
+                    job.Name = movedNode.Name;
+                }
+            }
+
             return Task.FromResult(jobs.Count);
         }
     }

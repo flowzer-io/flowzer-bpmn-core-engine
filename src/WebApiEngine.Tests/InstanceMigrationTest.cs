@@ -137,6 +137,38 @@ public sealed class InstanceMigrationTest
         await InstanceMigrationScenarios.MappingPartialAsync(new FileSystemTransactionalStorageProvider());
     }
 
+    // Testzweck: Zeigt die Zuordnung auf einen Knoten mit anderem Formular, entscheidet der
+    // Umzug dort ueber den privaten Entwurf. Kuendigt der Trockenlauf das nicht an, verliert
+    // jemand seine Eingaben ohne Vorwarnung.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task MigrationPreview_ShouldAnnounceAChangedFormBehindAMapping(bool withDraft)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingFormChangedAsync(
+            new FileSystemTransactionalStorageProvider(), withDraft);
+    }
+
+    // Testzweck: Ein Boundary-Timer des zugeordneten Knotens steht nach dem Umzug sofort scharf.
+    // Der Trockenlauf muss ihn am Quellknoten nennen, sonst laeuft eine seit Tagen wartende
+    // Aufgabe unangekuendigt in eine Eskalation.
+    [Test]
+    public async Task MigrationPreview_ShouldAnnounceATimerBehindAMapping()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingTimerAsync(new FileSystemTransactionalStorageProvider());
+    }
+
+    // Testzweck: Nach einer Zuordnung steht das Token auf dem Zielknoten; traegt sein Auftrag
+    // weiter Kennung und Namen des verlassenen Knotens, arbeiten Worker und Diagnose mit einer
+    // falschen Auskunft.
+    [Test]
+    public async Task Migration_ShouldMoveTheServiceTaskJobWithTheMapping()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await InstanceMigrationScenarios.MappingServiceTaskAsync(new FileSystemTransactionalStorageProvider());
+    }
+
     // Testzweck: Eine Instanz auf der deployten Version ist kein Umzug, sondern ein Befund.
     [Test]
     public async Task Migration_ShouldReportInstancesAlreadyOnTheDeployedVersion()

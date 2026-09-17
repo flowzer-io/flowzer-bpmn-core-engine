@@ -272,8 +272,9 @@ public partial class BpmnBusinessLogic
                 InstanceId = instance.InstanceId
             };
 
+            var movedTokenIds = MovedTokenIds(evaluation.Plan);
             await RebindUserTasks(storage, resolved, instance, evaluation.Plan);
-            await RebindServiceTaskJobs(storage, resolved, instance);
+            await RebindServiceTaskJobs(storage, resolved, instance, engine, movedTokenIds);
 
             var migrations = new List<InstanceMigrationRecord>(instance.Migrations)
             {
@@ -281,7 +282,7 @@ public partial class BpmnBusinessLogic
             };
             await SaveInstance(
                 storage, engine, instance.metaDefinitionId, resolved.Target.Id, instance.ProcessId, migrations,
-                MovedTokenIds(evaluation.Plan));
+                movedTokenIds);
             storage.CommitChanges();
 
             (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogInformation(
@@ -379,16 +380,46 @@ public partial class BpmnBusinessLogic
     }
 
     /// <summary>
-    /// Haengt die Auftraege der Instanz an die Zielversion. Kennung, Sperre und Versuche bleiben:
-    /// Ein Worker, der gerade arbeitet, meldet sein Ergebnis unveraendert zurueck. Das erledigt
-    /// die Ablage in einem Schritt; ein Lese-Aendern-Schreiben von hier aus wuerde eine
-    /// zwischenzeitlich erteilte Lease ueberschreiben.
+    /// Haengt die Auftraege der Instanz an die Zielversion und fuehrt den Auftrag eines von Hand
+    /// zugeordneten Tokens auf dessen Zielknoten nach. Ohne das truege er weiter Kennung und
+    /// Namen des Knotens, den die Instanz verlassen hat: Der Abschluss faende ihn zwar ueber die
+    /// Tokenkennung, Worker und Diagnose saehen aber eine Stelle, an der nichts mehr wartet.
+    /// Das Anlegen der Auftraege ueberschreibt das nicht — es laesst einen bestehenden Auftrag
+    /// desselben Tokens unangetastet.
+    ///
+    /// Kennung, Sperre und Versuche bleiben. Beides erledigt die Ablage in einem Schritt; ein
+    /// Lese-Aendern-Schreiben von hier aus wuerde eine zwischenzeitlich erteilte Lease
+    /// ueberschreiben.
     /// </summary>
     private static Task RebindServiceTaskJobs(
         ITransactionalStorage storage,
         ResolvedMigration resolved,
-        ProcessInstanceInfo instance) =>
-        storage.ServiceTaskStorage.RebindJobsOfInstance(instance.InstanceId, resolved.Target.Id);
+        ProcessInstanceInfo instance,
+        InstanceEngine engine,
+        IReadOnlySet<Guid> movedTokenIds) =>
+        storage.ServiceTaskStorage.RebindJobsOfInstance(
+            instance.InstanceId, resolved.Target.Id, MovedServiceTaskNodes(engine, movedTokenIds));
+
+    /// <summary>
+    /// Die Zielknoten der bewegten Service-Task-Tokens, aus dem bereits umgezogenen Tokenstand:
+    /// Sein Element traegt den aufgeloesten Namen, genau den, den das Anlegen eines neuen
+    /// Auftrags schreiben wuerde.
+    /// </summary>
+    private static IReadOnlyDictionary<Guid, ServiceTaskJobNode>? MovedServiceTaskNodes(
+        InstanceEngine engine,
+        IReadOnlySet<Guid> movedTokenIds)
+    {
+        if (movedTokenIds.Count == 0) return null;
+
+        var movedNodes = engine.Tokens
+            .Where(token => movedTokenIds.Contains(token.Id))
+            .Select(token => (token.Id, FlowNode: token.CurrentFlowNode as BPMN.Activities.ServiceTask))
+            .Where(entry => entry.FlowNode is not null)
+            .ToDictionary(entry => entry.Id, entry => new ServiceTaskJobNode(
+                entry.FlowNode!.Id, entry.FlowNode.Name));
+
+        return movedNodes.Count == 0 ? null : movedNodes;
+    }
 
     /// <summary>
     /// Der Befund zu einer Instanz samt allem, was die Ablage dazu beitragen muss. Wird vor
@@ -483,7 +514,13 @@ public partial class BpmnBusinessLogic
         foreach (var token in WaitingTokens(instance))
         {
             if (token.CurrentFlowNode is not { } flowNode) continue;
-            if (!targetFlowNodes.TryGetValue(flowNode.Id, out var targetFlowNode)) continue;
+
+            // Wie im Plan: Ohne Eintrag gilt der gleichnamige Knoten. Der Vergleich muss dort
+            // stattfinden, wo der Umzug die Instanz hinstellt — sonst blieben genau die
+            // zugeordneten Knoten ohne Hinweis. Genannt wird trotzdem der Quellknoten: Ihn hat
+            // die Bedienung vor sich, und nach ihm fragt die Zuordnung.
+            if (!targetFlowNodes.TryGetValue(TargetFlowNodeIdOf(resolved, flowNode.Id), out var targetFlowNode))
+                continue;
 
             // Der Umzug setzt den Knoten der Zielversion ein und schaltet dessen Boundary-Events
             // scharf, laesst aber den Zeitstempel des Tokens stehen. Eine seit Tagen wartende
@@ -491,7 +528,7 @@ public partial class BpmnBusinessLogic
             if (HasTimerInTarget(targetProcess, targetFlowNode))
                 notices.Add(new InstanceMigrationFinding(
                     InstanceMigrationCodes.TimerRecalculated,
-                    targetFlowNode.Id,
+                    flowNode.Id,
                     "Timers at this node are computed with the target version's duration from the "
                     + "original start of waiting and may be due immediately."));
 
@@ -552,6 +589,15 @@ public partial class BpmnBusinessLogic
             .OfType<FlowzerBoundaryTimerEvent>()
             .Any(boundaryEvent => string.Equals(
                 boundaryEvent.AttachedToRef.Id, targetFlowNode.Id, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Der Zielknoten eines Quellknotens, genau wie <see cref="InstanceMigration.Plan"/> ihn
+    /// bestimmt: die Zuordnung der Anfrage, sonst der Knoten mit derselben Kennung.
+    /// </summary>
+    private static string TargetFlowNodeIdOf(ResolvedMigration resolved, string sourceFlowNodeId) =>
+        resolved.FlowNodeMapping?.TryGetValue(sourceFlowNodeId, out var mappedFlowNodeId) == true
+            ? mappedFlowNodeId
+            : sourceFlowNodeId;
 
     private static bool IsFormBindingIdentical(ResolvedMigration resolved, Token token, FlowNode targetFlowNode) =>
         InstanceMigrationFormBinding.IsIdentical(
