@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/3` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v3.json` und unterscheidet je Elementart. Version 1 und 2
+`flowzer.bpmn-capabilities/4` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v4.json` und unterscheidet je Elementart. Version 1 bis 3
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -30,23 +30,23 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 3 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 4 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v3
+## Ausführbares Profil v4
 
 Offiziell ausführbar sind:
 
 - Plain-, Message-, Signal- und Timer-Start
 - Plain- und Terminate-Ende
-- User-, Worker-Service-, KI-Service-, Receive- und generische Tasks
+- User-, Worker-Service-, KI-Service-, Receive-, Manual- und generische Tasks
 - exklusive und parallele Gateways
 - Sequenzflüsse und lokale Subprozesse
 - Message-, Signal- und Timer-Intermediate-Catch-/Boundary-Events
 
-Insbesondere nicht als ausführbar zugesagt sind Script-/Manual-Tasks, Call Activities,
+Insbesondere nicht als ausführbar zugesagt sind Script-Tasks, Call Activities,
 Inclusive-/Complex-Gateways, Intermediate-Throw-Events, Message-/Signal-End-Events sowie
 Error-/Escalation-Pfade. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad
 mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der
@@ -90,3 +90,22 @@ generierte Clients nachvollziehbar bleiben.
 Der OpenAPI-Snapshot und die generierten TypeScript-Schemas werden gemeinsam aktualisiert.
 Konkrete Hosts können die generische API oder die öffentlichen Pakete verwenden, werden
 aber weder im Flowzer-Modell noch in Flowzers Laufzeit referenziert.
+
+## Manual Tasks und generische Tasks (Vertrag 4)
+
+Beide Elementarten durchlaufen die Engine ohne Wartezustand und folgen ihren
+Sequenzflüssen. Eine Manual Task erzeugt keine Benutzeraufgabe; ihre reale Arbeit
+findet außerhalb der Engine statt. Eine nachweislich zu bestätigende Tätigkeit
+muss als User Task modelliert werden. Unbekannte Spezialtypen oder unvollständige
+Service-/User-/KI-Tasks erhalten ausdrücklich keinen solchen Fallback.
+
+Auch bereits veröffentlichte Definitionen mit Manual Tasks werden ohne
+Neuinterpretation der gespeicherten BPMN-Datei ausführbar. Überfällige Einmaltimer
+werden beim nächsten Scheduler-Tick einmal verarbeitet; vor einem Rollout ist
+bei wiederkehrenden Timern die bestehende Nachholsemantik zu berücksichtigen.
+
+Einzelfehler bei der Timerverarbeitung werden nach dem Tick an die
+Schedulerdiagnose weitergereicht: erfolgreiche Verarbeitung anderer Timer
+versteckt einen gescheiterten Timer nicht mehr hinter dem Status Healthy.
+Die Änderung ersetzt nicht die weiter erforderlichen Mehrprozess-/Transaktions-
+und Wiederholungsgrenzen aus #93.

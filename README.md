@@ -181,7 +181,7 @@ keinen zweiten Verwaltungsbereich mehr. Flowzer kennt dabei keine konkrete Host-
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v3.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v4.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in

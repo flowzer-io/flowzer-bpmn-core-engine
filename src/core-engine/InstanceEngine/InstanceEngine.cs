@@ -245,6 +245,9 @@ public partial class InstanceEngine
         { typeof(FlowzerMessageStartEvent), new DefaultFlowNodeHandler() },
         { typeof(EndEvent), new DefaultFlowNodeHandler() },
         { typeof(BPMN.Activities.Task), new DefaultFlowNodeHandler() },
+        // Manuelle Arbeit findet außerhalb der Engine statt. Wie ein generischer
+        // Task durchlaufen, aber niemals unbekannte Spezialtypen pauschal überspringen.
+        { typeof(ManualTask), new DefaultFlowNodeHandler() },
         { typeof(ExclusiveGateway), new ExclusiveGatewayHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
         { typeof(ServiceTask), new DoNothingFlowNodeHandler() },
