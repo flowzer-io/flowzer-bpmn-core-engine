@@ -33,7 +33,7 @@ public sealed class WorkflowDraftIntegrationTest
     // aktive Version oder laufende Aufgaben zu verändern. Nur Publizieren bleibt gesperrt.
     [TestCase("<serviceTask id=\"Incomplete\" />")]
     [TestCase("<userTask id=\"Incomplete\" />")]
-    [TestCase("<manualTask id=\"Incomplete\" />")]
+    [TestCase("<scriptTask id=\"Incomplete\" />")]
     [TestCase("<serviceTask id=\"Incomplete\"><extensionElements><f:aiTask /></extensionElements></serviceTask>")]
     [TestCase("<sequenceFlow id=\"Incomplete\" sourceRef=\"Missing\" targetRef=\"MissingToo\" />")]
     public async Task Save_ShouldAcceptIncompleteDraft_AndKeepDeployment(string content)

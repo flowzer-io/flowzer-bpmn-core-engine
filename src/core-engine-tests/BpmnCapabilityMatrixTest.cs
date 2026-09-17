@@ -9,7 +9,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("3");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("4");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -39,11 +39,10 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("3");
+        exception.ContractVersion.Should().Be("4");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
-    [TestCase("manualTask", "<bpmn:manualTask id='Manual_1' />", "Manual_1")]
     [TestCase("callActivity", "<bpmn:callActivity id='Call_1' />", "Call_1")]
     [TestCase("complexGateway", "<bpmn:complexGateway id='Complex_1' />", "Complex_1")]
     [TestCase("inclusiveGateway", "<bpmn:inclusiveGateway id='Inclusive_1' />", "Inclusive_1")]
@@ -61,10 +60,11 @@ public class BpmnCapabilityMatrixTest
     }
 
     // Testzweck: Der generische BPMN-Task bleibt ausführbar, weil die Instanzengine ihn explizit behandelt.
-    [Test]
-    public void ValidateForDeployment_ShouldAcceptGenericTask()
+    [TestCase("task")]
+    [TestCase("manualTask")]
+    public void ValidateForDeployment_ShouldAcceptGenericTask(string type)
     {
-        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess("<bpmn:task id='Task_1' />"));
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess($"<bpmn:{type} id='Task_1' />"));
 
         action.Should().NotThrow();
     }
@@ -117,13 +117,13 @@ public class BpmnCapabilityMatrixTest
     {
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess("""
             <bpmn:subProcess id="Sub_1">
-              <bpmn:manualTask id='Manual_1' />
+              <bpmn:scriptTask id='Script_Nested' />
             </bpmn:subProcess>
             """));
 
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
-        exception.ElementId.Should().Be("Manual_1");
+        exception.ElementId.Should().Be("Script_Nested");
     }
 
     // Testzweck: Ein bestehender ausführbarer Start-Ende-Pfad bleibt mit dem neuen Vertrag kompatibel.

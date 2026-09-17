@@ -75,7 +75,17 @@ public partial class BpmnBusinessLogic(
         // Zwischen den beiden Schritten liegt der teure Teil; ein Abbruch beim Herunterfahren
         // soll spaetestens hier greifen, statt die Faelligkeiten noch durchzuarbeiten.
         cancellationToken.ThrowIfCancellationRequested();
-        await HandleTime(DateTime.UtcNow);
+        try
+        {
+            await HandleTime(DateTime.UtcNow);
+        }
+        catch (TimerProcessingException exception)
+        {
+            // Die API samt Betriebsdiagnose muss zur Reparatur erreichbar bleiben.
+            // Der unmittelbar folgende Scheduler-Tick meldet den Fehler als Faulted.
+            (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(exception,
+                "Timer startup recovery encountered failed subscriptions; the scheduler will report them.");
+        }
     }
 
     public async Task DeployDefinition(BpmnDefinition definition)
@@ -551,6 +561,7 @@ public partial class BpmnBusinessLogic(
                 .ToArray();
 
             var processedTimers = 0;
+            var failures = new List<Exception>();
 
             foreach (var dueStartTimer in dueTimers.Where(subscription => subscription.ProcessInstanceId == null))
             {
@@ -560,6 +571,7 @@ public partial class BpmnBusinessLogic(
                 }
                 catch (Exception exception)
                 {
+                    failures.Add(exception);
                     (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
                         exception,
                         "Processing start timer subscription {TimerSubscriptionId} for definition {DefinitionId} failed.",
@@ -580,6 +592,7 @@ public partial class BpmnBusinessLogic(
                 }
                 catch (Exception exception)
                 {
+                    failures.Add(exception);
                     (logger ?? NullLogger<BpmnBusinessLogic>.Instance).LogError(
                         exception,
                         "Processing due timer subscriptions for instance {InstanceId} failed.",
@@ -591,6 +604,12 @@ public partial class BpmnBusinessLogic(
             {
                 storageSystem.CommitChanges();
             }
+
+            // Ein erfolgreicher Poll ist noch keine erfolgreiche Verarbeitung.
+            // Gespeicherte Erfolge bleiben erhalten; Fehler müssen die Diagnose erreichen,
+            // damit ein überfälliger Timer nicht hinter einem Healthy-Tick verschwindet.
+            if (failures.Count > 0)
+                throw new TimerProcessingException(failures);
 
             return processedTimers;
         }
