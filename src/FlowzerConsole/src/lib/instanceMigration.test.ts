@@ -100,6 +100,36 @@ describe('Befunde als deutsche Sätze', () => {
     ).toBe('Unmapped detail.');
   });
 
+  // Testzweck: Deployt jemand während des Stapels eine andere Version, bleibt die Instanz
+  // unverändert. Der Satz muss das sagen und zur erneuten Auswahl auffordern, sonst hält der
+  // Betrieb den leeren Ausgang für einen Fehler.
+  it('erklärt eine zwischenzeitlich deployte andere Version', () => {
+    const text = migrationFindingText({ code: 'TargetVersionChanged', flowNodeId: null, message: 'x' });
+
+    expect(text).toMatch(/andere Version deployt/);
+    expect(text).toMatch(/unverändert/);
+  });
+
+  // Testzweck: Kann die Ablage keine Entwürfe mitnehmen, hilft dem Bearbeiter kein
+  // Wiederholen — das ist eine Sache des Betriebs und muss als solche dastehen.
+  it('verweist bei fehlender Entwurfsablage an den Betrieb', () => {
+    const text = migrationFindingText({ code: 'DraftStorageNotSupported', flowNodeId: null, message: 'x' });
+
+    expect(text).toMatch(/Entwürfe/);
+    expect(text).toMatch(/Betrieb/);
+  });
+
+  // Testzweck: Ein Timer rechnet nach der Migration mit der Dauer der Zielversion ab dem
+  // ursprünglichen Beginn des Wartens. Wer das nicht weiß, wundert sich über eine Eskalation
+  // unmittelbar nach dem Umzug.
+  it('warnt vor sofort fälligen Timern am betroffenen Schritt', () => {
+    const text = migrationFindingText({ code: 'TimerRecalculated', flowNodeId: 'Warten', message: 'x' });
+
+    expect(text).toContain('„Warten“');
+    expect(text).toMatch(/Zielversion/);
+    expect(text).toMatch(/sofort fällig/);
+  });
+
   // Testzweck: Ein Worker, der gerade arbeitet, verliert seine Arbeit durch die Migration
   // nicht. Der Hinweis darf deshalb nicht das Gegenteil behaupten und zum Abwarten drängen.
   it('sagt bei einem laufenden Worker-Auftrag, dass dessen Ergebnis übernommen wird', () => {

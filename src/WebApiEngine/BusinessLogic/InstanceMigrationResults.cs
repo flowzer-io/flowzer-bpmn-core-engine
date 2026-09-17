@@ -41,6 +41,22 @@ public static class InstanceMigrationCodes
     /// <summary>Der Umzug dieser Instanz ist unerwartet gescheitert; sie blieb unveraendert.</summary>
     public const string MigrationFailed = "MigrationFailed";
 
+    /// <summary>
+    /// Waehrend des Umzugs wurde eine andere Version deployt; diese Instanz blieb unveraendert.
+    /// Die Engine-Sperre gilt nur im eigenen Prozess, ein zweiter API-Prozess kann dazwischen
+    /// deployen — deshalb prueft jede Instanz die Zielversion in ihrer eigenen Transaktion neu.
+    /// </summary>
+    public const string TargetVersionChanged = "TargetVersionChanged";
+
+    /// <summary>
+    /// Die Ablage kann Aufgabenentwuerfe nicht mitziehen; die Instanz bleibt unveraendert,
+    /// statt halb umgezogen liegen zu bleiben.
+    /// </summary>
+    public const string DraftStorageNotSupported = "DraftStorageNotSupported";
+
+    /// <summary>Ein Timer am wartenden Knoten rechnet danach mit der Dauer der Zielversion.</summary>
+    public const string TimerRecalculated = "TimerRecalculated";
+
     /// <summary>Die Aufgabe traegt in der Zielversion ein anderes Formular.</summary>
     public const string UserTaskFormChanged = "UserTaskFormChanged";
 

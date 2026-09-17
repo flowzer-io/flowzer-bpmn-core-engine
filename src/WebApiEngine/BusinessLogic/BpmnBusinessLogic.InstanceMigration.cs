@@ -1,4 +1,5 @@
 using BPMN.Common;
+using BPMN.Flowzer.Events;
 using BPMN.Foundation;
 using BPMN.HumanInteraction;
 using BPMN.Infrastructure;
@@ -35,12 +36,14 @@ public partial class BpmnBusinessLogic
         var items = new List<InstanceMigrationPreviewItem>(resolved.Instances.Count);
         foreach (var instance in resolved.Instances)
         {
-            var evaluation = EvaluateInstance(resolved, instance);
+            var evaluation = await EvaluateInstance(storage, resolved, instance);
+            var draftsReadable = !evaluation.Problems.Any(problem =>
+                problem.Code == InstanceMigrationCodes.DraftStorageNotSupported);
             items.Add(new InstanceMigrationPreviewItem(
                 instance.InstanceId,
                 evaluation.Migratable,
                 evaluation.Problems,
-                await CollectNotices(storage, resolved, instance)));
+                await CollectNotices(storage, resolved, instance, draftsReadable)));
         }
 
         return new InstanceMigrationPreview(
@@ -116,7 +119,20 @@ public partial class BpmnBusinessLogic
             await storage.InstanceStorage.LockForMutation(instanceId);
             var instance = await storage.InstanceStorage.GetProcessInstance(instanceId);
 
-            var evaluation = EvaluateInstance(resolved, instance);
+            // Die Engine-Sperre gilt nur in diesem Prozess. Ein zweiter API-Prozess kann seit
+            // der Pruefung des Auftrags deployt haben; die Zielversion wird deshalb in der
+            // Transaktion dieser Instanz erneut gelesen und muss die bestaetigte sein.
+            var deployed = await storage.DefinitionStorage.GetDeployedDefinition(instance.metaDefinitionId);
+            if (deployed?.Id != resolved.Target.Id)
+                return new InstanceMigrationResultItem(instanceId, false, [
+                    new InstanceMigrationFinding(
+                        InstanceMigrationCodes.TargetVersionChanged,
+                        null,
+                        "Another version of this workflow was deployed in the meantime; "
+                        + "the instance was left unchanged.")
+                ]);
+
+            var evaluation = await EvaluateInstance(storage, resolved, instance);
             if (evaluation.Plan is null || !evaluation.Migratable)
                 // Ohne Commit bleibt die Instanz genau so liegen, wie sie war.
                 return new InstanceMigrationResultItem(instanceId, false, evaluation.Problems);
@@ -165,6 +181,13 @@ public partial class BpmnBusinessLogic
     /// Bindet die bestehenden Aufgaben-Subscriptions auf die Zielversion um und entscheidet je
     /// Aufgabe ueber ihre privaten Entwuerfe. Muss vor dem Speichern der Instanz laufen: Der
     /// Aufgabenabgleich lehnt eine Subscription ab, deren Version nicht zur Instanz passt.
+    ///
+    /// Jede Aufgabe wird vorher gesperrt — derselbe Aufgaben-Lock, den Entwurfsspeichern,
+    /// Uebernahme und Abschluss nehmen. Sonst koennte ein Speichervorgang, der die alte Bindung
+    /// gelesen hat, seinen Entwurf danach an die Quellversion haengen; der naechste Abruf
+    /// scheiterte dann an der Bindungspruefung. Die Reihenfolge Instanz- vor Aufgabensperre ist
+    /// dieselbe wie beim Abschluss einer Aufgabe; das Entwurfsspeichern nimmt nur die
+    /// Aufgabensperre. Damit kann kein Zyklus entstehen.
     /// </summary>
     private async Task RebindUserTasks(
         ITransactionalStorage storage,
@@ -175,6 +198,10 @@ public partial class BpmnBusinessLogic
         var tasks = (await storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).ToArray();
         foreach (var task in tasks)
         {
+            // Eine Aufgabe, die es nicht mehr gibt, wird auch nicht umgebunden: Das Speichern
+            // legte sie sonst ueber die Subscription wieder an.
+            if (!await LockTaskIfSupported(storage, task.Id)) continue;
+
             var keepsDraft = plan.WaitingTokens.FirstOrDefault(token => token.Id == task.Token.Id) is { } token
                              && IsFormBindingIdentical(resolved, token, plan.TargetFlowNodeOf(token.Id));
 
@@ -184,48 +211,90 @@ public partial class BpmnBusinessLogic
         }
     }
 
-    private async Task ApplyDraftDecision(
+    /// <summary>
+    /// Wie im Entwurfsdienst: Eine Ablage ohne Aufgaben-Lebenszyklus laeuft im Einzelprozess
+    /// und ist durch die Engine-Sperre geschuetzt.
+    /// </summary>
+    private static async Task<bool> LockTaskIfSupported(ITransactionalStorage storage, Guid userTaskId)
+    {
+        try { return await storage.UserTaskLifecycleStorage.LockTask(userTaskId); }
+        catch (NotSupportedException) { return true; }
+    }
+
+    /// <summary>
+    /// Kein Auffangen von <see cref="NotSupportedException"/>: Eine Ablage, die Entwuerfe fuehrt,
+    /// aber diesen Vertrag nicht kennt, liesse sie sonst an der Quellversion zurueck — der
+    /// naechste Abruf scheiterte dann an der Bindungspruefung. Der Fall ist vorher geprueft;
+    /// kommt er hier dennoch an, scheitert die Instanz ohne Commit.
+    /// </summary>
+    private static async Task ApplyDraftDecision(
         ITransactionalStorage storage,
         Guid userTaskId,
         Guid targetDefinitionId,
         bool keepsDraft)
     {
-        try
-        {
-            if (keepsDraft) await storage.UserTaskDraftStorage.RebindAllForTask(userTaskId, targetDefinitionId);
-            else await storage.UserTaskDraftStorage.DeleteAllForTask(userTaskId);
-        }
-        catch (NotSupportedException)
-        {
-            // Kompatibilitaetsgrenze wie bei Fristen und Ereignisspur: Eine Ablage ohne
-            // Entwurfsvertrag kann auch keinen Entwurf gespeichert haben.
-        }
+        if (keepsDraft) await storage.UserTaskDraftStorage.RebindAllForTask(userTaskId, targetDefinitionId);
+        else await storage.UserTaskDraftStorage.DeleteAllForTask(userTaskId);
     }
 
     /// <summary>
     /// Haengt die Auftraege der Instanz an die Zielversion. Kennung, Sperre und Versuche bleiben:
-    /// Ein Worker, der gerade arbeitet, meldet sein Ergebnis unveraendert zurueck.
+    /// Ein Worker, der gerade arbeitet, meldet sein Ergebnis unveraendert zurueck. Das erledigt
+    /// die Ablage in einem Schritt; ein Lese-Aendern-Schreiben von hier aus wuerde eine
+    /// zwischenzeitlich erteilte Lease ueberschreiben.
     /// </summary>
-    private static async Task RebindServiceTaskJobs(
+    private static Task RebindServiceTaskJobs(
+        ITransactionalStorage storage,
+        ResolvedMigration resolved,
+        ProcessInstanceInfo instance) =>
+        storage.ServiceTaskStorage.RebindJobsOfInstance(instance.InstanceId, resolved.Target.Id);
+
+    /// <summary>
+    /// Der Befund zu einer Instanz samt allem, was die Ablage dazu beitragen muss. Wird vor
+    /// jedem Schreibvorgang ermittelt, damit eine Instanz entweder ganz oder gar nicht umzieht.
+    /// </summary>
+    private static async Task<InstanceEvaluation> EvaluateInstance(
         ITransactionalStorage storage,
         ResolvedMigration resolved,
         ProcessInstanceInfo instance)
     {
-        var jobs = (await storage.ServiceTaskStorage.GetJobs())
-            .Where(job => job.ProcessInstanceId == instance.InstanceId)
-            .ToArray();
-        foreach (var job in jobs)
+        var evaluation = EvaluatePlan(resolved, instance);
+        if (await DraftStorageProblem(storage, instance) is not { } problem) return evaluation;
+        return evaluation with { Migratable = false, Problems = [.. evaluation.Problems, problem] };
+    }
+
+    /// <summary>
+    /// Fragt die Entwurfsablage, bevor irgendetwas geschrieben wird. Eine Ablage, die den
+    /// Entwurfsvertrag nicht kennt, kann die Entwuerfe der Aufgaben nicht mitnehmen; die Instanz
+    /// bliebe halb umgezogen zurueck. Der Trockenlauf darf sie deshalb auch nicht als migrierbar
+    /// ausweisen.
+    /// </summary>
+    private static async Task<InstanceMigrationFinding?> DraftStorageProblem(
+        ITransactionalStorage storage,
+        ProcessInstanceInfo instance)
+    {
+        // Ohne offene Aufgabe gibt es keinen Entwurf, der mitziehen muesste.
+        if ((await storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).FirstOrDefault() is not { } task)
+            return null;
+
+        try
         {
-            job.DefinitionId = resolved.Target.Id;
-            await storage.ServiceTaskStorage.SaveJob(job);
+            await storage.UserTaskDraftStorage.CountForTask(task.Id);
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return new InstanceMigrationFinding(
+                InstanceMigrationCodes.DraftStorageNotSupported,
+                null,
+                "The configured storage adapter cannot move user-task drafts to the deployed version.");
         }
     }
 
-    private static (bool Migratable, IReadOnlyList<InstanceMigrationFinding> Problems, InstanceMigrationPlan? Plan)
-        EvaluateInstance(ResolvedMigration resolved, ProcessInstanceInfo instance)
+    private static InstanceEvaluation EvaluatePlan(ResolvedMigration resolved, ProcessInstanceInfo instance)
     {
         if (instance.DefinitionId == resolved.Target.Id)
-            return (false, [
+            return new InstanceEvaluation(false, [
                 new InstanceMigrationFinding(
                     InstanceMigrationCodes.AlreadyOnTargetVersion,
                     null,
@@ -233,7 +302,7 @@ public partial class BpmnBusinessLogic
             ], null);
 
         if (resolved.ProcessOf(instance.ProcessId) is not { } targetProcess)
-            return (false, [
+            return new InstanceEvaluation(false, [
                 new InstanceMigrationFinding(
                     nameof(InstanceMigrationProblemCode.ProcessChanged),
                     null,
@@ -241,8 +310,13 @@ public partial class BpmnBusinessLogic
             ], null);
 
         var plan = InstanceMigration.Plan(instance.Tokens, targetProcess);
-        return (plan.IsMigratable, [.. plan.Problems.Select(ToFinding)], plan);
+        return new InstanceEvaluation(plan.IsMigratable, [.. plan.Problems.Select(ToFinding)], plan);
     }
+
+    private sealed record InstanceEvaluation(
+        bool Migratable,
+        IReadOnlyList<InstanceMigrationFinding> Problems,
+        InstanceMigrationPlan? Plan);
 
     private static InstanceMigrationFinding ToFinding(InstanceMigrationProblem problem) =>
         new(problem.Code.ToString(), problem.FlowNodeId, problem.Message);
@@ -254,7 +328,8 @@ public partial class BpmnBusinessLogic
     private static async Task<IReadOnlyList<InstanceMigrationFinding>> CollectNotices(
         ITransactionalStorage storage,
         ResolvedMigration resolved,
-        ProcessInstanceInfo instance)
+        ProcessInstanceInfo instance,
+        bool draftsReadable)
     {
         if (resolved.ProcessOf(instance.ProcessId) is not { } targetProcess) return [];
 
@@ -264,20 +339,35 @@ public partial class BpmnBusinessLogic
 
         foreach (var token in WaitingTokens(instance))
         {
-            if (token.CurrentFlowNode is not UserTask) continue;
-            if (!targetFlowNodes.TryGetValue(token.CurrentFlowNode.Id, out var targetFlowNode)) continue;
+            if (token.CurrentFlowNode is not { } flowNode) continue;
+            if (!targetFlowNodes.TryGetValue(flowNode.Id, out var targetFlowNode)) continue;
+
+            // Der Umzug setzt den Knoten der Zielversion ein und schaltet dessen Boundary-Events
+            // scharf, laesst aber den Zeitstempel des Tokens stehen. Eine seit Tagen wartende
+            // Aufgabe kann dadurch sofort in einen Timer der Zielversion laufen.
+            if (HasTimerInTarget(targetProcess, targetFlowNode))
+                notices.Add(new InstanceMigrationFinding(
+                    InstanceMigrationCodes.TimerRecalculated,
+                    targetFlowNode.Id,
+                    "Timers at this node are computed with the target version's duration from the "
+                    + "original start of waiting and may be due immediately."));
+
+            if (flowNode is not UserTask) continue;
             if (IsFormBindingIdentical(resolved, token, targetFlowNode)) continue;
 
             notices.Add(new InstanceMigrationFinding(
                 InstanceMigrationCodes.UserTaskFormChanged,
-                token.CurrentFlowNode.Id,
+                flowNode.Id,
                 "The user task is bound to a different form in the deployed version."));
 
+            // Ohne lesbare Entwurfsablage bleibt offen, ob es ueberhaupt einen Entwurf gibt; die
+            // Instanz ist dann ohnehin schon als nicht migrierbar ausgewiesen.
+            if (!draftsReadable) continue;
             if (tasks.FirstOrDefault(task => task.Token.Id == token.Id) is not { } task) continue;
-            if (await CountDrafts(storage, task.Id) == 0) continue;
+            if (await storage.UserTaskDraftStorage.CountForTask(task.Id) == 0) continue;
             notices.Add(new InstanceMigrationFinding(
                 InstanceMigrationCodes.UserTaskDraftDiscarded,
-                token.CurrentFlowNode.Id,
+                flowNode.Id,
                 "Private drafts of this user task will be discarded because its form changes."));
         }
 
@@ -308,11 +398,17 @@ public partial class BpmnBusinessLogic
             .ToArray();
     }
 
-    private static async Task<int> CountDrafts(ITransactionalStorage storage, Guid userTaskId)
-    {
-        try { return await storage.UserTaskDraftStorage.CountForTask(userTaskId); }
-        catch (NotSupportedException) { return 0; }
-    }
+    /// <summary>
+    /// Ob am Zielknoten ein Timer haengt: als Timer-Catch-Event oder als angehefteter
+    /// Boundary-Timer der Zielversion. Beide rechnen nach dem Umzug mit der Dauer der
+    /// Zielversion ab dem unveraenderten Zeitstempel des wartenden Tokens.
+    /// </summary>
+    private static bool HasTimerInTarget(Process targetProcess, FlowNode targetFlowNode) =>
+        targetFlowNode is FlowzerIntermediateTimerCatchEvent
+        || targetProcess.FlowElements
+            .OfType<FlowzerBoundaryTimerEvent>()
+            .Any(boundaryEvent => string.Equals(
+                boundaryEvent.AttachedToRef.Id, targetFlowNode.Id, StringComparison.Ordinal));
 
     private static bool IsFormBindingIdentical(ResolvedMigration resolved, Token token, FlowNode targetFlowNode) =>
         InstanceMigrationFormBinding.IsIdentical(

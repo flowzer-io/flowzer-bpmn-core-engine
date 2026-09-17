@@ -151,6 +151,41 @@ internal sealed class PostgreSqlServiceTaskStorage(PostgreSqlSession session) : 
         await command.ExecuteNonQueryAsync();
     });
 
+    /// <summary>
+    /// Die Versionsbindung steckt nur im Rumpf; geschrieben wird deshalb genau diese eine Spalte.
+    /// Die Zeilen werden vorher nach Kennung geordnet gesperrt, und der Vergabezustand kommt aus
+    /// den Spalten unter eben dieser Sperre: So traegt der neu geschriebene Rumpf dieselbe Lease
+    /// wie die Spalten, und eine gleichzeitige Vergabe bleibt unangetastet.
+    /// </summary>
+    public Task<int> RebindJobsOfInstance(Guid processInstanceId, Guid definitionId) =>
+        session.RunAsync(async (connection, transaction) =>
+        {
+            List<ServiceTaskJob> jobs;
+            await using (var select = session.CreateCommand(connection, transaction, $$"""
+                             SELECT {{JobColumns}} FROM {schema}.service_task_jobs
+                             WHERE process_instance_id = @instanceId
+                             ORDER BY id
+                             FOR UPDATE
+                             """))
+            {
+                select.Parameters.AddWithValue("instanceId", processInstanceId);
+                jobs = await ReadJobs(select);
+            }
+
+            var rebound = 0;
+            foreach (var job in jobs)
+            {
+                job.DefinitionId = definitionId;
+                await using var update = session.CreateCommand(connection, transaction,
+                    "UPDATE {schema}.service_task_jobs SET body = @body WHERE id = @id");
+                update.Parameters.AddWithValue("id", job.Id);
+                update.Parameters.AddWithValue("body", StorageJson.SerializeConcrete(job));
+                rebound += await update.ExecuteNonQueryAsync();
+            }
+
+            return rebound;
+        });
+
     public Task SaveWebhook(ServiceTaskWebhook webhook) => session.RunAsync(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction, """

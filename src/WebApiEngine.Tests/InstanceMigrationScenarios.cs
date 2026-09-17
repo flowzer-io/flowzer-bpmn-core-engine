@@ -240,6 +240,127 @@ internal static class InstanceMigrationScenarios
             .Should().ContainSingle().Which.DefinitionId.Should().Be(target.Id);
     }
 
+    /// <summary>
+    /// Ein zweiter API-Prozess deployt mitten im Stapel. Die Engine-Sperre gilt nur im eigenen
+    /// Prozess; erkennt der Umzug die neue Version nicht, haengte er die restlichen Instanzen an
+    /// eine Version, die der Aufrufer nie bestaetigt hat.
+    /// </summary>
+    internal static async Task TargetVersionChangedAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        var source = await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var first = await StartAsync(engine, "left");
+        var second = await StartAsync(engine, "left");
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0), Xml(FirstForm, withApprove: true));
+
+        // Der Griff greift vor dem Nachlesen der zweiten Instanz: erste Instanz gelesen (1),
+        // erste Instanz migriert (2), zweite Instanz (3).
+        var hooks = new MigrationStorageHooks
+        {
+            OnDeployedDefinitionRead = 3,
+            BeforeDeployedDefinitionRead = async () => await DeployAsync(
+                provider,
+                // Ein eigener Geschaeftslogik-Aufbau steht fuer den zweiten API-Prozess: Er hat
+                // seine eigene Engine-Sperre und kann deshalb waehrend des Stapels deployen.
+                new BpmnBusinessLogic(provider),
+                new Model.Version(3, 0),
+                Xml(FirstForm, withApprove: true, secondNodeId: "Third"))
+        };
+
+        var outcome = await new BpmnBusinessLogic(new HookedTransactionalStorageProvider(provider, hooks))
+            .MigrateInstances([first.InstanceId, second.InstanceId], target.Id, Guid.NewGuid());
+
+        outcome.Status.Should().Be(InstanceMigrationRequestStatus.Accepted);
+        outcome.Instances.Single(item => item.InstanceId == first.InstanceId).Migrated.Should().BeTrue();
+        var stopped = outcome.Instances.Single(item => item.InstanceId == second.InstanceId);
+        stopped.Migrated.Should().BeFalse();
+        stopped.Problems.Select(problem => problem.Code)
+            .Should().Equal(InstanceMigrationCodes.TargetVersionChanged);
+
+        // Die frueheren Instanzen des Stapels bleiben migriert; die spaetere bleibt unberuehrt.
+        (await InstanceAsync(provider, first.InstanceId)).DefinitionId.Should().Be(target.Id);
+        var untouched = await InstanceAsync(provider, second.InstanceId);
+        untouched.DefinitionId.Should().Be(source.Id);
+        untouched.Migrations.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Eine Ablage, die Entwuerfe fuehrt, den Entwurfsvertrag aber nicht kennt, darf nicht
+    /// halb umziehen: Die Vorschau sagt es vorher, und der Umzug laesst die Instanz liegen.
+    /// </summary>
+    internal static async Task DraftStorageNotSupportedAsync(ITransactionalStorageProvider provider)
+    {
+        var legacy = new LegacyDraftStorageProvider(provider);
+        var engine = new BpmnBusinessLogic(provider);
+        var source = await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0), Xml(FirstForm, withApprove: true));
+
+        var legacyEngine = new BpmnBusinessLogic(legacy);
+        var preview = await legacyEngine.PreviewInstanceMigration([instance.InstanceId]);
+        var item = preview.Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeFalse();
+        item.Problems.Select(problem => problem.Code)
+            .Should().Contain(InstanceMigrationCodes.DraftStorageNotSupported);
+
+        var outcome = await legacyEngine.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid());
+        var result = outcome.Instances.Should().ContainSingle().Subject;
+        result.Migrated.Should().BeFalse();
+        result.Problems.Select(problem => problem.Code)
+            .Should().Contain(InstanceMigrationCodes.DraftStorageNotSupported);
+
+        var untouched = await InstanceAsync(provider, instance.InstanceId);
+        untouched.DefinitionId.Should().Be(source.Id);
+        untouched.Migrations.Should().BeEmpty();
+        (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle()
+            .Which.DefinitionId.Should().Be(source.Id);
+    }
+
+    /// <summary>
+    /// Eine Ablage, die ausdruecklich keine Entwuerfe fuehrt, haelt den Umzug nicht auf: Sie
+    /// kann keinen Entwurf gespeichert haben und antwortet deshalb wahrheitsgemaess mit "keine".
+    /// </summary>
+    internal static async Task NoDraftStorageAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0), Xml(SecondForm, withApprove: true),
+            additionalForms: [SecondForm]);
+
+        var withoutDrafts = new BpmnBusinessLogic(new NoDraftStorageProvider(provider));
+        var preview = await withoutDrafts.PreviewInstanceMigration([instance.InstanceId]);
+        var item = preview.Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeTrue();
+        // Das geaenderte Formular bleibt ein Hinweis; ein verworfener Entwurf kann es nicht geben.
+        item.Notices.Select(notice => notice.Code).Should().Equal(InstanceMigrationCodes.UserTaskFormChanged);
+
+        (await withoutDrafts.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid()))
+            .Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+        (await InstanceAsync(provider, instance.InstanceId)).DefinitionId.Should().Be(target.Id);
+    }
+
+    /// <summary>
+    /// Der Trockenlauf warnt vor Timern am wartenden Knoten: Nach dem Umzug rechnen sie mit der
+    /// Dauer der Zielversion ab dem urspruenglichen Beginn des Wartens — auch ein in der
+    /// Zielversion neu angehefteter Boundary-Timer.
+    /// </summary>
+    internal static async Task TimerNoticeAsync(ITransactionalStorageProvider provider, bool boundaryTimer)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), TimerXml(withBoundaryTimer: false));
+        var instance = await engine.StartProcessInstance(MetaDefinitionId);
+        await DeployAsync(provider, engine, new Model.Version(2, 0), TimerXml(withBoundaryTimer: boundaryTimer));
+
+        var notices = (await engine.PreviewInstanceMigration([instance.InstanceId])).Instances.Single().Notices;
+
+        // Ohne Boundary-Timer wartet die Instanz am Timer-Catch-Event selbst, mit Boundary-Timer
+        // zusaetzlich an der Aufgabe, an der er in der Zielversion neu haengt.
+        notices.Where(notice => notice.Code == InstanceMigrationCodes.TimerRecalculated)
+            .Select(notice => notice.FlowNodeId)
+            .Should().BeEquivalentTo(boundaryTimer ? new[] { "Wait", "Review" } : ["Wait"]);
+    }
+
     /// <summary>Eine Instanz, die bereits auf der deployten Version laeuft, ist kein Umzug.</summary>
     internal static async Task AlreadyOnTargetAsync(ITransactionalStorageProvider provider)
     {
@@ -386,6 +507,44 @@ internal static class InstanceMigrationScenarios
               """)}}
             <bpmn:endEvent id="End" />
             <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="Fetch" />
+          </bpmn:process>
+        </bpmn:definitions>
+        """;
+
+    /// <summary>
+    /// Ein Timer-Catch-Event und eine Aufgabe nebeneinander. In der Zielversion kann an der
+    /// Aufgabe zusaetzlich ein Boundary-Timer haengen, den die Quellversion nicht kannte.
+    /// </summary>
+    private static string TimerXml(bool withBoundaryTimer) => $$"""
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+            id="Definitions_Migration" targetNamespace="test">
+          <bpmn:process id="Process_Migration" isExecutable="true">
+            <bpmn:startEvent id="Start" />
+            <bpmn:parallelGateway id="Fork" />
+            <bpmn:intermediateCatchEvent id="Wait">
+              <bpmn:timerEventDefinition><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition>
+            </bpmn:intermediateCatchEvent>
+            <bpmn:userTask id="Review" name="Review"><bpmn:extensionElements>
+              <zeebe:formDefinition formKey="Approval" />
+            </bpmn:extensionElements></bpmn:userTask>
+            {{(withBoundaryTimer ? """
+              <bpmn:boundaryEvent id="Escalate" attachedToRef="Review">
+                <bpmn:timerEventDefinition>
+                  <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+                </bpmn:timerEventDefinition>
+              </bpmn:boundaryEvent>
+              <bpmn:endEvent id="EndEscalate" />
+              <bpmn:sequenceFlow id="Flow_Escalate" sourceRef="Escalate" targetRef="EndEscalate" />
+              """ : "")}}
+            <bpmn:endEvent id="EndTimer" />
+            <bpmn:endEvent id="EndReview" />
+            <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="Fork" />
+            <bpmn:sequenceFlow id="Flow_Timer" sourceRef="Fork" targetRef="Wait" />
+            <bpmn:sequenceFlow id="Flow_Review" sourceRef="Fork" targetRef="Review" />
+            <bpmn:sequenceFlow id="Flow_EndTimer" sourceRef="Wait" targetRef="EndTimer" />
+            <bpmn:sequenceFlow id="Flow_EndReview" sourceRef="Review" targetRef="EndReview" />
           </bpmn:process>
         </bpmn:definitions>
         """;

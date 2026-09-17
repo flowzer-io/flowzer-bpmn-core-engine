@@ -68,7 +68,8 @@ Im selben Vorgang und derselben Transaktion bindet die API um:
   meldet sein Ergebnis unverändert zurück.
 - **Nachrichten, Signale, Timer:** werden wie bei jedem Speichern aus dem Tokenstand neu
   geschrieben. Ein Timer rechnet danach mit der Dauer aus der Zielversion ab dem
-  ursprünglichen Beginn des Wartens.
+  ursprünglichen Beginn des Wartens; der Trockenlauf weist jeden betroffenen Knoten mit
+  `TimerRecalculated` aus.
 - **Ereignisspur:** Die Instanz merkt sich jede Migration (Quell- und Zielversion,
   Zeitpunkt, auslösende Person). Laufzeitdiagramm und Verlauf zeigen das Diagramm der
   Zielversion und die Ereignisse aller Versionen, auf denen die Instanz gelaufen ist.
@@ -89,11 +90,28 @@ Alle Instanzen einer Anfrage müssen zum selben Workflow und zur selben Quellver
 gehören; sonst `422`. `problems` und `notices` tragen stabile Codes; die Konsole
 übersetzt sie, der englische `message`-Text ist technische Detailauskunft.
 
+Je Instanz kommen zu den Befunden der Engine diese Codes hinzu:
+
+| Code | Art | Bedeutung |
+| --- | --- | --- |
+| `AlreadyOnTargetVersion` | Problem | Die Instanz läuft bereits auf der deployten Version. |
+| `TargetVersionChanged` | Problem | Während des Stapels wurde eine andere Version deployt; diese Instanz blieb unverändert. Jede Instanz prüft die Zielversion in ihrer eigenen Transaktion erneut, weil ein zweiter API-Prozess dazwischen deployen kann. |
+| `DraftStorageNotSupported` | Problem | Die Ablage kennt den Entwurfsvertrag nicht und könnte die Entwürfe nicht mitnehmen; die Instanz bleibt unverändert, statt halb umgezogen liegen zu bleiben. |
+| `MigrationFailed` | Problem | Der Umzug dieser Instanz ist unerwartet gescheitert; sie blieb unverändert. |
+| `UserTaskFormChanged` | Hinweis | Die Aufgabe trägt in der Zielversion ein anderes Formular. |
+| `UserTaskDraftDiscarded` | Hinweis | Wegen des anderen Formulars wird mindestens ein privater Entwurf verworfen. |
+| `ServiceTaskJobInProgress` | Hinweis | Ein Worker arbeitet gerade an einem Auftrag dieser Instanz. |
+| `TimerRecalculated` | Hinweis | Am genannten Knoten hängt in der Zielversion ein Timer (Catch-Event oder Boundary-Timer). |
+
 ## Grenzen
 
 - Kein Knoten-Mapping, keine Teilprozesse, keine Multi-Instance, keine KI-Tasks (siehe oben).
 - Variablen werden nicht umgeschrieben. Erwartet die Zielversion andere Variablen, ist
   das vor der Migration fachlich zu prüfen; die API kann es nicht erkennen.
+- Timer werden nicht umgerechnet: Nach dem Umzug gilt die Dauer der Zielversion ab dem
+  ursprünglichen Beginn des Wartens, und ein in der Zielversion neu angehefteter
+  Boundary-Timer steht sofort scharf — eine seit Tagen wartende Aufgabe kann dadurch beim
+  nächsten Timerlauf unmittelbar fällig werden. Der Trockenlauf kündigt das je Knoten an.
 - Eine Migration lässt sich nicht zurücknehmen.
 - Die Dateiablage besitzt keine Transaktion; ein Abbruch mitten in der Migration kann dort
   einen Zwischenstand hinterlassen. PostgreSQL ist der Betriebspfad.

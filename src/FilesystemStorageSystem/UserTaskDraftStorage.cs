@@ -13,7 +13,13 @@ namespace FilesystemStorageSystem;
 internal sealed class UserTaskDraftStorage(Storage storage) : IUserTaskDraftStorage
 {
     internal const string DirectoryName = "UserTaskDrafts";
-    private static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Je Entwurf eine Sperre. Sichtbar bis zur Assembly-Grenze, damit ein Test belegen kann,
+    /// dass Lesen und Schreiben eines Entwurfs wirklich innerhalb derselben Sperre liegen —
+    /// von aussen betrachtet unterscheidet sich das sonst nicht vom fehlerhaften Fall.
+    /// </summary>
+    internal static readonly ConcurrentDictionary<string, SemaphoreSlim> Locks = new(StringComparer.Ordinal);
     private readonly string _path = storage.GetBasePath(Path.Combine("FileStorage", DirectoryName));
 
     public async Task<UserTaskDraft?> Get(Guid userTaskId, string ownerKey)
@@ -82,24 +88,45 @@ internal sealed class UserTaskDraftStorage(Storage storage) : IUserTaskDraftStor
 
     public Task<int> CountForTask(Guid userTaskId) => Task.FromResult(FilesOf(userTaskId).Length);
 
-    public Task<int> DeleteAllForTask(Guid userTaskId) => Task.FromResult(DeleteFiles(userTaskId));
+    public async Task<int> DeleteAllForTask(Guid userTaskId)
+    {
+        var deleted = 0;
+        foreach (var file in FilesOf(userTaskId))
+        {
+            if (OwnerKeyOf(file) is not { } ownerKey) continue;
+            var gate = Locks.GetOrAdd(Key(userTaskId, ownerKey), static _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync();
+            try
+            {
+                StorageFile.DeleteIfExists(file);
+                deleted++;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        return deleted;
+    }
 
     public async Task<int> RebindAllForTask(Guid userTaskId, Guid definitionId)
     {
         var rebound = 0;
         foreach (var file in FilesOf(userTaskId))
         {
-            var content = await StorageFile.ReadAllTextIfExistsAsync(file);
-            if (content is null) continue;
-            var draft = JsonConvert.DeserializeObject<UserTaskDraft>(content, storage.NewtonSoftDefaultSettings)
-                        ?? throw new InvalidDataException("Stored user-task draft is empty.");
-
-            // Der Eigentuemerschluessel steckt im Dateinamen; die Sperre dieses Schluessels
-            // haelt ein gleichzeitiges Speichern desselben Entwurfs heraus.
-            var gate = Locks.GetOrAdd(Key(draft.UserTaskId, draft.OwnerKey), static _ => new SemaphoreSlim(1, 1));
+            // Der Eigentuemerschluessel steckt im Dateinamen. Er wird vor dem Lesen gebraucht:
+            // Nur unter der Sperre dieses Entwurfs steht fest, dass zwischen Lesen und Schreiben
+            // kein Speichern dazwischenkommt und der alte Stand zurueckkehrt.
+            if (OwnerKeyOf(file) is not { } ownerKey) continue;
+            var gate = Locks.GetOrAdd(Key(userTaskId, ownerKey), static _ => new SemaphoreSlim(1, 1));
             await gate.WaitAsync();
             try
             {
+                var content = await StorageFile.ReadAllTextIfExistsAsync(file);
+                if (content is null) continue;
+                var draft = JsonConvert.DeserializeObject<UserTaskDraft>(content, storage.NewtonSoftDefaultSettings)
+                            ?? throw new InvalidDataException("Stored user-task draft is empty.");
                 await StorageFile.WriteAllTextAtomicAsync(
                     file,
                     JsonConvert.SerializeObject(
@@ -128,10 +155,18 @@ internal sealed class UserTaskDraftStorage(Storage storage) : IUserTaskDraftStor
 
     private string[] FilesOf(Guid userTaskId) => Directory.GetFiles(_path, $"draft_{userTaskId:N}_*.json");
 
+    /// <summary>Der Eigentuemerschluessel aus dem Dateinamen, ohne die Datei zu lesen.</summary>
+    private static string? OwnerKeyOf(string file)
+    {
+        var name = Path.GetFileNameWithoutExtension(file);
+        var separator = name.LastIndexOf('_');
+        return separator < 0 ? null : name[(separator + 1)..];
+    }
+
     private string File(Guid userTaskId, string ownerKey) =>
         Path.Combine(_path, $"draft_{userTaskId:N}_{ownerKey}.json");
 
-    private static string Key(Guid userTaskId, string ownerKey) => $"{userTaskId:N}:{ownerKey}";
+    internal static string Key(Guid userTaskId, string ownerKey) => $"{userTaskId:N}:{ownerKey}";
 
     private static void ValidateOwnerKey(string ownerKey)
     {

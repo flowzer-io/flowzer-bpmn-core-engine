@@ -73,6 +73,10 @@ const FINDING_TEXT: Record<string, (flowNodeId: string | null | undefined) => st
   AlreadyOnTargetVersion: () => 'Die Instanz läuft bereits auf der Zielversion.',
   MigrationFailed: () =>
     'Die Migration ist an einem unerwarteten Fehler gescheitert. Die Instanz ist unverändert; Einzelheiten stehen im Protokoll der API.',
+  TargetVersionChanged: () =>
+    'Inzwischen wurde eine andere Version deployt; diese Instanz blieb unverändert. Prüfe die Auswahl erneut.',
+  DraftStorageNotSupported: () =>
+    'Die Ablage dieser Installation kann Entwürfe zu Aufgaben nicht mitnehmen; die Instanz blieb unverändert. Wende dich an den Betrieb.',
 
   UserTaskFormChanged: (node) =>
     `Die offene Aufgabe ${step(node, 'dieser Instanz')} wird künftig mit dem Formular der Zielversion bearbeitet.`,
@@ -80,6 +84,8 @@ const FINDING_TEXT: Record<string, (flowNodeId: string | null | undefined) => st
     `Der gespeicherte Entwurf zur Aufgabe ${step(node, 'dieser Instanz')} geht verloren, weil sich das Formular geändert hat.`,
   ServiceTaskJobInProgress: (node) =>
     `Ein Worker arbeitet gerade an ${step(node, 'einem Service-Task')}. Sein Ergebnis wird auch nach der Migration übernommen; der weitere Weg folgt dann der Zielversion.`,
+  TimerRecalculated: (node) =>
+    `Timer an ${step(node, 'einem Schritt')} rechnen nach der Migration mit der Dauer der Zielversion ab dem ursprünglichen Beginn des Wartens und können sofort fällig werden.`,
 };
 
 /** Übersetzt einen Befund der API in einen deutschen Satz. */
