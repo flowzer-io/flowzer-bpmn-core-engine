@@ -1,6 +1,6 @@
 # Instanzmigration auf die deployte Version
 
-**Stand:** 17. September 2026
+**Stand:** 18. September 2026
 
 Laufende Instanzen bleiben grundsätzlich an die Workflow-Version gebunden, mit der sie
 gestartet wurden. Die Instanzmigration ist die **bewusste, einzeln ausgelöste Ausnahme**
@@ -17,7 +17,7 @@ Entschieden am 17. September 2026 (Christian Maaß):
 
 | Frage | Entscheidung |
 | --- | --- |
-| Welche Instanzen? | Nur **deckungsgleiche**: Jeder Knoten, auf dem die Instanz gerade wartet, existiert in der Zielversion mit derselben ID und demselben Typ. Alle anderen bleiben unverändert und werden mit Grund als „nicht migrierbar" ausgewiesen. Kein manuelles Knoten-Mapping. |
+| Welche Instanzen? | **Deckungsgleiche** ohne weiteres Zutun: Jeder Knoten, auf dem die Instanz wartet, existiert in der Zielversion mit derselben ID und demselben Typ. Fehlt ein Knoten dort, lässt sich sein Ziel **von Hand zuordnen** (siehe „Knoten von Hand zuordnen"). Wer nichts zuordnet, migriert die betroffenen Instanzen nicht; sie bleiben unverändert und werden mit Grund ausgewiesen. |
 | Wohin? | Ausschließlich auf die **aktuell deployte** Version. Keine Rückmigration, keine frei wählbare Zielversion. |
 | Offene Benutzeraufgaben? | Die Aufgabe **bleibt**: ID, Übernahme, Zuweisung und Fristen bleiben erhalten. Name und Formular kommen aus der Zielversion. Ein privater Entwurf bleibt nur erhalten, wenn die Formularbindung der Aufgabe in beiden Versionen identisch ist; sonst wird er verworfen — der Assistent zeigt das **vor** der Migration an. |
 | Wer? | Nur mit Betriebsrecht (`operator`), wie der Instanzabbruch. |
@@ -31,7 +31,8 @@ Die erste Ausbaustufe migriert nur flache Prozesse im Ruhezustand. Nicht migrier
 eine Instanz, wenn
 
 - sie nicht läuft oder ihr Prozess in der Zielversion eine andere Prozess-ID trägt,
-- ein wartender Knoten in der Zielversion fehlt oder einen anderen Typ hat,
+- ein wartender Knoten in der Zielversion fehlt und ihm kein Ziel zugeordnet wurde,
+- ein wartender Knoten in der Zielversion einen anderen Typ hat (auch nach einer Zuordnung),
 - ein wartendes Token in einem Teilprozess oder einer Multi-Instance-Aktivität steht,
 - ein wartender Service-Task in der Zielversion einen anderen Auftragstyp hat (ein bereits
   eingereihter Worker-Auftrag trüge sonst den falschen Typ),
@@ -43,6 +44,26 @@ eine Instanz, wenn
 
 Bereits durchlaufene Knoten sind Historie und nie ein Hindernis — auch wenn es sie in
 der Zielversion nicht mehr gibt.
+
+## Knoten von Hand zuordnen
+
+Ein Modell ändert sich nicht nur additiv: Eine Aufgabe wird umbenannt, ersetzt oder durch
+zwei andere abgelöst. Für die Instanzen, die genau dort warten, muss jemand entscheiden, wo
+sie weiterlaufen sollen. Der Assistent fragt das, statt die Instanz stillschweigend liegen
+zu lassen.
+
+- Der Trockenlauf nennt jeden wartenden Knoten, den es in der Zielversion nicht mehr gibt,
+  zusammen mit den Knoten der Zielversion, die als Ziel in Frage kommen.
+- Eine Zuordnung gilt für **alle** Instanzen der Anfrage: Sie laufen auf derselben
+  Quellversion und teilen deshalb dieselben Knoten.
+- Ziel und Quelle müssen denselben Elementtyp haben. Eine Aufgabe auf ein Gateway zu
+  schieben ergäbe einen Zustand, den das Zielmodell nicht kennt.
+- Zuordnen ist freiwillig. Ohne Zuordnung bleiben die betroffenen Instanzen unverändert;
+  die übrigen migrieren trotzdem.
+- Die Zuordnung verschiebt nur den Punkt, an dem die Instanz steht. Variablen, Aufgaben-ID,
+  Übernahme und Fristen bleiben; das Formular kommt aus der Zielversion.
+- Zeigt eine Zuordnung auf einen Knoten, den die Zielversion nicht kennt, meldet der
+  Trockenlauf `MappingTargetMissing` und fragt erneut nach.
 
 ## Was bei der Migration geschieht
 
@@ -105,7 +126,8 @@ Je Instanz kommen zu den Befunden der Engine diese Codes hinzu:
 
 ## Grenzen
 
-- Kein Knoten-Mapping, keine Teilprozesse, keine Multi-Instance, keine KI-Tasks (siehe oben).
+- Keine Teilprozesse, keine Multi-Instance, keine KI-Tasks (siehe oben). Die Zuordnung führt
+  nur auf Knoten der obersten Ebene und nur auf denselben Elementtyp.
 - Variablen werden nicht umgeschrieben. Erwartet die Zielversion andere Variablen, ist
   das vor der Migration fachlich zu prüfen; die API kann es nicht erkennen.
 - Timer werden nicht umgerechnet: Nach dem Umzug gilt die Dauer der Zielversion ab dem
