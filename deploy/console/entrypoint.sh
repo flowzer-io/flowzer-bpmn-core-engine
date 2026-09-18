@@ -29,6 +29,16 @@ cat > "$TARGET" <<EOF
 }
 EOF
 
+# Die Oberflaeche gehoert in kein fremdes Rahmenfenster, und der Browser soll den Inhaltstyp
+# nicht raten. Die Kopfzeilen stehen in einer eigenen Datei, weil nginx die add_header der
+# server-Ebene in jedem location-Block verwirft, der selbst ein add_header setzt; diese Bloecke
+# binden die Datei deshalb erneut ein.
+cat > /etc/nginx/flowzer-security-headers.conf <<'HEADERS'
+add_header X-Frame-Options DENY always;
+add_header X-Content-Type-Options nosniff always;
+add_header Referrer-Policy strict-origin-when-cross-origin always;
+HEADERS
+
 API_UPSTREAM="${FLOWZER_API_UPSTREAM:-}"
 if [ -n "$API_UPSTREAM" ]; then
   # Nur host:port zulassen; alles andere koennte die nginx-Konfiguration erweitern.
@@ -67,11 +77,7 @@ server {
   proxy_read_timeout 120s;
   client_max_body_size 8m;
 
-  # Die Oberflaeche gehoert in kein fremdes Rahmenfenster, und der Browser soll den
-  # Inhaltstyp nicht raten.
-  add_header X-Frame-Options DENY always;
-  add_header X-Content-Type-Options nosniff always;
-  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  include /etc/nginx/flowzer-security-headers.conf;
 
   # Diese Liste muss alle API-Routen enthalten. Fehlt eine, beantwortet die Konsole sie
   # mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
@@ -95,13 +101,26 @@ server {
     proxy_pass \$flowzer_api;
   }
 
+  # Gebaute Bundles tragen einen Inhaltshash im Namen und aendern sich nie. Ein fehlendes
+  # Bundle ist ein 404 und nicht die Startseite, sonst laege HTML ein Jahr lang unter einer
+  # Skriptadresse im Cache.
+  location /assets/ {
+    include /etc/nginx/flowzer-security-headers.conf;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files \$uri =404;
+  }
+
   # Die Konsole ist eine Einzelseitenanwendung: Jede unbekannte Adresse gehoert an ihren
-  # Router, sonst waere ein Neuladen auf einer Unterseite ein 404.
+  # Router, sonst waere ein Neuladen auf einer Unterseite ein 404. index.html muss der Browser
+  # vor jeder Verwendung nachfragen; sonst laedt er nach einem Release weiter die alten Bundles.
   location / {
+    include /etc/nginx/flowzer-security-headers.conf;
+    add_header Cache-Control "no-cache";
     try_files \$uri \$uri/ /index.html;
   }
 
   location = /config.json {
+    include /etc/nginx/flowzer-security-headers.conf;
     add_header Cache-Control "no-store";
   }
 }
@@ -115,15 +134,22 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
-  add_header X-Frame-Options DENY always;
-  add_header X-Content-Type-Options nosniff always;
-  add_header Referrer-Policy strict-origin-when-cross-origin always;
+  include /etc/nginx/flowzer-security-headers.conf;
+
+  location /assets/ {
+    include /etc/nginx/flowzer-security-headers.conf;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
 
   location / {
+    include /etc/nginx/flowzer-security-headers.conf;
+    add_header Cache-Control "no-cache";
     try_files $uri $uri/ /index.html;
   }
 
   location = /config.json {
+    include /etc/nginx/flowzer-security-headers.conf;
     add_header Cache-Control "no-store";
   }
 }
