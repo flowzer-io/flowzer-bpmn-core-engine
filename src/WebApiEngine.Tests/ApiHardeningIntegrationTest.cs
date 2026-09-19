@@ -67,6 +67,28 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Be("Storage is unavailable.");
     }
 
+    // Testzweck: Die Bereitschaftsprobe nennt zusaetzlich die konfigurierte Ablage und den
+    // Migrationsstand; bei der Dateiablage gibt es keine Migrationen, und das steht auch so da.
+    [Test]
+    public async Task ReadyHealth_ShouldDescribeStorageProviderAndMigrationState()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/ready");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<HealthStatusDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result!.Status.Should().Be("Healthy");
+        payload.Result.Details.Should().NotBeNull();
+        payload.Result.Details!.StorageProvider.Should().Be("Filesystem");
+        payload.Result.Details.MigrationState.Should().Be("NotApplicable");
+        payload.Result.Details.PendingMigrationCount.Should().BeNull();
+    }
+
     // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Scheduler And Storage Snapshot“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldReturnSchedulerAndStorageSnapshot()

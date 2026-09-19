@@ -66,7 +66,11 @@ public class Storage : IStorageSystem
         return path;
     }
 
-    private static string ResolveStorageRoot()
+    /// <summary>
+    /// Wurzelverzeichnis der Dateiablage. Oeffentlich, damit die Konfigurationspruefung denselben
+    /// Pfad beurteilt, den die Ablage spaeter wirklich benutzt.
+    /// </summary>
+    public static string ResolveStorageRoot()
     {
         var configuredRoot = Environment.GetEnvironmentVariable(StorageRootEnvironmentVariableName);
         if (!string.IsNullOrWhiteSpace(configuredRoot))

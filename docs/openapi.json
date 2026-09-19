@@ -8691,6 +8691,34 @@
         },
         "additionalProperties": false
       },
+      "HealthReadinessDetailsDto": {
+        "required": [
+          "migrationState",
+          "storageProvider"
+        ],
+        "type": "object",
+        "properties": {
+          "storageProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "migrationState": {
+            "type": "string",
+            "nullable": true
+          },
+          "pendingMigrationCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "expectedMigrationVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "HealthStatusDto": {
         "required": [
           "checkedAtUtc",
@@ -8715,6 +8743,9 @@
           "storage": {
             "type": "string",
             "nullable": true
+          },
+          "details": {
+            "$ref": "#/components/schemas/HealthReadinessDetailsDto"
           }
         },
         "additionalProperties": false

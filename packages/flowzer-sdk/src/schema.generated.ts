@@ -6249,12 +6249,21 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["FormVersionSummaryDto"][] | null;
         };
+        HealthReadinessDetailsDto: {
+            storageProvider: string | null;
+            migrationState: string | null;
+            /** Format: int32 */
+            pendingMigrationCount?: number | null;
+            /** Format: int32 */
+            expectedMigrationVersion?: number | null;
+        };
         HealthStatusDto: {
             status: string | null;
             /** Format: date-time */
             checkedAtUtc: string;
             environment: string | null;
             storage: string | null;
+            details?: components["schemas"]["HealthReadinessDetailsDto"];
         };
         HealthStatusDtoApiStatusResult: {
             successful?: boolean;

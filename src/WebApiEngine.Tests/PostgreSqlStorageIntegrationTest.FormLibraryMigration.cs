@@ -29,7 +29,7 @@ public partial class PostgreSqlStorageIntegrationTest
 
         try
         {
-            await ApplyMigrationsBeforeFormLibrary(migrationSchema);
+            await ApplyMigrationsBelow(migrationSchema, 16);
             await SeedLegacySectionAndExistingForm(migrationSchema, seed);
 
             // Geprueft wird das Upgrade auf 16: Es muss das erste noch offene sein, nichts
@@ -117,7 +117,11 @@ public partial class PostgreSqlStorageIntegrationTest
         await command.ExecuteNonQueryAsync();
     }
 
-    private async Task ApplyMigrationsBeforeFormLibrary(string schema)
+    /// <summary>
+    /// Richtet ein Schema auf einem aelteren Migrationsstand ein: alle eingebetteten Migrationen
+    /// unterhalb von <paramref name="exclusiveMaxVersion"/> samt passender Historie.
+    /// </summary>
+    private async Task ApplyMigrationsBelow(string schema, int exclusiveMaxVersion)
     {
         await using var connection = await _dataSource!.OpenConnectionAsync();
         await using var transaction = await connection.BeginTransactionAsync();
@@ -130,7 +134,7 @@ public partial class PostgreSqlStorageIntegrationTest
             await setup.ExecuteNonQueryAsync();
         }
 
-        foreach (var (version, name, sql) in EmbeddedMigrations().Where(item => item.Version < 16))
+        foreach (var (version, name, sql) in EmbeddedMigrations().Where(item => item.Version < exclusiveMaxVersion))
         {
             await using var migration = new NpgsqlCommand(
                 sql.Replace("{schema}", Quote(schema), StringComparison.Ordinal),

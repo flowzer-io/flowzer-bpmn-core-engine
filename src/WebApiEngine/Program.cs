@@ -21,6 +21,15 @@ if (FlowzerStorageExtensions.IsMigrationRun(args))
     return await FlowzerStorageExtensions.RunMigrationsAsync(builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"));
 }
 
+// Konfigurationspruefung (`--check-config`): Ablage- und Authentifizierungsoptionen validieren
+// bereits beim Registrieren hart. Ein Abbruch dort soll als benannte Zeile erscheinen und nicht
+// als rohe Ausnahme, deshalb werden genau diese beiden Abschnitte vorab einzeln gebunden.
+if (ConfigurationCheck.IsConfigurationCheckRun(args)
+    && ConfigurationCheck.TryDescribeEagerOptionFailure(builder.Configuration, out var eagerOptionFailure))
+{
+    return ConfigurationCheck.Report([eagerOptionFailure], Console.Out);
+}
+
 builder.Services.AddControllers().AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
@@ -163,6 +172,14 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 
 builder.Services.AddFlowzerForwardedHeaders(builder.Configuration);
 
 var app = builder.Build();
+
+// Derselbe Host wie beim normalen Start, nur ohne Pipeline und ohne Lauschen auf einem Port:
+// Options-Validierung, Ablage, Migrationsstand, Authority und Freigabelisten pruefen und den
+// Prozess mit dem Ergebnis beenden (0 ok, 1 Fehler, 2 Warnungen).
+if (ConfigurationCheck.IsConfigurationCheckRun(args))
+{
+    return await ConfigurationCheck.RunAsync(app.Services, Console.Out);
+}
 
 app.UseFlowzerForwardedHeaders();
 app.UseFlowzerRequestDiagnostics();
