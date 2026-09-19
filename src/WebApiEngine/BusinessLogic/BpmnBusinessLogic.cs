@@ -769,6 +769,117 @@ public partial class BpmnBusinessLogic(
     }
 
     /// <summary>
+    /// Gibt einen liegen gebliebenen Auftrag wieder frei — die Betriebsantwort auf eine Stoerung.
+    ///
+    /// Vorbedingung, Korrektur und Schreiben liegen bewusst hier und nicht beim Aufrufer: Der
+    /// Auftrag wird unter der Engine-Sperre und der Zeilensperre der Instanz neu gelesen. Eine
+    /// ausserhalb gepruefte Vorbedingung waere schon wieder falsch, wenn zwischen Pruefung und
+    /// Schreiben ein Worker den Auftrag uebernimmt; er bekaeme dann seine Versuche unter der
+    /// Hand zurueckgesetzt.
+    ///
+    /// <paramref name="corrections"/> werden in die vorhandenen Eingaben hineingemischt: Der
+    /// Betrieb korrigiert einzelne Werte, er schreibt den Auftrag nicht neu. Die bisherige
+    /// Fehlermeldung bleibt als Verlauf stehen.
+    /// </summary>
+    public async Task<JobRetryResult> RetryServiceTaskJob(
+        Guid jobId,
+        int retries,
+        Variables? corrections,
+        Guid userId,
+        DateTime now)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var job = await storageSystem.ServiceTaskStorage.GetJob(jobId);
+            if (job is null)
+            {
+                return JobRetryResult.NotFound;
+            }
+
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+
+            // Nach der Zeilensperre noch einmal lesen: Zwischen dem ersten Lesen und der Sperre
+            // kann derselbe Auftrag abgeschlossen oder uebernommen worden sein.
+            job = await storageSystem.ServiceTaskStorage.GetJob(jobId);
+            if (job is null)
+            {
+                return JobRetryResult.NotFound;
+            }
+
+            if (job.LockedUntil is { } lockedUntil && lockedUntil > now)
+            {
+                return JobRetryResult.StillLocked;
+            }
+
+            if (job.Retries > 0)
+            {
+                return JobRetryResult.NotExhausted;
+            }
+
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
+            var instance = new InstanceEngine(processInstance.Tokens) { InstanceId = job.ProcessInstanceId };
+            if (instance.GetActiveServiceTasks().All(token => token.Id != job.TokenId))
+            {
+                // Der Auftrag ist verwaist: Sein Token wartet nicht mehr. Ihn freizugeben, wuerde
+                // einem Worker Arbeit geben, deren Ergebnis niemand mehr annimmt.
+                return JobRetryResult.NotFound;
+            }
+
+            var correctedKeys = MergeJobVariables(job, corrections);
+
+            job.Retries = retries;
+            job.RetryAt = null;
+            job.LockedBy = null;
+            job.LockedUntil = null;
+            job.RetryHistory.Add(new ServiceTaskJobRetry
+            {
+                At = now,
+                By = userId,
+                Retries = retries,
+                CorrectedKeys = correctedKeys
+            });
+
+            await storageSystem.ServiceTaskStorage.SaveJob(job);
+            storageSystem.CommitChanges();
+
+            return JobRetryResult.Ok;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Mischt die Korrekturen in die Eingaben des Auftrags und liefert die ueberschriebenen
+    /// Schluessel alphabetisch. Hineingemischt statt ersetzt: Ein Auftrag traegt die gebundenen
+    /// Eingaben seines Schritts, und der Betrieb korrigiert daran einen Wert — er kennt die
+    /// uebrigen nicht zwingend und darf sie nicht versehentlich entfernen.
+    /// </summary>
+    private static List<string> MergeJobVariables(ServiceTaskJob job, Variables? corrections)
+    {
+        if (corrections is null)
+        {
+            return [];
+        }
+
+        job.Variables ??= new Variables();
+        var target = (IDictionary<string, object?>)job.Variables;
+        var correctedKeys = new List<string>();
+        foreach (var entry in (IDictionary<string, object?>)corrections)
+        {
+            target[entry.Key] = entry.Value;
+            correctedKeys.Add(entry.Key);
+        }
+
+        correctedKeys.Sort(StringComparer.Ordinal);
+        return correctedKeys;
+    }
+
+    /// <summary>
     /// Bricht eine laufende Instanz ab: aktive und wartende Tokens werden terminiert, offene
     /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
     /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.

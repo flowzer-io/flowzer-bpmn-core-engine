@@ -23,6 +23,7 @@ import type {
   MessageSubscriptionDto,
   NotificationDto,
   OperationsDiagnosticsDto,
+  OperationsIncidentDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   SignalSubscriptionDto,
@@ -550,6 +551,13 @@ export const operationsApi = {
   diagnostics: (signal?: AbortSignal) =>
     requestStatusResult<OperationsDiagnosticsDto>('/operations/diagnostics', { signal }),
 
+  /**
+   * `GET /operations/incidents` — alles, was ohne Eingriff liegen bleibt, neueste Störung
+   * zuerst. Verlangt das Betriebsrecht.
+   */
+  incidents: (signal?: AbortSignal) =>
+    requestStatusResult<OperationsIncidentDto[]>('/operations/incidents', { signal }),
+
   /** `GET /timer` — alle offenen Timer der Engine. */
   timers: (signal?: AbortSignal) => requestStatusResult<TimerSubscriptionDto[]>('/timer', { signal }),
 
@@ -558,6 +566,20 @@ export const operationsApi = {
 
   /** `GET /health/ready` */
   readiness: (signal?: AbortSignal) => requestStatusResult<HealthStatusDto>('/health/ready', { signal }),
+};
+
+/** Aufträge an externe Worker; die Konsole benutzt davon nur den Betriebseingriff. */
+export const jobsApi = {
+  /**
+   * `POST /job/{id}/retry` — gibt einen liegen gebliebenen Auftrag wieder frei. `variables`
+   * werden in die vorhandenen Eingaben hineingemischt; ungenannte Schlüssel bleiben stehen.
+   * Verlangt das Betriebsrecht; ein Auftrag, der gar nicht liegt, antwortet mit 409.
+   */
+  retry: (jobId: string, retries: number, variables?: ProcessVariables) =>
+    requestStatus(`/job/${jobId}/retry`, {
+      method: 'POST',
+      body: { retries, variables },
+    }),
 };
 
 export type { ProcessVariables };

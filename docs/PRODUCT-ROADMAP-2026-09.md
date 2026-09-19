@@ -350,7 +350,11 @@ und Abschluss bleiben identisch.
   Aufgaben über die tatsächliche Mitgliedschaft in geladenen Instanz-Tokens prüfen.
 - [ ] Explizites, am Deployment gespeichertes Expression-Profil, kein stiller
   Semantikwechsel durch V8-Fallback.
-- [ ] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
+- [x] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
+  `GET /operations/incidents` führt liegen gebliebene Aufträge und gescheiterte Instanzen
+  zusammen, `POST /job/{jobId}/retry` gibt einen Auftrag mit korrigierten Eingaben wieder
+  frei und hält Akteur, Zeitpunkt und die Namen der korrigierten Felder fest. Offen bleibt
+  eine Störungshistorie, die das Ende eines Auftrags überdauert (siehe RUNTIME-GAPS.md).
 - [ ] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
   Instanz/Aufgaben/Jobs; Mehrprozessbetrieb erst nach Konkurrenztests freigeben.
 - [ ] Dateiablage auf Entwicklung begrenzen; bestehende No-op-Transaktionen sind

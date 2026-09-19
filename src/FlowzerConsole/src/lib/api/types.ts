@@ -109,6 +109,11 @@ export interface ProcessInstanceInfoDto {
   serviceSubscriptionCount: number;
   state: ProcessInstanceState;
   tokens: TokenDto[];
+  /**
+   * Warum die Instanz gescheitert ist, etwa „Unhandled BPMN error 'CODE' at 'Node'". Null bei
+   * jeder anderen Instanz und ohne Diagnoseberechtigung.
+   */
+  failureReason?: string | null;
   /** Ergänzt durch die Console-API: Startzeitpunkt der Instanz (UTC). */
   startedAt?: string | null;
   /** Ergänzt durch die Console-API: Endzeitpunkt der Instanz (UTC). */
@@ -566,11 +571,52 @@ export interface OperationsObservabilityDto {
   serviceVersion: string;
 }
 
+/** Entspricht `OperationsIncidentCountersDto`. */
+export interface OperationsIncidentCountersDto {
+  /** Aufträge ohne verbleibende Versuche; sie warten auf einen Eingriff. */
+  jobExhausted: number;
+  /** Instanzen im Zustand `Failed`. */
+  instanceFailed: number;
+}
+
+/** Die beiden abgeleiteten Störungsarten; entspricht `OperationsIncidentKinds`. */
+export const OPERATIONS_INCIDENT_KINDS = ['jobExhausted', 'instanceFailed'] as const;
+export type OperationsIncidentKind = (typeof OPERATIONS_INCIDENT_KINDS)[number];
+
+/** Entspricht `OperationsIncidentDto`. */
+export interface OperationsIncidentDto {
+  kind: OperationsIncidentKind;
+  instanceId: string;
+  metaDefinitionId: string;
+  definitionId: string;
+  definitionName: string;
+  flowNodeId?: string | null;
+  flowNodeName?: string | null;
+  /** Nur bei `jobExhausted`. */
+  jobId?: string | null;
+  jobType?: string | null;
+  message?: string | null;
+  /** Seit wann es hängt (UTC). */
+  since: string;
+  /** Wie oft der Auftrag schon von Hand freigegeben wurde; nur bei `jobExhausted`. */
+  manualRetries?: number | null;
+  /** Aktuelle Eingaben des Auftrags, damit die Korrektur sie vorbelegen kann. */
+  variables?: ProcessVariables | null;
+}
+
+/** Entspricht `RetryJobRequestDto`. */
+export interface RetryJobRequestDto {
+  retries: number;
+  /** Wird in die vorhandenen Eingaben hineingemischt; ungenannte Schlüssel bleiben. */
+  variables?: ProcessVariables;
+}
+
 /** Entspricht `OperationsDiagnosticsDto`. */
 export interface OperationsDiagnosticsDto {
   checkedAtUtc: string;
   environment: string;
   storage: OperationsStorageSnapshotDto;
+  incidents: OperationsIncidentCountersDto;
   timerScheduler: TimerSchedulerDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
