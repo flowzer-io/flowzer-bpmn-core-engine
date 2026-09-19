@@ -59,6 +59,33 @@ public class JobController(
         return Translate(await jobService.Complete(jobId, userId, request.WorkerId, request.Variables));
     }
 
+    /// <summary>
+    /// Meldet einen fachlichen Fehler statt eines Ergebnisses. Der Fehler laeuft danach auf
+    /// BPMN-Ebene weiter: Ein Error-Boundary-Event faengt ihn, sonst scheitert die Instanz.
+    /// </summary>
+    [HttpPost("{jobId:guid}/throw-error")]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> ThrowJobError(Guid jobId, [FromBody] ThrowJobErrorRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.WorkerId) || string.IsNullOrWhiteSpace(request.ErrorCode))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid service task error report",
+                detail: "WorkerId and ErrorCode are required.");
+        }
+
+        var userId = currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("reporting service task errors");
+        return Translate(await jobService.ThrowError(
+            jobId,
+            userId,
+            request.WorkerId,
+            request.ErrorCode,
+            request.ErrorMessage,
+            request.Variables));
+    }
+
     /// <summary>Verlaengert die noch gueltige Lease eines eigenen Auftrags.</summary>
     [HttpPost("{jobId:guid}/lease")]
     [ProducesResponseType<ApiStatusResult<RenewJobLeaseResultDto>>(StatusCodes.Status200OK)]

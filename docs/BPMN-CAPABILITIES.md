@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/4` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v4.json` und unterscheidet je Elementart. Version 1 bis 3
+`flowzer.bpmn-capabilities/5` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v5.json` und unterscheidet je Elementart. Version 1 bis 4
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -30,27 +30,28 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 4 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 5 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v4
+## Ausführbares Profil v5
 
 Offiziell ausführbar sind:
 
 - Plain-, Message-, Signal- und Timer-Start
-- Plain- und Terminate-Ende
+- Plain-, Terminate- und Error-Ende
 - User-, Worker-Service-, KI-Service-, Receive-, Manual- und generische Tasks
 - exklusive und parallele Gateways
 - Sequenzflüsse und lokale Subprozesse
-- Message-, Signal- und Timer-Intermediate-Catch-/Boundary-Events
+- Message-, Signal-, Timer- und Error-Boundary-Events sowie Message-, Signal- und
+  Timer-Intermediate-Catch-Events
 
 Insbesondere nicht als ausführbar zugesagt sind Script-Tasks, Call Activities,
 Inclusive-/Complex-Gateways, Intermediate-Throw-Events, Message-/Signal-End-Events sowie
-Error-/Escalation-Pfade. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad
-mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der
-Parser XML lesen kann.
+Escalation-Pfade und Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige
+Runtime-Pfad mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann,
+wenn der Parser XML lesen kann.
 
 `serviceTask.aiTask` ist modellierbar, parsebar und ausführbar. Beim Deployment bindet
 Flowzer die konkrete Verbindungsrevision und das effektive Modell unveränderlich an die
@@ -59,6 +60,41 @@ Definition. Seine vollständigen Vertrags-, Lauf- und Sicherheitsregeln stehen i
 Werkzeugreferenzen speichern. Eine solche Referenz blockiert das Deployment noch mit
 `bpmn.ai_task.tools_runtime_unavailable`, bis Aktionsjournal und parametergebundene
 Freigaben denselben Ausführungsschutz belegen. KI-Tasks ohne Werkzeuge bleiben ausführbar.
+
+## Fehlerereignisse (Vertrag 5)
+
+Version 5 erweitert Version 4 additiv um `endEvent.errorEventDefinition` und
+`boundaryEvent.errorEventDefinition`. Die älteren Vertragsdateien bleiben unverändert und
+sagen Fehlerpfade weiterhin nicht zu.
+
+`bpmn:error`-Wurzelelemente werden mit `id`, `name` und `errorCode` gelesen; ein
+`errorEventDefinition` zeigt über `errorRef` darauf. Die Semantik:
+
+- Erreicht ein Token ein Error-End-Event, löst es einen Fehler mit dem `errorCode` des
+  referenzierten `bpmn:error` aus. Ohne `errorRef` trägt der Fehler keinen Code.
+- Gefangen wird am nächsten umschließenden Scope: erst ein Error-Boundary-Event mit
+  demselben Code, sonst eines ohne `errorRef` — das fängt jeden Fehler. Findet sich keines,
+  wandert der Fehler an den nächstäußeren Scope.
+- Fangen ist immer **unterbrechend**: Der gefangene Scope und alles, was darin noch läuft,
+  werden zurückgezogen; damit verschwinden auch seine Message-, Signal- und Timer-Boundary-
+  Subscriptions. Das Boundary-Token folgt seinem ausgehenden Sequenzfluss.
+- `cancelActivity="false"` an einem Error-Boundary ist laut BPMN 2.0 ungültig und wird vor
+  dem Speichern und Veröffentlichen mit `bpmn.error_boundary.cancel_activity_invalid` am
+  betroffenen Knoten abgelehnt.
+- Erreicht der Fehler die Prozessebene ungefangen, endet die Instanz als `Failed`. Die
+  Begründung steht als `failureReason` an der Instanz, etwa
+  `Unhandled BPMN error 'ANTRAG_UNVOLLSTAENDIG' at 'ErrorEnd_1'.`; sie ist Teil der
+  Diagnosesicht und damit an die Betriebsrolle gebunden. Das Error-End-Event bleibt im
+  Laufzeitverlauf als erreichter Knoten sichtbar.
+- Ein externer Worker wirft denselben Fehler über `POST /job/{jobId}/throw-error`; siehe
+  [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
+
+**Grenzen.** Ein Fehler innerhalb einer Multi-Instance-Aktivität unterbricht die ganze
+Aktivität und wird an deren Boundary aufgelöst — eine einzelne Ausprägung lässt sich nicht
+gesondert behandeln. Escalation-Ereignisse, Kompensation, Error-Start-Events in
+Event-Subprozessen und Call Activities bleiben offen. Der Gliederungseditor kennt
+Fehlerereignisse so wenig wie die übrigen Ereignisdefinitionen und meldet sie als Blocker,
+statt sie beim Speichern zu verlieren.
 
 ## Statische Prüfungen
 

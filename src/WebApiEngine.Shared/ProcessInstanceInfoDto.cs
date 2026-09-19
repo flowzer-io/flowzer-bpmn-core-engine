@@ -26,6 +26,12 @@ public class ProcessInstanceInfoDto
     public bool CanInspect { get; set; }
 
     /// <summary>
+    /// Warum die Instanz gescheitert ist, etwa „Unhandled BPMN error 'CODE' at 'Node'".
+    /// Null bei jeder anderen Instanz und ohne Diagnoseberechtigung.
+    /// </summary>
+    public string? FailureReason { get; set; }
+
+    /// <summary>
     /// Startzeitpunkt der Instanz (UTC), abgeleitet aus dem ältesten Token.
     /// Null, solange die Instanz noch kein Token besitzt.
     /// </summary>

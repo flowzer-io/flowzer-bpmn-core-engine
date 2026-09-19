@@ -84,6 +84,25 @@ public class FailJobRequestDto
     public int RetryBackoffSeconds { get; set; } = 30;
 }
 
+/// <summary>
+/// Ein fachlicher Fehler statt eines Ergebnisses. Der Auftrag ist damit abgeschlossen; die
+/// Engine loest den Fehler auf BPMN-Ebene auf, statt die Instanz nur scheitern zu lassen.
+/// </summary>
+public class ThrowJobErrorRequestDto
+{
+    public required string WorkerId { get; set; }
+
+    /// <summary>Der Fehlercode, ueber den ein Error-Boundary-Event den Fehler faengt. Pflicht.</summary>
+    public required string ErrorCode { get; set; }
+
+    /// <summary>Erlaeuterung fuer die Betriebssicht; nicht Teil der Fehlerauswahl.</summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>Daten des Fehlerpfads, mit demselben Konverter wie beim Abschluss.</summary>
+    [JsonConverter(typeof(ExpandoObjectConverter))]
+    public ExpandoObject? Variables { get; set; }
+}
+
 public class ServiceTaskWebhookDto
 {
     public Guid Id { get; set; }

@@ -344,9 +344,12 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("4");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("5");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
+                && element.GetProperty("executable").GetBoolean());
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "boundaryEvent.errorEventDefinition"
                 && element.GetProperty("executable").GetBoolean());
     }
 

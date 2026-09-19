@@ -14,13 +14,15 @@ import { Segmented } from '@/components/ui/Segmented';
 import type { AiConnectionDto, AiToolDto } from '@/lib/api/types';
 import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from '@/lib/formKey';
 
-import type {
-  BpmnEditor,
-  CalledProcess,
-  ElementProperties,
-  MessageReference,
-  ScriptDefinition,
-  TimerKind,
+import {
+  NEW_ERROR,
+  type BpmnEditor,
+  type CalledProcess,
+  type ElementProperties,
+  type ErrorReference,
+  type MessageReference,
+  type ScriptDefinition,
+  type TimerKind,
 } from '../bpmnEditor';
 import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextAreaRow, TextRow } from './PropertyFields';
 
@@ -754,6 +756,78 @@ export function SignalSection({ properties, editor, readOnly }: SectionProps) {
       />
       {name.trim().length === 0 && (
         <Notice tone="warn">Ohne Namen lässt sich der Workflow nicht speichern.</Notice>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Der Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses.
+ *
+ * Ein `bpmn:Error` gehoert zum ganzen Dokument, nicht zum Ereignis: Werfen und Fangen finden
+ * ueber denselben Fehler zueinander. Deshalb waehlt dieser Abschnitt einen vorhandenen aus,
+ * statt jedes Mal einen neuen anzulegen.
+ */
+export function ErrorSection({ properties, editor, readOnly }: SectionProps) {
+  const current: ErrorReference = properties.error ?? { errorId: '', name: '', code: '', available: [] };
+  const isBoundary = properties.type === 'bpmn:BoundaryEvent';
+  const hasReference = current.errorId.length > 0;
+
+  const options = [
+    { value: '', label: isBoundary ? 'Jeder Fehler' : 'Ohne Fehlercode' },
+    ...current.available.map((option) => ({
+      value: option.id,
+      label: option.code.trim().length > 0 ? `${option.name || option.id} (${option.code})` : option.name || option.id,
+    })),
+    { value: NEW_ERROR, label: 'Neuen Fehler anlegen …' },
+  ];
+
+  return (
+    <Section
+      icon="report"
+      title="Fehler"
+      hint={
+        isBoundary
+          ? 'Das Ereignis fängt diesen Fehler und unterbricht dabei die Aufgabe.'
+          : 'Das Ereignis löst diesen Fehler aus; gefangen wird er an einem Error-Boundary.'
+      }
+    >
+      <SelectRow
+        label="Fehler"
+        value={hasReference ? current.errorId : ''}
+        options={options}
+        disabled={readOnly}
+        onChange={(value) =>
+          editor?.setErrorReference(properties.id, value === NEW_ERROR ? { errorId: NEW_ERROR } : { errorId: value || null })
+        }
+      />
+      {hasReference && (
+        <>
+          <TextRow
+            label="Name"
+            value={current.name}
+            disabled={readOnly}
+            placeholder="Antrag unvollständig"
+            onCommit={(name) => editor?.setErrorReference(properties.id, { name })}
+          />
+          <TextRow
+            label="Fehlercode"
+            value={current.code}
+            disabled={readOnly}
+            placeholder="ANTRAG_UNVOLLSTAENDIG"
+            monospace
+            hint="Über diesen Code finden werfendes und fangendes Ereignis zueinander."
+            onCommit={(code) => editor?.setErrorReference(properties.id, { code })}
+          />
+          {current.code.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Fehlercode fängt nur ein Boundary ohne eigenen Fehler diesen Fall.
+            </Notice>
+          )}
+        </>
+      )}
+      {!hasReference && isBoundary && (
+        <Notice>Ohne ausgewählten Fehler fängt dieses Ereignis jeden Fehler seines Bereichs.</Notice>
       )}
     </Section>
   );

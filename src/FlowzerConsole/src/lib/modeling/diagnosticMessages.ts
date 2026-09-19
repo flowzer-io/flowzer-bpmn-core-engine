@@ -20,6 +20,7 @@ const MESSAGES: Record<string, string> = {
   'bpmn.sequence_flow.invalid_reference': 'Eine Verbindung zeigt auf einen fehlenden Schritt. Verbinde ihre beiden Enden mit vorhandenen Elementen.',
   'bpmn.exclusive_gateway.condition_required': 'An dieser Entscheidung fehlt eine Bedingung oder ein Standardweg. Lege für jeden ausgehenden Weg fest, wann er genommen wird.',
   'bpmn.exclusive_gateway.default.invalid_reference': 'Der Standardweg dieser Entscheidung verweist nicht auf eine passende ausgehende Verbindung.',
+  'bpmn.error_boundary.cancel_activity_invalid': 'Ein Fehler-Boundary unterbricht laut BPMN immer. Entferne rechts am Ereignis die Einstellung „nicht unterbrechend“.',
   'bpmn.timer.definition_required': 'Für diesen Timer fehlt der Zeitpunkt, die Dauer oder der Zyklus. Trage die Zeitregel rechts ein.',
   'bpmn.process.executable_required': 'Kein ausführbarer Prozess ist festgelegt. Aktiviere beim Prozess die Ausführbarkeit.',
   'bpmn.xml.invalid': 'Das BPMN-Dokument ist beschädigt und kann nicht gelesen werden. Der vorhandene gespeicherte Stand bleibt erhalten.',

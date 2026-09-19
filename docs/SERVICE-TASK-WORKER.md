@@ -98,6 +98,31 @@ POST /job/{jobId}/fail
 
 Bleiben Versuche übrig, wird der Auftrag nach der Wartezeit wieder vergeben. Ist der letzte verbraucht, bleibt er liegen und wartet auf einen Eingriff, statt still zu verschwinden. `GET /job` zeigt alle Aufträge samt Zustand; der Endpunkt verlangt die Betriebsrolle.
 
+**Fachlichen Fehler melden**
+
+```http
+POST /job/{jobId}/throw-error
+{ "workerId": "zahlungsdienst-1", "errorCode": "BONITAET",
+  "errorMessage": "Score zu niedrig", "variables": { "score": 412 } }
+```
+
+Das ist etwas anderes als `fail`: `fail` meldet, dass die Arbeit technisch nicht geklappt hat und
+noch einmal versucht werden soll. `throw-error` meldet ein gültiges fachliches Ergebnis, das im
+Modell einen eigenen Weg hat. `errorCode` ist Pflicht und darf nicht leer sein; fehlt er,
+antwortet die API mit `400` und Problem Details. Lease-, Besitz- und 409-Regeln sind dieselben
+wie beim Abschluss, und der Endpunkt verlangt dieselbe Worker-Rolle.
+
+Die Engine löst den Fehler auf BPMN-Ebene auf: Zuerst greift ein Error-Boundary-Event am
+Service-Task, dann eines an einem umschließenden Subprozess; erreicht der Fehler die
+Prozessebene ungefangen, endet die Instanz als `Failed` mit einer Begründung der Form
+`Unhandled BPMN error 'BONITAET' at 'ServiceTask_1'.`. Fängt ein Boundary, wird die Aufgabe
+unterbrochen — mit ihr verschwinden auch ihre übrigen Boundary-Subscriptions — und die
+mitgegebenen `variables` stehen auf dem Fehlerpfad im Prozesskontext.
+
+Der Auftrag ist danach abgeschlossen und wird nicht erneut vergeben. Er trägt Code und Meldung
+noch in `lastErrorMessage`, bevor er mit dem nicht mehr wartenden Service-Task aus der
+Auftragsliste verschwindet — genauso wie ein regulär abgeschlossener Auftrag.
+
 Meldet ein Worker zurück oder verlängert eine Lease, die ihm nicht mehr gehört, antwortet die
 API mit 409. Das passiert, wenn seine Frist abgelaufen war oder inzwischen ein anderer Worker
 übernommen hat. Zwei Ergebnisse für denselben Token würden den Prozess doppelt weiterführen.
@@ -141,4 +166,9 @@ Die leere Freigabeliste ist Absicht: Eine Webhook-Anmeldung ist eine Aufforderun
 ## Was noch fehlt
 
 - Ein Auftrag ohne verbleibende Versuche bleibt liegen; einen Endpunkt, ihn erneut freizugeben, gibt es noch nicht. Bis dahin hilft nur ein Abbruch der Instanz.
-- Fehler eines Workers führen nicht zu einem BPMN-Fehlerereignis, weil die Engine Error- und Escalation-Semantik noch nicht umsetzt.
+- ~~Fehler eines Workers führen nicht zu einem BPMN-Fehlerereignis.~~ Erledigt mit
+  `POST /job/{jobId}/throw-error` und der Error-Semantik des Fähigkeitsvertrags 5.
+- Escalation-Ereignisse und Kompensation bleiben offen: Ein Worker kann einen Fehler werfen,
+  aber keine Eskalation. Error-Start-Events in Event-Subprozessen gibt es ebenfalls noch nicht.
+- `throw-error` verwirft die mitgegebenen `variables`, wenn niemand den Fehler fängt: Ohne
+  Fehlerpfad gibt es keinen Knoten, an dem sie in den Prozesskontext gehören.

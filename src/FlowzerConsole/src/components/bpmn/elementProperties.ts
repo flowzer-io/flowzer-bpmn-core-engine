@@ -10,6 +10,7 @@
  */
 
 import {
+  enclosing,
   eventDefinition,
   expressionBody,
   extension,
@@ -119,6 +120,25 @@ export interface Schedule {
   followUpDate: string;
 }
 
+/** Ein `bpmn:Error` des Dokuments, wie ihn die Auswahlliste anbietet. */
+export interface ErrorOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+/**
+ * Der Fehlerbezug eines Error-Ereignisses. `errorId` ist leer, solange das Ereignis auf keinen
+ * `bpmn:Error` zeigt — ein Error-Boundary faengt dann jeden Fehler, ein Error-Ende wirft einen
+ * Fehler ohne Code.
+ */
+export interface ErrorReference {
+  errorId: string;
+  name: string;
+  code: string;
+  available: ErrorOption[];
+}
+
 /** Alle Werte eines ausgewählten Elements, die das Panel anzeigt. */
 export interface ElementProperties {
   id: string;
@@ -182,6 +202,8 @@ export interface ElementProperties {
   message: MessageReference | null;
   /** Signal, das das Element empfängt oder auslöst. */
   signalName: string | null;
+  /** Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses. */
+  error: ErrorReference | null;
   /** Aufgerufener Prozess. */
   calledProcess: CalledProcess | null;
   /** Skript einer Skript-Aufgabe; `null`, wenn sie stattdessen als Auftrag läuft. */
@@ -286,6 +308,45 @@ function messageOf(businessObject: ModdleElement): MessageReference | null {
   return {
     name: text(message, 'name'),
     correlationKey: text(extension(message, 'zeebe:Subscription'), 'correlationKey'),
+  };
+}
+
+/** Ereignisse, an denen die Engine eine Fehlerdefinition auswertet. */
+const ERROR_EVENT_TYPES = ['bpmn:EndEvent', 'bpmn:BoundaryEvent'];
+
+/**
+ * Der Träger der Fehlerreferenz. Öffentlich, weil das Schreiben denselben Träger treffen muss
+ * wie das Lesen.
+ */
+export function errorHolder(businessObject: ModdleElement): ModdleElement | undefined {
+  if (!ERROR_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  return eventDefinition(businessObject, 'bpmn:ErrorEventDefinition');
+}
+
+/** Die `bpmn:Error`-Wurzelelemente des Dokuments, in Dokumentreihenfolge. */
+export function availableErrors(businessObject: ModdleElement): ErrorOption[] {
+  const definitions = enclosing(businessObject, 'bpmn:Definitions');
+  const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+  return rootElements
+    .filter((rootElement) => rootElement.$type === 'bpmn:Error')
+    .map((rootElement) => ({
+      id: text(rootElement, 'id'),
+      name: text(rootElement, 'name'),
+      code: text(rootElement, 'errorCode'),
+    }))
+    .filter((option) => option.id.length > 0);
+}
+
+function errorOf(businessObject: ModdleElement): ErrorReference | null {
+  const holder = errorHolder(businessObject);
+  if (!holder) return null;
+
+  const error = holder.errorRef as ModdleElement | undefined;
+  return {
+    errorId: text(error, 'id'),
+    name: text(error, 'name'),
+    code: text(error, 'errorCode'),
+    available: availableErrors(businessObject),
   };
 }
 
@@ -473,6 +534,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     timer: timerOf(businessObject),
     message: messageOf(businessObject),
     signalName: signalOf(businessObject),
+    error: errorOf(businessObject),
     calledProcess: calledProcessOf(businessObject),
     script: scriptOf(businessObject),
     isScriptTask: type === 'bpmn:ScriptTask',

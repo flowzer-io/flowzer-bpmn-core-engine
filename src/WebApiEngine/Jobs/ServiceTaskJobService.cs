@@ -91,6 +91,45 @@ public sealed class ServiceTaskJobService(
     }
 
     /// <summary>
+    /// Nimmt einen fachlichen Fehler entgegen. Besitz- und Leaseregeln sind dieselben wie beim
+    /// Abschluss: Wer den Auftrag im Moment der Meldung nicht mehr haelt, aendert nichts.
+    /// </summary>
+    public async Task<JobOperationResult> ThrowError(
+        Guid jobId,
+        Guid userId,
+        string workerId,
+        string errorCode,
+        string? errorMessage,
+        Variables? variables)
+    {
+        var lockOwner = BuildLockOwner(userId, workerId);
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            var (job, problem) = await LoadOwnJob(jobId, lockOwner);
+            if (problem is not null)
+            {
+                return problem.Value;
+            }
+
+            await businessLogic.ThrowServiceTaskJobError(job!, errorCode, errorMessage, variables);
+
+            // Der Fehlercode ist eine Eingabe des Workers und bleibt deshalb aus dem Log heraus;
+            // Auftrags- und Benutzerkennung genuegen zur Korrelation.
+            logger.LogInformation(
+                "Auftrag {JobId} hat einen fachlichen BPMN-Fehler gemeldet.",
+                jobId);
+
+            return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Verlaengert eine laufende Lease vom vertrauenswuerdigen Serverzeitpunkt aus. Die Ablage
     /// prueft Besitzer und Ablauf atomar; die Prozesssperre haelt den lokalen Complete-/Fail-
     /// Pfad waehrenddessen fern.

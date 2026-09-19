@@ -10,6 +10,7 @@ import { AssignmentSection } from './AssignmentSection';
 import {
   AiTaskSection,
   CallActivitySection,
+  ErrorSection,
   FlowSection,
   FormSection,
   GatewaySection,
@@ -141,6 +142,7 @@ export function BpmnProperties({
           {properties.timer && <TimerSection {...section} />}
           {properties.message && <MessageSection {...section} />}
           {properties.signalName !== null && <SignalSection {...section} />}
+          {properties.error && <ErrorSection {...section} />}
           {properties.calledProcess && <CallActivitySection {...section} />}
           {properties.isScriptTask && <ScriptSection {...section} />}
           {properties.needsJobType && properties.serviceTaskMode !== 'ai' && <JobSection {...section} />}

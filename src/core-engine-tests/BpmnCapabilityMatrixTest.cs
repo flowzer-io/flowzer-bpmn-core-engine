@@ -1,3 +1,5 @@
+using System.Text.Json;
+using FluentAssertions.Execution;
 using core_engine.Exceptions;
 using FluentAssertions;
 
@@ -9,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("4");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("5");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -39,7 +41,7 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("4");
+        exception.ContractVersion.Should().Be("5");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
@@ -83,8 +85,8 @@ public class BpmnCapabilityMatrixTest
     // Testzweck: Nicht erlaubte Eventdefinitionen werden positionsbezogen vor dem Parser mit der Event-ID abgelehnt.
     [TestCase("startEvent", "errorEventDefinition")]
     [TestCase("intermediateCatchEvent", "escalationEventDefinition")]
-    [TestCase("boundaryEvent", "errorEventDefinition")]
-    [TestCase("endEvent", "errorEventDefinition")]
+    [TestCase("boundaryEvent", "escalationEventDefinition")]
+    [TestCase("endEvent", "escalationEventDefinition")]
     public void ValidateForDeployment_ShouldRejectUnsupportedEventDefinition(string eventType, string definitionType)
     {
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
@@ -498,6 +500,51 @@ public class BpmnCapabilityMatrixTest
           </bpmn:extensionElements>
         </bpmn:serviceTask>
         """;
+
+    // Testzweck: Vertrag 5 sagt Error-End- und Error-Boundary-Events als ausführbar zu.
+    [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:endEvent id='ErrorEnd_1'><bpmn:errorEventDefinition /></bpmn:endEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='ErrorEnd_1' />")]
+    [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:task id='Task_1' /><bpmn:boundaryEvent id='Boundary_1' attachedToRef='Task_1'><bpmn:errorEventDefinition /></bpmn:boundaryEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Task_1' />")]
+    public void ValidateForDeployment_ShouldAcceptErrorEvents(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ein nicht unterbrechendes Error-Boundary ist laut BPMN 2.0 ungültig und wird mit
+    // eigenem Code und Sprungziel vor der Veröffentlichung abgelehnt.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectNonInterruptingErrorBoundary()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:task id='Task_1' />"
+            + "<bpmn:boundaryEvent id='Boundary_1' attachedToRef='Task_1' cancelActivity='false'>"
+            + "<bpmn:errorEventDefinition /></bpmn:boundaryEvent>"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
+        exception.ElementId.Should().Be("Boundary_1");
+        exception.PropertyPath.Should().Be("cancelActivity");
+        exception.ContractVersion.Should().Be("5");
+    }
+
+    // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
+    [Test]
+    public void HistoricContractVersion4_ShouldStillNotPromiseErrorEvents()
+    {
+        var contract = JsonSerializer.Deserialize<BpmnCapabilityContract>(
+            File.ReadAllText(Path.Combine("contracts", "v4.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        using (new AssertionScope())
+        {
+            contract.ContractVersion.Should().Be("4");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "endEvent.errorEventDefinition");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "boundaryEvent.errorEventDefinition");
+        }
+    }
 
     private static string CreateProcess(string flowElements) => $"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
