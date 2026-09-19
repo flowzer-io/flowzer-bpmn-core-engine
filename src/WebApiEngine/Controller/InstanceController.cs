@@ -1,4 +1,4 @@
-using BpmnServiceTask = BPMN.Activities.ServiceTask;
+using BPMN.Flowzer;
 using Flowzer.Shared;
 using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
@@ -248,7 +248,10 @@ public class InstanceController(
         if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var result = instance.Tokens
-            .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
+            // Dieselbe Menge, aus der Auftraege entstehen: seit Vertrag 6 auch Send-Tasks und
+            // sendende Nachrichtenereignisse mit Auftragstyp.
+            .Where(token => token.State == FlowNodeState.Active
+                && token.CurrentBaseElement is IFlowzerWorkerTask { Implementation.Length: > 0 })
             .Select(token => token.ToDto())
             .ToArray();
 

@@ -75,8 +75,15 @@ public partial class InstanceEngine: ICatchHandler
         return Tokens.Single(token => token.Id == tokenId);
     }
 
+    /// <summary>
+    /// Tokens, die auf einen externen Worker warten. Seit Fähigkeitsvertrag 6 sind das nicht
+    /// mehr nur Service-Tasks: Ein Send-Task oder ein sendendes Nachrichtenereignis mit
+    /// Auftragstyp wartet genauso. Ein sendendes Element ohne Auftragstyp korreliert die
+    /// Engine selbst und steht hier deshalb nie.
+    /// </summary>
     public IEnumerable<Token> GetActiveServiceTasks() => Tokens
-        .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
+        .Where(token => token.State == FlowNodeState.Active
+            && token.CurrentFlowNode is IFlowzerWorkerTask { Implementation.Length: > 0 });
 
     public IEnumerable<Token> GetActiveTasks() => Tokens
         .Where(token => token.State == FlowNodeState.Active);

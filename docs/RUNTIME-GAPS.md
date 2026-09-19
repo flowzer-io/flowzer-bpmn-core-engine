@@ -11,6 +11,42 @@ setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vert
 Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
 bleiben ausdrücklich offen.
 
+## Nachrichten senden: Message-Throw, Message-Ende und Send-Task
+
+Prozesse können einander jetzt etwas mitteilen, statt Nachrichten nur von außen über
+`POST /message` zu empfangen. Die vollständige Semantik steht in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 6).
+
+Vorhanden:
+
+- `intermediateThrowEvent` mit Nachrichtendefinition, `endEvent` mit Nachrichtendefinition und
+  `sendTask` sind ausführbar; ein Throw-Event ohne Ereignisdefinition läuft als Meilenstein durch
+- die Engine sammelt ausgehende Nachrichten mit ausgewertetem Korrelationsschlüssel und den
+  Eingabewerten nach `zeebe:ioMapping`; ohne Zuordnung geht bewusst nichts mit
+- die Geschäftslogik stellt sie nach dem Speichern der Instanz in derselben Transaktion über
+  denselben Weg zu wie `POST /message` — an eine wartende Instanz (auch die sendende selbst)
+  oder über ein Message-Start-Event an eine neue
+- ohne Empfänger verfällt die Nachricht; das sendende Element gilt trotzdem als abgeschlossen
+- mit `zeebe:taskDefinition/@type` wird stattdessen ein Auftrag für einen externen Worker
+  angelegt — derselbe Auftragspfad wie am Service-Task, samt Complete, Fail und Throw-Error
+- ein Message-Catch-Event schreibt die empfangenen Werte wie eine Empfangsaufgabe in seinen
+  Prozesskontext; zuvor gingen sie verloren
+
+Weiterhin offen:
+
+- Signal-Throw und Signal-Ende; ein Signalwurf wird als nicht unterstützte Ereignisdefinition
+  abgelehnt
+- Pufferung und Time-to-live: Eine Nachricht ohne Empfänger verfällt sofort
+- Nachrichten über Installationsgrenzen hinweg (#154)
+- Escalation-Throw (siehe Abschnitt 2 unten)
+- Eine Nachricht erreicht genau einen Empfänger; warten mehrere Instanzen auf denselben Namen
+  und Schlüssel, ist die Auswahl nicht weiter festgelegt
+- Die Zustellung läuft in der Transaktion des Aufrufers. Bei einem Fehler scheitert die ganze
+  Mutation; die nichttransaktionale Dateiablage kann dabei einen Zwischenstand zurücklassen —
+  dieselbe bekannte Grenze wie bei jedem anderen Schreibvorgang dort.
+- Gegenseitiges Antworten ohne Ende bricht nach 100 Zustellungen je Mutation ab; eine echte
+  Zyklenerkennung gibt es nicht.
+
 ## Korrektur #310: Manual Tasks und Timerdiagnose
 
 Manual Tasks durchlaufen wie generische Tasks ohne Wartezustand den Sequenzfluss.

@@ -11,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("5");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("6");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -41,15 +41,13 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("5");
+        exception.ContractVersion.Should().Be("6");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
     [TestCase("callActivity", "<bpmn:callActivity id='Call_1' />", "Call_1")]
     [TestCase("complexGateway", "<bpmn:complexGateway id='Complex_1' />", "Complex_1")]
     [TestCase("inclusiveGateway", "<bpmn:inclusiveGateway id='Inclusive_1' />", "Inclusive_1")]
-    [TestCase("intermediateThrowEvent", "<bpmn:intermediateThrowEvent id='Throw_1' />", "Throw_1")]
-    [TestCase("messageEnd", "<bpmn:endEvent id='MessageEnd_1'><bpmn:messageEventDefinition /></bpmn:endEvent>", "MessageEnd_1")]
     [TestCase("signalEnd", "<bpmn:endEvent id='SignalEnd_1'><bpmn:signalEventDefinition /></bpmn:endEvent>", "SignalEnd_1")]
     public void ValidateForDeployment_ShouldRejectEveryKnownNonExecutableCapability(
         string _capability, string flowElement, string elementId)
@@ -501,7 +499,7 @@ public class BpmnCapabilityMatrixTest
         </bpmn:serviceTask>
         """;
 
-    // Testzweck: Vertrag 5 sagt Error-End- und Error-Boundary-Events als ausführbar zu.
+    // Testzweck: Vertrag 6 sagt Error-End- und Error-Boundary-Events weiterhin als ausführbar zu.
     [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:endEvent id='ErrorEnd_1'><bpmn:errorEventDefinition /></bpmn:endEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='ErrorEnd_1' />")]
     [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:task id='Task_1' /><bpmn:boundaryEvent id='Boundary_1' attachedToRef='Task_1'><bpmn:errorEventDefinition /></bpmn:boundaryEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Task_1' />")]
     public void ValidateForDeployment_ShouldAcceptErrorEvents(string flowElement)
@@ -525,7 +523,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
         exception.ElementId.Should().Be("Boundary_1");
         exception.PropertyPath.Should().Be("cancelActivity");
-        exception.ContractVersion.Should().Be("5");
+        exception.ContractVersion.Should().Be("6");
     }
 
     // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
@@ -543,6 +541,98 @@ public class BpmnCapabilityMatrixTest
                 capability.ElementType == "endEvent.errorEventDefinition");
             contract.Elements.Should().NotContain(capability =>
                 capability.ElementType == "boundaryEvent.errorEventDefinition");
+        }
+    }
+
+    private const string PlainThrowProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:intermediateThrowEvent id='Throw_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Throw_1' />";
+
+    private const string MessageThrowProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:intermediateThrowEvent id='Throw_1'>"
+        + "<bpmn:messageEventDefinition messageRef='Message_1' /></bpmn:intermediateThrowEvent>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Throw_1' />";
+
+    private const string MessageEndProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:endEvent id='MessageEnd_1'>"
+        + "<bpmn:messageEventDefinition messageRef='Message_1' /></bpmn:endEvent>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='MessageEnd_1' />";
+
+    private const string SendTaskWithMessageProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:sendTask id='Send_1' messageRef='Message_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Send_1' />";
+
+    private const string SendTaskWithJobProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:sendTask id='Send_1'><bpmn:extensionElements>"
+        + "<zeebe:taskDefinition type='mail-versenden' /></bpmn:extensionElements></bpmn:sendTask>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Send_1' />";
+
+    // Testzweck: Vertrag 6 sagt sendende Nachrichtenelemente und den reinen Meilenstein-Throw zu.
+    [TestCase(PlainThrowProcess)]
+    [TestCase(MessageThrowProcess)]
+    [TestCase(MessageEndProcess)]
+    [TestCase(SendTaskWithMessageProcess)]
+    [TestCase(SendTaskWithJobProcess)]
+    public void ValidateForDeployment_ShouldAcceptSendingMessageElements(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        action.Should().NotThrow();
+    }
+
+    private const string ThrowWithoutTarget =
+        "<bpmn:intermediateThrowEvent id='Throw_1'><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>";
+
+    private const string MessageEndWithoutTarget =
+        "<bpmn:endEvent id='MessageEnd_1'><bpmn:messageEventDefinition /></bpmn:endEvent>";
+
+    // Testzweck: Ein sendendes Element ohne Nachricht und ohne Auftragstyp hätte kein Ziel und
+    // wird mit eigenem Code am betroffenen Knoten abgelehnt.
+    [TestCase("<bpmn:sendTask id='Send_1' />", "Send_1")]
+    [TestCase(ThrowWithoutTarget, "Throw_1")]
+    [TestCase(MessageEndWithoutTarget, "MessageEnd_1")]
+    public void ValidateForDeployment_ShouldRejectSendingElementWithoutTarget(string flowElement, string elementId)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.message_throw.target_required");
+        exception.ElementId.Should().Be(elementId);
+        exception.PropertyPath.Should().Be("messageRef");
+    }
+
+    // Testzweck: Signalwürfe bleiben außen vor und werden als nicht unterstützte
+    // Ereignisdefinition gemeldet, nicht stillschweigend wie ein Nachrichtenwurf behandelt.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectSignalThrowEvent()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:intermediateThrowEvent id='Throw_1'><bpmn:signalEventDefinition />"
+            + "</bpmn:intermediateThrowEvent>"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_definition.unsupported");
+        exception.ElementId.Should().Be("Throw_1");
+        exception.PropertyPath.Should().Be("eventDefinition");
+    }
+
+    // Testzweck: Der historische Vertrag 5 bleibt unverändert und sagt sendende
+    // Nachrichtenelemente weiterhin nicht zu.
+    [Test]
+    public void HistoricContractVersion5_ShouldStillNotPromiseSendingMessageElements()
+    {
+        var contract = JsonSerializer.Deserialize<BpmnCapabilityContract>(
+            File.ReadAllText(Path.Combine("contracts", "v5.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        using (new AssertionScope())
+        {
+            contract.ContractVersion.Should().Be("5");
+            contract.Elements.Should().NotContain(capability => capability.ElementType == "sendTask");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "intermediateThrowEvent.messageEventDefinition");
+            contract.Elements.Should().Contain(capability =>
+                capability.ElementType == "endEvent.messageEventDefinition" && !capability.Executable);
         }
     }
 

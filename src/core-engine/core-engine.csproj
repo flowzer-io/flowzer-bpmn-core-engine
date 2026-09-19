@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v5.json"
-                      Link="Contracts\bpmn-capabilities\v5.json" />
+    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v6.json"
+                      Link="Contracts\bpmn-capabilities\v6.json" />
   </ItemGroup>
 
   <ItemGroup>
