@@ -1,7 +1,7 @@
 /** Verständliche Handlungsanweisungen; technische Codes bleiben für Support erhalten. */
 const MESSAGES: Record<string, string> = {
   'bpmn.service_task.implementation_required': 'Für diese Service-Aufgabe fehlt der Worker-Typ. Wähle die Aufgabe an und trage rechts den zuständigen Dienst ein – oder ändere den Aufgabentyp.',
-  'bpmn.user_task.form_required': 'Dieser menschlichen Aufgabe fehlt ein Formular. Wähle rechts unter „Formular“ ein veröffentlichtes Formular aus.',
+  'bpmn.user_task.form_missing': 'Diese menschliche Aufgabe hat kein Formular. Sie wird dann ohne Eingaben nur bestätigt. Soll etwas ausgefüllt werden, wähle rechts unter „Formular“ ein veröffentlichtes Formular aus.',
   'bpmn.ai_task.connection_invalid': 'Für diese KI-Aufgabe fehlt eine gültige Verbindung. Wähle rechts eine eingerichtete KI-Verbindung aus.',
   'bpmn.ai_task.connection_not_found': 'Die gewählte KI-Verbindung existiert nicht mehr. Bitte eine vorhandene Verbindung auswählen.',
   'bpmn.ai_task.connection_disabled': 'Die gewählte KI-Verbindung ist deaktiviert. Bitte eine freigegebene Verbindung auswählen.',

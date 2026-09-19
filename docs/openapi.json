@@ -1363,17 +1363,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               }
             }
@@ -1402,17 +1402,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BpmnCapabilityContractApiStatusResult"
+                  "$ref": "#/components/schemas/BpmnValidationResultDtoApiStatusResult"
                 }
               }
             }
@@ -7974,6 +7974,9 @@
                 }
               }
             }
+          },
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -9132,6 +9135,13 @@
           },
           "version": {
             "$ref": "#/components/schemas/VersionDto"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnCapabilityIssueDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -9235,6 +9245,50 @@
           },
           "result": {
             "$ref": "#/components/schemas/BpmnMetaDefinitionDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnValidationResultDto": {
+        "required": [
+          "contractVersion",
+          "elements"
+        ],
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "elements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnElementCapability"
+            },
+            "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BpmnCapabilityIssueDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BpmnValidationResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/BpmnValidationResultDto"
           }
         },
         "additionalProperties": false
@@ -10061,6 +10115,10 @@
             "$ref": "#/components/schemas/VersionDto"
           },
           "formKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "documentation": {
             "type": "string",
             "nullable": true
           },

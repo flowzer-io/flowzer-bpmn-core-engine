@@ -157,6 +157,11 @@ Der Server akzeptiert nur deklarierte beschreibbare Felder des an die Workflow-V
 gebundenen Formulars. Rechte, Lebenszyklus, API und Betriebsgrenzen stehen in
 [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md).
 
+Ein Formular ist dabei nicht verpflichtend: Ein User-Task ohne `zeebe:formDefinition`
+wird veröffentlicht und zur reinen Bestätigung, die ohne Eingaben abgeschlossen wird.
+Die Modellprüfung meldet das als Warnung `bpmn.user_task.form_missing`, nicht als Fehler
+([docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md)).
+
 ## Hostneutrale Integrationspakete
 
 `packages/flowzer-sdk` stellt einen zustandslosen, aus dem versionierten OpenAPI-

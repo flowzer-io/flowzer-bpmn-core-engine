@@ -951,7 +951,10 @@ public static class ModelParser
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
-            Implementation = GetUserTaskImplementation(xmlFlowNode, ReadFormKey(formDefinition)),
+            // Leer heisst „kein Formular": Die Aufgabe wird dann ohne Eingaben bestaetigt.
+            // Die Veroeffentlichungspruefung meldet das als Warnung, nicht als Fehler.
+            Implementation = ReadFormKey(formDefinition) ?? "",
+            Documentations = ReadDocumentations(xmlFlowNode),
             FlowzerAssignee = assignmentDefinition?.Attribute("assignee")?.Value,
             FlowzerCandidateGroups = assignmentDefinition?.Attribute("candidateGroups")?.Value,
             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
@@ -1140,6 +1143,27 @@ public static class ModelParser
     }
 
     /// <summary>
+    /// Die <c>bpmn:documentation</c>-Kinder eines Elements. Bewusst nur die direkten Kinder:
+    /// Die Dokumentation eines inneren Elements gehoert nicht dem aeusseren. Sie ist die
+    /// einzige Erklaerung, die eine Aufgabe ohne Formular ihrem Bearbeiter noch anbieten kann.
+    /// </summary>
+    private static FlowzerList<Documentation>? ReadDocumentations(XElement xmlFlowNode)
+    {
+        var documentations = xmlFlowNode.Elements()
+            .Where(element => element.Name.LocalName == "documentation"
+                && !string.IsNullOrWhiteSpace(element.Value))
+            .Select(element => new Documentation
+            {
+                Id = element.Attribute("id")?.Value ?? "",
+                Text = element.Value.Trim(),
+                TextFormat = element.Attribute("textFormat")?.Value
+            })
+            .ToFlowzerList();
+
+        return documentations.Count == 0 ? null : documentations;
+    }
+
+    /// <summary>
     /// Der Formularverweis aus einem <c>zeebe:formDefinition</c>. <c>formId</c> gilt als Ersatz
     /// fuer <c>formKey</c>; ein leerer Wert heisst „kein Formular". Gemeinsam fuer User-Task und
     /// Startereignis, damit dasselbe Diagramm nicht je Elementart anders gelesen wird.
@@ -1150,17 +1174,6 @@ public static class ModelParser
                       ?? formDefinition?.Attribute("formId")?.Value;
 
         return string.IsNullOrWhiteSpace(formKey) ? null : formKey.Trim();
-    }
-
-    private static string GetUserTaskImplementation(XElement xmlFlowNode, string? formKey)
-    {
-        if (formKey is not null)
-        {
-            return formKey;
-        }
-
-        throw new FlowzerModelParseException(
-            $"User task '{xmlFlowNode.Attribute("id")?.Value ?? "(unknown)"}' requires either formKey or formId in formDefinition.");
     }
 
     /// <summary>

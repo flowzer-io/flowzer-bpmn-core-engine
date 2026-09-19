@@ -304,12 +304,31 @@ export interface BpmnDefinitionDto {
   deployedByUser?: string | null;
   deployedOn?: string | null;
   version: VersionDto;
+  /** Hinweise der Modellprüfung, die das Speichern oder Veröffentlichen nicht verhindert haben. */
+  warnings?: BpmnCapabilityIssueDto[];
+}
+
+/** Elementbezogener Modellbefund; `severity` trennt Blocker von Hinweis. */
+export interface BpmnCapabilityIssueDto {
+  code: string;
+  severity: string;
+  elementId?: string | null;
+  propertyPath?: string | null;
+  message: string;
 }
 
 /** Versionierter, hostneutraler Vertrag für unterstützte BPMN-Elementarten. */
 export interface BpmnCapabilityContract {
   contractVersion: string;
   elements: BpmnElementCapability[];
+}
+
+/**
+ * Entspricht `BpmnValidationResultDto`: der Fähigkeitsvertrag plus die Hinweise dieser
+ * Prüfung. Additiv — `contractVersion` und `elements` stehen wie bisher.
+ */
+export interface BpmnValidationResultDto extends BpmnCapabilityContract {
+  warnings?: BpmnCapabilityIssueDto[];
 }
 
 export interface BpmnElementCapability {

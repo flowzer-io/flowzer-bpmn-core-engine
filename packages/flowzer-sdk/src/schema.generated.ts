@@ -1151,9 +1151,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
-                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
-                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/plain": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
                     };
                 };
                 /** @description Unprocessable Content */
@@ -1197,9 +1197,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
-                        "application/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
-                        "text/json": components["schemas"]["BpmnCapabilityContractApiStatusResult"];
+                        "text/plain": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["BpmnValidationResultDtoApiStatusResult"];
                     };
                 };
                 /** @description Unprocessable Content */
@@ -6585,6 +6585,13 @@ export interface paths {
                         "text/json": components["schemas"]["FormDtoApiStatusResult"];
                     };
                 };
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
             };
         };
         put?: never;
@@ -7207,6 +7214,7 @@ export interface components {
             /** Format: date-time */
             deployedOn?: string | null;
             version: components["schemas"]["VersionDto"];
+            warnings?: components["schemas"]["BpmnCapabilityIssueDto"][] | null;
         };
         BpmnDefinitionDtoApiStatusResult: {
             successful?: boolean;
@@ -7237,6 +7245,16 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["BpmnMetaDefinitionDto"];
+        };
+        BpmnValidationResultDto: {
+            contractVersion: string | null;
+            elements: components["schemas"]["BpmnElementCapability"][] | null;
+            warnings?: components["schemas"]["BpmnCapabilityIssueDto"][] | null;
+        };
+        BpmnValidationResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["BpmnValidationResultDto"];
         };
         CalledInstanceDto: {
             /** Format: uuid */
@@ -7458,6 +7476,7 @@ export interface components {
             definitionMetaName?: string | null;
             definitionVersion?: components["schemas"]["VersionDto"];
             formKey?: string | null;
+            documentation?: string | null;
             dueDate?: string | null;
             followUpDate?: string | null;
             deadline?: components["schemas"]["UserTaskDeadlineDto"];

@@ -22,18 +22,22 @@ public static class BpmnCapabilityMatrix
     /// Prüft, ob alle ausführbaren Prozessbestandteile vom aktuellen Vertrag getragen werden.
     /// Der erste Fehler in Dokumentreihenfolge wird absichtlich gemeldet: So bleibt der API-
     /// Vertrag klein und jede Modellieransicht kann nach einer Korrektur deterministisch erneut prüfen.
+    ///
+    /// Zurückgegeben werden die <b>Warnungen</b>: Befunde, die die Veröffentlichung ausdrücklich
+    /// nicht verhindern, die eine Modellieransicht aber zeigen soll. Ein Aufrufer, den sie nicht
+    /// interessieren, ignoriert den Rückgabewert und behält das bisherige Verhalten.
     /// </summary>
-    public static void ValidateForDeployment(string xml)
+    public static IReadOnlyList<BpmnCapabilityIssue> ValidateForDeployment(string xml)
         => Validate(xml, allowToolAuthoring: false);
 
     /// <summary>
     /// Prüft einen Autorenentwurf gegen denselben ausführbaren Elementvertrag. Zusätzliche
     /// fachliche Pflichtwerte werden danach von den spezialisierten Vertragsprüfern validiert.
     /// </summary>
-    public static void ValidateForAuthoring(string xml)
+    public static IReadOnlyList<BpmnCapabilityIssue> ValidateForAuthoring(string xml)
         => Validate(xml, allowToolAuthoring: true);
 
-    private static void Validate(string xml, bool allowToolAuthoring)
+    private static IReadOnlyList<BpmnCapabilityIssue> Validate(string xml, bool allowToolAuthoring)
     {
         XDocument document;
         try
@@ -61,14 +65,17 @@ public static class BpmnCapabilityMatrix
         var namelessMessageIds = FindNamelessMessageIds(document);
 
         List<BpmnCapabilityIssue> issues = [];
+        List<BpmnCapabilityIssue> warnings = [];
         foreach (var process in executableProcesses)
-            ValidateContainer(process, allowToolAuthoring, namelessMessageIds, issues);
+            ValidateContainer(process, allowToolAuthoring, namelessMessageIds, issues, warnings);
         if (issues.Count > 0)
         {
             var first = issues[0];
             throw new BpmnCapabilityValidationException(first.Code, first.ElementId, first.PropertyPath,
                 Contract.ContractVersion, first.Message) { Issues = issues };
         }
+
+        return warnings;
     }
 
     /// <summary>
@@ -85,7 +92,8 @@ public static class BpmnCapabilityMatrix
         .ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(StringComparer.Ordinal);
 
     private static void ValidateContainer(XElement container, bool allowToolAuthoring,
-        ISet<string> namelessMessageIds, List<BpmnCapabilityIssue> issues)
+        ISet<string> namelessMessageIds, List<BpmnCapabilityIssue> issues,
+        List<BpmnCapabilityIssue> warnings)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -101,7 +109,7 @@ public static class BpmnCapabilityMatrix
             try
             {
                 ValidateUniqueElementId(element, uniqueIds);
-                ValidateElement(element, knownIds, namelessMessageIds, allowToolAuthoring);
+                ValidateElement(element, knownIds, namelessMessageIds, allowToolAuthoring, warnings);
             }
             catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
         }
@@ -124,7 +132,7 @@ public static class BpmnCapabilityMatrix
                     catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
                 }
 
-                ValidateContainer(element, allowToolAuthoring, namelessMessageIds, issues);
+                ValidateContainer(element, allowToolAuthoring, namelessMessageIds, issues, warnings);
             }
         }
     }
@@ -396,7 +404,7 @@ public static class BpmnCapabilityMatrix
     }
 
     private static void ValidateElement(XElement element, ISet<string> knownIds,
-        ISet<string> namelessMessageIds, bool allowToolAuthoring)
+        ISet<string> namelessMessageIds, bool allowToolAuthoring, List<BpmnCapabilityIssue> warnings)
     {
         var elementId = element.Attribute("id")?.Value;
         if (string.IsNullOrWhiteSpace(elementId))
@@ -422,7 +430,7 @@ public static class BpmnCapabilityMatrix
         }
 
         ValidateMessageReference(element, elementId, namelessMessageIds);
-        ValidateRequiredConfiguration(element, elementId, knownIds, allowToolAuthoring);
+        ValidateRequiredConfiguration(element, elementId, knownIds, allowToolAuthoring, warnings);
     }
 
     /// <summary>
@@ -502,7 +510,8 @@ public static class BpmnCapabilityMatrix
         XElement element,
         string elementId,
         ISet<string> knownIds,
-        bool allowToolAuthoring)
+        bool allowToolAuthoring,
+        List<BpmnCapabilityIssue> warnings)
     {
         switch (element.Name.LocalName)
         {
@@ -526,10 +535,16 @@ public static class BpmnCapabilityMatrix
             case "businessRuleTask":
                 ValidateBusinessRuleTask(element, elementId);
                 break;
+            // Eine menschliche Aufgabe ohne Formularbindung ist veroeffentlichbar: Sie wird zur
+            // reinen Bestaetigung, die ohne Eingaben abgeschlossen wird. Werkzeugneutrale
+            // Modelle tragen kein zeebe:formDefinition; sie deshalb abzulehnen hiesse, jedes
+            // fremde Diagramm abzulehnen. Gemeldet wird der Verlust trotzdem — als Warnung.
             case "userTask" when !HasFormKey(element):
-                throw Failure("bpmn.user_task.form_required", elementId,
+                warnings.Add(new BpmnCapabilityIssue("bpmn.user_task.form_missing", elementId,
                     "extensionElements.formDefinition.formKey",
-                    $"The user task '{elementId}' requires formDefinition/@formKey or @formId.");
+                    $"The user task '{elementId}' has no formDefinition/@formKey or @formId; "
+                    + "it will be completed without form input."));
+                break;
             // Ein sendendes Element braucht ein Ziel: entweder die Nachricht, die es intern
             // korreliert, oder den Auftragstyp des Workers, der sie nach draussen traegt.
             // Ohne beides waere es ein Schritt, der nichts tut und nichts meldet.

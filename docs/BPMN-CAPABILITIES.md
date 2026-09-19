@@ -403,12 +403,31 @@ Neben der Elementmatrix prüft Version 3 vor Save und Deploy:
 - gültige Source-/Target-Referenzen von Sequenzflüssen
 - Erreichbarkeit von Flow-Nodes ab Start- beziehungsweise Boundary-Aktivierung
 - gültigen Default-Ausgang und Bedingungen nicht-defaultiger Ausgänge an exklusiven Splits
-- Formbindung für User-Tasks, Worker-Typ für Service-Tasks und Zeitangabe für Timer
+- Worker-Typ für Service-Tasks und Zeitangabe für Timer
 - dieselben Regeln separat innerhalb jedes lokalen Subprozesses
 
 Boundary-Events sind Aktivierungswurzeln und benötigen naturgemäß keinen eingehenden
 Sequenzfluss. Container ohne eigenes StartEvent bleiben für die vorhandene eingebettete
 Subprozess-Semantik kompatibel.
+
+### Warnungen statt Blockern
+
+Die Prüfung kennt neben Fehlern **Warnungen**: Befunde, die die Veröffentlichung
+ausdrücklich nicht verhindern, aber mitgeteilt werden. Sie stehen im Erfolgsfall unter
+`warnings` — bei `POST /definition/validate`, `/definition/validate/deployment`,
+`POST /definition` und `POST /definition/deploy`. Der Eintrag trägt denselben
+elementbezogenen Vertrag wie ein Fehler (`code`, `elementId`, `propertyPath`, `message`)
+und zusätzlich `severity: "warning"`, damit eine Modellieransicht denselben Knoten
+anspringen kann. Eine abgelehnte Veröffentlichung meldet ihre Fehler, nicht ihre Hinweise.
+
+**Ein User-Task ohne Formularbindung ist veröffentlichbar.** Bis zum 19. September 2026
+verlangte Flowzer an jedem `bpmn:userTask` ein `zeebe:formDefinition` mit `formKey` oder
+`formId` und lehnte andernfalls mit `bpmn.user_task.form_required` ab. Das lehnte jedes
+werkzeugneutrale Modell ab — alle 22 MIWG-Referenzmodelle mit menschlicher Aufgabe und
+jeden Camunda-Import. Stattdessen meldet die Prüfung jetzt die Warnung
+`bpmn.user_task.form_missing` am Knoten. Die Aufgabe entsteht als gewöhnliche Human Task
+und wird ohne Eingaben abgeschlossen; Details in
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md). Der alte Code entfällt ersatzlos.
 
 ## Versionierung und Kompatibilität
 

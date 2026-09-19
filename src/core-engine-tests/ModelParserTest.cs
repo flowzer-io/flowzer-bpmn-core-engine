@@ -190,9 +190,11 @@ public class ModelParserTest
         userTask.Implementation.Should().Be("Form_InvoiceReview");
     }
 
-    // Testzweck: Prüft, dass der Parser für User-Tasks ohne formKey/formId eine fachlich präzise Parser-Exception auslöst.
+    // Testzweck: Prüft, dass ein User-Task ohne formKey/formId gelesen wird und einen leeren
+    // Formularverweis trägt — die Formularpflicht ist eine Warnung der Veröffentlichungsprüfung,
+    // kein Lesefehler. Werkzeugneutrale Modelle tragen kein zeebe:formDefinition.
     [Test]
-    public void ParseModel_ShouldThrowFlowzerModelParseException_WhenUserTaskHasNoImplementation()
+    public void ParseModel_ShouldReadUserTaskWithoutForm_WithAnEmptyImplementation()
     {
         const string xml = """
                            <?xml version="1.0" encoding="UTF-8"?>
@@ -210,11 +212,37 @@ public class ModelParserTest
                            </bpmn:definitions>
                            """;
 
-        var action = () => ModelParser.ParseModel(xml);
+        var model = ModelParser.ParseModel(xml);
 
-        action.Should()
-            .Throw<FlowzerModelParseException>()
-            .WithMessage("User task 'Activity_UserTask'*");
+        model.GetProcesses().Single().FlowElements
+            .OfType<BPMN.HumanInteraction.UserTask>().Single()
+            .Implementation.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass ein User-Task ganz ohne zeebe:formDefinition ebenso gelesen wird —
+    // das ist die Form, in der jedes fremde Werkzeug eine menschliche Aufgabe schreibt.
+    [Test]
+    public void ParseModel_ShouldReadUserTaskWithoutFormDefinitionElement()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             id="Definitions_ToolNeutralUserTask">
+                             <bpmn:process id="Process_ToolNeutralUserTask" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask" name="Freigeben">
+                                 <bpmn:documentation>Bitte die Rechnung sachlich prüfen.</bpmn:documentation>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var userTask = ModelParser.ParseModel(xml).GetProcesses().Single().FlowElements
+            .OfType<BPMN.HumanInteraction.UserTask>().Single();
+
+        userTask.Implementation.Should().BeEmpty();
+        userTask.Documentations.Should().ContainSingle()
+            .Which.Text.Should().Be("Bitte die Rechnung sachlich prüfen.");
     }
 
     // Testzweck: Prüft, dass ein im Workflow eingebettetes Formular (zeebe:userTaskForm in den

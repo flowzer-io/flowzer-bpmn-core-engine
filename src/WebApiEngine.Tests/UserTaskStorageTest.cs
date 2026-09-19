@@ -60,6 +60,23 @@ public class UserTaskStorageTest
             .Which.Implementation.Should().Be("Formular");
     }
 
+    // Testzweck: Die Listen des Modellelements überleben das Speichern genau einmal.
+    // `Token.CurrentFlowNode` ist abgeleitet und hat keinen Setter; würde es mitgespeichert,
+    // schriebe Newtonsoft.Json es beim Laden in das bereits aufgebaute Element hinein und
+    // verdoppelte dabei jede seiner Listen.
+    [Test]
+    public async Task StoredToken_ShouldNotDuplicateTheModelElementCollections()
+    {
+        using var context = new UserTaskStorageTestContext();
+        var wanted = await context.AddUserTask("Freigabe", documentation: "Bitte prüfen.");
+
+        var restored = await context.SubscriptionStorage.GetUserTaskExtended(wanted.Id);
+
+        restored!.Token.CurrentFlowNode.Should().BeOfType<UserTask>()
+            .Which.Documentations.Should().ContainSingle()
+            .Which.Text.Should().Be("Bitte prüfen.");
+    }
+
     // Testzweck: Eine unbekannte Id ist kein Fehler, sondern schlicht kein Treffer.
     [Test]
     public async Task GetUserTaskExtended_ShouldReturnNull_WhenTheTaskDoesNotExist()
@@ -93,11 +110,17 @@ public class UserTaskStorageTest
         public string StorageRoot => _storageRoot;
         public StorageSystem.IMessageSubscriptionStorage SubscriptionStorage { get; }
 
-        public async Task<UserTaskSubscription> AddUserTask(string name)
+        public async Task<UserTaskSubscription> AddUserTask(string name, string? documentation = null)
         {
             await EnsureDefinition();
 
-            var userTask = new UserTask { Id = "UserTask_1", Name = name, Implementation = "Formular" };
+            var userTask = new UserTask
+            {
+                Id = "UserTask_1", Name = name, Implementation = "Formular",
+                Documentations = documentation is null
+                    ? null
+                    : [new BPMN.Foundation.Documentation { Id = "Doc_1", Text = documentation }]
+            };
             var process = new Process { Id = "Process_1", Name = "P", DefinitionsId = "D", IsExecutable = true, FlowElements = [userTask] };
             var instanceId = Guid.NewGuid();
             var subscription = new UserTaskSubscription

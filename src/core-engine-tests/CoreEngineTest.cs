@@ -425,7 +425,8 @@ public class CoreEngineTest
                                    <bpmn:startEvent id="StartEvent_Invalid">
                                      <bpmn:outgoing>Flow_Invalid_1</bpmn:outgoing>
                                    </bpmn:startEvent>
-                                   <bpmn:userTask id="UserTask_Invalid" name="Broken User Task">
+                                   <!-- Ohne id: Der Parser kann diesen Knoten nicht benennen und lehnt das Modell ab. -->
+                                   <bpmn:userTask name="Broken User Task">
                                      <bpmn:incoming>Flow_Invalid_1</bpmn:incoming>
                                    </bpmn:userTask>
                                    <bpmn:sequenceFlow id="Flow_Invalid_1" sourceRef="StartEvent_Invalid" targetRef="UserTask_Invalid" />

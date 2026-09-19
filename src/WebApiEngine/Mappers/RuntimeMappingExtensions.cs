@@ -86,6 +86,7 @@ public static class RuntimeMappingExtensions
             DefinitionMetaName = subscription.DefinitionMetaName,
             DefinitionVersion = subscription.DefinitionVersion.ToDto(),
             FormKey = userTask?.Implementation,
+            Documentation = JoinDocumentation(userTask),
             DueDate = userTask?.FlowzerDueDate,
             FollowUpDate = userTask?.FlowzerFollowUpDate,
             Priority = userTask?.FlowzerPriority,
@@ -101,6 +102,21 @@ public static class RuntimeMappingExtensions
                 CanDelegate = false
             }
         };
+    }
+
+    /// <summary>
+    /// Die Dokumentation des Modellelements als ein Text. Mehrere <c>bpmn:documentation</c>
+    /// sind selten, aber erlaubt; sie werden durch eine Leerzeile getrennt, statt dass nur
+    /// die erste sichtbar wäre.
+    /// </summary>
+    private static string? JoinDocumentation(BPMN.HumanInteraction.UserTask? userTask)
+    {
+        var texts = userTask?.Documentations?
+            .Select(documentation => documentation.Text)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .ToArray() ?? [];
+
+        return texts.Length == 0 ? null : string.Join("\n\n", texts);
     }
 
     private static string AssignmentMode(UserTaskSubscription subscription) =>

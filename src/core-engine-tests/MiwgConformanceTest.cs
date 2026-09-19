@@ -184,10 +184,14 @@ public class MiwgConformanceTest
         string? deployCode = null;
         string? deployElement = null;
         string? deployElementId = null;
+        IReadOnlyList<string> deployWarnings = [];
 
         try
         {
-            BpmnCapabilityMatrix.ValidateForDeployment(xml);
+            deployWarnings = BpmnCapabilityMatrix.ValidateForDeployment(xml)
+                .Select(warning => warning.Code)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
         }
         catch (BpmnCapabilityValidationException failure)
         {
@@ -220,6 +224,7 @@ public class MiwgConformanceTest
             DeployCode = deployCode,
             DeployElement = deployElement,
             DeployElementId = deployElementId,
+            DeployWarnings = deployWarnings,
             Execute = execute,
             ExecuteDetail = executeDetail,
         };
@@ -477,6 +482,13 @@ public sealed record MiwgObservation
     public string? DeployCode { get; init; }
     public string? DeployElement { get; init; }
     public string? DeployElementId { get; init; }
+
+    /// <summary>
+    /// Die Codes der Warnungen der Veröffentlichungsprüfung, in Dokumentreihenfolge und ohne
+    /// Wiederholung. Sie verhindern nichts — aber „veröffentlichbar, aber mit Verlust" ist ein
+    /// anderer Befund als „veröffentlichbar", und der Nachweis soll beides unterscheiden.
+    /// </summary>
+    public IReadOnlyList<string> DeployWarnings { get; init; } = [];
 
     /// <summary><c>completed</c>, <c>stuck</c>, <c>exception</c>, <c>step_limit</c> oder <c>skipped</c>.</summary>
     public required string Execute { get; init; }

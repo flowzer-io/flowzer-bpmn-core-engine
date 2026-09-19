@@ -293,12 +293,16 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
     if (!ready || !modeler) return;
 
     const canvas = modeler.get<CanvasLike>('canvas');
+    // Ein Hinweis darf nicht aussehen wie ein Blocker: Die Warnung bekommt eine eigene
+    // Markierung, damit das Diagramm Fehler und Hinweis unterscheidbar zeigt.
+    const markerOf = (diagnostic: BpmnDiagnostic) =>
+      diagnostic.severity === 'error' ? 'flowzer-validation-error' : 'flowzer-validation-warning';
     for (const diagnostic of diagnostics) {
       if (!diagnostic.elementId) continue;
       try {
         const element = modeler.get<ElementRegistryLike>('elementRegistry').get(diagnostic.elementId);
         if (!element) continue;
-        canvas.addMarker(diagnostic.elementId, 'flowzer-validation-error');
+        canvas.addMarker(diagnostic.elementId, markerOf(diagnostic));
       } catch {
         // Ein veraltetes Element darf die übrigen Diagnosen nicht ausblenden.
       }
@@ -308,7 +312,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       for (const diagnostic of diagnostics) {
         if (!diagnostic.elementId) continue;
         try {
-          canvas.removeMarker(diagnostic.elementId, 'flowzer-validation-error');
+          canvas.removeMarker(diagnostic.elementId, markerOf(diagnostic));
         } catch {
           // siehe oben
         }

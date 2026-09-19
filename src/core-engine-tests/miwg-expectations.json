@@ -9,6 +9,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373649849716",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -22,6 +23,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373649889746",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -35,6 +37,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "Bpmn_Definitions_--SwsH2BEeWQ6qGdY3x14w",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -48,6 +51,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373649919111",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -61,6 +65,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373649948794",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -74,6 +79,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "sid-ad44e239-e96e-4a80-b0e4-cf63b741c3cb",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -87,6 +93,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373655174418",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -100,32 +107,35 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1373638079286",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
   {
     "model": "C.1.0.bpmn",
     "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task 'approveInvoice' requires either formKey or formId in formDefinition.",
+    "parseCode": "parser.ModelValidationException",
+    "parseDetail": "Implementation not defined for Service task 'archiveInvoice'",
     "executableProcesses": 0,
     "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "approveInvoice",
+    "deployCode": "bpmn.service_task.implementation_required",
+    "deployElement": "serviceTask",
+    "deployElementId": "archiveInvoice",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
   {
     "model": "C.1.1.bpmn",
     "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task 'approveInvoice' requires either formKey or formId in formDefinition.",
+    "parseCode": "parser.ModelValidationException",
+    "parseDetail": "Implementation not defined for Service task 'archiveInvoice'",
     "executableProcesses": 0,
     "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "approveInvoice",
+    "deployCode": "bpmn.service_task.implementation_required",
+    "deployElement": "serviceTask",
+    "deployElementId": "archiveInvoice",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -139,19 +149,21 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_1aa4e08d-219c-418c-8aed-5ddf4cd45a41",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
   {
     "model": "C.3.0.bpmn",
-    "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task '_c73a5f4a-72f1-4e11-bb40-2f98da75fb9a' requires either formKey or formId in formDefinition.",
-    "executableProcesses": 0,
+    "parse": "ok",
+    "parseCode": null,
+    "parseDetail": null,
+    "executableProcesses": 1,
     "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "_c73a5f4a-72f1-4e11-bb40-2f98da75fb9a",
+    "deployCode": "bpmn.exclusive_gateway.condition_required",
+    "deployElement": "sequenceFlow",
+    "deployElementId": "_b99800c3-c340-460c-a43e-098014a365d0",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -165,6 +177,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_e7ccc12c-2987-48ae-92aa-08112101d9c9",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -178,6 +191,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_5f5fbc02-46c1-4615-b2bd-89b2d938ac0b",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -191,6 +205,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_af3cbf6a-9c69-460b-9a1d-276711d30213",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -204,6 +219,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "_7e80c232-2bf0-46e0-b77e-29ec586a23a6",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -217,6 +233,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "Definitions__a9e3a63e-db87-4fa1-9091-328acae4f490",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   },
@@ -230,47 +247,57 @@
     "deployCode": null,
     "deployElement": null,
     "deployElementId": null,
+    "deployWarnings": [],
     "execute": "exception",
     "executeDetail": "NotSupportedException: getting values of object arrays is not implemented yet."
   },
   {
     "model": "C.9.0.bpmn",
-    "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.",
-    "executableProcesses": 0,
-    "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "UserTask_HandleTimeout",
-    "execute": "skipped",
-    "executeDetail": "deployment rejected"
+    "parse": "ok",
+    "parseCode": null,
+    "parseDetail": null,
+    "executableProcesses": 1,
+    "deploy": "ok",
+    "deployCode": null,
+    "deployElement": null,
+    "deployElementId": null,
+    "deployWarnings": [
+      "bpmn.user_task.form_missing"
+    ],
+    "execute": "stuck",
+    "executeDetail": "no generic action for BusinessRuleTask 'BusinessRuleTask_CheckApplicationAutomatically'"
   },
   {
     "model": "C.9.1.bpmn",
-    "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task 'UserTask_CallCustomer' requires either formKey or formId in formDefinition.",
-    "executableProcesses": 0,
-    "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "UserTask_CallCustomer",
-    "execute": "skipped",
-    "executeDetail": "deployment rejected"
+    "parse": "ok",
+    "parseCode": null,
+    "parseDetail": null,
+    "executableProcesses": 1,
+    "deploy": "ok",
+    "deployCode": null,
+    "deployElement": null,
+    "deployElementId": null,
+    "deployWarnings": [
+      "bpmn.user_task.form_missing"
+    ],
+    "execute": "completed",
+    "executeDetail": null
   },
   {
     "model": "C.9.2.bpmn",
-    "parse": "rejected",
-    "parseCode": "parser.FlowzerModelParseException",
-    "parseDetail": "User task 'UserTask_AccelerateDecision' requires either formKey or formId in formDefinition.",
-    "executableProcesses": 0,
-    "deploy": "rejected",
-    "deployCode": "bpmn.user_task.form_required",
-    "deployElement": "userTask",
-    "deployElementId": "UserTask_AccelerateDecision",
-    "execute": "skipped",
-    "executeDetail": "deployment rejected"
+    "parse": "ok",
+    "parseCode": null,
+    "parseDetail": null,
+    "executableProcesses": 1,
+    "deploy": "ok",
+    "deployCode": null,
+    "deployElement": null,
+    "deployElementId": null,
+    "deployWarnings": [
+      "bpmn.user_task.form_missing"
+    ],
+    "execute": "exception",
+    "executeDetail": "KeyNotFoundException: The specified key 'applicant' does not exist in the ExpandoObject."
   },
   {
     "model": "C.10.0.bpmn",
@@ -282,6 +309,7 @@
     "deployCode": "bpmn.process.executable_required",
     "deployElement": "definitions",
     "deployElementId": "Definitions__3",
+    "deployWarnings": [],
     "execute": "skipped",
     "executeDetail": "deployment rejected"
   }

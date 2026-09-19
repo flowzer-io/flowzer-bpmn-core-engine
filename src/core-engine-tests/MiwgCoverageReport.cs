@@ -22,6 +22,8 @@ internal static class MiwgCoverageReport
         var parsed = observations.Count(observation => observation.Parse == "ok");
         var parsedEmpty = observations.Count(observation => observation.Parse == "empty");
         var deployable = observations.Count(observation => observation.Deploy == "ok");
+        var deployableWithWarnings = observations.Count(observation =>
+            observation.Deploy == "ok" && observation.DeployWarnings.Count > 0);
         var executed = observations.Count(observation => observation.Execute == "completed");
 
         var report = new StringBuilder();
@@ -52,6 +54,7 @@ internal static class MiwgCoverageReport
         report.AppendLine($"| gelesen (Parser, mit ausführbarem Prozess) | {parsed} |");
         report.AppendLine($"| gelesen, aber leer (kein `isExecutable=\"true\"`) | {parsedEmpty} |");
         report.AppendLine($"| veröffentlichbar (Fähigkeitsvertrag) | {deployable} |");
+        report.AppendLine($"| davon mit Warnung veröffentlichbar | {deployableWithWarnings} |");
         report.AppendLine($"| ausgeführt bis Ende | {executed} |");
         report.AppendLine();
         report.AppendLine("„gelesen, aber leer\" ist bewusst getrennt: Der Parser liest ausschließlich Prozesse mit");
@@ -74,7 +77,7 @@ internal static class MiwgCoverageReport
         report.AppendLine("| Stufe | Was geprüft wird | Mögliche Werte |");
         report.AppendLine("| --- | --- | --- |");
         report.AppendLine("| Lesen | `ModelParser.ParseModel` ohne Ausnahme | `ok`, `empty`, `rejected` |");
-        report.AppendLine("| Veröffentlichen | `BpmnCapabilityMatrix.ValidateForDeployment` | `ok`, `rejected` |");
+        report.AppendLine("| Veröffentlichen | `BpmnCapabilityMatrix.ValidateForDeployment` | `ok` (ggf. mit Warnungen), `rejected` |");
         report.AppendLine("| Ausführen | Instanz starten und wartende Elemente generisch bedienen | `completed`, `stuck`, `exception`, `step_limit`, `skipped` |");
         report.AppendLine();
         report.AppendLine("Die Ausführungsstufe läuft nur, wenn die Veröffentlichung zusagt und das Modell einen");
@@ -103,7 +106,9 @@ internal static class MiwgCoverageReport
                 ? $"`{observation.DeployCode}`" + (observation.DeployElement is null
                     ? string.Empty
                     : $" an `{observation.DeployElement}`")
-                : "—";
+                : observation.DeployWarnings.Count > 0
+                    ? "Warnung: " + string.Join(", ", observation.DeployWarnings.Select(code => $"`{code}`"))
+                    : "—";
             var execute = observation.Execute == "skipped"
                 ? $"übersprungen ({observation.ExecuteDetail})"
                 : observation.ExecuteDetail is null
@@ -132,13 +137,11 @@ internal static class MiwgCoverageReport
                 "Ein benannter Modellfehler des Parsers: fehlende Kennung, Verweis ins Leere oder eine "
                 + "unvollständige Pflichtangabe. **Modellfehler, keine Fähigkeitslücke.**",
             ["parser.FlowzerModelParseException"] =
-                "Flowzer verlangt an jedem User-Task ein `zeebe:formDefinition` mit `formKey` oder `formId`. "
-                + "Werkzeugneutrale Modelle tragen keines. **Produktentscheidung, keine BPMN-Lücke.**",
+                "Ein benannter Parserfehler der Flowzer-Erweiterungen. **Modellfehler, keine BPMN-Lücke.**",
             ["bpmn.process.executable_required"] =
                 "Das Dokument enthält keinen Prozess mit `isExecutable=\"true\"`. Die MIWG-Reihen A und B sind "
                 + "reine Modellierungs- und Layoutbeispiele. **Kein Befund über die Engine.**",
-            ["bpmn.user_task.form_required"] =
-                "Wie oben: kein `zeebe:formDefinition` am User-Task. **Produktentscheidung.**",
+
             ["bpmn.element.unsupported"] =
                 "Elementart, die der Fähigkeitsvertrag v7 nicht führt. **Echte Ausführungslücke.**",
             ["bpmn.element.not_executable"] =
