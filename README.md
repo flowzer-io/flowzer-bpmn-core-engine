@@ -231,6 +231,7 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
+- [docs/BPMN-MIWG-COVERAGE.md](docs/BPMN-MIWG-COVERAGE.md) – Nachweis gegen die Referenzmodelle der BPMN MIWG: was Flowzer liest, veröffentlichen würde und ausführt
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
 - [docs/ANALYTICS.md](docs/ANALYTICS.md) – Auswertungen auf der Laufzeithistorie: Durchlaufzeit, Engpässe, Ausgang, samt Grenzen
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen

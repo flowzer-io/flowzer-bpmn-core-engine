@@ -33,6 +33,12 @@
         <None Update="embeddings\**\*.*">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        <!-- Das erwartete Verhalten je MIWG-Referenzmodell. Liegt bewusst neben den Tests und
+             nicht unter embeddings/miwg: Dieses Verzeichnis wird vom Aktualisierungsskript
+             vollstaendig neu geschrieben. -->
+        <None Update="miwg-expectations.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
         <!-- Der historische Vertrag 4 wird im Original geprueft, damit er nicht
              unbemerkt nachtraeglich umgeschrieben wird. -->
         <None Include="..\..\contracts\bpmn-capabilities\v4.json"

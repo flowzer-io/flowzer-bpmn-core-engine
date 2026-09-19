@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { DeleteInstanceAction } from '@/components/instances/DeleteInstanceAction';
 import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
+import { RetryJobAction } from '@/components/operations/RetryJobAction';
 import { CalledInstancesSection, ParentInstanceLink } from '@/components/instances/InstanceCallHierarchy';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
 import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
@@ -19,13 +20,14 @@ import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Ch
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { instanceBucket } from '@/lib/api/normalize';
-import { useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
+import { useIncidents, useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
 import { formatDueIn, formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
 import { instanceTone, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
+import { useCan } from '@/stores/session';
 
 interface InstanceDetailPageProps {
   instanceId: string;
@@ -59,6 +61,18 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   // Dieselbe Rechteprüfung wie die Instanzansicht: Ohne Diagnoserecht antwortet der Endpunkt
   // mit 404, also wird er gar nicht erst gefragt.
   const childrenQuery = useInstanceChildren(canInspect ? instanceId : undefined);
+
+  // Die Störungsliste gehört der Betriebsrolle. Ohne sie gar nicht erst zu fragen ist
+  // ehrlicher als eine Detailseite, die im Hintergrund an einer 403 scheitert.
+  const mayOperate = useCan()('operator');
+  const incidentsQuery = useIncidents({ enabled: mayOperate });
+  const stalledJob = useMemo(
+    () =>
+      (incidentsQuery.data ?? []).find(
+        (incident) => incident.kind === 'jobExhausted' && incident.instanceId === instanceId,
+      ),
+    [incidentsQuery.data, instanceId],
+  );
 
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
   const selectedFlowNodeId = useMemo(() => {
@@ -163,6 +177,8 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           </Button>
         )}
 
+        {stalledJob && <RetryJobAction incident={stalledJob} />}
+
         {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
 
         {bucket === 'active' && <CancelInstanceAction instance={instance} />}
@@ -183,6 +199,18 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           ID kopieren
         </Button>
       </div>
+
+      {instance.failureReason && (
+        <div
+          className="text-fail border-border flex flex-none items-start gap-2.5 border-b px-6 py-2.5 text-[13px]"
+          style={{ background: 'color-mix(in oklab, var(--fail) 8%, transparent)' }}
+        >
+          <Icon name="error" size={18} className="mt-px flex-none" />
+          <span className="min-w-0 break-words">
+            <span className="font-semibold">Gescheitert:</span> {instance.failureReason}
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-none flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
         <div className="canvas-grid relative min-w-0 flex-none lg:min-h-0 lg:flex-1">

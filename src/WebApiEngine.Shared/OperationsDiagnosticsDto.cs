@@ -5,6 +5,13 @@ public class OperationsDiagnosticsDto
     public required DateTime CheckedAtUtc { get; set; }
     public required string Environment { get; set; }
     public required OperationsStorageSnapshotDto Storage { get; set; }
+
+    /// <summary>
+    /// Wie viel gerade liegen bleibt. Nur die Zähler; die Liste steht unter
+    /// <c>GET /operations/incidents</c>.
+    /// </summary>
+    public required OperationsIncidentCountersDto Incidents { get; set; }
+
     public required TimerSchedulerDiagnosticsDto TimerScheduler { get; set; }
     public required InstanceRetentionDiagnosticsDto Retention { get; set; }
     public required OperationsInstrumentationDto Instrumentation { get; set; }

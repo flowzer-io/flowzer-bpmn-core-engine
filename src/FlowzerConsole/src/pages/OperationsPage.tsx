@@ -1,14 +1,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
+import { IncidentsCard } from '@/components/operations/IncidentsCard';
 import { Card, CardHeader, EmptyState } from '@/components/ui/Card';
 import { Chip, toneColor, type Tone } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { ErrorState, LoadingRows, Skeleton } from '@/components/ui/States';
-import { useDiagnostics, useHealth, useInstances, useTimers } from '@/lib/api/queries';
+import { useDiagnostics, useHealth, useIncidents, useTimers } from '@/lib/api/queries';
 import type { InstanceRetentionDiagnosticsDto, OperationsDiagnosticsDto } from '@/lib/api/types';
-import { instanceBucket } from '@/lib/api/normalize';
 import { formatDueIn, formatDuration, formatNumber, formatRelative, parseApiDate, shortId } from '@/lib/format';
 import { useCan } from '@/stores/session';
 
@@ -26,9 +26,9 @@ export function OperationsPage() {
   // Ohne Betriebsrolle lehnt die API die Diagnose ab. Die Abfragen gar nicht erst zu
   // stellen ist ehrlicher als eine Seite voller Fehlermeldungen.
   const diagnosticsQuery = useDiagnostics({ enabled: mayOperate });
+  const incidentsQuery = useIncidents({ enabled: mayOperate });
   const timersQuery = useTimers({ enabled: mayOperate });
   const healthQuery = useHealth();
-  const instancesQuery = useInstances();
 
   const diagnostics = diagnosticsQuery.data;
 
@@ -49,11 +49,6 @@ export function OperationsPage() {
         (a, b) => (parseApiDate(a.dueAt)?.getTime() ?? 0) - (parseApiDate(b.dueAt)?.getTime() ?? 0),
       ),
     [timersQuery.data],
-  );
-
-  const failedInstances = useMemo(
-    () => (instancesQuery.data ?? []).filter((instance) => instanceBucket(instance.state) === 'error'),
-    [instancesQuery.data],
   );
 
   if (!mayOperate) {
@@ -197,43 +192,13 @@ export function OperationsPage() {
             ))}
           </Card>
 
-          <Card>
-            <CardHeader icon="error" iconClassName="text-fail" title="Fehlgeschlagene Instanzen" />
-
-            {failedInstances.length === 0 ? (
-              <EmptyState
-                className="border-border border-t"
-                icon="check_circle"
-                title="Keine Fehler"
-                description="Aktuell ist keine Instanz in einem Fehlerzustand."
-              />
-            ) : (
-              failedInstances.map((instance) => (
-                <button
-                  key={instance.instanceId}
-                  type="button"
-                  onClick={() => void navigate({ to: `/instances/${instance.instanceId}` })}
-                  className="border-border hover:bg-inset flex w-full cursor-pointer items-center gap-3 border-t border-x-0 border-b-0 bg-transparent px-[18px] py-3.5 text-left"
-                >
-                  <span
-                    className="text-fail grid h-8 w-8 flex-none place-items-center rounded-lg"
-                    style={{ background: 'color-mix(in oklab, var(--fail) 12%, transparent)' }}
-                  >
-                    <Icon name="warning" size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-semibold">
-                      {instance.relatedDefinitionName}
-                    </div>
-                    <div className="text-faint mt-0.5 font-mono text-[11.5px]">
-                      #{shortId(instance.instanceId)} · {formatRelative(instance.startedAt)}
-                    </div>
-                  </div>
-                  <span className="text-accent flex-none text-[12.5px] font-semibold">Details</span>
-                </button>
-              ))
-            )}
-          </Card>
+          <IncidentsCard
+            incidents={incidentsQuery.data}
+            counters={diagnostics?.incidents}
+            pending={incidentsQuery.isPending}
+            error={incidentsQuery.error}
+            onRetry={() => void incidentsQuery.refetch()}
+          />
 
           <RetentionCard retention={diagnostics?.retention} />
         </div>
@@ -503,7 +468,22 @@ function buildHealthCards(
       ? 'error'
       : 'ok';
 
+  // Eine Störung ist kein Zustand der Technik, sondern liegen gebliebene Arbeit. Sie gehört
+  // trotzdem in die Kachelreihe: Der Betrieb liest oben, ob etwas zu tun ist, und muss dafür
+  // nicht erst bis zur Liste scrollen.
+  const incidents = diagnostics.incidents;
+  const totalIncidents = incidents.jobExhausted + incidents.instanceFailed;
+
   return [
+    {
+      name: 'Störungen',
+      icon: 'warning',
+      level: totalIncidents === 0 ? 'ok' : 'error',
+      detail:
+        totalIncidents === 0
+          ? 'nichts bleibt liegen'
+          : `${formatNumber(incidents.jobExhausted)} Aufträge liegen · ${formatNumber(incidents.instanceFailed)} Instanzen gescheitert`,
+    },
     {
       name: 'Web-API',
       icon: 'api',
