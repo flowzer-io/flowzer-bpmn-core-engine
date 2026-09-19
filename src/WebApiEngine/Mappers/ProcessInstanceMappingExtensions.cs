@@ -104,23 +104,14 @@ public static class ProcessInstanceMappingExtensions
         };
     }
 
-    // Die Ablage speichert keinen eigenen Instanz-Zeitstempel. Start- und Endzeitpunkt
-    // werden deshalb aus den Tokens abgeleitet: das älteste Token markiert den Start,
-    // der letzte Statuswechsel einer beendeten Instanz deren Ende.
-    private static DateTime? GetStartedAt(ProcessInstanceInfo processInstanceInfo)
-    {
-        return processInstanceInfo.Tokens.Count == 0
-            ? null
-            : processInstanceInfo.Tokens.Min(token => token.StartTime);
-    }
+    // Die Ablage speichert keinen eigenen Instanz-Zeitstempel; Start- und Endzeitpunkt werden
+    // aus den Tokens abgeleitet. Die Ableitung steht bewusst in ProcessInstanceLifetime und
+    // nicht hier: Die Aufbewahrung rechnet ihre Frist auf derselben Grundlage. Zwei getrennte
+    // Kopien koennten auseinanderlaufen, und dann verschwaende eine Instanz nach einer anderen
+    // Frist als der, die in dieser Ansicht als „beendet am …" steht.
+    private static DateTime? GetStartedAt(ProcessInstanceInfo processInstanceInfo) =>
+        ProcessInstanceLifetime.GetStartedAtUtc(processInstanceInfo);
 
-    private static DateTime? GetFinishedAt(ProcessInstanceInfo processInstanceInfo)
-    {
-        if (!processInstanceInfo.IsFinished || processInstanceInfo.Tokens.Count == 0)
-        {
-            return null;
-        }
-
-        return processInstanceInfo.Tokens.Max(token => token.LastStateChangeTime);
-    }
+    private static DateTime? GetFinishedAt(ProcessInstanceInfo processInstanceInfo) =>
+        ProcessInstanceLifetime.GetFinishedAtUtc(processInstanceInfo);
 }

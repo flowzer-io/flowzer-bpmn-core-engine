@@ -51,6 +51,22 @@ public interface IAiRunStorage
         throw new NotSupportedException($"{GetType().Name} does not support AI run cancellation.");
 
     Task<IReadOnlyList<AiRun>> RecoverExpiredLeases(DateTime nowUtc, int maxRuns);
+
+    /// <summary>
+    /// Entfernt alle Laeufe einer Instanz und liefert deren Anzahl. Anders als
+    /// <see cref="CancelObsoleteRuns"/> ist das kein Zustandswechsel, sondern das endgueltige
+    /// Loeschen: Die Instanz gibt es danach nicht mehr, ein Providerergebnis haette also
+    /// ohnehin kein Ziel. Wird von der Aufbewahrung und vom Loeschen einer Instanz gebraucht.
+    ///
+    /// Ein Lauf mit laufender Lease wird mitgeloescht. Das ist gewollt: Ein Aufbewahrungslauf
+    /// fasst nur beendete Instanzen an, und an einer beendeten Instanz ist eine noch gueltige
+    /// Lease bereits ein Rest, kein schuetzenswerter Vorgang.
+    ///
+    /// Bewusst ohne stillen Standard, wie beim Loeschen einer Instanz: Eine Ablage, die Laeufe
+    /// fuehrt, aber diesen Vertrag nicht kennt, liesse deren Eingaben und Ausgaben liegen.
+    /// </summary>
+    Task<int> DeleteByProcessInstance(Guid processInstanceId) =>
+        throw new NotSupportedException($"{GetType().Name} does not support deleting AI runs of an instance.");
 }
 
 public enum AiRunWriteStatus
@@ -354,6 +370,7 @@ internal sealed class UnsupportedAiRunStorage : IAiRunStorage
     public Task<AiRunWriteResult> TryUpdate(AiRun updated, long expectedRevision, string leaseOwner, DateTime nowUtc) => throw Unsupported();
     public Task<int> CancelObsoleteRuns(Guid processInstanceId, IReadOnlyCollection<Guid> protectedTokenIds, DateTime nowUtc) => throw Unsupported();
     public Task<IReadOnlyList<AiRun>> RecoverExpiredLeases(DateTime nowUtc, int maxRuns) => throw Unsupported();
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId) => throw Unsupported();
 
     private static NotSupportedException Unsupported() =>
         new("This storage implementation does not support AI runs.");

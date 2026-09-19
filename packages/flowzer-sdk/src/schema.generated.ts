@@ -3782,6 +3782,243 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/inbound-trigger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerDtoArrayApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateInboundTriggerRequestDto"];
+                    "text/json": components["schemas"]["CreateInboundTriggerRequestDto"];
+                    "application/*+json": components["schemas"]["CreateInboundTriggerRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inbound-trigger/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["UpdateInboundTriggerRequestDto"];
+                    "text/json": components["schemas"]["UpdateInboundTriggerRequestDto"];
+                    "application/*+json": components["schemas"]["UpdateInboundTriggerRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StringApiStatusResult"];
+                        "application/json": components["schemas"]["StringApiStatusResult"];
+                        "text/json": components["schemas"]["StringApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["StringApiStatusResult"];
+                        "application/json": components["schemas"]["StringApiStatusResult"];
+                        "text/json": components["schemas"]["StringApiStatusResult"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/inbound-trigger/{id}/rotate-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InboundTriggerSecretDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/{instanceId}/cancel": {
         parameters: {
             query?: never;
@@ -3816,6 +4053,82 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Instance/{instanceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3977,45 +4290,6 @@ export interface paths {
                         "text/plain": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
                         "application/json": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
                         "text/json": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/Instance/{instanceId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    instanceId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
-                        "application/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
-                        "text/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
                     };
                 };
             };
@@ -4933,6 +5207,319 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/operations/analytics/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operations/analytics/workflows/{metaDefinitionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    definitionId?: string;
+                };
+                header?: never;
+                path: {
+                    metaDefinitionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                        "application/json": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                        "text/json": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/definition/meta/{id}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/zip": string;
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/definition/package/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        package?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/definition/package/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        package?: string;
+                        mapping?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Timer": {
         parameters: {
             query?: never;
@@ -4964,6 +5551,92 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trigger/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "Idempotency-Key"?: string;
+                };
+                path: {
+                    key: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InboundTriggerMessageResultDto"];
+                        "application/json": components["schemas"]["InboundTriggerMessageResultDto"];
+                        "text/json": components["schemas"]["InboundTriggerMessageResultDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Content Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -5682,6 +6355,14 @@ export interface components {
          * @enum {integer}
          */
         AiToolSideEffectDto: 0 | 1 | 2;
+        AnalyticsDayPointDto: {
+            /** Format: date */
+            day: string;
+            /** Format: int32 */
+            startedCount: number;
+            /** Format: int32 */
+            finishedCount: number;
+        };
         ApiProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -5797,6 +6478,8 @@ export interface components {
             description?: string | null;
             /** Format: uuid */
             folderId?: string | null;
+            /** Format: int32 */
+            retentionDays?: number | null;
         };
         BpmnMetaDefinitionDtoApiStatusResult: {
             successful?: boolean;
@@ -5820,6 +6503,15 @@ export interface components {
         };
         CreateFormSectionRequestDto: {
             name: string | null;
+        };
+        CreateInboundTriggerRequestDto: {
+            name?: string | null;
+            kind?: components["schemas"]["InboundTriggerKindDto"];
+            definitionId?: string | null;
+            messageName?: string | null;
+            correlationKeyPath?: string | null;
+            variablesMode?: components["schemas"]["InboundTriggerVariablesModeDto"];
+            allowedFields?: string[] | null;
         };
         DirectoryAuthoringRequestDto: {
             formData?: string | null;
@@ -5862,12 +6554,26 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["DirectorySubjectSearchResultDto"];
         };
+        DurationStatisticsDto: {
+            /** Format: int32 */
+            sampleCount: number;
+            /** Format: double */
+            medianSeconds: number;
+            /** Format: double */
+            p90Seconds: number;
+            /** Format: double */
+            meanSeconds: number;
+            /** Format: double */
+            maxSeconds: number;
+        };
         ExtendedBpmnMetaDefinitionDto: {
             definitionId: string | null;
             name: string | null;
             description?: string | null;
             /** Format: uuid */
             folderId?: string | null;
+            /** Format: int32 */
+            retentionDays?: number | null;
             latestVersion?: components["schemas"]["VersionDto"];
             /** Format: date-time */
             latestVersionDateTime?: string;
@@ -5937,6 +6643,15 @@ export interface components {
             maxJobs?: number;
             /** Format: int32 */
             lockSeconds?: number;
+        };
+        FlowNodeAnalyticsDto: {
+            flowNodeId: string | null;
+            name?: string | null;
+            /** Format: int32 */
+            executionCount: number;
+            /** Format: int32 */
+            waitingTokenCount: number;
+            waitTime?: components["schemas"]["DurationStatisticsDto"];
         };
         /**
          * Format: int32
@@ -6123,12 +6838,21 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["FormVersionSummaryDto"][] | null;
         };
+        HealthReadinessDetailsDto: {
+            storageProvider: string | null;
+            migrationState: string | null;
+            /** Format: int32 */
+            pendingMigrationCount?: number | null;
+            /** Format: int32 */
+            expectedMigrationVersion?: number | null;
+        };
         HealthStatusDto: {
             status: string | null;
             /** Format: date-time */
             checkedAtUtc: string;
             environment: string | null;
             storage: string | null;
+            details?: components["schemas"]["HealthReadinessDetailsDto"];
         };
         HealthStatusDtoApiStatusResult: {
             successful?: boolean;
@@ -6164,6 +6888,54 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["IdentityDirectoryStatusDto"];
         };
+        InboundTriggerDto: {
+            /** Format: uuid */
+            id?: string;
+            key?: string | null;
+            name?: string | null;
+            kind?: components["schemas"]["InboundTriggerKindDto"];
+            definitionId?: string | null;
+            messageName?: string | null;
+            correlationKeyPath?: string | null;
+            variablesMode?: components["schemas"]["InboundTriggerVariablesModeDto"];
+            allowedFields?: string[] | null;
+            enabled?: boolean;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            lastUsedAt?: string | null;
+            /** Format: int64 */
+            useCount?: number;
+            /** Format: date-time */
+            lastFailureAt?: string | null;
+            lastFailureReason?: string | null;
+        };
+        InboundTriggerDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InboundTriggerDto"];
+        };
+        InboundTriggerDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InboundTriggerDto"][] | null;
+        };
+        /** @enum {string} */
+        InboundTriggerKindDto: "start" | "message";
+        InboundTriggerMessageResultDto: {
+            correlated?: boolean;
+        };
+        InboundTriggerSecretDto: {
+            trigger?: components["schemas"]["InboundTriggerDto"];
+            secret?: string | null;
+        };
+        InboundTriggerSecretDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InboundTriggerSecretDto"];
+        };
+        /** @enum {string} */
+        InboundTriggerVariablesModeDto: "fields" | "body";
         InheritedFolderAssignmentDto: {
             referenceMode?: string | null;
             subjectKind: string | null;
@@ -6239,6 +7011,37 @@ export interface components {
             migrated: boolean;
             problems: components["schemas"]["InstanceMigrationFindingDto"][] | null;
         };
+        InstanceRetentionDiagnosticsDto: {
+            enabled: boolean;
+            /** Format: int32 */
+            days?: number | null;
+            /** Format: int32 */
+            pollIntervalMinutes: number;
+            /** Format: int32 */
+            batchSize: number;
+            status: string | null;
+            /** Format: date-time */
+            serviceStartedAtUtc?: string | null;
+            /** Format: date-time */
+            lastRunStartedAtUtc?: string | null;
+            /** Format: date-time */
+            lastRunCompletedAtUtc?: string | null;
+            /** Format: date-time */
+            lastSuccessfulRunAtUtc?: string | null;
+            /** Format: date-time */
+            lastFailedRunAtUtc?: string | null;
+            /** Format: double */
+            lastRunDurationMs?: number | null;
+            /** Format: int32 */
+            lastDeletedInstances?: number;
+            /** Format: int64 */
+            successfulRunCount?: number;
+            /** Format: int64 */
+            failedRunCount?: number;
+            /** Format: int64 */
+            totalDeletedInstances?: number;
+            lastErrorMessage?: string | null;
+        };
         MessageDefinitionDto: {
             name: string | null;
             flowzerId?: string | null;
@@ -6304,6 +7107,7 @@ export interface components {
             environment: string | null;
             storage: components["schemas"]["OperationsStorageSnapshotDto"];
             timerScheduler: components["schemas"]["TimerSchedulerDiagnosticsDto"];
+            retention: components["schemas"]["InstanceRetentionDiagnosticsDto"];
             instrumentation: components["schemas"]["OperationsInstrumentationDto"];
             observability: components["schemas"]["OperationsObservabilityDto"];
         };
@@ -6324,6 +7128,8 @@ export interface components {
             otlpEndpointHint?: string | null;
             otlpProtocol?: string | null;
             otlpHeadersHint?: string | null;
+            prometheusEnabled: boolean;
+            prometheusPath?: string | null;
             serviceName: string | null;
             serviceVersion: string | null;
         };
@@ -6433,6 +7239,103 @@ export interface components {
          * @enum {integer}
          */
         ProcessInstanceStateDto: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+        ProcessPackageCandidateDto: {
+            id: string | null;
+            label: string | null;
+            hint?: string | null;
+        };
+        ProcessPackageConflictDto: {
+            definitionId: string | null;
+            name: string | null;
+            latestVersion?: string | null;
+            mayCreateNewVersion: boolean;
+        };
+        ProcessPackageFindingDto: {
+            code: string | null;
+            message: string | null;
+            elementId?: string | null;
+        };
+        ProcessPackageFormDto: {
+            /** Format: uuid */
+            formId?: string | null;
+            name: string | null;
+            revision?: string | null;
+            formKey: string | null;
+            file: string | null;
+            embedded: boolean;
+        };
+        ProcessPackageImportResultDto: {
+            definitionId: string | null;
+            name: string | null;
+            /** Format: uuid */
+            versionId: string;
+            version: components["schemas"]["VersionDto"];
+            forms: components["schemas"]["ProcessPackageImportedFormDto"][] | null;
+            appliedReferences: components["schemas"]["ProcessPackageReferenceDto"][] | null;
+            notices: components["schemas"]["ProcessPackageFindingDto"][] | null;
+        };
+        ProcessPackageImportResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ProcessPackageImportResultDto"];
+        };
+        ProcessPackageImportedFormDto: {
+            formKey: string | null;
+            name: string | null;
+            /** Format: uuid */
+            formId?: string | null;
+            revision?: string | null;
+            outcome: string | null;
+        };
+        ProcessPackageManifestDto: {
+            format: string | null;
+            /** Format: int32 */
+            formatVersion: number;
+            /** Format: date-time */
+            exportedAt: string;
+            flowzerVersion: string | null;
+            /** Format: int32 */
+            bpmnCapabilitiesContract: number;
+            formsContract: string | null;
+            workflow: components["schemas"]["ProcessPackageWorkflowDto"];
+            forms: components["schemas"]["ProcessPackageFormDto"][] | null;
+            references: components["schemas"]["ProcessPackageReferenceDto"][] | null;
+        };
+        ProcessPackagePreviewDto: {
+            manifest: components["schemas"]["ProcessPackageManifestDto"];
+            deployableHere: boolean;
+            formsContractSupported: boolean;
+            problems: components["schemas"]["ProcessPackageFindingDto"][] | null;
+            notices: components["schemas"]["ProcessPackageFindingDto"][] | null;
+            references: components["schemas"]["ProcessPackageReferenceOptionsDto"][] | null;
+            conflict?: components["schemas"]["ProcessPackageConflictDto"];
+        };
+        ProcessPackagePreviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ProcessPackagePreviewDto"];
+        };
+        ProcessPackageReferenceDto: {
+            id: string | null;
+            kind: string | null;
+            elementId: string | null;
+            elementName?: string | null;
+            label: string | null;
+            requiresMapping: boolean;
+        };
+        ProcessPackageReferenceOptionsDto: {
+            reference: components["schemas"]["ProcessPackageReferenceDto"];
+            candidates: components["schemas"]["ProcessPackageCandidateDto"][] | null;
+            suggestedId?: string | null;
+        };
+        ProcessPackageWorkflowDto: {
+            definitionId: string | null;
+            name: string | null;
+            description?: string | null;
+            version: string | null;
+            processIds: string[] | null;
+            source: string | null;
+        };
         PublishFormAuthoringDraftRequestDto: {
             /** Format: int64 */
             expectedRevision: number;
@@ -6709,6 +7612,15 @@ export interface components {
             allowedTools?: components["schemas"]["AiToolPermissionDto"][] | null;
             secretReference?: string | null;
         };
+        UpdateInboundTriggerRequestDto: {
+            name?: string | null;
+            enabled?: boolean;
+            definitionId?: string | null;
+            messageName?: string | null;
+            correlationKeyPath?: string | null;
+            variablesMode?: components["schemas"]["InboundTriggerVariablesModeDto"];
+            allowedFields?: string[] | null;
+        };
         UserTaskClaimRequestDto: {
             /** Format: int64 */
             expectedRevision: number;
@@ -6788,6 +7700,51 @@ export interface components {
             major?: number;
             /** Format: int32 */
             minor?: number;
+        };
+        WorkflowAnalyticsDetailDto: {
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            summary: components["schemas"]["WorkflowAnalyticsSummaryDto"];
+            /** Format: uuid */
+            definitionId?: string | null;
+            /** Format: uuid */
+            namingDefinitionId?: string | null;
+            nodes: components["schemas"]["FlowNodeAnalyticsDto"][] | null;
+            timeline: components["schemas"]["AnalyticsDayPointDto"][] | null;
+        };
+        WorkflowAnalyticsDetailDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["WorkflowAnalyticsDetailDto"];
+        };
+        WorkflowAnalyticsOverviewDto: {
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            workflows: components["schemas"]["WorkflowAnalyticsSummaryDto"][] | null;
+        };
+        WorkflowAnalyticsOverviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["WorkflowAnalyticsOverviewDto"];
+        };
+        WorkflowAnalyticsSummaryDto: {
+            metaDefinitionId: string | null;
+            name: string | null;
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            runningCount: number;
+            /** Format: int32 */
+            completedCount: number;
+            /** Format: int32 */
+            cancelledCount: number;
+            /** Format: int32 */
+            failedCount: number;
+            cycleTime?: components["schemas"]["DurationStatisticsDto"];
         };
         WorkflowFolderDto: {
             /** Format: uuid */

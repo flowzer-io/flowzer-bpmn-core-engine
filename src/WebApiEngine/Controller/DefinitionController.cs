@@ -378,6 +378,13 @@ public class DefinitionController(
                 DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
         }
 
+        // Eine negative Frist hat keine Bedeutung; 0 heisst ausdruecklich „nie loeschen".
+        if (dto.RetentionDays is < 0)
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                "Die Aufbewahrungsfrist muss 0 (nie loeschen) oder groesser sein."));
+        }
+
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!FolderBusinessLogic.IsKnownTarget(dto.FolderId, permissions.Folders))
         {
@@ -413,6 +420,13 @@ public class DefinitionController(
         {
             return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
                 DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
+        }
+
+        // Eine negative Frist hat keine Bedeutung; 0 heisst ausdruecklich „nie loeschen".
+        if (dto.RetentionDays is < 0)
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                "Die Aufbewahrungsfrist muss 0 (nie loeschen) oder groesser sein."));
         }
 
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);

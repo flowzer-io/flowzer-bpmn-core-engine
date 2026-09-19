@@ -44,10 +44,57 @@ internal sealed class PostgreSqlRuntimeNodeEventStorage(PostgreSqlSession sessio
                 ORDER BY occurred_at, token_id, id
                 """);
             command.Parameters.AddWithValue("processInstanceId", processInstanceId);
-            await using var reader = await command.ExecuteReaderAsync();
-            var result = new List<RuntimeNodeEvent>();
-            while (await reader.ReadAsync()) result.Add(StorageJson.Deserialize<RuntimeNodeEvent>(reader.GetString(0)));
-            return result;
+            return await ReadAllAsync(command);
+        });
+    }
+
+    public Task<IReadOnlyList<RuntimeNodeEvent>> GetByDefinitionIds(
+        IReadOnlyCollection<Guid> definitionIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc)
+    {
+        ArgumentNullException.ThrowIfNull(definitionIds);
+        if (toUtc < fromUtc) throw new ArgumentOutOfRangeException(nameof(toUtc));
+        if (definitionIds.Count == 0) return Task.FromResult<IReadOnlyList<RuntimeNodeEvent>>([]);
+
+        return session.RunAsync<IReadOnlyList<RuntimeNodeEvent>>(async (connection, transaction) =>
+        {
+            // definition_id = ANY(...) statt IN mit erzeugter Parameterliste: Der Plan bleibt
+            // derselbe, egal wie viele Versionen der Katalogeintrag hat, und die Abfrage trifft
+            // den Index (definition_id, occurred_at) aus Migration 018.
+            await using var command = session.CreateCommand(connection, transaction, """
+                SELECT body FROM {schema}.runtime_node_events
+                WHERE definition_id = ANY(@definitionIds)
+                  AND occurred_at >= @fromUtc AND occurred_at < @toUtc
+                ORDER BY occurred_at, token_id, id
+                """);
+            command.Parameters.AddWithValue("definitionIds", definitionIds.Distinct().ToArray());
+            command.Parameters.AddWithValue("fromUtc", fromUtc);
+            command.Parameters.AddWithValue("toUtc", toUtc);
+            return await ReadAllAsync(command);
+        });
+    }
+
+    private static async Task<IReadOnlyList<RuntimeNodeEvent>> ReadAllAsync(Npgsql.NpgsqlCommand command)
+    {
+        await using var reader = await command.ExecuteReaderAsync();
+        var result = new List<RuntimeNodeEvent>();
+        while (await reader.ReadAsync()) result.Add(StorageJson.Deserialize<RuntimeNodeEvent>(reader.GetString(0)));
+        return result;
+    }
+
+    /// <summary>
+    /// Laeuft in der umgebenden Transaktion und nutzt denselben Instanzindex wie das Lesen.
+    /// </summary>
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "DELETE FROM {schema}.runtime_node_events WHERE process_instance_id = @processInstanceId");
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            return await command.ExecuteNonQueryAsync();
         });
     }
 }

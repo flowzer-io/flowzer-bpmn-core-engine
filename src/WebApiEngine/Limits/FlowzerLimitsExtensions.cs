@@ -3,6 +3,7 @@ using System.Net;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
+using WebApiEngine.InboundTriggers;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.Limits;
@@ -29,11 +30,14 @@ public static class FlowzerLimitsExtensions
             return services;
         }
 
+        var inboundTriggers = configuration.GetSection(InboundTriggerOptions.SectionName).Get<InboundTriggerOptions>()
+                              ?? new InboundTriggerOptions();
+
         services.AddRateLimiter(limiter =>
         {
             limiter.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            limiter.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            var byCaller = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 if (IsExempt(context))
                 {
@@ -48,6 +52,29 @@ public static class FlowzerLimitsExtensions
                     QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                 });
             });
+
+            // Zusaetzlich je Ausloeser, verkettet statt ersetzend: Ein Aufruf unter /trigger ist
+            // anonym und faellt sonst mit allen anderen Anonymen in dieselbe Adress-Partition.
+            // Ein einzelner Ausloeser koennte darin das Kontingent aller verbrauchen, und
+            // umgekehrt verdeckte die gemeinsame Partition, welcher Ausloeser haemmert.
+            var byTriggerKey = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            {
+                var key = TriggerKeyOf(context);
+                if (key is null)
+                {
+                    return RateLimitPartition.GetNoLimiter("not-a-trigger");
+                }
+
+                return RateLimitPartition.GetFixedWindowLimiter($"trigger:{key}", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = inboundTriggers.PermitLimit,
+                    Window = TimeSpan.FromSeconds(inboundTriggers.WindowSeconds),
+                    QueueLimit = 0,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                });
+            });
+
+            limiter.GlobalLimiter = PartitionedRateLimiter.CreateChained(byCaller, byTriggerKey);
 
             limiter.OnRejected = async (context, cancellationToken) =>
             {
@@ -124,6 +151,22 @@ public static class FlowzerLimitsExtensions
 
     private static bool IsExempt(HttpContext context) =>
         ExemptPathPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Der Schluessel aus <c>/trigger/{key}</c>, oder <c>null</c> fuer jede andere Anfrage.
+    /// Bewusst aus dem Pfad und nicht aus den Routenwerten: Das Kontingent greift vor der
+    /// Endpunktauswahl, und ein Aufruf soll nicht erst die Routentabelle beschaeftigen duerfen.
+    /// </summary>
+    private static string? TriggerKeyOf(HttpContext context)
+    {
+        if (!context.Request.Path.StartsWithSegments("/trigger", StringComparison.OrdinalIgnoreCase, out var remaining))
+        {
+            return null;
+        }
+
+        var key = remaining.Value?.Trim('/');
+        return string.IsNullOrEmpty(key) || key.Contains('/', StringComparison.Ordinal) ? null : key;
+    }
 
     /// <summary>
     /// Kontingent je angemeldeter Person, sonst je Adresse. Hinter einem Reverse Proxy liefert

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Eine Kette ueber drei Stufen: riskLevel -> riskFactor -> finalPremium.
+     Jede Stufe sieht das Ergebnis der vorigen unter dem Namen ihrer variable. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="requiredDefinitions"
+             name="Praemie"
+             namespace="http://flowzer.maass.it/dmn/required">
+  <decision id="riskLevel" name="Risikostufe">
+    <variable name="riskLevel" typeRef="string"/>
+    <literalExpression id="riskLevelExpression">
+      <text>if applicantAge &lt; 25 then "high" else "low"</text>
+    </literalExpression>
+  </decision>
+  <decision id="riskFactor" name="Risikofaktor">
+    <variable name="riskFactor" typeRef="number"/>
+    <informationRequirement id="riskFactorNeedsRiskLevel">
+      <requiredDecision href="#riskLevel"/>
+    </informationRequirement>
+    <literalExpression id="riskFactorExpression">
+      <text>if riskLevel = "high" then 2 else 1</text>
+    </literalExpression>
+  </decision>
+  <decision id="finalPremium" name="Praemie">
+    <variable name="finalPremium" typeRef="number"/>
+    <informationRequirement id="finalPremiumNeedsRiskFactor">
+      <requiredDecision href="#riskFactor"/>
+    </informationRequirement>
+    <informationRequirement id="finalPremiumNeedsCoverage">
+      <requiredInput href="#coverageInput"/>
+    </informationRequirement>
+    <decisionTable id="finalPremiumTable" hitPolicy="UNIQUE">
+      <input id="finalPremiumFactor">
+        <inputExpression id="finalPremiumFactorExpression" typeRef="number">
+          <text>riskFactor</text>
+        </inputExpression>
+      </input>
+      <output id="finalPremiumOutput" name="premium" typeRef="number"/>
+      <rule id="finalPremiumLow">
+        <inputEntry id="finalPremiumLowFactor"><text>1</text></inputEntry>
+        <outputEntry id="finalPremiumLowOut"><text>100</text></outputEntry>
+      </rule>
+      <rule id="finalPremiumHigh">
+        <inputEntry id="finalPremiumHighFactor"><text>2</text></inputEntry>
+        <outputEntry id="finalPremiumHighOut"><text>250</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <inputData id="coverageInput" name="coverage"/>
+</definitions>

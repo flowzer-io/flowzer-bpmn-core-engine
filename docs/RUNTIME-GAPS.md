@@ -57,8 +57,20 @@ Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
 Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
 solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
 für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
-Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
-Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
+
+**Mehrprozessschutz der Timer ist geschlossen.** Ein Scheduler-Durchgang übernimmt die
+fälligen Start-Timer jetzt exklusiv (`FOR UPDATE SKIP LOCKED` in derselben Transaktion,
+`IMessageSubscriptionStorage.ClaimDueTimerSubscriptions`); vorher überführten zwei API-Prozesse
+dieselbe Fälligkeit in zwei Instanzen. Instanztimer bleiben bewusst ohne Zeilensperre: Sie
+laufen über den Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren
+Zeilensperren nimmt — eine zusätzliche Zeilensperre davor drehte die Sperrreihenfolge um.
+Belegt in `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.Lifecycle.cs`; die
+Betriebsbedingungen stehen unter [Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb).
+Die Dateiablage bleibt Einzelprozess.
+
+Offen aus #93 bleiben die transaktionsweise Isolation einzelner Timer innerhalb eines
+Durchgangs (ein fehlgeschlagener Timer rollt den ganzen Durchgang zurück) und das begrenzte
+Nachholen wiederkehrender Timer.
 
 ## In diesem Strang bereits geschlossen
 
@@ -130,8 +142,14 @@ Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
   Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`. Offen bleibt, einen Auftrag ohne
   verbleibende Versuche erneut freizugeben.
-- Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.
-- Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.
+- ~~Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.~~
+  Erledigt: Fristen werden beim Erreichen der Aufgabe an absolute Zeitpunkte gebunden,
+  überwacht und gemeldet. Siehe `docs/HUMAN-TASK-DEADLINES.md`.
+- ~~Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.~~
+  Erledigt: Modellzuweisung und tatsächliche Bearbeitung (Claim/Release/Assign/Delegate)
+  sind getrennt und werden serverseitig geprüft. Siehe `docs/HUMAN-TASK-LIFECYCLE.md`.
+- Es gibt keine Aufbewahrungsregel: Beendete Instanzen samt Historie, Aufgaben und
+  Aufträgen bleiben unbegrenzt erhalten. Siehe M7 in `docs/PRODUCT-ROADMAP-2026-09.md`.
 
 
 ### 1. Timer-Ausführung und Persistenz

@@ -140,7 +140,10 @@ docker compose -f compose.runtime.yml up -d --wait
 
 ## 5. Prüfen
 
-1. `curl -s https://<flowzer-host>/health/ready` liefert `"Status":"Healthy"`.
+0. `dotnet WebApiEngine.dll --check-config` liefert eine Tabelle ohne Fehlerzeile
+   (Exit-Code 0; 2 bedeutet „startbar, aber Hinweise klären“, 1 „nicht startbereit“).
+1. `curl -s https://<flowzer-host>/health/ready` liefert `"Status":"Healthy"` und unter
+   `details` die konfigurierte Ablage samt `"migrationState":"UpToDate"`.
 2. `curl -s -o /dev/null -w '%{http_code}' https://<flowzer-host>/definition/meta`
    liefert **401**, solange keine Sitzung/Bearer vorhanden ist.
 3. Browser auf `https://<flowzer-host>/` öffnen: Die Konsole leitet über
@@ -162,18 +165,50 @@ docker compose -f compose.runtime.yml up -d --wait
 
 ### Backup und Restore
 
-Bei Dateiablage täglich Storage **und** den Data-Protection-Keyring sichern:
+Zwei Skripte decken beide Ablagen ab. Sie schreiben nach `./backups` (anpassbar über
+`FLOWZER_BACKUP_DIR` oder `--out`) und nehmen Zugangsdaten **nur** über die Umgebung
+entgegen: `STORAGE_MIGRATION_CONNECTION_STRING`, ersatzweise `STORAGE_CONNECTION_STRING`,
+oder `--connection`. In der Prozessliste des Hosts steht dadurch nie ein Passwort; intern
+werden `PGPASSWORD`/`PGHOST`/`PGUSER` gesetzt, alternativ greift `~/.pgpass`. Fehlen
+`pg_dump`/`pg_restore`/`psql` lokal, laufen sie in einem Wegwerf-Container
+(`FLOWZER_PG_IMAGE`, Standard `postgres:17-alpine`; bei einer Datenbank im Compose-Netz
+zusätzlich `FLOWZER_PG_DOCKER_NETWORK`).
+
+**Sichern** – Stack vorher stoppen oder zumindest ohne Schreiblast fahren:
 
 ```bash
-tar -czf flowzer-runtime-backup-$(date +%F).tgz \
-  .data/runtime-storage .data/runtime-data-protection
+./scripts/runtime/stop-runtime-stack.sh
+export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Port=5432;Database=…;Username=…;Password=…'
+./scripts/runtime/backup.sh --schema flowzer
 ```
 
-Für Restore Stack stoppen, beide Verzeichnisse konsistent zurückspielen und erst dann
-starten. Eine Wiederherstellung ohne Keyring invalidiert Sessions und OIDC-
-Korrelationen; das ist sicherer als Schlüssel neu zu erzeugen, aber im Runbook als
-beabsichtigter Logout zu behandeln. PostgreSQL-Backups folgen dem Datenbankbetrieb;
-der Keyring bleibt trotzdem ein separates Volume.
+Das erzeugt `backups/<zeitstempel>.dump` (`pg_dump -Fc`, nur das Flowzer-Schema, ohne
+Eigentümer- und Rechtezuweisungen), eine `<zeitstempel>.meta` mit Host, Schema und
+Migrationsstand und – sofern vorhanden – `backups/<zeitstempel>-files.tgz` mit
+`.data/runtime-storage` **und** `.data/runtime-data-protection`. Der Keyring gehört
+zwingend in dieselbe Sicherung: Ohne ihn verlieren nach einem Restore alle BFF-Sitzungen,
+OIDC-Korrelationen und Antiforgery-Token ihre Gültigkeit. Wer nur die Dateiablage
+betreibt, ruft `--files-only` auf; wer nur die Datenbank sichert, `--no-files`.
+
+**Zurückspielen** – ausschließlich in eine leere Datenbank:
+
+```bash
+./scripts/runtime/restore.sh backups/20260919T043206Z.dump --schema flowzer \
+  --files backups/20260919T043206Z-files.tgz
+```
+
+Das Skript bricht ab, wenn das Zielschema bereits Tabellen enthält; `--force` verwirft es
+vorher bewusst per `DROP SCHEMA … CASCADE`. Nach dem Einspielen meldet es die Zahl der
+wiederhergestellten Tabellen und den Migrationsstand aus `<schema>.schema_migrations`.
+Stammt die Sicherung von einem älteren Stand, fehlen Migrationen; sie werden dann mit
+`dotnet WebApiEngine.dll --migrate` nachgezogen und mit `--check-config` bestätigt.
+
+**Aufbewahrung.** Die Skripte legen nur ab und löschen nichts. Wie lange Sicherungen liegen
+bleiben, entscheidet die Aufbewahrungsregel der Installation (#325). Wichtig dabei: Eine
+Sicherung, die **vor** Ablauf einer Aufbewahrungsfrist entstanden ist, enthält die
+inzwischen gelöschten Vorgänge weiterhin. Sicherungen unterliegen deshalb derselben Frist
+wie der Produktivbestand und sind am Ende der Frist zu vernichten; `backups/` ist aus
+demselben Grund über `.gitignore` ausgeschlossen und wird mit `chmod 700` angelegt.
 
 ### Logs und Diagnose
 
@@ -190,11 +225,38 @@ Betrieb Sitzung oder autorisierten Bearer; OpenTelemetry-Export ist über
 
 ### Aktualisieren
 
+Laufende Instanzen überstehen ein Update: Schema-Migrationen sind Vorwärtsmigrationen und
+lassen wartende Aufgaben, Aufträge und Timer stehen. Belegt ist das durch
+`Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations`
+(`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`):
+Instanzen, die auf dem Schemastand 012 mit allen drei Wartezuständen gespeichert wurden,
+laufen nach allen folgenden Migrationen unverändert weiter.
+
+Reihenfolge – **erst Migration, dann Replikate**:
+
 ```bash
+# 1. Sichern (siehe „Backup und Restore“)
+./scripts/runtime/backup.sh --schema flowzer
+
+# 2. Neues Paket bauen
 git pull
 docker compose -f compose.runtime.yml build
+
+# 3. Konfiguration des neuen Stands prüfen, bevor etwas gestartet wird
+dotnet WebApiEngine.dll --check-config
+
+# 4. Migration als eigener, einmaliger Schritt
+dotnet WebApiEngine.dll --migrate
+
+# 5. Erst jetzt die API-Replikate auf das neue Paket heben
 docker compose -f compose.runtime.yml up -d --wait
 ```
+
+`--check-config` meldet vor Schritt 4 „n ausstehend“ und nach Schritt 4 „aktuell“; nach
+Schritt 5 zeigt `GET /health/ready` denselben Stand unter `details.migrationState`. Der
+Migrationsschritt nimmt einen Advisory-Lock, zwei gleichzeitige Läufe kommen sich also
+nicht in die Quere und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt
+das der Dienst `migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`).
 
 Vor einem Update Storage und Keyring sichern. Das Keyring-Volume behalten, damit ein
 Redeploy nicht alle Sitzungen und OIDC-Korrelationen ungültig macht.
@@ -220,9 +282,22 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
   M0-/Produktionsabschluss.
 - Rollen müssen produktiv explizit gesetzt werden; leere Fähigkeitsrollen bleiben
   im bestehenden Vertrag permissiv.
-- Dateiablage und auch PostgreSQL sind noch nicht für Mehrprozessbetrieb freigegeben.
+- Mehrprozessbetrieb ist ausschließlich mit PostgreSQL und unter den Bedingungen in
+  [Betrieb](OPERATIONS.md#mehrprozessbetrieb) freigegeben; die Dateiablage bleibt
+  Einzelprozess.
 - Recovery, Fehler-/Eskalations-/Kompensationssemantik, Alarmierung und vollständige
   Secret-Store-/TLS-Automatisierung bleiben weitere Pakete.
+- Sicherung und Wiederherstellung sind Momentaufnahmen: Es gibt **kein**
+  Point-in-Time-Recovery und keine automatische Aufbewahrungs- oder Löschregel. Beides
+  entscheidet der Datenbankbetrieb der Installation.
+- `backup.sh`/`restore.sh` werden **nicht** von Coolify aufgerufen. Im Produktivbetrieb
+  ist der Aufruf zu planen (Cron/Systemd-Timer) und das Zielverzeichnis vom Host
+  wegzusichern; die Skripte selbst kopieren nichts an einen zweiten Ort.
+- `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Ein DNS-/HEAD-Treffer auf die
+  OIDC-Discovery belegt nicht, dass Client-Secret, Scopes und Audience zusammenpassen. Ein
+  nicht erreichbarer Identity Provider ist deshalb eine Warnung, kein Fehler.
+- Ein Rückwärts-Update (älteres Paket auf neueres Schema) ist nicht vorgesehen; es gibt
+  keine Abwärtsmigrationen. Der Rückweg ist der Restore einer Sicherung.
 
 ## 8. Fehlerbilder
 
