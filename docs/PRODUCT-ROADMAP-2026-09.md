@@ -408,7 +408,8 @@ Ablage bleibt ein Vorteil für die Zielgruppe.
 **Konnektoren und Nachfolge:**
 
 - [ ] Mitgelieferte Worker: HTTP/REST, E-Mail, eingehender Webhook-Trigger.
-- [ ] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite.
+- [x] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite
+  (`docs/CAMUNDA-7-IMPORT.md`, „BPMN-Datei importieren“ im Workflow-Katalog).
 - [ ] MPL-2.0 vollziehen (SBOM, Meldestelle), damit die Nachfolge-Positionierung trägt.
 
 **Später:** Auswertungen auf der Historie (Durchlaufzeiten, Engpässe), Versionsvergleich im
