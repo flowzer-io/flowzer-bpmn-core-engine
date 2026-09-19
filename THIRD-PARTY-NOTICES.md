@@ -15,7 +15,7 @@ Drittanbieter-Code und daher ausgenommen.
 
 Ein ⚠️ markiert Pakete, deren Lizenz manuell geprüft werden sollte (nicht ohne
 Weiteres als unproblematisch für eine MPL-2.0-Nutzung eingestuft, unklar oder nicht
-automatisch ermittelbar). Aktuell 6 von 75
+automatisch ermittelbar). Aktuell 7 von 77
 Einträgen.
 
 ## .NET (NuGet)
@@ -27,6 +27,7 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 |---|---|---|---|
 | coverlet.collector | 8.0.1 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | FluentAssertions ⚠️ | 8.9.0 | siehe mitgelieferte Lizenzdatei "LICENSE" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
+| MailKit | 4.18.0 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.11 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Authentication.OpenIdConnect | 10.0.11 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.6 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
@@ -91,6 +92,7 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 | clsx | 2.1.1 | MIT | `src/FlowzerConsole` |
 | cmdk | 1.1.1 | MIT | `src/FlowzerConsole` |
 | date-fns | 4.4.0 | MIT | `src/FlowzerConsole` |
+| dmn-js ⚠️ | 17.10.2 | SEE LICENSE IN LICENSE | `src/FlowzerConsole` |
 | eslint | 9.39.5 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-hooks | 5.2.0 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-refresh | 0.4.26 | MIT | `src/FlowzerConsole` |
