@@ -71,6 +71,9 @@ public partial class PostgreSqlStorageIntegrationTest
             "user_task_notification_reads", "user_task_notifications", "user_task_deadlines",
             "user_task_work_states", "user_task_subscriptions", "user_task_assignment_events",
             "runtime_node_events", "ai_runs", "ai_connection_revisions", "ai_connections",
+            // Die Staende verweisen auf ihren Katalogkopf; der Fremdschluessel steht auf
+            // RESTRICT und verlangt deshalb diese Reihenfolge.
+            "decision_definition_versions", "decision_definitions",
             "timer_subscriptions", "form_section_authoring_drafts", "form_section_versions",
             "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der

@@ -1,5 +1,5 @@
+using core_engine.Dmn;
 using FlowzerDmn.Evaluation;
-using FlowzerDmn.Tests.Feel;
 using FluentAssertions;
 
 namespace FlowzerDmn.Tests;

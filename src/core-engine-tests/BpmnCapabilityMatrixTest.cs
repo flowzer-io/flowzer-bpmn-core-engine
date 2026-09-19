@@ -11,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("7");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("8");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -41,7 +41,7 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("7");
+        exception.ContractVersion.Should().Be("8");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
@@ -522,7 +522,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
         exception.ElementId.Should().Be("Boundary_1");
         exception.PropertyPath.Should().Be("cancelActivity");
-        exception.ContractVersion.Should().Be("7");
+        exception.ContractVersion.Should().Be("8");
     }
 
     // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
@@ -658,7 +658,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.call_activity.process_id_required");
         exception.ElementId.Should().Be("Call_1");
         exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
-        exception.ContractVersion.Should().Be("7");
+        exception.ContractVersion.Should().Be("8");
     }
 
     // Testzweck: Ein FEEL-Ausdruck als Prozesskennung ist in dieser Stufe nicht erlaubt; sonst
@@ -674,6 +674,45 @@ public class BpmnCapabilityMatrixTest
         exception.ElementId.Should().Be("Call_1");
         exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
     }
+
+    // Testzweck: Ein Business-Rule-Task ist ab Vertrag 8 ausfuehrbar — in beiden zulaessigen
+    // Auspraegungen: mit vollstaendiger Entscheidung und als Auftrag an einen Worker.
+    [TestCase("<zeebe:calledDecision decisionId='rabattstufe' resultVariable='ergebnis' />")]
+    [TestCase("<zeebe:taskDefinition type='bonitaet-pruefen' />")]
+    public void ValidateForDeployment_ShouldAcceptBusinessRuleTask(string extension)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(BusinessRuleTask(extension)));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ohne Decision wuesste die Laufzeit nicht, was sie rechnen soll; ohne
+    // Ergebnisvariable koennte niemand das Ergebnis lesen. Beides wird vor der
+    // Veroeffentlichung mit stabilem Code an der betroffenen Eigenschaft abgelehnt.
+    [TestCase("", "bpmn.business_rule_task.decision_required", "extensionElements.calledDecision.decisionId")]
+    [TestCase("<zeebe:calledDecision resultVariable='ergebnis' />", "bpmn.business_rule_task.decision_required", "extensionElements.calledDecision.decisionId")]
+    [TestCase("<zeebe:calledDecision decisionId='  ' resultVariable='ergebnis' />", "bpmn.business_rule_task.decision_required", "extensionElements.calledDecision.decisionId")]
+    [TestCase("<zeebe:calledDecision decisionId='rabattstufe' />", "bpmn.business_rule_task.result_variable_required", "extensionElements.calledDecision.resultVariable")]
+    [TestCase("<zeebe:calledDecision decisionId='rabattstufe' resultVariable='  ' />", "bpmn.business_rule_task.result_variable_required", "extensionElements.calledDecision.resultVariable")]
+    public void ValidateForDeployment_ShouldRejectIncompleteBusinessRuleTask(
+        string extension, string code, string propertyPath)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(BusinessRuleTask(extension)));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be(code);
+        exception.ElementId.Should().Be("BusinessRule_1");
+        exception.PropertyPath.Should().Be(propertyPath);
+        exception.ContractVersion.Should().Be("8");
+    }
+
+    private static string BusinessRuleTask(string extension) => $"""
+        <bpmn:businessRuleTask id="BusinessRule_1">
+          <bpmn:extensionElements>
+            {extension}
+          </bpmn:extensionElements>
+        </bpmn:businessRuleTask>
+        """;
 
     private static string CallActivity(string processId) => $"""
         <bpmn:callActivity id="Call_1">

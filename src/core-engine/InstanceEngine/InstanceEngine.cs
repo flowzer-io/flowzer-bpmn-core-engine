@@ -276,6 +276,8 @@ public partial class InstanceEngine
         { typeof(SubProcess), new ProcessFlowNodeHandler() },
         // Wartet wie ein Service-Task, aber auf eine Kindinstanz statt auf einen Worker.
         { typeof(CallActivity), new CallActivityHandler() },
+        // Wartet auf eine Entscheidung — oder, mit Auftragstyp, wie ein Service-Task auf den Worker.
+        { typeof(BusinessRuleTask), new BusinessRuleTaskHandler() },
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},
         // {typeof(IntermediateThrowEvent), new IntermediateThrowEventHandler()},

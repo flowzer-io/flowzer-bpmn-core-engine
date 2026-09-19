@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/7` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v7.json` und unterscheidet je Elementart. Version 1 bis 6
+`flowzer.bpmn-capabilities/8` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v8.json` und unterscheidet je Elementart. Version 1 bis 7
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -30,12 +30,12 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 7 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 8 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v7
+## Ausführbares Profil v8
 
 Offiziell ausführbar sind:
 
@@ -49,6 +49,7 @@ Offiziell ausführbar sind:
 - Intermediate-Throw-Events ohne Ereignisdefinition (Meilenstein) und mit
   Nachrichtendefinition
 - lokale Aufruf-Aktivitäten (`callActivity`)
+- Business-Rule-Tasks (`businessRuleTask`)
 
 Insbesondere nicht als ausführbar zugesagt sind Script-Tasks,
 Inclusive-/Complex-Gateways, Signal-Throw- und Signal-End-Events sowie Escalation-Pfade und
@@ -97,6 +98,36 @@ gesondert behandeln. Escalation-Ereignisse, Kompensation, Error-Start-Events in
 Event-Subprozessen bleiben offen. Der Gliederungseditor kennt
 Fehlerereignisse so wenig wie die übrigen Ereignisdefinitionen und meldet sie als Blocker,
 statt sie beim Speichern zu verlieren.
+
+## Business-Rule-Task (Vertrag 8)
+
+Version 8 erweitert Version 7 additiv um genau einen Eintrag: `businessRuleTask` ist
+ausführbar. Die älteren Vertragsdateien bleiben unverändert und sagen Business-Rule-Tasks
+weiterhin nicht zu.
+
+Ein Business-Rule-Task hat wie in Camunda 8 **zwei** Arten, und genau eine davon muss am
+Element stehen:
+
+- `zeebe:calledDecision` mit `decisionId` und `resultVariable` — Flowzer wertet die
+  Entscheidung selbst aus, lokal und in derselben Transaktion.
+- `zeebe:taskDefinition` mit `type` — der Task ist ein Auftrag für einen externen Worker und
+  läuft über denselben Weg wie ein Service-Task (`IFlowzerWorkerTask`).
+
+Ist ein Auftragstyp gesetzt, gilt der Worker-Weg. Sonst sind beide Angaben der
+`calledDecision` Pflicht:
+
+- `bpmn.business_rule_task.decision_required` — `zeebe:calledDecision/@decisionId` fehlt oder
+  ist leer.
+- `bpmn.business_rule_task.result_variable_required` — `zeebe:calledDecision/@resultVariable`
+  fehlt oder ist leer. Ohne Namen wüsste der Prozess nicht, wo das Ergebnis steht.
+
+Ob die genannte Entscheidung im Katalog existiert, wird beim Deployment ausdrücklich
+**nicht** geprüft — genau wie beim aufgerufenen Prozess einer Aufruf-Aktivität: Sie darf
+später entstehen, und welche Version gilt, entscheidet der Zeitpunkt des Aufrufs. Eine
+fehlende Entscheidung ist der BPMN-Fehler `DECISION_NOT_FOUND` am Task.
+
+Variablenfluss, Fehlercodes, Katalog und die Grenzen dieser Stufe stehen vollständig in
+[DMN.md](DMN.md).
 
 ## Lokale Aufruf-Aktivität (Vertrag 7)
 

@@ -40,6 +40,42 @@ Weiterhin offen:
 - Kompensation beim Abbruch
 - Rekursion bricht ab Tiefe 10 ab; eine echte Zyklenerkennung gibt es nicht
 
+## Entscheidungen: Business-Rule-Task und DMN-Katalog
+
+Ein Prozess kann jetzt eine Entscheidungstabelle auswerten, statt jede Regel in Gateways zu
+schnitzen. Die vollständige Semantik steht in [DMN.md](DMN.md), der Vertrag in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 8).
+
+Vorhanden:
+
+- `businessRuleTask` ist ausführbar, in beiden Arten: `zeebe:calledDecision` wertet Flowzer
+  selbst aus, `zeebe:taskDefinition` bleibt ein Auftrag für einen externen Worker
+- das Token wartet wie an einem Service-Task; die Engine stellt die Entscheidung bereit, die
+  Geschäftslogik rechnet sie in derselben Transaktion — dasselbe Muster wie bei der
+  Aufruf-Aktivität
+- die produktive FEEL-Brücke liegt in `src/core-engine/Dmn/`; dieselbe FEEL-Auswertung, die
+  Prozessausdrücke rechnet, rechnet auch die Tabelle
+- Entscheidungskatalog mit Versionen über `/decision`, dazu ein Trockenlauf-Endpunkt, der
+  eine Entscheidung durchrechnet, ohne eine Instanz anzufassen
+- `DECISION_NOT_FOUND`, `DECISION_AMBIGUOUS` und `DECISION_EVALUATION_FAILED` sind als
+  BPMN-Fehler am Task fangbar
+- Konsole: Seite „Entscheidungen" mit dmn-js (DRD, Entscheidungstabelle, Literal-Expression),
+  Trockenlauf-Dialog und ein Abschnitt „Entscheidung" am Business-Rule-Task
+
+Weiterhin offen:
+
+- keine Entwürfe im Entscheidungskatalog: Speichern heißt immer neue Version, und die jüngste
+  Version gilt sofort
+- keine Versionsbindung am Task (`versionTag`); es gilt stets die jüngste Version
+- keine Ordner und keine Rechte je Entscheidungsdatei
+- keine DRD-Auswertung über Dateigrenzen hinweg (`import`); `requiredDecision` muss in
+  derselben Datei auflösbar sein
+- kein Import aus Camunda 7 (`camunda:decisionRef`)
+- ohne FEEL-fähigen Ausdrucks-Handler (also ohne V8) ist DMN nicht benutzbar; die Engine
+  läuft weiter, der Zugriff auf die Entscheidung meldet `FlowzerDmnUnavailableException`
+- die offizielle DMN TCK ist weiterhin nicht angebunden
+- Multi-Instance am Business-Rule-Task ist ungeprüft
+
 ## Nachrichten senden: Message-Throw, Message-Ende und Send-Task
 
 Prozesse können einander jetzt etwas mitteilen, statt Nachrichten nur von außen über

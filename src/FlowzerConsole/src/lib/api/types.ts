@@ -656,3 +656,44 @@ export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, '
   /** Leer behaelt die vorhandene Referenz; sie wird nie aus einer Antwort vorbefuellt. */
   secretReference?: string;
 }
+
+/** Eine einzelne Entscheidung innerhalb einer DMN-Datei; `decisionId` ist die DMN-Kennung. */
+export interface DecisionSummary {
+  decisionId: string;
+  name: string;
+}
+
+/** Ein Katalogeintrag: eine deployte DMN-Datei in ihrer jüngsten Version. */
+export interface DecisionDefinition {
+  decisionDefinitionId: string;
+  name: string;
+  version: number;
+  deployedAt: string;
+  deployedBy: string | null;
+  decisions: DecisionSummary[];
+}
+
+/** Wie {@link DecisionDefinition}, zusätzlich mit dem DMN-XML für den Editor. */
+export interface DecisionDefinitionDetail extends DecisionDefinition {
+  xml: string;
+}
+
+/** Ein Eintrag der Versionsliste; das XML holt erst der gezielte Versionsabruf. */
+export interface DecisionDefinitionVersion {
+  version: number;
+  deployedAt: string;
+  deployedBy: string | null;
+  decisions: DecisionSummary[];
+}
+
+/**
+ * Das Ergebnis eines Trockenlaufs. `requiredResults` enthält die Zwischenergebnisse der
+ * Entscheidungen, von denen die ausgewertete Entscheidung abhängt — je Eintrag dieselbe
+ * Auskunft wie für die Hauptentscheidung.
+ */
+export interface DecisionEvaluationResult {
+  decisionId: string;
+  value: unknown;
+  matchedRules: string[];
+  requiredResults: Record<string, { decisionId: string; value: unknown; matchedRules: string[] }>;
+}

@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v7.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v8.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -310,6 +310,9 @@ public static class BpmnCapabilityMatrix
             case "callActivity":
                 ValidateCallActivity(element, elementId);
                 break;
+            case "businessRuleTask":
+                ValidateBusinessRuleTask(element, elementId);
+                break;
             case "userTask" when !HasFormKey(element):
                 throw Failure("bpmn.user_task.form_required", elementId,
                     "extensionElements.formDefinition.formKey",
@@ -361,6 +364,41 @@ public static class BpmnCapabilityMatrix
             throw Failure("bpmn.call_activity.process_id_literal_required", elementId,
                 "extensionElements.calledElement.processId",
                 $"The call activity '{elementId}' requires a literal process id; FEEL expressions are not supported yet.");
+        }
+    }
+
+    /// <summary>
+    /// Ein Business-Rule-Task hat zwei zulaessige Auspraegungen. Traegt er einen Auftragstyp,
+    /// ist er ein gewoehnlicher Auftrag an einen Worker und braucht nichts weiter — die
+    /// Entscheidung faellt dann ausserhalb.
+    ///
+    /// Sonst rechnet die Entscheidungstabelle lokal, und dafuer braucht es beides: die Decision,
+    /// die gerechnet wird, und den Namen, unter dem ihr Ergebnis im Prozess landet. Ohne den
+    /// Namen liefe die Tabelle, aber niemand koennte das Ergebnis lesen.
+    /// </summary>
+    private static void ValidateBusinessRuleTask(XElement element, string elementId)
+    {
+        if (HasTaskDefinitionType(element))
+        {
+            return;
+        }
+
+        var calledDecision = element.Descendants()
+            .FirstOrDefault(descendant => descendant.Name.LocalName == "calledDecision");
+
+        if (string.IsNullOrWhiteSpace(calledDecision?.Attribute("decisionId")?.Value))
+        {
+            throw Failure("bpmn.business_rule_task.decision_required", elementId,
+                "extensionElements.calledDecision.decisionId",
+                $"The business rule task '{elementId}' requires zeebe:calledDecision/@decisionId "
+                + "or zeebe:taskDefinition/@type.");
+        }
+
+        if (string.IsNullOrWhiteSpace(calledDecision.Attribute("resultVariable")?.Value))
+        {
+            throw Failure("bpmn.business_rule_task.result_variable_required", elementId,
+                "extensionElements.calledDecision.resultVariable",
+                $"The business rule task '{elementId}' requires zeebe:calledDecision/@resultVariable.");
         }
     }
 

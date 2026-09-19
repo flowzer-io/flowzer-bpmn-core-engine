@@ -21,6 +21,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms', matches: ['/form-sections'] },
+  { key: 'decisions', label: 'Entscheidungen', icon: 'rule', path: '/decisions' },
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
 ] as const;
@@ -43,6 +44,7 @@ export const PAGE_TITLES: Record<string, string> = {
   workflows: 'Workflows',
   instances: 'Instanzen',
   forms: 'Formulare',
+  decisions: 'Entscheidungen',
   'ai-connections': 'KI-Verbindungen',
   operations: 'Betrieb & Diagnose',
   tasks: 'Meine Aufgaben',

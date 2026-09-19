@@ -46,6 +46,10 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  DecisionDefinition,
+  DecisionDefinitionDetail,
+  DecisionDefinitionVersion,
+  DecisionEvaluationResult,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -542,6 +546,59 @@ export const aiToolsApi = {
     }>>('/ai/tool', { signal });
     return items.map(normalizeAiTool);
   },
+};
+
+/**
+ * Der Entscheidungskatalog (DMN). Eine Entscheidungsdefinition ist eine ganze DMN-Datei; die
+ * `decisionId`, die ein Business-Rule-Task aufruft, steht darin als einzelne Entscheidung.
+ * Speichern legt immer eine neue Version an — deployte Workflows behalten die ihre.
+ */
+export const decisionsApi = {
+  /** `GET /decision` — Katalog, je Eintrag die jüngste Version. */
+  list: (signal?: AbortSignal) => requestStatusResult<DecisionDefinition[]>('/decision', { signal }),
+
+  /** `POST /decision` — legt eine Entscheidungsdefinition aus DMN-XML an. */
+  create: (input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>('/decision', { method: 'POST', body: input }),
+
+  /** `PUT /decision/{id}` — speichert das XML als neue Version. */
+  update: (decisionDefinitionId: string, input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `GET /decision/{id}` — jüngste Version samt XML. */
+  get: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { signal }),
+
+  /** `GET /decision/{id}/versions` */
+  listVersions: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionVersion[]>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions`,
+      { signal },
+    ),
+
+  /** `GET /decision/{id}/versions/{version}` */
+  getVersion: (decisionDefinitionId: string, version: number, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions/${version}`,
+      { signal },
+    ),
+
+  /** `DELETE /decision/{id}` — antwortet mit 409, wenn ein deployter Workflow die Entscheidung benutzt. */
+  remove: (decisionDefinitionId: string) =>
+    requestStatus(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { method: 'DELETE' }),
+
+  /** `POST /decision/{id}/evaluate` — Trockenlauf ohne Instanz und ohne Seiteneffekt. */
+  evaluate: (
+    decisionDefinitionId: string,
+    input: { decisionId: string; variables: Record<string, unknown> },
+  ) =>
+    requestStatusResult<DecisionEvaluationResult>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/evaluate`,
+      { method: 'POST', body: input },
+    ),
 };
 
 export const messagesApi = {

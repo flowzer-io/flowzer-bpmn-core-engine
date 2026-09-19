@@ -247,6 +247,27 @@ public static class ModelParser
                     });
                     break;
 
+                case "businessRuleTask":
+                    // Ein Business-Rule-Task ohne zeebe:calledDecision ist kein Modellfehler:
+                    // Er vergibt dann seine Arbeit ueber zeebe:taskDefinition an einen Worker.
+                    // Deshalb hier kein Single(...) auf die Erweiterung.
+                    var calledDecision = xmlFlowNode.Descendants()
+                        .FirstOrDefault(e => e.Name.LocalName == "calledDecision");
+                    flowElements.Add(new BusinessRuleTask
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        Implementation = ReadTaskDefinitionType(xmlFlowNode),
+                        FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
+                        FlowzerCalledDecisionId = calledDecision?.Attribute("decisionId")?.Value,
+                        FlowzerResultVariable = calledDecision?.Attribute("resultVariable")?.Value,
+                        InputMappings = inputMappings,
+                        OutputMappings = outputMappings,
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
                 case "callActivity":
                     flowElements.Add(new CallActivity
                     {

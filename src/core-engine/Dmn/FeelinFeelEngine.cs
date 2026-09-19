@@ -2,7 +2,7 @@ using System.Dynamic;
 using core_engine.Expression.Feelin;
 using FlowzerDmn.Evaluation;
 
-namespace FlowzerDmn.Tests.Feel;
+namespace core_engine.Dmn;
 
 /// <summary>
 /// Schliesst den FEEL-Handler der Engine (libfeelin ueber ClearScript/V8) an die
@@ -10,9 +10,9 @@ namespace FlowzerDmn.Tests.Feel;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Der Adapter liegt bewusst im Testprojekt. Er zeigt, dass die Bibliothek mit dem
-/// echten FEEL der Engine rechnet; die produktive Bruecke gehoert spaeter ins
-/// core-engine-Paket, zusammen mit dem Business-Rule-Task.
+/// Das ist die produktive Bruecke: Dieselbe V8-Instanz, die Ausdruecke im Prozess rechnet,
+/// rechnet damit auch die Entscheidungstabelle. Ein zweiter FEEL-Kern wuerde sonst genau
+/// dieselben Ausdruecke anders auswerten koennen.
 /// </para>
 /// <para>
 /// <b>Wie der Eingabewert eines Unary-Tests uebergeben wird:</b> libfeelin liest ihn aus
@@ -40,6 +40,18 @@ public sealed class FeelinFeelEngine : IFeelEngine
     public FeelinFeelEngine()
     {
         _handler = new FeelinExpressionHandler();
+    }
+
+    /// <summary>
+    /// Erzeugt den Adapter ueber einem bereits vorhandenen Handler. Das ist der Normalfall in
+    /// der Laufzeit: Die Engine hat ihre V8-Instanz schon; eine zweite waere teuer und koennte
+    /// denselben Ausdruck anders rechnen.
+    /// </summary>
+    /// <param name="handler">Der FEEL-Handler der Engine.</param>
+    public FeelinFeelEngine(FeelinExpressionHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        _handler = handler;
     }
 
     /// <inheritdoc/>

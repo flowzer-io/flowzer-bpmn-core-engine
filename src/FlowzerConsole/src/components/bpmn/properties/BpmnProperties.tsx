@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { Icon } from '@/components/ui/Icon';
-import { useAiConnections, useAiTools, useForms } from '@/lib/api/queries';
+import { useAiConnections, useAiTools, useDecisions, useForms } from '@/lib/api/queries';
 import { nodeTypeIcon, nodeTypeLabel } from '@/lib/bpmnModel';
 import { parseFormKey } from '@/lib/formKey';
 
@@ -10,6 +10,7 @@ import { AssignmentSection } from './AssignmentSection';
 import {
   AiTaskSection,
   CallActivitySection,
+  DecisionSection,
   ErrorSection,
   FlowSection,
   FormSection,
@@ -71,6 +72,9 @@ export function BpmnProperties({
   const properties = editor && selectedId ? editor.read(selectedId) : null;
   const aiConnectionsQuery = useAiConnections({ enabled: properties?.serviceTaskMode === 'ai' });
   const aiToolsQuery = useAiTools({ enabled: properties?.serviceTaskMode === 'ai' });
+  // Der Entscheidungskatalog wird nur geladen, wenn ein Business-Rule-Task ausgewaehlt ist.
+  const decisionsQuery = useDecisions({ enabled: properties?.isBusinessRuleTask === true });
+  const catalogDecisions = (decisionsQuery.data ?? []).flatMap((entry) => entry.decisions);
   const embeddedForms = editor?.listEmbeddedForms() ?? [];
   const formOwners = editor?.listFormOwners() ?? [];
   const storedFormNames = (formsQuery.data ?? []).map((form) => form.name);
@@ -144,6 +148,13 @@ export function BpmnProperties({
           {properties.signalName !== null && <SignalSection {...section} />}
           {properties.error && <ErrorSection {...section} />}
           {properties.calledProcess && <CallActivitySection {...section} />}
+          {properties.isBusinessRuleTask && (
+            <DecisionSection
+              {...section}
+              decisions={catalogDecisions}
+              decisionsUnavailable={decisionsQuery.isError}
+            />
+          )}
           {properties.isScriptTask && <ScriptSection {...section} />}
           {properties.needsJobType && properties.serviceTaskMode !== 'ai' && <JobSection {...section} />}
           {properties.kind === 'serviceTask' && properties.serviceTaskMode === 'ai' && (

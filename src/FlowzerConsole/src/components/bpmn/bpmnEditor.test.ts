@@ -515,6 +515,90 @@ describe('setScriptMode', () => {
   });
 });
 
+describe('setBusinessRuleMode', () => {
+  // Testzweck: Beim Wechsel auf „Entscheidung" verschwindet der Auftragstyp. Bliebe er
+  // stehen, naehme die Engine ihn — sie liest ihn vor der Entscheidung.
+  it('entfernt beim Wechsel zur Entscheidung den Auftrag', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:TaskDefinition', type: 'regel-pruefen' }],
+      } as ModdleElement,
+    });
+
+    editor.setBusinessRuleMode('Element_1', 'decision');
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toBeDefined();
+  });
+
+  // Testzweck: Beim Wechsel auf „Als Auftrag" verschwindet die Entscheidung — sonst haenge
+  // am Element eine Konfiguration, die das Panel nicht mehr zeigt.
+  it('entfernt beim Wechsel zum Auftrag die Entscheidung', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:CalledDecision', decisionId: 'dish', resultVariable: 'gericht' }],
+      } as ModdleElement,
+    });
+
+    editor.setBusinessRuleMode('Element_1', 'job');
+
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toBeUndefined();
+    expect(businessObject.extensionElements).toBeUndefined();
+  });
+
+  // Testzweck: Der Umschalter gilt nur am Business-Rule-Task; an einem Service-Task wuerde
+  // er eine Erweiterung schreiben, die der Parser dort nie liest.
+  it('ruehrt einen Service-Task nicht an', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+
+    editor.setBusinessRuleMode('Element_1', 'decision');
+
+    expect(businessObject.extensionElements).toBeUndefined();
+  });
+});
+
+describe('setCalledDecision', () => {
+  // Testzweck: Teilaenderungen mischen sich mit dem Modellstand; ein Feld, das nur seinen
+  // eigenen Wert schickt, darf das andere nicht loeschen.
+  it('mischt Teilaenderungen mit dem vorhandenen Stand', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:CalledDecision', decisionId: 'dish' }],
+      } as ModdleElement,
+    });
+
+    editor.setCalledDecision('Element_1', { resultVariable: 'gericht' });
+
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toMatchObject({
+      decisionId: 'dish',
+      resultVariable: 'gericht',
+    });
+  });
+
+  // Testzweck: Wer eine Entscheidung auswaehlt, waehlt damit gegen den Auftragstyp — beides
+  // zugleich waere im Modell ein stiller Vorrang des Auftrags.
+  it('entfernt den Auftragstyp, sobald eine Entscheidung gesetzt wird', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:TaskDefinition', type: 'regel-pruefen' }],
+      } as ModdleElement,
+    });
+
+    editor.setCalledDecision('Element_1', { decisionId: 'dish' });
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toMatchObject({ decisionId: 'dish' });
+  });
+});
+
 // Testzweck: Die Angaben zur Mehrfachausfuehrung gehoeren an die Schleife, nicht an das
 // Element. Landeten sie am Element, liefe der Schritt genau einmal.
 describe('setMultiInstance', () => {

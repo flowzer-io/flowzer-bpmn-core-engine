@@ -32,8 +32,11 @@ public partial class PostgreSqlStorageIntegrationTest
             await ApplyMigrationsBeforeFormLibrary(migrationSchema);
             await SeedLegacySectionAndExistingForm(migrationSchema, seed);
 
+            // Der Lauf holt alles nach, was nach 15 dazugekommen ist. Geprueft wird hier nur
+            // der Schritt 15 -> 16; spaetere Migrationen sind nicht Gegenstand dieses Tests
+            // und duerfen ihn nicht mit jeder neuen Datei rot werden lassen.
             (await PostgreSqlMigrator.ApplyAsync(_connectionString, migrationSchema))
-                .Should().Equal(16);
+                .Should().StartWith(16);
 
             using var storage = new PostgreSqlStorage(_dataSource!, migrationSchema);
             (await storage.FormStorage.GetFormMetaData(seed.SectionId)).Name.Should().Be("Adresse");

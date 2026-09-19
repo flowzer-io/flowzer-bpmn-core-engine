@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
-import type { AiConnectionDto, AiToolDto } from '@/lib/api/types';
+import type { AiConnectionDto, AiToolDto, DecisionSummary } from '@/lib/api/types';
 import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from '@/lib/formKey';
 
 import {
@@ -38,6 +38,12 @@ const FORM_SOURCE_OPTIONS = [
 ];
 
 const NEW_EMBEDDED_FORM = '__neu__';
+
+/** Der Business-Rule-Task rechnet selbst oder vergibt einen Auftrag — nie beides. */
+const BUSINESS_RULE_MODE_OPTIONS = [
+  { value: 'decision' as const, label: 'Entscheidung' },
+  { value: 'job' as const, label: 'Als Auftrag' },
+];
 
 const SCRIPT_MODE_OPTIONS = [
   { value: 'script' as const, label: 'Als Skript' },
@@ -318,6 +324,90 @@ export function JobSection({ properties, editor, readOnly }: SectionProps) {
           hint="Wie oft ein fehlgeschlagener Auftrag erneut vergeben wird. Leer bedeutet einmalig."
           onCommit={(value) => editor?.setJob(properties.id, { retries: value })}
         />
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Die Entscheidung, die ein Business-Rule-Task aufruft — oder der Auftrag an einen Worker.
+ *
+ * Beides zugleich gibt es nicht: Die Engine nimmt den Auftragstyp, sobald einer da ist. Der
+ * Umschalter räumt die jeweils andere Erweiterung deshalb ab, sonst hinge am Element eine
+ * Konfiguration, die hier niemand mehr sieht.
+ */
+export function DecisionSection({
+  properties,
+  editor,
+  readOnly,
+  decisions,
+  decisionsUnavailable,
+}: SectionProps & {
+  decisions: readonly DecisionSummary[];
+  decisionsUnavailable: boolean;
+}) {
+  const current = properties.calledDecision ?? { decisionId: '', resultVariable: '' };
+  const isDecision = properties.businessRuleMode === 'decision';
+
+  const options = [
+    { value: '', label: '— keine Entscheidung —' },
+    ...decisions.map((decision) => ({
+      value: decision.decisionId,
+      label: decision.name ? `${decision.name} · ${decision.decisionId}` : decision.decisionId,
+    })),
+  ];
+  // Eine Entscheidung, die der Katalog gerade nicht kennt, darf nicht still aus der Auswahl
+  // fallen — der Schritt sähe sonst unbelegt aus und würde beim nächsten Klick überschrieben.
+  if (current.decisionId && !decisions.some((decision) => decision.decisionId === current.decisionId)) {
+    options.push({ value: current.decisionId, label: `Nicht im Katalog · ${current.decisionId}` });
+  }
+
+  return (
+    <Section
+      icon="rule"
+      title="Entscheidung"
+      hint="Die Engine rechnet die Entscheidungstabelle selbst — oder ein Worker übernimmt den Schritt."
+    >
+      <Segmented
+        options={BUSINESS_RULE_MODE_OPTIONS}
+        value={properties.businessRuleMode}
+        disabled={readOnly}
+        onChange={(mode) => editor?.setBusinessRuleMode(properties.id, mode)}
+        aria-label="Wie der Schritt ausgeführt wird"
+      />
+
+      {isDecision && (
+        <>
+          <SelectRow
+            label="Aufgerufene Entscheidung"
+            value={current.decisionId}
+            options={options}
+            disabled={readOnly || decisionsUnavailable}
+            onChange={(decisionId) => editor?.setCalledDecision(properties.id, { decisionId })}
+          />
+          {decisionsUnavailable && (
+            <Notice tone="warn">Der Entscheidungskatalog konnte nicht geladen werden.</Notice>
+          )}
+          {current.decisionId.trim().length === 0 && !decisionsUnavailable && (
+            <Notice tone="warn">
+              Ohne Entscheidung lässt sich der Workflow nicht veröffentlichen.
+            </Notice>
+          )}
+          <TextRow
+            label="Ergebnisvariable"
+            value={current.resultVariable}
+            disabled={readOnly}
+            placeholder="rabattstufe"
+            monospace
+            hint="Unter diesem Namen steht das Ergebnis der Entscheidung danach im Prozess."
+            onCommit={(resultVariable) => editor?.setCalledDecision(properties.id, { resultVariable })}
+          />
+          {current.resultVariable.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Ergebnisvariable läuft die Tabelle zwar, aber niemand könnte ihr Ergebnis lesen.
+            </Notice>
+          )}
+        </>
       )}
     </Section>
   );

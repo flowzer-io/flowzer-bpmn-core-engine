@@ -55,4 +55,7 @@ public interface IStorageSystem
 
     /// <summary>Dauerhafte, revisions- und leasegeschuetzte KI-Laufzustaende.</summary>
     IAiRunStorage AiRunStorage => UnsupportedAiRunStorage.Instance;
+
+    /// <summary>Versionierte DMN-Entscheidungsdateien samt ihrem Katalog.</summary>
+    IDecisionStorage DecisionStorage => UnsupportedDecisionStorage.Instance;
 }
