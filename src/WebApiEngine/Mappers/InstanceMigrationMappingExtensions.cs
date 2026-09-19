@@ -31,7 +31,12 @@ public static class InstanceMigrationMappingExtensions
                 Migratable = item.Migratable,
                 Problems = [.. item.Problems.Select(ToDto)],
                 Notices = [.. item.Notices.Select(ToDto)]
-            })]
+            })],
+            Mapping = new InstanceMigrationMappingDto
+            {
+                Required = [.. preview.MappingRequired.Select(ToDto)],
+                Targets = [.. preview.MappingTargets.Select(ToDto)]
+            }
         };
     }
 
@@ -58,6 +63,13 @@ public static class InstanceMigrationMappingExtensions
         Code = finding.Code,
         FlowNodeId = finding.FlowNodeId,
         Message = finding.Message
+    };
+
+    private static MigrationFlowNodeDto ToDto(InstanceMigrationFlowNode flowNode) => new()
+    {
+        Id = flowNode.Id,
+        Name = flowNode.Name,
+        Type = flowNode.Type
     };
 
     private static VersionDto? ToDto(Model.Version? version) =>

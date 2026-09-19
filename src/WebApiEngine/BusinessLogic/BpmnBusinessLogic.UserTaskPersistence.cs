@@ -9,8 +9,14 @@ public partial class BpmnBusinessLogic
     /// Aktualisiert wartende Aufgaben nach Tokenidentität statt alle IDs neu zu erzeugen.
     /// Unter der Engine-Sperre und innerhalb der bestehenden Storage-Transaktion aufrufen.
     /// </summary>
+    /// <param name="movedTaskTokenIds">
+    /// Tokens, die der Instanzumzug durch eine Zuordnung von Hand auf einen anderen Knoten
+    /// gesetzt hat. Nur dort ist ein Knotenwechsel unter derselben Tokenkennung beabsichtigt;
+    /// die Aufgabe zieht dann mit, statt als mehrdeutiger Altbestand abgelehnt zu werden.
+    /// </param>
     private async Task SaveUserTasks(IStorageSystem storage, ICatchHandler catchHandler,
-        string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId)
+        string metaDefinitionId, Guid definitionId, string processId, Guid? processInstanceId,
+        IReadOnlySet<Guid>? movedTaskTokenIds = null)
     {
         var active = catchHandler.ActiveUserTasks().ToArray();
         var existing = processInstanceId is { } instanceId
@@ -19,7 +25,8 @@ public partial class BpmnBusinessLogic
 
         // Erst den gesamten Bestand prüfen, bevor eine Aufgabe gelöscht/überschrieben wird.
         // Mehrdeutige Altbestände könnten verschiedene Claims/Entwürfe besitzen; kein Raten.
-        ValidateTaskIdentities(active, existing, metaDefinitionId, definitionId, processId, processInstanceId);
+        ValidateTaskIdentities(active, existing, metaDefinitionId, definitionId, processId, processInstanceId,
+            movedTaskTokenIds);
         var byToken = existing.ToDictionary(task => task.Token.Id);
         var activeIds = active.Select(token => token.Id).ToHashSet();
         foreach (var obsolete in existing.Where(task => !activeIds.Contains(task.Token.Id)))
@@ -84,7 +91,8 @@ public partial class BpmnBusinessLogic
     };
 
     private static void ValidateTaskIdentities(Token[] active, UserTaskSubscription[] existing,
-        string metaDefinitionId, Guid definitionId, string processId, Guid? instanceId)
+        string metaDefinitionId, Guid definitionId, string processId, Guid? instanceId,
+        IReadOnlySet<Guid>? movedTaskTokenIds)
     {
         if (active.Any(token => token.CurrentFlowNode is not UserTask)
             || active.Select(token => token.Id).Distinct().Count() != active.Length
@@ -99,7 +107,8 @@ public partial class BpmnBusinessLogic
         var byToken = existing.ToDictionary(task => task.Token.Id);
         foreach (var token in active)
             if (byToken.TryGetValue(token.Id, out var previous)
-                && (previous.Token.CurrentFlowNode!.Id != token.CurrentFlowNode!.Id
+                && ((previous.Token.CurrentFlowNode!.Id != token.CurrentFlowNode!.Id
+                     && movedTaskTokenIds?.Contains(token.Id) != true)
                     || previous.Token.ProcessInstanceId != token.ProcessInstanceId))
                 throw TaskIdentityConflict();
     }

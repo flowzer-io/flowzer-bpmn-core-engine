@@ -285,7 +285,9 @@ function applyMarkers(
   for (const [elementId, count] of Object.entries(tokenCounts)) {
     try {
       const badge = createTokenBadge(count);
-      overlays.add(elementId, TOKEN_OVERLAY, { position: { top: -11, left: -11 }, html: badge });
+      // Oben rechts, nicht oben links: Dort sitzt bei Aufgaben und Ereignissen das kleine
+      // Typsymbol (Person, Zahnrad, Umschlag), das der Zaehler sonst zur Haelfte verdeckt.
+      overlays.add(elementId, TOKEN_OVERLAY, { position: { top: -11, right: -11 }, html: badge });
     } catch {
       // siehe oben
     }

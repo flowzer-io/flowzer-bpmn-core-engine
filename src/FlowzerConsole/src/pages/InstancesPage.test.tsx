@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -85,6 +85,105 @@ describe('Instanzliste', () => {
 
 const SECOND = 'ffffffff-0000-0000-0000-000000000000';
 const THIRD = '11111111-0000-0000-0000-000000000000';
+const FOURTH = '22222222-0000-0000-0000-000000000000';
+
+describe('Filter nach Workflow und Version', () => {
+  const urlaubAlt = { ...instance, definitionVersion: { major: 1, minor: 0 } };
+  const urlaubNeu = { ...instance, instanceId: SECOND, definitionVersion: { major: 2, minor: 3 } };
+  const urlaubVerwaist = { ...instance, instanceId: THIRD, definitionVersion: null };
+  const reise = {
+    ...instance, instanceId: FOURTH, relatedDefinitionId: 'reise',
+    relatedDefinitionName: 'Reisekostenabrechnung', definitionVersion: { major: 1, minor: 0 },
+  };
+
+  function showList(data: unknown[]) {
+    mocks.instances.mockReturnValue({ data, isPending: false });
+    render(<InstancesPage />);
+    return userEvent.setup();
+  }
+
+  // Testzweck: Im Betrieb laufen Dutzende Workflows nebeneinander. Wer einen davon prüft,
+  // muss die fremden Vorgänge ausblenden können, statt sie zu überlesen.
+  it('zeigt nach der Workflowwahl nur dessen Instanzen', async () => {
+    const user = showList([urlaubAlt, urlaubNeu, reise]);
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'urlaub');
+
+    expect(screen.getByText(/A1B2-C3D/)).toBeInTheDocument();
+    expect(screen.getByText(/FFFF-FFF/)).toBeInTheDocument();
+    expect(screen.queryByText(/2222-222/)).not.toBeInTheDocument();
+  });
+
+  // Testzweck: „v1.0“ bedeutet bei jedem Workflow etwas anderes. Die Versionswahl bleibt
+  // deshalb erkennbar gesperrt, bis ein Workflow feststeht — und nennt die neueste zuerst.
+  it('gibt die Versionen erst mit gewähltem Workflow frei', async () => {
+    const user = showList([urlaubAlt, urlaubNeu, reise]);
+    const versions = screen.getByLabelText('Version');
+    expect(versions).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'urlaub');
+
+    expect(versions).toBeEnabled();
+    expect(within(versions).getAllByRole('option').map((option) => option.textContent))
+      .toEqual(['Alle Versionen', 'v2.3 (1)', 'v1.0 (1)']);
+  });
+
+  // Testzweck: Instanzen, deren Definition gelöscht wurde, hängen im Betrieb fest. Sie
+  // müssen gezielt auffindbar bleiben, statt in der Versionsliste zu fehlen.
+  it('macht Instanzen ohne bekannte Version gezielt wählbar', async () => {
+    const user = showList([urlaubAlt, urlaubVerwaist]);
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'urlaub');
+    await user.selectOptions(screen.getByLabelText('Version'), 'unknown');
+
+    expect(screen.getByText(/1111-111/)).toBeInTheDocument();
+    expect(screen.queryByText(/A1B2-C3D/)).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Eine Version des vorigen Workflows bliebe sonst als unsichtbare
+  // Einschränkung stehen — die Liste wirkte leer, obwohl Instanzen da sind.
+  it('verwirft die Versionswahl beim Wechsel des Workflows', async () => {
+    const user = showList([urlaubAlt, urlaubNeu, reise]);
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'urlaub');
+    await user.selectOptions(screen.getByLabelText('Version'), '2.3');
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'reise');
+
+    expect(screen.getByLabelText('Version')).toHaveValue('all');
+    expect(screen.getByText(/2222-222/)).toBeInTheDocument();
+  });
+
+  // Testzweck: Die Zählmarken der Statusfilter sind ein Versprechen über die Liste. Zählten
+  // sie den Gesamtbestand, widersprächen sie sichtbar dem, was darunter steht.
+  it('zählt die Statusfilter über die übrigen Filter', async () => {
+    const user = showList([
+      urlaubAlt,
+      { ...reise, state: 'Completed', finishedAt: '2026-09-08T11:00:00Z' },
+      { ...urlaubNeu, state: 'Completed', finishedAt: '2026-09-08T11:00:00Z' },
+    ]);
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'urlaub');
+
+    expect(screen.getByRole('tab', { name: 'Alle 2' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Aktiv 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Fertig 1' })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText(/Instanz-ID/), 'A1B2');
+    expect(screen.getByRole('tab', { name: 'Alle 1' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Fertig 0' })).toBeInTheDocument();
+  });
+
+  // Testzweck: Nach einer Filterwahl ändert sich nur die Liste weiter unten. Ohne Ansage
+  // erfährt niemand, der die Seite vorgelesen bekommt, wie viel übrig geblieben ist.
+  it('sagt die Trefferzahl an', async () => {
+    const user = showList([urlaubAlt, urlaubNeu, reise]);
+    expect(screen.getByRole('status')).toHaveTextContent('3 von 3 Instanzen');
+
+    await user.selectOptions(screen.getByLabelText('Workflow'), 'reise');
+
+    expect(screen.getByRole('status')).toHaveTextContent('1 von 3 Instanzen');
+  });
+});
 
 describe('Auswahl für die Migration', () => {
   // Testzweck: Migrieren darf nur der Betrieb und nur laufende Instanzen. Wo die API
@@ -150,7 +249,9 @@ describe('Auswahl für die Migration', () => {
 
     await user.click(screen.getAllByRole('checkbox')[1]!);
     await user.click(screen.getByRole('button', { name: 'Migrieren …' }));
-    expect(mocks.migrationPreview).toHaveBeenCalledWith([SECOND]);
+    // Nur die geprüften Kennungen zählen hier; welche Zuordnung der Assistent mitführt,
+    // ist Sache seiner eigenen Tests.
+    expect(mocks.migrationPreview.mock.calls.at(-1)?.[0]).toEqual([SECOND]);
   });
 
   // Testzweck: Endet eine ausgewählte Instanz, während die Liste offen ist, verliert sie ihr

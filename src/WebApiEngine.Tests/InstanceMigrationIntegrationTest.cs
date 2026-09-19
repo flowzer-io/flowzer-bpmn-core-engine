@@ -161,6 +161,48 @@ public sealed class InstanceMigrationIntegrationTest
             new { item.FlowNodeId, item.State, item.OccurredAtUtc });
     }
 
+    // Testzweck: Nach einer Zuordnung von Hand steht das Token auf dem neuen Knoten. Der alte
+    // blieb im Laufzeitdiagramm als „aktiv" stehen, weil beim Umzug kein Abschluss auf ihm
+    // festgehalten wird — die Betriebsansicht zeigte zwei aktive Schritte, obwohl es einen gibt.
+    [Test]
+    public async Task Migration_ShouldNotLeaveTheMappedSourceNodeActiveInTheRuntimeDiagram()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var provider = new FileSystemTransactionalStorageProvider();
+        var engine = context.Services.GetRequiredService<BpmnBusinessLogic>();
+        await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(1, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.FirstForm, withApprove: false));
+        var instance = await InstanceMigrationScenarios.StartAsync(engine, "left");
+
+        var target = await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(2, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.FirstForm, withApprove: false,
+                reviewNodeId: InstanceMigrationScenarios.RenamedReviewNodeId));
+
+        using var client = context.CreateClient(isOperator: true);
+        using var migrated = await client.PostAsJsonAsync("/instance/migration",
+            new InstanceMigrationRequestDto
+            {
+                InstanceIds = [instance.InstanceId],
+                TargetDefinitionId = target.Id,
+                FlowNodeMapping = new Dictionary<string, string>
+                {
+                    ["Review"] = InstanceMigrationScenarios.RenamedReviewNodeId
+                }
+            });
+        migrated.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var diagram = (await client.GetFromJsonAsync<ApiStatusResult<RuntimeDiagramDto>>(
+            $"/instance/{instance.InstanceId}/runtime-diagram"))!.Result!;
+
+        diagram.Nodes.Should().ContainSingle(node => node.Status == RuntimeNodeStatusDto.Active)
+            .Which.FlowNodeId.Should().Be(InstanceMigrationScenarios.RenamedReviewNodeId);
+        // Der verlassene Knoten bleibt als durchlaufener Teil des Weges sichtbar.
+        diagram.Nodes.Should().Contain(node =>
+            node.FlowNodeId == "Review" && node.Status == RuntimeNodeStatusDto.Completed);
+    }
+
     // Testzweck: Bleibt die Formularbindung gleich, ist der private Entwurf danach unveraendert
     // lesbar — die Bindungspruefung des Entwurfs darf nicht in einen 500 laufen.
     [Test]
@@ -198,6 +240,150 @@ public sealed class InstanceMigrationIntegrationTest
         var payload = (await draft.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("result");
         payload.GetProperty("revision").GetInt64().Should().Be(1);
         payload.GetProperty("data").GetProperty("answer").GetString().Should().Be("halb fertig");
+    }
+
+    // Testzweck: Der Weg der Zuordnung ueber HTTP — der Trockenlauf nennt den offenen Knoten und
+    // die Auswahl der Zielversion, mit der Antwort zieht die Instanz um, die uebernommene
+    // Aufgabe behaelt Kennung und Uebernahme, ihr Formular kommt aus der Zielversion, und der
+    // Abschluss laeuft auf deren Weg weiter.
+    [Test]
+    public async Task Migration_ShouldAskForAMappingAndLiftTheInstanceWithIt()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var provider = new FileSystemTransactionalStorageProvider();
+        var engine = context.Services.GetRequiredService<BpmnBusinessLogic>();
+        await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(1, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.FirstForm, withApprove: false));
+        var instance = await InstanceMigrationScenarios.StartAsync(engine, "left");
+        var review = (await InstanceMigrationScenarios.TasksAsync(provider, instance.InstanceId)).Single();
+
+        using var client = context.CreateClient(isOperator: true);
+        using var claimed = await client.PostAsJsonAsync(
+            $"/usertask/{review.Id}/claim", new UserTaskClaimRequestDto { ExpectedRevision = 0 });
+        claimed.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Die Zielversion kennt "Review" nicht mehr; der gleichwertige Knoten heisst anders,
+        // bindet ein anderes Formular und fuehrt zu einer Aufgabe, die es nur dort gibt.
+        var target = await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(2, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.SecondForm, withApprove: true,
+                reviewNodeId: InstanceMigrationScenarios.RenamedReviewNodeId),
+            additionalForms: [InstanceMigrationScenarios.SecondForm]);
+
+        using var openResponse = await client.PostAsJsonAsync("/instance/migration/preview",
+            new InstanceMigrationPreviewRequestDto { InstanceIds = [instance.InstanceId] });
+        openResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Einmal lesen, zweimal auswerten: als roher Vertrag und als Gegenstueck der Konsole.
+        var openPayload = await openResponse.Content.ReadAsStringAsync();
+        var openBody = JsonSerializer.Deserialize<JsonElement>(openPayload);
+
+        // Die Konsole liest genau diese Form; sie ist Teil des Vertrags und nicht nur der
+        // Zufall des Serialisierers.
+        var mappingJson = openBody.GetProperty("result").GetProperty("mapping");
+        var requiredJson = mappingJson.GetProperty("required").EnumerateArray().Should().ContainSingle().Subject;
+        requiredJson.GetProperty("id").GetString().Should().Be("Review");
+        requiredJson.GetProperty("name").GetString().Should().Be("Review");
+        requiredJson.GetProperty("type").GetString().Should().Be("UserTask");
+        var targetsJson = mappingJson.GetProperty("targets").EnumerateArray().ToArray();
+        targetsJson.Select(node => node.GetProperty("id").GetString())
+            .Should().Contain(InstanceMigrationScenarios.RenamedReviewNodeId);
+
+        // Ein Knoten ohne Namen laesst das Feld weg, wie jede andere leere Angabe dieser API.
+        var unnamed = targetsJson.Single(node => node.GetProperty("id").GetString() == "Split");
+        unnamed.TryGetProperty("name", out _).Should().BeFalse();
+        unnamed.GetProperty("type").GetString().Should().Be("ExclusiveGateway");
+
+        var open = JsonSerializer.Deserialize<ApiStatusResult<InstanceMigrationPreviewDto>>(
+            openPayload, JsonSerializerOptions.Web)!.Result!;
+        open.Instances.Should().ContainSingle().Which.Migratable.Should().BeFalse();
+        open.Mapping.Targets.Should().Contain(node =>
+            node.Id == InstanceMigrationScenarios.RenamedReviewNodeId && node.Type == "UserTask");
+
+        var mapping = new Dictionary<string, string>
+        {
+            ["Review"] = InstanceMigrationScenarios.RenamedReviewNodeId
+        };
+        using var mappedResponse = await client.PostAsJsonAsync("/instance/migration/preview",
+            new InstanceMigrationPreviewRequestDto
+            {
+                InstanceIds = [instance.InstanceId], FlowNodeMapping = mapping
+            });
+        mappedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var mapped = (await mappedResponse.Content
+            .ReadFromJsonAsync<ApiStatusResult<InstanceMigrationPreviewDto>>())!.Result!;
+        mapped.Instances.Should().ContainSingle().Which.Migratable.Should().BeTrue();
+        mapped.Mapping.Required.Should().BeEmpty();
+
+        using var migrateResponse = await client.PostAsJsonAsync("/instance/migration",
+            new InstanceMigrationRequestDto
+            {
+                InstanceIds = [instance.InstanceId], TargetDefinitionId = target.Id, FlowNodeMapping = mapping
+            });
+        migrateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await migrateResponse.Content.ReadFromJsonAsync<ApiStatusResult<InstanceMigrationResultDto>>())!
+            .Result!.Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+
+        var task = (await client.GetFromJsonAsync<ApiStatusResult<ExtendedUserTaskSubscriptionDto>>(
+            $"/usertask/{review.Id}"))!.Result!;
+        task.Id.Should().Be(review.Id);
+        task.DefinitionVersion.Should().Be(new VersionDto(2, 0));
+        task.WorkState.Claimed.Should().BeTrue("the mapping moves the task, it does not release it");
+
+        var form = (await client.GetFromJsonAsync<ApiStatusResult<FormDto>>(
+            $"/usertask/{review.Id}/form"))!.Result!;
+        form.FormData.Should().Contain("other", "the form is resolved from the target version");
+
+        var data = new ExpandoObject();
+        ((IDictionary<string, object?>)data)["other"] = "fertig";
+        using var completed = await client.PostAsJsonAsync("/usertask", new UserTaskResultDto
+        {
+            ProcessInstanceId = instance.InstanceId, TokenId = review.Token.Id,
+            FlowNodeId = InstanceMigrationScenarios.RenamedReviewNodeId, Data = data
+        });
+        completed.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await InstanceMigrationScenarios.TasksAsync(provider, instance.InstanceId))
+            .Should().ContainSingle().Which.Token.CurrentFlowNode!.Id.Should().Be("Approve");
+    }
+
+    // Testzweck: Eine unbrauchbare Zuordnung wird abgelehnt, bevor irgendetwas geprueft oder
+    // veraendert wird — auf beiden Wegen und mit demselben Statuscode wie jede andere
+    // unbrauchbare Angabe.
+    [TestCase("/instance/migration/preview", "empty-key")]
+    [TestCase("/instance/migration/preview", "blank-target")]
+    [TestCase("/instance/migration/preview", "too-many")]
+    [TestCase("/instance/migration", "empty-key")]
+    [TestCase("/instance/migration", "too-many")]
+    public async Task Migration_ShouldReturnUnprocessableEntity_ForAMalformedMapping(string route, string kind)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var provider = new FileSystemTransactionalStorageProvider();
+        var engine = context.Services.GetRequiredService<BpmnBusinessLogic>();
+        await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(1, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.FirstForm, withApprove: false));
+        var instance = await InstanceMigrationScenarios.StartAsync(engine, "left");
+        var target = await InstanceMigrationScenarios.DeployAsync(
+            provider, engine, new Model.Version(2, 0),
+            InstanceMigrationScenarios.Xml(InstanceMigrationScenarios.FirstForm, withApprove: true));
+
+        var mapping = kind switch
+        {
+            "empty-key" => new Dictionary<string, string> { [" "] = "Review" },
+            "blank-target" => new Dictionary<string, string> { ["Review"] = "  " },
+            _ => Enumerable.Range(0, 201).ToDictionary(index => $"Node_{index}", _ => "Review")
+        };
+
+        using var client = context.CreateClient(isOperator: true);
+        using var response = await client.PostAsJsonAsync(route, new InstanceMigrationRequestDto
+        {
+            InstanceIds = [instance.InstanceId], TargetDefinitionId = target.Id, FlowNodeMapping = mapping
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        (await InstanceMigrationScenarios.InstanceAsync(provider, instance.InstanceId))
+            .Migrations.Should().BeEmpty();
     }
 
     // Testzweck: Nennt der Aufrufer eine inzwischen ueberholte Zielversion, ist das ein

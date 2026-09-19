@@ -328,6 +328,211 @@ public class InstanceMigrationTest
                 && problem.FlowNodeId == "UserTask_Review");
     }
 
+    // Testzweck: Prüft den Kern der Handzuordnung: Ein wartender Knoten, den es in der
+    // Zielversion nicht mehr gibt, wird auf seinen umbenannten Nachfolger geführt, und die
+    // Instanz läuft danach wirklich auf dem Pfad der Zielversion weiter.
+    [Test]
+    public async Task MigratesMappedFlowNodeOntoRenamedTarget()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReviewMapping_v2.bpmn");
+
+        var waitingToken = instance.GetActiveUserTasks().Single();
+        var sourceTokens = instance.Tokens.ToArray();
+        var startTime = waitingToken.StartTime;
+        var lastStateChangeTime = waitingToken.LastStateChangeTime;
+
+        var plan = InstanceMigration.Plan(
+            sourceTokens,
+            targetProcess,
+            new Dictionary<string, string> { ["UserTask_Review"] = "UserTask_ReviewNew" });
+
+        using (new AssertionScope())
+        {
+            plan.Problems.Should().BeEmpty();
+            plan.IsMigratable.Should().BeTrue();
+            plan.FlowNodeIdsNeedingMapping.Should().BeEmpty();
+            plan.TargetFlowNodeOf(waitingToken.Id).Id.Should().Be("UserTask_ReviewNew");
+        }
+
+        var migratedTokens = InstanceMigration.Apply(plan, Helper.TestFlowzerConfig);
+
+        var migratedWaitingToken = migratedTokens.Single(token => token.Id == waitingToken.Id);
+        using (new AssertionScope())
+        {
+            migratedTokens.Select(token => token.Id).Should().Equal(sourceTokens.Select(token => token.Id));
+            migratedTokens.Single(token => token.ParentTokenId == null)
+                .Variables.GetValue<string>("Antragsteller").Should().Be("Lukas");
+            migratedWaitingToken.State.Should().Be(FlowNodeState.Active);
+            migratedWaitingToken.StartTime.Should().Be(startTime);
+            migratedWaitingToken.LastStateChangeTime.Should().Be(lastStateChangeTime);
+            migratedWaitingToken.Variables.Should().BeSameAs(waitingToken.Variables);
+            migratedWaitingToken.CurrentFlowNode!.Id.Should().Be("UserTask_ReviewNew");
+            migratedWaitingToken.CurrentFlowNode.Should().BeOfType<UserTask>()
+                .Which.Implementation.Should().Be("review-form-v2");
+
+            // Die Eingabe bleibt unangetastet, damit ein abgelehnter Umzug nichts hinterlässt.
+            waitingToken.CurrentFlowNode!.Id.Should().Be("UserTask_Review");
+        }
+
+        var migratedInstance = new InstanceEngine(migratedTokens, Helper.TestFlowzerConfig);
+        migratedInstance.HandleTaskResult(waitingToken.Id, new ExpandoObject());
+
+        // Der eigentliche Zweck der Zuordnung: Die Instanz läuft ab dem zugeordneten Knoten auf
+        // den Sequenzflüssen der Zielversion weiter.
+        migratedInstance.GetActiveUserTasks().Single().CurrentFlowNode!.Id.Should().Be("UserTask_Approve");
+    }
+
+    // Testzweck: Prüft, dass der Plan der Oberfläche genau die Knoten nennt, für die sie eine
+    // Zuordnung erfragen muss — und sie nach der Zuordnung nicht mehr nennt.
+    [Test]
+    public async Task ListsFlowNodesNeedingMappingUntilTheyAreMapped()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReviewMapping_v2.bpmn");
+
+        var withoutMapping = InstanceMigration.Plan(instance.Tokens, targetProcess);
+        var withMapping = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["UserTask_Review"] = "UserTask_ReviewNew" });
+
+        using (new AssertionScope())
+        {
+            withoutMapping.FlowNodeIdsNeedingMapping.Should().Equal("UserTask_Review");
+            withoutMapping.Problems.Should().ContainSingle()
+                .Which.Code.Should().Be(InstanceMigrationProblemCode.FlowNodeMissing);
+            withMapping.FlowNodeIdsNeedingMapping.Should().BeEmpty();
+        }
+    }
+
+    // Testzweck: Prüft, dass eine Zuordnung auf einen Knoten, den die Zielversion nicht kennt,
+    // als eigener Befund erscheint — die Oberfläche muss die Zuordnung korrigieren lassen,
+    // statt den Knoten erneut als unzugeordnet auszuweisen.
+    [Test]
+    public async Task ReportsMissingMappingTarget()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReviewMapping_v2.bpmn");
+
+        var plan = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["UserTask_Review"] = "UserTask_Ghost" });
+
+        using (new AssertionScope())
+        {
+            plan.IsMigratable.Should().BeFalse();
+            var problem = plan.Problems.Should().ContainSingle().Subject;
+            problem.Code.Should().Be(InstanceMigrationProblemCode.MappingTargetMissing);
+            problem.FlowNodeId.Should().Be("UserTask_Review");
+            problem.Message.Should().Contain("UserTask_Review").And.Contain("UserTask_Ghost");
+            plan.FlowNodeIdsNeedingMapping.Should().BeEmpty();
+        }
+    }
+
+    // Testzweck: Prüft die Produktentscheidung, dass eine Zuordnung den Elementtyp nicht
+    // wechseln darf: Eine Aufgabe auf ein Gateway zu schieben ergäbe einen Zustand, den das
+    // Zielmodell nicht kennt.
+    [Test]
+    public async Task ReportsChangedFlowNodeTypeForMappedTarget()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReviewMapping_v2.bpmn");
+
+        var plan = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["UserTask_Review"] = "Gateway_Decide" });
+
+        using (new AssertionScope())
+        {
+            plan.IsMigratable.Should().BeFalse();
+            var problem = plan.Problems.Should().ContainSingle().Subject;
+            problem.Code.Should().Be(InstanceMigrationProblemCode.FlowNodeTypeChanged);
+            problem.FlowNodeId.Should().Be("UserTask_Review");
+            problem.Message.Should().Contain("Gateway_Decide");
+        }
+    }
+
+    // Testzweck: Prüft, dass eine Zuordnung, an der nichts wartet, folgenlos bleibt. Die
+    // Oberfläche schickt die Zuordnung für alle Instanzen der Anfrage; eine Instanz, die den
+    // Knoten schon hinter sich hat, darf daran nicht scheitern.
+    [Test]
+    public async Task IgnoresMappingEntriesWithoutWaitingToken()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReview_v2.bpmn");
+
+        var plan = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string>
+            {
+                ["StartEvent_1"] = "UserTask_Approve",
+                ["UserTask_Vanished"] = "UserTask_Ghost"
+            });
+
+        using (new AssertionScope())
+        {
+            plan.Problems.Should().BeEmpty();
+            plan.FlowNodeIdsNeedingMapping.Should().BeEmpty();
+            plan.TargetFlowNodeOf(instance.GetActiveUserTasks().Single().Id).Id.Should().Be("UserTask_Review");
+        }
+    }
+
+    // Testzweck: Prüft, dass die Prüfungen des Ziels wirklich am zugeordneten Knoten hängen:
+    // Ein zugeordneter Service-Task mit anderem Auftragstyp trüge einen bereits eingereihten
+    // Auftrag mit falschem Typ weiter.
+    [Test]
+    public async Task ReportsChangedServiceTaskTypeForMappedTarget()
+    {
+        var instance = await Helper.StartFirstProcessOfFile("MigrationService_v1.bpmn");
+        var targetProcess = await LoadProcess("MigrationServiceRenamed_v2.bpmn");
+
+        var ontoOtherType = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["ServiceTask_Fetch"] = "ServiceTask_Enrich" });
+        var ontoSameType = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["ServiceTask_Fetch"] = "ServiceTask_FetchRenamed" });
+
+        using (new AssertionScope())
+        {
+            var problem = ontoOtherType.Problems.Should().ContainSingle().Subject;
+            problem.Code.Should().Be(InstanceMigrationProblemCode.ServiceTaskTypeChanged);
+            problem.FlowNodeId.Should().Be("ServiceTask_Fetch");
+            ontoSameType.Problems.Should().BeEmpty();
+            ontoSameType.TargetFlowNodeOf(ontoSameType.WaitingTokens.Single().Id)
+                .Id.Should().Be("ServiceTask_FetchRenamed");
+        }
+    }
+
+    // Testzweck: Prüft, dass der umgezogene Token die Boundary-Events des zugeordneten Knotens
+    // trägt — sonst liefe die Instanz nach der Zuordnung ohne ihre Fristen weiter.
+    [Test]
+    public async Task MigratedTokenPicksUpBoundaryEventOfMappedTarget()
+    {
+        var instance = await StartReviewInstance();
+        var targetProcess = await LoadProcess("MigrationReviewMappingBoundary_v2.bpmn");
+        var waitingToken = instance.GetActiveUserTasks().Single();
+
+        var plan = InstanceMigration.Plan(
+            instance.Tokens,
+            targetProcess,
+            new Dictionary<string, string> { ["UserTask_Review"] = "UserTask_ReviewNew" });
+        plan.IsMigratable.Should().BeTrue();
+
+        var migratedTokens = InstanceMigration.Apply(plan, Helper.TestFlowzerConfig);
+
+        migratedTokens.Single(token => token.Id == waitingToken.Id).ActiveBoundaryEvents
+            .Should().ContainSingle()
+            .Which.Should().BeOfType<FlowzerBoundaryTimerEvent>()
+            .Which.Id.Should().Be("BoundaryTimer_ReviewNew");
+    }
+
     private static Token WithState(Token token, FlowNodeState state) =>
         new()
         {

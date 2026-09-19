@@ -111,3 +111,49 @@ describe('Eingriffe in laufende Instanzen', () => {
     expect(queryClient.getQueryState(previewKey)?.isInvalidated).toBe(false);
   });
 });
+
+describe('Schlüssel der Migrationsvorschau', () => {
+  // Testzweck: Eine andere Zuordnung ist eine andere Prüfung. Stünde sie nicht im Schlüssel,
+  // beantwortete der Cache sie mit dem Ergebnis der vorigen Zuordnung — der Betrieb sähe
+  // seine gerade getroffene Wahl nicht wirken.
+  it('trennt Vorschauen nach ihrer Zuordnung', () => {
+    const ohne = queryKeys.instanceMigrationPreview(['instance-1']);
+
+    expect(queryKeys.instanceMigrationPreview(['instance-1'], { Review: 'Freigabe' })).not.toEqual(ohne);
+    expect(queryKeys.instanceMigrationPreview(['instance-1'], { Review: 'Freigabe' })).not.toEqual(
+      queryKeys.instanceMigrationPreview(['instance-1'], { Review: 'Abnahme' }),
+    );
+  });
+
+  // Testzweck: Dieselbe Zuordnung ist dieselbe Prüfung. Hinge der Schlüssel an der
+  // Reihenfolge der Einträge, liefe bei jedem Rendern eine neue Anfrage.
+  it('bleibt von der Reihenfolge der Kennungen und Zuordnungen unberührt', () => {
+    expect(
+      queryKeys.instanceMigrationPreview(['instance-2', 'instance-1'], { B: 'y', A: 'x' }),
+    ).toEqual(queryKeys.instanceMigrationPreview(['instance-1', 'instance-2'], { A: 'x', B: 'y' }));
+  });
+
+  // Testzweck: Wer seine letzte Wahl wieder leert, steht beim Stand des ersten Öffnens.
+  // Beides muss derselbe Schlüssel sein, sonst prüft dieselbe Frage zweimal.
+  it('hält eine leere Zuordnung für keine Zuordnung', () => {
+    expect(queryKeys.instanceMigrationPreview(['instance-1'], {})).toEqual(
+      queryKeys.instanceMigrationPreview(['instance-1']),
+    );
+  });
+
+  // Testzweck: Die Zuordnung entscheidet, welche Instanzen überhaupt migrieren. Käme sie
+  // nicht am Endpunkt an, bliebe genau die Instanz zurück, für die sie gesetzt wurde.
+  it('reicht die Zuordnung an die Migration weiter', async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useMigrateInstances(), { wrapper });
+
+    result.current.mutate({
+      instanceIds: ['instance-1'],
+      targetDefinitionId: 'definition-2',
+      flowNodeMapping: { Review: 'Freigabe' },
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mocks.migrate).toHaveBeenCalledWith(['instance-1'], 'definition-2', { Review: 'Freigabe' });
+  });
+});

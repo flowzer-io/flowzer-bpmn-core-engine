@@ -1,5 +1,9 @@
 import { instanceBucket } from '@/lib/api/normalize';
-import type { InstanceMigrationFindingDto, ProcessInstanceInfoDto } from '@/lib/api/types';
+import type {
+  InstanceMigrationFindingDto,
+  MigrationFlowNodeDto,
+  ProcessInstanceInfoDto,
+} from '@/lib/api/types';
 
 /**
  * Regeln des Migrationsassistenten, die ohne React auskommen.
@@ -43,6 +47,70 @@ export function migrationSelectionProblem(selection: MigrationSelectionCandidate
   return null;
 }
 
+/** „3 Instanzen“, „1 Instanz“ — die Einzahl gehört zum deutschen Text dazu. */
+export function instanceCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'Instanz' : 'Instanzen'}`;
+}
+
+/** Eine Zeile des Zuordnungsblocks: Quellknoten und das gewählte Ziel (leer = keines). */
+export interface MigrationMappingChoice {
+  source: MigrationFlowNodeDto;
+  targetId: string;
+}
+
+/** Der Name des Knotens, sonst seine Id — nicht jedes Modell benennt jeden Knoten. */
+export function flowNodeLabel(node: MigrationFlowNodeDto): string {
+  return node.name?.trim() ? node.name.trim() : node.id;
+}
+
+/**
+ * Die Zeilen des Zuordnungsblocks aus offenen Forderungen und bereits getroffener Wahl.
+ *
+ * Die Vorschau nennt nur noch die Knoten **ohne** Ziel. Ein zugeordneter Knoten fiele damit
+ * aus der Liste und ließe sich nicht mehr ändern — deshalb stehen die getroffenen Wahlen
+ * gleichberechtigt daneben. Beide Quellen können denselben Knoten nennen; er bleibt eine
+ * Zeile, und die Reihenfolge hängt am Namen, damit keine Zeile beim Wählen springt.
+ */
+export function migrationMappingRows(
+  required: MigrationFlowNodeDto[],
+  choices: MigrationMappingChoice[],
+): MigrationMappingChoice[] {
+  const rows = new Map<string, MigrationMappingChoice>();
+  for (const source of required) rows.set(source.id, { source, targetId: '' });
+  for (const choice of choices) rows.set(choice.source.id, choice);
+
+  return [...rows.values()].sort((left, right) =>
+    flowNodeLabel(left.source).localeCompare(flowNodeLabel(right.source), 'de'),
+  );
+}
+
+/**
+ * Die wählbaren Ziele einer Zeile: nur Knoten derselben Elementart.
+ *
+ * Eine Aufgabe auf ein Gateway zu schieben ergäbe einen Zustand, den das Zielmodell nicht
+ * kennt. Ein bereits gewähltes Ziel bleibt in der Liste, auch wenn die Zielversion es
+ * inzwischen nicht mehr kennt — sonst zeigte die Auswahl „nicht zuordnen“ an, während die
+ * Anfrage weiter das fehlende Ziel trägt.
+ */
+export function migrationTargetOptions(
+  targets: MigrationFlowNodeDto[],
+  choice: MigrationMappingChoice,
+): MigrationFlowNodeDto[] {
+  const options = targets.filter((target) => target.type === choice.source.type);
+  if (!choice.targetId || options.some((target) => target.id === choice.targetId)) return options;
+
+  return [...options, { id: choice.targetId, name: null, type: choice.source.type }];
+}
+
+/** Die Zuordnung für die API — leere Wahlen sind keine Zuordnung und bleiben draußen. */
+export function migrationFlowNodeMapping(
+  choices: MigrationMappingChoice[],
+): Record<string, string> {
+  return Object.fromEntries(
+    choices.filter((choice) => choice.targetId).map((choice) => [choice.source.id, choice.targetId]),
+  );
+}
+
 /** Ein benannter Schritt in Anführungszeichen, sonst eine neutrale Umschreibung. */
 function step(flowNodeId: string | null | undefined, fallback: string): string {
   return flowNodeId ? `„${flowNodeId}“` : fallback;
@@ -71,6 +139,10 @@ const FINDING_TEXT: Record<string, (flowNodeId: string | null | undefined) => st
   BoundaryEventAlreadyTriggered: (node) =>
     `An ${step(node, 'einem Schritt')} hat bereits ein angeheftetes Ereignis (z. B. ein Timer) ausgelöst; die Migration würde es erneut scharf schalten.`,
   AlreadyOnTargetVersion: () => 'Die Instanz läuft bereits auf der Zielversion.',
+  // Der Befund nennt den wartenden Schritt, nicht das fehlende Ziel: Nur so findet der
+  // Betrieb die Zeile wieder, in der er zuordnen muss.
+  MappingTargetMissing: (node) =>
+    `Das Ziel, das dem Schritt ${step(node, 'dieser Instanz')} zugeordnet wurde, gibt es in der deployten Version nicht. Ordne ihn erneut zu.`,
   MigrationFailed: () =>
     'Die Migration ist an einem unerwarteten Fehler gescheitert. Die Instanz ist unverändert; Einzelheiten stehen im Protokoll der API.',
   TargetVersionChanged: () =>
