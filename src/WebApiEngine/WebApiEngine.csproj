@@ -14,6 +14,13 @@
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.18.0" />
+        <!--
+          Den Prometheus-Exporter gibt es bei OpenTelemetry .NET bis heute ausschliesslich als
+          Vorabpaket; eine stabile Fassung ist nicht erschienen. 1.18.0-beta.1 stammt aus
+          derselben Freigabe wie die uebrigen OpenTelemetry-Pakete hier und verlangt
+          OpenTelemetry [1.18.0, 2.0.0) — es passt also exakt auf den vorhandenen Stand.
+        -->
+        <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.18.0-beta.1" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
     </ItemGroup>
 

@@ -67,6 +67,12 @@ public class OperationsObservabilityDto
     public string? OtlpEndpointHint { get; set; }
     public string? OtlpProtocol { get; set; }
     public string? OtlpHeadersHint { get; set; }
+
+    // Der Scrape-Endpunkt ist anonym. Der Betrieb muss deshalb auf einen Blick sehen, ob er
+    // ueberhaupt offen ist und unter welchem Pfad — sonst prueft niemand, ob das Gateway ihn
+    // versehentlich nach aussen durchreicht.
+    public required bool PrometheusEnabled { get; set; }
+    public string? PrometheusPath { get; set; }
     public required string ServiceName { get; set; }
     public required string ServiceVersion { get; set; }
 }

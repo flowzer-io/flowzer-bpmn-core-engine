@@ -48,6 +48,11 @@ services:
       # und Clientadresse fuer OIDC, Secure-Cookies und Rate-Limits uebernommen.
       ForwardedHeaders__KnownNetworks__0: ${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}
       ForwardedHeaders__ForwardLimit: ${FLOWZER_FORWARDED_HEADER_LIMIT:-3}
+      # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
+      # seinen Port nicht auf dem Host, und das Konsolen-Gateway leitet /metrics bewusst nicht
+      # weiter: Abgeholt wird ausschliesslich aus diesem Compose-Netz unter api:8080.
+      Observability__Prometheus__Enabled: ${FLOWZER_METRICS_ENABLED:-false}
+      Observability__Prometheus__Path: ${FLOWZER_METRICS_PATH:-/metrics}
     volumes:
       - ./.data/runtime-storage:/data/flowzer-storage
       # Session-, OIDC-Korrelations- und Antiforgery-Cookies muessen einen Container-

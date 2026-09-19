@@ -9133,6 +9133,7 @@
           "consoleExporterEnabled",
           "enabled",
           "otlpExporterEnabled",
+          "prometheusEnabled",
           "serviceName",
           "serviceVersion"
         ],
@@ -9156,6 +9157,13 @@
             "nullable": true
           },
           "otlpHeadersHint": {
+            "type": "string",
+            "nullable": true
+          },
+          "prometheusEnabled": {
+            "type": "boolean"
+          },
+          "prometheusPath": {
             "type": "string",
             "nullable": true
           },

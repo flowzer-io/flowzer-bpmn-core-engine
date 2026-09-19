@@ -57,6 +57,11 @@ services:
       Ai__AllowLocalEndpoints: "${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}"
       Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
       AiExecution__Enabled: "${FLOWZER_AI_EXECUTION_ENABLED:-false}"
+      # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
+      # keinen Port, und das Konsolen-Gateway leitet /metrics nicht weiter: Abgeholt wird nur
+      # aus diesem Compose-Netz unter api:8080.
+      Observability__Prometheus__Enabled: "${FLOWZER_METRICS_ENABLED:-false}"
+      Observability__Prometheus__Path: "${FLOWZER_METRICS_PATH:-/metrics}"
       # Der vertrauliche Client-Schluessel ist ein Coolify-Secret und wird ausnahmslos
       # im API-Container verwendet. Der Konsolen-Container erhaelt ihn nicht.
       # Leere Werte bleiben nur fuer den expliziten JwtBearer-Modus erlaubt. Im BFF-Modus
