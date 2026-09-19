@@ -1,4 +1,12 @@
-import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
+import {
+  request,
+  requestFile,
+  requestOptionalStatusResult,
+  requestStatus,
+  requestStatusResult,
+  requestUpload,
+} from './client';
+import type { DownloadedFile } from './client';
 import { normalizeInstance } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
@@ -45,9 +53,40 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  ProcessPackageMappingDto,
+  ProcessPackagePreviewDto,
+  ProcessPackageImportResultDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
+
+/**
+ * Prozesspakete: ein Workflow samt Formularen als eine Datei.
+ *
+ * Ein Paket enthält nie Secrets, Instanzen oder Personenkennungen; was nur in der
+ * Quellinstallation gilt, steht als Platzhalter im Modell und wird beim Import zugeordnet.
+ */
+export const processPackagesApi = {
+  /** `GET /definition/meta/{id}/package` — Download; dieselbe Rolle wie Workflow lesen. */
+  export: (definitionId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    requestFile(`/definition/meta/${encodeURIComponent(definitionId)}/package`, { signal }),
+
+  /** `POST /definition/package/preview` — liest das Paket, ohne etwas anzulegen. */
+  preview: (file: File) =>
+    requestUpload<ProcessPackagePreviewDto>('/definition/package/preview', {
+      field: 'package',
+      value: file,
+      fileName: file.name,
+    }),
+
+  /** `POST /definition/package/import` — legt Workflow und Formulare an, deployt aber nicht. */
+  import: (file: File, mapping: ProcessPackageMappingDto) =>
+    requestUpload<ProcessPackageImportResultDto>(
+      '/definition/package/import',
+      { field: 'package', value: file, fileName: file.name },
+      { mapping: JSON.stringify(mapping) },
+    ),
+};
 
 export const definitionsApi = {
   /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */

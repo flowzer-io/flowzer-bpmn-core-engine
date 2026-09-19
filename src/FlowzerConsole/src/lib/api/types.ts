@@ -636,3 +636,124 @@ export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, '
   /** Leer behaelt die vorhandene Referenz; sie wird nie aus einer Antwort vorbefuellt. */
   secretReference?: string;
 }
+
+/* ------------------------------------------------------------------ Prozesspakete */
+
+/**
+ * Die Arten installationsgebundener Bezüge eines Pakets. `directoryUser`, `directoryGroup`
+ * und `aiConnection` müssen beim Import zugeordnet werden; die übrigen sind Hinweise
+ * darauf, was die Zielinstallation bereitstellen muss.
+ */
+export type ProcessPackageReferenceKind =
+  | 'directoryUser'
+  | 'directoryGroup'
+  | 'aiConnection'
+  | 'jobType'
+  | 'secret'
+  | 'calledProcess'
+  | 'calledDecision';
+
+export interface ProcessPackageWorkflowDto {
+  definitionId: string;
+  name: string;
+  description?: string | null;
+  version: string;
+  processIds: string[];
+  /** `deployed` oder `draft` — ein Entwurf hat keine unveränderlichen Formularbindungen. */
+  source: 'deployed' | 'draft';
+}
+
+export interface ProcessPackageFormDto {
+  formId?: string | null;
+  name: string;
+  revision?: string | null;
+  formKey: string;
+  file: string;
+  /** Ein Formular aus dem Diagramm; es reist im BPMN mit. */
+  embedded: boolean;
+}
+
+export interface ProcessPackageReferenceDto {
+  id: string;
+  kind: ProcessPackageReferenceKind;
+  elementId: string;
+  elementName?: string | null;
+  /** Anzeigename oder technischer Name — niemals eine Personenkennung, nie ein Secret-Wert. */
+  label: string;
+  requiresMapping: boolean;
+}
+
+export interface ProcessPackageManifestDto {
+  format: string;
+  formatVersion: number;
+  exportedAt: string;
+  flowzerVersion: string;
+  bpmnCapabilitiesContract: number;
+  formsContract: string;
+  workflow: ProcessPackageWorkflowDto;
+  forms: ProcessPackageFormDto[];
+  references: ProcessPackageReferenceDto[];
+}
+
+export interface ProcessPackageCandidateDto {
+  id: string;
+  label: string;
+  hint?: string | null;
+}
+
+export interface ProcessPackageReferenceOptionsDto {
+  reference: ProcessPackageReferenceDto;
+  candidates: ProcessPackageCandidateDto[];
+  /** Ein gleichnamiger Eintrag dieser Installation; vorbelegt, aber nie still angewandt. */
+  suggestedId?: string | null;
+}
+
+export interface ProcessPackageFindingDto {
+  code: string;
+  message: string;
+  elementId?: string | null;
+}
+
+export interface ProcessPackageConflictDto {
+  definitionId: string;
+  name: string;
+  latestVersion?: string | null;
+  mayCreateNewVersion: boolean;
+}
+
+export interface ProcessPackagePreviewDto {
+  manifest: ProcessPackageManifestDto;
+  deployableHere: boolean;
+  formsContractSupported: boolean;
+  problems: ProcessPackageFindingDto[];
+  notices: ProcessPackageFindingDto[];
+  references: ProcessPackageReferenceOptionsDto[];
+  conflict?: ProcessPackageConflictDto | null;
+}
+
+/** Zielentscheidung und Zuordnungen, mit denen importiert wird. */
+export interface ProcessPackageMappingDto {
+  mode: 'new' | 'newVersionOf';
+  definitionId?: string | null;
+  folderId?: string | null;
+  name?: string | null;
+  references?: Record<string, string>;
+}
+
+export interface ProcessPackageImportedFormDto {
+  formKey: string;
+  name: string;
+  formId?: string | null;
+  revision?: string | null;
+  outcome: 'created' | 'reused' | 'revised' | 'embedded';
+}
+
+export interface ProcessPackageImportResultDto {
+  definitionId: string;
+  name: string;
+  versionId: string;
+  version: VersionDto;
+  forms: ProcessPackageImportedFormDto[];
+  appliedReferences: ProcessPackageReferenceDto[];
+  notices: ProcessPackageFindingDto[];
+}

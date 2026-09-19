@@ -205,6 +205,17 @@ persistenten Aktionsjournal und parametergebundenen Freigaben bewusst gesperrt.
 Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 [docs/AI-TASKS.md](docs/AI-TASKS.md).
 
+## Prozesspakete
+
+Ein Workflow lässt sich als **ein Paket** herunterladen und in eine andere Installation
+tragen — Vorlagen weitergeben, Test nach Produktion, Partner. Das Paket
+(`flowzer.process-package/1`) enthält das BPMN der exportierten Fassung, die daran
+gebundenen Formulare und ein Manifest. Es enthält **niemals** Secrets, Instanzen, Aufgaben,
+Historie oder Personenkennungen: Verzeichniszuweisungen und KI-Verbindungen stehen nur mit
+ihrem Anzeigenamen im Manifest und als Platzhalter im Modell. Beim Import werden sie
+ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
+[docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md).
+
 ## Release und Deployment
 
 `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
@@ -225,6 +236,7 @@ Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md) – Prozesspakete: Format, Import-Semantik, Zuordnungen und was nie mitreist
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen

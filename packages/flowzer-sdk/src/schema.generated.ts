@@ -4879,6 +4879,209 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/definition/meta/{id}/package": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/zip": string;
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/definition/package/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        package?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackagePreviewDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/definition/package/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "multipart/form-data": {
+                        /** Format: binary */
+                        package?: string;
+                        mapping?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessPackageImportResultDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Timer": {
         parameters: {
             query?: never;
@@ -6378,6 +6581,103 @@ export interface components {
          * @enum {integer}
          */
         ProcessInstanceStateDto: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+        ProcessPackageCandidateDto: {
+            id: string | null;
+            label: string | null;
+            hint?: string | null;
+        };
+        ProcessPackageConflictDto: {
+            definitionId: string | null;
+            name: string | null;
+            latestVersion?: string | null;
+            mayCreateNewVersion: boolean;
+        };
+        ProcessPackageFindingDto: {
+            code: string | null;
+            message: string | null;
+            elementId?: string | null;
+        };
+        ProcessPackageFormDto: {
+            /** Format: uuid */
+            formId?: string | null;
+            name: string | null;
+            revision?: string | null;
+            formKey: string | null;
+            file: string | null;
+            embedded: boolean;
+        };
+        ProcessPackageImportResultDto: {
+            definitionId: string | null;
+            name: string | null;
+            /** Format: uuid */
+            versionId: string;
+            version: components["schemas"]["VersionDto"];
+            forms: components["schemas"]["ProcessPackageImportedFormDto"][] | null;
+            appliedReferences: components["schemas"]["ProcessPackageReferenceDto"][] | null;
+            notices: components["schemas"]["ProcessPackageFindingDto"][] | null;
+        };
+        ProcessPackageImportResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ProcessPackageImportResultDto"];
+        };
+        ProcessPackageImportedFormDto: {
+            formKey: string | null;
+            name: string | null;
+            /** Format: uuid */
+            formId?: string | null;
+            revision?: string | null;
+            outcome: string | null;
+        };
+        ProcessPackageManifestDto: {
+            format: string | null;
+            /** Format: int32 */
+            formatVersion: number;
+            /** Format: date-time */
+            exportedAt: string;
+            flowzerVersion: string | null;
+            /** Format: int32 */
+            bpmnCapabilitiesContract: number;
+            formsContract: string | null;
+            workflow: components["schemas"]["ProcessPackageWorkflowDto"];
+            forms: components["schemas"]["ProcessPackageFormDto"][] | null;
+            references: components["schemas"]["ProcessPackageReferenceDto"][] | null;
+        };
+        ProcessPackagePreviewDto: {
+            manifest: components["schemas"]["ProcessPackageManifestDto"];
+            deployableHere: boolean;
+            formsContractSupported: boolean;
+            problems: components["schemas"]["ProcessPackageFindingDto"][] | null;
+            notices: components["schemas"]["ProcessPackageFindingDto"][] | null;
+            references: components["schemas"]["ProcessPackageReferenceOptionsDto"][] | null;
+            conflict?: components["schemas"]["ProcessPackageConflictDto"];
+        };
+        ProcessPackagePreviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ProcessPackagePreviewDto"];
+        };
+        ProcessPackageReferenceDto: {
+            id: string | null;
+            kind: string | null;
+            elementId: string | null;
+            elementName?: string | null;
+            label: string | null;
+            requiresMapping: boolean;
+        };
+        ProcessPackageReferenceOptionsDto: {
+            reference: components["schemas"]["ProcessPackageReferenceDto"];
+            candidates: components["schemas"]["ProcessPackageCandidateDto"][] | null;
+            suggestedId?: string | null;
+        };
+        ProcessPackageWorkflowDto: {
+            definitionId: string | null;
+            name: string | null;
+            description?: string | null;
+            version: string | null;
+            processIds: string[] | null;
+            source: string | null;
+        };
         PublishFormAuthoringDraftRequestDto: {
             /** Format: int64 */
             expectedRevision: number;
