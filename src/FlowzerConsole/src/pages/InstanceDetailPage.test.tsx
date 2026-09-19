@@ -442,3 +442,4 @@ describe('Eltern- und Kindbezug einer Call Activity', () => {
     expect(screen.queryByRole('button', { name: /Aufgerufen von/ })).not.toBeInTheDocument();
   });
 });
+});
