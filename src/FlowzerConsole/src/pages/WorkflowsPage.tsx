@@ -19,6 +19,7 @@ import { ImportPackageDialog } from '@/components/workflows/ImportPackageDialog'
 import { MoveWorkflowDialog } from '@/components/workflows/MoveWorkflowDialog';
 import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
 import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { WorkflowRetentionDialog } from '@/components/workflows/WorkflowRetentionDialog';
 import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useCreateDefinition,
@@ -30,6 +31,7 @@ import {
   useFolders,
   useInstances,
   useMoveDefinition,
+  useUpdateDefinitionMeta,
   useUpdateFolder,
   useUpdateFolderAssignments,
 } from '@/lib/api/queries';
@@ -97,6 +99,7 @@ export function WorkflowsPage() {
   const createDefinition = useCreateDefinition();
   const deleteDefinition = useDeleteDefinition();
   const moveDefinition = useMoveDefinition();
+  const updateDefinitionMeta = useUpdateDefinitionMeta();
   const startWorkflow = useStartWorkflow();
   const exportPackage = useExportPackage();
   const createFolder = useCreateFolder();
@@ -116,6 +119,7 @@ export function WorkflowsPage() {
   const [pendingDelete, setPendingDelete] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
   const [pendingFolderDelete, setPendingFolderDelete] = useState<WorkflowFolderDto | null>(null);
   const [moving, setMoving] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
+  const [retentionFor, setRetentionFor] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
 
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
 
@@ -536,6 +540,20 @@ export function WorkflowsPage() {
                       {mayEditThis && (
                         <Button
                           size="sm"
+                          icon="schedule"
+                          title={`Aufbewahrung für „${definition.name}" festlegen`}
+                          className="w-[38px] px-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRetentionFor(definition);
+                          }}
+                        >
+                          <span className="sr-only">Aufbewahrung für {definition.name} festlegen</span>
+                        </Button>
+                      )}
+                      {mayEditThis && (
+                        <Button
+                          size="sm"
                           variant="danger"
                           icon="delete"
                           title={`„${definition.name}" löschen`}
@@ -681,6 +699,39 @@ export function WorkflowsPage() {
         onSubmit={(folderId) => {
           if (!moving) return;
           moveWorkflow(moving.definitionId, folderId, moving.name);
+        }}
+      />
+
+      <WorkflowRetentionDialog
+        open={retentionFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setRetentionFor(null);
+        }}
+        workflowName={retentionFor?.name ?? ''}
+        retentionDays={retentionFor?.retentionDays ?? null}
+        busy={updateDefinitionMeta.isPending}
+        onSubmit={(retentionDays) => {
+          if (!retentionFor) return;
+          // Name und Beschreibung werden unveraendert mitgeschickt: PUT /definition/meta
+          // ersetzt den Katalogeintrag, ein Weglassen loeschte sie.
+          updateDefinitionMeta.mutate(
+            {
+              definitionId: retentionFor.definitionId,
+              name: retentionFor.name,
+              description: retentionFor.description ?? null,
+              retentionDays,
+            },
+            {
+              onSuccess: () => {
+                setRetentionFor(null);
+                toast.success('Aufbewahrung gespeichert');
+              },
+              onError: (error) =>
+                toast.error('Aufbewahrung konnte nicht gespeichert werden', {
+                  description: error instanceof Error ? error.message : undefined,
+                }),
+            },
+          );
         }}
       />
 

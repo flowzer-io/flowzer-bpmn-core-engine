@@ -225,6 +225,12 @@ export interface BpmnMetaDefinitionDto {
    * `PUT /definition/meta/{id}/folder`.
    */
   folderId?: string | null;
+  /**
+   * Aufbewahrungsfrist beendeter Instanzen dieses Workflows in Tagen. `null` übernimmt den
+   * installationsweiten Wert, `0` heißt ausdrücklich „nie löschen". Wird beim Anlegen und
+   * beim Ändern der Metadaten ausgewertet.
+   */
+  retentionDays?: number | null;
 }
 
 /** Art einer Ordnerzuweisung. Entspricht den Zeichenketten aus `FolderMappingExtensions`. */
@@ -547,6 +553,30 @@ export interface TimerSchedulerDiagnosticsDto {
   lastErrorMessage?: string | null;
 }
 
+/**
+ * Entspricht `InstanceRetentionDiagnosticsDto`. Enthält bewusst keine Instanzkennungen:
+ * Der Betrieb sieht, dass und wie viel gelöscht wurde, nicht wessen Vorgang.
+ */
+export interface InstanceRetentionDiagnosticsDto {
+  enabled: boolean;
+  /** Installationsweite Frist in Tagen; `null`, solange keine gesetzt ist. */
+  days?: number | null;
+  pollIntervalMinutes: number;
+  batchSize: number;
+  status: string;
+  serviceStartedAtUtc?: string | null;
+  lastRunStartedAtUtc?: string | null;
+  lastRunCompletedAtUtc?: string | null;
+  lastSuccessfulRunAtUtc?: string | null;
+  lastFailedRunAtUtc?: string | null;
+  lastRunDurationMs?: number | null;
+  lastDeletedInstances: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  totalDeletedInstances: number;
+  lastErrorMessage?: string | null;
+}
+
 /** Entspricht `OperationsInstrumentationDto`. */
 export interface OperationsInstrumentationDto {
   meterName: string;
@@ -562,6 +592,9 @@ export interface OperationsObservabilityDto {
   otlpEndpointHint?: string | null;
   otlpProtocol?: string | null;
   otlpHeadersHint?: string | null;
+  /** Der Scrape-Endpunkt ist anonym und darf nur im Containernetz erreichbar sein. */
+  prometheusEnabled: boolean;
+  prometheusPath?: string | null;
   serviceName: string;
   serviceVersion: string;
 }
@@ -572,8 +605,75 @@ export interface OperationsDiagnosticsDto {
   environment: string;
   storage: OperationsStorageSnapshotDto;
   timerScheduler: TimerSchedulerDiagnosticsDto;
+  retention: InstanceRetentionDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
+}
+
+/** Zeitraumgrenzen einer Auswertung; beide Angaben sind freiwillig (Server-Standard: 30 Tage). */
+export interface AnalyticsRangeQuery {
+  from?: string;
+  to?: string;
+}
+
+/** Streuungsmaße einer gemessenen Dauer — alle Werte in Sekunden. */
+export interface DurationStatisticsDto {
+  sampleCount: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  meanSeconds: number;
+  maxSeconds: number;
+}
+
+/** Ein Workflow des Zeitraums, aufgeschlüsselt nach Ausgang der Instanzen. */
+export interface WorkflowAnalyticsSummaryDto {
+  metaDefinitionId: string;
+  name: string;
+  totalCount: number;
+  runningCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  failedCount: number;
+  /** null, solange keine Instanz des Zeitraums abgeschlossen ist. */
+  cycleTime: DurationStatisticsDto | null;
+}
+
+/** Antwort von `GET /operations/analytics/workflows`. */
+export interface WorkflowAnalyticsOverviewDto {
+  fromUtc: string;
+  toUtc: string;
+  workflows: WorkflowAnalyticsSummaryDto[];
+}
+
+/** Ein Schritt der Definition mit seiner Wartezeit und den aktuell wartenden Token. */
+export interface FlowNodeAnalyticsDto {
+  flowNodeId: string;
+  name: string | null;
+  executionCount: number;
+  waitingTokenCount: number;
+  /** null, wenn im Zeitraum kein Durchlauf vollständig beobachtet wurde. */
+  waitTime: DurationStatisticsDto | null;
+}
+
+/** Ein Tag der Zeitreihe; `day` ist ein reines Datum („2026-09-19“, C# `DateOnly`). */
+export interface AnalyticsDayPointDto {
+  day: string;
+  startedCount: number;
+  finishedCount: number;
+}
+
+/** Antwort von `GET /operations/analytics/workflows/{metaDefinitionId}`. */
+export interface WorkflowAnalyticsDetailDto {
+  fromUtc: string;
+  toUtc: string;
+  summary: WorkflowAnalyticsSummaryDto;
+  /** null = alle Versionen. */
+  definitionId: string | null;
+  /** Version, aus der die Knotennamen stammen; null, wenn keine lesbar war. */
+  namingDefinitionId: string | null;
+  /** Bereits serverseitig nach Median-Wartezeit absteigend sortiert. */
+  nodes: FlowNodeAnalyticsDto[];
+  timeline: AnalyticsDayPointDto[];
 }
 
 /** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */
