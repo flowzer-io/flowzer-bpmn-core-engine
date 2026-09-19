@@ -268,6 +268,16 @@ export const foldersApi = {
     }),
 };
 
+/**
+ * Eine leere Zuordnung ist keine Zuordnung: Sie bleibt aus dem Rumpf heraus, damit die API
+ * dieselbe Anfrage sieht wie vor der ersten Wahl.
+ */
+function mappingOrUndefined(
+  flowNodeMapping: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  return flowNodeMapping && Object.keys(flowNodeMapping).length > 0 ? flowNodeMapping : undefined;
+}
+
 // Alle Instanz-Endpunkte antworten in `ApiStatusResult<T>`.
 export const instancesApi = {
   /** `GET /instance` */
@@ -294,23 +304,35 @@ export const instancesApi = {
    * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
    * zur aktuell deployten Version sind. Verlangt das Betriebsrecht; 400/422, wenn die
    * Auswahl verschiedene Workflows oder Quellversionen mischt.
+   *
+   * `flowNodeMapping` ordnet wartenden Quellknoten ein Ziel zu und gilt für alle Instanzen
+   * der Anfrage — sie laufen auf derselben Quellversion und teilen deshalb ihre Knoten.
    */
-  migrationPreview: (instanceIds: string[], signal?: AbortSignal) =>
+  migrationPreview: (
+    instanceIds: string[],
+    flowNodeMapping?: Record<string, string>,
+    signal?: AbortSignal,
+  ) =>
     requestStatusResult<InstanceMigrationPreviewDto>('/instance/migration/preview', {
       method: 'POST',
-      body: { instanceIds },
+      body: { instanceIds, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
       signal,
     }),
 
   /**
    * `POST /instance/migration` — hängt die Instanzen auf `targetDefinitionId` um.
    * Wurde inzwischen eine andere Version deployt, antwortet die API mit 409; dann muss
-   * die Vorschau wiederholt werden. Teilerfolge sind möglich.
+   * die Vorschau wiederholt werden. Teilerfolge sind möglich. `flowNodeMapping` trägt
+   * dieselbe Zuordnung wie der Trockenlauf; ohne sie bleiben die betroffenen Instanzen zurück.
    */
-  migrate: (instanceIds: string[], targetDefinitionId: string) =>
+  migrate: (
+    instanceIds: string[],
+    targetDefinitionId: string,
+    flowNodeMapping?: Record<string, string>,
+  ) =>
     requestStatusResult<InstanceMigrationResultDto>('/instance/migration', {
       method: 'POST',
-      body: { instanceIds, targetDefinitionId },
+      body: { instanceIds, targetDefinitionId, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
     }),
 
   /** `GET /instance/{id}/subscription/messages` */

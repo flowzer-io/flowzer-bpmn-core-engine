@@ -19,6 +19,15 @@ internal static class InstanceMigrationScenarios
     internal const string FirstForm = "Approval";
     internal const string SecondForm = "ApprovalV2";
 
+    /// <summary>Die Zielversion kennt die Aufgabe "Review" nur noch unter dieser Kennung.</summary>
+    internal const string RenamedReviewNodeId = "ReviewRenamed";
+
+    /// <summary>Die Zielversion kennt den Service-Task "Fetch" nur noch unter dieser Kennung.</summary>
+    internal const string RenamedFetchNodeId = "FetchRenamed";
+
+    /// <summary>Der Name, den der zugeordnete Service-Task in der Zielversion traegt.</summary>
+    internal const string RenamedFetchNodeName = "Daten holen";
+
     /// <summary>
     /// Der Kernfall: Eine wartende Aufgabe behaelt Kennung und Bearbeitungsdaten, die Instanz
     /// haengt danach an der Zielversion, folgt deren Sequenzfluessen — und die Migrationsspur
@@ -379,6 +388,318 @@ internal static class InstanceMigrationScenarios
         (await InstanceAsync(provider, instance.InstanceId)).Migrations.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Der Kern der Zuordnung von Hand: Der wartende Knoten fehlt in der Zielversion, der
+    /// Trockenlauf fragt danach, und mit der Antwort zieht die Instanz um. Der Umzug fasst den
+    /// Plan in seiner eigenen Transaktion neu — ohne die Zuordnung dort bliebe die Instanz
+    /// liegen, obwohl der Trockenlauf sie als migrierbar ausgewiesen hat.
+    /// </summary>
+    internal static async Task MappingAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        var review = (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle().Subject;
+        var assignee = Guid.NewGuid();
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            review.CurrenAssignedUser = assignee;
+            review.Assignee = "bert";
+            await storage.SubscriptionStorage.AddUserTaskSubscription(review);
+            storage.CommitChanges();
+        }
+
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(FirstForm, withApprove: true, reviewNodeId: RenamedReviewNodeId));
+
+        // Ohne Zuordnung bleibt die Instanz liegen; der Trockenlauf nennt den offenen Knoten
+        // und die Knoten der Zielversion, unter denen die Bedienung waehlen kann.
+        var open = await engine.PreviewInstanceMigration([instance.InstanceId]);
+        var blocked = open.Instances.Should().ContainSingle().Subject;
+        blocked.Migratable.Should().BeFalse();
+        blocked.Problems.Select(problem => problem.Code)
+            .Should().Equal(nameof(InstanceMigrationProblemCode.FlowNodeMissing));
+        open.MappingRequired.Should().ContainSingle().Which
+            .Should().Be(new InstanceMigrationFlowNode("Review", "Review", "UserTask"));
+        open.MappingTargets.Should().Contain(node => node.Id == RenamedReviewNodeId && node.Type == "UserTask");
+        open.MappingTargets.Should().Contain(node => node.Id == "Split" && node.Type == "ExclusiveGateway");
+
+        var mapping = new Dictionary<string, string> { ["Review"] = RenamedReviewNodeId };
+        var mapped = await engine.PreviewInstanceMigration([instance.InstanceId], mapping);
+        mapped.Instances.Should().ContainSingle().Which.Migratable.Should().BeTrue();
+        mapped.MappingRequired.Should().BeEmpty();
+
+        (await engine.MigrateInstances([instance.InstanceId], target.Id, assignee, mapping))
+            .Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+
+        (await InstanceAsync(provider, instance.InstanceId)).DefinitionId.Should().Be(target.Id);
+        var keptTask = (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle().Subject;
+        keptTask.Id.Should().Be(review.Id);
+        keptTask.DefinitionId.Should().Be(target.Id);
+        keptTask.CurrenAssignedUser.Should().Be(assignee);
+        keptTask.Assignee.Should().Be("bert");
+        keptTask.Token.CurrentFlowNode!.Id.Should().Be(RenamedReviewNodeId);
+
+        // Hinter dem zugeordneten Knoten gilt der Weg der Zielversion: "Approve" gibt es nur dort.
+        await CompleteAsync(new BpmnBusinessLogic(provider), keptTask);
+        (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle()
+            .Which.Token.CurrentFlowNode!.Id.Should().Be("Approve");
+    }
+
+    /// <summary>
+    /// Eine Zuordnung auf einen Knoten, den die Zielversion nicht kennt, ist keine Antwort: Die
+    /// Instanz bleibt unveraendert, und der Trockenlauf fragt denselben Knoten erneut ab.
+    /// </summary>
+    internal static async Task MappingTargetMissingAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        var source = await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(FirstForm, withApprove: true, reviewNodeId: RenamedReviewNodeId));
+
+        var mapping = new Dictionary<string, string> { ["Review"] = "NichtVorhanden" };
+        var preview = await engine.PreviewInstanceMigration([instance.InstanceId], mapping);
+        var item = preview.Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeFalse();
+        item.Problems.Select(problem => problem.Code)
+            .Should().Equal(nameof(InstanceMigrationProblemCode.MappingTargetMissing));
+        preview.MappingRequired.Select(node => node.Id).Should().Equal("Review");
+
+        var outcome = await engine.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid(), mapping);
+        var result = outcome.Instances.Should().ContainSingle().Subject;
+        result.Migrated.Should().BeFalse();
+        result.Problems.Select(problem => problem.Code)
+            .Should().Equal(nameof(InstanceMigrationProblemCode.MappingTargetMissing));
+
+        var untouched = await InstanceAsync(provider, instance.InstanceId);
+        untouched.DefinitionId.Should().Be(source.Id);
+        untouched.Migrations.Should().BeEmpty();
+        (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle()
+            .Which.DefinitionId.Should().Be(source.Id);
+    }
+
+    /// <summary>
+    /// Liegt das Modell der Quellversion nicht mehr vor, bleibt die Frage trotzdem stellbar:
+    /// Kennung und Typ kommen dann aus dem Element des wartenden Tokens, ein Name wird nicht
+    /// geraten.
+    /// </summary>
+    internal static async Task MappingWithoutSourceModelAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        var source = await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(FirstForm, withApprove: true, reviewNodeId: RenamedReviewNodeId));
+
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            await storage.DefinitionStorage.DeleteBinary(source.Id);
+            storage.CommitChanges();
+        }
+
+        var preview = await engine.PreviewInstanceMigration([instance.InstanceId]);
+
+        preview.MappingRequired.Should().ContainSingle().Which
+            .Should().Be(new InstanceMigrationFlowNode("Review", null, "UserTask"));
+        preview.MappingTargets.Should().Contain(node => node.Id == RenamedReviewNodeId);
+    }
+
+    /// <summary>
+    /// Eine Zuordnung ueber Elementtypen hinweg ergaebe einen Zustand, den das Zielmodell nicht
+    /// kennt. Sie ist beantwortet und wird deshalb nicht erneut abgefragt, sondern abgelehnt.
+    /// </summary>
+    internal static async Task MappingTypeChangedAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(FirstForm, withApprove: true, reviewNodeId: RenamedReviewNodeId));
+
+        var preview = await engine.PreviewInstanceMigration(
+            [instance.InstanceId], new Dictionary<string, string> { ["Review"] = "Split" });
+
+        var item = preview.Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeFalse();
+        item.Problems.Select(problem => problem.Code)
+            .Should().Equal(nameof(InstanceMigrationProblemCode.FlowNodeTypeChanged));
+        preview.MappingRequired.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Die Zuordnung gilt fuer die ganze Anfrage: Eine Instanz, die am zugeordneten Knoten
+    /// wartet, zieht mit ihm um; eine Instanz an einem unveraenderten Knoten zieht um wie bisher.
+    /// </summary>
+    internal static async Task MappingPartialAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var mappedInstance = await StartAsync(engine, "left");
+        var untouchedNode = await StartAsync(engine, "right");
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(FirstForm, withApprove: true, reviewNodeId: RenamedReviewNodeId));
+
+        var mapping = new Dictionary<string, string> { ["Review"] = RenamedReviewNodeId };
+        var preview = await engine.PreviewInstanceMigration(
+            [mappedInstance.InstanceId, untouchedNode.InstanceId], mapping);
+        preview.Instances.Should().OnlyContain(item => item.Migratable);
+        preview.MappingRequired.Should().BeEmpty();
+
+        var outcome = await engine.MigrateInstances(
+            [mappedInstance.InstanceId, untouchedNode.InstanceId], target.Id, Guid.NewGuid(), mapping);
+        outcome.Instances.Should().OnlyContain(item => item.Migrated);
+
+        (await TasksAsync(provider, mappedInstance.InstanceId)).Should().ContainSingle()
+            .Which.Token.CurrentFlowNode!.Id.Should().Be(RenamedReviewNodeId);
+        var unchangedNode = (await TasksAsync(provider, untouchedNode.InstanceId)).Should().ContainSingle().Subject;
+        unchangedNode.Token.CurrentFlowNode!.Id.Should().Be("Second");
+        unchangedNode.DefinitionId.Should().Be(target.Id);
+    }
+
+    /// <summary>
+    /// Die Zuordnung fuehrt die Aufgabe auf einen Knoten, der ein anderes Formular bindet. Der
+    /// Umzug entscheidet ueber den privaten Entwurf am zugeordneten Knoten; der Trockenlauf muss
+    /// deshalb dort vergleichen und nicht am gleichnamigen Knoten der Zielversion — sonst
+    /// verschwaende ein Entwurf unangekuendigt.
+    /// </summary>
+    internal static async Task MappingFormChangedAsync(ITransactionalStorageProvider provider, bool withDraft)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), Xml(FirstForm, withApprove: false));
+        var instance = await StartAsync(engine, "left");
+        var review = (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle().Subject;
+        var ownerKey = new string('b', 64);
+        if (withDraft)
+        {
+            using var writer = provider.GetTransactionalStorage();
+            (await writer.UserTaskDraftStorage.TrySave(new UserTaskDraft
+            {
+                UserTaskId = review.Id,
+                OwnerKey = ownerKey,
+                OwnerUserId = Guid.NewGuid(),
+                TokenId = review.Token.Id,
+                ProcessInstanceId = instance.InstanceId,
+                DefinitionId = review.DefinitionId,
+                Revision = 1,
+                UpdatedAtUtc = DateTimeOffset.UtcNow,
+                DataJson = """{"answer":"halb fertig"}"""
+            }, expectedRevision: 0)).Status.Should().Be(UserTaskDraftWriteStatus.Written);
+            writer.CommitChanges();
+        }
+
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            Xml(SecondForm, withApprove: true, reviewNodeId: RenamedReviewNodeId), additionalForms: [SecondForm]);
+
+        var mapping = new Dictionary<string, string> { ["Review"] = RenamedReviewNodeId };
+        var item = (await engine.PreviewInstanceMigration([instance.InstanceId], mapping))
+            .Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeTrue();
+        item.Notices.Select(notice => notice.Code).Should().BeEquivalentTo(withDraft
+            ? new[] { InstanceMigrationCodes.UserTaskFormChanged, InstanceMigrationCodes.UserTaskDraftDiscarded }
+            : [InstanceMigrationCodes.UserTaskFormChanged]);
+
+        // Der Hinweis nennt den Knoten, den die Bedienung sieht und zuordnet: den der Quellversion.
+        item.Notices.Should().OnlyContain(notice => notice.FlowNodeId == "Review");
+
+        (await engine.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid(), mapping))
+            .Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+
+        using var reader = provider.GetTransactionalStorage();
+        var keptTask = (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle().Subject;
+        keptTask.Id.Should().Be(review.Id);
+        keptTask.Token.CurrentFlowNode!.Id.Should().Be(RenamedReviewNodeId);
+        // Genau das, was der Trockenlauf angekuendigt hat: Der Entwurf ist fort.
+        (await reader.UserTaskDraftStorage.Get(review.Id, ownerKey)).Should().BeNull();
+    }
+
+    /// <summary>
+    /// Die Zuordnung fuehrt die Aufgabe auf einen Knoten, an dem in der Zielversion ein
+    /// Boundary-Timer haengt. Er steht nach dem Umzug sofort scharf; der Trockenlauf muss ihn am
+    /// Quellknoten ankuendigen, statt ihn zu uebersehen.
+    /// </summary>
+    internal static async Task MappingTimerAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), TimerXml(withBoundaryTimer: false));
+        var instance = await engine.StartProcessInstance(MetaDefinitionId);
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            TimerXml(withBoundaryTimer: true, reviewNodeId: RenamedReviewNodeId));
+
+        var mapping = new Dictionary<string, string> { ["Review"] = RenamedReviewNodeId };
+        var item = (await engine.PreviewInstanceMigration([instance.InstanceId], mapping))
+            .Instances.Should().ContainSingle().Subject;
+        item.Migratable.Should().BeTrue();
+
+        // "Wait" traegt den Timer in beiden Versionen, "Review" erst durch die Zuordnung.
+        item.Notices.Where(notice => notice.Code == InstanceMigrationCodes.TimerRecalculated)
+            .Select(notice => notice.FlowNodeId)
+            .Should().BeEquivalentTo(["Wait", "Review"]);
+        item.Notices.Should().NotContain(notice => notice.FlowNodeId == RenamedReviewNodeId);
+
+        (await engine.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid(), mapping))
+            .Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+        (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle()
+            .Which.Token.CurrentFlowNode!.Id.Should().Be(RenamedReviewNodeId);
+    }
+
+    /// <summary>
+    /// Eine Zuordnung verschiebt auch den Auftrag eines wartenden Service-Tasks. Danach muss der
+    /// Auftrag den Knoten tragen, auf dem das Token wirklich steht — Sperre, Versuche und
+    /// Kennung bleiben davon unberuehrt, und der arbeitende Worker meldet unveraendert zurueck.
+    /// </summary>
+    internal static async Task MappingServiceTaskAsync(ITransactionalStorageProvider provider)
+    {
+        var engine = new BpmnBusinessLogic(provider);
+        await DeployAsync(provider, engine, new Model.Version(1, 0), ServiceXml(withApprove: false));
+        var instance = await engine.StartProcessInstance(MetaDefinitionId);
+        ServiceTaskJob claimed;
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            claimed = (await storage.ServiceTaskStorage.ClaimJobs(
+                "fetch", "worker-1", DateTime.UtcNow, DateTime.UtcNow.AddMinutes(5), 5))
+                .Should().ContainSingle().Subject;
+            storage.CommitChanges();
+        }
+
+        claimed.FlowNodeId.Should().Be("Fetch");
+
+        // Gleicher Auftragstyp, andere Kennung und anderer Name: genau der Fall, den die
+        // Zuordnung beantwortet.
+        var target = await DeployAsync(provider, engine, new Model.Version(2, 0),
+            ServiceXml(withApprove: true, fetchNodeId: RenamedFetchNodeId, fetchName: RenamedFetchNodeName));
+
+        var mapping = new Dictionary<string, string> { ["Fetch"] = RenamedFetchNodeId };
+        (await engine.MigrateInstances([instance.InstanceId], target.Id, Guid.NewGuid(), mapping))
+            .Instances.Should().ContainSingle().Which.Migrated.Should().BeTrue();
+
+        ServiceTaskJob stillLocked;
+        using (var storage = provider.GetTransactionalStorage())
+        {
+            (await storage.ServiceTaskStorage.GetJobs())
+                .Where(job => job.ProcessInstanceId == instance.InstanceId)
+                .Should().ContainSingle();
+            var job = await storage.ServiceTaskStorage.GetJob(claimed.Id);
+            job.Should().NotBeNull();
+            job!.FlowNodeId.Should().Be(RenamedFetchNodeId);
+            job.Name.Should().Be(RenamedFetchNodeName);
+            job.DefinitionId.Should().Be(target.Id);
+            job.Type.Should().Be(claimed.Type);
+            job.LockedBy.Should().Be("worker-1");
+            job.LockedUntil.Should().BeCloseTo(claimed.LockedUntil!.Value, TimeSpan.FromSeconds(1));
+            job.Retries.Should().Be(claimed.Retries);
+            var locked = await storage.ServiceTaskStorage.GetLockedJob(claimed.Id, "worker-1", DateTime.UtcNow);
+            locked.Should().NotBeNull();
+            stillLocked = locked!;
+        }
+
+        await new BpmnBusinessLogic(provider).CompleteServiceTaskJob(
+            stillLocked, new ExpandoObject(), Guid.NewGuid());
+
+        (await TasksAsync(provider, instance.InstanceId)).Should().ContainSingle()
+            .Which.Token.CurrentFlowNode!.Id.Should().Be("Approve");
+    }
+
     internal static async Task<ProcessInstanceInfo> InstanceAsync(
         ITransactionalStorageProvider provider, Guid instanceId)
     {
@@ -452,7 +773,11 @@ internal static class InstanceMigrationScenarios
     /// Zwei Zweige hinter einem exklusiven Gateway: Damit koennen zwei Instanzen derselben
     /// Quellversion an verschiedenen Knoten warten — die Voraussetzung fuer den Teilerfolg.
     /// </summary>
-    internal static string Xml(string reviewFormKey, bool withApprove, string secondNodeId = "Second") => $$"""
+    internal static string Xml(
+        string reviewFormKey,
+        bool withApprove,
+        string secondNodeId = "Second",
+        string reviewNodeId = "Review") => $$"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
@@ -460,17 +785,17 @@ internal static class InstanceMigrationScenarios
           <bpmn:process id="Process_Migration" isExecutable="true">
             <bpmn:startEvent id="Start" />
             <bpmn:exclusiveGateway id="Split" default="Flow_Right" />
-            <bpmn:userTask id="Review" name="Review"><bpmn:extensionElements>
+            <bpmn:userTask id="{{reviewNodeId}}" name="{{reviewNodeId}}"><bpmn:extensionElements>
               <zeebe:formDefinition formKey="{{reviewFormKey}}" />
             </bpmn:extensionElements></bpmn:userTask>
-            {{(withApprove ? """
+            {{(withApprove ? $$"""
               <bpmn:userTask id="Approve" name="Approve"><bpmn:extensionElements>
                 <zeebe:formDefinition formKey="Approval" />
               </bpmn:extensionElements></bpmn:userTask>
-              <bpmn:sequenceFlow id="Flow_Approve" sourceRef="Review" targetRef="Approve" />
+              <bpmn:sequenceFlow id="Flow_Approve" sourceRef="{{reviewNodeId}}" targetRef="Approve" />
               <bpmn:sequenceFlow id="Flow_LeftEnd" sourceRef="Approve" targetRef="EndLeft" />
-              """ : """
-              <bpmn:sequenceFlow id="Flow_LeftEnd" sourceRef="Review" targetRef="EndLeft" />
+              """ : $$"""
+              <bpmn:sequenceFlow id="Flow_LeftEnd" sourceRef="{{reviewNodeId}}" targetRef="EndLeft" />
               """)}}
             <bpmn:userTask id="{{secondNodeId}}" name="{{secondNodeId}}"><bpmn:extensionElements>
               <zeebe:formDefinition formKey="Approval" />
@@ -478,7 +803,7 @@ internal static class InstanceMigrationScenarios
             <bpmn:endEvent id="EndLeft" />
             <bpmn:endEvent id="EndRight" />
             <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="Split" />
-            <bpmn:sequenceFlow id="Flow_Left" sourceRef="Split" targetRef="Review">
+            <bpmn:sequenceFlow id="Flow_Left" sourceRef="Split" targetRef="{{reviewNodeId}}">
               <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=path = "left"</bpmn:conditionExpression>
             </bpmn:sequenceFlow>
             <bpmn:sequenceFlow id="Flow_Right" sourceRef="Split" targetRef="{{secondNodeId}}" />
@@ -487,26 +812,29 @@ internal static class InstanceMigrationScenarios
         </bpmn:definitions>
         """;
 
-    private static string ServiceXml(bool withApprove) => $$"""
+    private static string ServiceXml(
+        bool withApprove,
+        string fetchNodeId = "Fetch",
+        string fetchName = "Fetch") => $$"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
             id="Definitions_Migration" targetNamespace="test">
           <bpmn:process id="Process_Migration" isExecutable="true">
             <bpmn:startEvent id="Start" />
-            <bpmn:serviceTask id="Fetch" name="Fetch"><bpmn:extensionElements>
+            <bpmn:serviceTask id="{{fetchNodeId}}" name="{{fetchName}}"><bpmn:extensionElements>
               <zeebe:taskDefinition type="fetch" retries="3" />
             </bpmn:extensionElements></bpmn:serviceTask>
-            {{(withApprove ? """
+            {{(withApprove ? $$"""
               <bpmn:userTask id="Approve" name="Approve"><bpmn:extensionElements>
                 <zeebe:formDefinition formKey="Approval" />
               </bpmn:extensionElements></bpmn:userTask>
-              <bpmn:sequenceFlow id="Flow_Approve" sourceRef="Fetch" targetRef="Approve" />
+              <bpmn:sequenceFlow id="Flow_Approve" sourceRef="{{fetchNodeId}}" targetRef="Approve" />
               <bpmn:sequenceFlow id="Flow_End" sourceRef="Approve" targetRef="End" />
-              """ : """
-              <bpmn:sequenceFlow id="Flow_End" sourceRef="Fetch" targetRef="End" />
+              """ : $$"""
+              <bpmn:sequenceFlow id="Flow_End" sourceRef="{{fetchNodeId}}" targetRef="End" />
               """)}}
             <bpmn:endEvent id="End" />
-            <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="Fetch" />
+            <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="{{fetchNodeId}}" />
           </bpmn:process>
         </bpmn:definitions>
         """;
@@ -515,7 +843,7 @@ internal static class InstanceMigrationScenarios
     /// Ein Timer-Catch-Event und eine Aufgabe nebeneinander. In der Zielversion kann an der
     /// Aufgabe zusaetzlich ein Boundary-Timer haengen, den die Quellversion nicht kannte.
     /// </summary>
-    private static string TimerXml(bool withBoundaryTimer) => $$"""
+    private static string TimerXml(bool withBoundaryTimer, string reviewNodeId = "Review") => $$"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
             xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
@@ -526,11 +854,11 @@ internal static class InstanceMigrationScenarios
             <bpmn:intermediateCatchEvent id="Wait">
               <bpmn:timerEventDefinition><bpmn:timeDuration>PT1H</bpmn:timeDuration></bpmn:timerEventDefinition>
             </bpmn:intermediateCatchEvent>
-            <bpmn:userTask id="Review" name="Review"><bpmn:extensionElements>
+            <bpmn:userTask id="{{reviewNodeId}}" name="{{reviewNodeId}}"><bpmn:extensionElements>
               <zeebe:formDefinition formKey="Approval" />
             </bpmn:extensionElements></bpmn:userTask>
-            {{(withBoundaryTimer ? """
-              <bpmn:boundaryEvent id="Escalate" attachedToRef="Review">
+            {{(withBoundaryTimer ? $$"""
+              <bpmn:boundaryEvent id="Escalate" attachedToRef="{{reviewNodeId}}">
                 <bpmn:timerEventDefinition>
                   <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
                 </bpmn:timerEventDefinition>
@@ -542,9 +870,9 @@ internal static class InstanceMigrationScenarios
             <bpmn:endEvent id="EndReview" />
             <bpmn:sequenceFlow id="Flow_Start" sourceRef="Start" targetRef="Fork" />
             <bpmn:sequenceFlow id="Flow_Timer" sourceRef="Fork" targetRef="Wait" />
-            <bpmn:sequenceFlow id="Flow_Review" sourceRef="Fork" targetRef="Review" />
+            <bpmn:sequenceFlow id="Flow_Review" sourceRef="Fork" targetRef="{{reviewNodeId}}" />
             <bpmn:sequenceFlow id="Flow_EndTimer" sourceRef="Wait" targetRef="EndTimer" />
-            <bpmn:sequenceFlow id="Flow_EndReview" sourceRef="Review" targetRef="EndReview" />
+            <bpmn:sequenceFlow id="Flow_EndReview" sourceRef="{{reviewNodeId}}" targetRef="EndReview" />
           </bpmn:process>
         </bpmn:definitions>
         """;

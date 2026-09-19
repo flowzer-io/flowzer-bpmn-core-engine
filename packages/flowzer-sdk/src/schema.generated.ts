@@ -6126,6 +6126,10 @@ export interface components {
             flowNodeId?: string | null;
             message: string | null;
         };
+        InstanceMigrationMappingDto: {
+            required: components["schemas"]["MigrationFlowNodeDto"][] | null;
+            targets: components["schemas"]["MigrationFlowNodeDto"][] | null;
+        };
         InstanceMigrationPreviewDto: {
             relatedDefinitionId: string | null;
             relatedDefinitionName: string | null;
@@ -6136,6 +6140,7 @@ export interface components {
             targetDefinitionId: string;
             targetVersion: components["schemas"]["VersionDto"];
             instances: components["schemas"]["InstanceMigrationPreviewItemDto"][] | null;
+            mapping: components["schemas"]["InstanceMigrationMappingDto"];
         };
         InstanceMigrationPreviewDtoApiStatusResult: {
             successful?: boolean;
@@ -6151,11 +6156,17 @@ export interface components {
         };
         InstanceMigrationPreviewRequestDto: {
             instanceIds: string[] | null;
+            flowNodeMapping?: {
+                [key: string]: string;
+            } | null;
         };
         InstanceMigrationRequestDto: {
             instanceIds: string[] | null;
             /** Format: uuid */
             targetDefinitionId: string;
+            flowNodeMapping?: {
+                [key: string]: string;
+            } | null;
         };
         InstanceMigrationResultDto: {
             /** Format: uuid */
@@ -6203,6 +6214,11 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["MessageSubscriptionDto"][] | null;
+        };
+        MigrationFlowNodeDto: {
+            id: string | null;
+            name?: string | null;
+            type: string | null;
         };
         MoveFormRequestDto: {
             /** Format: uuid */

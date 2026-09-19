@@ -134,7 +134,10 @@ public class ServiceTaskStorage : IServiceTaskStorage
     /// Anspruch oder Heartbeat zwischen einem frueheren Lesen und dem Schreiben wuerde sonst mit
     /// dem alten Sperrstand ueberschrieben.
     /// </summary>
-    public async Task<int> RebindJobsOfInstance(Guid processInstanceId, Guid definitionId)
+    public async Task<int> RebindJobsOfInstance(
+        Guid processInstanceId,
+        Guid definitionId,
+        IReadOnlyDictionary<Guid, ServiceTaskJobNode>? movedTokens = null)
     {
         await LeaseLock.WaitAsync();
         try
@@ -143,6 +146,12 @@ public class ServiceTaskStorage : IServiceTaskStorage
             foreach (var job in jobs)
             {
                 job.DefinitionId = definitionId;
+                if (movedTokens?.TryGetValue(job.TokenId, out var movedNode) == true)
+                {
+                    job.FlowNodeId = movedNode.FlowNodeId;
+                    job.Name = movedNode.Name;
+                }
+
                 await SaveJob(job);
             }
 

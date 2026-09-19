@@ -83,12 +83,22 @@ export const queryKeys = {
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
   /**
-   * Die Kennungen stehen sortiert im Schlüssel: dieselbe Auswahl ist dieselbe Prüfung.
+   * Kennungen und Zuordnung stehen sortiert im Schlüssel: dieselbe Auswahl mit derselben
+   * Zuordnung ist dieselbe Prüfung — und eine geänderte Zuordnung ist eine andere, die
+   * nicht aus dem Cache der alten beantwortet werden darf.
+   *
    * Bewusst nicht unter `instances`: Die Migration verwirft die Instanzansichten, die
    * Vorschau aber ist die Grundlage genau dieser Entscheidung und bleibt dabei stehen.
    */
-  instanceMigrationPreview: (instanceIds: readonly string[]) =>
-    ['instance-migration-preview', [...instanceIds].sort()] as const,
+  instanceMigrationPreview: (
+    instanceIds: readonly string[],
+    flowNodeMapping?: Readonly<Record<string, string>>,
+  ) =>
+    [
+      'instance-migration-preview',
+      [...instanceIds].sort(),
+      Object.entries(flowNodeMapping ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    ] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -513,12 +523,20 @@ export function useCancelInstance() {
  * Betriebsentscheidung gelesen, nicht überwacht — und ein zwischenzeitliches Deployment
  * darf nie als noch gültige Vorschau aus dem Cache kommen.
  */
-export function useInstanceMigrationPreview(instanceIds: string[] | undefined) {
+export function useInstanceMigrationPreview(
+  instanceIds: string[] | undefined,
+  flowNodeMapping?: Record<string, string>,
+) {
   const ids = [...(instanceIds ?? [])].sort();
   return useQuery({
-    queryKey: queryKeys.instanceMigrationPreview(ids),
-    queryFn: ({ signal }) => instancesApi.migrationPreview(ids, signal),
+    queryKey: queryKeys.instanceMigrationPreview(ids, flowNodeMapping),
+    queryFn: ({ signal }) => instancesApi.migrationPreview(ids, flowNodeMapping, signal),
     enabled: ids.length > 0,
+    // Eine geänderte Zuordnung prüft dieselbe Auswahl erneut. Der bisherige Stand bleibt
+    // solange stehen, damit der Zuordnungsblock unter der Hand des Bedienenden nicht
+    // verschwindet — für eine andere Auswahl gilt er dagegen nie.
+    placeholderData: (previous, previousQuery) =>
+      isSameSelection(previousQuery?.queryKey, ids) ? previous : undefined,
     staleTime: 0,
     refetchInterval: false,
     // Die Grundlage einer Entscheidung wechselt nicht still unter dem Lesenden. Ob sie noch
@@ -529,13 +547,33 @@ export function useInstanceMigrationPreview(instanceIds: string[] | undefined) {
   });
 }
 
+/**
+ * Ob der Schlüssel einer früheren Vorschau dieselben Instanzen meint.
+ *
+ * Nur dann darf ihr Ergebnis beim Wechsel der Zuordnung stehen bleiben; die Vorschau einer
+ * anderen Auswahl nennt andere Versionen und wäre eine falsche Auskunft.
+ */
+function isSameSelection(queryKey: unknown, ids: readonly string[]): boolean {
+  if (!Array.isArray(queryKey)) return false;
+
+  const previousIds: unknown[] = Array.isArray(queryKey[1]) ? queryKey[1] : [];
+  return previousIds.length === ids.length && previousIds.every((id, index) => id === ids[index]);
+}
+
+export interface MigrateInstancesInput {
+  instanceIds: string[];
+  targetDefinitionId: string;
+  /** Zuordnung wartender Quellknoten auf Knoten der Zielversion; gilt für alle Instanzen. */
+  flowNodeMapping?: Record<string, string>;
+}
+
 /** Hebt die Instanzen auf die Zielversion; danach veraltet dasselbe wie nach einem Abbruch. */
 export function useMigrateInstances() {
   const queryClient = useQueryClient();
   const { cacheNamespace, sessionScope } = useFlowzer();
   return useMutation({
-    mutationFn: ({ instanceIds, targetDefinitionId }: { instanceIds: string[]; targetDefinitionId: string }) =>
-      instancesApi.migrate(instanceIds, targetDefinitionId),
+    mutationFn: ({ instanceIds, targetDefinitionId, flowNodeMapping }: MigrateInstancesInput) =>
+      instancesApi.migrate(instanceIds, targetDefinitionId, flowNodeMapping),
     onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
   });
 }

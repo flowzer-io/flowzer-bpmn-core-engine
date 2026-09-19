@@ -256,7 +256,8 @@ describe('Abbruch und Version in der Betriebsansicht', () => {
     expect(mocks.migrationPreview).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Migrieren …' }));
 
-    expect(mocks.migrationPreview).toHaveBeenCalledWith(['instance-1']);
+    // Zweites Argument: die Zuordnung von Hand — beim Öffnen noch leer.
+    expect(mocks.migrationPreview).toHaveBeenCalledWith(['instance-1'], {});
     expect(screen.getByRole('dialog')).toHaveTextContent('Instanzen migrieren');
   });
 

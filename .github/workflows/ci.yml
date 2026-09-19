@@ -160,6 +160,11 @@ jobs:
       - name: Weiterleitungsliste des Gateways pruefen
         run: ./tests/ui-smoke/check-gateway-routes.sh
 
+      # Ohne Cache-Anweisung auf index.html sahen Anwender nach einem Release weiter die alte
+      # Oberflaeche. Die Pruefung startet den Entrypoint im echten nginx-Basisimage.
+      - name: Cache- und Sicherheitskopfzeilen der Konsole pruefen
+        run: ./tests/ui-smoke/check-console-headers.sh
+
       - name: Bekannte Schwachstellen der Abhaengigkeiten pruefen
         working-directory: src/FlowzerConsole
         run: npm audit --audit-level=high

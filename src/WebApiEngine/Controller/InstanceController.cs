@@ -54,7 +54,8 @@ public class InstanceController(
     {
         currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("migrating instances");
 
-        var preview = await bpmnBusinessLogic.PreviewInstanceMigration(request.InstanceIds);
+        var preview = await bpmnBusinessLogic.PreviewInstanceMigration(
+            request.InstanceIds, request.FlowNodeMapping);
         if (preview.Status != InstanceMigrationRequestStatus.Accepted)
             return MigrationProblem<InstanceMigrationPreviewDto>(preview.Status, preview.Message);
 
@@ -79,7 +80,7 @@ public class InstanceController(
         user.RequireResolvedUserId("migrating instances");
 
         var outcome = await bpmnBusinessLogic.MigrateInstances(
-            request.InstanceIds, request.TargetDefinitionId, user.UserId);
+            request.InstanceIds, request.TargetDefinitionId, user.UserId, request.FlowNodeMapping);
         if (outcome.Status != InstanceMigrationRequestStatus.Accepted)
             return MigrationProblem<InstanceMigrationResultDto>(outcome.Status, outcome.Message);
 

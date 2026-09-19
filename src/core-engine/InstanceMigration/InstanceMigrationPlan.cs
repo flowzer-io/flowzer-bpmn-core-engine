@@ -17,11 +17,13 @@ public sealed record InstanceMigrationPlan
         Process targetProcess,
         IReadOnlyList<Token> waitingTokens,
         IReadOnlyDictionary<Guid, FlowNode> targetFlowNodes,
+        IReadOnlyList<string> flowNodeIdsNeedingMapping,
         IReadOnlyList<InstanceMigrationProblem> problems)
     {
         SourceTokens = sourceTokens;
         TargetProcess = targetProcess;
         WaitingTokens = waitingTokens;
+        FlowNodeIdsNeedingMapping = flowNodeIdsNeedingMapping;
         Problems = problems;
         _targetFlowNodes = targetFlowNodes;
     }
@@ -34,6 +36,9 @@ public sealed record InstanceMigrationPlan
 
     /// <summary>Die noch lebenden Nicht-Master-Tokens, also die Stellen, an denen die Instanz wartet.</summary>
     public IReadOnlyList<Token> WaitingTokens { get; }
+
+    /// <summary>Wartende Knoten, die es in der Zielversion nicht gibt und denen kein Ziel zugeordnet wurde.</summary>
+    public IReadOnlyList<string> FlowNodeIdsNeedingMapping { get; }
 
     /// <summary>Alle Hindernisse; die Oberfläche listet sie vollständig auf.</summary>
     public IReadOnlyList<InstanceMigrationProblem> Problems { get; }
@@ -98,5 +103,8 @@ public enum InstanceMigrationProblemCode
     /// Ein Boundary-Event des wartenden Knotens hat bereits ausgelöst; der Umzug schaltete es
     /// erneut scharf, und es liefe ein zweites Mal.
     /// </summary>
-    BoundaryEventAlreadyTriggered
+    BoundaryEventAlreadyTriggered,
+
+    /// <summary>Den von Hand zugeordneten Zielknoten gibt es im Zielmodell nicht.</summary>
+    MappingTargetMissing
 }

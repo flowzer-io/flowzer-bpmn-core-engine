@@ -97,22 +97,44 @@ public sealed class RuntimeDiagramService(
                 State = token.State, OccurredAtUtc = new DateTimeOffset(DateTime.SpecifyKind(token.LastStateChangeTime, DateTimeKind.Utc))
             }).ToArray();
         var keys = current.Select(item => (item.TokenId, item.FlowNodeId)).ToHashSet();
-        return events.Where(item => !keys.Contains((item.TokenId, item.FlowNodeId))).Concat(current)
+        var latest = events.Where(item => !keys.Contains((item.TokenId, item.FlowNodeId))).Concat(current)
             .GroupBy(item => new { item.TokenId, item.FlowNodeId })
             .Select(group => group
                 .OrderByDescending(item => item.OccurredAtUtc)
                 .ThenByDescending(item => item.Id)
                 .First())
+            .ToArray();
+
+        // Wo ein Token steht, sagt der persistierte Tokenstand — nicht der juengste Zeitstempel:
+        // Ein Umzug auf einen von Hand zugeordneten Knoten behaelt die Wartezeit des Tokens bei,
+        // beide Eintraege sind dann gleich alt. Frueher besuchte Knoten desselben Tokens sind
+        // durchlaufen, auch ohne festgehaltenen Abschluss; sonst bliebe der alte Knoten als
+        // zweiter aktiver Schritt stehen. Nur „aktiv" ist eine Aussage ueber die Gegenwart —
+        // ein festgehaltener Fehler oder Abbruch bleibt, was er war.
+        var currentNodeOfToken = current.ToDictionary(item => item.TokenId, item => item.FlowNodeId);
+
+        return latest
+            .Select(item => new
+            {
+                item.TokenId,
+                item.FlowNodeId,
+                item.OccurredAtUtc,
+                Status = ToStatus(item.State) == RuntimeNodeStatusDto.Active
+                    && currentNodeOfToken.TryGetValue(item.TokenId, out var standort)
+                    && !string.Equals(standort, item.FlowNodeId, StringComparison.Ordinal)
+                        ? RuntimeNodeStatusDto.Completed
+                        : ToStatus(item.State)
+            })
             .GroupBy(item => item.FlowNodeId, StringComparer.Ordinal)
             .Select(group => new RuntimeNodeSummaryDto
             {
                 FlowNodeId = group.Key,
-                Status = group.Select(item => ToStatus(item.State))
+                Status = group.Select(item => item.Status)
                     .OrderByDescending(StatusPrecedence)
                     .First(),
-                TokenCount = !group.Any(item => ToStatus(item.State) == RuntimeNodeStatusDto.Failed)
-                    && group.Any(item => ToStatus(item.State) == RuntimeNodeStatusDto.Active)
-                    ? group.Where(item => ToStatus(item.State) == RuntimeNodeStatusDto.Active).Select(item => item.TokenId).Distinct().Count()
+                TokenCount = !group.Any(item => item.Status == RuntimeNodeStatusDto.Failed)
+                    && group.Any(item => item.Status == RuntimeNodeStatusDto.Active)
+                    ? group.Where(item => item.Status == RuntimeNodeStatusDto.Active).Select(item => item.TokenId).Distinct().Count()
                     : group.Select(item => item.TokenId).Distinct().Count(),
                 LastChangedAtUtc = group.Max(item => item.OccurredAtUtc)
             })

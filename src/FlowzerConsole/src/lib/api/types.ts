@@ -138,6 +138,27 @@ export interface InstanceMigrationPreviewItemDto {
   notices: InstanceMigrationFindingDto[];
 }
 
+/**
+ * Entspricht `MigrationFlowNodeDto` — ein Knoten als Quelle oder Ziel einer Zuordnung.
+ *
+ * `type` ist die BPMN-Elementart als schlichter Name, z. B. `UserTask` oder
+ * `ExclusiveGateway`. Quelle und Ziel müssen dieselbe tragen.
+ */
+export interface MigrationFlowNodeDto {
+  id: string;
+  /** Fehlt ganz, wenn der Knoten im Modell unbenannt ist — die API laesst leere Felder weg. */
+  name?: string | null;
+  type: string;
+}
+
+/** Entspricht dem `mapping` der Vorschau: was von Hand zuzuordnen ist und wohin. */
+export interface InstanceMigrationMappingDto {
+  /** Wartende Quellknoten, die es in der Zielversion nicht gibt und die noch kein Ziel haben. */
+  required: MigrationFlowNodeDto[];
+  /** Die Knoten der Zielversion, aus denen gewählt werden kann. */
+  targets: MigrationFlowNodeDto[];
+}
+
 /** Entspricht `InstanceMigrationPreviewDto` — die folgenlose Prüfung vor der Migration. */
 export interface InstanceMigrationPreviewDto {
   relatedDefinitionId: string;
@@ -148,6 +169,8 @@ export interface InstanceMigrationPreviewDto {
   /** Versions-Guid der aktuell deployten Fassung; einziges zulässiges Ziel. */
   targetDefinitionId: string;
   targetVersion: VersionDto;
+  /** Grundlage der Zuordnung von Hand; die Zuordnung selbst gehört zur Anfrage. */
+  mapping: InstanceMigrationMappingDto;
   instances: InstanceMigrationPreviewItemDto[];
 }
 

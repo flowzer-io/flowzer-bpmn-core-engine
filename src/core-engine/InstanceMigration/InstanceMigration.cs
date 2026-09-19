@@ -5,10 +5,10 @@ using core_engine.Extensions;
 namespace core_engine;
 
 /// <summary>
-/// Hebt eine laufende Instanz auf eine andere Fassung desselben Prozesses. Die erste Stufe
-/// verlangt Deckungsgleichheit: Jede Stelle, an der die Instanz gerade wartet, muss es im
-/// Zielmodell unverändert geben. Der Umzug tauscht daher nur das mitgeführte Modell aus und
-/// rührt weder Variablen noch Historie an.
+/// Hebt eine laufende Instanz auf eine andere Fassung desselben Prozesses. Jede Stelle, an der
+/// die Instanz gerade wartet, muss es im Zielmodell unverändert geben — oder die Bedienung ordnet
+/// ihr von Hand einen Zielknoten desselben Typs zu. Der Umzug tauscht daher nur das mitgeführte
+/// Modell aus und rührt weder Variablen noch Historie an.
 /// </summary>
 public static class InstanceMigration
 {
@@ -16,7 +16,14 @@ public static class InstanceMigration
     /// Prüft, ob der Tokenbestand einer laufenden Instanz auf <paramref name="targetProcess"/>
     /// gehoben werden kann. Die Prüfung ist frei von Nebenwirkungen.
     /// </summary>
-    public static InstanceMigrationPlan Plan(IReadOnlyList<Token> tokens, Process targetProcess)
+    /// <param name="flowNodeMapping">
+    /// Zuordnung von der Kennung eines wartenden Quellknotens auf die Kennung seines Zielknotens.
+    /// Ohne Eintrag gilt der Knoten mit derselben Kennung im Zielmodell.
+    /// </param>
+    public static InstanceMigrationPlan Plan(
+        IReadOnlyList<Token> tokens,
+        Process targetProcess,
+        IReadOnlyDictionary<string, string>? flowNodeMapping = null)
     {
         ArgumentNullException.ThrowIfNull(tokens);
         ArgumentNullException.ThrowIfNull(targetProcess);
@@ -32,6 +39,7 @@ public static class InstanceMigration
                 targetProcess,
                 [],
                 new Dictionary<Guid, FlowNode>(),
+                [],
                 [new InstanceMigrationProblem(
                     InstanceMigrationProblemCode.InstanceNotRunning,
                     null,
@@ -45,6 +53,7 @@ public static class InstanceMigration
 
         var problems = new List<InstanceMigrationProblem>();
         var targetFlowNodes = new Dictionary<Guid, FlowNode>();
+        var flowNodeIdsNeedingMapping = new List<string>();
 
         if (sourceProcess.Id != targetProcess.Id)
         {
@@ -62,11 +71,27 @@ public static class InstanceMigration
 
         foreach (var token in waitingTokens)
         {
-            CheckWaitingToken(token, tokens, masterToken, targetFlowNodesById, problems, targetFlowNodes);
+            CheckWaitingToken(
+                token,
+                tokens,
+                masterToken,
+                targetFlowNodesById,
+                flowNodeMapping,
+                problems,
+                targetFlowNodes,
+                flowNodeIdsNeedingMapping);
             CheckBoundaryEvents(token, sourceProcess, problems);
         }
 
-        return new InstanceMigrationPlan(tokens, targetProcess, waitingTokens, targetFlowNodes, problems);
+        return new InstanceMigrationPlan(
+            tokens,
+            targetProcess,
+            waitingTokens,
+            targetFlowNodes,
+            // Nach Kennung sortiert und nicht in Tokenreihenfolge: Dieselbe Zuordnung gilt für alle
+            // Instanzen einer Anfrage, und deren Tokens stehen in beliebiger Reihenfolge.
+            [.. flowNodeIdsNeedingMapping.Distinct(StringComparer.Ordinal).OrderBy(id => id, StringComparer.Ordinal)],
+            problems);
     }
 
     /// <summary>
@@ -123,8 +148,10 @@ public static class InstanceMigration
         IReadOnlyList<Token> tokens,
         Token masterToken,
         IReadOnlyDictionary<string, FlowNode> targetFlowNodesById,
+        IReadOnlyDictionary<string, string>? flowNodeMapping,
         List<InstanceMigrationProblem> problems,
-        Dictionary<Guid, FlowNode> targetFlowNodes)
+        Dictionary<Guid, FlowNode> targetFlowNodes,
+        List<string> flowNodeIdsNeedingMapping)
     {
         var flowNodeId = token.CurrentBaseElement.Id;
 
@@ -154,8 +181,28 @@ public static class InstanceMigration
             return;
         }
 
-        if (!targetFlowNodesById.TryGetValue(flowNodeId, out var targetFlowNode))
+        // Eine Zuordnung gilt für alle Instanzen einer Anfrage. Ein Eintrag für einen Knoten, an
+        // dem diese Instanz nicht wartet, bleibt deshalb folgenlos und ist kein Hindernis.
+        string? mappedFlowNodeId = null;
+        if (flowNodeMapping?.TryGetValue(flowNodeId, out var mappedId) == true)
         {
+            mappedFlowNodeId = mappedId;
+        }
+
+        if (!targetFlowNodesById.TryGetValue(mappedFlowNodeId ?? flowNodeId, out var targetFlowNode))
+        {
+            if (mappedFlowNodeId != null)
+            {
+                problems.Add(new InstanceMigrationProblem(
+                    InstanceMigrationProblemCode.MappingTargetMissing,
+                    flowNodeId,
+                    $"Flow node '{flowNodeId}' is mapped to '{mappedFlowNodeId}', "
+                    + "which does not exist in the target process."));
+                return;
+            }
+
+            // Ohne Zuordnung ist der Knoten genau der Fall, zu dem die Oberfläche nachfragen muss.
+            flowNodeIdsNeedingMapping.Add(flowNodeId);
             problems.Add(new InstanceMigrationProblem(
                 InstanceMigrationProblemCode.FlowNodeMissing,
                 flowNodeId,
@@ -169,8 +216,11 @@ public static class InstanceMigration
             problems.Add(new InstanceMigrationProblem(
                 InstanceMigrationProblemCode.FlowNodeTypeChanged,
                 flowNodeId,
-                $"Flow node '{flowNodeId}' is a {sourceType.Name} in the instance "
-                + $"but a {targetFlowNode.GetType().Name} in the target process."));
+                mappedFlowNodeId == null
+                    ? $"Flow node '{flowNodeId}' is a {sourceType.Name} in the instance "
+                      + $"but a {targetFlowNode.GetType().Name} in the target process."
+                    : $"Flow node '{flowNodeId}' is a {sourceType.Name} in the instance, but its mapped "
+                      + $"target '{mappedFlowNodeId}' is a {targetFlowNode.GetType().Name}."));
             return;
         }
 

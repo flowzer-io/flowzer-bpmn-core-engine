@@ -28,6 +28,9 @@ public enum InstanceMigrationRequestStatus
     /// <summary>Der Workflow hat keine deployte Version, auf die migriert werden koennte.</summary>
     NoDeployedVersion,
 
+    /// <summary>Die Zuordnung ist unbrauchbar: leere Kennungen oder zu viele Eintraege.</summary>
+    InvalidFlowNodeMapping,
+
     /// <summary>Inzwischen ist eine andere Version deployt als die genannte Zielversion.</summary>
     TargetVersionChanged
 }
@@ -79,6 +82,12 @@ public sealed record InstanceMigrationPreviewItem(
     IReadOnlyList<InstanceMigrationFinding> Problems,
     IReadOnlyList<InstanceMigrationFinding> Notices);
 
+/// <summary>
+/// Ein Knoten, den die Zuordnung erfragt oder zur Auswahl stellt. Der Typ ist der Name des
+/// BPMN-Elements, damit Konsole und Engine denselben Begriff verwenden.
+/// </summary>
+public sealed record InstanceMigrationFlowNode(string Id, string? Name, string Type);
+
 public sealed record InstanceMigrationResultItem(
     Guid InstanceId,
     bool Migrated,
@@ -93,10 +102,15 @@ public sealed record InstanceMigrationPreview(
     Version? SourceVersion,
     Guid TargetDefinitionId,
     Version? TargetVersion,
-    IReadOnlyList<InstanceMigrationPreviewItem> Instances)
+    IReadOnlyList<InstanceMigrationPreviewItem> Instances,
+    // Wartende Quellknoten ohne brauchbaren Zielknoten und die Auswahl der Zielversion. Beides
+    // gilt fuer die ganze Anfrage: Die Zuordnung ist eine Antwort auf die Quellversion, und die
+    // teilen sich alle Instanzen einer Anfrage.
+    IReadOnlyList<InstanceMigrationFlowNode> MappingRequired,
+    IReadOnlyList<InstanceMigrationFlowNode> MappingTargets)
 {
     public static InstanceMigrationPreview Rejected(InstanceMigrationRequestStatus status, string message) =>
-        new(status, message, string.Empty, Guid.Empty, null, Guid.Empty, null, []);
+        new(status, message, string.Empty, Guid.Empty, null, Guid.Empty, null, [], [], []);
 }
 
 /// <summary>Das Ergebnis des Umzugs, je Instanz einzeln.</summary>

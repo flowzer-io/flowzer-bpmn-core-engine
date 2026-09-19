@@ -1,6 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
+import { InstanceFilterBar } from '@/components/instances/InstanceFilterBar';
 import {
   INSTANCE_GRID,
   INSTANCE_SELECTION_CELL,
@@ -14,8 +15,11 @@ import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, LoadingRows } from '@/components/ui/States';
 import { instanceBucket, type InstanceBucket } from '@/lib/api/normalize';
 import { useInstances } from '@/lib/api/queries';
-import { parseApiDate, shortId } from '@/lib/format';
+import { parseApiDate } from '@/lib/format';
 import { nodeLabel } from '@/lib/bpmnModel';
+import {
+  matchesInstanceFilter, normalizeInstanceFilter, NO_INSTANCE_FILTER, type InstanceFilter,
+} from '@/lib/instanceFilter';
 import { isMigrationCandidate } from '@/lib/instanceMigration';
 import { BUCKET_LABEL, currentToken, useDefinitionModels } from '@/lib/instanceView';
 
@@ -25,6 +29,7 @@ export function InstancesPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('active');
   const [search, setSearch] = useState('');
+  const [chosenFilter, setChosenFilter] = useState<InstanceFilter>(NO_INSTANCE_FILTER);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const instancesQuery = useInstances();
@@ -37,30 +42,33 @@ export function InstancesPage() {
     [instances],
   ));
 
+  // Aus dem Bestand abgeleitet statt gespiegelt: Verschwindet ein Workflow oder eine Version
+  // beim Neuladen, greift die zugehörige Einschränkung nicht mehr.
+  const activeFilter = useMemo(() => normalizeInstanceFilter(chosenFilter, instances), [chosenFilter, instances]);
+
+  // Zählmarken und Liste teilen sich denselben Vorrat; nur so nennen die Zahlen an den
+  // Statusfiltern genau das, was darunter steht.
+  const matching = useMemo(
+    () => instances.filter((instance) => matchesInstanceFilter(instance, activeFilter, search)),
+    [instances, activeFilter, search],
+  );
+
   const counts = useMemo(() => {
-    const result = { all: instances.length, active: 0, done: 0, error: 0 };
-    for (const instance of instances) result[instanceBucket(instance.state)] += 1;
+    const result = { all: matching.length, active: 0, done: 0, error: 0 };
+    for (const instance of matching) result[instanceBucket(instance.state)] += 1;
     return result;
-  }, [instances]);
+  }, [matching]);
 
-  const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    return instances
+  const visible = useMemo(
+    () => matching
       .filter((instance) => filter === 'all' || instanceBucket(instance.state) === filter)
-      .filter(
-        (instance) =>
-          term.length === 0 ||
-          instance.relatedDefinitionName.toLowerCase().includes(term) ||
-          instance.instanceId.toLowerCase().includes(term) ||
-          shortId(instance.instanceId).toLowerCase().includes(term),
-      )
       .sort((a, b) => {
         const aTime = parseApiDate(a.startedAt)?.getTime() ?? 0;
         const bTime = parseApiDate(b.startedAt)?.getTime() ?? 0;
         return bTime - aTime;
-      });
-  }, [instances, filter, search]);
+      }),
+    [matching, filter],
+  );
 
   // Die Auswahlspalte erscheint nur, wenn überhaupt etwas auszuwählen ist — sonst stünde
   // in jeder Zeile eine leere Spalte, die nichts erklärt.
@@ -113,6 +121,13 @@ export function InstancesPage() {
           wrapperClassName="py-2 min-w-[260px]"
         />
       </div>
+
+      <InstanceFilterBar
+        instances={instances}
+        filter={activeFilter}
+        onChange={setChosenFilter}
+        resultCount={visible.length}
+      />
 
       {selected.length > 0 && (
         <InstanceSelectionBar selected={selected} onClear={() => setSelectedIds(new Set())} />
