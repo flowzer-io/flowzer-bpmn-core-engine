@@ -220,6 +220,7 @@ Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
+- [docs/BPMN-MIWG-COVERAGE.md](docs/BPMN-MIWG-COVERAGE.md) – Nachweis gegen die Referenzmodelle der BPMN MIWG: was Flowzer liest, veröffentlichen würde und ausführt
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
