@@ -5,6 +5,7 @@ import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { DeleteInstanceAction } from '@/components/instances/DeleteInstanceAction';
 import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
 import { CalledInstancesSection, ParentInstanceLink } from '@/components/instances/InstanceCallHierarchy';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
@@ -165,6 +166,10 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
         {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
 
         {bucket === 'active' && <CancelInstanceAction instance={instance} />}
+
+        {/* Loeschen gibt es erst, wenn nichts mehr laeuft: Eine laufende Instanz wird
+            abgebrochen, nicht entfernt — und genau so antwortet auch die API. */}
+        {bucket !== 'active' && <DeleteInstanceAction instance={instance} />}
 
         <Button
           size="sm"

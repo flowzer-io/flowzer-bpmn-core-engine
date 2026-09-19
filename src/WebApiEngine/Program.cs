@@ -10,6 +10,7 @@ using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
 using WebApiEngine.Ai;
+using WebApiEngine.InboundTriggers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,15 @@ if (FlowzerStorageExtensions.IsMigrationRun(args))
 {
     using var migrationLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
     return await FlowzerStorageExtensions.RunMigrationsAsync(builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"));
+}
+
+// Konfigurationspruefung (`--check-config`): Ablage- und Authentifizierungsoptionen validieren
+// bereits beim Registrieren hart. Ein Abbruch dort soll als benannte Zeile erscheinen und nicht
+// als rohe Ausnahme, deshalb werden genau diese beiden Abschnitte vorab einzeln gebunden.
+if (ConfigurationCheck.IsConfigurationCheckRun(args)
+    && ConfigurationCheck.TryDescribeEagerOptionFailure(builder.Configuration, out var eagerOptionFailure))
+{
+    return ConfigurationCheck.Report([eagerOptionFailure], Console.Out);
 }
 
 builder.Services.AddControllers().AddJsonOptions(options =>
@@ -36,6 +46,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddFlowzerStorage(builder.Configuration);
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
 builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
+builder.Services.AddSingleton<InstanceRetentionDiagnosticsState>();
 builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddScoped<FormAuthoringService>();
@@ -51,6 +62,7 @@ builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddScoped<WorkflowAnalyticsService>();
 builder.Services.AddSingleton<AiToolRegistry>();
 builder.Services.AddScoped<AiConnectionService>();
 builder.Services.AddOptions<FlowzerAiOptions>()
@@ -91,6 +103,7 @@ builder.Services.AddSingleton<AiRunExecutor>();
 builder.Services.AddHostedService<AiRunBackgroundService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
+builder.Services.AddScoped<WebApiEngine.ProcessPackages.ProcessPackageService>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()
     .Bind(builder.Configuration.GetSection(UserTaskDeadlineOptions.SectionName))
     .Validate(options => options.IsValid(), "UserTaskDeadlines configuration is invalid.")
@@ -99,10 +112,18 @@ builder.Services.AddSingleton(serviceProvider =>
     serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UserTaskDeadlineOptions>>()
         .Value.ToPolicy());
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+// Aufbewahrung beendeter Instanzen. Ohne gesetzte Frist laeuft der Dienst nicht an; der
+// Default ist bewusst aus, damit ein Update keine Vorgangsdaten loescht, um die niemand bat.
+builder.Services.AddOptions<InstanceRetentionOptions>()
+    .Bind(builder.Configuration.GetSection(InstanceRetentionOptions.SectionName))
+    .Validate(options => options.IsValid(), "Retention:FinishedInstances configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<InstanceRetentionService>();
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
 builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddHostedService<UserTaskDeadlineBackgroundService>();
+builder.Services.AddHostedService<InstanceRetentionBackgroundService>();
 
 // Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
 // um eine Benachrichtigung an angemeldete Adressen.
@@ -137,6 +158,15 @@ builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
 builder.Services.AddHttpClient("flowzer-webhook")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
+
+// Eingehende Ausloeser: eine anonyme Adresse je Ausloeser, ausgewiesen durch eine Signatur.
+// Ohne installationsweiten Schluessel nimmt die Installation keine an; siehe InboundTriggerOptions.
+builder.Services.AddOptions<InboundTriggerOptions>()
+    .Bind(builder.Configuration.GetSection(InboundTriggerOptions.SectionName))
+    .Validate(options => options.IsValid(), "InboundTriggers configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddScoped<InboundTriggerService>();
+builder.Services.AddScoped<InboundTriggerInvocation>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
 builder.Services.AddFlowzerLimits(builder.Configuration);
@@ -153,6 +183,14 @@ builder.WebHost.ConfigureKestrel(kestrel => kestrel.Limits.MaxRequestBodySize = 
 builder.Services.AddFlowzerForwardedHeaders(builder.Configuration);
 
 var app = builder.Build();
+
+// Derselbe Host wie beim normalen Start, nur ohne Pipeline und ohne Lauschen auf einem Port:
+// Options-Validierung, Ablage, Migrationsstand, Authority und Freigabelisten pruefen und den
+// Prozess mit dem Ergebnis beenden (0 ok, 1 Fehler, 2 Warnungen).
+if (ConfigurationCheck.IsConfigurationCheckRun(args))
+{
+    return await ConfigurationCheck.RunAsync(app.Services, Console.Out);
+}
 
 app.UseFlowzerForwardedHeaders();
 app.UseFlowzerRequestDiagnostics();
@@ -176,6 +214,10 @@ app.UseFlowzerRateLimiting();
 // TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
 
 app.MapControllers();
+
+// Nur wenn ausdruecklich eingeschaltet. Der Endpunkt antwortet ohne Anmeldung und gehoert
+// deshalb ausschliesslich ins Containernetz, nicht hinter das oeffentliche Gateway.
+app.MapFlowzerPrometheusScrapingEndpoint();
 
 await app.ApplyStartupMigrationsIfConfiguredAsync();
 

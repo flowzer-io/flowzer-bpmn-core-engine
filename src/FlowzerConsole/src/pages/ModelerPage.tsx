@@ -15,6 +15,7 @@ import {
   useDefinitions,
   useDeleteDefinition,
   useDeployDefinition,
+  useExportPackage,
   useLatestDefinition,
   useSaveDefinition,
   useUpdateDefinitionMeta,
@@ -22,6 +23,7 @@ import {
   useBpmnCapabilities,
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
+import { saveFile } from '@/lib/saveFile';
 import { normalizeBpmnDiagnostics, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 import { useCan } from '@/stores/session';
@@ -59,6 +61,7 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
   const updateMeta = useUpdateDefinitionMeta();
   const startWorkflow = useStartWorkflow();
   const deleteDefinition = useDeleteDefinition();
+  const exportPackage = useExportPackage();
 
   const dirty = editing.draft.dirty;
   const [zoom, setZoom] = useState(100);
@@ -70,6 +73,29 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
   const name = definition?.name ?? definitionId;
 
   useBreadcrumbs([{ label: 'Workflows', to: '/workflows' }, { label: name }]);
+
+  /**
+   * Laedt diesen Workflow als Paket herunter. Das Paket enthaelt den gespeicherten
+   * beziehungsweise veroeffentlichten Stand — nicht den ungesicherten Entwurf im Editor.
+   */
+  function exportPaket() {
+    if (dirty) {
+      toast.warning('Es gibt ungespeicherte Änderungen', {
+        description: 'Das Paket enthält den zuletzt gespeicherten Stand.',
+      });
+    }
+
+    exportPackage.mutate(definitionId, {
+      onSuccess: (file) => {
+        saveFile(file);
+        toast.success(`„${name}" als Paket gespeichert`);
+      },
+      onError: (error) =>
+        toast.error('Paket konnte nicht erstellt werden', {
+          description: error instanceof Error ? error.message : undefined,
+        }),
+    });
+  }
 
   useEffect(() => registerCapture(() => {
     if (!modelerRef.current) throw new Error('Der Editor ist noch nicht bereit.');
@@ -210,6 +236,17 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
           onClick={() => void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}/gliederung` })}
         >
           Gliederung
+        </Button>
+
+        <Button
+          size="sm"
+          icon="inventory_2"
+          title="Diesen Workflow samt seiner Formulare als Paket herunterladen"
+          className="w-[34px] px-0"
+          loading={exportPackage.isPending}
+          onClick={exportPaket}
+        >
+          <span className="sr-only">Als Paket exportieren</span>
         </Button>
 
         {latestQuery.data && (

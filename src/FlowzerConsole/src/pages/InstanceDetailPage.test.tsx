@@ -6,7 +6,7 @@ import { InstanceDetailPage } from './InstanceDetailPage';
 
 const mocks = vi.hoisted(() => ({
   instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn(),
-  cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(), children: vi.fn(),
+  cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(), children: vi.fn(), remove: vi.fn(),
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@flowzer/react', () => ({
@@ -18,6 +18,7 @@ vi.mock('@/lib/api/queries', () => ({
   useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
   useInstanceChildren: mocks.children,
   useCancelInstance: () => ({ mutate: mocks.cancel, isPending: false }),
+  useDeleteInstance: () => ({ mutate: mocks.remove, isPending: false }),
   useInstanceMigrationPreview: mocks.migrationPreview,
   useMigrateInstances: () => ({
     mutate: mocks.migrate, isPending: false, data: undefined, error: null, reset: vi.fn(),
