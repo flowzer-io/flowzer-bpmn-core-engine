@@ -118,4 +118,17 @@ if ! grep -Fq '${FLOWZER_RUNTIME_BIND_ADDRESS:-127.0.0.1}:${FLOWZER_RUNTIME_PORT
   exit 1
 fi
 
-printf 'OK: Das Gateway leitet alle API-Routen weiter.\n'
+# Testzweck (Negativtest): Der Prometheus-Scrape-Endpunkt der API antwortet ohne Anmeldung —
+# Prometheus bringt keine Sitzung mit. Er darf deshalb ausschliesslich im Containernetz
+# erreichbar sein. Stuende `metrics` in der Weiterleitungsliste des Konsolen-Gateways, waere die
+# gesamte Innenansicht der Installation (Instanzzahlen, Fehlerquoten, Scheduler-Takt) oeffentlich
+# abrufbar. Ohne Eintrag beantwortet die Konsole den Pfad mit ihrer Startseite, und der Aufruf
+# erreicht die API gar nicht erst.
+for entrypoint in "${entrypoints[@]}"; do
+  if route_is_proxied "$entrypoint" "metrics"; then
+    printf 'In %s wird /metrics an die API weitergeleitet. Der Scrape-Endpunkt ist anonym und gehoert nur ins Containernetz.\n' "$entrypoint" >&2
+    exit 1
+  fi
+done
+
+printf 'OK: Das Gateway leitet alle API-Routen weiter und /metrics bewusst nicht.\n'

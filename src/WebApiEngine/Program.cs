@@ -45,6 +45,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddFlowzerStorage(builder.Configuration);
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
 builder.Services.AddSingleton<TimerSchedulerDiagnosticsState>();
+builder.Services.AddSingleton<InstanceRetentionDiagnosticsState>();
 builder.Services.AddFlowzerObservability(builder.Configuration);
 builder.Services.AddSingleton<FormBusinessLogic>();
 builder.Services.AddScoped<FormAuthoringService>();
@@ -60,6 +61,7 @@ builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
 builder.Services.AddScoped<InstanceAccessService>();
 builder.Services.AddScoped<RuntimeDiagramService>();
+builder.Services.AddScoped<WorkflowAnalyticsService>();
 builder.Services.AddSingleton<AiToolRegistry>();
 builder.Services.AddScoped<AiConnectionService>();
 builder.Services.AddOptions<FlowzerAiOptions>()
@@ -108,10 +110,18 @@ builder.Services.AddSingleton(serviceProvider =>
     serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<UserTaskDeadlineOptions>>()
         .Value.ToPolicy());
 builder.Services.Configure<TimerSchedulerOptions>(builder.Configuration.GetSection(TimerSchedulerOptions.SectionName));
+// Aufbewahrung beendeter Instanzen. Ohne gesetzte Frist laeuft der Dienst nicht an; der
+// Default ist bewusst aus, damit ein Update keine Vorgangsdaten loescht, um die niemand bat.
+builder.Services.AddOptions<InstanceRetentionOptions>()
+    .Bind(builder.Configuration.GetSection(InstanceRetentionOptions.SectionName))
+    .Validate(options => options.IsValid(), "Retention:FinishedInstances configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<InstanceRetentionService>();
 // Reihenfolge zaehlt: erst den gespeicherten Zustand zurueckholen, dann zyklisch weiterarbeiten.
 builder.Services.AddHostedService<EngineStartupService>();
 builder.Services.AddHostedService<TimerSchedulerBackgroundService>();
 builder.Services.AddHostedService<UserTaskDeadlineBackgroundService>();
+builder.Services.AddHostedService<InstanceRetentionBackgroundService>();
 
 // Auftraege fuer externe Worker: Vergabe und Rueckmeldung ueber die API, optional ergaenzt
 // um eine Benachrichtigung an angemeldete Adressen.
@@ -193,6 +203,10 @@ app.UseFlowzerRateLimiting();
 // TLS terminiert am Reverse Proxy / Gateway; HTTPS-Redirect bewusst nicht im Host.
 
 app.MapControllers();
+
+// Nur wenn ausdruecklich eingeschaltet. Der Endpunkt antwortet ohne Anmeldung und gehoert
+// deshalb ausschliesslich ins Containernetz, nicht hinter das oeffentliche Gateway.
+app.MapFlowzerPrometheusScrapingEndpoint();
 
 await app.ApplyStartupMigrationsIfConfiguredAsync();
 

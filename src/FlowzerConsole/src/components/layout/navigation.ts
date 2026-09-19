@@ -23,6 +23,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms', matches: ['/form-sections'] },
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
+  { key: 'analytics', label: 'Auswertungen', icon: 'timeline', path: '/analytics', requires: 'operator' },
 ] as const;
 
 export function activeNavKey(pathname: string): string {
@@ -45,6 +46,7 @@ export const PAGE_TITLES: Record<string, string> = {
   forms: 'Formulare',
   'ai-connections': 'KI-Verbindungen',
   operations: 'Betrieb & Diagnose',
+  analytics: 'Auswertungen',
   tasks: 'Meine Aufgaben',
 };
 

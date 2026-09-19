@@ -41,16 +41,56 @@ public sealed class RuntimeNodeEventStorageTest
             .Should().ContainSingle().Which.Id.Should().Be(item.Id);
     }
 
-    private static RuntimeNodeEvent Create(Guid? processInstanceId = null) => new()
+    // Testzweck: Die Auswertung liest je gebundener Version und Zeitraum. Der Anfang zaehlt mit,
+    // das Ende nicht, fremde Versionen bleiben draussen, und die Reihenfolge bleibt dieselbe
+    // stabile Zeitreihenfolge wie beim Lesen einer Instanz.
+    [Test]
+    public async Task GetByDefinitionIds_ShouldReturnOnlyTheChosenVersionsWithinThePeriod()
+    {
+        using var context = new Context();
+        var wanted = Guid.NewGuid();
+        var origin = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+        var inside = Create(definitionId: wanted, occurredAtUtc: origin);
+        var atStart = Create(definitionId: wanted, occurredAtUtc: origin.AddHours(-1));
+        var atEnd = Create(definitionId: wanted, occurredAtUtc: origin.AddHours(1));
+        var tooEarly = Create(definitionId: wanted, occurredAtUtc: origin.AddHours(-2));
+        var otherVersion = Create(definitionId: Guid.NewGuid(), occurredAtUtc: origin);
+        foreach (var item in new[] { inside, atStart, atEnd, tooEarly, otherVersion })
+        {
+            await context.Storage.RuntimeNodeEventStorage.AppendIfAbsent(item);
+        }
+
+        var stored = await context.Storage.RuntimeNodeEventStorage.GetByDefinitionIds(
+            [wanted], origin.AddHours(-1), origin.AddHours(1));
+
+        stored.Select(item => item.Id).Should().Equal(atStart.Id, inside.Id);
+    }
+
+    // Testzweck: Ohne Versionsauswahl gibt es nichts auszuwerten; die Ablage darf dann nicht
+    // versehentlich den ganzen Bestand liefern.
+    [Test]
+    public async Task GetByDefinitionIds_ShouldReturnNothingForAnEmptySelection()
+    {
+        using var context = new Context();
+        await context.Storage.RuntimeNodeEventStorage.AppendIfAbsent(Create());
+
+        (await context.Storage.RuntimeNodeEventStorage.GetByDefinitionIds(
+            [], DateTimeOffset.MinValue, DateTimeOffset.MaxValue)).Should().BeEmpty();
+    }
+
+    private static RuntimeNodeEvent Create(
+        Guid? processInstanceId = null,
+        Guid? definitionId = null,
+        DateTimeOffset? occurredAtUtc = null) => new()
     {
         Id = Guid.NewGuid(),
         ProcessInstanceId = processInstanceId ?? Guid.NewGuid(),
-        DefinitionId = Guid.NewGuid(),
+        DefinitionId = definitionId ?? Guid.NewGuid(),
         TokenId = Guid.NewGuid(),
         FlowNodeId = "ReviewTask",
         State = FlowNodeState.Active,
         CorrelationId = Guid.NewGuid(),
-        OccurredAtUtc = DateTimeOffset.UtcNow
+        OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow
     };
 
     private sealed class Context : IDisposable

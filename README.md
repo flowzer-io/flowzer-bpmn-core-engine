@@ -221,6 +221,7 @@ Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
+- [docs/ANALYTICS.md](docs/ANALYTICS.md) – Auswertungen auf der Laufzeithistorie: Durchlaufzeit, Engpässe, Ausgang, samt Grenzen
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
@@ -228,6 +229,7 @@ Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
+- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform und bewusste Abweichungen von Camunda
 - [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md) – hostneutraler TypeScript-Client für Aufgaben- und Formularintegration
 - [packages/flowzer-react/README.md](packages/flowzer-react/README.md) – optionale darstellungsfreie React-Hooks und Controller
 - [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md) – Eigentums-, Authentisierungs-, Cache- und Integrationsgrenzen
