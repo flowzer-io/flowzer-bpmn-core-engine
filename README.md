@@ -350,6 +350,25 @@ Zusätzlich zur Dev-Compose-Variante gibt es jetzt auch eine runtime-nahe Contai
 
 Der Runtime-Gateway-Stack ist anschließend standardmäßig unter [http://localhost:5288](http://localhost:5288) erreichbar.
 
+## Betriebskommandos
+
+```bash
+# Konfiguration einer Installation prüfen, ohne die API zu starten.
+# Exit-Code: 0 = in Ordnung, 1 = Fehler, 2 = nur Warnungen.
+dotnet WebApiEngine.dll --check-config
+
+# PostgreSQL-Migrationen als eigener, wiederholbarer Schritt anwenden.
+dotnet WebApiEngine.dll --migrate
+
+# Sichern und wiederherstellen (PostgreSQL plus Dateiablage und Keyring).
+./scripts/runtime/backup.sh --schema flowzer
+./scripts/runtime/restore.sh backups/<zeitstempel>.dump --schema flowzer
+```
+
+Reihenfolge bei einem Update: sichern → `--check-config` → `--migrate` → Replikate heben.
+Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#konfigurationsprüfung---check-config)
+und im [Runbook](docs/RUNBOOK-PILOT.md).
+
 ## Beispiele
 
 Ein kleines Nutzungsbeispiel der Engine-Bibliothek liegt in

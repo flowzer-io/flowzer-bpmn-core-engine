@@ -638,8 +638,26 @@ Ein unbekanntes Formular antwortet mit 404, damit ein Löschen ins Leere nicht a
 Die Web-API stellt aktuell folgende Endpunkte bereit:
 
 - `GET /health` – Liveness
-- `GET /health/ready` – Readiness inkl. Storage-Prüfung
+- `GET /health/ready` – Readiness inkl. Storage-Prüfung und Migrationsstand
 - `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot, Instrumentierungsnamen und aktive Observability-Konfiguration
+
+`GET /health/ready` liefert seit diesem Paket zusätzlich ein additives `details`-Objekt
+(alle Felder sind optional, bestehende Auswerter bleiben gültig):
+
+| Feld | Bedeutung |
+|---|---|
+| `details.storageProvider` | `Filesystem` oder `PostgreSQL (schema <name>)` |
+| `details.migrationState` | `UpToDate`, `Pending`, `NotApplicable` (Dateiablage) oder `Unknown` |
+| `details.pendingMigrationCount` | Zahl der noch nicht angewendeten Migrationen; `null` bei `Unknown` |
+| `details.expectedMigrationVersion` | höchste in diesem Paket eingebettete Migrationsversion |
+
+Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_migrations`
+gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
+Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja geantwortet.
+`Pending` ist ebenfalls kein 503: Ein Replikat, das vor dem Migrationsschritt hochkommt,
+soll sichtbar sein, nicht unsichtbar. Für ein Deployment-Gate ist deshalb `details`
+auszuwerten, nicht der Statuscode. Die Antwort enthält keine Verbindungszeichenfolge und
+keine Anmeldedaten.
 
 Typische URLs lokal:
 
@@ -967,6 +985,83 @@ dotnet WebApiEngine.dll --migrate
 
 genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt).
 
+Der Migrationslauf ist **wiederholbar und nebenläufigkeitsfest**: Er nimmt vor jedem Schritt
+einen PostgreSQL-Advisory-Lock in derselben Transaktion, überspringt bereits eingetragene
+Versionen und schreibt je Migration genau einen Historieneintrag. Zwei gleichzeitige
+`--migrate`-Läufe werden dadurch serialisiert; genau einer wendet an, der andere findet
+alles vor. Belegt ist das durch `MigrateArgument_ShouldBeIdempotentWhenRunTwice` und
+`ConcurrentMigrationRuns_ShouldBeSerializedByTheAdvisoryLock`
+(`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`).
+
+## Konfigurationsprüfung: `--check-config`
+
+```bash
+dotnet WebApiEngine.dll --check-config
+```
+
+Das Argument baut denselben Host wie der normale Start – Optionsbindung und alle
+`ValidateOnStart`-Validierungen laufen mit –, prüft danach aber nur und startet nichts.
+Es wird kein Port belegt, keine Pipeline aufgebaut und kein Hintergrunddienst gestartet.
+Geprüft wird je eine Zeile pro Bereich:
+
+| Bereich | Was geprüft wird |
+|---|---|
+| Konfiguration | Bindung und Validierung aller Optionsabschnitte (Storage, Authentication, Ai, AiExecution, UserTaskDeadlines, IdentityDirectory) |
+| Ablage | PostgreSQL: Verbindung mit der Laufzeitkennung und Existenz des Schemas. Dateiablage: Wurzelverzeichnis anlegbar und tatsächlich beschreibbar (Schreibprobe, kein Existenztest) |
+| Migrationen | nur PostgreSQL: Migrationsstand über die **Migrationskennung**, gemeldet als „aktuell“ oder „n ausstehend“ samt Versionsnummern |
+| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP HEAD** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten und ohne den Antwortinhalt zu lesen |
+| Webhook-Ziele | `ServiceTaskWebhooks`: aktiviert/abgeschaltet und die **Anzahl** freigegebener Ziele (keine Adressen) |
+| KI-Datenfluss | `Ai`/`AiExecution`: Cloud-, Lokal- und Ausführungs-Opt-ins als Zusammenfassung |
+
+Ausgegeben wird eine Tabelle aus `Bereich`, `Zustand` (`OK`/`Warnung`/`Fehler`) und
+`Hinweis`. Die Ausgabe enthält **keine** Verbindungszeichenfolgen, Passwörter, Client-Secrets
+oder Tokens; von der Datenbank erscheinen nur Host, Port, Datenbank- und Schemaname, von
+den Webhook-Zielen nur deren Anzahl.
+
+Exit-Codes:
+
+| Code | Bedeutung |
+|---|---|
+| `0` | keine Beanstandungen |
+| `1` | mindestens ein Fehler – die Installation ist nicht startbereit |
+| `2` | nur Warnungen – Start möglich, die Hinweise gehören geklärt |
+
+Abschnitte, die bereits beim Registrieren der Dienste validieren (`Storage`,
+`Authentication`, `RateLimiting`/`Limits`, `ForwardedHeaders`, `Observability`), würden den
+Host sonst abbrechen lassen, bevor überhaupt etwas geprüft ist. `--check-config` führt
+dieselbe Registrierung deshalb vorab gegen eine Wegwerf-Sammlung aus und meldet den
+fehlerhaften Abschnitt als benannte Zeile statt als rohe Ausnahme.
+
+Als Warnung gelten unter anderem: ausstehende Migrationen, ein noch fehlendes Schema,
+`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider und aktivierte
+Webhooks ohne freigegebenes Ziel. Als Fehler gelten eine unbrauchbare oder nicht erreichbare
+Ablage, eine nicht lesbare Migrationshistorie und jede fehlgeschlagene Optionsvalidierung.
+`--check-config` prüft Erreichbarkeit, nicht Berechtigung: dass Client-Secret, Scopes und
+Audience zusammenpassen, zeigt erst eine echte Anmeldung.
+
+Beispiel:
+
+```text
+Bereich            Zustand  Hinweis
+-----------------  -------  -------
+Konfiguration      OK       Alle Optionsabschnitte gebunden und validiert.
+Ablage             OK       PostgreSQL erreichbar (db:5432/flowzer), Schema flowzer vorhanden.
+Migrationen        OK       aktuell (16 angewendet, hoechste Version 16).
+Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery.
+Webhook-Ziele      OK       aktiviert mit 1 freigegebenen Ziel(en), HTTP gesperrt.
+KI-Datenfluss      OK       Cloud gesperrt, lokale Endpunkte gesperrt, Ausfuehrung aus.
+```
+
+## Sicherung und Wiederherstellung von PostgreSQL
+
+`scripts/runtime/backup.sh` und `scripts/runtime/restore.sh` decken den Compose-Stack ab:
+`pg_dump -Fc` des Flowzer-Schemas nach `backups/<zeitstempel>.dump`, optional die
+Dateiablage samt Data-Protection-Keyring als `backups/<zeitstempel>-files.tgz`, und ein
+Restore ausschließlich in eine leere Datenbank mit anschließender Prüfung des
+Migrationsstands. Zugangsdaten reisen nur über die Umgebung (`PGPASSWORD`/`~/.pgpass`),
+nie über die Kommandozeile. Ablauf, Optionen und die Aufbewahrungsfrage stehen im
+[Runbook](RUNBOOK-PILOT.md) unter „Backup und Restore“.
+
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
 Die dateibasierte Persistenz ist die maßgebliche lokale Entwicklungsquelle. Für Diagnose,
@@ -1044,6 +1139,9 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
 - vollständige produktionsnahe Reverse-Proxy-/TLS- und Secret-Store-Automatisierung
 - Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring
+- Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
+  Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
+  aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).
 
 ## Sinnvolle nächste Ausbauschritte
 
