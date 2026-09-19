@@ -21,10 +21,11 @@ diesen Modellen tut — einschließlich aller Ablehnungen und ihrer Gründe.
 | Stufe | Ergebnis |
 | --- | --- |
 | Modelle im Satz | 22 |
-| gelesen (Parser, mit ausführbarem Prozess) | 1 |
+| gelesen (Parser, mit ausführbarem Prozess) | 5 |
 | gelesen, aber leer (kein `isExecutable="true"`) | 15 |
-| veröffentlichbar (Fähigkeitsvertrag) | 1 |
-| ausgeführt bis Ende | 0 |
+| veröffentlichbar (Fähigkeitsvertrag) | 4 |
+| davon mit Warnung veröffentlichbar | 3 |
+| ausgeführt bis Ende | 1 |
 
 „gelesen, aber leer" ist bewusst getrennt: Der Parser liest ausschließlich Prozesse mit
 `isExecutable="true"`. Ein Modell ohne solchen Prozess läuft ohne Ausnahme durch, ohne dass
@@ -35,7 +36,7 @@ ein einziges Element gelesen worden wäre. Das ist keine Abdeckung.
 | Stufe | Was geprüft wird | Mögliche Werte |
 | --- | --- | --- |
 | Lesen | `ModelParser.ParseModel` ohne Ausnahme | `ok`, `empty`, `rejected` |
-| Veröffentlichen | `BpmnCapabilityMatrix.ValidateForDeployment` | `ok`, `rejected` |
+| Veröffentlichen | `BpmnCapabilityMatrix.ValidateForDeployment` | `ok` (ggf. mit Warnungen), `rejected` |
 | Ausführen | Instanz starten und wartende Elemente generisch bedienen | `completed`, `stuck`, `exception`, `step_limit`, `skipped` |
 
 Die Ausführungsstufe läuft nur, wenn die Veröffentlichung zusagt und das Modell einen
@@ -55,19 +56,19 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | `A.4.1.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `B.1.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `B.2.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
-| `C.1.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'approveInvoice' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
-| `C.1.1.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'approveInvoice' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
+| `C.1.0.bpmn` | `rejected` | `parser.ModelValidationException` — `Implementation not defined for Service task 'archiveInvoice'` | `rejected` | `bpmn.service_task.implementation_required` an `serviceTask` | übersprungen (deployment rejected) |
+| `C.1.1.bpmn` | `rejected` | `parser.ModelValidationException` — `Implementation not defined for Service task 'archiveInvoice'` | `rejected` | `bpmn.service_task.implementation_required` an `serviceTask` | übersprungen (deployment rejected) |
 | `C.2.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
-| `C.3.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task '_c73a5f4a-72f1-4e11-bb40-2f98da75fb9a' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
+| `C.3.0.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `rejected` | `bpmn.exclusive_gateway.condition_required` an `sequenceFlow` | übersprungen (deployment rejected) |
 | `C.4.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.5.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.6.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.7.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.8.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.8.1.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | — | `exception` — NotSupportedException: getting values of object arrays is not implemented yet. |
-| `C.9.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
-| `C.9.1.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_CallCustomer' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
-| `C.9.2.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_AccelerateDecision' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
+| `C.9.0.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | Warnung: `bpmn.user_task.form_missing` | `stuck` — no generic action for BusinessRuleTask 'BusinessRuleTask_CheckApplicationAutomatically' |
+| `C.9.1.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | Warnung: `bpmn.user_task.form_missing` | `completed` |
+| `C.9.2.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | Warnung: `bpmn.user_task.form_missing` | `exception` — KeyNotFoundException: The specified key 'applicant' does not exist in the ExpandoObject. |
 | `C.10.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 
 ## Häufigste Ablehnungsgründe
@@ -76,7 +77,7 @@ für Timer vorgestellt — höchstens 200 Schritte.
 
 | Grund | Anzahl | Modelle | Deutung |
 | --- | --- | --- | --- |
-| `parser.FlowzerModelParseException` | 6 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.0.bpmn`, `C.9.1.bpmn`, `C.9.2.bpmn` | Flowzer verlangt an jedem User-Task ein `zeebe:formDefinition` mit `formKey` oder `formId`. Werkzeugneutrale Modelle tragen keines. **Produktentscheidung, keine BPMN-Lücke.** |
+| `parser.ModelValidationException` | 2 | `C.1.0.bpmn`, `C.1.1.bpmn` | Ein benannter Modellfehler des Parsers: fehlende Kennung, Verweis ins Leere oder eine unvollständige Pflichtangabe. **Modellfehler, keine Fähigkeitslücke.** |
 
 > Reines Diagramm-Beiwerk überliest der Parser (siehe
 > [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md), „Was überlesen wird"). An einem Element
@@ -88,7 +89,8 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | Fehlercode | Elementart | Anzahl | Modelle | Deutung |
 | --- | --- | --- | --- | --- |
 | `bpmn.process.executable_required` | `definitions` | 15 | `A.1.0.bpmn`, `A.2.0.bpmn`, `A.2.1.bpmn`, `A.3.0.bpmn`, `A.4.0.bpmn`, `A.4.1.bpmn`, `B.1.0.bpmn`, `B.2.0.bpmn`, `C.2.0.bpmn`, `C.4.0.bpmn`, `C.5.0.bpmn`, `C.6.0.bpmn`, `C.7.0.bpmn`, `C.8.0.bpmn`, `C.10.0.bpmn` | Das Dokument enthält keinen Prozess mit `isExecutable="true"`. Die MIWG-Reihen A und B sind reine Modellierungs- und Layoutbeispiele. **Kein Befund über die Engine.** |
-| `bpmn.user_task.form_required` | `userTask` | 6 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.0.bpmn`, `C.9.1.bpmn`, `C.9.2.bpmn` | Wie oben: kein `zeebe:formDefinition` am User-Task. **Produktentscheidung.** |
+| `bpmn.service_task.implementation_required` | `serviceTask` | 2 | `C.1.0.bpmn`, `C.1.1.bpmn` | — |
+| `bpmn.exclusive_gateway.condition_required` | `sequenceFlow` | 1 | `C.3.0.bpmn` | — |
 
 > Auch die Veröffentlichungsprüfung meldet bewusst den **ersten** Fehler in
 > Dokumentreihenfolge (siehe [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md)). Die Zahlen sind

@@ -24,7 +24,7 @@ import {
 } from '@/lib/api/queries';
 import { formatRelative } from '@/lib/format';
 import { saveFile } from '@/lib/saveFile';
-import { normalizeBpmnDiagnostics, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
+import { normalizeBpmnDiagnostics, normalizeBpmnWarnings, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
 import { useCan } from '@/stores/session';
 
@@ -128,12 +128,18 @@ export function ModelerPage({ definitionId, focusElementId }: ModelerPageProps) 
       const xml = await pendingXml;
       if (!xml) return;
       try {
-        if (kind === 'deploy') await validateDefinition.mutateAsync({ xml, deployment: true });
+        let warnings: BpmnDiagnostic[] = [];
+        if (kind === 'deploy') {
+          const validation = await validateDefinition.mutateAsync({ xml, deployment: true });
+          warnings = normalizeBpmnWarnings(validation);
+        }
         const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
         // mutateAsync bleibt auch bei einem Ansichtswechsel zuverlässig auswertbar.
         const result = await mutation.mutateAsync({ xml, previousGuid: editing.draft.baseId });
         editing.saved(xml, result.id, submittedRevision);
-        setDiagnostics([]);
+        // Hinweise überleben den Erfolg: Veröffentlicht ist veröffentlicht, aber der
+        // Autor soll sehen, was dabei auffiel.
+        setDiagnostics(warnings.length > 0 ? warnings : normalizeBpmnWarnings(result));
         toast.success(kind === 'deploy'
           ? `v${result.version.major}.${result.version.minor} ist aktiv`
           : `Entwurf v${result.version.major}.${result.version.minor} gespeichert`);

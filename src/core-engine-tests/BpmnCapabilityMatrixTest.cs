@@ -96,7 +96,6 @@ public class BpmnCapabilityMatrixTest
 
     // Testzweck: Unvollständige Flowzer-Konfigurationen verweisen auf die gezielte Modelleigenschaft statt nur auf den ganzen Knoten.
     [TestCase("<bpmn:serviceTask id='Service_1' />", "bpmn.service_task.implementation_required", "extensionElements.taskDefinition.type")]
-    [TestCase("<bpmn:userTask id='User_1' />", "bpmn.user_task.form_required", "extensionElements.formDefinition.formKey")]
     [TestCase("<bpmn:startEvent id='Timer_1'><bpmn:timerEventDefinition /></bpmn:startEvent>", "bpmn.timer.definition_required", "timerEventDefinition")]
     [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Missing_1' />", "bpmn.sequence_flow.invalid_reference", "sourceRef/targetRef")]
     public void ValidateForDeployment_ShouldExposePropertyPathForIncompleteConfiguration(
@@ -107,6 +106,46 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be(code);
         exception.PropertyPath.Should().Be(propertyPath);
+    }
+
+    // Testzweck: Prüft, dass ein User-Task ohne Formularbindung veröffentlichbar bleibt und
+    // als Warnung — nicht als Fehler — mit Element und Eigenschaft gemeldet wird.
+    [Test]
+    public void ValidateForDeployment_ShouldWarnAboutUserTaskWithoutForm_WithoutRejecting()
+    {
+        var warnings = BpmnCapabilityMatrix.ValidateForDeployment(
+            CreateProcess("<bpmn:userTask id='User_1' />"));
+
+        warnings.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Code = "bpmn.user_task.form_missing",
+            ElementId = "User_1",
+            PropertyPath = "extensionElements.formDefinition.formKey"
+        });
+    }
+
+    // Testzweck: Prüft, dass ein User-Task mit Formularbindung keine Warnung erzeugt — die
+    // Warnung soll den Verlust benennen, nicht jede menschliche Aufgabe begleiten.
+    [Test]
+    public void ValidateForDeployment_ShouldNotWarnAboutUserTaskWithForm()
+    {
+        var warnings = BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:userTask id='User_1'><bpmn:extensionElements>"
+            + "<zeebe:formDefinition formKey='Antrag' /></bpmn:extensionElements></bpmn:userTask>"));
+
+        warnings.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass ein blockierender Fehler die Warnungen nicht als Erfolg ausgibt —
+    // eine abgelehnte Veröffentlichung meldet ihre Fehler, nicht ihre Hinweise.
+    [Test]
+    public void ValidateForDeployment_ShouldStillRejectWhenAWarningAndAnErrorMeet()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(
+            CreateProcess("<bpmn:userTask id='User_1' /><bpmn:serviceTask id='Service_1' />"));
+
+        action.Should().Throw<BpmnCapabilityValidationException>()
+            .Which.Code.Should().Be("bpmn.service_task.implementation_required");
     }
 
     // Testzweck: Die Validierung steigt in Subprozesse ab, damit nicht ausführbare Elemente nicht hinter einem Container verborgen bleiben.

@@ -8,6 +8,17 @@ public class Token
     public required Guid ProcessInstanceId { get; init; }
 
     public required IBaseElement CurrentBaseElement { get; init; }
+
+    /// <summary>
+    /// Dasselbe Element wie <see cref="CurrentBaseElement"/>, nur als Flow-Node gelesen.
+    ///
+    /// Ausdruecklich nicht persistiert: Ohne Setter wuerde Newtonsoft.Json die gespeicherte
+    /// Kopie beim Laden nicht neu erzeugen, sondern in das bereits aufgebaute
+    /// <see cref="CurrentBaseElement"/> hineinschreiben — und dabei jede Liste des
+    /// Modellelements ein zweites Mal fuellen (Dokumentation, Kandidaten, Mappings).
+    /// Der Wert ist ohnehin ableitbar; gespeichert wird deshalb nur das Element selbst.
+    /// </summary>
+    [Newtonsoft.Json.JsonIgnore]
     public FlowNode? CurrentFlowNode => CurrentBaseElement as FlowNode;
 
     public required List<BoundaryEvent> ActiveBoundaryEvents { get; init; }

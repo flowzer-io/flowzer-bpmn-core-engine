@@ -14,6 +14,7 @@ import type {
   AnalyticsRangeQuery,
   BpmnDefinitionDto,
   BpmnCapabilityContract,
+  BpmnValidationResultDto,
   BpmnMetaDefinitionDto,
   CalledInstanceDto,
   ExtendedBpmnMetaDefinitionDto,
@@ -111,7 +112,7 @@ export const definitionsApi = {
 
   /** Getrennte feste Pfade verhindern, dass ein Requestparameter die Prüfart abschwächt. */
   validate: (xml: string, deployment: boolean) =>
-    requestStatusResult<BpmnCapabilityContract>(
+    requestStatusResult<BpmnValidationResultDto>(
       deployment ? '/definition/validate/deployment' : '/definition/validate',
       {
         method: 'POST',

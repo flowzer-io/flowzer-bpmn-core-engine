@@ -302,10 +302,35 @@ describe('FlowzerClient', () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
     const client = new FlowzerClient({ baseUrl: '/api', fetch });
 
-    const failure = await client.userTasks.getForm('task-1').catch((error: unknown) => error);
+    const failure = await client.userTasks.get('task-1').catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(FlowzerApiError);
     expect(failure).toMatchObject({ status: 200 });
+  });
+
+  // Testzweck: Eine Aufgabe ohne Formularbindung antwortet mit 204. Das ist die Auskunft
+  // selbst — „hier ist nichts auszufüllen" — und darf nicht als Fehler beim Host ankommen.
+  it('liest eine Aufgabe ohne Formular als null', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 204 }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    await expect(client.userTasks.getForm('task-1')).resolves.toBeNull();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/usertask/task-1/form');
+  });
+
+  // Testzweck: Eine fachlich abgelehnte Formularantwort bleibt auch auf dem 204-toleranten
+  // Weg ein Fehler — sonst sähe ein kaputtes Formular wie „kein Formular" aus.
+  it('meldet eine abgelehnte Formularantwort weiterhin als Fehler', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({
+      successful: false,
+      errorMessage: 'No deployment form binding exists.',
+    }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+
+    const failure = await client.userTasks.getForm('task-1').catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(FlowzerApiError);
+    expect(failure).toMatchObject({ message: 'No deployment form binding exists.' });
   });
 
   // Testzweck: Eine abgelaufene Host-Sitzung kann zentral invalidiert werden, ohne

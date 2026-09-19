@@ -1,3 +1,5 @@
+using WebApiEngine.Shared;
+
 namespace WebApiEngine.Middleware;
 
 /// <summary>
@@ -12,11 +14,3 @@ public sealed class BpmnCapabilityProblemDetails : ApiValidationProblem
     public string CapabilityContractVersion { get; init; } = "";
     public string TraceId { get; init; } = "";
 }
-
-/// <summary>Wertefreier, gezielt auf ein BPMN-Element beziehbarer Modellbefund.</summary>
-public sealed record BpmnCapabilityIssueDto(
-    string Code,
-    string Severity,
-    string? ElementId,
-    string? PropertyPath,
-    string Message);

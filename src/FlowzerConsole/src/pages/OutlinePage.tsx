@@ -18,7 +18,7 @@ import {
   useValidateDefinition,
   useBpmnCapabilities,
 } from '@/lib/api/queries';
-import { normalizeBpmnDiagnostics, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
+import { normalizeBpmnDiagnostics, normalizeBpmnWarnings, type BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 import { findBlock, hasBlocker, type OutlineDocument } from '@/lib/outline/model';
 import { readOutline } from '@/lib/outline/read';
 import { writeOutlineXml } from '@/lib/outline/write';
@@ -90,11 +90,16 @@ export function OutlinePage({ definitionId }: OutlinePageProps) {
     await editing.runSave(async () => {
       const submittedRevision = editing.draft.revision;
       try {
-        if (kind === 'deploy') await validateDefinition.mutateAsync({ xml, deployment: true });
+        let warnings: BpmnDiagnostic[] = [];
+        if (kind === 'deploy') {
+          const validation = await validateDefinition.mutateAsync({ xml, deployment: true });
+          warnings = normalizeBpmnWarnings(validation);
+        }
         const mutation = kind === 'deploy' ? deployDefinition : saveDefinition;
         const result = await mutation.mutateAsync({ xml, previousGuid: editing.draft.baseId });
         editing.saved(xml, result.id, submittedRevision);
-        setDiagnostics([]);
+        // Hinweise bleiben nach dem Erfolg stehen; geblockt hat nichts davon.
+        setDiagnostics(warnings.length > 0 ? warnings : normalizeBpmnWarnings(result));
         toast.success(kind === 'deploy'
           ? `v${result.version.major}.${result.version.minor} ist aktiv`
           : `Entwurf v${result.version.major}.${result.version.minor} gespeichert`);

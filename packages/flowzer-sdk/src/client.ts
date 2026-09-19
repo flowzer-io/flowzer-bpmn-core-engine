@@ -87,8 +87,12 @@ export class FlowzerClient {
     get: (userTaskId: string, options: FlowzerCallOptions = {}): Promise<ExtendedUserTask> =>
       this.transport.statusResult(`/usertask/${segment(userTaskId)}`, options),
 
-    getForm: (userTaskId: string, options: FlowzerCallOptions = {}): Promise<FlowzerForm> =>
-      this.transport.statusResult(`/usertask/${segment(userTaskId)}/form`, options),
+    /**
+     * Das Formular der Aufgabe — oder `null`, wenn das Modell keines bindet. Eine solche
+     * Aufgabe ist eine reine Bestätigung und wird ohne Eingaben abgeschlossen.
+     */
+    getForm: (userTaskId: string, options: FlowzerCallOptions = {}): Promise<FlowzerForm | null> =>
+      this.transport.statusOptionalResult(`/usertask/${segment(userTaskId)}/form`, options),
 
     getDraft: (userTaskId: string, options: FlowzerCallOptions = {}): Promise<UserTaskDraft> =>
       this.transport.statusResult(`/usertask/${segment(userTaskId)}/draft`, options),

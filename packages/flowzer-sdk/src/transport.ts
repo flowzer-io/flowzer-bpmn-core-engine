@@ -82,6 +82,31 @@ export class FlowzerTransport {
     return result;
   }
 
+  /**
+   * Wie `statusResult`, aber `204 No Content` ist eine gültige Antwort und heisst `null`:
+   * „Es gibt hier nichts" — etwa eine Aufgabe ohne Formular oder ein Workflow ohne
+   * Startformular. Ein leeres Ergebnis ist dort kein Fehler, sondern die Auskunft selbst.
+   */
+  async statusOptionalResult<T>(path: string, options: RequestOptions = {}): Promise<T | null> {
+    const body = await this.request<ApiEnvelope<T> | null>(path, options);
+    if (body === null || body === undefined) return null;
+    if (typeof body !== 'object' || Array.isArray(body)) {
+      throw new FlowzerApiError('Unexpected Flowzer API response.', {
+        status: 200,
+        url: this.url(path, options.query),
+        body,
+      });
+    }
+    if (body.successful === false) {
+      throw new FlowzerApiError(body.errorMessage ?? 'The Flowzer API rejected the request.', {
+        status: 200,
+        url: this.url(path, options.query),
+        body,
+      });
+    }
+    return (body.result ?? null) as T | null;
+  }
+
   async statusVoid(path: string, options: RequestOptions = {}): Promise<void> {
     await this.status<unknown>(path, options);
   }

@@ -86,14 +86,20 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     /// <summary>Ein Aufrufer ohne jede Anmeldung — fuer die fail-closed-Faelle.</summary>
     internal HttpClient CreateAnonymousClient() => _factory.CreateClient();
 
+    /// <param name="taskFormKey">
+    /// Der Form-Key der Aufgabe. <c>null</c> heisst ausdruecklich „kein Formular": Der
+    /// User-Task traegt dann gar kein <c>zeebe:formDefinition</c> — so, wie jedes
+    /// werkzeugneutrale Modell eine menschliche Aufgabe schreibt.
+    /// </param>
     internal async Task<UserTaskSubscription> StartAsync(
         string assignment,
         ExpandoObject? variables = null,
         string? assignmentExtensionXml = null,
-        string? taskScheduleXml = null)
+        string? taskScheduleXml = null,
+        string? taskFormKey = "Approval")
     {
         var definition = await DeployAsync(assignment, assignmentExtensionXml: assignmentExtensionXml,
-            taskScheduleXml: taskScheduleXml);
+            taskScheduleXml: taskScheduleXml, taskFormKey: taskFormKey);
         var engine = Services.GetRequiredService<BpmnBusinessLogic>();
         var instance = await engine.StartProcessInstance(definition.DefinitionId, variables);
         return (await Storage.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Single();
@@ -103,7 +109,9 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         string assignment,
         string? startFormKey = null,
         string? assignmentExtensionXml = null,
-        string? taskScheduleXml = null)
+        string? taskScheduleXml = null,
+        string? taskFormKey = "Approval",
+        string? taskDocumentation = null)
     {
         await FormTestSeed.StoreAsync(Storage, "Approval");
         var definition = new BpmnDefinition
@@ -115,6 +123,8 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             { DefinitionId = definition.DefinitionId, Name = "Review" });
         await Storage.DefinitionStorage.StoreDefinition(definition);
         var startForm = startFormKey is null ? "" : $"<bpmn:extensionElements><zeebe:formDefinition formKey=\"{startFormKey}\" /></bpmn:extensionElements>";
+        var taskForm = taskFormKey is null ? "" : $"<zeebe:formDefinition formKey=\"{taskFormKey}\" />";
+        var documentation = taskDocumentation is null ? "" : $"<bpmn:documentation>{taskDocumentation}</bpmn:documentation>";
         var assignmentElement = assignmentExtensionXml
                                 ?? $"<zeebe:assignmentDefinition {assignment} />";
         await Storage.DefinitionStorage.StoreBinary(definition.Id, $$"""
@@ -126,8 +136,9 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
                 <bpmn:startEvent id="Start">{{startForm}}<bpmn:outgoing>ToReview</bpmn:outgoing></bpmn:startEvent>
                 <bpmn:sequenceFlow id="ToReview" sourceRef="Start" targetRef="Review" />
                 <bpmn:userTask id="Review" name="Review">
+                  {{documentation}}
                   <bpmn:extensionElements>
-                    <zeebe:formDefinition formKey="Approval" />
+                    {{taskForm}}
                     {{assignmentElement}}
                     {{taskScheduleXml ?? ""}}
                   </bpmn:extensionElements>

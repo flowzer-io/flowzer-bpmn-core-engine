@@ -150,6 +150,16 @@
   fill: color-mix(in oklab, var(--fail) 14%, var(--surface)) !important;
 }
 
+/* Hinweise, die nichts verhindern — etwa eine menschliche Aufgabe ohne Formular. */
+.bpmn-surface .flowzer-validation-warning .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--wait) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-validation-warning .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--wait) 14%, var(--surface)) !important;
+}
+
 /* Der pulsierende Token-Zähler am aktiven Element. */
 .flowzer-token {
   display: grid;

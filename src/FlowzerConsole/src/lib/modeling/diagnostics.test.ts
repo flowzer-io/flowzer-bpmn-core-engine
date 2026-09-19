@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ApiError } from '@/lib/api/client';
 
-import { normalizeBpmnDiagnostics } from './diagnostics';
+import { normalizeBpmnDiagnostics, normalizeBpmnWarnings } from './diagnostics';
 
 describe('BPMN-Diagnosen', () => {
   // Testzweck: Der stabile Problem-Details-Vertrag muss die betroffene BPMN-ID und
@@ -61,6 +61,37 @@ describe('BPMN-Diagnosen', () => {
       expect(diagnostic.message).not.toBe('technische Meldung');
       expect(diagnostic.message.length).toBeGreaterThan(20);
     }
+  });
+
+  // Testzweck: Hinweise einer erfolgreichen Prüfung müssen als Warnung mit Sprungziel
+  // ankommen — sie begleiten eine Veröffentlichung, sie verhindern sie nicht.
+  it('liest die Warnungen einer erfolgreichen Prüfung', () => {
+    expect(normalizeBpmnWarnings({
+      contractVersion: '9',
+      elements: [],
+      warnings: [{
+        code: 'bpmn.user_task.form_missing',
+        severity: 'warning',
+        elementId: 'Human',
+        propertyPath: 'extensionElements.formDefinition.formKey',
+        message: 'technische Meldung',
+      }],
+    })).toEqual([{
+      code: 'bpmn.user_task.form_missing',
+      severity: 'warning',
+      elementId: 'Human',
+      propertyPath: 'extensionElements.formDefinition.formKey',
+      message: expect.stringContaining('kein Formular') as unknown as string,
+      source: 'server',
+    }]);
+  });
+
+  // Testzweck: Eine Antwort ohne Warnungen darf keine erfinden — sonst stünde nach jedem
+  // erfolgreichen Speichern ein Hinweisfeld ohne Inhalt.
+  it('meldet ohne Warnungen nichts', () => {
+    expect(normalizeBpmnWarnings({ contractVersion: '9', elements: [] })).toEqual([]);
+    expect(normalizeBpmnWarnings(undefined)).toEqual([]);
+    expect(normalizeBpmnWarnings({ warnings: [{ severity: 'warning' }] })).toEqual([]);
   });
 
   // Testzweck: Legacy-Fehler ohne den neuen Vertrag dürfen nicht als scheinbar

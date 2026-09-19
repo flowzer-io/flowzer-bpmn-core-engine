@@ -17,6 +17,7 @@ export interface BpmnDiagnostic {
 interface ProblemDetailsBody {
   readonly code?: unknown;
   readonly issues?: unknown;
+  readonly warnings?: unknown;
   readonly traceId?: unknown;
 }
 
@@ -52,6 +53,32 @@ export function normalizeBpmnDiagnostics(error: unknown): BpmnDiagnostic[] {
       ...(propertyPath ? { propertyPath } : {}),
       source: 'server' as const,
       ...(isNonEmptyString(body.traceId) ? { traceId: body.traceId } : {}),
+    }];
+  });
+}
+
+/**
+ * Liest die Hinweise einer Antwort, die zugesagt hat. Sie stehen unter `warnings` und
+ * tragen denselben elementbezogenen Vertrag wie die Fehler — nur verhindern sie nichts.
+ * Was keine Warnung ist, wird bewusst nicht geraten.
+ */
+export function normalizeBpmnWarnings(payload: unknown): BpmnDiagnostic[] {
+  if (!isRecord(payload) || !Array.isArray(payload.warnings)) return [];
+
+  return payload.warnings.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    const issue = entry as ProblemIssue;
+    if (!isNonEmptyString(issue.code) || !isNonEmptyString(issue.message)) return [];
+
+    const elementId = optionalString(issue.elementId);
+    const propertyPath = optionalString(issue.propertyPath);
+    return [{
+      code: issue.code,
+      severity: (isSeverity(issue.severity) ? issue.severity : 'warning') as BpmnDiagnosticSeverity,
+      message: describeBpmnDiagnostic(issue.code, issue.message),
+      ...(elementId ? { elementId } : {}),
+      ...(propertyPath ? { propertyPath } : {}),
+      source: 'server' as const,
     }];
   });
 }
