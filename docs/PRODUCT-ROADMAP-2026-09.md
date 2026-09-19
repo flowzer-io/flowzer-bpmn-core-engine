@@ -394,8 +394,8 @@ Ablage bleibt ein Vorteil für die Zielgruppe.
 
 - [x] Message-Throw-Event, Send-Task und Message-End-Event (Prozesse sprechen Prozesse an). (#329)
 - [x] Lokale Call Activity (Wiederverwendung; Voraussetzung für #154). (#333)
-- [x] Event-based Gateway, Inclusive Gateway, Event-Subprozess. (Gateways-PR, Vertrag 9)
-- [x] Escalation-Events (Gateways-PR, Vertrag 9); Kompensation bleibt ein eigener Strang.
+- [x] Event-based Gateway, Inclusive Gateway, Event-Subprozess. (#341, Vertrag 9)
+- [x] Escalation-Events (#341, Vertrag 9); Kompensation bleibt ein eigener Strang.
 - [x] BPMN-MIWG-Testsuite als Konformitätsnachweis statt nur des eigenen Fähigkeitsvertrags.
   (#335; Parser-Robustheit aus den Befunden in #337)
 
