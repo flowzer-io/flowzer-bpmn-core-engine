@@ -193,8 +193,11 @@ dass etwas auszuwerten ist.
 `FlowzerConfig.FeelEngine` liefert immer die Brücke, die zum konfigurierten
 `ExpressionHandler` passt: Derselbe FEEL-Kern, der die Ausdrücke im Prozess rechnet, rechnet
 auch die Tabelle. Steht dort kein FEEL-fähiger Handler — insbesondere der
-`SimpleExpressionHandler`, den CI und Umgebungen ohne V8 benutzen —, dann steht an seiner
-Stelle ein Platzhalter, dessen **Benutzung** eine `FlowzerDmnUnavailableException` wirft.
+`SimpleExpressionHandler`, auf den Umgebungen ohne V8 zurückfallen —, dann steht an seiner
+Stelle ein Platzhalter, dessen **Benutzung** eine `FlowzerDmnUnavailableException` wirft. Die
+Test-Projekte (`WebApiEngine.Tests`, `core-engine-tests`, `FlowzerDmn.Tests`) bringen die
+nativen ClearScript-V8-Pakete für alle Zielplattformen mit; die FEEL-gestützten Tests laufen
+damit auch auf dem Linux-CI-Runner mit echtem FEEL statt übersprungen zu werden.
 
 Das Lesen der Eigenschaft bleibt bewusst harmlos und der Zugriff ist verzögert: Eine
 Installation ohne V8 soll weiterhin starten und alles andere tun können. Erst wer eine
