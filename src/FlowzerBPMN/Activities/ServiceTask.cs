@@ -1,6 +1,6 @@
 namespace BPMN.Activities;
 
-public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping
+public record ServiceTask : Task, IFlowzerInputMapping, IFlowzerOutputMapping, IFlowzerWorkerTask
 {
     public required string Implementation { get; init; }
 

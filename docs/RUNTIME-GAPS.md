@@ -11,6 +11,71 @@ setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vert
 Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
 bleiben ausdrücklich offen.
 
+## Lokale Call Activity
+
+Ein Prozess kann jetzt einen anderen Prozess derselben Installation aufrufen und auf dessen Ende
+warten. Die vollständige Semantik steht in [CALL-ACTIVITY.md](CALL-ACTIVITY.md), der Vertrag in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 7).
+
+Vorhanden:
+
+- `callActivity` ist ausführbar; `zeebe:calledElement/@processId` ist Pflicht und muss ein
+  Literal sein
+- das Token wartet wie an einem Service-Task; die Engine stellt den Aufruf bereit, die
+  Geschäftslogik startet die Kindinstanz in derselben Transaktion
+- Variablen hinein nach `propagateAllParentVariables` und `zeebe:ioMapping`-Eingang, heraus nach
+  `propagateAllChildVariables` und `zeebe:ioMapping`-Ausgang
+- Ende, Terminate, ungefangener BPMN-Fehler, Abbruch und fehlender Zielprozess sind als
+  BPMN-Fehler an der Aufruf-Aktivität fangbar
+- Abbruch des Aufrufers bricht laufende Kindinstanzen rekursiv mit ab
+- `GET /instance/{id}/children` und `parentInstanceId` machen den Verbund in der Konsole sichtbar
+
+Weiterhin offen:
+
+- Fernaufruf in eine andere Flowzer-Installation (#154, Stufe 2+)
+- FEEL-Ausdruck als Prozesskennung und Bindung an eine feste Version (`versionTag`)
+- Migration eines Aufrufers mit wartender Aufruf-Aktivität (`CallActivityWaiting`)
+- Multi-Instance an der Aufruf-Aktivität
+- Zwischenstände vor dem Ende der Kindinstanz
+- Kompensation beim Abbruch
+- Rekursion bricht ab Tiefe 10 ab; eine echte Zyklenerkennung gibt es nicht
+
+## Nachrichten senden: Message-Throw, Message-Ende und Send-Task
+
+Prozesse können einander jetzt etwas mitteilen, statt Nachrichten nur von außen über
+`POST /message` zu empfangen. Die vollständige Semantik steht in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 6).
+
+Vorhanden:
+
+- `intermediateThrowEvent` mit Nachrichtendefinition, `endEvent` mit Nachrichtendefinition und
+  `sendTask` sind ausführbar; ein Throw-Event ohne Ereignisdefinition läuft als Meilenstein durch
+- die Engine sammelt ausgehende Nachrichten mit ausgewertetem Korrelationsschlüssel und den
+  Eingabewerten nach `zeebe:ioMapping`; ohne Zuordnung geht bewusst nichts mit
+- die Geschäftslogik stellt sie nach dem Speichern der Instanz in derselben Transaktion über
+  denselben Weg zu wie `POST /message` — an eine wartende Instanz (auch die sendende selbst)
+  oder über ein Message-Start-Event an eine neue
+- ohne Empfänger verfällt die Nachricht; das sendende Element gilt trotzdem als abgeschlossen
+- mit `zeebe:taskDefinition/@type` wird stattdessen ein Auftrag für einen externen Worker
+  angelegt — derselbe Auftragspfad wie am Service-Task, samt Complete, Fail und Throw-Error
+- ein Message-Catch-Event schreibt die empfangenen Werte wie eine Empfangsaufgabe in seinen
+  Prozesskontext; zuvor gingen sie verloren
+
+Weiterhin offen:
+
+- Signal-Throw und Signal-Ende; ein Signalwurf wird als nicht unterstützte Ereignisdefinition
+  abgelehnt
+- Pufferung und Time-to-live: Eine Nachricht ohne Empfänger verfällt sofort
+- Nachrichten über Installationsgrenzen hinweg (#154)
+- Escalation-Throw (siehe Abschnitt 2 unten)
+- Eine Nachricht erreicht genau einen Empfänger; warten mehrere Instanzen auf denselben Namen
+  und Schlüssel, ist die Auswahl nicht weiter festgelegt
+- Die Zustellung läuft in der Transaktion des Aufrufers. Bei einem Fehler scheitert die ganze
+  Mutation; die nichttransaktionale Dateiablage kann dabei einen Zwischenstand zurücklassen —
+  dieselbe bekannte Grenze wie bei jedem anderen Schreibvorgang dort.
+- Gegenseitiges Antworten ohne Ende bricht nach 100 Zustellungen je Mutation ab; eine echte
+  Zyklenerkennung gibt es nicht.
+
 ## Korrektur #310: Manual Tasks und Timerdiagnose
 
 Manual Tasks durchlaufen wie generische Tasks ohne Wartezustand den Sequenzfluss.
@@ -21,8 +86,20 @@ Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
 Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
 solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
 für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
-Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
-Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
+
+**Mehrprozessschutz der Timer ist geschlossen.** Ein Scheduler-Durchgang übernimmt die
+fälligen Start-Timer jetzt exklusiv (`FOR UPDATE SKIP LOCKED` in derselben Transaktion,
+`IMessageSubscriptionStorage.ClaimDueTimerSubscriptions`); vorher überführten zwei API-Prozesse
+dieselbe Fälligkeit in zwei Instanzen. Instanztimer bleiben bewusst ohne Zeilensperre: Sie
+laufen über den Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren
+Zeilensperren nimmt — eine zusätzliche Zeilensperre davor drehte die Sperrreihenfolge um.
+Belegt in `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.Lifecycle.cs`; die
+Betriebsbedingungen stehen unter [Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb).
+Die Dateiablage bleibt Einzelprozess.
+
+Offen aus #93 bleiben die transaktionsweise Isolation einzelner Timer innerhalb eines
+Durchgangs (ein fehlgeschlagener Timer rollt den ganzen Durchgang zurück) und das begrenzte
+Nachholen wiederkehrender Timer.
 
 ## In diesem Strang bereits geschlossen
 
@@ -94,8 +171,14 @@ Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
   Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`. Offen bleibt, einen Auftrag ohne
   verbleibende Versuche erneut freizugeben.
-- Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.
-- Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.
+- ~~Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.~~
+  Erledigt: Fristen werden beim Erreichen der Aufgabe an absolute Zeitpunkte gebunden,
+  überwacht und gemeldet. Siehe `docs/HUMAN-TASK-DEADLINES.md`.
+- ~~Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.~~
+  Erledigt: Modellzuweisung und tatsächliche Bearbeitung (Claim/Release/Assign/Delegate)
+  sind getrennt und werden serverseitig geprüft. Siehe `docs/HUMAN-TASK-LIFECYCLE.md`.
+- Es gibt keine Aufbewahrungsregel: Beendete Instanzen samt Historie, Aufgaben und
+  Aufträgen bleiben unbegrenzt erhalten. Siehe M7 in `docs/PRODUCT-ROADMAP-2026-09.md`.
 
 
 ### 1. Timer-Ausführung und Persistenz

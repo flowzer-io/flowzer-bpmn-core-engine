@@ -53,6 +53,27 @@ public class Token
 
     public Guid? ParentTokenId { get; init; }
 
+    /// <summary>
+    /// Nur an einem Token, das an einer Call Activity wartet: die Instanz, die dieser Schritt
+    /// gestartet hat. Sie ist zugleich die Merkfaehigkeit der Engine — ein Token mit gesetzter
+    /// Kennung fordert keinen zweiten Aufruf mehr an, auch nicht nach einem Neuladen aus der
+    /// Ablage. Null an jedem anderen Token und vor dem Start des Kindes.
+    /// </summary>
+    public Guid? CalledInstanceId { get; set; }
+
+    /// <summary>
+    /// Nur am Master-Token einer aufgerufenen Instanz: die Instanz, deren Call Activity sie
+    /// gestartet hat. Steht wie <see cref="Initiator"/> am Master, damit die Herkunft jeden
+    /// Speicher- und Ladevorgang ueberlebt, ohne in den Prozessvariablen zu landen.
+    /// </summary>
+    public Guid? CallingInstanceId { get; set; }
+
+    /// <summary>
+    /// Nur am Master-Token einer aufgerufenen Instanz: das wartende Token der aufrufenden
+    /// Instanz, das mit dem Ende dieses Vorgangs weiterlaeuft.
+    /// </summary>
+    public Guid? CallingTokenId { get; set; }
+
     public override string ToString()
     {
         return $"{CurrentBaseElement.GetType()} " +

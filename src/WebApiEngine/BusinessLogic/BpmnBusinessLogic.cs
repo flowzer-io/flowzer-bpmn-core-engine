@@ -306,12 +306,14 @@ public partial class BpmnBusinessLogic(
             return;
         }
 
+        // Auftraege entstehen nicht mehr nur an Service-Tasks: Ein Send-Task oder ein sendendes
+        // Nachrichtenereignis mit Auftragstyp wartet genauso auf einen Worker.
         var activeTokens = catchHandler.ActiveServiceTasks().ToArray();
         var normalTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is null)
+            .Where(token => token.CurrentFlowNode is not BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var aiTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is not null)
+            .Where(token => token.CurrentFlowNode is BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
             .Where(job => job.ProcessInstanceId == processInstanceId.Value)
@@ -341,21 +343,21 @@ public partial class BpmnBusinessLogic(
                 continue;
             }
 
-            var serviceTask = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            var workerTask = (IFlowzerWorkerTask)token.CurrentFlowNode!;
             await storageSystem.ServiceTaskStorage.SaveJob(new ServiceTaskJob
             {
                 Id = Guid.NewGuid(),
-                Type = serviceTask.Implementation,
-                Name = serviceTask.Name,
+                Type = workerTask.Implementation,
+                Name = token.CurrentFlowNode!.Name,
                 TokenId = token.Id,
-                FlowNodeId = serviceTask.Id,
+                FlowNodeId = token.CurrentFlowNode!.Id,
                 ProcessInstanceId = processInstanceId.Value,
                 MetaDefinitionId = metaDefinitionId,
                 DefinitionId = definitionId,
                 ProcessId = processId,
                 // Ein Modell ohne Angabe bekommt einen Versuch; sonst waere der Auftrag von
                 // Anfang an unbearbeitbar.
-                Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
+                Retries = workerTask.FlowzerRetries > 0 ? workerTask.FlowzerRetries : 1,
                 Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
         }
@@ -555,10 +557,10 @@ public partial class BpmnBusinessLogic(
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
-            var dueTimers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions())
-                .Where(subscription => subscription.DueAt <= time)
-                .OrderBy(subscription => subscription.DueAt)
-                .ToArray();
+            // Uebernehmen statt nur lesen: Die Ablage haelt die faelligen Start-Timer bis zum
+            // Commit exklusiv, damit ein zweiter API-Prozess dieselbe Faelligkeit nicht
+            // ein zweites Mal in eine Instanz ueberfuehrt.
+            var dueTimers = await storageSystem.SubscriptionStorage.ClaimDueTimerSubscriptions(time);
 
             var processedTimers = 0;
             var failures = new List<Exception>();
@@ -688,6 +690,21 @@ public partial class BpmnBusinessLogic(
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
             await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+
+            // Die Besitzpruefung des Aufrufers liegt vor der Instanzsperre; die Engine-Sperre
+            // gilt nur im eigenen Prozess. Der Auftrag wird deshalb unter der Instanzsperre
+            // erneut gelesen: Hat ihn ein zweiter API-Prozess inzwischen abgeschlossen, neu
+            // vergeben oder als gescheitert zurueckgestellt, gewinnt dieser Aufruf nicht —
+            // sonst liefe der Service-Task-Seiteneffekt zweimal oder der Auftrag stuende nach
+            // dem Abschluss wieder in der Warteschlange.
+            var storedJob = await storageSystem.ServiceTaskStorage.GetJob(job.Id);
+            if (storedJob is null
+                || !string.Equals(storedJob.LockedBy, job.LockedBy, StringComparison.Ordinal)
+                || storedJob.LockedUntil != job.LockedUntil)
+            {
+                throw new ServiceTaskLeaseLostException(job.Id);
+            }
+
             var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
             var instance = new InstanceEngine(processInstance.Tokens);
             instance.InstanceId = job.ProcessInstanceId;
@@ -794,10 +811,60 @@ public partial class BpmnBusinessLogic(
             instance.Cancel();
 
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            // Erst danach: Der Abbruch dieser Instanz steht damit schon in der Ablage, wenn ein
+            // Kind sein Ende melden will und seinen Aufrufer nicht mehr wartend vorfindet.
+            await CancelCalledInstances(storageSystem, instanceId);
             storageSystem.CommitChanges();
 
             return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
                 processInstance.ProcessId, instance, processInstance.Migrations);
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Loescht eine beendete Instanz samt allem, was an ihr haengt — von Hand ausgeloest ueber
+    /// <c>DELETE /instance/{id}</c>.
+    ///
+    /// Laeuft unter derselben Sperre wie Start, Abbruch und Timerlauf. Ohne sie koennte zwischen
+    /// der Pruefung „ist beendet" und dem Loeschen noch ein Statuswechsel dazwischenkommen, und
+    /// eine wieder angelaufene Instanz waere weg.
+    /// </summary>
+    /// <returns>
+    /// <see cref="DeleteInstanceOutcome.Deleted"/>, wenn geloescht wurde;
+    /// <see cref="DeleteInstanceOutcome.NotFound"/> bei unbekannter Kennung;
+    /// <see cref="DeleteInstanceOutcome.StillRunning"/>, wenn die Instanz noch laeuft.
+    /// </returns>
+    public async Task<DeleteInstanceOutcome> DeleteInstance(Guid instanceId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+            await storageSystem.InstanceStorage.LockForMutation(instanceId);
+
+            ProcessInstanceInfo processInstance;
+            try
+            {
+                processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+            }
+            catch (FileNotFoundException)
+            {
+                return DeleteInstanceOutcome.NotFound;
+            }
+
+            // Eine laufende Instanz wird nie geloescht — auch nicht vom Betrieb. Wer sie
+            // loswerden will, bricht sie zuerst ab; das ist ein eigener, sichtbarer Schritt
+            // mit eigenem Ausgang, statt offene Aufgaben und Auftraege still verschwinden zu
+            // lassen.
+            if (!processInstance.IsFinished) return DeleteInstanceOutcome.StillRunning;
+
+            await InstancePurge.ExecuteAsync(storageSystem, instanceId);
+            storageSystem.CommitChanges();
+            return DeleteInstanceOutcome.Deleted;
         }
         finally
         {
@@ -971,6 +1038,32 @@ public partial class BpmnBusinessLogic(
     /// derselben Tokenkennung ein mehrdeutiger Altbestand.
     /// </param>
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
+        string relatedDefinitionId, Guid definitionId, string processId,
+        IReadOnlyList<InstanceMigrationRecord>? migrations = null,
+        IReadOnlySet<Guid>? movedTaskTokenIds = null)
+    {
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds);
+
+        // Erst speichern, dann senden und aufrufen: Die Anmeldungen dieser Instanz stehen damit
+        // schon in der Ablage, wenn eine ausgehende Nachricht auf einen wartenden Zweig
+        // derselben Instanz korreliert. Alles bleibt in der Transaktion des Aufrufers.
+        await RunProcessExchange(storageSystem,
+            new InstanceContext(instance, relatedDefinitionId, definitionId, processId));
+
+        // Ein gestarteter Aufruf haengt seine Kindinstanz an das wartende Token, und ein sofort
+        // fertiger Kindvorgang laesst diese Instanz gleich weiterlaufen. Beides entsteht erst im
+        // Austausch und muss deshalb noch einmal geschrieben werden.
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds);
+    }
+
+    /// <summary>
+    /// Schreibt Anmeldungen, Instanzdatensatz und Laufzeitverlauf — ohne Zustellung ausgehender
+    /// Nachrichten. Der Zustellpfad selbst benutzt diese Überladung, damit das Speichern eines
+    /// Empfängers nicht erneut in die Zustellung zurückspringt.
+    /// </summary>
+    private async Task PersistInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
         string relatedDefinitionId, Guid definitionId, string processId,
         IReadOnlyList<InstanceMigrationRecord>? migrations = null,
         IReadOnlySet<Guid>? movedTaskTokenIds = null)
@@ -1212,6 +1305,10 @@ public partial class BpmnBusinessLogic(
         {
             Migrations = [.. migrations],
             InstanceId = instance.InstanceId,
+            // Die Herkunft steht am Master-Token und ueberlebt damit jeden Storage-Roundtrip.
+            // Sie hier abzuleiten haelt Datensatz und Tokenstand ohne zweite Quelle zusammen.
+            ParentInstanceId = instance.MasterToken.CallingInstanceId,
+            ParentTokenId = instance.MasterToken.CallingTokenId,
             metaDefinitionId = relatedDefinitionId,
             DefinitionId = definitionId,
             ProcessId = processId,

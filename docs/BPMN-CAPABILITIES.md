@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/5` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v5.json` und unterscheidet je Elementart. Version 1 bis 4
+`flowzer.bpmn-capabilities/7` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v7.json` und unterscheidet je Elementart. Version 1 bis 6
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -10,8 +10,8 @@ bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag un
 - **executable:** Neue Workflow-Versionen dürfen das Element tatsächlich ausführen.
 
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
-Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
-nicht ausführbar abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
+Tasks für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als nicht ausführbar
+abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
 persistenter Lauf, Recovery und Engine-Fortschritt nun denselben geprüften Vertrag verwenden.
 
 ## Öffentliche API
@@ -30,28 +30,30 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 5 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 7 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v5
+## Ausführbares Profil v7
 
 Offiziell ausführbar sind:
 
 - Plain-, Message-, Signal- und Timer-Start
-- Plain-, Terminate- und Error-Ende
-- User-, Worker-Service-, KI-Service-, Receive-, Manual- und generische Tasks
+- Plain-, Terminate-, Error- und Message-Ende
+- User-, Worker-Service-, KI-Service-, Receive-, Send-, Manual- und generische Tasks
 - exklusive und parallele Gateways
 - Sequenzflüsse und lokale Subprozesse
 - Message-, Signal-, Timer- und Error-Boundary-Events sowie Message-, Signal- und
   Timer-Intermediate-Catch-Events
+- Intermediate-Throw-Events ohne Ereignisdefinition (Meilenstein) und mit
+  Nachrichtendefinition
+- lokale Aufruf-Aktivitäten (`callActivity`)
 
-Insbesondere nicht als ausführbar zugesagt sind Script-Tasks, Call Activities,
-Inclusive-/Complex-Gateways, Intermediate-Throw-Events, Message-/Signal-End-Events sowie
-Escalation-Pfade und Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige
-Runtime-Pfad mit Semantik-, Recovery- und Konkurrenztests belegt ist – nicht bereits dann,
-wenn der Parser XML lesen kann.
+Insbesondere nicht als ausführbar zugesagt sind Script-Tasks,
+Inclusive-/Complex-Gateways, Signal-Throw- und Signal-End-Events sowie Escalation-Pfade und
+Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad mit Semantik-,
+Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der Parser XML lesen kann.
 
 `serviceTask.aiTask` ist modellierbar, parsebar und ausführbar. Beim Deployment bindet
 Flowzer die konkrete Verbindungsrevision und das effektive Modell unveränderlich an die
@@ -63,7 +65,7 @@ Freigaben denselben Ausführungsschutz belegen. KI-Tasks ohne Werkzeuge bleiben 
 
 ## Fehlerereignisse (Vertrag 5)
 
-Version 5 erweitert Version 4 additiv um `endEvent.errorEventDefinition` und
+Version 5 erweiterte Version 4 additiv um `endEvent.errorEventDefinition` und
 `boundaryEvent.errorEventDefinition`. Die älteren Vertragsdateien bleiben unverändert und
 sagen Fehlerpfade weiterhin nicht zu.
 
@@ -92,9 +94,109 @@ sagen Fehlerpfade weiterhin nicht zu.
 **Grenzen.** Ein Fehler innerhalb einer Multi-Instance-Aktivität unterbricht die ganze
 Aktivität und wird an deren Boundary aufgelöst — eine einzelne Ausprägung lässt sich nicht
 gesondert behandeln. Escalation-Ereignisse, Kompensation, Error-Start-Events in
-Event-Subprozessen und Call Activities bleiben offen. Der Gliederungseditor kennt
+Event-Subprozessen bleiben offen. Der Gliederungseditor kennt
 Fehlerereignisse so wenig wie die übrigen Ereignisdefinitionen und meldet sie als Blocker,
 statt sie beim Speichern zu verlieren.
+
+## Lokale Aufruf-Aktivität (Vertrag 7)
+
+Version 7 erweitert Version 6 additiv um genau einen Eintrag: `callActivity` ist ausführbar.
+Die älteren Vertragsdateien bleiben unverändert und sagen Aufruf-Aktivitäten weiterhin nicht zu.
+
+Eine Aufruf-Aktivität startet einen anderen Prozess derselben Installation und wartet auf dessen
+Ende. Zwei Pflichtprüfungen vor dem Speichern und Veröffentlichen:
+
+- `bpmn.call_activity.process_id_required` — `zeebe:calledElement/@processId` fehlt oder ist leer.
+- `bpmn.call_activity.process_id_literal_required` — die Prozesskennung beginnt mit `=`, ist also
+  ein FEEL-Ausdruck. In dieser Stufe ist nur ein Literal erlaubt; sonst stünde erst zur Laufzeit
+  fest, welche Prozesse ein veröffentlichter Workflow überhaupt aufruft.
+
+Ob der aufgerufene Prozess existiert, wird beim Deployment ausdrücklich **nicht** geprüft: Er
+darf später entstehen, und welche Version gilt, entscheidet der Zeitpunkt des Aufrufs. Ein
+fehlender Zielprozess ist der BPMN-Fehler `CALLED_PROCESS_NOT_FOUND` an der Aufruf-Aktivität.
+
+Variablenfluss, Fehler- und Abbruchsemantik, Rekursionsgrenze, Rechte und die Grenzen dieser
+Stufe stehen vollständig in [CALL-ACTIVITY.md](CALL-ACTIVITY.md). Der Fernaufruf in eine andere
+Installation ist Stufe 2+ von #154 und noch nicht Teil dieses Vertrags.
+
+## Nachrichten senden (Vertrag 6)
+
+Version 6 erweitert Version 5 additiv um `intermediateThrowEvent.plain`,
+`intermediateThrowEvent.messageEventDefinition`, `endEvent.messageEventDefinition` und
+`sendTask`. Signal-Throw und Signal-Ende bleiben außen vor. Die älteren Vertragsdateien
+bleiben unverändert und sagen sendende Nachrichtenelemente weiterhin nicht zu.
+
+Bis Vertrag 5 konnten Prozesse Nachrichten nur empfangen, und zwar nur von außen über
+`POST /message`. Ein Prozess, der einem anderen etwas mitteilt, war nicht modellierbar.
+
+### Dieselbe Nachricht auf beiden Seiten
+
+Ein sendendes Element trägt denselben Verweis wie die fangende Seite: `messageRef` auf ein
+`bpmn:message` (dessen `name` die Nachricht benennt) und optional
+`zeebe:subscription/@correlationKey` als FEEL-Ausdruck. Der Schlüssel wird beim Erreichen des
+Elements gegen die Prozessvariablen ausgewertet — auf demselben Weg, über den auch ein
+Catch-Event zu seinem Schlüssel kommt. Am Send-Task steht `messageRef` am Element selbst, an
+einem Ereignis an seiner `messageEventDefinition`.
+
+### Zwei Ausführungsarten
+
+**Intern korrelieren** (der Standard, ohne `zeebe:taskDefinition`). Beim Erreichen des
+Elements stellt die Engine eine ausgehende Nachricht aus Name, ausgewertetem
+Korrelationsschlüssel und Variablen bereit. Sie kennt keine anderen Instanzen und sammelt die
+Nachrichten nur; die Geschäftslogik arbeitet sie nach dem Speichern der Instanz **in derselben
+Transaktion** über denselben Zustellweg ab wie `POST /message`:
+
+1. an ein wartendes Catch-Event, einen Receive-Task oder ein Message-Boundary mit passendem
+   Namen und Schlüssel — einer anderen **oder derselben** Instanz,
+2. sonst an ein Message-Start-Event, das eine neue Instanz beginnt. Ein Message-Start trägt
+   keinen Korrelationsschlüssel; er wird dort deshalb nicht verglichen.
+
+**Keine Pufferung.** Findet sich kein Empfänger, verfällt die Nachricht — so sieht BPMN es vor,
+und Flowzer hebt sie bewusst nicht auf: Ein später gestarteter Empfänger bekäme sonst eine
+Nachricht aus einem längst abgeschlossenen Vorgang. Das sendende Element gilt trotzdem als
+abgeschlossen, und der Prozess läuft sofort weiter. Werfen ist nicht blockierend; auf eine
+Antwort wartet erst ein eigenes Catch-Element.
+
+**Datensparsamkeit.** Mitgegeben werden ausschließlich die Eingabewerte des Elements nach
+`zeebe:ioMapping`-Input. Ohne Zuordnung ist die Nachricht **leer** — ausdrücklich nicht der
+ganze Prozesskontext. Ein Empfänger ist ein fremder Vorgang; was er sehen soll, muss im Modell
+stehen. Umgekehrt schreibt ein Message-Catch-Event die empfangenen Werte wie eine
+Empfangsaufgabe in seinen Prozesskontext, mit `zeebe:ioMapping`-Output gezielt und ohne
+Zuordnung vollständig.
+
+**Als Worker-Auftrag** (mit `zeebe:taskDefinition/@type`). Send-Task, Message-Throw-Event und
+Message-End-Event verhalten sich dann wie ein Service-Task: Die Engine legt einen Auftrag an,
+ein externer Worker holt ihn und meldet Ergebnis oder Fehler zurück — der übliche Weg für einen
+Versand nach draußen, etwa per E-Mail. Der Auftragstyp **ersetzt** die interne Zustellung; es
+geschieht nicht beides. Auch hier sieht der Worker nur die gemappten Eingabewerte, sonst die
+Prozessvariablen — dieselbe Regel wie am Service-Task
+([SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md)).
+
+Ein Message-End-Event verhält sich wie ein Throw und beendet danach seinen Pfad wie ein
+gewöhnliches Ende. Ein Intermediate-Throw-Event ohne Ereignisdefinition ist ein reiner
+Meilenstein: Es läuft durch, sendet nichts und bleibt im Laufzeitverlauf als erreichter Knoten
+sichtbar.
+
+### Grenzen
+
+- Ein sendendes Element ohne `messageRef` **und** ohne Auftragstyp hätte kein Ziel und wird vor
+  Speichern und Veröffentlichen mit `bpmn.message_throw.target_required` am betroffenen Knoten
+  abgelehnt.
+- Eine Nachricht erreicht genau einen Empfänger. Warten mehrere Instanzen auf denselben Namen
+  und Schlüssel, bekommt eine davon die Nachricht.
+- Nachrichten über Installationsgrenzen hinweg (#154) bleiben offen; zugestellt wird nur
+  innerhalb derselben Flowzer-Installation.
+- Eine Zustellung läuft in der Transaktion und unter der Sperre des auslösenden Aufrufs.
+  Scheitert sie, scheitert die ganze Mutation; ein transaktionaler Adapter verwirft damit auch
+  den Fortschritt des Senders. Die Dateiablage kennt keine Transaktion und kann einen
+  Zwischenstand zurücklassen — sie bleibt auf Entwicklung begrenzt.
+- Antworten sich zwei Prozesse gegenseitig ohne Ende, bricht die Mutation nach 100
+  Zustellungen ab, statt den Aufrufer hängen zu lassen.
+- Die Zustellung an eine andere Instanz nimmt deren Zeilensperre, während die des Senders
+  noch gehalten wird. Senden sich zwei Instanzen in zwei API-Prozessen gleichzeitig
+  gegenseitig etwas, erkennt PostgreSQL die Verklemmung und bricht eine der beiden
+  Transaktionen ab; der Aufrufer bekommt einen Fehler und wiederholt. Ein Sperren in fester
+  Reihenfolge gibt es nicht, weil der Empfänger erst während der Zustellung bekannt wird.
 
 ## Statische Prüfungen
 

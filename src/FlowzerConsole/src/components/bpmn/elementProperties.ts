@@ -177,6 +177,12 @@ export interface ElementProperties {
   aiTask: AiTaskConfiguration | null;
   /** Ob die Engine an diesem Element einen Auftragstyp auswertet. */
   needsJobType: boolean;
+  /**
+   * Ob der Auftragstyp an diesem Element freiwillig ist. An sendenden Nachrichtenelementen
+   * ist er es: Ohne ihn stellt die Engine die Nachricht selbst zu, mit ihm übernimmt ein
+   * Worker den Versand.
+   */
+  jobTypeOptional: boolean;
 
   /** Zuordnungen zwischen Prozess- und Aufgabendaten. */
   inputs: IoMapping[];
@@ -196,10 +202,13 @@ export interface ElementProperties {
   /** Zeitangabe, wenn das Element auf eine Zeit wartet. */
   timer: TimerDefinition | null;
   /**
-   * Nachricht, auf die das Element wartet. Sendende Ereignisse haben hier `null`: Sie
-   * verschicken die Nachricht über einen Worker-Auftrag, den Namen liest die Engine nicht.
+   * Nachricht, auf die das Element wartet oder die es aussendet. Beide Seiten tragen denselben
+   * Verweis auf ein `bpmn:Message` samt Korrelationsschlüssel; nur so finden Werfen und Fangen
+   * zueinander.
    */
   message: MessageReference | null;
+  /** Ob dieses Element die Nachricht aussendet statt auf sie zu warten. */
+  sendsMessage: boolean;
   /** Signal, das das Element empfängt oder auslöst. */
   signalName: string | null;
   /** Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses. */
@@ -216,10 +225,10 @@ export interface ElementProperties {
 const CONDITIONAL_SOURCES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway', 'bpmn:Activity'];
 const GATEWAY_TYPES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway'];
 
-/** Ereignisse, die auf etwas warten. Nur sie lösen eine Nachricht über `messageRef` auf. */
+/** Ereignisse, die auf etwas warten. */
 const CATCH_EVENT_TYPES = ['bpmn:StartEvent', 'bpmn:IntermediateCatchEvent', 'bpmn:BoundaryEvent'];
 
-/** Ereignisse, die etwas aussenden. Eine Nachricht verschicken sie über einen Auftrag. */
+/** Ereignisse, die etwas aussenden. */
 const THROW_EVENT_TYPES = ['bpmn:IntermediateThrowEvent', 'bpmn:EndEvent'];
 
 /** Elemente, für die der Parser Eingangszuordnungen liest. */
@@ -229,10 +238,19 @@ const INPUT_MAPPING_TYPES = [
   'bpmn:ScriptTask',
   'bpmn:SubProcess',
   'bpmn:CallActivity',
+  // An einem sendenden Element bestimmt der Eingang, was mit der Nachricht mitgeht.
+  'bpmn:SendTask',
 ];
 
 /** Ausgangszuordnungen liest der Parser zusätzlich am Start-Ereignis. */
-const OUTPUT_MAPPING_TYPES = [...INPUT_MAPPING_TYPES, 'bpmn:StartEvent'];
+const OUTPUT_MAPPING_TYPES = [
+  'bpmn:UserTask',
+  'bpmn:ServiceTask',
+  'bpmn:ScriptTask',
+  'bpmn:SubProcess',
+  'bpmn:CallActivity',
+  'bpmn:StartEvent',
+];
 
 function kindOf(element: DiagramElement): ElementKind {
   const type = element.businessObject?.$type ?? element.type;
@@ -295,9 +313,27 @@ export function timerOf(businessObject: ModdleElement): TimerDefinition | null {
  * Öffentlich, weil das Schreiben denselben Träger treffen muss wie das Lesen.
  */
 export function messageHolder(businessObject: ModdleElement): ModdleElement | undefined {
-  if (businessObject.$type === 'bpmn:ReceiveTask') return businessObject;
-  if (!CATCH_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  // Aufgaben tragen den Verweis selbst, Ereignisse an ihrer Nachrichtendefinition.
+  if (businessObject.$type === 'bpmn:ReceiveTask' || businessObject.$type === 'bpmn:SendTask') {
+    return businessObject;
+  }
+  if (!CATCH_EVENT_TYPES.includes(businessObject.$type) && !THROW_EVENT_TYPES.includes(businessObject.$type)) {
+    return undefined;
+  }
   return eventDefinition(businessObject, 'bpmn:MessageEventDefinition');
+}
+
+/**
+ * Ob das Element eine Nachricht aussendet: ein Send-Task oder ein werfendes Ereignis mit
+ * Nachrichtendefinition. Das entscheidet über die Beschriftung im Panel — warten und senden
+ * benutzen dieselben Felder, meinen aber Gegenteiliges.
+ */
+export function sendsMessage(businessObject: ModdleElement): boolean {
+  if (businessObject.$type === 'bpmn:SendTask') return true;
+  return (
+    THROW_EVENT_TYPES.includes(businessObject.$type) &&
+    Boolean(eventDefinition(businessObject, 'bpmn:MessageEventDefinition'))
+  );
 }
 
 function messageOf(businessObject: ModdleElement): MessageReference | null {
@@ -390,19 +426,13 @@ export function multiInstanceOf(businessObject: ModdleElement): MultiInstance | 
 }
 
 /**
- * Ob die Engine an diesem Element einen Auftragstyp liest. Ein sendendes Nachrichtenereignis
- * verschickt die Nachricht über einen Worker-Auftrag — der Nachrichtenname spielt dort keine
- * Rolle. Eine Skript-Aufgabe läuft entweder als Skript oder als Auftrag.
+ * Ob die Engine an diesem Element einen Auftragstyp liest. Am Service-Task ist er Pflicht, an
+ * einem sendenden Nachrichtenelement freiwillig: Ohne ihn stellt die Engine die Nachricht
+ * selbst zu. Eine Skript-Aufgabe läuft entweder als Skript oder als Auftrag.
  */
 function needsJobType(businessObject: ModdleElement): boolean {
   if (businessObject.$type === 'bpmn:ServiceTask') return true;
-
-  if (
-    THROW_EVENT_TYPES.includes(businessObject.$type) &&
-    eventDefinition(businessObject, 'bpmn:MessageEventDefinition')
-  ) {
-    return true;
-  }
+  if (sendsMessage(businessObject)) return true;
 
   return businessObject.$type === 'bpmn:ScriptTask' && !extension(businessObject, 'zeebe:Script');
 }
@@ -517,11 +547,17 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
         }
       : null,
     needsJobType: needsJobType(businessObject),
+    jobTypeOptional: sendsMessage(businessObject),
 
     inputs: ioMappings(element, 'inputParameters'),
     outputs: ioMappings(element, 'outputParameters'),
-    supportsInputMappings: INPUT_MAPPING_TYPES.includes(type),
-    supportsOutputMappings: OUTPUT_MAPPING_TYPES.includes(type),
+    // Ein sendendes Ereignis ist keine Aktivität, liest aber seinen Eingang: Er bestimmt, was
+    // mit der Nachricht mitgeht. Ein empfangendes Ereignis schreibt umgekehrt seinen Ausgang.
+    supportsInputMappings: INPUT_MAPPING_TYPES.includes(type) || sendsMessage(businessObject),
+    supportsOutputMappings:
+      OUTPUT_MAPPING_TYPES.includes(type)
+      || (type === 'bpmn:IntermediateCatchEvent'
+        && Boolean(eventDefinition(businessObject, 'bpmn:MessageEventDefinition'))),
 
     condition: conditionOf(element),
     isDefaultFlow: element.source?.businessObject.default === businessObject,
@@ -533,6 +569,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
 
     timer: timerOf(businessObject),
     message: messageOf(businessObject),
+    sendsMessage: sendsMessage(businessObject),
     signalName: signalOf(businessObject),
     error: errorOf(businessObject),
     calledProcess: calledProcessOf(businessObject),

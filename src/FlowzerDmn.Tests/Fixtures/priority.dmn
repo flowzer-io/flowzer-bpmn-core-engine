@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PRIORITY und OUTPUT ORDER ueber derselben Rangfolge aus outputValues:
+     "Refer" steht vor "Decline", "Decline" vor "Accept". -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="priorityDefinitions"
+             name="Kreditentscheidung"
+             namespace="http://flowzer.maass.it/dmn/priority">
+  <decision id="priorityDecision" name="Hoechste Prioritaet">
+    <variable name="verdict" typeRef="string"/>
+    <decisionTable id="priorityTable" hitPolicy="PRIORITY">
+      <input id="priorityScore">
+        <inputExpression id="priorityScoreExpression" typeRef="number">
+          <text>score</text>
+        </inputExpression>
+      </input>
+      <output id="priorityOutput" name="verdict" typeRef="string">
+        <outputValues id="priorityOutputValues">
+          <text>"Refer","Decline","Accept"</text>
+        </outputValues>
+      </output>
+      <rule id="priorityAccept">
+        <inputEntry id="priorityAcceptScore"><text>&gt;= 0</text></inputEntry>
+        <outputEntry id="priorityAcceptOut"><text>"Accept"</text></outputEntry>
+      </rule>
+      <rule id="priorityDecline">
+        <inputEntry id="priorityDeclineScore"><text>&lt; 500</text></inputEntry>
+        <outputEntry id="priorityDeclineOut"><text>"Decline"</text></outputEntry>
+      </rule>
+      <rule id="priorityRefer">
+        <inputEntry id="priorityReferScore"><text>[100..200]</text></inputEntry>
+        <outputEntry id="priorityReferOut"><text>"Refer"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="outputOrderDecision" name="Nach Rangfolge sortiert">
+    <variable name="verdicts"/>
+    <decisionTable id="outputOrderTable" hitPolicy="OUTPUT ORDER">
+      <input id="outputOrderScore">
+        <inputExpression id="outputOrderScoreExpression" typeRef="number">
+          <text>score</text>
+        </inputExpression>
+      </input>
+      <output id="outputOrderOutput" name="verdict" typeRef="string">
+        <outputValues id="outputOrderOutputValues">
+          <text>"Refer","Decline","Accept"</text>
+        </outputValues>
+      </output>
+      <rule id="outputOrderAccept">
+        <inputEntry id="outputOrderAcceptScore"><text>&gt;= 0</text></inputEntry>
+        <outputEntry id="outputOrderAcceptOut"><text>"Accept"</text></outputEntry>
+      </rule>
+      <rule id="outputOrderDecline">
+        <inputEntry id="outputOrderDeclineScore"><text>&lt; 500</text></inputEntry>
+        <outputEntry id="outputOrderDeclineOut"><text>"Decline"</text></outputEntry>
+      </rule>
+      <rule id="outputOrderRefer">
+        <inputEntry id="outputOrderReferScore"><text>[100..200]</text></inputEntry>
+        <outputEntry id="outputOrderReferOut"><text>"Refer"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

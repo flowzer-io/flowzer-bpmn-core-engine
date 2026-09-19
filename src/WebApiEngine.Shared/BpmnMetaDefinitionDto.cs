@@ -13,6 +13,14 @@ public class BpmnMetaDefinitionDto
     /// <c>PUT /definition/meta/{id}/folder</c>.
     /// </summary>
     public Guid? FolderId { get; set; }
+
+    /// <summary>
+    /// Aufbewahrungsfrist beendeter Instanzen dieses Workflows in Tagen. <c>null</c> uebernimmt
+    /// den installationsweiten Wert, <c>0</c> heisst „nie loeschen". Wird beim Anlegen
+    /// (<c>POST /definition/meta</c>) und beim Aendern (<c>PUT /definition/meta</c>)
+    /// ausgewertet; negative Werte weist die API mit 400 zurueck.
+    /// </summary>
+    public int? RetentionDays { get; set; }
 }
 public class ExtendedBpmnMetaDefinitionDto: BpmnMetaDefinitionDto
 {

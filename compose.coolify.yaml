@@ -72,6 +72,11 @@ services:
       Connectors__Email__Smtp__UseStartTls: "${FLOWZER_CONNECTOR_SMTP_USE_STARTTLS:-true}"
       Connectors__Email__Smtp__Username: "${FLOWZER_CONNECTOR_SMTP_USERNAME:-}"
       Connectors__Email__Smtp__PasswordSecretName: "${FLOWZER_CONNECTOR_SMTP_PASSWORD_SECRET:-}"
+      # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
+      # keinen Port, und das Konsolen-Gateway leitet /metrics nicht weiter: Abgeholt wird nur
+      # aus diesem Compose-Netz unter api:8080.
+      Observability__Prometheus__Enabled: "${FLOWZER_METRICS_ENABLED:-false}"
+      Observability__Prometheus__Path: "${FLOWZER_METRICS_PATH:-/metrics}"
       # Der vertrauliche Client-Schluessel ist ein Coolify-Secret und wird ausnahmslos
       # im API-Container verwendet. Der Konsolen-Container erhaelt ihn nicht.
       # Leere Werte bleiben nur fuer den expliziten JwtBearer-Modus erlaubt. Im BFF-Modus
@@ -100,12 +105,21 @@ services:
       # Ohne freigegebene Zieladresse nimmt die Engine keine Webhook-Anmeldung an.
       ServiceTaskWebhooks__Enabled: "${FLOWZER_WEBHOOKS_ENABLED:-true}"
       ServiceTaskWebhooks__AllowedHosts__0: "${FLOWZER_WEBHOOK_ALLOWED_HOST:-}"
+      # Eingehende Ausloeser: Ohne installationsweiten Schluessel nimmt die Installation
+      # keinen an. Der Wert ist ein echtes Secret und wird zur Laufzeit injiziert.
+      InboundTriggers__SecretKey: "${FLOWZER_INBOUND_TRIGGER_SECRET_KEY:-}"
+      InboundTriggers__PermitLimit: "${FLOWZER_INBOUND_TRIGGER_PERMITS:-60}"
+      InboundTriggers__WindowSeconds: "${FLOWZER_INBOUND_TRIGGER_WINDOW_SECONDS:-60}"
       RateLimiting__Enabled: "${FLOWZER_RATE_LIMIT_ENABLED:-true}"
       RateLimiting__PermitLimit: "${FLOWZER_RATE_LIMIT_PERMITS:-300}"
       RateLimiting__WindowSeconds: "${FLOWZER_RATE_LIMIT_WINDOW_SECONDS:-60}"
       Limits__MaxUploadBytes: "${FLOWZER_MAX_UPLOAD_BYTES:-8388608}"
       TimerScheduler__Enabled: "true"
       TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
+      # Aufbewahrung beendeter Instanzen; ohne Wert bleibt sie aus (siehe OPERATIONS.md).
+      Retention__FinishedInstances__Days: "${FLOWZER_RETENTION_DAYS:-}"
+      Retention__FinishedInstances__PollIntervalMinutes: "${FLOWZER_RETENTION_POLL_INTERVAL_MINUTES:-60}"
+      Retention__FinishedInstances__BatchSize: "${FLOWZER_RETENTION_BATCH_SIZE:-100}"
       TZ: Europe/Berlin
     volumes:
       # Persistiert Data-Protection-Schluessel fuer Session, OIDC-Korrelation und CSRF

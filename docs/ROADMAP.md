@@ -5,6 +5,9 @@
 Die freigegebene, führende Produkt-Roadmap steht in
 [PRODUCT-ROADMAP-2026-09.md](PRODUCT-ROADMAP-2026-09.md). Sie ersetzt den früheren
 Rettungs-/Pilotplan und führt offene Abnahmen ausdrücklich als Checkliste.
+Seit dem 19. September 2026 enthält sie mit M7 die Richtung nach dem Firmeneinsatz:
+Engine-Vollständigkeit, Störungszentrum, Aufbewahrung und die Positionierung als
+Nachfolger für Camunda 7.
 
 ## Aktuelle Integration und Reststrategie
 
