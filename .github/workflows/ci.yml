@@ -71,6 +71,15 @@ jobs:
             --logger "trx;LogFileName=webapi-tests.trx" \
             --results-directory ./TestResults/ci
 
+      - name: DMN-Tests ausführen
+        run: |
+          dotnet test src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj \
+            --no-restore \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=dmn-tests.trx" \
+            --results-directory ./TestResults/ci
+
       - name: Coverage-Kennzahlen extrahieren
         id: coverage
         run: |
@@ -125,7 +134,7 @@ jobs:
           ## .NET-Validierung
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
-          - Zusätzlich laufen die Web-API-Tests im selben Job mit.
+          - Zusätzlich laufen die Web-API-Tests und die DMN-Tests im selben Job mit.
           - Die Core-Engine-Tests laufen jetzt wieder vollständig ohne Quarantänefilter im CI-Pfad.
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`

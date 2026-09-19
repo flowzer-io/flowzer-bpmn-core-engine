@@ -15,6 +15,7 @@ public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
+    InstanceRetentionDiagnosticsState instanceRetentionDiagnosticsState,
     IOptions<FlowzerObservabilityOptions> observabilityOptions,
     WebApiEngine.Persistence.FlowzerStorageOptions storageOptions,
     ILogger<OperationsController> logger) : ControllerBase
@@ -67,6 +68,7 @@ public class OperationsController(
                     PendingServices = activeInstances.Sum(instance => instance.ServiceSubscriptionCount)
                 },
                 TimerScheduler = timerSchedulerDiagnosticsState.GetSnapshot(),
+                Retention = instanceRetentionDiagnosticsState.GetSnapshot(),
                 Instrumentation = new OperationsInstrumentationDto
                 {
                     MeterName = FlowzerDiagnostics.MeterName,
@@ -130,6 +132,10 @@ public class OperationsController(
             OtlpHeadersHint = options.Enabled && options.HasOtlpExporter && !string.IsNullOrWhiteSpace(options.OtlpHeaders)
                 ? "(configured)"
                 : null,
+            // Anders als die Push-Exporter haengt der Scrape-Endpunkt nicht an Observability:Enabled:
+            // Er ist ein eigener Abnehmer und wird allein ueber seinen eigenen Schalter geoeffnet.
+            PrometheusEnabled = options.Prometheus.Enabled,
+            PrometheusPath = options.Prometheus.Enabled ? options.Prometheus.ResolvePath() : null,
             ServiceName = options.ServiceName,
             ServiceVersion = options.ResolveServiceVersion()
         };

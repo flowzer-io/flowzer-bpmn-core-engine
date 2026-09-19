@@ -36,7 +36,8 @@ public static class DefinitionMappingExtensions
             DefinitionId = definition.DefinitionId,
             Name = definition.Name,
             Description = definition.Description,
-            FolderId = definition.FolderId
+            FolderId = definition.FolderId,
+            RetentionDays = definition.RetentionDays
         };
     }
 
@@ -50,6 +51,7 @@ public static class DefinitionMappingExtensions
             Name = definition.Name,
             Description = definition.Description,
             FolderId = definition.FolderId,
+            RetentionDays = definition.RetentionDays,
             LatestVersion = definition.LatestVersion?.ToDto(),
             LatestVersionDateTime = definition.LatestVersionDateTime,
             DeployedId = definition.DeployedId,
@@ -67,7 +69,8 @@ public static class DefinitionMappingExtensions
             DefinitionId = definitionDto.DefinitionId,
             Name = definitionDto.Name,
             Description = definitionDto.Description,
-            FolderId = definitionDto.FolderId
+            FolderId = definitionDto.FolderId,
+            RetentionDays = definitionDto.RetentionDays
         };
     }
 
