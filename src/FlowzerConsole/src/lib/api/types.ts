@@ -704,6 +704,18 @@ export interface OperationsObservabilityDto {
   serviceVersion: string;
 }
 
+/** Entspricht `OperationsConnectorDto`. */
+export interface OperationsConnectorDto {
+  name: string;
+  jobType: string;
+  enabled: boolean;
+  lastRunAtUtc?: string | null;
+  processedJobs: number;
+  failedJobs: number;
+  /** Die Meldung des Konnektors, niemals ein aufgelöstes Secret. */
+  lastErrorMessage?: string | null;
+}
+
 /** Entspricht `OperationsIncidentCountersDto`. */
 export interface OperationsIncidentCountersDto {
   /** Aufträge ohne verbleibende Versuche; sie warten auf einen Eingriff. */
@@ -754,6 +766,11 @@ export interface OperationsDiagnosticsDto {
   retention: InstanceRetentionDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
+  /**
+   * Auch abgeschaltete Konnektoren stehen hier: „nicht aktiviert“ ist eine Aussage fürs
+   * Betriebsbild, ein gar nicht aufgeführter Konnektor wäre keine.
+   */
+  connectors: OperationsConnectorDto[];
 }
 
 /** Zeitraumgrenzen einer Auswertung; beide Angaben sind freiwillig (Server-Standard: 30 Tage). */

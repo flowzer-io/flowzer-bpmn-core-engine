@@ -18,6 +18,10 @@ const aiFlags = {
   Ai__AllowLocalEndpoints: 'FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS',
   AiExecution__Enabled: 'FLOWZER_AI_EXECUTION_ENABLED',
 };
+const connectorFlags = {
+  Connectors__Http__Enabled: 'FLOWZER_CONNECTOR_HTTP_ENABLED',
+  Connectors__Email__Enabled: 'FLOWZER_CONNECTOR_EMAIL_ENABLED',
+};
 
 /** Echte Compose-Interpolation, aber ohne Daemon, .env oder geerbte Produktivkonfiguration. */
 function configuration(file, overrides = {}, sharedEnvFile) {
@@ -97,6 +101,30 @@ for (const file of ['compose.runtime.yml', 'compose.coolify.yaml']) {
     for (const key of Object.keys(aiFlags)) assert.equal(enabled[key], 'true', key);
     assert.equal(enabled.Authentication__JwtBearer__Roles__AiConnectionUser, 'ai-use');
     assert.equal(enabled.Authentication__JwtBearer__Roles__AiConnectionManager, 'ai-manage');
+  });
+
+  // Testzweck: Die mitgelieferten Konnektoren sind eingebaute Worker mit Aussenwirkung —
+  // HTTP-Aufrufe und E-Mail-Versand. Im Compose-Stack müssen sie standardmäßig aus sein und
+  // ohne Freigabeliste bleiben; erst eine ausdrückliche Angabe schaltet sie ein.
+  test(`${file}: Konnektoren bleiben aus und ohne Freigabeliste`, () => {
+    const disabled = configuration(file).api.environment;
+    for (const key of Object.keys(connectorFlags)) assert.equal(disabled[key], 'false', key);
+    assert.equal(disabled.Connectors__Http__AllowedHosts__0, '');
+    assert.equal(disabled.Connectors__Email__AllowedRecipientDomains__0, '');
+    // Nur der Name des Secrets gehört in den Stack; der Wert wird zur Laufzeit injiziert.
+    assert.equal(disabled.Connectors__SecretEnvironmentVariablePrefix, 'FLOWZER_CONNECTOR_SECRET_');
+    assert.equal(disabled.Connectors__Email__Smtp__PasswordSecretName, '');
+
+    const enabled = configuration(file, {
+      ...Object.fromEntries(Object.values(connectorFlags).map((name) => [name, 'true'])),
+      FLOWZER_CONNECTOR_HTTP_ALLOWED_HOSTS: 'api.example.invalid',
+      FLOWZER_CONNECTOR_EMAIL_ALLOWED_DOMAINS: 'maass.it',
+      FLOWZER_CONNECTOR_SMTP_HOST: 'smtp.example.invalid',
+    }).api.environment;
+    for (const key of Object.keys(connectorFlags)) assert.equal(enabled[key], 'true', key);
+    assert.equal(enabled.Connectors__Http__AllowedHosts__0, 'api.example.invalid');
+    assert.equal(enabled.Connectors__Email__AllowedRecipientDomains__0, 'maass.it');
+    assert.equal(enabled.Connectors__Email__Smtp__Host, 'smtp.example.invalid');
   });
 }
 

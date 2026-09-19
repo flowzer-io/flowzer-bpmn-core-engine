@@ -317,6 +317,30 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### Mitgelieferte Konnektoren
+
+Fuer HTTP-Aufrufe und E-Mail bringt Flowzer zwei eingebaute Worker mit. Sie laufen im
+API-Prozess, benutzen aber dieselbe Auftragsvergabe wie ein externer Worker; die Engine kennt
+keinen Sonderpfad fuer sie. Beide sind standardmaessig aus, und beide tun ohne ausdrueckliche
+Freigabeliste nichts: Der HTTP-Konnektor ruft ohne freigegebenen Host keine Adresse auf, der
+E-Mail-Konnektor versendet ohne freigegebene Empfaengerdomaene nichts. Ein aktivierter
+E-Mail-Konnektor ohne Absender oder SMTP-Server laesst die Installation gar nicht erst
+starten.
+
+```bash
+Connectors__Http__Enabled=true
+Connectors__Http__AllowedHosts__0=api.example.com
+Connectors__Email__Enabled=true
+Connectors__Email__From=flowzer@example.com
+Connectors__Email__AllowedRecipientDomains__0=example.com
+Connectors__Email__Smtp__Host=smtp.example.com
+Connectors__Email__Smtp__PasswordSecretName=SMTP
+```
+
+Das Passwort steht dann in `FLOWZER_CONNECTOR_SECRET_SMTP` und wird — wie die KI-Secrets —
+ausschliesslich zur Container-Laufzeit aus dem Secret-Store injiziert, nie in `.env` oder in
+eine Compose-Vorlage. Eingaben, Ergebnisse, Fehlerabbildung und Grenzen stehen in
+[CONNECTORS.md](CONNECTORS.md).
 ### Eingehende Auslöser
 
 Ein fremdes System — Ticketsystem, Shop, Formulardienst — startet über `POST /trigger/{key}`
@@ -890,6 +914,8 @@ Ein unbekanntes Formular antwortet mit 404, damit ein Löschen ins Leere nicht a
 Die Web-API stellt aktuell folgende Endpunkte bereit:
 
 - `GET /health` – Liveness
+- `GET /health/ready` – Readiness inkl. Storage-Prüfung
+- `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot, Instrumentierungsnamen, Zustand der mitgelieferten Konnektoren und aktive Observability-Konfiguration
 - `GET /health/ready` – Readiness inkl. Storage-Prüfung und Migrationsstand
 - `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot, Instrumentierungsnamen und aktive Observability-Konfiguration
 
@@ -925,6 +951,11 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Namen des lokalen `Meter`- und `ActivitySource`-Setups
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
+- eine Zeile je mitgeliefertem Konnektor (`connectors`) mit Zustand, letztem Lauf,
+  verarbeiteten und fehlgeschlagenen Aufträgen seit dem Start und der letzten Meldung.
+  Abgeschaltete Konnektoren stehen mit drin: „nicht aktiviert“ ist eine Aussage, „gar nicht
+  aufgeführt“ wäre keine. Die Meldung ist immer ein vom Konnektor formulierter Text ohne
+  Secrets und ohne Query-Teil der Adresse; rohe Ausnahmetexte bleiben im Log.
 - ob der Prometheus-Scrape-Endpunkt offen ist und unter welchem Pfad
 
 ### Human-Task-Deadline-Scheduler

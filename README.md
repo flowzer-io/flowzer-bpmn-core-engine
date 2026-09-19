@@ -231,6 +231,7 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
+- [docs/CAMUNDA-7-IMPORT.md](docs/CAMUNDA-7-IMPORT.md) – Camunda-7-Modelle übernehmen: Mapping nach `zeebe:*`, was verloren geht, External Tasks ↔ Flowzer-Aufträge
 - [docs/BPMN-MIWG-COVERAGE.md](docs/BPMN-MIWG-COVERAGE.md) – Nachweis gegen die Referenzmodelle der BPMN MIWG: was Flowzer liest, veröffentlichen würde und ausführt
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
 - [docs/ANALYTICS.md](docs/ANALYTICS.md) – Auswertungen auf der Laufzeithistorie: Durchlaufzeit, Engpässe, Ausgang, samt Grenzen
@@ -242,6 +243,7 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md) – Prozesspakete: Format, Import-Semantik, Zuordnungen und was nie mitreist
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
 - [docs/INSTANCE-MODIFICATION.md](docs/INSTANCE-MODIFICATION.md) – in derselben Version einen wartenden Schritt verschieben und Variablen korrigieren
+- [docs/CONNECTORS.md](docs/CONNECTORS.md) – mitgelieferte HTTP- und E-Mail-Worker: Aktivierung, Freigabelisten, Secrets und Fehlerabbildung
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
 - [docs/INBOUND-TRIGGERS.md](docs/INBOUND-TRIGGERS.md) – Workflows von außen starten: signierte Webhook-Auslöser ohne Anmeldung

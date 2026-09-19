@@ -57,6 +57,21 @@ services:
       Ai__AllowLocalEndpoints: "${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}"
       Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
       AiExecution__Enabled: "${FLOWZER_AI_EXECUTION_ENABLED:-false}"
+      # Mitgelieferte Konnektoren: eingebaute Worker im API-Prozess. Beide sind aus, bis sie
+      # ausdruecklich eingeschaltet werden, und rufen ohne Freigabeliste nichts auf bzw.
+      # versenden nichts. Die Werte hinter `FLOWZER_CONNECTOR_SECRET_*` sind Coolify-Secrets
+      # und stehen wie die KI-Secrets absichtlich nicht in dieser Vorlage.
+      Connectors__SecretEnvironmentVariablePrefix: FLOWZER_CONNECTOR_SECRET_
+      Connectors__Http__Enabled: "${FLOWZER_CONNECTOR_HTTP_ENABLED:-false}"
+      Connectors__Http__AllowedHosts__0: "${FLOWZER_CONNECTOR_HTTP_ALLOWED_HOSTS:-}"
+      Connectors__Email__Enabled: "${FLOWZER_CONNECTOR_EMAIL_ENABLED:-false}"
+      Connectors__Email__From: "${FLOWZER_CONNECTOR_EMAIL_FROM:-}"
+      Connectors__Email__AllowedRecipientDomains__0: "${FLOWZER_CONNECTOR_EMAIL_ALLOWED_DOMAINS:-}"
+      Connectors__Email__Smtp__Host: "${FLOWZER_CONNECTOR_SMTP_HOST:-}"
+      Connectors__Email__Smtp__Port: "${FLOWZER_CONNECTOR_SMTP_PORT:-587}"
+      Connectors__Email__Smtp__UseStartTls: "${FLOWZER_CONNECTOR_SMTP_USE_STARTTLS:-true}"
+      Connectors__Email__Smtp__Username: "${FLOWZER_CONNECTOR_SMTP_USERNAME:-}"
+      Connectors__Email__Smtp__PasswordSecretName: "${FLOWZER_CONNECTOR_SMTP_PASSWORD_SECRET:-}"
       # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
       # keinen Port, und das Konsolen-Gateway leitet /metrics nicht weiter: Abgeholt wird nur
       # aus diesem Compose-Netz unter api:8080.

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Model;
+using WebApiEngine.Connectors;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
+    ConnectorDiagnosticsState connectorDiagnosticsState,
     InstanceRetentionDiagnosticsState instanceRetentionDiagnosticsState,
     IOptions<FlowzerObservabilityOptions> observabilityOptions,
     WebApiEngine.Persistence.FlowzerStorageOptions storageOptions,
@@ -85,7 +87,8 @@ public class OperationsController(
                     Notes =
                         "Die lokale Diagnosebasis bleibt klein, kann jetzt aber optional über OpenTelemetry-Exporter nach außen angebunden werden."
                 },
-                Observability = CreateObservabilitySnapshot(observabilityOptions.Value)
+                Observability = CreateObservabilitySnapshot(observabilityOptions.Value),
+                Connectors = connectorDiagnosticsState.GetSnapshot()
             };
 
             activity?.SetTag("flowzer.instances.total", payload.Storage.TotalInstances);
