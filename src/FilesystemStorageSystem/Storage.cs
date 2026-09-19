@@ -30,6 +30,7 @@ public class Storage : IStorageSystem
         AiConnectionStorage = new AiConnectionStorage(this);
         AiRunStorage = new AiRunStorage(this);
         DecisionStorage = new DecisionStorage(this);
+        InboundTriggerStorage = new InboundTriggerStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
@@ -48,6 +49,7 @@ public class Storage : IStorageSystem
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
     public IDecisionStorage DecisionStorage { get; }
+    public IInboundTriggerStorage InboundTriggerStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 
@@ -68,7 +70,11 @@ public class Storage : IStorageSystem
         return path;
     }
 
-    private static string ResolveStorageRoot()
+    /// <summary>
+    /// Wurzelverzeichnis der Dateiablage. Oeffentlich, damit die Konfigurationspruefung denselben
+    /// Pfad beurteilt, den die Ablage spaeter wirklich benutzt.
+    /// </summary>
+    public static string ResolveStorageRoot()
     {
         var configuredRoot = Environment.GetEnvironmentVariable(StorageRootEnvironmentVariableName);
         if (!string.IsNullOrWhiteSpace(configuredRoot))

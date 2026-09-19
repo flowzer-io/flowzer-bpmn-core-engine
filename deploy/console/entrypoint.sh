@@ -95,7 +95,7 @@ server {
   # bff umfasst Login, Session und CSRF unter derselben Origin.
   # decision steht vor definition und trifft die Konsolenseite /decisions nicht: Die Regel
   # verlangt hinter dem Namen einen Schraegstrich oder das Ende der Adresse.
-  location ~* ^/(ai/connection|ai/tool|bff|health|decision|definition|folder|identity-directory|instance|job|message|notifications|usertask|form-section|form|timer)(/|\$) {
+  location ~* ^/(ai/connection|ai/tool|bff|health|decision|definition|folder|identity-directory|inbound-trigger|instance|job|message|notifications|trigger|usertask|form-section|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 

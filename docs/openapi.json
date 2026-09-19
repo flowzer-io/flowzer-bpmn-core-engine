@@ -5217,8 +5217,421 @@
         }
       }
     },
+    "/inbound-trigger": {
+      "get": {
+        "tags": [
+          "InboundTrigger"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "InboundTrigger"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInboundTriggerRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInboundTriggerRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInboundTriggerRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inbound-trigger/{id}": {
+      "put": {
+        "tags": [
+          "InboundTrigger"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInboundTriggerRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInboundTriggerRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInboundTriggerRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "InboundTrigger"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inbound-trigger/{id}/rotate-secret": {
+      "post": {
+        "tags": [
+          "InboundTrigger"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerSecretDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance/{instanceId}/cancel": {
       "post": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Instance/{instanceId}": {
+      "delete": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
         "tags": [
           "Instance"
         ],
@@ -5425,46 +5838,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProcessInstanceInfoDtoListApiStatusResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/Instance/{instanceId}": {
-      "get": {
-        "tags": [
-          "Instance"
-        ],
-        "parameters": [
-          {
-            "name": "instanceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
                 }
               }
             }
@@ -6533,6 +6906,420 @@
         }
       }
     },
+    "/operations/analytics/workflows": {
+      "get": {
+        "tags": [
+          "OperationsAnalytics"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/analytics/workflows/{metaDefinitionId}": {
+      "get": {
+        "tags": [
+          "OperationsAnalytics"
+        ],
+        "parameters": [
+          {
+            "name": "metaDefinitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "definitionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/definition/meta/{id}/package": {
+      "get": {
+        "tags": [
+          "ProcessPackage"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/definition/package/preview": {
+      "post": {
+        "tags": [
+          "ProcessPackage"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "package": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "package": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackagePreviewDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/definition/package/import": {
+      "post": {
+        "tags": [
+          "ProcessPackage"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "package": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "mapping": {
+                    "type": "string"
+                  }
+                }
+              },
+              "encoding": {
+                "package": {
+                  "style": "form"
+                },
+                "mapping": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Timer": {
       "get": {
         "tags": [
@@ -6555,6 +7342,102 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TimerSubscriptionDtoArrayApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trigger/{key}": {
+      "post": {
+        "tags": [
+          "Trigger"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerMessageResultDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerMessageResultDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InboundTriggerMessageResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
                 }
               }
             }
@@ -7625,6 +8508,29 @@
         "type": "integer",
         "format": "int32"
       },
+      "AnalyticsDayPointDto": {
+        "required": [
+          "day",
+          "finishedCount",
+          "startedCount"
+        ],
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "startedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "finishedCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "ApiProblemDetails": {
         "type": "object",
         "properties": {
@@ -8012,6 +8918,11 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -8153,6 +9064,41 @@
         "properties": {
           "name": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateInboundTriggerRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InboundTriggerKindDto"
+          },
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationKeyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "variablesMode": {
+            "$ref": "#/components/schemas/InboundTriggerVariablesModeDto"
+          },
+          "allowedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
             "nullable": true
           }
         },
@@ -8598,6 +9544,39 @@
         },
         "additionalProperties": false
       },
+      "DurationStatisticsDto": {
+        "required": [
+          "maxSeconds",
+          "meanSeconds",
+          "medianSeconds",
+          "p90Seconds",
+          "sampleCount"
+        ],
+        "type": "object",
+        "properties": {
+          "sampleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "medianSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "p90Seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "meanSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxSeconds": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "EvaluateDecisionRequestDto": {
         "type": "object",
         "properties": {
@@ -8635,6 +9614,11 @@
           "folderId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "latestVersion": {
@@ -8889,6 +9873,36 @@
           "lockSeconds": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FlowNodeAnalyticsDto": {
+        "required": [
+          "executionCount",
+          "flowNodeId",
+          "waitingTokenCount"
+        ],
+        "type": "object",
+        "properties": {
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "executionCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waitingTokenCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waitTime": {
+            "$ref": "#/components/schemas/DurationStatisticsDto"
           }
         },
         "additionalProperties": false
@@ -9533,6 +10547,34 @@
         },
         "additionalProperties": false
       },
+      "HealthReadinessDetailsDto": {
+        "required": [
+          "migrationState",
+          "storageProvider"
+        ],
+        "type": "object",
+        "properties": {
+          "storageProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "migrationState": {
+            "type": "string",
+            "nullable": true
+          },
+          "pendingMigrationCount": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "expectedMigrationVersion": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "HealthStatusDto": {
         "required": [
           "checkedAtUtc",
@@ -9557,6 +10599,9 @@
           "storage": {
             "type": "string",
             "nullable": true
+          },
+          "details": {
+            "$ref": "#/components/schemas/HealthReadinessDetailsDto"
           }
         },
         "additionalProperties": false
@@ -9659,6 +10704,162 @@
           }
         },
         "additionalProperties": false
+      },
+      "InboundTriggerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "key": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "$ref": "#/components/schemas/InboundTriggerKindDto"
+          },
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationKeyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "variablesMode": {
+            "$ref": "#/components/schemas/InboundTriggerVariablesModeDto"
+          },
+          "allowedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "useCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastFailureAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastFailureReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/InboundTriggerDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InboundTriggerDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerKindDto": {
+        "enum": [
+          "start",
+          "message"
+        ],
+        "type": "string"
+      },
+      "InboundTriggerMessageResultDto": {
+        "type": "object",
+        "properties": {
+          "correlated": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerSecretDto": {
+        "type": "object",
+        "properties": {
+          "trigger": {
+            "$ref": "#/components/schemas/InboundTriggerDto"
+          },
+          "secret": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerSecretDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/InboundTriggerSecretDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "InboundTriggerVariablesModeDto": {
+        "enum": [
+          "fields",
+          "body"
+        ],
+        "type": "string"
       },
       "InheritedFolderAssignmentDto": {
         "required": [
@@ -9964,6 +11165,88 @@
         },
         "additionalProperties": false
       },
+      "InstanceRetentionDiagnosticsDto": {
+        "required": [
+          "batchSize",
+          "enabled",
+          "pollIntervalMinutes",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "days": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pollIntervalMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "batchSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceStartedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunStartedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunCompletedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastSuccessfulRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastFailedRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunDurationMs": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "lastDeletedInstances": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "successfulRunCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failedRunCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDeletedInstances": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastErrorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "MessageDefinitionDto": {
         "required": [
           "name"
@@ -10180,6 +11463,7 @@
           "environment",
           "instrumentation",
           "observability",
+          "retention",
           "storage",
           "timerScheduler"
         ],
@@ -10198,6 +11482,9 @@
           },
           "timerScheduler": {
             "$ref": "#/components/schemas/TimerSchedulerDiagnosticsDto"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/InstanceRetentionDiagnosticsDto"
           },
           "instrumentation": {
             "$ref": "#/components/schemas/OperationsInstrumentationDto"
@@ -10252,6 +11539,7 @@
           "consoleExporterEnabled",
           "enabled",
           "otlpExporterEnabled",
+          "prometheusEnabled",
           "serviceName",
           "serviceVersion"
         ],
@@ -10275,6 +11563,13 @@
             "nullable": true
           },
           "otlpHeadersHint": {
+            "type": "string",
+            "nullable": true
+          },
+          "prometheusEnabled": {
+            "type": "boolean"
+          },
+          "prometheusPath": {
             "type": "string",
             "nullable": true
           },
@@ -10623,6 +11918,432 @@
         ],
         "type": "integer",
         "format": "int32"
+      },
+      "ProcessPackageCandidateDto": {
+        "required": [
+          "id",
+          "label"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "hint": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageConflictDto": {
+        "required": [
+          "definitionId",
+          "mayCreateNewVersion",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "latestVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "mayCreateNewVersion": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageFindingDto": {
+        "required": [
+          "code",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "elementId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageFormDto": {
+        "required": [
+          "embedded",
+          "file",
+          "formKey",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "revision": {
+            "type": "string",
+            "nullable": true
+          },
+          "formKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "file": {
+            "type": "string",
+            "nullable": true
+          },
+          "embedded": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageImportResultDto": {
+        "required": [
+          "appliedReferences",
+          "definitionId",
+          "forms",
+          "name",
+          "notices",
+          "version",
+          "versionId"
+        ],
+        "type": "object",
+        "properties": {
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageImportedFormDto"
+            },
+            "nullable": true
+          },
+          "appliedReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageReferenceDto"
+            },
+            "nullable": true
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageFindingDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageImportResultDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ProcessPackageImportResultDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageImportedFormDto": {
+        "required": [
+          "formKey",
+          "name",
+          "outcome"
+        ],
+        "type": "object",
+        "properties": {
+          "formKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "formId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "revision": {
+            "type": "string",
+            "nullable": true
+          },
+          "outcome": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageManifestDto": {
+        "required": [
+          "bpmnCapabilitiesContract",
+          "exportedAt",
+          "flowzerVersion",
+          "format",
+          "formatVersion",
+          "forms",
+          "formsContract",
+          "references",
+          "workflow"
+        ],
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "nullable": true
+          },
+          "formatVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "flowzerVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "bpmnCapabilitiesContract": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "formsContract": {
+            "type": "string",
+            "nullable": true
+          },
+          "workflow": {
+            "$ref": "#/components/schemas/ProcessPackageWorkflowDto"
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageFormDto"
+            },
+            "nullable": true
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageReferenceDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackagePreviewDto": {
+        "required": [
+          "deployableHere",
+          "formsContractSupported",
+          "manifest",
+          "notices",
+          "problems",
+          "references"
+        ],
+        "type": "object",
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/ProcessPackageManifestDto"
+          },
+          "deployableHere": {
+            "type": "boolean"
+          },
+          "formsContractSupported": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageFindingDto"
+            },
+            "nullable": true
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageFindingDto"
+            },
+            "nullable": true
+          },
+          "references": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageReferenceOptionsDto"
+            },
+            "nullable": true
+          },
+          "conflict": {
+            "$ref": "#/components/schemas/ProcessPackageConflictDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackagePreviewDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ProcessPackagePreviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageReferenceDto": {
+        "required": [
+          "elementId",
+          "id",
+          "kind",
+          "label",
+          "requiresMapping"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "elementId": {
+            "type": "string",
+            "nullable": true
+          },
+          "elementName": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "requiresMapping": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageReferenceOptionsDto": {
+        "required": [
+          "candidates",
+          "reference"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/ProcessPackageReferenceDto"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProcessPackageCandidateDto"
+            },
+            "nullable": true
+          },
+          "suggestedId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ProcessPackageWorkflowDto": {
+        "required": [
+          "definitionId",
+          "name",
+          "processIds",
+          "source",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string",
+            "nullable": true
+          },
+          "processIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "PublishFormAuthoringDraftRequestDto": {
         "required": [
@@ -11513,6 +13234,41 @@
         },
         "additionalProperties": false
       },
+      "UpdateInboundTriggerRequestDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "definitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageName": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationKeyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "variablesMode": {
+            "$ref": "#/components/schemas/InboundTriggerVariablesModeDto"
+          },
+          "allowedFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "UserTaskClaimRequestDto": {
         "required": [
           "expectedRevision"
@@ -11748,6 +13504,158 @@
         },
         "additionalProperties": false
       },
+      "WorkflowAnalyticsDetailDto": {
+        "required": [
+          "fromUtc",
+          "nodes",
+          "summary",
+          "timeline",
+          "toUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsSummaryDto"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "namingDefinitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowNodeAnalyticsDto"
+            },
+            "nullable": true
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDayPointDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsDetailDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsDetailDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsOverviewDto": {
+        "required": [
+          "fromUtc",
+          "toUtc",
+          "workflows"
+        ],
+        "type": "object",
+        "properties": {
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowAnalyticsSummaryDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsOverviewDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsSummaryDto": {
+        "required": [
+          "cancelledCount",
+          "completedCount",
+          "failedCount",
+          "metaDefinitionId",
+          "name",
+          "runningCount",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "metaDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelledCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cycleTime": {
+            "$ref": "#/components/schemas/DurationStatisticsDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "WorkflowFolderDto": {
         "required": [
           "id",
@@ -11907,6 +13815,9 @@
       "name": "IdentityDirectorySubject"
     },
     {
+      "name": "InboundTrigger"
+    },
+    {
       "name": "Instance"
     },
     {
@@ -11922,7 +13833,16 @@
       "name": "Operations"
     },
     {
+      "name": "OperationsAnalytics"
+    },
+    {
+      "name": "ProcessPackage"
+    },
+    {
       "name": "Timer"
+    },
+    {
+      "name": "Trigger"
     },
     {
       "name": "UserTask"

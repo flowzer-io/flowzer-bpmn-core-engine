@@ -81,8 +81,18 @@ public sealed class ServiceTaskJobService(
                 return problem.Value;
             }
 
-            await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
-            return JobOperationResult.Ok;
+            try
+            {
+                await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
+                return JobOperationResult.Ok;
+            }
+            catch (ServiceTaskLeaseLostException)
+            {
+                // Ein zweiter API-Prozess war zwischen Besitzpruefung und Instanzsperre
+                // schneller. Der Worker soll den Auftrag erneut abholen, nicht wiederholen.
+                using var storage = storageProvider.GetTransactionalStorage();
+                return await ClassifyMissingJob(storage, jobId);
+            }
         }
         finally
         {
@@ -189,6 +199,17 @@ public sealed class ServiceTaskJobService(
         {
             using var storage = storageProvider.GetTransactionalStorage();
             var job = await storage.ServiceTaskStorage.GetLockedJob(jobId, lockOwner, now);
+            if (job is null)
+            {
+                return await ClassifyMissingJob(storage, jobId);
+            }
+
+            // Dieselbe Sperrreihenfolge wie bei jedem Engine-Schreiber: erst die Instanz, dann
+            // die Zeilen des Auftrags. Ohne sie koennte ein zweiter API-Prozess den Auftrag
+            // gerade abschliessen, und der hier geschriebene Fehlversuch liesse ihn danach
+            // wieder in der Warteschlange auferstehen.
+            await storage.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+            job = await storage.ServiceTaskStorage.GetLockedJob(jobId, lockOwner, now);
             if (job is null)
             {
                 return await ClassifyMissingJob(storage, jobId);
