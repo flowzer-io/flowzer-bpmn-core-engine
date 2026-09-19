@@ -11,6 +11,7 @@ import { RetryJobAction } from '@/components/operations/RetryJobAction';
 import { CalledInstancesSection, ParentInstanceLink } from '@/components/instances/InstanceCallHierarchy';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
 import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
+import { ModifyInstanceAction } from '@/components/instances/ModifyInstanceAction';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
 import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
@@ -178,6 +179,8 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
         )}
 
         {stalledJob && <RetryJobAction incident={stalledJob} />}
+
+        {bucket === 'active' && <ModifyInstanceAction instance={instance} />}
 
         {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
 

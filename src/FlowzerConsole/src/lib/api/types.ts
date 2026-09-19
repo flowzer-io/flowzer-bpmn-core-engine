@@ -213,6 +213,86 @@ export interface InstanceMigrationResultDto {
   instances: InstanceMigrationResultItemDto[];
 }
 
+/**
+ * Entspricht `InstanceModificationFindingDto` — ein Hindernis oder ein Hinweis zum Eingriff.
+ *
+ * `code` ist wie bei der Migration offen typisiert: Die Engine darf Gründe ergänzen, ohne
+ * dass die Konsole bricht. Unbekannte Codes zeigt die Oberfläche als `message` an.
+ */
+export interface InstanceModificationFindingDto {
+  code: string;
+  /** Der betroffene Schritt, sofern der Befund an einem einzelnen Token hängt. */
+  tokenId?: string | null;
+  flowNodeId?: string | null;
+  /** Technische Begründung der API auf Englisch — nur der Rückfall für neue Codes. */
+  message: string;
+}
+
+/** Entspricht `InstanceModificationStepDto` — ein wartender Schritt der Instanz. */
+export interface InstanceModificationStepDto {
+  tokenId: string;
+  flowNodeId: string;
+  /** Null, wenn der Knoten im Modell keinen Namen trägt. */
+  name?: string | null;
+  /** Die BPMN-Elementart als schlichter Name, z. B. `UserTask`. */
+  type: string;
+}
+
+/** Entspricht `ModificationFlowNodeDto` — ein Knoten, der als Ziel zur Wahl steht. */
+export interface ModificationFlowNodeDto {
+  id: string;
+  name?: string | null;
+  type: string;
+}
+
+/** Eine einzelne Verschiebung: welcher wartende Schritt auf welchen Knoten geht. */
+export interface InstanceModificationMoveDto {
+  tokenId: string;
+  targetFlowNodeId: string;
+}
+
+/** Die Variablenkorrektur einer Eingriffsanfrage; beide Teile sind freiwillig. */
+export interface InstanceModificationVariablesDto {
+  /** Genannte Variablen werden überschrieben oder neu angelegt, ungenannte bleiben stehen. */
+  set?: ProcessVariables;
+  /** Variablen, die von der Prozessebene verschwinden. */
+  remove?: string[];
+}
+
+/**
+ * Entspricht `InstanceModificationRequestDto`. Eine leere Anfrage ist nur im Trockenlauf
+ * zulässig und beantwortet dort die Frage „welche Schritte warten, und wohin dürfen sie?“.
+ */
+export interface InstanceModificationRequestDto {
+  moves?: InstanceModificationMoveDto[];
+  variables?: InstanceModificationVariablesDto;
+}
+
+/** Entspricht `InstanceModificationPreviewDto` — die folgenlose Prüfung vor dem Eingriff. */
+export interface InstanceModificationPreviewDto {
+  instanceId: string;
+  /** Ob die Anfrage so ausgeführt werden könnte. */
+  applicable: boolean;
+  /** Gründe, aus denen der Eingriff nicht ausgeführt wird. */
+  problems: InstanceModificationFindingDto[];
+  /** Was der Eingriff mitnimmt, ohne ihn zu verhindern. */
+  notices: InstanceModificationFindingDto[];
+  /** Die wartenden Schritte der obersten Ebene. */
+  steps: InstanceModificationStepDto[];
+  /** Die erlaubten Zielknoten der obersten Ebene. */
+  targets: ModificationFlowNodeDto[];
+}
+
+/** Entspricht `InstanceModificationResultDto` — das Ergebnis des Eingriffs. */
+export interface InstanceModificationResultDto {
+  instanceId: string;
+  modified: boolean;
+  /** Was der Eingriff mitgenommen hat; dieselben Codes wie im Trockenlauf. */
+  notices: InstanceModificationFindingDto[];
+  /** Die Instanz nach dem Eingriff, damit die Oberfläche sofort den neuen Stand zeigt. */
+  instance: ProcessInstanceInfoDto;
+}
+
 /** Entspricht `BpmnDefinitionDto`. */
 export interface BpmnDefinitionDto {
   id: string;

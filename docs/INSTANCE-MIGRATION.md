@@ -25,6 +25,13 @@ Entschieden am 17. September 2026 (Christian Maaß):
 Es gibt weiterhin **keine automatische Migration**: Ein Deployment verändert keine
 laufende Instanz.
 
+**Für dieselbe Version: [Instanzeingriffe](INSTANCE-MODIFICATION.md).** Wenn nicht die Version
+das Problem ist, sondern der Vorgang — ein Schritt wurde versehentlich abgeschlossen, ein
+Worker hängt an einem Knoten, eine Variable trägt einen falschen Wert —, setzt der
+Instanzeingriff die Instanz innerhalb ihrer Version an eine andere Stelle. Er zieht den Token
+dabei zurück und legt am Ziel einen neuen an; die Aufgabe am verlassenen Knoten verschwindet
+also samt Kennung, statt wie hier mitzuziehen.
+
 ## Was „deckungsgleich" ausschließt
 
 Die erste Ausbaustufe migriert nur flache Prozesse im Ruhezustand. Nicht migrierbar ist

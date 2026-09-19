@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_ModificationOrder" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_ModificationOrder" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="UserTask_Check" name="Prüfung">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="check-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Check</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:exclusiveGateway id="Gateway_Route" name="Entscheidung" default="Flow_Reject">
+      <bpmn:incoming>Flow_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:userTask id="UserTask_Approve" name="Freigabe">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="approve-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_Notify</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:boundaryEvent id="BoundaryTimer_Approve" attachedToRef="UserTask_Approve">
+      <bpmn:outgoing>Flow_Escalate</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT8H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ServiceTask_Notify" name="Benachrichtigen">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="notify" retries="3" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=Empfaenger" target="Empfaenger" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Notify</bpmn:incoming>
+      <bpmn:outgoing>Flow_Done</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Done">
+      <bpmn:incoming>Flow_Done</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Rejected">
+      <bpmn:incoming>Flow_Reject</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Escalated">
+      <bpmn:incoming>Flow_Escalate</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="UserTask_Check" />
+    <bpmn:sequenceFlow id="Flow_Check" sourceRef="UserTask_Check" targetRef="Gateway_Route" />
+    <bpmn:sequenceFlow id="Flow_Approve" sourceRef="Gateway_Route" targetRef="UserTask_Approve">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=Entscheidung = "ja"</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Reject" sourceRef="Gateway_Route" targetRef="EndEvent_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Notify" sourceRef="UserTask_Approve" targetRef="ServiceTask_Notify" />
+    <bpmn:sequenceFlow id="Flow_Done" sourceRef="ServiceTask_Notify" targetRef="EndEvent_Done" />
+    <bpmn:sequenceFlow id="Flow_Escalate" sourceRef="BoundaryTimer_Approve" targetRef="EndEvent_Escalated" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -4265,6 +4265,150 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}/modification/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["InstanceModificationRequestDto"];
+                    "text/json": components["schemas"]["InstanceModificationRequestDto"];
+                    "application/*+json": components["schemas"]["InstanceModificationRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InstanceModificationPreviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InstanceModificationPreviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InstanceModificationPreviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiValidationProblem"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/Instance/{instanceId}/modification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["InstanceModificationRequestDto"];
+                    "text/json": components["schemas"]["InstanceModificationRequestDto"];
+                    "application/*+json": components["schemas"]["InstanceModificationRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InstanceModificationResultDtoApiStatusResult"];
+                        "application/json": components["schemas"]["InstanceModificationResultDtoApiStatusResult"];
+                        "text/json": components["schemas"]["InstanceModificationResultDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["InstanceModificationProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance": {
         parameters: {
             query?: never;
@@ -7184,6 +7328,77 @@ export interface components {
             migrated: boolean;
             problems: components["schemas"]["InstanceMigrationFindingDto"][] | null;
         };
+        InstanceModificationFindingDto: {
+            code: string | null;
+            /** Format: uuid */
+            tokenId?: string | null;
+            flowNodeId?: string | null;
+            message: string | null;
+        };
+        InstanceModificationMoveDto: {
+            /** Format: uuid */
+            tokenId: string;
+            targetFlowNodeId: string | null;
+        };
+        InstanceModificationPreviewDto: {
+            /** Format: uuid */
+            instanceId: string;
+            applicable: boolean;
+            problems: components["schemas"]["InstanceModificationFindingDto"][] | null;
+            notices: components["schemas"]["InstanceModificationFindingDto"][] | null;
+            steps: components["schemas"]["InstanceModificationStepDto"][] | null;
+            targets: components["schemas"]["ModificationFlowNodeDto"][] | null;
+        };
+        InstanceModificationPreviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InstanceModificationPreviewDto"];
+        };
+        InstanceModificationProblemDetails: {
+            type?: string | null;
+            title?: string | null;
+            /** Format: int32 */
+            status?: number | null;
+            detail?: string | null;
+            instance?: string | null;
+            errors?: {
+                [key: string]: string[];
+            } | null;
+            readonly successful?: boolean;
+            readonly errorMessage?: string | null;
+            problems?: components["schemas"]["InstanceModificationFindingDto"][] | null;
+        } & {
+            [key: string]: unknown;
+        };
+        InstanceModificationRequestDto: {
+            moves?: components["schemas"]["InstanceModificationMoveDto"][] | null;
+            variables?: components["schemas"]["InstanceModificationVariablesDto"];
+        };
+        InstanceModificationResultDto: {
+            /** Format: uuid */
+            instanceId: string;
+            modified: boolean;
+            notices: components["schemas"]["InstanceModificationFindingDto"][] | null;
+            instance: components["schemas"]["ProcessInstanceInfoDto"];
+        };
+        InstanceModificationResultDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["InstanceModificationResultDto"];
+        };
+        InstanceModificationStepDto: {
+            /** Format: uuid */
+            tokenId: string;
+            flowNodeId: string | null;
+            name?: string | null;
+            type: string | null;
+        };
+        InstanceModificationVariablesDto: {
+            set?: {
+                [key: string]: unknown;
+            } | null;
+            remove?: string[] | null;
+        };
         InstanceRetentionDiagnosticsDto: {
             enabled: boolean;
             /** Format: int32 */
@@ -7246,6 +7461,11 @@ export interface components {
             result?: components["schemas"]["MessageSubscriptionDto"][] | null;
         };
         MigrationFlowNodeDto: {
+            id: string | null;
+            name?: string | null;
+            type: string | null;
+        };
+        ModificationFlowNodeDto: {
             id: string | null;
             name?: string | null;
             type: string | null;

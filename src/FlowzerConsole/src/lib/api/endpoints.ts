@@ -29,6 +29,9 @@ import type {
   HealthStatusDto,
   InstanceMigrationPreviewDto,
   InstanceMigrationResultDto,
+  InstanceModificationPreviewDto,
+  InstanceModificationRequestDto,
+  InstanceModificationResultDto,
   MessageDto,
   MessageSubscriptionDto,
   NotificationDto,
@@ -326,6 +329,28 @@ function mappingOrUndefined(
   return flowNodeMapping && Object.keys(flowNodeMapping).length > 0 ? flowNodeMapping : undefined;
 }
 
+/**
+ * Der Rumpf einer Eingriffsanfrage ohne leere Abschnitte.
+ *
+ * Aus demselben Grund wie bei der Zuordnung: Ein leeres `moves` oder ein `variables` ohne
+ * Inhalt ist keine Änderung. Bliebe es im Rumpf stehen, sähe die API eine andere Anfrage
+ * als die, die der Dialog meint — und antwortete auf den Trockenlauf einer leeren Anfrage
+ * mit `NothingToDo` statt mit den wartenden Schritten.
+ */
+function modificationBody(request: InstanceModificationRequestDto): InstanceModificationRequestDto {
+  const set = request.variables?.set;
+  const remove = request.variables?.remove;
+  const variables = {
+    set: set && Object.keys(set).length > 0 ? set : undefined,
+    remove: remove && remove.length > 0 ? remove : undefined,
+  };
+
+  return {
+    moves: request.moves && request.moves.length > 0 ? request.moves : undefined,
+    variables: variables.set || variables.remove ? variables : undefined,
+  };
+}
+
 // Alle Instanz-Endpunkte antworten in `ApiStatusResult<T>`.
 export const instancesApi = {
   /** `GET /instance` */
@@ -401,6 +426,38 @@ export const instancesApi = {
       method: 'POST',
       body: { instanceIds, targetDefinitionId, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
     }),
+
+  /**
+   * `POST /instance/{id}/modification/preview` — prüft folgenlos, ob sich der Eingriff so
+   * ausführen ließe. Verlangt das Betriebsrecht; 404 für eine unbekannte, 409 für eine nicht
+   * mehr laufende Instanz, 422 für eine Anfrage, die so nicht zulässig ist.
+   *
+   * Eine leere Anfrage ist hier erlaubt und beantwortet nur, welche Schritte warten und
+   * welche Knoten als Ziel in Frage kommen.
+   */
+  modificationPreview: (
+    instanceId: string,
+    request: InstanceModificationRequestDto,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<InstanceModificationPreviewDto>(`/instance/${instanceId}/modification/preview`, {
+      method: 'POST',
+      body: modificationBody(request),
+      signal,
+    }),
+
+  /**
+   * `POST /instance/{id}/modification` — verschiebt wartende Schritte und korrigiert
+   * Variablen. Die API antwortet mit der Instanz nach dem Eingriff; sie wird hier wie bei
+   * jedem anderen Instanzendpunkt normalisiert, damit Zustände als Literale ankommen.
+   */
+  modify: async (instanceId: string, request: InstanceModificationRequestDto) => {
+    const result = await requestStatusResult<InstanceModificationResultDto>(
+      `/instance/${instanceId}/modification`,
+      { method: 'POST', body: modificationBody(request) },
+    );
+    return { ...result, instance: normalizeInstance(result.instance) };
+  },
 
   /** `GET /instance/{id}/subscription/messages` */
   messageSubscriptions: (instanceId: string, signal?: AbortSignal) =>
