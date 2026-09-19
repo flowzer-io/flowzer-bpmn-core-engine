@@ -11,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("6");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("7");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -41,11 +41,10 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("6");
+        exception.ContractVersion.Should().Be("7");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
-    [TestCase("callActivity", "<bpmn:callActivity id='Call_1' />", "Call_1")]
     [TestCase("complexGateway", "<bpmn:complexGateway id='Complex_1' />", "Complex_1")]
     [TestCase("inclusiveGateway", "<bpmn:inclusiveGateway id='Inclusive_1' />", "Inclusive_1")]
     [TestCase("signalEnd", "<bpmn:endEvent id='SignalEnd_1'><bpmn:signalEventDefinition /></bpmn:endEvent>", "SignalEnd_1")]
@@ -523,7 +522,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
         exception.ElementId.Should().Be("Boundary_1");
         exception.PropertyPath.Should().Be("cancelActivity");
-        exception.ContractVersion.Should().Be("6");
+        exception.ContractVersion.Should().Be("7");
     }
 
     // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
@@ -635,6 +634,54 @@ public class BpmnCapabilityMatrixTest
                 capability.ElementType == "endEvent.messageEventDefinition" && !capability.Executable);
         }
     }
+
+    // Testzweck: Vertrag 7 sagt die lokale Call Activity als ausführbar zu; eine vollständig
+    // konfigurierte Aufruf-Aktivität darf deshalb veröffentlicht werden.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptCallActivityWithLiteralProcessId()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(CallActivity("second-level-support")));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ohne Prozesskennung wüsste die Laufzeit nicht, was sie starten soll — das wird
+    // vor der Veröffentlichung mit stabilem Code am betroffenen Knoten abgelehnt.
+    [TestCase("<bpmn:callActivity id='Call_1' />")]
+    [TestCase("<bpmn:callActivity id='Call_1'><bpmn:extensionElements><zeebe:calledElement /></bpmn:extensionElements></bpmn:callActivity>")]
+    [TestCase("<bpmn:callActivity id='Call_1'><bpmn:extensionElements><zeebe:calledElement processId='  ' /></bpmn:extensionElements></bpmn:callActivity>")]
+    public void ValidateForDeployment_ShouldRejectCallActivityWithoutProcessId(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.call_activity.process_id_required");
+        exception.ElementId.Should().Be("Call_1");
+        exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
+        exception.ContractVersion.Should().Be("7");
+    }
+
+    // Testzweck: Ein FEEL-Ausdruck als Prozesskennung ist in dieser Stufe nicht erlaubt; sonst
+    // stünde erst zur Laufzeit fest, welchen Prozess ein Workflow überhaupt aufruft.
+    [TestCase("=zielProzess")]
+    [TestCase("  =zielProzess")]
+    public void ValidateForDeployment_ShouldRejectCallActivityWithExpressionProcessId(string processId)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(CallActivity(processId)));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.call_activity.process_id_literal_required");
+        exception.ElementId.Should().Be("Call_1");
+        exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
+    }
+
+    private static string CallActivity(string processId) => $"""
+        <bpmn:callActivity id="Call_1">
+          <bpmn:extensionElements>
+            <zeebe:calledElement processId="{processId}" propagateAllParentVariables="false" />
+          </bpmn:extensionElements>
+        </bpmn:callActivity>
+        """;
 
     private static string CreateProcess(string flowElements) => $"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"

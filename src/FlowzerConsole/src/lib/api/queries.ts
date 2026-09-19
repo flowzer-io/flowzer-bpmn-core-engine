@@ -82,6 +82,8 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
+  instanceChildren: (instanceId: string) =>
+    [...queryKeys.instances, 'children', instanceId] as const,
   /**
    * Kennungen und Zuordnung stehen sortiert im Schlüssel: dieselbe Auswahl mit derselben
    * Zuordnung ist dieselbe Prüfung — und eine geänderte Zuordnung ist eine andere, die
@@ -601,6 +603,23 @@ export function useInstanceSubscriptions(instanceId: string | undefined) {
         userTasks: userTasks ?? [],
       };
     },
+  });
+}
+
+/**
+ * Die von Call Activities dieser Instanz gestarteten Kindinstanzen.
+ *
+ * Gleiche Machart wie {@link useInstance} und {@link useInstanceSubscriptions}: Die Anfrage
+ * läuft erst mit einer Kennung, und der Zustand der Kinder ändert sich im selben Takt wie
+ * der der Instanz selbst — eine fertig gewordene Kindinstanz soll die Elternansicht nicht
+ * länger als andere Laufzeitdaten falsch zeigen.
+ */
+export function useInstanceChildren(instanceId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.instanceChildren(instanceId ?? ''),
+    queryFn: ({ signal }) => instancesApi.children(instanceId!, signal),
+    enabled: Boolean(instanceId),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 

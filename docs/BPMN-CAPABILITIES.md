@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/6` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v6.json` und unterscheidet je Elementart. Version 1 bis 5
+`flowzer.bpmn-capabilities/7` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v7.json` und unterscheidet je Elementart. Version 1 bis 6
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -10,8 +10,8 @@ bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag un
 - **executable:** Neue Workflow-Versionen dürfen das Element tatsächlich ausführen.
 
 `parsable` ist ausdrücklich kein Ausführungsversprechen. Beispielsweise bleiben Script-
-Tasks und Call Activities für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als
-nicht ausführbar abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
+Tasks für Bestandsanalyse lesbar, werden aber vor Save oder Deploy als nicht ausführbar
+abgelehnt. KI-Service-Tasks sind seit #252 / PR #253 ausführbar, weil Deployment,
 persistenter Lauf, Recovery und Engine-Fortschritt nun denselben geprüften Vertrag verwenden.
 
 ## Öffentliche API
@@ -30,12 +30,12 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 6 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 7 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v6
+## Ausführbares Profil v7
 
 Offiziell ausführbar sind:
 
@@ -48,8 +48,9 @@ Offiziell ausführbar sind:
   Timer-Intermediate-Catch-Events
 - Intermediate-Throw-Events ohne Ereignisdefinition (Meilenstein) und mit
   Nachrichtendefinition
+- lokale Aufruf-Aktivitäten (`callActivity`)
 
-Insbesondere nicht als ausführbar zugesagt sind Script-Tasks, Call Activities,
+Insbesondere nicht als ausführbar zugesagt sind Script-Tasks,
 Inclusive-/Complex-Gateways, Signal-Throw- und Signal-End-Events sowie Escalation-Pfade und
 Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad mit Semantik-,
 Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der Parser XML lesen kann.
@@ -93,9 +94,30 @@ sagen Fehlerpfade weiterhin nicht zu.
 **Grenzen.** Ein Fehler innerhalb einer Multi-Instance-Aktivität unterbricht die ganze
 Aktivität und wird an deren Boundary aufgelöst — eine einzelne Ausprägung lässt sich nicht
 gesondert behandeln. Escalation-Ereignisse, Kompensation, Error-Start-Events in
-Event-Subprozessen und Call Activities bleiben offen. Der Gliederungseditor kennt
+Event-Subprozessen bleiben offen. Der Gliederungseditor kennt
 Fehlerereignisse so wenig wie die übrigen Ereignisdefinitionen und meldet sie als Blocker,
 statt sie beim Speichern zu verlieren.
+
+## Lokale Aufruf-Aktivität (Vertrag 7)
+
+Version 7 erweitert Version 6 additiv um genau einen Eintrag: `callActivity` ist ausführbar.
+Die älteren Vertragsdateien bleiben unverändert und sagen Aufruf-Aktivitäten weiterhin nicht zu.
+
+Eine Aufruf-Aktivität startet einen anderen Prozess derselben Installation und wartet auf dessen
+Ende. Zwei Pflichtprüfungen vor dem Speichern und Veröffentlichen:
+
+- `bpmn.call_activity.process_id_required` — `zeebe:calledElement/@processId` fehlt oder ist leer.
+- `bpmn.call_activity.process_id_literal_required` — die Prozesskennung beginnt mit `=`, ist also
+  ein FEEL-Ausdruck. In dieser Stufe ist nur ein Literal erlaubt; sonst stünde erst zur Laufzeit
+  fest, welche Prozesse ein veröffentlichter Workflow überhaupt aufruft.
+
+Ob der aufgerufene Prozess existiert, wird beim Deployment ausdrücklich **nicht** geprüft: Er
+darf später entstehen, und welche Version gilt, entscheidet der Zeitpunkt des Aufrufs. Ein
+fehlender Zielprozess ist der BPMN-Fehler `CALLED_PROCESS_NOT_FOUND` an der Aufruf-Aktivität.
+
+Variablenfluss, Fehler- und Abbruchsemantik, Rekursionsgrenze, Rechte und die Grenzen dieser
+Stufe stehen vollständig in [CALL-ACTIVITY.md](CALL-ACTIVITY.md). Der Fernaufruf in eine andere
+Installation ist Stufe 2+ von #154 und noch nicht Teil dieses Vertrags.
 
 ## Nachrichten senden (Vertrag 6)
 

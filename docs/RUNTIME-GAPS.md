@@ -11,6 +11,35 @@ setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vert
 Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
 bleiben ausdrücklich offen.
 
+## Lokale Call Activity
+
+Ein Prozess kann jetzt einen anderen Prozess derselben Installation aufrufen und auf dessen Ende
+warten. Die vollständige Semantik steht in [CALL-ACTIVITY.md](CALL-ACTIVITY.md), der Vertrag in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 7).
+
+Vorhanden:
+
+- `callActivity` ist ausführbar; `zeebe:calledElement/@processId` ist Pflicht und muss ein
+  Literal sein
+- das Token wartet wie an einem Service-Task; die Engine stellt den Aufruf bereit, die
+  Geschäftslogik startet die Kindinstanz in derselben Transaktion
+- Variablen hinein nach `propagateAllParentVariables` und `zeebe:ioMapping`-Eingang, heraus nach
+  `propagateAllChildVariables` und `zeebe:ioMapping`-Ausgang
+- Ende, Terminate, ungefangener BPMN-Fehler, Abbruch und fehlender Zielprozess sind als
+  BPMN-Fehler an der Aufruf-Aktivität fangbar
+- Abbruch des Aufrufers bricht laufende Kindinstanzen rekursiv mit ab
+- `GET /instance/{id}/children` und `parentInstanceId` machen den Verbund in der Konsole sichtbar
+
+Weiterhin offen:
+
+- Fernaufruf in eine andere Flowzer-Installation (#154, Stufe 2+)
+- FEEL-Ausdruck als Prozesskennung und Bindung an eine feste Version (`versionTag`)
+- Migration eines Aufrufers mit wartender Aufruf-Aktivität (`CallActivityWaiting`)
+- Multi-Instance an der Aufruf-Aktivität
+- Zwischenstände vor dem Ende der Kindinstanz
+- Kompensation beim Abbruch
+- Rekursion bricht ab Tiefe 10 ab; eine echte Zyklenerkennung gibt es nicht
+
 ## Nachrichten senden: Message-Throw, Message-Ende und Send-Task
 
 Prozesse können einander jetzt etwas mitteilen, statt Nachrichten nur von außen über

@@ -144,8 +144,17 @@ public partial class InstanceEngine: ICatchHandler
     /// Bricht die Instanz best-effort ab, indem aktive bzw. wartende Tokens terminiert werden.
     /// Eine BPMN-Kompensation bereits ausgeführter Activities ist damit bewusst noch nicht verbunden.
     /// </summary>
+    /// <summary>
+    /// Ob diese Instanz durch einen Abbruch von aussen geendet hat. Ein Terminate-End-Event
+    /// hinterlaesst denselben Zustand, ist fachlich aber ein regulaeres Ende — eine aufrufende
+    /// Instanz behandelt beide Faelle deshalb unterschiedlich. Gilt fuer den laufenden
+    /// Engine-Vorgang; der Abbruch wird in derselben Transaktion weitergereicht.
+    /// </summary>
+    public bool WasCancelled { get; private set; }
+
     public void Cancel()
     {
+        WasCancelled = true;
         var tokensToTerminate = Tokens
             .Where(CanBeTerminatedByCancellation)
             .ToArray();

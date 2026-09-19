@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v6.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v7.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -307,6 +307,9 @@ public static class BpmnCapabilityMatrix
                         "extensionElements.taskDefinition.type",
                         $"The service task '{elementId}' requires zeebe:taskDefinition/@type.");
                 break;
+            case "callActivity":
+                ValidateCallActivity(element, elementId);
+                break;
             case "userTask" when !HasFormKey(element):
                 throw Failure("bpmn.user_task.form_required", elementId,
                     "extensionElements.formDefinition.formKey",
@@ -328,6 +331,36 @@ public static class BpmnCapabilityMatrix
                 && string.Equals(element.Attribute("cancelActivity")?.Value, "false", StringComparison.OrdinalIgnoreCase):
                 throw Failure("bpmn.error_boundary.cancel_activity_invalid", elementId, "cancelActivity",
                     $"The error boundary event '{elementId}' must be interrupting; cancelActivity=\"false\" is not allowed.");
+        }
+    }
+
+    /// <summary>
+    /// Eine Call Activity muss wissen, welchen Prozess sie startet. Der Zielprozess wird hier
+    /// bewusst <b>nicht</b> gesucht: Er darf spaeter deployt werden, und erst die Laufzeit
+    /// entscheidet, welche Version dann aktuell ist.
+    ///
+    /// Die Prozesskennung bleibt in dieser Stufe ein Literal. Ein FEEL-Ausdruck waere erst zur
+    /// Laufzeit bekannt; eine Veroeffentlichung koennte dann nicht mehr zusagen, welche
+    /// Prozesse ein Workflow ueberhaupt aufruft.
+    /// </summary>
+    private static void ValidateCallActivity(XElement element, string elementId)
+    {
+        var processId = element.Descendants()
+            .FirstOrDefault(descendant => descendant.Name.LocalName == "calledElement")
+            ?.Attribute("processId")?.Value;
+
+        if (string.IsNullOrWhiteSpace(processId))
+        {
+            throw Failure("bpmn.call_activity.process_id_required", elementId,
+                "extensionElements.calledElement.processId",
+                $"The call activity '{elementId}' requires zeebe:calledElement/@processId.");
+        }
+
+        if (processId.TrimStart().StartsWith('='))
+        {
+            throw Failure("bpmn.call_activity.process_id_literal_required", elementId,
+                "extensionElements.calledElement.processId",
+                $"The call activity '{elementId}' requires a literal process id; FEEL expressions are not supported yet.");
         }
     }
 

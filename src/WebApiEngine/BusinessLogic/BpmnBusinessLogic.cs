@@ -796,6 +796,9 @@ public partial class BpmnBusinessLogic(
             instance.Cancel();
 
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            // Erst danach: Der Abbruch dieser Instanz steht damit schon in der Ablage, wenn ein
+            // Kind sein Ende melden will und seinen Aufrufer nicht mehr wartend vorfindet.
+            await CancelCalledInstances(storageSystem, instanceId);
             storageSystem.CommitChanges();
 
             return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
@@ -980,11 +983,17 @@ public partial class BpmnBusinessLogic(
         await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
             migrations, movedTaskTokenIds);
 
-        // Erst speichern, dann senden: Die Anmeldungen dieser Instanz stehen damit schon in der
-        // Ablage, wenn eine ausgehende Nachricht auf einen wartenden Zweig derselben Instanz
-        // korreliert. Beides bleibt in der Transaktion des Aufrufers.
-        await DeliverOutgoingMessages(storageSystem,
+        // Erst speichern, dann senden und aufrufen: Die Anmeldungen dieser Instanz stehen damit
+        // schon in der Ablage, wenn eine ausgehende Nachricht auf einen wartenden Zweig
+        // derselben Instanz korreliert. Alles bleibt in der Transaktion des Aufrufers.
+        await RunProcessExchange(storageSystem,
             new InstanceContext(instance, relatedDefinitionId, definitionId, processId));
+
+        // Ein gestarteter Aufruf haengt seine Kindinstanz an das wartende Token, und ein sofort
+        // fertiger Kindvorgang laesst diese Instanz gleich weiterlaufen. Beides entsteht erst im
+        // Austausch und muss deshalb noch einmal geschrieben werden.
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds);
     }
 
     /// <summary>
@@ -1234,6 +1243,10 @@ public partial class BpmnBusinessLogic(
         {
             Migrations = [.. migrations],
             InstanceId = instance.InstanceId,
+            // Die Herkunft steht am Master-Token und ueberlebt damit jeden Storage-Roundtrip.
+            // Sie hier abzuleiten haelt Datensatz und Tokenstand ohne zweite Quelle zusammen.
+            ParentInstanceId = instance.MasterToken.CallingInstanceId,
+            ParentTokenId = instance.MasterToken.CallingTokenId,
             metaDefinitionId = relatedDefinitionId,
             DefinitionId = definitionId,
             ProcessId = processId,

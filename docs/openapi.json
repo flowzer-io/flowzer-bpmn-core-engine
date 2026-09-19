@@ -4830,6 +4830,66 @@
         }
       }
     },
+    "/Instance/{instanceId}/children": {
+      "get": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalledInstanceDtoListApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance/{instanceId}/history": {
       "get": {
         "tags": [
@@ -7330,6 +7390,59 @@
         },
         "additionalProperties": false
       },
+      "CalledInstanceDto": {
+        "required": [
+          "instanceId",
+          "relatedDefinitionId",
+          "relatedDefinitionName"
+        ],
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "relatedDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "relatedDefinitionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "definitionVersion": {
+            "$ref": "#/components/schemas/VersionDto"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ProcessInstanceStateDto"
+          },
+          "callActivityFlowNodeId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CalledInstanceDtoListApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CalledInstanceDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CompleteJobRequestDto": {
         "required": [
           "workerId"
@@ -9506,6 +9619,16 @@
           "finishedAt": {
             "type": "string",
             "format": "date-time",
+            "nullable": true
+          },
+          "parentInstanceId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "parentTokenId": {
+            "type": "string",
+            "format": "uuid",
             "nullable": true
           }
         },

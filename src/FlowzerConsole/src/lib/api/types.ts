@@ -113,6 +113,26 @@ export interface ProcessInstanceInfoDto {
   startedAt?: string | null;
   /** Ergänzt durch die Console-API: Endzeitpunkt der Instanz (UTC). */
   finishedAt?: string | null;
+  /** Elterninstanz, wenn diese Instanz von einer Call Activity gestartet wurde. */
+  parentInstanceId?: string | null;
+  /** Das an der Call Activity wartende Token der Elterninstanz. */
+  parentTokenId?: string | null;
+}
+
+/**
+ * Entspricht `CalledInstanceDto` — eine von einer Call Activity gestartete Kindinstanz.
+ *
+ * Antwort von `GET /instance/{instanceId}/children`. Die Rechteprüfung ist dieselbe wie bei
+ * der Instanzansicht; ohne das Recht antwortet die API mit 404.
+ */
+export interface CalledInstanceDto {
+  instanceId: string;
+  relatedDefinitionId: string;
+  relatedDefinitionName: string;
+  definitionVersion?: VersionDto | null;
+  state: ProcessInstanceState;
+  /** Knoten-Id der Call Activity im Elternprozess; fehlt bei historischen Ständen. */
+  callActivityFlowNodeId?: string | null;
 }
 
 /**

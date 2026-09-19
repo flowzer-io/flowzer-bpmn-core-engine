@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
+import { CalledInstancesSection, ParentInstanceLink } from '@/components/instances/InstanceCallHierarchy';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
 import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
@@ -17,7 +18,7 @@ import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Ch
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { instanceBucket } from '@/lib/api/normalize';
-import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
+import { useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
@@ -54,6 +55,9 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   });
   const historyQuery = useInstanceHistory(instanceId, { enabled: canInspect });
   const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
+  // Dieselbe Rechteprüfung wie die Instanzansicht: Ohne Diagnoserecht antwortet der Endpunkt
+  // mit 404, also wird er gar nicht erst gefragt.
+  const childrenQuery = useInstanceChildren(canInspect ? instanceId : undefined);
 
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
   const selectedFlowNodeId = useMemo(() => {
@@ -88,6 +92,10 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   }
 
   if (!canInspect) {
+    // Bewusst ohne Eltern- und Kindbezug: Die datensparsame Übersicht zeigt den eigenen
+    // Vorgang. Ob jemand die aufrufende oder die aufgerufene Instanz sehen darf, entscheidet
+    // die API für jede Instanz einzeln — ein Verweis darauf führte hier regelmäßig in ein 404,
+    // und die Kindliste verlangt ohnehin dasselbe Diagnoserecht wie diese Ansicht.
     return <InstanceOverview instance={instance}
       onBack={() => void navigate({ to: '/instances' })}
       onTasks={() => void navigate({ to: '/tasks' })} />;
@@ -133,6 +141,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
             {instance.finishedAt && <> · beendet {formatTimestamp(instance.finishedAt)}</>}
           </div>
         </div>
+
+        {instance.parentInstanceId && (
+          <ParentInstanceLink
+            parentInstanceId={instance.parentInstanceId}
+            onOpen={(parentId) => void navigate({ to: `/instances/${parentId}` })}
+          />
+        )}
 
         <span className="flex-1" />
 
@@ -257,6 +272,14 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
               )}
 
               {subscriptionsQuery.data && <Subscriptions data={subscriptionsQuery.data} model={model} />}
+
+              {/* Der Abschnitt erscheint nur mit Kindinstanzen — bis dahin auch kein Ladezustand
+                  und keine Fehlermeldung, denn eine Instanz ohne Call Activity hat hier nichts
+                  zu erwarten und soll darüber auch nicht unterrichtet werden. */}
+              <CalledInstancesSection
+                instances={childrenQuery.data ?? []}
+                onOpen={(childId) => void navigate({ to: `/instances/${childId}` })}
+              />
             </Tabs.Content>
           </div>
         </Tabs.Root>

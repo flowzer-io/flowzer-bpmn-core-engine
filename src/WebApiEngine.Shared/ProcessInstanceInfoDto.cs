@@ -41,4 +41,37 @@ public class ProcessInstanceInfoDto
     /// Endzeitpunkt der Instanz (UTC). Nur gesetzt, wenn die Instanz beendet ist.
     /// </summary>
     public DateTime? FinishedAt { get; set; }
+
+    /// <summary>
+    /// Die Instanz, deren Aufruf-Aktivität diesen Vorgang gestartet hat. Null bei einem
+    /// Vorgang, der von Hand oder per Nachricht begonnen wurde.
+    /// </summary>
+    public Guid? ParentInstanceId { get; set; }
+
+    /// <summary>
+    /// Das wartende Token der Aufruf-Aktivität in der aufrufenden Instanz.
+    /// </summary>
+    public Guid? ParentTokenId { get; set; }
+}
+
+/// <summary>
+/// Eine Kindinstanz in der Übersicht ihres Aufrufers: so viel, wie die Instanzansicht zum
+/// Anzeigen und Verlinken braucht — ohne Tokens und ohne Prozessdaten.
+/// </summary>
+public class CalledInstanceDto
+{
+    public required Guid InstanceId { get; set; }
+    public required string RelatedDefinitionId { get; set; }
+    public required string RelatedDefinitionName { get; set; }
+
+    /// <summary>Null, wenn die gebundene Definition nicht mehr vorliegt.</summary>
+    public VersionDto? DefinitionVersion { get; set; }
+
+    public ProcessInstanceStateDto State { get; set; }
+
+    /// <summary>
+    /// Die Aufruf-Aktivität im Elternprozess, an der dieser Vorgang hängt. Null, wenn das
+    /// wartende Token im Aufrufer nicht mehr zu finden ist — etwa nach einem Abbruch.
+    /// </summary>
+    public string? CallActivityFlowNodeId { get; set; }
 }

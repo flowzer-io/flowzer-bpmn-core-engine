@@ -131,6 +131,20 @@ public class InstanceController(
     }
 
     /// <summary>
+    /// Liefert die Vorgänge, die die Aufruf-Aktivitäten dieser Instanz gestartet haben.
+    /// Dieselbe Rechteprüfung wie die Instanzansicht; unsichtbare Instanzen antworten mit 404.
+    /// </summary>
+    [HttpGet("{instanceId}/children")]
+    [ProducesResponseType<ApiStatusResult<List<CalledInstanceDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<List<CalledInstanceDto>>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiStatusResult<List<CalledInstanceDto>>>> GetCalledInstances(Guid instanceId)
+    {
+        var children = await instanceAccess.GetCalledAsync(instanceId);
+        if (children is null) return NotFound(new ApiStatusResult<List<CalledInstanceDto>>(MissingInstance));
+        return Ok(new ApiStatusResult<List<CalledInstanceDto>>(children));
+    }
+
+    /// <summary>
     /// Liefert die append-only gespeicherten Human-Task-Aktionen einer sichtbaren
     /// Instanz. Die Projektion enthält bewusst keine Personen- oder Formulardaten.
     /// </summary>

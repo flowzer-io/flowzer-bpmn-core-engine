@@ -4028,6 +4028,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}/children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                        "application/json": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                        "text/json": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                        "application/json": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                        "text/json": components["schemas"]["CalledInstanceDtoListApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/{instanceId}/history": {
         parameters: {
             query?: never;
@@ -5803,6 +5853,20 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["BpmnMetaDefinitionDto"];
         };
+        CalledInstanceDto: {
+            /** Format: uuid */
+            instanceId: string;
+            relatedDefinitionId: string | null;
+            relatedDefinitionName: string | null;
+            definitionVersion?: components["schemas"]["VersionDto"];
+            state?: components["schemas"]["ProcessInstanceStateDto"];
+            callActivityFlowNodeId?: string | null;
+        };
+        CalledInstanceDtoListApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["CalledInstanceDto"][] | null;
+        };
         CompleteJobRequestDto: {
             workerId: string | null;
             variables?: {
@@ -6417,6 +6481,10 @@ export interface components {
             startedAt?: string | null;
             /** Format: date-time */
             finishedAt?: string | null;
+            /** Format: uuid */
+            parentInstanceId?: string | null;
+            /** Format: uuid */
+            parentTokenId?: string | null;
         };
         ProcessInstanceInfoDtoApiStatusResult: {
             successful?: boolean;

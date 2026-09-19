@@ -1,11 +1,12 @@
 import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
-import { normalizeInstance } from './normalize';
+import { normalizeInstance, toProcessInstanceState } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
   BpmnDefinitionDto,
   BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
+  CalledInstanceDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
@@ -290,6 +291,18 @@ export const instancesApi = {
   get: async (instanceId: string, signal?: AbortSignal) => {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}`, { signal });
     return normalizeInstance(instance);
+  },
+
+  /**
+   * `GET /instance/{id}/children` — die von Call Activities dieser Instanz gestarteten
+   * Kindinstanzen. Dieselbe Rechteprüfung wie die Instanzansicht; ohne das Recht 404.
+   *
+   * Der Zustand kommt wie bei den Instanzen als Zahl und wird hier in das sprechende
+   * Literal übersetzt — sonst stünde in der Liste ein „4" statt „Abgeschlossen".
+   */
+  children: async (instanceId: string, signal?: AbortSignal) => {
+    const children = await requestStatusResult<CalledInstanceDto[]>(`/instance/${instanceId}/children`, { signal });
+    return (children ?? []).map((child) => ({ ...child, state: toProcessInstanceState(child.state) }));
   },
 
   /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */

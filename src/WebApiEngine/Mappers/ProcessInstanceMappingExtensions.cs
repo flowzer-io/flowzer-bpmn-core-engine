@@ -100,8 +100,50 @@ public static class ProcessInstanceMappingExtensions
             CanInspect = canInspect,
             FailureReason = canInspect ? processInstanceInfo.FailureReason : null,
             StartedAt = GetStartedAt(processInstanceInfo),
-            FinishedAt = GetFinishedAt(processInstanceInfo)
+            FinishedAt = GetFinishedAt(processInstanceInfo),
+            // Der Bezug zum aufrufenden Vorgang ist keine Diagnoseauskunft: Wer die Instanz
+            // sehen darf, darf auch wissen, woraus sie entstanden ist.
+            ParentInstanceId = processInstanceInfo.ParentInstanceId,
+            ParentTokenId = processInstanceInfo.ParentTokenId
         };
+    }
+
+    /// <summary>
+    /// Bildet die direkten Kindinstanzen eines Vorgangs ab. Die Aufruf-Aktivität steht nicht am
+    /// Kind, sondern am wartenden Token des Aufrufers — deshalb wird sie von dort gelesen.
+    /// </summary>
+    public static async Task<List<CalledInstanceDto>> ToCalledInstanceDtosAsync(
+        this IEnumerable<ProcessInstanceInfo> children,
+        IDefinitionStorage definitionStorage,
+        ProcessInstanceInfo parent)
+    {
+        ArgumentNullException.ThrowIfNull(children);
+        ArgumentNullException.ThrowIfNull(definitionStorage);
+        ArgumentNullException.ThrowIfNull(parent);
+
+        var instances = children.ToList();
+        var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
+        var versionsById = await GetVersionsByIdAsync(
+            definitionStorage, instances.Select(instance => instance.DefinitionId));
+        var flowNodeIdsByTokenId = parent.Tokens.ToDictionary(
+            token => token.Id, token => token.CurrentFlowNode?.Id);
+
+        return instances
+            .Select(instance => new CalledInstanceDto
+            {
+                InstanceId = instance.InstanceId,
+                RelatedDefinitionId = instance.metaDefinitionId,
+                RelatedDefinitionName = metaNamesById.TryGetValue(instance.metaDefinitionId, out var name)
+                    ? name
+                    : instance.metaDefinitionId,
+                DefinitionVersion = versionsById.GetValueOrDefault(instance.DefinitionId),
+                State = (ProcessInstanceStateDto)instance.State,
+                CallActivityFlowNodeId = instance.ParentTokenId is { } tokenId
+                    && flowNodeIdsByTokenId.TryGetValue(tokenId, out var flowNodeId)
+                        ? flowNodeId
+                        : null
+            })
+            .ToList();
     }
 
     // Die Ablage speichert keinen eigenen Instanz-Zeitstempel. Start- und Endzeitpunkt
