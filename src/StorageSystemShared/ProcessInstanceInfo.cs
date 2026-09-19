@@ -24,6 +24,19 @@ public class ProcessInstanceInfo
     public string? FailureReason { get; set; }
 
     /// <summary>
+    /// Die Instanz, deren Call Activity diesen Vorgang gestartet hat. Bewusst nicht
+    /// <c>required</c>: Von Hand oder per Nachricht gestartete Vorgaenge haben keinen Aufrufer,
+    /// und Bestandsdokumente kennen die Eigenschaft nicht.
+    /// </summary>
+    public Guid? ParentInstanceId { get; set; }
+
+    /// <summary>
+    /// Das wartende Call-Activity-Token in der aufrufenden Instanz. Zusammen mit
+    /// <see cref="ParentInstanceId"/> benennt es den Schritt, an dem dieser Vorgang haengt.
+    /// </summary>
+    public Guid? ParentTokenId { get; set; }
+
+    /// <summary>
     /// Die Versionswechsel dieser Instanz, aelteste zuerst. Bewusst nicht <c>required</c>:
     /// Bestandsdokumente kennen die Eigenschaft nicht und muessen als „nie migriert" laden.
     /// </summary>

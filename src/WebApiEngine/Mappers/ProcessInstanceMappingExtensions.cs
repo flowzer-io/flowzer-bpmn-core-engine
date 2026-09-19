@@ -100,27 +100,60 @@ public static class ProcessInstanceMappingExtensions
             CanInspect = canInspect,
             FailureReason = canInspect ? processInstanceInfo.FailureReason : null,
             StartedAt = GetStartedAt(processInstanceInfo),
-            FinishedAt = GetFinishedAt(processInstanceInfo)
+            FinishedAt = GetFinishedAt(processInstanceInfo),
+            // Der Bezug zum aufrufenden Vorgang ist keine Diagnoseauskunft: Wer die Instanz
+            // sehen darf, darf auch wissen, woraus sie entstanden ist.
+            ParentInstanceId = processInstanceInfo.ParentInstanceId,
+            ParentTokenId = processInstanceInfo.ParentTokenId
         };
     }
 
-    // Die Ablage speichert keinen eigenen Instanz-Zeitstempel. Start- und Endzeitpunkt
-    // werden deshalb aus den Tokens abgeleitet: das älteste Token markiert den Start,
-    // der letzte Statuswechsel einer beendeten Instanz deren Ende.
-    private static DateTime? GetStartedAt(ProcessInstanceInfo processInstanceInfo)
+    /// <summary>
+    /// Bildet die direkten Kindinstanzen eines Vorgangs ab. Die Aufruf-Aktivität steht nicht am
+    /// Kind, sondern am wartenden Token des Aufrufers — deshalb wird sie von dort gelesen.
+    /// </summary>
+    public static async Task<List<CalledInstanceDto>> ToCalledInstanceDtosAsync(
+        this IEnumerable<ProcessInstanceInfo> children,
+        IDefinitionStorage definitionStorage,
+        ProcessInstanceInfo parent)
     {
-        return processInstanceInfo.Tokens.Count == 0
-            ? null
-            : processInstanceInfo.Tokens.Min(token => token.StartTime);
+        ArgumentNullException.ThrowIfNull(children);
+        ArgumentNullException.ThrowIfNull(definitionStorage);
+        ArgumentNullException.ThrowIfNull(parent);
+
+        var instances = children.ToList();
+        var metaNamesById = await GetMetaNamesByIdAsync(definitionStorage);
+        var versionsById = await GetVersionsByIdAsync(
+            definitionStorage, instances.Select(instance => instance.DefinitionId));
+        var flowNodeIdsByTokenId = parent.Tokens.ToDictionary(
+            token => token.Id, token => token.CurrentFlowNode?.Id);
+
+        return instances
+            .Select(instance => new CalledInstanceDto
+            {
+                InstanceId = instance.InstanceId,
+                RelatedDefinitionId = instance.metaDefinitionId,
+                RelatedDefinitionName = metaNamesById.TryGetValue(instance.metaDefinitionId, out var name)
+                    ? name
+                    : instance.metaDefinitionId,
+                DefinitionVersion = versionsById.GetValueOrDefault(instance.DefinitionId),
+                State = (ProcessInstanceStateDto)instance.State,
+                CallActivityFlowNodeId = instance.ParentTokenId is { } tokenId
+                    && flowNodeIdsByTokenId.TryGetValue(tokenId, out var flowNodeId)
+                        ? flowNodeId
+                        : null
+            })
+            .ToList();
     }
 
-    private static DateTime? GetFinishedAt(ProcessInstanceInfo processInstanceInfo)
-    {
-        if (!processInstanceInfo.IsFinished || processInstanceInfo.Tokens.Count == 0)
-        {
-            return null;
-        }
+    // Die Ablage speichert keinen eigenen Instanz-Zeitstempel; Start- und Endzeitpunkt werden
+    // aus den Tokens abgeleitet. Die Ableitung steht bewusst in ProcessInstanceLifetime und
+    // nicht hier: Die Aufbewahrung rechnet ihre Frist auf derselben Grundlage. Zwei getrennte
+    // Kopien koennten auseinanderlaufen, und dann verschwaende eine Instanz nach einer anderen
+    // Frist als der, die in dieser Ansicht als „beendet am …" steht.
+    private static DateTime? GetStartedAt(ProcessInstanceInfo processInstanceInfo) =>
+        ProcessInstanceLifetime.GetStartedAtUtc(processInstanceInfo);
 
-        return processInstanceInfo.Tokens.Max(token => token.LastStateChangeTime);
-    }
+    private static DateTime? GetFinishedAt(ProcessInstanceInfo processInstanceInfo) =>
+        ProcessInstanceLifetime.GetFinishedAtUtc(processInstanceInfo);
 }

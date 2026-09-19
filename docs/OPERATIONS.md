@@ -46,6 +46,7 @@ Umgebungswerte übernommen. Die Browser-API-Wurzeladresse `/` bleibt unterstütz
 - definierter Storage-Pfad für dateibasierte Persistenz
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 - optionale OpenTelemetry-Exporter für Console und OTLP
+- optionaler Prometheus-Scrape-Endpunkt, ausschließlich für das Containernetz
 
 ## Authentifizierung (BFF und externe Bearer-Clients)
 
@@ -316,6 +317,33 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### Eingehende Auslöser
+
+Ein fremdes System — Ticketsystem, Shop, Formulardienst — startet über `POST /trigger/{key}`
+einen Workflow oder stellt einer wartenden Instanz eine Nachricht zu, **ohne Anmeldung** und
+ausgewiesen allein durch eine HMAC-Signatur über Zeitstempel und Körper. Zweck, Sicherheitsmodell
+und Beispiele stehen in [INBOUND-TRIGGERS.md](INBOUND-TRIGGERS.md).
+
+| Einstellung | Standard | Bedeutung |
+|---|---|---|
+| `InboundTriggers__SecretKey` | *leer* | Installationsweiter Schlüssel, unter dem die Geheimnisse der Auslöser versiegelt liegen. **Ohne ihn nimmt die Installation keinen Auslöser an.** Mindestens 32 Zeichen; ein kürzerer Wert hält den Start an. |
+| `InboundTriggers__PermitLimit` | `60` | Aufrufe je Auslöser und Fenster, zusätzlich zum allgemeinen Kontingent je Aufrufer |
+| `InboundTriggers__WindowSeconds` | `60` | Länge dieses Fensters |
+
+Der fehlende Standardwert ist Absicht — wie die leere Freigabeliste ausgehender Webhooks: Ein
+eingebauter Schlüssel stünde im Quelltext und wäre damit keiner. Geht der Schlüssel verloren,
+antwortet jeder Aufruf mit 401; die Auslöser und ihre Adressen bleiben bestehen und brauchen über
+`rotate-secret` ein neues Geheimnis. Er gehört deshalb in die gesicherten Zugangsdaten der
+Installation, nicht nur in eine Compose-Datei.
+
+Die Verwaltung unter `/inbound-trigger` verlangt die Betriebsrolle; in der Konsole liegt sie
+unter **Betrieb → Auslöser** (`/triggers`). Beide Pfade — `trigger` und `inbound-trigger` — stehen
+in der Weiterleitungsliste des Gateways (`deploy/console/entrypoint.sh`);
+`tests/ui-smoke/check-gateway-routes.sh` prüft das.
+
+Die Migration `019_inbound_triggers.sql` legt die Tabelle `inbound_triggers` an. Vor dem Upgrade
+wie üblich in einer Testinstallation anwenden.
+
 ### KI-Verbindungen
 
 Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich
@@ -449,11 +477,12 @@ nachträglich als verifizierter Akteur übernommen. Es ist keine Schemaänderung
 bestehenden JSON-Token-Dokumenten erforderlich.
 
 Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
-eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
-ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
+eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback** und bleibt
+Einzelprozess. Mit PostgreSQL trägt zusätzlich der Advisory-Lock der Instanz; der
+gleichzeitige Abschluss derselben Aufgabe aus zwei API-Prozessen ist unter
+[Mehrprozessbetrieb](#mehrprozessbetrieb) belegt. Persistente Idempotenzschlüssel schützen
 die direkten HTTP-Starts und -Abschlüsse. Der Human-Task-Lifecycle besitzt eine
-append-only Auditspur mit objektberechtigter Minimalprojektion; der allgemeine
-Mehrprozessschutz bleibt ein weiteres M6-Paket. Instanzrechte und das
+append-only Auditspur mit objektberechtigter Minimalprojektion. Instanzrechte und das
 begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
 `Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
 Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
@@ -564,6 +593,166 @@ Warum dort und nicht in der [append-only Vorgangshistorie](PROCESS-HISTORY.md): 
 ### In der Konsole
 
 Die Betriebsseite führt den Abschnitt **Störungen** mit den Zählern aus der Diagnose und der Liste aus `/operations/incidents`: Art, Workflow, Schritt, Meldung, Alter und ein Sprung zur Instanz. Liegt ein Auftrag, steht dort „Erneut freigeben" mit einem Dialog für die Anzahl Versuche (Standard 1) und ein JSON-Feld „Eingaben korrigieren", vorbelegt mit den aktuellen Eingaben. Ungültiges JSON blockiert das Absenden mit einem Hinweis. Dieselbe Aktion steht in der Instanzansicht, wenn genau dieser Vorgang einen liegen gebliebenen Auftrag hat; die Instanzansicht zeigt außerdem die Begründung einer gescheiterten Instanz.
+## Instanzen löschen
+
+`DELETE /instance/{instanceId}` entfernt eine **beendete** Instanz endgültig und verlangt das
+Betriebsrecht. Eine beendete Instanz antwortet mit `204`, eine noch laufende mit `409`
+(`The process instance is still running` — sie muss zuerst abgebrochen werden), eine unbekannte
+Kennung mit `404`. Laufende Instanzen werden auf diesem Weg nie gelöscht.
+
+Gelöscht wird nicht nur der Listeneintrag, sondern alles, was an der Instanz hängt — dieselbe
+Liste wie bei der Aufbewahrung, siehe unten.
+
+In der Konsole steht die Aktion in der Instanzansicht („Instanz löschen"), nur für beendete
+Instanzen und nur mit Betriebsrecht, hinter einer ausdrücklichen Rückfrage, die den betroffenen
+Workflow nennt und aufzählt, was mitgeht.
+
+## Aufbewahrung
+
+Beendete Instanzen bleiben ohne Aufbewahrungsfrist für immer liegen. Die Datenbank wächst damit
+unbegrenzt, und personenbezogene Vorgangsdaten bleiben länger gespeichert, als sie gebraucht
+werden. Die Aufbewahrung löscht beendete Instanzen nach einer konfigurierten Frist.
+
+**Der Default ist aus.** Eine Frist ist eine Entscheidung des Betreibers über fremde
+Vorgangsdaten; sie kommt nicht durch ein Update in eine Installation, die nie darum gebeten hat.
+
+### Konfiguration
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `Retention__FinishedInstances__Days` | Frist in Tagen. Ohne Wert oder `0`: Aufbewahrung aus, der Hintergrunddienst läuft nicht an. |
+| `Retention__FinishedInstances__PollIntervalMinutes` | Abstand zweier Läufe in Minuten, 1 bis 10080. Default `60`. |
+| `Retention__FinishedInstances__BatchSize` | Höchstzahl der je Lauf gelöschten Instanzen, 1 bis 10000. Default `100`. |
+
+Die Werte werden beim Hoststart validiert; eine unbrauchbare Angabe verhindert den Start, statt
+eine halb aktive Aufbewahrung zu erzeugen. Im Compose-Stack stehen sie als
+`FLOWZER_RETENTION_DAYS`, `FLOWZER_RETENTION_POLL_INTERVAL_MINUTES` und
+`FLOWZER_RETENTION_BATCH_SIZE` (siehe `.env.example`).
+
+Die Stapelgrenze ist kein Leistungsdetail: Wird die Aufbewahrung auf einem gewachsenen Bestand
+erstmals eingeschaltet, sind womöglich zehntausende Instanzen sofort fällig. Sie werden über
+mehrere Läufe abgearbeitet, nicht in einem Zug.
+
+### Reihenfolge: global und je Workflow
+
+Jeder Katalogeintrag trägt ein optionales `retentionDays`:
+
+| `retentionDays` | Wirkung |
+| --- | --- |
+| nicht gesetzt (`null`) | Es gilt die installationsweite Frist. |
+| `0` | **Nie löschen** — auch dann nicht, wenn installationsweit eine Frist gilt. Für aufbewahrungspflichtige Vorgänge. |
+| `> 0` | Diese Frist gilt, **kürzer wie länger** als die installationsweite. |
+
+Gesetzt wird der Wert über die vorhandenen Metadaten-Endpunkte `POST /definition/meta` und
+`PUT /definition/meta` (dieselbe Berechtigung wie das Umbenennen); negative Werte werden mit
+`400` abgelehnt. In der Konsole steht die Einstellung im Workflow-Katalog als eigener Knopf an
+der Workflow-Kachel („Aufbewahrung für … festlegen"), mit drei ausdrücklichen Optionen statt
+eines Zahlenfelds mit Sonderbedeutungen.
+
+Das Workflow-Metadatum allein aktiviert die Aufbewahrung **nicht**: Läuft der Dienst mangels
+installationsweiter Frist nicht, bleibt auch ein Workflow mit `retentionDays = 30` unberührt.
+
+### Welche Instanzen erfasst werden
+
+Erfasst sind ausschließlich Instanzen in einem Endzustand: `Completed`, `Terminated`
+(abgebrochen) und `Failed`. **Gestörte Instanzen sind bewusst dabei.** Eine Störung ist nach
+Ablauf der Frist Historie wie jeder andere Ausgang auch; würde `Failed` ausgenommen, sammelte
+die Installation ausgerechnet den Bestand dauerhaft an, dessen Daten am wenigsten gebraucht
+werden — und der Betrieb hätte eine wachsende Halde, die nie jemand aufräumt. Wer einzelne
+gestörte Vorgänge dauerhaft braucht, setzt am betroffenen Workflow `retentionDays = 0`.
+
+**Laufende Instanzen werden nie angefasst.** Die Auswahlabfrage liefert nur beendete Instanzen,
+und jede einzelne wird vor dem Löschen unter der Engine-Sperre erneut frisch gelesen und noch
+einmal geprüft: Eine Instanz, die zwischen Auswahl und Löschung durch eine nachgereichte
+Nachricht wieder angelaufen ist, bleibt stehen.
+
+### Der Endzeitpunkt
+
+Die Ablage führt **keinen eigenen Instanzzeitstempel** — `ProcessInstanceInfo` kennt weder ein
+Start- noch ein Endefeld. Als Ende gilt deshalb der **letzte Zustandswechsel eines Tokens**
+(`Token.LastStateChangeTime`). Das ist dieselbe Ableitung, die die Instanzliste und die
+Instanzansicht als „beendet am …" anzeigen (`ProcessInstanceLifetime`): Eine Instanz verschwindet
+nach genau der Frist, die dort ablesbar ist.
+
+Eine beendete Instanz **ohne Tokens** lässt sich nicht datieren und bleibt ausdrücklich stehen,
+statt mangels Datum sofort gelöscht zu werden. Solche Datensätze sind ein Altlastfall und fallen
+im Bestand auf; sie verschwinden über `DELETE /instance/{id}` oder mit ihrem Workflow.
+
+### Was gelöscht wird
+
+Eine Löschung — von Hand wie durch die Aufbewahrung — entfernt die Instanz und **alles, was an
+ihr hängt** (`InstancePurge`):
+
+- die Instanz selbst, samt ihrer Tokens und Migrationseinträge (beides steht in ihrem Dokument)
+- Nachrichten-Anmeldungen
+- Signal-Anmeldungen
+- Timer-Anmeldungen
+- Benutzeraufgaben-Anmeldungen und mit ihnen
+  - private Aufgabenentwürfe
+  - Bearbeiterzustand der Human Tasks
+  - Fälligkeiten
+  - In-App-Meldungen samt Lesequittierungen
+- die Human-Task-Historie (Auditspur der Aufgabenaktionen)
+- die Engine-Ereignisspur (`RuntimeNodeEvents`, Grundlage des Laufzeitdiagramms)
+- Aufträge an externe Worker (Service-Task-Jobs)
+- KI-Läufe der Instanz, auch noch verleaste
+- Idempotenzschlüssel, die auf diese Instanz zeigen, auch offene Reservierungen
+
+Die Liste steht an **einer** Stelle im Code und gilt für beide Ablagen. Eine Datenart, die nur in
+einem Adapter mitginge, bliebe in der anderen Installation unbemerkt liegen — genau der Datenrest,
+den die Aufbewahrung verhindern soll.
+
+Nicht gelöscht werden Definitionen, Formulare, Ordner und Verzeichnisdaten. Die Aufbewahrung von
+Definitionen und Formularen ist ausdrücklich kein Teil dieses Bausteins.
+
+### Ablage: PostgreSQL und Dateisystem
+
+**PostgreSQL** löscht je Instanz in **einer Transaktion**: ganz oder gar nicht, kein halb
+gelöschter Vorgang. Ein Fehler an einer Instanz rollt nur diese zurück; bereits gelöschte
+Instanzen desselben Laufs bleiben gelöscht, die übrigen unberührt.
+
+Die Anmeldungen an Benutzeraufgaben nehmen Entwürfe, Bearbeiterzustand, Fälligkeiten und
+Meldungen über die vorhandenen `ON DELETE CASCADE`-Fremdschlüssel mit. Für Historie,
+Ereignisspur, KI-Läufe und Idempotenzschlüssel gibt es bewusst **keine** neuen Fremdschlüssel auf
+die Instanztabelle: Ein nachträgliches Cascade an einer Bestandstabelle scheitert bereits am
+Anlegen, sobald darin eine Zeile auf eine längst entfernte Instanz zeigt (bei den
+Idempotenzschlüsseln der Normalfall), und Historie und Ereignisspur sollen laut
+`010_process_history_task_lifecycle.sql` und `012_runtime_node_events.sql` gerade *nicht*
+unbemerkt mitgelöscht werden. Sie werden deshalb ausdrücklich und nachlesbar gelöscht. Migration:
+`src/PostgreSqlStorageSystem/Migrations/017_instance_retention.sql` — sie legt nur die beiden
+Indizes an, die das Löschen je Instanz braucht.
+
+**Die Dateiablage kennt keine Transaktion.** Dort ist das Löschen ausdrücklich *best-effort*:
+Bricht es mitten im Vorgang ab, fehlt hinterher Angehängtes und die Instanz steht noch — der
+nächste Lauf räumt sie ab. Die Reihenfolge ist genau deshalb so gewählt: erst das Angehängte,
+zuletzt die Instanz. Andersherum bliebe der Rest ohne Instanz liegen und niemand fände ihn
+wieder. Zusätzlich lesen mehrere Datenarten dort ohne Sekundärindex den ganzen Ordner; das ist
+für den Entwicklungsadapter vertretbar, für den produktiven Mehrprozessbetrieb bleibt PostgreSQL
+der vorgesehene Weg.
+
+### Diagnose und Protokoll
+
+`GET /operations/diagnostics` enthält einen `retention`-Abschnitt: aktiv, Frist, Intervall,
+Stapelgröße, Status, letzter Lauf, zuletzt und insgesamt gelöschte Anzahl, Zahl der erfolgreichen
+und gescheiterten Läufe sowie die Fehlermeldung des letzten Laufs. Die Betriebsseite der Konsole
+zeigt denselben Stand als Block „Aufbewahrung" und als Gesundheitskachel.
+
+Ein gescheiterter Lauf bricht den Dienst **nicht** ab: Er wird protokolliert, erscheint in der
+Diagnose, und der nächste Lauf arbeitet wieder. Andernfalls stünde die Aufbewahrung nach der
+ersten kurzen Datenbankstörung bis zum nächsten Neustart still, ohne dass es auffiele. Ein
+erfolgreicher Lauf löscht die Meldung des vorherigen.
+
+Je Lauf mit Wirkung entsteht **eine** Logzeile mit der Anzahl gelöschter Instanzen — ohne
+Kennungen, Workflownamen oder Personenbezug.
+
+### Backups
+
+Die Aufbewahrung löscht endgültig; es gibt weder Papierkorb noch Export vor dem Löschen.
+**Ein Backup, das älter ist als die Frist, enthält die gelöschten Vorgänge weiterhin.** Wer die
+Aufbewahrung aus Gründen der Datensparsamkeit einführt, muss die Aufbewahrungsdauer der Backups
+mitbetrachten — sonst ist die Löschung nur in der laufenden Datenbank wirksam. Umgekehrt gilt:
+Vor der erstmaligen Aktivierung auf einem gewachsenen Bestand gehört ein Backup, das man auch
+wirklich zurückspielen kann.
 
 ## Instanzen migrieren
 
@@ -701,8 +890,26 @@ Ein unbekanntes Formular antwortet mit 404, damit ein Löschen ins Leere nicht a
 Die Web-API stellt aktuell folgende Endpunkte bereit:
 
 - `GET /health` – Liveness
-- `GET /health/ready` – Readiness inkl. Storage-Prüfung
+- `GET /health/ready` – Readiness inkl. Storage-Prüfung und Migrationsstand
 - `GET /operations/diagnostics` – Scheduler-Status, Storage-Snapshot, Instrumentierungsnamen und aktive Observability-Konfiguration
+
+`GET /health/ready` liefert seit diesem Paket zusätzlich ein additives `details`-Objekt
+(alle Felder sind optional, bestehende Auswerter bleiben gültig):
+
+| Feld | Bedeutung |
+|---|---|
+| `details.storageProvider` | `Filesystem` oder `PostgreSQL (schema <name>)` |
+| `details.migrationState` | `UpToDate`, `Pending`, `NotApplicable` (Dateiablage) oder `Unknown` |
+| `details.pendingMigrationCount` | Zahl der noch nicht angewendeten Migrationen; `null` bei `Unknown` |
+| `details.expectedMigrationVersion` | höchste in diesem Paket eingebettete Migrationsversion |
+
+Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_migrations`
+gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
+Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja geantwortet.
+`Pending` ist ebenfalls kein 503: Ein Replikat, das vor dem Migrationsschritt hochkommt,
+soll sichtbar sein, nicht unsichtbar. Für ein Deployment-Gate ist deshalb `details`
+auszuwerten, nicht der Statuscode. Die Antwort enthält keine Verbindungszeichenfolge und
+keine Anmeldedaten.
 
 Typische URLs lokal:
 
@@ -718,6 +925,7 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Namen des lokalen `Meter`- und `ActivitySource`-Setups
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
+- ob der Prometheus-Scrape-Endpunkt offen ist und unter welchem Pfad
 
 ### Human-Task-Deadline-Scheduler
 
@@ -751,9 +959,11 @@ automatische Delegation und BPMN-Eskalationsereignisse gehören nicht zu diesem 
 Scheduler-Backfill, Tick-Erfolg und Tick-Fehler erscheinen derzeit im API-Log; ein
 eigener Deadline-Diagnoseblock im Operations-Endpunkt ist noch nicht vorhanden.
 
-PostgreSQL ist für mehrere API-Prozesse vorgesehen: Deadline-Fortschritt und
-Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per
-Compare-and-swap und Unique-Deduplication geschrieben. Die Dateiablage schützt nur
+PostgreSQL trägt den Fristendienst in mehreren API-Prozessen: Deadline-Fortschritt und
+Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per Zeilensperre
+auf der Aufgabe, Compare-and-swap und Unique-Deduplication geschrieben. Dass zwei
+gleichzeitig laufende Fristendienste eine fällige Benachrichtigung genau einmal erzeugen,
+ist unter [Mehrprozessbetrieb](#mehrprozessbetrieb) belegt. Die Dateiablage schützt nur
 innerhalb eines API-Prozesses und bleibt ein Entwicklungsadapter. Die Migration liegt
 unter `src/PostgreSqlStorageSystem/Migrations/008_user_task_deadlines.sql` und wird
 wie alle Migrationen getrennt über `dotnet WebApiEngine.dll --migrate` angewendet.
@@ -909,7 +1119,11 @@ Relevante Konfiguration in `src/WebApiEngine/appsettings.json`:
   "OtlpEndpoint": "",
   "OtlpHeaders": "",
   "OtlpProtocol": "grpc",
-  "ServiceName": "Flowzer.WebApi"
+  "ServiceName": "Flowzer.WebApi",
+  "Prometheus": {
+    "Enabled": false,
+    "Path": "/metrics"
+  }
 }
 ```
 
@@ -935,8 +1149,79 @@ Observability__OtlpHeaders='authorization=Bearer <token>'
 - ob ein OTLP-Exporter aktiv ist
 - welchen redigierten OTLP-Endpunkt die API nutzt
 - welches Service-Name/-Version-Paar exportiert wird
+- ob der Prometheus-Scrape-Endpunkt offen ist und unter welchem Pfad
 
 Die OTLP-Konfiguration redigiert dabei Benutzerinformationen, Query-Parameter und Headerinhalte bewusst, damit der Diagnose-Endpunkt keine Secrets zurückspiegelt.
+
+### Prometheus-Scrape-Endpunkt
+
+Wer Prometheus und Grafana betreibt, braucht keinen OTLP-Collector dazwischen: Die API kann
+ihre Metriken direkt zum Abholen anbieten.
+
+```bash
+Observability__Prometheus__Enabled=true
+Observability__Prometheus__Path=/metrics
+```
+
+Der Scrape-Endpunkt ist ein **eigener** Schalter. Er braucht `Observability__Enabled` nicht:
+Wer nur ihn setzt, bekommt Metriken und sonst nichts — keine Traces, keinen Console- und keinen
+OTLP-Exporter. Umgekehrt lassen sich beide Wege kombinieren, dann bedienen sie dieselbe
+Messreihe. Ohne den Schalter wird der Endpunkt gar nicht erst angelegt; der Pfad antwortet dann
+wie jede unbekannte Adresse mit 404.
+
+Ausgeliefert werden die Instrumente aus `Flowzer.WebApi` und die bereits registrierte
+ASP.NET-Core-Instrumentierung. Prometheus schreibt Punkte als Unterstriche und hängt an Zähler
+`_total` an; aus `flowzer.http.requests` wird also `flowzer_http_requests_total`, aus
+`flowzer.timer.scheduler.ticks` entsprechend `flowzer_timer_scheduler_ticks_total`. Ein
+Instrument taucht erst auf, wenn es mindestens einen Messwert bekommen hat.
+
+#### Netzgrenze: nur im Containernetz, nie am öffentlichen Gateway
+
+Prometheus bringt keine Sitzung mit. Der Endpunkt antwortet deshalb **ohne Anmeldung** und ohne
+Anfragekontingent. Er gibt die Innenansicht der Installation preis — Instanzzahlen,
+Fehlerquoten, Scheduler-Takt, Antwortzeiten je Route. Er darf ausschließlich aus dem
+Containernetz erreichbar sein.
+
+Konkret heißt das:
+
+- Der API-Container veröffentlicht seinen Port nicht auf dem Host; erreichbar ist er nur unter
+  `api:8080` im Compose-Netz. Prometheus gehört in dasselbe Netz.
+- Das Konsolen-Gateway (`deploy/console/entrypoint.sh`) führt eine Liste der Pfade, die es an
+  die API weiterreicht. `metrics` steht dort bewusst **nicht** drin und darf nicht ergänzt
+  werden. `tests/ui-smoke/check-gateway-routes.sh` prüft das als Negativtest.
+- `compose.runtime.yml` und `compose.coolify.yaml` reichen `FLOWZER_METRICS_ENABLED` und
+  `FLOWZER_METRICS_PATH` an den API-Container durch. Am `deploy/nginx/runtime.conf` ist nichts
+  zu tun: Das Runtime-Gateway reicht ohnehin nur an die Konsole weiter, und die Konsole
+  beantwortet einen Aufruf von `/metrics` mit ihrer Startseite. Der Aufruf erreicht die API
+  also gar nicht erst.
+- Steht ein eigener Reverse Proxy davor, muss dessen Konfiguration denselben Pfad sperren.
+
+Beispiel für `prometheus.yml`, wenn Prometheus im selben Compose-Netz läuft:
+
+```yaml
+scrape_configs:
+  - job_name: flowzer-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:8080']
+```
+
+Ein abweichender Pfad (`Observability__Prometheus__Path`) wird auf die Form mit genau einem
+führenden Schrägstrich normalisiert und muss in `metrics_path` genauso stehen. Ein Wert, der in
+Wahrheit eine Adresse ist (`http://…`) oder einen Query-Teil enthält, bricht den Start ab,
+statt den Endpunkt still an anderer Stelle zu öffnen.
+
+Im Laufzeit-Stack reichen dafür die beiden Werte aus `.env` (siehe `.env.example`):
+`FLOWZER_METRICS_ENABLED` und `FLOWZER_METRICS_PATH`. `compose.runtime.yml` setzt daraus
+`Observability__Prometheus__Enabled` und `Observability__Prometheus__Path` im API-Container.
+
+Die Scrape-Aufrufe selbst laufen durch dieselbe Request-Diagnose wie jeder andere Aufruf und
+zählen damit in `flowzer_http_requests_total` mit.
+
+Das verwendete Paket `OpenTelemetry.Exporter.Prometheus.AspNetCore` gibt es bisher nur als
+Vorabversion (hier `1.18.0-beta.1`); eine stabile Fassung hat OpenTelemetry .NET nicht
+veröffentlicht. Die Version gehört zur selben Freigabe wie die übrigen OpenTelemetry-Pakete des
+Projekts.
 
 ### Container-Logs
 
@@ -1030,6 +1315,145 @@ dotnet WebApiEngine.dll --migrate
 
 genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt).
 
+Der Migrationslauf ist **wiederholbar und nebenläufigkeitsfest**: Er nimmt vor jedem Schritt
+einen PostgreSQL-Advisory-Lock in derselben Transaktion, überspringt bereits eingetragene
+Versionen und schreibt je Migration genau einen Historieneintrag. Zwei gleichzeitige
+`--migrate`-Läufe werden dadurch serialisiert; genau einer wendet an, der andere findet
+alles vor. Belegt ist das durch `MigrateArgument_ShouldBeIdempotentWhenRunTwice` und
+`ConcurrentMigrationRuns_ShouldBeSerializedByTheAdvisoryLock`
+(`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`).
+
+## Konfigurationsprüfung: `--check-config`
+
+```bash
+dotnet WebApiEngine.dll --check-config
+```
+
+Das Argument baut denselben Host wie der normale Start – Optionsbindung und alle
+`ValidateOnStart`-Validierungen laufen mit –, prüft danach aber nur und startet nichts.
+Es wird kein Port belegt, keine Pipeline aufgebaut und kein Hintergrunddienst gestartet.
+Geprüft wird je eine Zeile pro Bereich:
+
+| Bereich | Was geprüft wird |
+|---|---|
+| Konfiguration | Bindung und Validierung aller Optionsabschnitte (Storage, Authentication, Ai, AiExecution, UserTaskDeadlines, IdentityDirectory) |
+| Ablage | PostgreSQL: Verbindung mit der Laufzeitkennung und Existenz des Schemas. Dateiablage: Wurzelverzeichnis anlegbar und tatsächlich beschreibbar (Schreibprobe, kein Existenztest) |
+| Migrationen | nur PostgreSQL: Migrationsstand über die **Migrationskennung**, gemeldet als „aktuell“ oder „n ausstehend“ samt Versionsnummern |
+| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP HEAD** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten und ohne den Antwortinhalt zu lesen |
+| Webhook-Ziele | `ServiceTaskWebhooks`: aktiviert/abgeschaltet und die **Anzahl** freigegebener Ziele (keine Adressen) |
+| KI-Datenfluss | `Ai`/`AiExecution`: Cloud-, Lokal- und Ausführungs-Opt-ins als Zusammenfassung |
+
+Ausgegeben wird eine Tabelle aus `Bereich`, `Zustand` (`OK`/`Warnung`/`Fehler`) und
+`Hinweis`. Die Ausgabe enthält **keine** Verbindungszeichenfolgen, Passwörter, Client-Secrets
+oder Tokens; von der Datenbank erscheinen nur Host, Port, Datenbank- und Schemaname, von
+den Webhook-Zielen nur deren Anzahl.
+
+Exit-Codes:
+
+| Code | Bedeutung |
+|---|---|
+| `0` | keine Beanstandungen |
+| `1` | mindestens ein Fehler – die Installation ist nicht startbereit |
+| `2` | nur Warnungen – Start möglich, die Hinweise gehören geklärt |
+
+Abschnitte, die bereits beim Registrieren der Dienste validieren (`Storage`,
+`Authentication`, `RateLimiting`/`Limits`, `ForwardedHeaders`, `Observability`), würden den
+Host sonst abbrechen lassen, bevor überhaupt etwas geprüft ist. `--check-config` führt
+dieselbe Registrierung deshalb vorab gegen eine Wegwerf-Sammlung aus und meldet den
+fehlerhaften Abschnitt als benannte Zeile statt als rohe Ausnahme.
+
+Als Warnung gelten unter anderem: ausstehende Migrationen, ein noch fehlendes Schema,
+`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider und aktivierte
+Webhooks ohne freigegebenes Ziel. Als Fehler gelten eine unbrauchbare oder nicht erreichbare
+Ablage, eine nicht lesbare Migrationshistorie und jede fehlgeschlagene Optionsvalidierung.
+`--check-config` prüft Erreichbarkeit, nicht Berechtigung: dass Client-Secret, Scopes und
+Audience zusammenpassen, zeigt erst eine echte Anmeldung.
+
+Beispiel:
+
+```text
+Bereich            Zustand  Hinweis
+-----------------  -------  -------
+Konfiguration      OK       Alle Optionsabschnitte gebunden und validiert.
+Ablage             OK       PostgreSQL erreichbar (db:5432/flowzer), Schema flowzer vorhanden.
+Migrationen        OK       aktuell (16 angewendet, hoechste Version 16).
+Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery.
+Webhook-Ziele      OK       aktiviert mit 1 freigegebenen Ziel(en), HTTP gesperrt.
+KI-Datenfluss      OK       Cloud gesperrt, lokale Endpunkte gesperrt, Ausfuehrung aus.
+```
+
+## Sicherung und Wiederherstellung von PostgreSQL
+
+`scripts/runtime/backup.sh` und `scripts/runtime/restore.sh` decken den Compose-Stack ab:
+`pg_dump -Fc` des Flowzer-Schemas nach `backups/<zeitstempel>.dump`, optional die
+Dateiablage samt Data-Protection-Keyring als `backups/<zeitstempel>-files.tgz`, und ein
+Restore ausschließlich in eine leere Datenbank mit anschließender Prüfung des
+Migrationsstands. Zugangsdaten reisen nur über die Umgebung (`PGPASSWORD`/`~/.pgpass`),
+nie über die Kommandozeile. Ablauf, Optionen und die Aufbewahrungsfrage stehen im
+[Runbook](RUNBOOK-PILOT.md) unter „Backup und Restore“.
+
+## Mehrprozessbetrieb
+
+**Freigegeben — ausschließlich mit `Storage__Provider=PostgreSql` und unter den unten
+genannten Bedingungen.** Mehrere API-Prozesse dürfen dasselbe Schema derselben Datenbank
+bedienen; sie brauchen weder eine Rollenverteilung noch einen Leader, und jeder Prozess darf
+seine Hintergrunddienste (Timer-Scheduler, Fristendienst, Worker-Benachrichtigung) laufen
+lassen.
+
+Die prozessweiten Sperren der API (`BpmnBusinessLogic`, `ServiceTaskJobService`) sind dabei
+wirkungslos — sie schützen weiterhin nur den eigenen Prozess. Tragend sind die Sperren in der
+Ablage: der Advisory-Lock je Instanz, den jeder Engine-Schreiber vor weiteren Zeilensperren
+nimmt, Zeilensperren mit `FOR UPDATE`/`SKIP LOCKED` für Aufträge, Aufgaben, KI-Läufe und
+fällige Start-Timer sowie Unique-Constraints und Revisionsvergleiche.
+
+### Was belegt ist
+
+Nachgewiesen durch `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.cs` und
+`MultiProcessConcurrencyTest.Lifecycle.cs`: zwei vollständig getrennte API-Hosts mit eigenem
+DI-Container gegen einen PostgreSQL-Container, je Invariante 20 Runden.
+
+| Invariante | Ergebnis |
+|---|---|
+| Auftragsvergabe (`POST /job/fetch`) von beiden Hosts | jeder Auftrag geht an genau einen Host |
+| Abschluss gegen Fehlschlag desselben Auftrags | genau einer gewinnt, der andere bekommt 409/404; kein Auftrag steht danach wieder in der Warteschlange |
+| Aufgabenabschluss auf beiden Hosts | genau ein Erfolg, genau ein Folge-Token |
+| Nachricht an ein wartendes Catch-Event | genau einmal bedient; der zweite Aufruf findet keine Anmeldung mehr |
+| Fälliger Start-Timer | genau eine Instanz, auch mit zwei laufenden Schedulern (Poll-Intervall 1 s) |
+| Fälliger Intermediate-Timer | Token läuft genau einmal weiter |
+| Fristendienst auf beiden Hosts | fällige Benachrichtigung entsteht genau einmal |
+| Instanzabbruch gegen Aufgabenabschluss | genau ein Eingriff gewinnt; abgebrochen ohne Folge-Token oder abgeschlossen, nie beides |
+| Deployment desselben Workflows von beiden Hosts | genau eine deployte Version, keine Version ohne BPMN, gebundene Formulare vollständig |
+| Instanzmigration gegen Aufgabenabschluss | kein Token geht verloren; die Aufgabe wartet genau einmal weiter oder ist genau einmal abgeschlossen |
+
+### Was weiterhin nicht gilt
+
+- **Dateiablage bleibt Einzelprozess.** `Storage__Provider=Filesystem` kennt weder
+  Transaktionen noch Datenbanksperren; mehrere API-Prozesse auf derselben Ablage sind
+  unverändert nicht unterstützt und auch nicht getestet.
+- **Schemamigration genau einmal.** `dotnet WebApiEngine.dll --migrate` läuft als eigener
+  Schritt vor dem Start der Replikate, nicht in jedem Prozess. `ApplyMigrationsOnStartup`
+  darf im Mehrprozessbetrieb nicht gesetzt sein; der Migrator nimmt zwar einen Advisory-Lock,
+  aber ein Replikat soll nicht auf die Migration eines anderen warten.
+- **Nachrichten-Startereignisse sind nicht idempotent.** Zwei gleichzeitige `POST /message`
+  auf ein Start-Ereignis erzeugen zwei Instanzen. Das ist der Vertrag des Endpunkts und keine
+  Mehrprozesslücke — er kennt bislang keinen `Idempotency-Key`. Wer genau einen Start braucht,
+  benutzt `POST /definition/meta/{id}/instance` mit `Idempotency-Key`.
+- **Kein Lastnachweis.** Belegt sind Korrektheitsinvarianten unter Konkurrenz, keine
+  Durchsatz- oder Latenzzahlen. Der Compose-Stack skaliert die API weiterhin nicht.
+- **Keine Aussage für Drittadapter.** Eine externe `IStorageSystem`-Implementierung ohne
+  Datenbanksperren fällt auf die Standardimplementierungen zurück und ist damit
+  Einzelprozess.
+
+### Betriebsregeln
+
+1. Migration einmal ausführen, danach alle Replikate starten.
+2. Alle Replikate zeigen auf dieselbe Datenbank **und** dasselbe Schema.
+3. Der Verbindungspool je Replikat bleibt unter der Verbindungsgrenze der Laufzeitrolle
+   (`Maximum Pool Size`, Default hier 20) — sonst landet eine Lastspitze in
+   „too many connections for role" statt in der Warteschlange.
+4. Poll-Intervalle der Hintergrunddienste müssen nicht versetzt werden; gleichzeitige
+   Durchgänge sind der getestete Normalfall.
+
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
 Die dateibasierte Persistenz ist die maßgebliche lokale Entwicklungsquelle. Für Diagnose,
@@ -1112,6 +1536,9 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
   eigenen, instanzgebundenen Ereignistyp mit eigener Aufbewahrungsregel
 - ein Zähler der tatsächlich verbrauchten Versuche eines Auftrags; heute steht nur fest, wie
   viele verbleiben und wie oft von Hand freigegeben wurde
+- Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
+  Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
+  aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).
 
 ## Sinnvolle nächste Ausbauschritte
 

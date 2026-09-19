@@ -1,11 +1,21 @@
-import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
-import { normalizeInstance } from './normalize';
+import {
+  request,
+  requestFile,
+  requestOptionalStatusResult,
+  requestStatus,
+  requestStatusResult,
+  requestUpload,
+} from './client';
+import type { DownloadedFile } from './client';
+import { normalizeInstance, toProcessInstanceState } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
+  AnalyticsRangeQuery,
   BpmnDefinitionDto,
   BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
+  CalledInstanceDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
@@ -33,6 +43,8 @@ import type {
   TimerSubscriptionDto,
   TokenDto,
   VersionDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
@@ -49,9 +61,44 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  InboundTriggerDto,
+  InboundTriggerSecretDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
+  ProcessPackageMappingDto,
+  ProcessPackagePreviewDto,
+  ProcessPackageImportResultDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
+
+/**
+ * Prozesspakete: ein Workflow samt Formularen als eine Datei.
+ *
+ * Ein Paket enthält nie Secrets, Instanzen oder Personenkennungen; was nur in der
+ * Quellinstallation gilt, steht als Platzhalter im Modell und wird beim Import zugeordnet.
+ */
+export const processPackagesApi = {
+  /** `GET /definition/meta/{id}/package` — Download; dieselbe Rolle wie Workflow lesen. */
+  export: (definitionId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    requestFile(`/definition/meta/${encodeURIComponent(definitionId)}/package`, { signal }),
+
+  /** `POST /definition/package/preview` — liest das Paket, ohne etwas anzulegen. */
+  preview: (file: File) =>
+    requestUpload<ProcessPackagePreviewDto>('/definition/package/preview', {
+      field: 'package',
+      value: file,
+      fileName: file.name,
+    }),
+
+  /** `POST /definition/package/import` — legt Workflow und Formulare an, deployt aber nicht. */
+  import: (file: File, mapping: ProcessPackageMappingDto) =>
+    requestUpload<ProcessPackageImportResultDto>(
+      '/definition/package/import',
+      { field: 'package', value: file, fileName: file.name },
+      { mapping: JSON.stringify(mapping) },
+    ),
+};
 
 export const definitionsApi = {
   /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
@@ -318,6 +365,18 @@ export const instancesApi = {
     return normalizeInstance(instance);
   },
 
+  /**
+   * `GET /instance/{id}/children` — die von Call Activities dieser Instanz gestarteten
+   * Kindinstanzen. Dieselbe Rechteprüfung wie die Instanzansicht; ohne das Recht 404.
+   *
+   * Der Zustand kommt wie bei den Instanzen als Zahl und wird hier in das sprechende
+   * Literal übersetzt — sonst stünde in der Liste ein „4" statt „Abgeschlossen".
+   */
+  children: async (instanceId: string, signal?: AbortSignal) => {
+    const children = await requestStatusResult<CalledInstanceDto[]>(`/instance/${instanceId}/children`, { signal });
+    return (children ?? []).map((child) => ({ ...child, state: toProcessInstanceState(child.state) }));
+  },
+
   /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */
   cancel: async (instanceId: string) => {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}/cancel`, {
@@ -325,6 +384,13 @@ export const instancesApi = {
     });
     return normalizeInstance(instance);
   },
+
+  /**
+   * `DELETE /instance/{id}` — löscht eine beendete Instanz samt allem, was an ihr hängt.
+   * Verlangt das Betriebsrecht; laufende Instanzen antworten mit 409, unbekannte mit 404.
+   */
+  remove: (instanceId: string) =>
+    request<void>(`/instance/${instanceId}`, { method: 'DELETE' }),
 
   /**
    * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
@@ -579,6 +645,40 @@ export const aiConnectionsApi = {
   ),
 };
 
+/**
+ * Verwaltung der eingehenden Webhook-Ausloeser. Alle Endpunkte verlangen die
+ * Betriebsrolle; das Geheimnis kommt nur aus `create` und `rotateSecret` zurueck.
+ */
+export const inboundTriggersApi = {
+  /** `GET /inbound-trigger` — Liste ohne jedes Geheimnis. */
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<InboundTriggerDto[]>('/inbound-trigger', { signal }),
+
+  /** `POST /inbound-trigger` — legt an und liefert das Geheimnis genau einmal. */
+  create: (input: CreateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerSecretDto>('/inbound-trigger', { method: 'POST', body: input }),
+
+  /** `PUT /inbound-trigger/{id}` — die Art wird serverseitig ignoriert und hier nicht gesendet. */
+  update: (triggerId: string, input: UpdateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerDto>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `POST /inbound-trigger/{id}/rotate-secret` — ersetzt das Geheimnis, ohne Body. */
+  rotateSecret: (triggerId: string) =>
+    requestStatusResult<InboundTriggerSecretDto>(
+      `/inbound-trigger/${encodeURIComponent(triggerId)}/rotate-secret`,
+      { method: 'POST' },
+    ),
+
+  /** `DELETE /inbound-trigger/{id}` — danach ist die Adresse nicht mehr erreichbar. */
+  remove: (triggerId: string) =>
+    requestStatusResult<string>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'DELETE',
+    }),
+};
+
 /** Ausschliesslich installierte, typisierte Werkzeugvertraege ohne Handlerdetails. */
 export const aiToolsApi = {
   list: async (signal?: AbortSignal) => {
@@ -623,6 +723,31 @@ export const operationsApi = {
 
   /** `GET /health/ready` */
   readiness: (signal?: AbortSignal) => requestStatusResult<HealthStatusDto>('/health/ready', { signal }),
+
+  /**
+   * `GET /operations/analytics/workflows` — Auswertung aller Workflows im Zeitraum.
+   * Ohne `from`/`to` entscheidet der Server (letzte 30 Tage).
+   */
+  analyticsOverview: (range: AnalyticsRangeQuery, signal?: AbortSignal) =>
+    requestStatusResult<WorkflowAnalyticsOverviewDto>('/operations/analytics/workflows', {
+      query: { from: range.from, to: range.to },
+      signal,
+    }),
+
+  /**
+   * `GET /operations/analytics/workflows/{metaDefinitionId}` — Schritte und Zeitreihe
+   * eines Workflows. Ohne `definitionId` zählen alle Versionen.
+   */
+  analyticsDetail: (
+    metaDefinitionId: string,
+    range: AnalyticsRangeQuery,
+    definitionId?: string | null,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<WorkflowAnalyticsDetailDto>(
+      `/operations/analytics/workflows/${encodeURIComponent(metaDefinitionId)}`,
+      { query: { from: range.from, to: range.to, definitionId: definitionId ?? undefined }, signal },
+    ),
 };
 
 /** Aufträge an externe Worker; die Konsole benutzt davon nur den Betriebseingriff. */

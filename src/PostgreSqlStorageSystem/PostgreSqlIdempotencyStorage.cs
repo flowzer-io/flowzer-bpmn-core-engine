@@ -65,4 +65,20 @@ internal sealed class PostgreSqlIdempotencyStorage(PostgreSqlSession session) : 
         command.Parameters.AddWithValue("utcNow", utcNow);
         await command.ExecuteNonQueryAsync();
     });
+
+    /// <summary>
+    /// Nimmt auch offene Reservierungen mit: Nach dem Loeschen der Instanz gibt es den Vorgang
+    /// nicht mehr, den eine Wiederholung duplizieren koennte.
+    /// </summary>
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "DELETE FROM {schema}.idempotency_records WHERE process_instance_id = @processInstanceId");
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            return await command.ExecuteNonQueryAsync();
+        });
+    }
 }

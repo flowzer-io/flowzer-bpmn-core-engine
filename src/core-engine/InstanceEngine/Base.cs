@@ -75,8 +75,15 @@ public partial class InstanceEngine: ICatchHandler
         return Tokens.Single(token => token.Id == tokenId);
     }
 
+    /// <summary>
+    /// Tokens, die auf einen externen Worker warten. Seit Fähigkeitsvertrag 6 sind das nicht
+    /// mehr nur Service-Tasks: Ein Send-Task oder ein sendendes Nachrichtenereignis mit
+    /// Auftragstyp wartet genauso. Ein sendendes Element ohne Auftragstyp korreliert die
+    /// Engine selbst und steht hier deshalb nie.
+    /// </summary>
     public IEnumerable<Token> GetActiveServiceTasks() => Tokens
-        .Where(token => token is { CurrentFlowNode: ServiceTask, State: FlowNodeState.Active });
+        .Where(token => token.State == FlowNodeState.Active
+            && token.CurrentFlowNode is IFlowzerWorkerTask { Implementation.Length: > 0 });
 
     public IEnumerable<Token> GetActiveTasks() => Tokens
         .Where(token => token.State == FlowNodeState.Active);
@@ -137,8 +144,17 @@ public partial class InstanceEngine: ICatchHandler
     /// Bricht die Instanz best-effort ab, indem aktive bzw. wartende Tokens terminiert werden.
     /// Eine BPMN-Kompensation bereits ausgeführter Activities ist damit bewusst noch nicht verbunden.
     /// </summary>
+    /// <summary>
+    /// Ob diese Instanz durch einen Abbruch von aussen geendet hat. Ein Terminate-End-Event
+    /// hinterlaesst denselben Zustand, ist fachlich aber ein regulaeres Ende — eine aufrufende
+    /// Instanz behandelt beide Faelle deshalb unterschiedlich. Gilt fuer den laufenden
+    /// Engine-Vorgang; der Abbruch wird in derselben Transaktion weitergereicht.
+    /// </summary>
+    public bool WasCancelled { get; private set; }
+
     public void Cancel()
     {
+        WasCancelled = true;
         var tokensToTerminate = Tokens
             .Where(CanBeTerminatedByCancellation)
             .ToArray();

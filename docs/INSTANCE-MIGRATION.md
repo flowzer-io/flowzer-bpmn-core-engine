@@ -47,6 +47,11 @@ eine Instanz, wenn
   es erneut scharf, ein nicht unterbrechender Timer liefe ein zweites Mal),
 - sie an einem KI-Task wartet (dessen Lauf ist an Verbindungsrevision und Modell der
   Quellversion gebunden),
+- sie an einer Aufruf-Aktivität auf einen laufenden Kindvorgang wartet (Problemcode
+  `CallActivityWaiting`): Der Umzug zieht die Kindinstanz nicht mit, und sie liefe danach gegen
+  ein Token, das zu einem anderen Modell gehört. Die Kindinstanz selbst ist normal migrierbar —
+  ihr Bezug zum Aufrufer hängt an Instanz- und Tokenkennung, nicht an der Version. Siehe
+  [CALL-ACTIVITY.md](CALL-ACTIVITY.md).
 - sie bereits auf der deployten Version läuft.
 
 Bereits durchlaufene Knoten sind Historie und nie ein Hindernis — auch wenn es sie in
@@ -135,8 +140,9 @@ Je Instanz kommen zu den Befunden der Engine diese Codes hinzu:
 
 ## Grenzen
 
-- Keine Teilprozesse, keine Multi-Instance, keine KI-Tasks (siehe oben). Die Zuordnung führt
-  nur auf Knoten der obersten Ebene und nur auf denselben Elementtyp.
+- Keine Teilprozesse, keine Multi-Instance, keine KI-Tasks und keine Aufrufer mit wartender
+  Aufruf-Aktivität (siehe oben). Die Zuordnung führt nur auf Knoten der obersten Ebene und nur
+  auf denselben Elementtyp.
 - Variablen werden nicht umgeschrieben. Erwartet die Zielversion andere Variablen, ist
   das vor der Migration fachlich zu prüfen; die API kann es nicht erkennen.
 - Timer werden nicht umgerechnet: Nach dem Umzug gilt die Dauer der Zielversion ab dem

@@ -1,4 +1,4 @@
-using BpmnServiceTask = BPMN.Activities.ServiceTask;
+using BPMN.Flowzer;
 using Flowzer.Shared;
 using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
@@ -37,6 +37,39 @@ public class InstanceController(
         {
             return Conflict(new ApiStatusResult<ProcessInstanceInfoDto>(exception.Message));
         }
+    }
+
+    /// <summary>
+    /// Loescht eine beendete Instanz endgueltig — samt Tokens, Anmeldungen, Aufgabenentwuerfen,
+    /// Human-Task-Historie, Ereignisspur, Auftraegen an Worker und KI-Laeufen.
+    ///
+    /// Beendete Instanz: 204 und weg. Laufende Instanz: 409 — sie muss zuerst abgebrochen
+    /// werden. Unbekannte Kennung: 404. Es gibt bewusst keinen Ruempfe-Rueckgabewert: Nach
+    /// einem erfolgreichen Loeschen gibt es nichts mehr zu beschreiben.
+    /// </summary>
+    [HttpDelete("{instanceId}")]
+    // Ein Loeschen entfernt fremde Vorgangsdaten unwiderruflich; das ist eine Betriebsentscheidung.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<IActionResult> DeleteInstance(Guid instanceId)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("deleting instances");
+
+        var outcome = await bpmnBusinessLogic.DeleteInstance(instanceId);
+        return outcome switch
+        {
+            DeleteInstanceOutcome.Deleted => NoContent(),
+            DeleteInstanceOutcome.StillRunning => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The process instance is still running",
+                detail: "Eine laufende Instanz wird nicht geloescht. Brich sie zuerst ab."),
+            _ => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance)
+        };
     }
 
     /// <summary>
@@ -234,6 +267,20 @@ public class InstanceController(
     }
 
     /// <summary>
+    /// Liefert die Vorgänge, die die Aufruf-Aktivitäten dieser Instanz gestartet haben.
+    /// Dieselbe Rechteprüfung wie die Instanzansicht; unsichtbare Instanzen antworten mit 404.
+    /// </summary>
+    [HttpGet("{instanceId}/children")]
+    [ProducesResponseType<ApiStatusResult<List<CalledInstanceDto>>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<List<CalledInstanceDto>>>(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiStatusResult<List<CalledInstanceDto>>>> GetCalledInstances(Guid instanceId)
+    {
+        var children = await instanceAccess.GetCalledAsync(instanceId);
+        if (children is null) return NotFound(new ApiStatusResult<List<CalledInstanceDto>>(MissingInstance));
+        return Ok(new ApiStatusResult<List<CalledInstanceDto>>(children));
+    }
+
+    /// <summary>
     /// Liefert die append-only gespeicherten Human-Task-Aktionen einer sichtbaren
     /// Instanz. Die Projektion enthält bewusst keine Personen- oder Formulardaten.
     /// </summary>
@@ -318,7 +365,10 @@ public class InstanceController(
         if (!await instanceAccess.CanInspectAsync(instanceId)) return NotFound(new ApiStatusResult<TokenDto[]>(MissingInstance));
         var instance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         var result = instance.Tokens
-            .Where(token => token.CurrentBaseElement is BpmnServiceTask && token.State == FlowNodeState.Active)
+            // Dieselbe Menge, aus der Auftraege entstehen: seit Vertrag 6 auch Send-Tasks und
+            // sendende Nachrichtenereignisse mit Auftragstyp.
+            .Where(token => token.State == FlowNodeState.Active
+                && token.CurrentBaseElement is IFlowzerWorkerTask { Implementation.Length: > 0 })
             .Select(token => token.ToDto())
             .ToArray();
 

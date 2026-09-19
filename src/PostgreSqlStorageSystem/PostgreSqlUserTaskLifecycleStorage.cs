@@ -135,4 +135,19 @@ internal sealed class PostgreSqlUserTaskLifecycleStorage(PostgreSqlSession sessi
         await command.ExecuteNonQueryAsync();
     }
 
+    /// <summary>
+    /// Die Auditspur haengt ohne Fremdschluessel an der Instanz. Sie wird deshalb ausdruecklich
+    /// geloescht und nicht von einem Cascade mitgenommen — siehe 010_process_history_task_lifecycle.sql.
+    /// </summary>
+    public Task<int> DeleteEventsByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "DELETE FROM {schema}.user_task_assignment_events WHERE process_instance_id = @processInstanceId");
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            return await command.ExecuteNonQueryAsync();
+        });
+    }
 }

@@ -12,6 +12,14 @@ public partial class InstanceEngine
     public string? FailureReason { get; private set; }
 
     /// <summary>
+    /// Der Code des ungefangenen BPMN-Fehlers, an dem diese Instanz gescheitert ist. Eine
+    /// aufrufende Instanz wirft genau diesen Code an ihrer Call Activity erneut — so, wie es
+    /// BPMN 2.0 für einen gescheiterten aufgerufenen Prozess vorsieht. Null bei jeder anderen
+    /// Instanz und bei einem Fehler, der ohne Code geworfen wurde.
+    /// </summary>
+    public string? FailureErrorCode { get; private set; }
+
+    /// <summary>
     /// Loest einen BPMN-Fehler am Token einer wartenden Aktivitaet aus — der Weg, auf dem ein
     /// externer Worker einen fachlichen Fehler statt eines Ergebnisses meldet.
     ///
@@ -64,6 +72,7 @@ public partial class InstanceEngine
             }
         }
 
+        FailureErrorCode = string.IsNullOrWhiteSpace(errorCode) ? null : errorCode;
         FailureReason = BuildUnhandledErrorReason(originToken, errorCode, errorMessage);
         FailInstanceBestEffort();
     }
