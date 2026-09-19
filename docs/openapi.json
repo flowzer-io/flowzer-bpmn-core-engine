@@ -5887,6 +5887,95 @@
         }
       }
     },
+    "/job/{jobId}/retry": {
+      "post": {
+        "tags": [
+          "Job"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryJobRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryJobRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryJobRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/job": {
       "get": {
         "tags": [
@@ -6257,6 +6346,35 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OperationsDiagnosticsDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/incidents": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsIncidentDtoArrayApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsIncidentDtoArrayApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsIncidentDtoArrayApiStatusResult"
                 }
               }
             }
@@ -10524,6 +10642,7 @@
         "required": [
           "checkedAtUtc",
           "environment",
+          "incidents",
           "instrumentation",
           "observability",
           "retention",
@@ -10542,6 +10661,9 @@
           },
           "storage": {
             "$ref": "#/components/schemas/OperationsStorageSnapshotDto"
+          },
+          "incidents": {
+            "$ref": "#/components/schemas/OperationsIncidentCountersDto"
           },
           "timerScheduler": {
             "$ref": "#/components/schemas/TimerSchedulerDiagnosticsDto"
@@ -10570,6 +10692,115 @@
           },
           "result": {
             "$ref": "#/components/schemas/OperationsDiagnosticsDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OperationsIncidentCountersDto": {
+        "required": [
+          "instanceFailed",
+          "jobExhausted"
+        ],
+        "type": "object",
+        "properties": {
+          "jobExhausted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "instanceFailed": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "OperationsIncidentDto": {
+        "required": [
+          "definitionId",
+          "definitionName",
+          "instanceId",
+          "kind",
+          "metaDefinitionId",
+          "since"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "instanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metaDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "definitionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "flowNodeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "jobId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "jobType": {
+            "type": "string",
+            "nullable": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "manualRetries": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "OperationsIncidentDtoArrayApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperationsIncidentDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -11494,6 +11725,21 @@
           },
           "result": {
             "$ref": "#/components/schemas/RenewJobLeaseResultDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RetryJobRequestDto": {
+        "type": "object",
+        "properties": {
+          "retries": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {},
+            "nullable": true
           }
         },
         "additionalProperties": false
