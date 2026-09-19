@@ -7,7 +7,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { ErrorState, LoadingRows, Skeleton } from '@/components/ui/States';
 import { useDiagnostics, useHealth, useInstances, useTimers } from '@/lib/api/queries';
-import type { OperationsDiagnosticsDto } from '@/lib/api/types';
+import type { InstanceRetentionDiagnosticsDto, OperationsDiagnosticsDto } from '@/lib/api/types';
 import { instanceBucket } from '@/lib/api/normalize';
 import { formatDueIn, formatDuration, formatNumber, formatRelative, parseApiDate, shortId } from '@/lib/format';
 import { useCan } from '@/stores/session';
@@ -234,6 +234,8 @@ export function OperationsPage() {
               ))
             )}
           </Card>
+
+          <RetentionCard retention={diagnostics?.retention} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-[18px]">
@@ -372,6 +374,76 @@ function DistributionBar({ segments }: { segments: { label: string; value: numbe
   );
 }
 
+/**
+ * Zustand der Aufbewahrung beendeter Instanzen.
+ *
+ * Zeigt die Frist mit, nicht nur den Dienststatus: Eine Frist ist eine Aussage darueber, wie
+ * lange Vorgangsdaten noch da sind — wer im Betrieb nachsieht, will genau das lesen und nicht
+ * erst in der Konfiguration nachschlagen.
+ */
+function RetentionCard({ retention }: { retention?: InstanceRetentionDiagnosticsDto }) {
+  return (
+    <Card>
+      <CardHeader
+        icon="schedule"
+        iconClassName={retention?.enabled ? 'text-accent' : 'text-muted'}
+        title="Aufbewahrung"
+        actions={
+          <span className="text-muted font-mono text-[11.5px]">
+            {retention?.enabled
+              ? `alle ${formatNumber(retention.pollIntervalMinutes)} min · max. ${formatNumber(retention.batchSize)}`
+              : '—'}
+          </span>
+        }
+      />
+
+      {!retention ? (
+        <LoadingRows rows={2} />
+      ) : !retention.enabled ? (
+        <EmptyState
+          className="border-border border-t"
+          icon="schedule"
+          title="Keine Aufbewahrungsfrist gesetzt"
+          description="Beendete Instanzen bleiben dauerhaft erhalten. Die Frist wird installationsweit über Retention:FinishedInstances:Days gesetzt; einzelne Workflows können sie überschreiben."
+        />
+      ) : (
+        <div className="border-border grid grid-cols-2 gap-x-3.5 gap-y-3 border-t px-[18px] py-3.5 sm:grid-cols-4">
+          <RetentionFact label="Frist" value={`${formatNumber(retention.days ?? 0)} Tage`} />
+          <RetentionFact label="Status" value={retention.status} />
+          <RetentionFact
+            label="Letzter Lauf"
+            value={retention.lastRunCompletedAtUtc ? formatRelative(retention.lastRunCompletedAtUtc) : 'noch keiner'}
+          />
+          <RetentionFact label="Zuletzt gelöscht" value={formatNumber(retention.lastDeletedInstances)} />
+          <RetentionFact label="Gelöscht gesamt" value={formatNumber(retention.totalDeletedInstances)} />
+          <RetentionFact label="Erfolgreiche Läufe" value={formatNumber(retention.successfulRunCount)} />
+          <RetentionFact label="Fehlgeschlagene Läufe" value={formatNumber(retention.failedRunCount)} />
+          <RetentionFact label="Dauer" value={formatDuration(retention.lastRunDurationMs)} />
+        </div>
+      )}
+
+      {retention?.lastErrorMessage && (
+        <div className="border-border text-fail border-t px-[18px] py-3 text-[12.5px]">
+          Letzter Fehler: {retention.lastErrorMessage}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function RetentionFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-muted font-mono text-[10px] font-semibold tracking-[0.09em] uppercase">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate text-[13.5px] font-semibold" title={value}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 interface HealthCard {
   name: string;
   icon: string;
@@ -386,6 +458,7 @@ function buildHealthCards(
   if (!diagnostics) return [];
 
   const scheduler = diagnostics.timerScheduler;
+  const retention = diagnostics.retention;
   const schedulerLevel: HealthLevel = !scheduler.enabled
     ? 'warn'
     : scheduler.lastErrorMessage
@@ -413,6 +486,15 @@ function buildHealthCards(
         ? 'deaktiviert'
         : (scheduler.lastErrorMessage ??
           `${scheduler.status} · letzter Lauf ${formatDuration(scheduler.lastTickDurationMs)}`),
+    },
+    {
+      name: 'Aufbewahrung',
+      icon: 'schedule',
+      level: !retention.enabled ? 'warn' : retention.lastErrorMessage ? 'error' : 'ok',
+      detail: !retention.enabled
+        ? 'keine Frist gesetzt'
+        : (retention.lastErrorMessage ??
+          `${formatNumber(retention.days ?? 0)} Tage · ${formatNumber(retention.totalDeletedInstances)} gelöscht`),
     },
     {
       name: 'OpenTelemetry',

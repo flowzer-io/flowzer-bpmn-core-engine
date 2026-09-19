@@ -750,6 +750,53 @@ public partial class BpmnBusinessLogic(
         }
     }
 
+    /// <summary>
+    /// Loescht eine beendete Instanz samt allem, was an ihr haengt — von Hand ausgeloest ueber
+    /// <c>DELETE /instance/{id}</c>.
+    ///
+    /// Laeuft unter derselben Sperre wie Start, Abbruch und Timerlauf. Ohne sie koennte zwischen
+    /// der Pruefung „ist beendet" und dem Loeschen noch ein Statuswechsel dazwischenkommen, und
+    /// eine wieder angelaufene Instanz waere weg.
+    /// </summary>
+    /// <returns>
+    /// <see cref="DeleteInstanceOutcome.Deleted"/>, wenn geloescht wurde;
+    /// <see cref="DeleteInstanceOutcome.NotFound"/> bei unbekannter Kennung;
+    /// <see cref="DeleteInstanceOutcome.StillRunning"/>, wenn die Instanz noch laeuft.
+    /// </returns>
+    public async Task<DeleteInstanceOutcome> DeleteInstance(Guid instanceId)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+            await storageSystem.InstanceStorage.LockForMutation(instanceId);
+
+            ProcessInstanceInfo processInstance;
+            try
+            {
+                processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
+            }
+            catch (FileNotFoundException)
+            {
+                return DeleteInstanceOutcome.NotFound;
+            }
+
+            // Eine laufende Instanz wird nie geloescht — auch nicht vom Betrieb. Wer sie
+            // loswerden will, bricht sie zuerst ab; das ist ein eigener, sichtbarer Schritt
+            // mit eigenem Ausgang, statt offene Aufgaben und Auftraege still verschwinden zu
+            // lassen.
+            if (!processInstance.IsFinished) return DeleteInstanceOutcome.StillRunning;
+
+            await InstancePurge.ExecuteAsync(storageSystem, instanceId);
+            storageSystem.CommitChanges();
+            return DeleteInstanceOutcome.Deleted;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
     /// <summary>Der deployte Prozess eines Workflows samt der Version, aus der er stammt.</summary>
     /// <param name="Definition">Die deployte Version — die Kennung, unter der ihr Diagramm liegt.</param>
     /// <param name="Process">Der Prozess, der von Hand gestartet werden kann.</param>

@@ -4615,6 +4615,87 @@
         }
       }
     },
+    "/Instance/{instanceId}": {
+      "delete": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Instance"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Instance/migration/preview": {
       "post": {
         "tags": [
@@ -4783,46 +4864,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProcessInstanceInfoDtoListApiStatusResult"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/Instance/{instanceId}": {
-      "get": {
-        "tags": [
-          "Instance"
-        ],
-        "parameters": [
-          {
-            "name": "instanceId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProcessInstanceInfoDtoApiStatusResult"
                 }
               }
             }
@@ -7241,6 +7282,11 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -7516,6 +7562,11 @@
           "folderId": {
             "type": "string",
             "format": "uuid",
+            "nullable": true
+          },
+          "retentionDays": {
+            "type": "integer",
+            "format": "int32",
             "nullable": true
           },
           "latestVersion": {
@@ -8845,6 +8896,88 @@
         },
         "additionalProperties": false
       },
+      "InstanceRetentionDiagnosticsDto": {
+        "required": [
+          "batchSize",
+          "enabled",
+          "pollIntervalMinutes",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "days": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "pollIntervalMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "batchSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceStartedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunStartedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunCompletedAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastSuccessfulRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastFailedRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRunDurationMs": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "lastDeletedInstances": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "successfulRunCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failedRunCount": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalDeletedInstances": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastErrorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "MessageDefinitionDto": {
         "required": [
           "name"
@@ -9061,6 +9194,7 @@
           "environment",
           "instrumentation",
           "observability",
+          "retention",
           "storage",
           "timerScheduler"
         ],
@@ -9079,6 +9213,9 @@
           },
           "timerScheduler": {
             "$ref": "#/components/schemas/TimerSchedulerDiagnosticsDto"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/InstanceRetentionDiagnosticsDto"
           },
           "instrumentation": {
             "$ref": "#/components/schemas/OperationsInstrumentationDto"

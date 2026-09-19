@@ -509,6 +509,167 @@ In der Konsole steht der Abbruch in der Instanzansicht („Instanz abbrechen"), 
 
 Eine abgebrochene Instanz gilt als **fertig**, nicht als fehlgeschlagen: Sie erscheint in der Instanzliste unter „Fertig" mit dem Status „Abgebrochen". Denselben Zustand (`Terminated`) erreicht auch ein Terminate-Endereignis im Modell — etwa der abgelehnte Urlaubsantrag aus `examples/urlaubsantrag`. Als Fehler zählen nur `Failed`-Instanzen.
 
+## Instanzen löschen
+
+`DELETE /instance/{instanceId}` entfernt eine **beendete** Instanz endgültig und verlangt das
+Betriebsrecht. Eine beendete Instanz antwortet mit `204`, eine noch laufende mit `409`
+(`The process instance is still running` — sie muss zuerst abgebrochen werden), eine unbekannte
+Kennung mit `404`. Laufende Instanzen werden auf diesem Weg nie gelöscht.
+
+Gelöscht wird nicht nur der Listeneintrag, sondern alles, was an der Instanz hängt — dieselbe
+Liste wie bei der Aufbewahrung, siehe unten.
+
+In der Konsole steht die Aktion in der Instanzansicht („Instanz löschen"), nur für beendete
+Instanzen und nur mit Betriebsrecht, hinter einer ausdrücklichen Rückfrage, die den betroffenen
+Workflow nennt und aufzählt, was mitgeht.
+
+## Aufbewahrung
+
+Beendete Instanzen bleiben ohne Aufbewahrungsfrist für immer liegen. Die Datenbank wächst damit
+unbegrenzt, und personenbezogene Vorgangsdaten bleiben länger gespeichert, als sie gebraucht
+werden. Die Aufbewahrung löscht beendete Instanzen nach einer konfigurierten Frist.
+
+**Der Default ist aus.** Eine Frist ist eine Entscheidung des Betreibers über fremde
+Vorgangsdaten; sie kommt nicht durch ein Update in eine Installation, die nie darum gebeten hat.
+
+### Konfiguration
+
+| Schlüssel | Bedeutung |
+| --- | --- |
+| `Retention__FinishedInstances__Days` | Frist in Tagen. Ohne Wert oder `0`: Aufbewahrung aus, der Hintergrunddienst läuft nicht an. |
+| `Retention__FinishedInstances__PollIntervalMinutes` | Abstand zweier Läufe in Minuten, 1 bis 10080. Default `60`. |
+| `Retention__FinishedInstances__BatchSize` | Höchstzahl der je Lauf gelöschten Instanzen, 1 bis 10000. Default `100`. |
+
+Die Werte werden beim Hoststart validiert; eine unbrauchbare Angabe verhindert den Start, statt
+eine halb aktive Aufbewahrung zu erzeugen. Im Compose-Stack stehen sie als
+`FLOWZER_RETENTION_DAYS`, `FLOWZER_RETENTION_POLL_INTERVAL_MINUTES` und
+`FLOWZER_RETENTION_BATCH_SIZE` (siehe `.env.example`).
+
+Die Stapelgrenze ist kein Leistungsdetail: Wird die Aufbewahrung auf einem gewachsenen Bestand
+erstmals eingeschaltet, sind womöglich zehntausende Instanzen sofort fällig. Sie werden über
+mehrere Läufe abgearbeitet, nicht in einem Zug.
+
+### Reihenfolge: global und je Workflow
+
+Jeder Katalogeintrag trägt ein optionales `retentionDays`:
+
+| `retentionDays` | Wirkung |
+| --- | --- |
+| nicht gesetzt (`null`) | Es gilt die installationsweite Frist. |
+| `0` | **Nie löschen** — auch dann nicht, wenn installationsweit eine Frist gilt. Für aufbewahrungspflichtige Vorgänge. |
+| `> 0` | Diese Frist gilt, **kürzer wie länger** als die installationsweite. |
+
+Gesetzt wird der Wert über die vorhandenen Metadaten-Endpunkte `POST /definition/meta` und
+`PUT /definition/meta` (dieselbe Berechtigung wie das Umbenennen); negative Werte werden mit
+`400` abgelehnt. In der Konsole steht die Einstellung im Workflow-Katalog als eigener Knopf an
+der Workflow-Kachel („Aufbewahrung für … festlegen"), mit drei ausdrücklichen Optionen statt
+eines Zahlenfelds mit Sonderbedeutungen.
+
+Das Workflow-Metadatum allein aktiviert die Aufbewahrung **nicht**: Läuft der Dienst mangels
+installationsweiter Frist nicht, bleibt auch ein Workflow mit `retentionDays = 30` unberührt.
+
+### Welche Instanzen erfasst werden
+
+Erfasst sind ausschließlich Instanzen in einem Endzustand: `Completed`, `Terminated`
+(abgebrochen) und `Failed`. **Gestörte Instanzen sind bewusst dabei.** Eine Störung ist nach
+Ablauf der Frist Historie wie jeder andere Ausgang auch; würde `Failed` ausgenommen, sammelte
+die Installation ausgerechnet den Bestand dauerhaft an, dessen Daten am wenigsten gebraucht
+werden — und der Betrieb hätte eine wachsende Halde, die nie jemand aufräumt. Wer einzelne
+gestörte Vorgänge dauerhaft braucht, setzt am betroffenen Workflow `retentionDays = 0`.
+
+**Laufende Instanzen werden nie angefasst.** Die Auswahlabfrage liefert nur beendete Instanzen,
+und jede einzelne wird vor dem Löschen unter der Engine-Sperre erneut frisch gelesen und noch
+einmal geprüft: Eine Instanz, die zwischen Auswahl und Löschung durch eine nachgereichte
+Nachricht wieder angelaufen ist, bleibt stehen.
+
+### Der Endzeitpunkt
+
+Die Ablage führt **keinen eigenen Instanzzeitstempel** — `ProcessInstanceInfo` kennt weder ein
+Start- noch ein Endefeld. Als Ende gilt deshalb der **letzte Zustandswechsel eines Tokens**
+(`Token.LastStateChangeTime`). Das ist dieselbe Ableitung, die die Instanzliste und die
+Instanzansicht als „beendet am …" anzeigen (`ProcessInstanceLifetime`): Eine Instanz verschwindet
+nach genau der Frist, die dort ablesbar ist.
+
+Eine beendete Instanz **ohne Tokens** lässt sich nicht datieren und bleibt ausdrücklich stehen,
+statt mangels Datum sofort gelöscht zu werden. Solche Datensätze sind ein Altlastfall und fallen
+im Bestand auf; sie verschwinden über `DELETE /instance/{id}` oder mit ihrem Workflow.
+
+### Was gelöscht wird
+
+Eine Löschung — von Hand wie durch die Aufbewahrung — entfernt die Instanz und **alles, was an
+ihr hängt** (`InstancePurge`):
+
+- die Instanz selbst, samt ihrer Tokens und Migrationseinträge (beides steht in ihrem Dokument)
+- Nachrichten-Anmeldungen
+- Signal-Anmeldungen
+- Timer-Anmeldungen
+- Benutzeraufgaben-Anmeldungen und mit ihnen
+  - private Aufgabenentwürfe
+  - Bearbeiterzustand der Human Tasks
+  - Fälligkeiten
+  - In-App-Meldungen samt Lesequittierungen
+- die Human-Task-Historie (Auditspur der Aufgabenaktionen)
+- die Engine-Ereignisspur (`RuntimeNodeEvents`, Grundlage des Laufzeitdiagramms)
+- Aufträge an externe Worker (Service-Task-Jobs)
+- KI-Läufe der Instanz, auch noch verleaste
+- Idempotenzschlüssel, die auf diese Instanz zeigen, auch offene Reservierungen
+
+Die Liste steht an **einer** Stelle im Code und gilt für beide Ablagen. Eine Datenart, die nur in
+einem Adapter mitginge, bliebe in der anderen Installation unbemerkt liegen — genau der Datenrest,
+den die Aufbewahrung verhindern soll.
+
+Nicht gelöscht werden Definitionen, Formulare, Ordner und Verzeichnisdaten. Die Aufbewahrung von
+Definitionen und Formularen ist ausdrücklich kein Teil dieses Bausteins.
+
+### Ablage: PostgreSQL und Dateisystem
+
+**PostgreSQL** löscht je Instanz in **einer Transaktion**: ganz oder gar nicht, kein halb
+gelöschter Vorgang. Ein Fehler an einer Instanz rollt nur diese zurück; bereits gelöschte
+Instanzen desselben Laufs bleiben gelöscht, die übrigen unberührt.
+
+Die Anmeldungen an Benutzeraufgaben nehmen Entwürfe, Bearbeiterzustand, Fälligkeiten und
+Meldungen über die vorhandenen `ON DELETE CASCADE`-Fremdschlüssel mit. Für Historie,
+Ereignisspur, KI-Läufe und Idempotenzschlüssel gibt es bewusst **keine** neuen Fremdschlüssel auf
+die Instanztabelle: Ein nachträgliches Cascade an einer Bestandstabelle scheitert bereits am
+Anlegen, sobald darin eine Zeile auf eine längst entfernte Instanz zeigt (bei den
+Idempotenzschlüsseln der Normalfall), und Historie und Ereignisspur sollen laut
+`010_process_history_task_lifecycle.sql` und `012_runtime_node_events.sql` gerade *nicht*
+unbemerkt mitgelöscht werden. Sie werden deshalb ausdrücklich und nachlesbar gelöscht. Migration:
+`src/PostgreSqlStorageSystem/Migrations/017_instance_retention.sql` — sie legt nur die beiden
+Indizes an, die das Löschen je Instanz braucht.
+
+**Die Dateiablage kennt keine Transaktion.** Dort ist das Löschen ausdrücklich *best-effort*:
+Bricht es mitten im Vorgang ab, fehlt hinterher Angehängtes und die Instanz steht noch — der
+nächste Lauf räumt sie ab. Die Reihenfolge ist genau deshalb so gewählt: erst das Angehängte,
+zuletzt die Instanz. Andersherum bliebe der Rest ohne Instanz liegen und niemand fände ihn
+wieder. Zusätzlich lesen mehrere Datenarten dort ohne Sekundärindex den ganzen Ordner; das ist
+für den Entwicklungsadapter vertretbar, für den produktiven Mehrprozessbetrieb bleibt PostgreSQL
+der vorgesehene Weg.
+
+### Diagnose und Protokoll
+
+`GET /operations/diagnostics` enthält einen `retention`-Abschnitt: aktiv, Frist, Intervall,
+Stapelgröße, Status, letzter Lauf, zuletzt und insgesamt gelöschte Anzahl, Zahl der erfolgreichen
+und gescheiterten Läufe sowie die Fehlermeldung des letzten Laufs. Die Betriebsseite der Konsole
+zeigt denselben Stand als Block „Aufbewahrung" und als Gesundheitskachel.
+
+Ein gescheiterter Lauf bricht den Dienst **nicht** ab: Er wird protokolliert, erscheint in der
+Diagnose, und der nächste Lauf arbeitet wieder. Andernfalls stünde die Aufbewahrung nach der
+ersten kurzen Datenbankstörung bis zum nächsten Neustart still, ohne dass es auffiele. Ein
+erfolgreicher Lauf löscht die Meldung des vorherigen.
+
+Je Lauf mit Wirkung entsteht **eine** Logzeile mit der Anzahl gelöschter Instanzen — ohne
+Kennungen, Workflownamen oder Personenbezug.
+
+### Backups
+
+Die Aufbewahrung löscht endgültig; es gibt weder Papierkorb noch Export vor dem Löschen.
+**Ein Backup, das älter ist als die Frist, enthält die gelöschten Vorgänge weiterhin.** Wer die
+Aufbewahrung aus Gründen der Datensparsamkeit einführt, muss die Aufbewahrungsdauer der Backups
+mitbetrachten — sonst ist die Löschung nur in der laufenden Datenbank wirksam. Umgekehrt gilt:
+Vor der erstmaligen Aktivierung auf einem gewachsenen Bestand gehört ein Backup, das man auch
+wirklich zurückspielen kann.
+
 ## Instanzen migrieren
 
 Ein Deployment verändert keine laufende Instanz. Wer laufende Instanzen einer älteren Version bewusst auf die deployte Version heben will, nutzt den Migrationsassistenten der Konsole: in der Instanzliste laufende Instanzen desselben Workflows und derselben Version ankreuzen und „Migrieren …" wählen, oder in der Instanzansicht „Migrieren …". Der Assistent prüft zuerst folgenlos (`POST /instance/migration/preview`), nennt je Instanz Hindernisse und Folgen — etwa einen verworfenen Aufgabenentwurf — und migriert erst nach ausdrücklicher Bestätigung (`POST /instance/migration`). Beides verlangt das Betriebsrecht. Nicht migrierbare Instanzen bleiben unverändert; jede Migration wird an der Instanz festgehalten und mit Instanz, Quell-/Zielversion und auslösender Person protokolliert. Regeln, Grenzen und Vertrag: [INSTANCE-MIGRATION.md](INSTANCE-MIGRATION.md).

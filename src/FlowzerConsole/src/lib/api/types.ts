@@ -225,6 +225,12 @@ export interface BpmnMetaDefinitionDto {
    * `PUT /definition/meta/{id}/folder`.
    */
   folderId?: string | null;
+  /**
+   * Aufbewahrungsfrist beendeter Instanzen dieses Workflows in Tagen. `null` übernimmt den
+   * installationsweiten Wert, `0` heißt ausdrücklich „nie löschen". Wird beim Anlegen und
+   * beim Ändern der Metadaten ausgewertet.
+   */
+  retentionDays?: number | null;
 }
 
 /** Art einer Ordnerzuweisung. Entspricht den Zeichenketten aus `FolderMappingExtensions`. */
@@ -547,6 +553,30 @@ export interface TimerSchedulerDiagnosticsDto {
   lastErrorMessage?: string | null;
 }
 
+/**
+ * Entspricht `InstanceRetentionDiagnosticsDto`. Enthält bewusst keine Instanzkennungen:
+ * Der Betrieb sieht, dass und wie viel gelöscht wurde, nicht wessen Vorgang.
+ */
+export interface InstanceRetentionDiagnosticsDto {
+  enabled: boolean;
+  /** Installationsweite Frist in Tagen; `null`, solange keine gesetzt ist. */
+  days?: number | null;
+  pollIntervalMinutes: number;
+  batchSize: number;
+  status: string;
+  serviceStartedAtUtc?: string | null;
+  lastRunStartedAtUtc?: string | null;
+  lastRunCompletedAtUtc?: string | null;
+  lastSuccessfulRunAtUtc?: string | null;
+  lastFailedRunAtUtc?: string | null;
+  lastRunDurationMs?: number | null;
+  lastDeletedInstances: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  totalDeletedInstances: number;
+  lastErrorMessage?: string | null;
+}
+
 /** Entspricht `OperationsInstrumentationDto`. */
 export interface OperationsInstrumentationDto {
   meterName: string;
@@ -575,6 +605,7 @@ export interface OperationsDiagnosticsDto {
   environment: string;
   storage: OperationsStorageSnapshotDto;
   timerScheduler: TimerSchedulerDiagnosticsDto;
+  retention: InstanceRetentionDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
 }

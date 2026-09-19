@@ -50,4 +50,19 @@ internal sealed class PostgreSqlRuntimeNodeEventStorage(PostgreSqlSession sessio
             return result;
         });
     }
+
+    /// <summary>
+    /// Laeuft in der umgebenden Transaktion und nutzt denselben Instanzindex wie das Lesen.
+    /// </summary>
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "DELETE FROM {schema}.runtime_node_events WHERE process_instance_id = @processInstanceId");
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            return await command.ExecuteNonQueryAsync();
+        });
+    }
 }

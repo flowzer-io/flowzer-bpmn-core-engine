@@ -96,6 +96,10 @@ services:
       Limits__MaxUploadBytes: "${FLOWZER_MAX_UPLOAD_BYTES:-8388608}"
       TimerScheduler__Enabled: "true"
       TimerScheduler__PollIntervalSeconds: "${FLOWZER_TIMER_POLL_SECONDS:-5}"
+      # Aufbewahrung beendeter Instanzen; ohne Wert bleibt sie aus (siehe OPERATIONS.md).
+      Retention__FinishedInstances__Days: "${FLOWZER_RETENTION_DAYS:-}"
+      Retention__FinishedInstances__PollIntervalMinutes: "${FLOWZER_RETENTION_POLL_INTERVAL_MINUTES:-60}"
+      Retention__FinishedInstances__BatchSize: "${FLOWZER_RETENTION_BATCH_SIZE:-100}"
       TZ: Europe/Berlin
     volumes:
       # Persistiert Data-Protection-Schluessel fuer Session, OIDC-Korrelation und CSRF

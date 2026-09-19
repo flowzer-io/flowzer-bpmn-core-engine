@@ -6,6 +6,7 @@ public class OperationsDiagnosticsDto
     public required string Environment { get; set; }
     public required OperationsStorageSnapshotDto Storage { get; set; }
     public required TimerSchedulerDiagnosticsDto TimerScheduler { get; set; }
+    public required InstanceRetentionDiagnosticsDto Retention { get; set; }
     public required OperationsInstrumentationDto Instrumentation { get; set; }
     public required OperationsObservabilityDto Observability { get; set; }
 }
@@ -49,6 +50,39 @@ public class TimerSchedulerDiagnosticsDto
     public long SuccessfulTickCount { get; set; }
     public long FailedTickCount { get; set; }
     public long TotalProcessedTimers { get; set; }
+    public string? LastErrorMessage { get; set; }
+}
+
+/// <summary>
+/// Zustand der Aufbewahrung beendeter Instanzen. Bewusst ohne Kennungen: Der Betrieb sieht,
+/// dass und wie viel geloescht wurde, nicht welche Vorgaenge das betraf.
+/// </summary>
+public class InstanceRetentionDiagnosticsDto
+{
+    /// <summary>Ist ueberhaupt eine Frist gesetzt? Ohne Frist laeuft der Dienst nicht.</summary>
+    public required bool Enabled { get; set; }
+
+    /// <summary>Installationsweite Frist in Tagen; <c>null</c>, solange keine gesetzt ist.</summary>
+    public int? Days { get; set; }
+
+    public required int PollIntervalMinutes { get; set; }
+    public required int BatchSize { get; set; }
+    public required string Status { get; set; }
+    public DateTime? ServiceStartedAtUtc { get; set; }
+    public DateTime? LastRunStartedAtUtc { get; set; }
+    public DateTime? LastRunCompletedAtUtc { get; set; }
+    public DateTime? LastSuccessfulRunAtUtc { get; set; }
+    public DateTime? LastFailedRunAtUtc { get; set; }
+    public double? LastRunDurationMs { get; set; }
+
+    /// <summary>Im letzten Lauf geloeschte Instanzen.</summary>
+    public int LastDeletedInstances { get; set; }
+
+    public long SuccessfulRunCount { get; set; }
+    public long FailedRunCount { get; set; }
+    public long TotalDeletedInstances { get; set; }
+
+    /// <summary>Fehlermeldung des letzten Laufs; <c>null</c>, wenn der letzte Lauf trug.</summary>
     public string? LastErrorMessage { get; set; }
 }
 
