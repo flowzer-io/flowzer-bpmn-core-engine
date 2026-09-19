@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_MessageThrowWithoutMapping" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Freigabe" name="Freigabe erteilt">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=antragsnummer" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:process id="Process_MessageThrowWithoutMapping" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:intermediateThrowEvent id="Throw_1" name="Freigabe melden">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Throw</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" messageRef="Message_Freigabe" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_Throw</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Throw_1" />
+    <bpmn:sequenceFlow id="Flow_Throw" sourceRef="Throw_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

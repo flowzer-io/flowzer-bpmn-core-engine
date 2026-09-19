@@ -72,8 +72,14 @@ public class UserTaskController(
     /// Liefert das Formular, das zu einem offenen User-Task gehört.
     /// Fasst die bisher clientseitige Auflösung (Form-Key lesen, Metadaten suchen,
     /// Version laden) zu einem einzigen Aufruf zusammen.
+    ///
+    /// Eine Aufgabe ohne Formularbindung antwortet mit 204 — genau wie ein Workflow ohne
+    /// Startformular. Die Oberfläche soll daran erkennen, dass sie die Aufgabe ohne Eingaben
+    /// abschließen lässt, statt einen Fehler zu zeigen.
     /// </summary>
     [HttpGet("{userTaskId:guid}/form")]
+    [ProducesResponseType<ApiStatusResult<FormDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(void), StatusCodes.Status204NoContent)]
     public async Task<ActionResult<ApiStatusResult<FormDto>>> GetUserTaskForm([FromRoute] Guid userTaskId)
     {
         var currentUser = currentUserContextAccessor.GetCurrentUser();
@@ -98,6 +104,9 @@ public class UserTaskController(
         }
 
         var formKey = (subscription.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
+
+        // Kein Formular ist kein Fehler: Die Aufgabe ist dann eine reine Bestaetigung.
+        if (string.IsNullOrWhiteSpace(formKey)) return NoContent();
 
         // Die Version des Workflows entscheidet mit: Ein im Workflow eingebettetes Formular steht
         // in genau diesem Diagramm, nicht im Formularbestand.

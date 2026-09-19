@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_InclusiveGateway" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_InclusiveGateway" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToSplit</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:inclusiveGateway id="Gateway_Split" default="Flow_Standard">
+      <bpmn:incoming>Flow_ToSplit</bpmn:incoming>
+      <bpmn:outgoing>Flow_WegA</bpmn:outgoing>
+      <bpmn:outgoing>Flow_WegB</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Standard</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:serviceTask id="ServiceTask_A" name="ServiceTask_A">
+      <bpmn:extensionElements><zeebe:taskDefinition type="wegA" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_WegA</bpmn:incoming>
+      <bpmn:outgoing>Flow_AJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ServiceTask_B" name="ServiceTask_B">
+      <bpmn:extensionElements><zeebe:taskDefinition type="wegB" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_WegB</bpmn:incoming>
+      <bpmn:outgoing>Flow_BJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ServiceTask_Standard" name="ServiceTask_Standard">
+      <bpmn:extensionElements><zeebe:taskDefinition type="standard" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_Standard</bpmn:incoming>
+      <bpmn:outgoing>Flow_StandardJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="Gateway_Join">
+      <bpmn:incoming>Flow_AJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_BJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_StandardJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToSplit" sourceRef="StartEvent_1" targetRef="Gateway_Split" />
+    <bpmn:sequenceFlow id="Flow_WegA" sourceRef="Gateway_Split" targetRef="ServiceTask_A">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=WegA</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_WegB" sourceRef="Gateway_Split" targetRef="ServiceTask_B">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=WegB</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Standard" sourceRef="Gateway_Split" targetRef="ServiceTask_Standard" />
+    <bpmn:sequenceFlow id="Flow_AJoin" sourceRef="ServiceTask_A" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_BJoin" sourceRef="ServiceTask_B" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_StandardJoin" sourceRef="ServiceTask_Standard" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Gateway_Join" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

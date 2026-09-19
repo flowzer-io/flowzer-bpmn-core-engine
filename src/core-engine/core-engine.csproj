@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v4.json"
-                      Link="Contracts\bpmn-capabilities\v4.json" />
+    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v9.json"
+                      Link="Contracts\bpmn-capabilities\v9.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +27,9 @@
     <ProjectReference Include="..\Model\Model.csproj" />
     <ProjectReference Include="..\Flowzer.Shared\Flowzer.Shared.csproj" />
     <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
+    <!-- Der DMN-Kern haengt selbst an nichts. Die Engine bringt ihm ueber core_engine.Dmn
+         nur den FEEL-Handler mit; ausgewertet wird spaeter in der Geschaeftslogik. -->
+    <ProjectReference Include="..\FlowzerDmn\FlowzerDmn.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,7 +1,7 @@
 /** Verständliche Handlungsanweisungen; technische Codes bleiben für Support erhalten. */
 const MESSAGES: Record<string, string> = {
   'bpmn.service_task.implementation_required': 'Für diese Service-Aufgabe fehlt der Worker-Typ. Wähle die Aufgabe an und trage rechts den zuständigen Dienst ein – oder ändere den Aufgabentyp.',
-  'bpmn.user_task.form_required': 'Dieser menschlichen Aufgabe fehlt ein Formular. Wähle rechts unter „Formular“ ein veröffentlichtes Formular aus.',
+  'bpmn.user_task.form_missing': 'Diese menschliche Aufgabe hat kein Formular. Sie wird dann ohne Eingaben nur bestätigt. Soll etwas ausgefüllt werden, wähle rechts unter „Formular“ ein veröffentlichtes Formular aus.',
   'bpmn.ai_task.connection_invalid': 'Für diese KI-Aufgabe fehlt eine gültige Verbindung. Wähle rechts eine eingerichtete KI-Verbindung aus.',
   'bpmn.ai_task.connection_not_found': 'Die gewählte KI-Verbindung existiert nicht mehr. Bitte eine vorhandene Verbindung auswählen.',
   'bpmn.ai_task.connection_disabled': 'Die gewählte KI-Verbindung ist deaktiviert. Bitte eine freigegebene Verbindung auswählen.',
@@ -20,6 +20,14 @@ const MESSAGES: Record<string, string> = {
   'bpmn.sequence_flow.invalid_reference': 'Eine Verbindung zeigt auf einen fehlenden Schritt. Verbinde ihre beiden Enden mit vorhandenen Elementen.',
   'bpmn.exclusive_gateway.condition_required': 'An dieser Entscheidung fehlt eine Bedingung oder ein Standardweg. Lege für jeden ausgehenden Weg fest, wann er genommen wird.',
   'bpmn.exclusive_gateway.default.invalid_reference': 'Der Standardweg dieser Entscheidung verweist nicht auf eine passende ausgehende Verbindung.',
+  'bpmn.inclusive_gateway.condition_required': 'An diesem inklusiven Tor fehlt eine Bedingung. Gib jedem ausgehenden Weg außer dem Standardweg eine Bedingung — genommen werden alle Wege, deren Bedingung zutrifft.',
+  'bpmn.inclusive_gateway.default.invalid_reference': 'Der Standardweg dieses inklusiven Tors zeigt auf keine seiner ausgehenden Verbindungen. Wähle einen Weg, der an diesem Tor beginnt.',
+  'bpmn.event_based_gateway.invalid_target': 'Hinter diesem ereignisbasierten Tor steht ein Schritt, der nicht wartet. Lass jeden Weg zu einem Zwischenereignis mit Nachricht, Zeit oder Signal führen — oder zu einer Empfangsaufgabe.',
+  'bpmn.event_based_gateway.outgoing_required': 'Diesem ereignisbasierten Tor fehlen Wege. Führe mindestens zwei ausgehende Verbindungen von ihm weg, sonst gibt es nichts zu entscheiden.',
+  'bpmn.event_based_gateway.condition_not_allowed': 'An einem ereignisbasierten Tor entscheiden die Ereignisse. Entferne die Bedingungen der ausgehenden Wege und den Standardweg.',
+  'bpmn.event_subprocess.start_required': 'Diesem Ereignis-Subprozess fehlt sein Auslöser. Gib ihm genau ein Startereignis mit Nachricht, Zeit, Signal, Fehler oder Eskalation.',
+  'bpmn.start_event.event_subprocess_only': 'Ein Start mit Fehler oder Eskalation gehört in einen Ereignis-Subprozess. Verschiebe ihn dorthin oder wähle eine andere Art von Start.',
+  'bpmn.error_boundary.cancel_activity_invalid': 'Ein Fehler-Boundary unterbricht laut BPMN immer. Entferne rechts am Ereignis die Einstellung „nicht unterbrechend“.',
   'bpmn.timer.definition_required': 'Für diesen Timer fehlt der Zeitpunkt, die Dauer oder der Zyklus. Trage die Zeitregel rechts ein.',
   'bpmn.process.executable_required': 'Kein ausführbarer Prozess ist festgelegt. Aktiviere beim Prozess die Ausführbarkeit.',
   'bpmn.xml.invalid': 'Das BPMN-Dokument ist beschädigt und kann nicht gelesen werden. Der vorhandene gespeicherte Stand bleibt erhalten.',

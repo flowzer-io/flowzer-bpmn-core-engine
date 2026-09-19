@@ -13,7 +13,7 @@
 
     <ItemGroup>
         <PackageReference Include="coverlet.collector" Version="8.0.1"/>
-        <PackageReference Include="FluentAssertions" Version="8.9.0" />
+        <PackageReference Include="AwesomeAssertions" Version="8.2.0" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0"/>
         <PackageReference Include="NUnit" Version="4.5.1"/>
         <PackageReference Include="NUnit.Analyzers" Version="4.12.0"/>
@@ -25,12 +25,44 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- core-engine bringt nur die native V8-Bibliothek fuer osx-arm64 mit. Damit die
+             FEEL-Tests nicht ausgerechnet in der CI stillschweigend uebersprungen werden,
+             holt das Testprojekt die uebrigen Plattformen dazu. -->
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-x64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-arm64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.osx-x64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.5.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
       <ProjectReference Include="..\core-engine\core-engine.csproj" />
       <ProjectReference Include="..\FlowzerDemoConsole\FlowzerDemoConsole.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <None Update="embeddings\**\*.*">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <!-- Das erwartete Verhalten je MIWG-Referenzmodell. Liegt bewusst neben den Tests und
+             nicht unter embeddings/miwg: Dieses Verzeichnis wird vom Aktualisierungsskript
+             vollstaendig neu geschrieben. -->
+        <None Update="miwg-expectations.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <!-- Der historische Vertrag 4 wird im Original geprueft, damit er nicht
+             unbemerkt nachtraeglich umgeschrieben wird. -->
+        <None Include="..\..\contracts\bpmn-capabilities\v4.json"
+              Link="contracts\v4.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <!-- Ebenso der Vertrag 5: Er sagt sendende Nachrichtenelemente weiterhin nicht zu. -->
+        <None Include="..\..\contracts\bpmn-capabilities\v5.json"
+              Link="contracts\v5.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <!-- Ebenso der Vertrag 8: Er sagt Gateways, Event-Subprozesse und Eskalation weiterhin nicht zu. -->
+        <None Include="..\..\contracts\bpmn-capabilities\v8.json"
+              Link="contracts\v8.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
         <!-- Die Beispiel-BPMN wird im Original geprueft, damit das Beispiel nicht

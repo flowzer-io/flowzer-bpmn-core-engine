@@ -33,4 +33,26 @@ describe('Runtime-Projektion', () => {
       activeTokenCounts: { A: 3 },
     });
   });
+
+  // Testzweck: Ein gefangener BPMN-Fehler braucht keine eigene Darstellung. Die unterbrochene
+  // Aufgabe, das Boundary und der Folgepfad kommen als vorhandene Zustaende an und werden zu
+  // „abgebrochen“, „abgeschlossen“ und „aktiv“ — genau das zeichnet das Laufzeitdiagramm heute.
+  it('zeigt den gefangenen Fehler ueber die vorhandenen Zustaende', () => {
+    const projection = {
+      instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1',
+      state: 0 as const, snapshotAtUtc: '2026-09-19T10:00:00Z', diagramXml: '<definitions />',
+      events: [],
+      nodes: [
+        { flowNodeId: 'ServiceTask_1', status: 2 as const, tokenCount: 1 },
+        { flowNodeId: 'BoundaryError_1', status: 1 as const, tokenCount: 1 },
+        { flowNodeId: 'ServiceTask_Recover', status: 0 as const, tokenCount: 1 },
+      ],
+    };
+
+    expect(runtimeMarkers(projection).markers).toEqual({
+      ServiceTask_1: 'cancelled',
+      BoundaryError_1: 'completed',
+      ServiceTask_Recover: 'active',
+    });
+  });
 });

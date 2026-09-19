@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createBpmnEditor } from './bpmnEditor';
+import { createBpmnEditor, NEW_ERROR, NEW_ESCALATION } from './bpmnEditor';
 import type { DiagramElement, ModdleElement } from './moddle';
 
 /**
@@ -48,7 +48,7 @@ function createModelerDouble(elements: DiagramElement[]) {
   return createBpmnEditor({ get: <T,>(name: string) => services[name] as T });
 }
 
-const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal'];
+const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal', 'bpmn:Error', 'bpmn:Escalation'];
 
 function applyProperties(target: ModdleElement, properties: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(properties)) {
@@ -402,6 +402,182 @@ describe('setMessage und setSignal', () => {
   });
 });
 
+// Testzweck: Ein bpmn:Error gehoert zum Dokument, nicht zum Ereignis. Werfen und Fangen
+// finden nur ueber denselben Fehler zueinander; ein je Ereignis neu angelegter Fehler bliebe
+// im Modell ohne Gegenstueck.
+describe('setErrorReference', () => {
+  function errorEvent(type = 'bpmn:EndEvent', errorRef?: ModdleElement) {
+    const definition = { $type: 'bpmn:ErrorEventDefinition' } as ModdleElement;
+    if (errorRef) definition.errorRef = errorRef;
+    const built = diagram({ $type: type, eventDefinitions: [definition] });
+    return { ...built, definition };
+  }
+
+  it('legt einen fehlenden Fehler als Wurzelelement an und verweist darauf', () => {
+    const { definitions, definition, editor } = errorEvent();
+
+    editor.setErrorReference('Element_1', { name: 'Antrag unvollstaendig', code: 'ANTRAG' });
+
+    const error = (definitions.rootElements as ModdleElement[]).find((root) => root.$type === 'bpmn:Error')!;
+    expect(error.name).toBe('Antrag unvollstaendig');
+    expect(error.errorCode).toBe('ANTRAG');
+    expect(error.id).toMatch(/^Error_/);
+    expect(definition.errorRef).toBe(error);
+  });
+
+  it('waehlt einen vorhandenen Fehler aus, statt einen zweiten anzulegen', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:BoundaryEvent');
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: 'Error_alt' });
+
+    expect(definition.errorRef).toBe(existing);
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(1);
+  });
+
+  it('aendert den Code des bereits referenzierten Fehlers', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, editor } = errorEvent('bpmn:BoundaryEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { code: 'NEU' });
+
+    expect(existing.errorCode).toBe('NEU');
+    expect(existing.name).toBe('Alt');
+  });
+
+  it('loest den Bezug, sodass das Boundary wieder jeden Fehler faengt', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:BoundaryEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: null });
+
+    expect(definition.errorRef).toBeUndefined();
+    // Der Fehler bleibt im Dokument: Andere Ereignisse koennen weiter auf ihn zeigen.
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(1);
+  });
+
+  it('legt bei „neuer Fehler" einen zweiten an, statt den vorhandenen umzubenennen', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:EndEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: NEW_ERROR });
+
+    const errors = (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error');
+    expect(errors).toHaveLength(2);
+    expect(existing.name).toBe('Alt');
+    expect(definition.errorRef).toBe(errors[1]);
+  });
+
+  it('ruehrt ein Ereignis ohne Fehlerdefinition nicht an', () => {
+    const { definitions, editor } = diagram({ $type: 'bpmn:EndEvent' });
+
+    editor.setErrorReference('Element_1', { name: 'Egal' });
+
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(0);
+  });
+});
+
+// Testzweck: Eine bpmn:Escalation gehoert wie ein bpmn:Error zum Dokument. Melden und Fangen
+// finden nur ueber dieselbe Eskalation zueinander; eine je Ereignis neu angelegte bliebe im
+// Modell ohne Gegenstueck.
+describe('setEscalationReference', () => {
+  function escalationEvent(type = 'bpmn:IntermediateThrowEvent', escalationRef?: ModdleElement) {
+    const definition = { $type: 'bpmn:EscalationEventDefinition' } as ModdleElement;
+    if (escalationRef) definition.escalationRef = escalationRef;
+    const built = diagram({ $type: type, eventDefinitions: [definition] });
+    return { ...built, definition };
+  }
+
+  // Testzweck: Ohne vorhandene Eskalation entsteht das Wurzelelement samt Factory-Kennung —
+  // sonst zeigte das Ereignis auf nichts.
+  it('legt eine fehlende Eskalation als Wurzelelement an und verweist darauf', () => {
+    const { definitions, definition, editor } = escalationEvent();
+
+    editor.setEscalationReference('Element_1', { name: 'Freigabe durch die Leitung', code: 'FREIGABE' });
+
+    const escalation = (definitions.rootElements as ModdleElement[]).find(
+      (root) => root.$type === 'bpmn:Escalation',
+    )!;
+    expect(escalation.name).toBe('Freigabe durch die Leitung');
+    expect(escalation.escalationCode).toBe('FREIGABE');
+    expect(escalation.id).toMatch(/^Escalation_/);
+    expect(definition.escalationRef).toBe(escalation);
+  });
+
+  // Testzweck: Die Auswahl einer vorhandenen Eskalation darf keine zweite anlegen — sonst
+  // faende das fangende Ereignis die gemeldete nie.
+  it('waehlt eine vorhandene Eskalation aus, statt eine zweite anzulegen', () => {
+    const existing = {
+      $type: 'bpmn:Escalation',
+      id: 'Escalation_alt',
+      name: 'Alt',
+      escalationCode: 'ALT',
+    } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:BoundaryEvent');
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: 'Escalation_alt' });
+
+    expect(definition.escalationRef).toBe(existing);
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(1);
+  });
+
+  // Testzweck: Das Loesen macht aus dem Ereignis wieder einen Faenger fuer jede Eskalation,
+  // laesst die Eskalation selbst aber im Dokument stehen.
+  it('loest den Bezug, sodass das Ereignis wieder jede Eskalation faengt', () => {
+    const existing = { $type: 'bpmn:Escalation', id: 'Escalation_alt', name: 'Alt' } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:StartEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: null });
+
+    expect(definition.escalationRef).toBeUndefined();
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(1);
+  });
+
+  // Testzweck: „Neue Eskalation" legt eine zweite an, statt die vorhandene umzubenennen —
+  // sonst aenderte die Neuanlage still jedes andere Ereignis, das auf sie zeigt.
+  it('legt bei „neue Eskalation" eine zweite an, statt die vorhandene umzubenennen', () => {
+    const existing = {
+      $type: 'bpmn:Escalation',
+      id: 'Escalation_alt',
+      name: 'Alt',
+      escalationCode: 'ALT',
+    } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:EndEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: NEW_ESCALATION });
+
+    const escalations = (definitions.rootElements as ModdleElement[]).filter(
+      (root) => root.$type === 'bpmn:Escalation',
+    );
+    expect(escalations).toHaveLength(2);
+    expect(existing.name).toBe('Alt');
+    expect(definition.escalationRef).toBe(escalations[1]);
+  });
+
+  // Testzweck: Ein Ereignis ohne Eskalationsdefinition bleibt unberuehrt — der Adapter darf
+  // keine Definition erfinden, die die Engine dort nicht erwartet.
+  it('ruehrt ein Ereignis ohne Eskalationsdefinition nicht an', () => {
+    const { definitions, editor } = diagram({ $type: 'bpmn:EndEvent' });
+
+    editor.setEscalationReference('Element_1', { name: 'Egal' });
+
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(0);
+  });
+});
+
 // Testzweck: Eine Skript-Aufgabe laeuft entweder als Ausdruck oder als Auftrag. Blieben beide
 // Erweiterungen stehen, nähme die Engine still das Skript — der Auftragstyp im Panel wäre eine
 // Angabe ohne Wirkung.
@@ -433,6 +609,90 @@ describe('setScriptMode', () => {
     editor.setScriptMode('Element_1', 'job');
 
     expect(extensionOf(businessObject, 'zeebe:Script')).toBeUndefined();
+  });
+});
+
+describe('setBusinessRuleMode', () => {
+  // Testzweck: Beim Wechsel auf „Entscheidung" verschwindet der Auftragstyp. Bliebe er
+  // stehen, naehme die Engine ihn — sie liest ihn vor der Entscheidung.
+  it('entfernt beim Wechsel zur Entscheidung den Auftrag', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:TaskDefinition', type: 'regel-pruefen' }],
+      } as ModdleElement,
+    });
+
+    editor.setBusinessRuleMode('Element_1', 'decision');
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toBeDefined();
+  });
+
+  // Testzweck: Beim Wechsel auf „Als Auftrag" verschwindet die Entscheidung — sonst haenge
+  // am Element eine Konfiguration, die das Panel nicht mehr zeigt.
+  it('entfernt beim Wechsel zum Auftrag die Entscheidung', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:CalledDecision', decisionId: 'dish', resultVariable: 'gericht' }],
+      } as ModdleElement,
+    });
+
+    editor.setBusinessRuleMode('Element_1', 'job');
+
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toBeUndefined();
+    expect(businessObject.extensionElements).toBeUndefined();
+  });
+
+  // Testzweck: Der Umschalter gilt nur am Business-Rule-Task; an einem Service-Task wuerde
+  // er eine Erweiterung schreiben, die der Parser dort nie liest.
+  it('ruehrt einen Service-Task nicht an', () => {
+    const { businessObject, editor } = diagram({ $type: 'bpmn:ServiceTask' });
+
+    editor.setBusinessRuleMode('Element_1', 'decision');
+
+    expect(businessObject.extensionElements).toBeUndefined();
+  });
+});
+
+describe('setCalledDecision', () => {
+  // Testzweck: Teilaenderungen mischen sich mit dem Modellstand; ein Feld, das nur seinen
+  // eigenen Wert schickt, darf das andere nicht loeschen.
+  it('mischt Teilaenderungen mit dem vorhandenen Stand', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:CalledDecision', decisionId: 'dish' }],
+      } as ModdleElement,
+    });
+
+    editor.setCalledDecision('Element_1', { resultVariable: 'gericht' });
+
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toMatchObject({
+      decisionId: 'dish',
+      resultVariable: 'gericht',
+    });
+  });
+
+  // Testzweck: Wer eine Entscheidung auswaehlt, waehlt damit gegen den Auftragstyp — beides
+  // zugleich waere im Modell ein stiller Vorrang des Auftrags.
+  it('entfernt den Auftragstyp, sobald eine Entscheidung gesetzt wird', () => {
+    const { businessObject, editor } = diagram({
+      $type: 'bpmn:BusinessRuleTask',
+      extensionElements: {
+        $type: 'bpmn:ExtensionElements',
+        values: [{ $type: 'zeebe:TaskDefinition', type: 'regel-pruefen' }],
+      } as ModdleElement,
+    });
+
+    editor.setCalledDecision('Element_1', { decisionId: 'dish' });
+
+    expect(extensionOf(businessObject, 'zeebe:TaskDefinition')).toBeUndefined();
+    expect(extensionOf(businessObject, 'zeebe:CalledDecision')).toMatchObject({ decisionId: 'dish' });
   });
 });
 

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_ParallelGatewayInSubProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_ParallelGatewayInSubProcess" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToSub</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:subProcess id="SubProcess_1">
+      <bpmn:incoming>Flow_ToSub</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+      <bpmn:startEvent id="SubStart_1"><bpmn:outgoing>SubFlow_ToFork</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:parallelGateway id="SubGateway_Fork">
+        <bpmn:incoming>SubFlow_ToFork</bpmn:incoming>
+        <bpmn:outgoing>SubFlow_ToA</bpmn:outgoing>
+        <bpmn:outgoing>SubFlow_ToB</bpmn:outgoing>
+      </bpmn:parallelGateway>
+      <bpmn:serviceTask id="SubServiceTask_A" name="SubServiceTask_A">
+        <bpmn:extensionElements><zeebe:taskDefinition type="subA" /></bpmn:extensionElements>
+        <bpmn:incoming>SubFlow_ToA</bpmn:incoming>
+        <bpmn:outgoing>SubFlow_AJoin</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:serviceTask id="SubServiceTask_B" name="SubServiceTask_B">
+        <bpmn:extensionElements><zeebe:taskDefinition type="subB" /></bpmn:extensionElements>
+        <bpmn:incoming>SubFlow_ToB</bpmn:incoming>
+        <bpmn:outgoing>SubFlow_BJoin</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:parallelGateway id="SubGateway_Join">
+        <bpmn:incoming>SubFlow_AJoin</bpmn:incoming>
+        <bpmn:incoming>SubFlow_BJoin</bpmn:incoming>
+        <bpmn:outgoing>SubFlow_ToEnd</bpmn:outgoing>
+      </bpmn:parallelGateway>
+      <bpmn:endEvent id="SubEnd_1"><bpmn:incoming>SubFlow_ToEnd</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="SubFlow_ToFork" sourceRef="SubStart_1" targetRef="SubGateway_Fork" />
+      <bpmn:sequenceFlow id="SubFlow_ToA" sourceRef="SubGateway_Fork" targetRef="SubServiceTask_A" />
+      <bpmn:sequenceFlow id="SubFlow_ToB" sourceRef="SubGateway_Fork" targetRef="SubServiceTask_B" />
+      <bpmn:sequenceFlow id="SubFlow_AJoin" sourceRef="SubServiceTask_A" targetRef="SubGateway_Join" />
+      <bpmn:sequenceFlow id="SubFlow_BJoin" sourceRef="SubServiceTask_B" targetRef="SubGateway_Join" />
+      <bpmn:sequenceFlow id="SubFlow_ToEnd" sourceRef="SubGateway_Join" targetRef="SubEnd_1" />
+    </bpmn:subProcess>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToSub" sourceRef="StartEvent_1" targetRef="SubProcess_1" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="SubProcess_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

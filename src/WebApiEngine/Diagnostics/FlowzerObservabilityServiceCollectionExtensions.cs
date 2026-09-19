@@ -19,17 +19,32 @@ public static class FlowzerObservabilityServiceCollectionExtensions
         var options = configuration.GetSection(FlowzerObservabilityOptions.SectionName).Get<FlowzerObservabilityOptions>()
                       ?? new FlowzerObservabilityOptions();
 
-        if (!options.Enabled)
+        if (!options.CollectsMetrics)
         {
             return services;
         }
 
-        var otlpEndpoint = ResolveOtlpEndpoint(options);
-        var otlpProtocol = options.HasOtlpExporter
+        // Die OTLP-Werte werden nur geprueft, wenn sie auch benutzt werden. Sonst wuerde ein
+        // eingeschalteter Scrape-Endpunkt eine alte, abgeschaltete OTLP-Konfiguration nachtraeglich
+        // zum Startfehler machen.
+        var otlpEndpoint = options.Enabled ? ResolveOtlpEndpoint(options) : null;
+        var otlpProtocol = options.Enabled && options.HasOtlpExporter
             ? options.ResolveOtlpProtocol()
             : (OpenTelemetry.Exporter.OtlpExportProtocol?)null;
 
-        services.AddOpenTelemetry()
+        // Ein ungueltiger Pfad soll beim Start auffallen und nicht erst, wenn Prometheus das
+        // erste Mal vergeblich scrapt.
+        var prometheusPath = options.Prometheus.Enabled ? options.Prometheus.ResolvePath() : null;
+
+        if (prometheusPath is not null)
+        {
+            // Der Pfad wird hier festgehalten und spaeter genau so gemappt. Wuerde das Mappen die
+            // Konfiguration erneut lesen, koennten Exporter und Endpunkt auseinanderlaufen — der
+            // Endpunkt entstuende dann ohne den Exporter, den er braucht.
+            services.AddSingleton(new FlowzerPrometheusScrapeEndpoint(prometheusPath));
+        }
+
+        var openTelemetry = services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(
                 serviceName: options.ServiceName,
                 serviceVersion: options.ResolveServiceVersion()))
@@ -38,15 +53,51 @@ public static class FlowzerObservabilityServiceCollectionExtensions
                 metrics.AddMeter(FlowzerDiagnostics.MeterName);
                 metrics.AddAspNetCoreInstrumentation();
                 ConfigureExporters(metrics, options, otlpEndpoint, otlpProtocol);
-            })
-            .WithTracing(tracing =>
+
+                if (prometheusPath is not null)
+                {
+                    // Der Pfad wird nicht hier, sondern beim Mappen des Endpunkts gesetzt:
+                    // MapPrometheusScrapingEndpoint bekommt ihn ausdruecklich uebergeben.
+                    metrics.AddPrometheusExporter();
+                }
+            });
+
+        // Traces und die Push-Exporter bleiben an Observability:Enabled gebunden. Wer nur den
+        // Scrape-Endpunkt einschaltet, bekommt Metriken und sonst nichts.
+        if (options.Enabled)
+        {
+            openTelemetry.WithTracing(tracing =>
             {
                 tracing.AddSource(FlowzerDiagnostics.ActivitySourceName);
                 tracing.AddAspNetCoreInstrumentation();
                 ConfigureExporters(tracing, options, otlpEndpoint, otlpProtocol);
             });
+        }
 
         return services;
+    }
+
+    /// <summary>
+    /// Mappt den Prometheus-Scrape-Endpunkt, wenn er konfiguriert ist. Er ist bewusst anonym und
+    /// ohne Kontingent: Prometheus bringt keine Sitzung mit, und ein regelmaessiger Scrape darf
+    /// nicht gegen das Anfragefenster eines Aufrufers laufen. Genau deshalb darf der Pfad nur im
+    /// Containernetz erreichbar sein — das Konsolen-Gateway leitet ihn nicht weiter
+    /// (siehe tests/ui-smoke/check-gateway-routes.sh).
+    /// </summary>
+    public static WebApplication MapFlowzerPrometheusScrapingEndpoint(this WebApplication app)
+    {
+        var scrapeEndpoint = app.Services.GetService<FlowzerPrometheusScrapeEndpoint>();
+
+        if (scrapeEndpoint is null)
+        {
+            return app;
+        }
+
+        app.MapPrometheusScrapingEndpoint(scrapeEndpoint.Path)
+            .AllowAnonymous()
+            .DisableRateLimiting();
+
+        return app;
     }
 
     private static void ConfigureExporters(
@@ -55,7 +106,7 @@ public static class FlowzerObservabilityServiceCollectionExtensions
         Uri? otlpEndpoint,
         OpenTelemetry.Exporter.OtlpExportProtocol? otlpProtocol)
     {
-        if (options.UseConsoleExporter)
+        if (options.Enabled && options.UseConsoleExporter)
         {
             metrics.AddConsoleExporter();
         }

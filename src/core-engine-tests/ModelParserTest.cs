@@ -190,9 +190,11 @@ public class ModelParserTest
         userTask.Implementation.Should().Be("Form_InvoiceReview");
     }
 
-    // Testzweck: Prüft, dass der Parser für User-Tasks ohne formKey/formId eine fachlich präzise Parser-Exception auslöst.
+    // Testzweck: Prüft, dass ein User-Task ohne formKey/formId gelesen wird und einen leeren
+    // Formularverweis trägt — die Formularpflicht ist eine Warnung der Veröffentlichungsprüfung,
+    // kein Lesefehler. Werkzeugneutrale Modelle tragen kein zeebe:formDefinition.
     [Test]
-    public void ParseModel_ShouldThrowFlowzerModelParseException_WhenUserTaskHasNoImplementation()
+    public void ParseModel_ShouldReadUserTaskWithoutForm_WithAnEmptyImplementation()
     {
         const string xml = """
                            <?xml version="1.0" encoding="UTF-8"?>
@@ -210,11 +212,37 @@ public class ModelParserTest
                            </bpmn:definitions>
                            """;
 
-        var action = () => ModelParser.ParseModel(xml);
+        var model = ModelParser.ParseModel(xml);
 
-        action.Should()
-            .Throw<FlowzerModelParseException>()
-            .WithMessage("User task 'Activity_UserTask'*");
+        model.GetProcesses().Single().FlowElements
+            .OfType<BPMN.HumanInteraction.UserTask>().Single()
+            .Implementation.Should().BeEmpty();
+    }
+
+    // Testzweck: Prüft, dass ein User-Task ganz ohne zeebe:formDefinition ebenso gelesen wird —
+    // das ist die Form, in der jedes fremde Werkzeug eine menschliche Aufgabe schreibt.
+    [Test]
+    public void ParseModel_ShouldReadUserTaskWithoutFormDefinitionElement()
+    {
+        const string xml = """
+                           <?xml version="1.0" encoding="UTF-8"?>
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             id="Definitions_ToolNeutralUserTask">
+                             <bpmn:process id="Process_ToolNeutralUserTask" isExecutable="true">
+                               <bpmn:startEvent id="StartEvent_1" />
+                               <bpmn:userTask id="Activity_UserTask" name="Freigeben">
+                                 <bpmn:documentation>Bitte die Rechnung sachlich prüfen.</bpmn:documentation>
+                               </bpmn:userTask>
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var userTask = ModelParser.ParseModel(xml).GetProcesses().Single().FlowElements
+            .OfType<BPMN.HumanInteraction.UserTask>().Single();
+
+        userTask.Implementation.Should().BeEmpty();
+        userTask.Documentations.Should().ContainSingle()
+            .Which.Text.Should().Be("Bitte die Rechnung sachlich prüfen.");
     }
 
     // Testzweck: Prüft, dass ein im Workflow eingebettetes Formular (zeebe:userTaskForm in den
@@ -726,6 +754,164 @@ public class ModelParserTest
         task.InputMappings.Should().ContainSingle();
         task.InputMappings!.Single().Target.Should().Be("request");
         task.OutputMappings.Should().ContainSingle();
+    }
+
+    // Testzweck: Ein Business-Rule-Task mit zeebe:calledDecision wird samt Decision-Id,
+    // Ergebnisvariable und Zuordnungen gelesen; ohne Auftragstyp bleibt er ein Warteschritt.
+    [Test]
+    public async Task ParseModel_ShouldReadBusinessRuleTaskWithCalledDecision()
+    {
+        var model = await ModelParser.ParseModel(
+            File.Open("embeddings/BusinessRuleTaskWithMapping.bpmn", FileMode.Open));
+
+        var task = model.GetProcesses().Single().FlowElements.OfType<BusinessRuleTask>().Should().ContainSingle().Which;
+
+        using (new AssertionScope())
+        {
+            task.Id.Should().Be("Decision_1");
+            task.FlowzerCalledDecisionId.Should().Be("rabattstufe");
+            task.FlowzerResultVariable.Should().Be("ergebnis");
+            task.Implementation.Should().BeEmpty();
+            task.InputMappings.Should().ContainSingle();
+            task.OutputMappings.Should().ContainSingle();
+        }
+    }
+
+    // Testzweck: Derselbe Knoten mit zeebe:taskDefinition ist ein Auftrag an einen Worker —
+    // er muss ohne zeebe:calledDecision parsebar bleiben.
+    [Test]
+    public async Task ParseModel_ShouldReadBusinessRuleTaskAsWorkerJob()
+    {
+        var model = await ModelParser.ParseModel(
+            File.Open("embeddings/BusinessRuleTaskAsJob.bpmn", FileMode.Open));
+
+        var task = model.GetProcesses().Single().FlowElements.OfType<BusinessRuleTask>().Should().ContainSingle().Which;
+
+        using (new AssertionScope())
+        {
+            task.Implementation.Should().Be("bonitaet-pruefen");
+            task.FlowzerRetries.Should().Be(3);
+            task.FlowzerCalledDecisionId.Should().BeNull();
+            task.FlowzerResultVariable.Should().BeNull();
+        }
+    }
+
+    // Testzweck: Der Name einer bpmn:message ist laut BPMN 2.0 optional. Ein fremdes Dokument
+    // ohne Namen muss gelesen werden — eine NullReferenceException wäre ein Robustheitsmangel.
+    [Test]
+    public void ParseModel_ShouldReadMessageWithoutName()
+    {
+        const string xml = """
+                           <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                             id="Definitions_NamelessMessage">
+                             <bpmn:message id="Message_Nameless" />
+                             <bpmn:signal id="Signal_Nameless" />
+                             <bpmn:process id="Process_NamelessMessage" isExecutable="true">
+                               <bpmn:startEvent id="Start_1" />
+                             </bpmn:process>
+                           </bpmn:definitions>
+                           """;
+
+        var model = ModelParser.ParseModel(xml);
+
+        model.RootElements.OfType<MessageDefinition>().Single().Name.Should().BeEmpty();
+        model.RootElements.OfType<Signal>().Single().Name.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Ein Dokument, wie es ein werkzeugneutraler Modellierer schreibt: Gliederung, Beschriftung,
+    /// Datenbeiwerk und eine Kollaboration um den Prozess herum. Nichts davon trägt
+    /// Ausführungssemantik.
+    /// </summary>
+    private const string DecoratedModelXml = """
+                                             <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                                               id="Definitions_Decorated">
+                                               <bpmn:collaboration id="Collaboration_1">
+                                                 <bpmn:participant id="Participant_1" name="Antragsteller" processRef="Process_Decorated" />
+                                                 <bpmn:messageFlow id="MessageFlow_1" sourceRef="Participant_1" targetRef="Participant_1" />
+                                               </bpmn:collaboration>
+                                               <bpmn:process id="Process_Decorated" isExecutable="true">
+                                                 <bpmn:documentation>Ein Prozess mit Beiwerk.</bpmn:documentation>
+                                                 <bpmn:laneSet id="LaneSet_1">
+                                                   <bpmn:lane id="Lane_1" name="Sachbearbeitung">
+                                                     <bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef>
+                                                   </bpmn:lane>
+                                                 </bpmn:laneSet>
+                                                 <bpmn:dataObject id="DataObject_1" />
+                                                 <bpmn:dataObjectReference id="DataObjectReference_1" dataObjectRef="DataObject_1" />
+                                                 <bpmn:dataStoreReference id="DataStoreReference_1" />
+                                                 <bpmn:ioSpecification>
+                                                   <bpmn:dataInput id="DataInput_1" />
+                                                   <bpmn:dataOutput id="DataOutput_1" />
+                                                 </bpmn:ioSpecification>
+                                                 <bpmn:property id="Property_1" name="__targetRef_placeholder" />
+                                                 <bpmn:group id="Group_1" />
+                                                 <bpmn:textAnnotation id="TextAnnotation_1"><bpmn:text>Hinweis</bpmn:text></bpmn:textAnnotation>
+                                                 <bpmn:association id="Association_1" sourceRef="Start_1" targetRef="TextAnnotation_1" />
+                                                 <bpmn:startEvent id="Start_1" />
+                                                 <bpmn:task id="Task_1">
+                                                   <bpmn:ioSpecification />
+                                                   <bpmn:dataInputAssociation id="DataInputAssociation_1" />
+                                                   <bpmn:dataOutputAssociation id="DataOutputAssociation_1" />
+                                                 </bpmn:task>
+                                                 <bpmn:endEvent id="End_1" />
+                                                 <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+                                                 <bpmn:sequenceFlow id="Flow_2" sourceRef="Task_1" targetRef="End_1" />
+                                               </bpmn:process>
+                                             </bpmn:definitions>
+                                             """;
+
+    // Testzweck: Reines Diagramm-Beiwerk — Lanes, Beschriftungen, Datenobjekte, ioSpecification —
+    // und eine umgebende Kollaboration werden überlesen; im Modell stehen nur die echten
+    // Flow-Elemente.
+    [Test]
+    public void ParseModel_ShouldSkipDiagramDecorationsAndKeepOnlyFlowElements()
+    {
+        var process = ModelParser.ParseModel(DecoratedModelXml).GetProcesses().Single();
+
+        process.Id.Should().Be("Process_Decorated");
+        process.FlowElements.Select(element => element.Id).Should()
+            .BeEquivalentTo("Start_1", "Task_1", "End_1", "Flow_1", "Flow_2");
+    }
+
+    // Testzweck: Ein Element mit echter Ausführungssemantik, das Flowzer nicht kennt, bleibt
+    // abgelehnt — aber als benannter Modellfehler mit Element-Id, nicht als NotSupportedException
+    // mit rohem XML-Namen.
+    [TestCase("<bpmn:transaction id='Transaction_1' />", "transaction", "Transaction_1")]
+    [TestCase("<bpmn:transaction id='Transaction_1' />", "transaction", "Transaction_1")]
+    [TestCase("<bpmn:adHocSubProcess id='AdHoc_1' />", "adHocSubProcess", "AdHoc_1")]
+    public void ParseModel_ShouldRejectUnknownFlowElementWithNamedError(
+        string flowElement, string elementKind, string elementId)
+    {
+        var action = () => ModelParser.ParseModel($"""
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              id="Definitions_Unknown">
+              <bpmn:process id="Process_Unknown" isExecutable="true">
+                <bpmn:startEvent id="Start_1" />
+                {flowElement}
+              </bpmn:process>
+            </bpmn:definitions>
+            """);
+
+        action.Should().Throw<ModelValidationException>()
+            .WithMessage($"*'{elementKind}'*'{elementId}'*");
+    }
+
+    // Testzweck: Eine fehlende Element-Id bleibt ein Modellfehler, wird aber mit der Elementart
+    // benannt statt als NullReferenceException geworfen.
+    [Test]
+    public void ParseModel_ShouldNameTheElementKindWhenAnIdIsMissing()
+    {
+        var action = () => ModelParser.ParseModel("""
+            <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                              id="Definitions_MissingId">
+              <bpmn:process id="Process_MissingId" isExecutable="true">
+                <bpmn:startEvent />
+              </bpmn:process>
+            </bpmn:definitions>
+            """);
+
+        action.Should().Throw<ModelValidationException>().WithMessage("*'startEvent'*id*");
     }
 
     private static UserTask ParseAssignedUserTask(string assignmentXml)

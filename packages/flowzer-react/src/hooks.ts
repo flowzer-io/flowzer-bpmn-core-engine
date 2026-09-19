@@ -57,7 +57,12 @@ export interface DeleteDraftInput {
 
 export interface TaskWorkspaceState {
   task: ExtendedUserTask | undefined;
-  form: FlowzerForm | undefined;
+  /**
+   * Das Formular der Aufgabe. `undefined` heisst „noch nicht geladen oder nicht sichtbar",
+   * `null` heisst „diese Aufgabe bindet kein Formular" — dann wird sie ohne Eingaben
+   * abgeschlossen.
+   */
+  form: FlowzerForm | null | undefined;
   draft: UserTaskDraft | undefined;
   canWork: boolean;
   isPending: boolean;
@@ -247,7 +252,7 @@ export function useUserTaskWorkspace(
   const taskCanWork = taskAccessLoss === null && task.data?.workState?.canWork === true;
   const contentEnabled = Boolean(userTaskId) && taskCanWork
     && latchedAccessLoss === null && (options.enabled ?? true);
-  const form = useQuery<FlowzerForm, Error>({
+  const form = useQuery<FlowzerForm | null, Error>({
     queryKey: flowzerQueryKeys.userTaskForm(cacheNamespace, sessionScope, userTaskId),
     queryFn: ({ signal }) => client.userTasks.getForm(userTaskId, { signal }),
     enabled: contentEnabled,

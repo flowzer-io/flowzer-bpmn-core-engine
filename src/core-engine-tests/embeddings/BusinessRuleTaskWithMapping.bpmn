@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_BusinessRuleTaskWithMapping" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_BusinessRuleTaskWithMapping" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="Decision_1" name="Rabattstufe ermitteln">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="rabattstufe" resultVariable="ergebnis" />
+        <zeebe:ioMapping>
+          <zeebe:input source="=umsatz" target="jahresumsatz" />
+          <zeebe:output source="=ergebnis.rabatt" target="rabatt" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Decision</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_Decision</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Decision_1" />
+    <bpmn:sequenceFlow id="Flow_Decision" sourceRef="Decision_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

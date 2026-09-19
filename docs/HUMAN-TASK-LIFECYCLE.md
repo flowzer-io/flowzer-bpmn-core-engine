@@ -31,6 +31,25 @@ Abschluss und Entwurfsmutationen akzeptieren zusätzlich `expectedTaskRevision`.
 kann ein vor einer Übergabe geöffneter Tab keinen inzwischen veralteten Stand schreiben.
 Der Wert ist für bestehende API-Clients zunächst optional.
 
+## Aufgaben ohne Formular
+
+Eine menschliche Aufgabe braucht kein Formular. Trägt ihr `bpmn:userTask` kein
+`zeebe:formDefinition`, ist sie trotzdem eine gewöhnliche Human Task: Übernahme,
+Zuweisung, Delegation, Rückgabe, Fristen und Revisionen gelten unverändert.
+
+Unterschiede gibt es nur dort, wo ein Formular gebraucht würde:
+
+- `GET /usertask/{taskId}/form` antwortet mit `204`.
+- `POST /usertask` schließt sie ohne Formulardaten ab; leere Variablen sind der
+  Normalfall, und die serverseitige Formularprüfung entfällt mangels Vertrag.
+- Der private Entwurf bleibt technisch verfügbar, hat aber nichts zu speichern.
+
+Die Aufgabenansicht zeigt dann die `bpmn:documentation` des Knotens — sofern das Modell
+eine trägt; sie steht im Aufgaben-DTO unter `documentation` — und den Knopf
+„Abschließen". Die Veröffentlichungsprüfung meldet die fehlende Bindung als Warnung
+`bpmn.user_task.form_missing`; sie verhindert nichts
+([Fähigkeitsvertrag](BPMN-CAPABILITIES.md)).
+
 ## Rechte
 
 - Vor einer Übernahme gelten die im BPMN veröffentlichten Text- oder Directory-Kandidaten.

@@ -10,6 +10,7 @@
  */
 
 import {
+  enclosing,
   eventDefinition,
   expressionBody,
   extension,
@@ -83,6 +84,23 @@ export interface CalledProcess {
   propagateAllParentVariables: boolean;
 }
 
+/**
+ * Die Entscheidung, die ein Business-Rule-Task aufruft (`zeebe:calledDecision`). Die Engine
+ * verlangt beide Angaben: `decisionId` nennt die Entscheidung in der DMN-Datei,
+ * `resultVariable` den Namen, unter dem ihr Ergebnis im Prozess landet.
+ */
+export interface CalledDecision {
+  decisionId: string;
+  resultVariable: string;
+}
+
+/**
+ * Wie ein Business-Rule-Task arbeitet: Die Engine rechnet die Entscheidungstabelle selbst,
+ * oder ein Worker uebernimmt den Schritt ueber einen Auftragstyp. Beides zugleich gibt es
+ * nicht — ein gesetzter Auftragstyp schlaegt die Entscheidung, genau wie im Parser.
+ */
+export type BusinessRuleMode = 'decision' | 'job';
+
 export interface ScriptDefinition {
   expression: string;
   resultVariable: string;
@@ -117,6 +135,44 @@ export interface DirectoryAssignment {
 export interface Schedule {
   dueDate: string;
   followUpDate: string;
+}
+
+/** Ein `bpmn:Error` des Dokuments, wie ihn die Auswahlliste anbietet. */
+export interface ErrorOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+/**
+ * Der Fehlerbezug eines Error-Ereignisses. `errorId` ist leer, solange das Ereignis auf keinen
+ * `bpmn:Error` zeigt — ein Error-Boundary faengt dann jeden Fehler, ein Error-Ende wirft einen
+ * Fehler ohne Code.
+ */
+export interface ErrorReference {
+  errorId: string;
+  name: string;
+  code: string;
+  available: ErrorOption[];
+}
+
+/** Eine `bpmn:Escalation` des Dokuments, wie sie die Auswahlliste anbietet. */
+export interface EscalationOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+/**
+ * Der Eskalationsbezug eines Eskalationsereignisses. `escalationId` ist leer, solange das
+ * Ereignis auf keine `bpmn:Escalation` zeigt — ein fangendes Ereignis nimmt dann jede
+ * Eskalation seines Bereichs, ein werfendes meldet eine ohne Code.
+ */
+export interface EscalationReference {
+  escalationId: string;
+  name: string;
+  code: string;
+  available: EscalationOption[];
 }
 
 /** Alle Werte eines ausgewählten Elements, die das Panel anzeigt. */
@@ -157,6 +213,12 @@ export interface ElementProperties {
   aiTask: AiTaskConfiguration | null;
   /** Ob die Engine an diesem Element einen Auftragstyp auswertet. */
   needsJobType: boolean;
+  /**
+   * Ob der Auftragstyp an diesem Element freiwillig ist. An sendenden Nachrichtenelementen
+   * ist er es: Ohne ihn stellt die Engine die Nachricht selbst zu, mit ihm übernimmt ein
+   * Worker den Versand.
+   */
+  jobTypeOptional: boolean;
 
   /** Zuordnungen zwischen Prozess- und Aufgabendaten. */
   inputs: IoMapping[];
@@ -176,14 +238,26 @@ export interface ElementProperties {
   /** Zeitangabe, wenn das Element auf eine Zeit wartet. */
   timer: TimerDefinition | null;
   /**
-   * Nachricht, auf die das Element wartet. Sendende Ereignisse haben hier `null`: Sie
-   * verschicken die Nachricht über einen Worker-Auftrag, den Namen liest die Engine nicht.
+   * Nachricht, auf die das Element wartet oder die es aussendet. Beide Seiten tragen denselben
+   * Verweis auf ein `bpmn:Message` samt Korrelationsschlüssel; nur so finden Werfen und Fangen
+   * zueinander.
    */
   message: MessageReference | null;
+  /** Ob dieses Element die Nachricht aussendet statt auf sie zu warten. */
+  sendsMessage: boolean;
   /** Signal, das das Element empfängt oder auslöst. */
   signalName: string | null;
+  /** Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses. */
+  error: ErrorReference | null;
+  /** Eskalationsbezug eines werfenden oder fangenden Eskalationsereignisses. */
+  escalation: EscalationReference | null;
   /** Aufgerufener Prozess. */
   calledProcess: CalledProcess | null;
+  /** Aufgerufene Entscheidung eines Business-Rule-Tasks; `null` an jedem anderen Element. */
+  calledDecision: CalledDecision | null;
+  isBusinessRuleTask: boolean;
+  /** Nur am Business-Rule-Task aussagekraeftig. */
+  businessRuleMode: BusinessRuleMode;
   /** Skript einer Skript-Aufgabe; `null`, wenn sie stattdessen als Auftrag läuft. */
   script: ScriptDefinition | null;
   isScriptTask: boolean;
@@ -194,10 +268,10 @@ export interface ElementProperties {
 const CONDITIONAL_SOURCES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway', 'bpmn:Activity'];
 const GATEWAY_TYPES = ['bpmn:ExclusiveGateway', 'bpmn:InclusiveGateway'];
 
-/** Ereignisse, die auf etwas warten. Nur sie lösen eine Nachricht über `messageRef` auf. */
+/** Ereignisse, die auf etwas warten. */
 const CATCH_EVENT_TYPES = ['bpmn:StartEvent', 'bpmn:IntermediateCatchEvent', 'bpmn:BoundaryEvent'];
 
-/** Ereignisse, die etwas aussenden. Eine Nachricht verschicken sie über einen Auftrag. */
+/** Ereignisse, die etwas aussenden. */
 const THROW_EVENT_TYPES = ['bpmn:IntermediateThrowEvent', 'bpmn:EndEvent'];
 
 /** Elemente, für die der Parser Eingangszuordnungen liest. */
@@ -205,12 +279,23 @@ const INPUT_MAPPING_TYPES = [
   'bpmn:UserTask',
   'bpmn:ServiceTask',
   'bpmn:ScriptTask',
+  'bpmn:BusinessRuleTask',
   'bpmn:SubProcess',
   'bpmn:CallActivity',
+  // An einem sendenden Element bestimmt der Eingang, was mit der Nachricht mitgeht.
+  'bpmn:SendTask',
 ];
 
 /** Ausgangszuordnungen liest der Parser zusätzlich am Start-Ereignis. */
-const OUTPUT_MAPPING_TYPES = [...INPUT_MAPPING_TYPES, 'bpmn:StartEvent'];
+const OUTPUT_MAPPING_TYPES = [
+  'bpmn:UserTask',
+  'bpmn:ServiceTask',
+  'bpmn:ScriptTask',
+  'bpmn:BusinessRuleTask',
+  'bpmn:SubProcess',
+  'bpmn:CallActivity',
+  'bpmn:StartEvent',
+];
 
 function kindOf(element: DiagramElement): ElementKind {
   const type = element.businessObject?.$type ?? element.type;
@@ -273,9 +358,27 @@ export function timerOf(businessObject: ModdleElement): TimerDefinition | null {
  * Öffentlich, weil das Schreiben denselben Träger treffen muss wie das Lesen.
  */
 export function messageHolder(businessObject: ModdleElement): ModdleElement | undefined {
-  if (businessObject.$type === 'bpmn:ReceiveTask') return businessObject;
-  if (!CATCH_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  // Aufgaben tragen den Verweis selbst, Ereignisse an ihrer Nachrichtendefinition.
+  if (businessObject.$type === 'bpmn:ReceiveTask' || businessObject.$type === 'bpmn:SendTask') {
+    return businessObject;
+  }
+  if (!CATCH_EVENT_TYPES.includes(businessObject.$type) && !THROW_EVENT_TYPES.includes(businessObject.$type)) {
+    return undefined;
+  }
   return eventDefinition(businessObject, 'bpmn:MessageEventDefinition');
+}
+
+/**
+ * Ob das Element eine Nachricht aussendet: ein Send-Task oder ein werfendes Ereignis mit
+ * Nachrichtendefinition. Das entscheidet über die Beschriftung im Panel — warten und senden
+ * benutzen dieselben Felder, meinen aber Gegenteiliges.
+ */
+export function sendsMessage(businessObject: ModdleElement): boolean {
+  if (businessObject.$type === 'bpmn:SendTask') return true;
+  return (
+    THROW_EVENT_TYPES.includes(businessObject.$type) &&
+    Boolean(eventDefinition(businessObject, 'bpmn:MessageEventDefinition'))
+  );
 }
 
 function messageOf(businessObject: ModdleElement): MessageReference | null {
@@ -286,6 +389,92 @@ function messageOf(businessObject: ModdleElement): MessageReference | null {
   return {
     name: text(message, 'name'),
     correlationKey: text(extension(message, 'zeebe:Subscription'), 'correlationKey'),
+  };
+}
+
+/** Ereignisse, an denen die Engine eine Fehlerdefinition auswertet. */
+const ERROR_EVENT_TYPES = ['bpmn:EndEvent', 'bpmn:BoundaryEvent'];
+
+/**
+ * Der Träger der Fehlerreferenz. Öffentlich, weil das Schreiben denselben Träger treffen muss
+ * wie das Lesen.
+ */
+export function errorHolder(businessObject: ModdleElement): ModdleElement | undefined {
+  if (!ERROR_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  return eventDefinition(businessObject, 'bpmn:ErrorEventDefinition');
+}
+
+/** Die `bpmn:Error`-Wurzelelemente des Dokuments, in Dokumentreihenfolge. */
+export function availableErrors(businessObject: ModdleElement): ErrorOption[] {
+  const definitions = enclosing(businessObject, 'bpmn:Definitions');
+  const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+  return rootElements
+    .filter((rootElement) => rootElement.$type === 'bpmn:Error')
+    .map((rootElement) => ({
+      id: text(rootElement, 'id'),
+      name: text(rootElement, 'name'),
+      code: text(rootElement, 'errorCode'),
+    }))
+    .filter((option) => option.id.length > 0);
+}
+
+function errorOf(businessObject: ModdleElement): ErrorReference | null {
+  const holder = errorHolder(businessObject);
+  if (!holder) return null;
+
+  const error = holder.errorRef as ModdleElement | undefined;
+  return {
+    errorId: text(error, 'id'),
+    name: text(error, 'name'),
+    code: text(error, 'errorCode'),
+    available: availableErrors(businessObject),
+  };
+}
+
+/**
+ * Ereignisse, an denen die Engine eine Eskalationsdefinition auswertet. Der Start ist dabei
+ * nur im Ereignis-Subprozess sinnvoll — das prueft die Veroeffentlichung, nicht das Panel.
+ */
+const ESCALATION_EVENT_TYPES = [
+  'bpmn:IntermediateThrowEvent',
+  'bpmn:EndEvent',
+  'bpmn:BoundaryEvent',
+  'bpmn:StartEvent',
+];
+
+/**
+ * Der Traeger der Eskalationsreferenz. Oeffentlich aus demselben Grund wie {@link errorHolder}:
+ * Das Schreiben muss denselben Traeger treffen wie das Lesen.
+ */
+export function escalationHolder(businessObject: ModdleElement): ModdleElement | undefined {
+  if (!ESCALATION_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  return eventDefinition(businessObject, 'bpmn:EscalationEventDefinition');
+}
+
+/** Die `bpmn:Escalation`-Wurzelelemente des Dokuments, in Dokumentreihenfolge. */
+export function availableEscalations(businessObject: ModdleElement): EscalationOption[] {
+  const definitions = enclosing(businessObject, 'bpmn:Definitions');
+  const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+  return rootElements
+    .filter((rootElement) => rootElement.$type === 'bpmn:Escalation')
+    .map((rootElement) => ({
+      id: text(rootElement, 'id'),
+      name: text(rootElement, 'name'),
+      code: text(rootElement, 'escalationCode'),
+    }))
+    .filter((option) => option.id.length > 0);
+}
+
+function escalationOf(businessObject: ModdleElement): EscalationReference | null {
+  const holder = escalationHolder(businessObject);
+  if (!holder) return null;
+
+  const escalation = holder.escalationRef as ModdleElement | undefined;
+  return {
+    escalationId: text(escalation, 'id'),
+    name: text(escalation, 'name'),
+    code: text(escalation, 'escalationCode'),
+    available: availableEscalations(businessObject),
   };
 }
 
@@ -305,6 +494,26 @@ export function calledProcessOf(businessObject: ModdleElement): CalledProcess | 
     propagateAllChildVariables: flag(called, 'propagateAllChildVariables', true),
     propagateAllParentVariables: flag(called, 'propagateAllParentVariables', true),
   };
+}
+
+export function calledDecisionOf(businessObject: ModdleElement): CalledDecision | null {
+  if (businessObject.$type !== 'bpmn:BusinessRuleTask') return null;
+
+  const called = extension(businessObject, 'zeebe:CalledDecision');
+  return {
+    decisionId: text(called, 'decisionId'),
+    resultVariable: text(called, 'resultVariable'),
+  };
+}
+
+/**
+ * Wie der Business-Rule-Task arbeitet. Dieselbe Reihenfolge wie `ValidateBusinessRuleTask`
+ * in `BpmnCapabilityMatrix.cs`: Ein gesetzter Auftragstyp entscheidet, sonst gilt die
+ * Entscheidung — auch dann, wenn noch gar keine ausgewaehlt ist.
+ */
+export function businessRuleModeOf(businessObject: ModdleElement): BusinessRuleMode {
+  const type = text(extension(businessObject, 'zeebe:TaskDefinition'), 'type');
+  return type.trim().length > 0 ? 'job' : 'decision';
 }
 
 function scriptOf(businessObject: ModdleElement): ScriptDefinition | null {
@@ -329,18 +538,17 @@ export function multiInstanceOf(businessObject: ModdleElement): MultiInstance | 
 }
 
 /**
- * Ob die Engine an diesem Element einen Auftragstyp liest. Ein sendendes Nachrichtenereignis
- * verschickt die Nachricht über einen Worker-Auftrag — der Nachrichtenname spielt dort keine
- * Rolle. Eine Skript-Aufgabe läuft entweder als Skript oder als Auftrag.
+ * Ob die Engine an diesem Element einen Auftragstyp liest. Am Service-Task ist er Pflicht, an
+ * einem sendenden Nachrichtenelement freiwillig: Ohne ihn stellt die Engine die Nachricht
+ * selbst zu. Eine Skript-Aufgabe läuft entweder als Skript oder als Auftrag.
  */
 function needsJobType(businessObject: ModdleElement): boolean {
   if (businessObject.$type === 'bpmn:ServiceTask') return true;
+  if (sendsMessage(businessObject)) return true;
 
-  if (
-    THROW_EVENT_TYPES.includes(businessObject.$type) &&
-    eventDefinition(businessObject, 'bpmn:MessageEventDefinition')
-  ) {
-    return true;
+  // Ein Business-Rule-Task braucht einen Auftragstyp nur, solange er nicht selbst rechnet.
+  if (businessObject.$type === 'bpmn:BusinessRuleTask') {
+    return businessRuleModeOf(businessObject) === 'job';
   }
 
   return businessObject.$type === 'bpmn:ScriptTask' && !extension(businessObject, 'zeebe:Script');
@@ -456,11 +664,17 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
         }
       : null,
     needsJobType: needsJobType(businessObject),
+    jobTypeOptional: sendsMessage(businessObject),
 
     inputs: ioMappings(element, 'inputParameters'),
     outputs: ioMappings(element, 'outputParameters'),
-    supportsInputMappings: INPUT_MAPPING_TYPES.includes(type),
-    supportsOutputMappings: OUTPUT_MAPPING_TYPES.includes(type),
+    // Ein sendendes Ereignis ist keine Aktivität, liest aber seinen Eingang: Er bestimmt, was
+    // mit der Nachricht mitgeht. Ein empfangendes Ereignis schreibt umgekehrt seinen Ausgang.
+    supportsInputMappings: INPUT_MAPPING_TYPES.includes(type) || sendsMessage(businessObject),
+    supportsOutputMappings:
+      OUTPUT_MAPPING_TYPES.includes(type)
+      || (type === 'bpmn:IntermediateCatchEvent'
+        && Boolean(eventDefinition(businessObject, 'bpmn:MessageEventDefinition'))),
 
     condition: conditionOf(element),
     isDefaultFlow: element.source?.businessObject.default === businessObject,
@@ -472,8 +686,14 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
 
     timer: timerOf(businessObject),
     message: messageOf(businessObject),
+    sendsMessage: sendsMessage(businessObject),
     signalName: signalOf(businessObject),
+    error: errorOf(businessObject),
+    escalation: escalationOf(businessObject),
     calledProcess: calledProcessOf(businessObject),
+    calledDecision: calledDecisionOf(businessObject),
+    isBusinessRuleTask: type === 'bpmn:BusinessRuleTask',
+    businessRuleMode: businessRuleModeOf(businessObject),
     script: scriptOf(businessObject),
     isScriptTask: type === 'bpmn:ScriptTask',
     multiInstance: multiInstanceOf(businessObject),

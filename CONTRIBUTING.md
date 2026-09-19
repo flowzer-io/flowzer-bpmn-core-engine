@@ -146,3 +146,19 @@ Aktuell sind Beiträge in diesen Bereichen besonders wertvoll:
 ## Kommunikation
 
 Wenn du unsicher bist, lieber früh ein kleines Issue oder einen kleinen PR aufmachen, statt einen großen Wurf im Blindflug vorzubereiten.
+
+## Lizenz deines Beitrags
+
+Das Projekt steht unter der [Mozilla Public License 2.0](LICENSE) (MPL-2.0). Mit dem
+Einreichen eines Pull Requests stimmst du zu, dass dein Beitrag unter denselben Bedingungen
+lizenziert wird ("Inbound = Outbound"): Deine Änderungen an MPL-lizenzierten Dateien werden
+Teil des unter MPL-2.0 stehenden Codes. Du bestätigst außerdem, dass du berechtigt bist,
+den Beitrag unter dieser Lizenz einzureichen (eigener Code oder eine mit MPL-2.0
+kompatible Herkunft). Eine Übersicht der Lizenzen verwendeter Drittanbieter-Abhängigkeiten
+steht in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); neue Abhängigkeiten bitte mit
+einer damit verträglichen Lizenz auswählen und die Datei per
+`python3 scripts/ci/generate-third-party-notices.py` aktualisieren, wenn sich direkte
+Abhängigkeiten ändern.
+
+Sicherheitsrelevante Funde bitte nicht als öffentlichen Issue/PR einreichen, sondern über
+den in [SECURITY.md](SECURITY.md) beschriebenen Weg melden.

@@ -288,8 +288,13 @@ public static class ApiExceptionHandlingExtensions
             // and not default for Exclusive Gateway" muss die modellierende Person
             // lesen können — als 500 würde sie maskiert und wäre in der Oberfläche
             // nicht diagnostizierbar.
+            // Eine DMN-Datei, die sich nicht lesen laesst, und eine Tabelle, die ihrer eigenen
+            // Trefferregel widerspricht, sind fachliche Fehler im Modell — dieselbe Einordnung
+            // wie beim BPMN. Die Meldung des DMN-Kerns nennt die Decision und die Regeln und
+            // muss die modellierende Person erreichen, statt als 500 maskiert zu werden.
             FormSubmissionException or FormPublicationValidationException or FlowzerRuntimeException
-                or FlowzerModelParseException or ModelValidationException =>
+                or FlowzerModelParseException or ModelValidationException
+                or FlowzerDmn.Exceptions.DmnException =>
                 StatusCodes.Status422UnprocessableEntity,
 
             _ => StatusCodes.Status500InternalServerError

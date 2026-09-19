@@ -46,6 +46,13 @@ public class ExtendedUserTaskSubscriptionDto : UserTaskSubscriptionDto
     /// </summary>
     public string? FormKey { get; set; }
 
+    /// <summary>
+    /// Die <c>bpmn:documentation</c> des User-Tasks, sofern das Modell eine trägt.
+    /// Für eine Aufgabe ohne Formular ist sie die einzige Erklärung, die ihr Bearbeiter
+    /// überhaupt bekommt.
+    /// </summary>
+    public string? Documentation { get; set; }
+
     /// <summary>Fälligkeitsangabe aus <c>zeebe:taskSchedule/@dueDate</c>.</summary>
     public string? DueDate { get; set; }
 

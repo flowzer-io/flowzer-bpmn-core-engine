@@ -49,6 +49,19 @@ internal sealed class PostgreSqlDefinitionStorage(PostgreSqlSession session) : I
         return ids.ToArray();
     });
 
+    public Task LockForDefinitionChange(string definitionId) => session.RunAsync(async (connection, transaction) =>
+    {
+        if (string.IsNullOrWhiteSpace(definitionId))
+            throw new ArgumentException("Definition ID is required.", nameof(definitionId));
+        // Eigener Namespace neben der Instanzsperre (624529181): Versionsvergabe und Deployment
+        // eines Workflows laufen je Prozess unter einer prozesslokalen Sperre — gegen einen
+        // zweiten API-Prozess traegt nur diese Transaktionssperre.
+        await using var command = session.CreateCommand(connection, transaction,
+            "SELECT pg_advisory_xact_lock(hashtextextended(@definitionId, 771204633))");
+        command.Parameters.AddWithValue("definitionId", definitionId);
+        await command.ExecuteNonQueryAsync();
+    });
+
     public Task<BpmnDefinition[]> GetAllDefinitions() => session.RunAsync(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction, "SELECT body FROM {schema}.definitions");

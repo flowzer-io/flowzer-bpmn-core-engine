@@ -19,20 +19,19 @@ public sealed class WorkflowDraftIntegrationTest
         using var client = context.CreateClient(isModeler: true);
         const string xml = """
             <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Draft">
-              <process id="P" isExecutable="true"><userTask id="Human"/><serviceTask id="Worker"/></process>
+              <process id="P" isExecutable="true"><scriptTask id="Script"/><serviceTask id="Worker"/></process>
             </definitions>
             """;
         using var response = await client.PostAsync("/definition/validate/deployment", new StringContent(xml, Encoding.UTF8, "application/xml"));
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         using var body = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         body.RootElement.GetProperty("issues").EnumerateArray().Select(issue => issue.GetProperty("elementId").GetString())
-            .Should().BeEquivalentTo(["Human", "Worker"]);
+            .Should().BeEquivalentTo(["Script", "Worker"]);
     }
 
     // Testzweck: Fachlich unvollständige Entwürfe werden exakt gespeichert, ohne eine
     // aktive Version oder laufende Aufgaben zu verändern. Nur Publizieren bleibt gesperrt.
     [TestCase("<serviceTask id=\"Incomplete\" />")]
-    [TestCase("<userTask id=\"Incomplete\" />")]
     [TestCase("<scriptTask id=\"Incomplete\" />")]
     [TestCase("<serviceTask id=\"Incomplete\"><extensionElements><f:aiTask /></extensionElements></serviceTask>")]
     [TestCase("<sequenceFlow id=\"Incomplete\" sourceRef=\"Missing\" targetRef=\"MissingToo\" />")]
@@ -56,5 +55,43 @@ public sealed class WorkflowDraftIntegrationTest
         deploy.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await context.Storage.DefinitionStorage.GetDeployedDefinition(original.DefinitionId))!.Id.Should().Be(original.Id);
         (await context.Storage.SubscriptionStorage.GetAllUserTasks(task.ProcessInstanceId!.Value)).Single().Id.Should().Be(task.Id);
+    }
+
+    // Testzweck: Ein User-Task ohne Formularbindung wird veröffentlicht und die Antwort nennt
+    // den Verlust als Warnung — werkzeugneutrale Modelle sollen nicht mehr scheitern.
+    [Test]
+    public async Task Deploy_ShouldPublishUserTaskWithoutForm_AndReportItAsWarning()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var original = await context.DeployAsync("assignee=\"anna\"");
+        var xml = $"""
+            <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" id="{original.DefinitionId}">
+              <process id="Draft" isExecutable="true">
+                <startEvent id="Start" />
+                <sequenceFlow id="ToHuman" sourceRef="Start" targetRef="Human" />
+                <userTask id="Human" />
+              </process>
+            </definitions>
+            """;
+        using var client = context.CreateClient(isModeler: true);
+
+        using var validation = await client.PostAsync("/definition/validate/deployment",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        validation.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var validationBody = System.Text.Json.JsonDocument.Parse(await validation.Content.ReadAsStringAsync());
+        var warning = validationBody.RootElement.GetProperty("result").GetProperty("warnings")
+            .EnumerateArray().Should().ContainSingle().Which;
+        warning.GetProperty("code").GetString().Should().Be("bpmn.user_task.form_missing");
+        warning.GetProperty("severity").GetString().Should().Be("warning");
+        warning.GetProperty("elementId").GetString().Should().Be("Human");
+
+        using var deploy = await client.PostAsync("/definition/deploy",
+            new StringContent(xml, Encoding.UTF8, "application/xml"));
+        deploy.StatusCode.Should().Be(HttpStatusCode.OK);
+        var deployed = (await deploy.Content.ReadFromJsonAsync<ApiStatusResult<BpmnDefinitionDto>>())!.Result!;
+        deployed.Warnings.Should().ContainSingle()
+            .Which.Code.Should().Be("bpmn.user_task.form_missing");
+        (await context.Storage.DefinitionStorage.GetDeployedDefinition(original.DefinitionId))!.Id
+            .Should().Be(deployed.Id);
     }
 }

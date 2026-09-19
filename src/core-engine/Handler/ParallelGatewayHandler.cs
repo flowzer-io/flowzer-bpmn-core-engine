@@ -6,7 +6,9 @@ internal class ParallelGatewayHandler : DefaultFlowNodeHandler
 {
     public override void Execute(InstanceEngine processInstance, Token token)
     {
-        var incomingSequenceFlowIds = processInstance.Process.FlowElements.OfType<SequenceFlow>()
+        // Der Container des Tokens, nicht der Prozess: Ein paralleles Gateway in einem
+        // Subprozess faende seine Sequenzfluesse auf der obersten Ebene sonst nicht.
+        var incomingSequenceFlowIds = processInstance.GetContainerFlowElements(token).OfType<SequenceFlow>()
             .Where(x => x.TargetRef.Id == token.CurrentBaseElement.Id)
             .Select(sf => sf.Id)
             .ToList();
@@ -16,6 +18,9 @@ internal class ParallelGatewayHandler : DefaultFlowNodeHandler
                      .Select(incomingSequenceFlowId => processInstance.Tokens
                          .FirstOrDefault(x =>
                              x.CurrentBaseElement.Id == token.CurrentBaseElement.Id &&
+                             // Nur Tokens desselben Scopes: In einem mehrfach durchlaufenen
+                             // Subprozess gibt es denselben Knoten sonst mehrmals.
+                             x.ParentTokenId == token.ParentTokenId &&
                              x.LastSequenceFlow?.Id == incomingSequenceFlowId && x.State == FlowNodeState.Active)))
         {
             if (tokenAtInput == null)
@@ -30,7 +35,7 @@ internal class ParallelGatewayHandler : DefaultFlowNodeHandler
 
     public override List<Token>? GenerateOutgoingTokens(FlowzerConfig config, InstanceEngine processInstance, Token token)
     {
-        if (processInstance.Process.FlowElements
+        if (processInstance.GetContainerFlowElements(token)
             .OfType<SequenceFlow>()
             .Any(x => x.SourceRef == token.CurrentFlowNode && (x.FlowzerCondition is not null || x.FlowzerIsDefault is true)))
             throw new FlowzerRuntimeException("There is a SequenceFlow with a Condition or default for Parallel Gateway");

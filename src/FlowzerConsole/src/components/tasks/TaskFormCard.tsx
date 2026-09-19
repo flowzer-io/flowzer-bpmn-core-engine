@@ -17,7 +17,8 @@ import type { TaskView } from '@/lib/taskView';
 
 interface TaskFormWorkspace {
   task: ExtendedUserTask;
-  form: FlowzerForm | undefined;
+  /** `null` heisst: Diese Aufgabe bindet kein Formular und wird nur bestätigt. */
+  form: FlowzerForm | null | undefined;
   pending: boolean;
   error: Error | null;
   directoryAdapter: BoundDirectorySubjectAdapter | undefined;
@@ -51,6 +52,9 @@ export function TaskFormCard({ view, workspace, controls, onCompleted, onDefer }
     () => workspace.form?.formData ? getClientFormActions(workspace.form.formData) : [],
     [workspace.form?.formData],
   );
+  // Kein Formular ist kein Fehler: Die API antwortet dann mit 204 und die Aufgabe ist eine
+  // reine Bestaetigung. Solange geladen wird oder ein Fehler ansteht, wird nichts behauptet.
+  const withoutForm = !workspace.pending && !workspace.error && !workspace.form;
 
   async function complete(actionId?: string) {
     if (lifecyclePending || draft.isSaving || draft.isDiscarding || draft.loadState !== 'ready') return;
@@ -80,7 +84,9 @@ export function TaskFormCard({ view, workspace, controls, onCompleted, onDefer }
         processInstanceId: workspace.task.processInstanceId ?? null,
         expectedTaskRevision: taskRevision,
         actionId,
-        data: renderer?.getData() ?? draft.currentData,
+        // Ohne Formular gibt es keine Eingaben. Die Prozessvariablen des Entwurfs zurueck
+        // zu senden waere kein Abschluss, sondern ein stilles Ueberschreiben.
+        data: withoutForm ? {} : (renderer?.getData() ?? draft.currentData),
       },
       options: { idempotencyKey },
     }, {
@@ -105,28 +111,35 @@ export function TaskFormCard({ view, workspace, controls, onCompleted, onDefer }
   }
 
   const busy = actions.complete.isPending || draft.isSaving || draft.isDiscarding || lifecyclePending;
+  const ready = draft.loadState === 'ready';
+  const documentation = workspace.task.documentation?.trim();
   return (
     <div className="bg-surface border-border shadow-card mt-[22px] overflow-hidden rounded-[var(--r-lg)] border">
       <div className="border-border bg-surface-2 flex items-center gap-2.5 border-b px-6 py-3.5">
-        <Icon name="assignment" size={18} className="text-accent" />
-        <span className="text-sm font-semibold">Formular ausfüllen</span>
-        {view.formKey && <span className="text-faint ml-auto font-mono text-[11.5px]">{describeFormKey(view.formKey)}</span>}
+        <Icon name={withoutForm ? 'task_alt' : 'assignment'} size={18} className="text-accent" />
+        <span className="text-sm font-semibold">
+          {withoutForm ? 'Aufgabe bestätigen' : 'Formular ausfüllen'}
+        </span>
+        {!withoutForm && view.formKey && (
+          <span className="text-faint ml-auto font-mono text-[11.5px]">{describeFormKey(view.formKey)}</span>
+        )}
       </div>
 
       <div className="px-[30px] py-[26px]">
-        {draft.saveState === 'conflict' && (
+        {draft.saveState === 'conflict' && !withoutForm && (
           <TaskDraftConflictBanner error={draft.error} loading={draft.isRefreshing}
             onLoadServer={() => void draft.adoptServerDraft()} />
         )}
-        {draft.loadState === 'ready' && workspace.pending && <InlineSpinner label="Formular wird geladen …" />}
+        {ready && workspace.pending && <InlineSpinner label="Formular wird geladen …" />}
         {workspace.error && <TaskFormError error={workspace.error} />}
-        {draft.loadState === 'ready' && workspace.form && (
+        {withoutForm && <TaskWithoutForm documentation={documentation} />}
+        {ready && workspace.form && (
           <FormValidationErrors
             error={submissionError?.taskId === view.id ? submissionError.error : undefined}
             schema={workspace.form.formData ?? undefined}
           />
         )}
-        {draft.loadState === 'ready' && workspace.form && (
+        {ready && workspace.form && (
           <FormRenderer key={`${view.id}:${draft.formInstanceKey}`} ref={formRef}
             schema={workspace.form.formData ?? undefined} initialData={draft.initialData}
             onChange={draft.setData} directoryAdapter={workspace.directoryAdapter} />
@@ -134,24 +147,47 @@ export function TaskFormCard({ view, workspace, controls, onCompleted, onDefer }
       </div>
 
       <div className="border-border bg-surface-2 flex flex-col gap-3 border-t px-6 py-4">
-        <TaskDraftStatus {...draft} onSave={draft.save} onDiscard={draft.discard}
-          onLoadServer={() => void draft.adoptServerDraft()} />
+        {/* Ohne Formular gibt es nichts zu entwerfen; der Entwurfsstand waere nur Laerm. */}
+        {!withoutForm && (
+          <TaskDraftStatus {...draft} onSave={draft.save} onDiscard={draft.discard}
+            onLoadServer={() => void draft.adoptServerDraft()} />
+        )}
         <div className="flex items-center justify-between gap-2.5">
           <Button variant="ghost" size="sm" icon="schedule" onClick={onDefer}>Später</Button>
           <div className="flex flex-wrap justify-end gap-2.5">
             {formActions.length === 0 ? (
               <Button variant="primary" icon="check_circle" loading={busy}
-                disabled={!workspace.form || draft.loadState !== 'ready' || busy}
-                onClick={() => void complete()}>Aufgabe abschließen</Button>
+                disabled={(!workspace.form && !withoutForm) || !ready || busy}
+                onClick={() => void complete()}>
+                {withoutForm ? 'Abschließen' : 'Aufgabe abschließen'}
+              </Button>
             ) : formActions.map((action) => (
               <Button key={action.id} variant={action.variant}
                 icon={action.variant === 'danger' ? 'block' : 'check_circle'} loading={busy}
-                disabled={!workspace.form || draft.loadState !== 'ready' || busy}
+                disabled={!workspace.form || !ready || busy}
                 onClick={() => void complete(action.id)}>{action.label}</Button>
             ))}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Eine Aufgabe ohne Formular. Sichtbar bleibt, was das Modell an Erklaerung mitgibt —
+ * mehr als die Dokumentation des Knotens hat sie nicht anzubieten.
+ */
+function TaskWithoutForm({ documentation }: { documentation?: string | undefined }) {
+  return (
+    <div className="text-[13.5px] leading-normal">
+      {documentation ? (
+        <p className="whitespace-pre-line">{documentation}</p>
+      ) : (
+        <p className="text-muted">
+          Für diese Aufgabe ist nichts auszufüllen. Schließe sie ab, sobald sie erledigt ist.
+        </p>
+      )}
     </div>
   );
 }

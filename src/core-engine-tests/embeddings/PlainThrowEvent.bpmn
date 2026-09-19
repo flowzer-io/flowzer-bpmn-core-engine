@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="Definitions_PlainThrowEvent" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_PlainThrowEvent" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:intermediateThrowEvent id="Milestone_1" name="Pruefung abgeschlossen">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Milestone</bpmn:outgoing>
+    </bpmn:intermediateThrowEvent>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_Milestone</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Milestone_1" />
+    <bpmn:sequenceFlow id="Flow_Milestone" sourceRef="Milestone_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

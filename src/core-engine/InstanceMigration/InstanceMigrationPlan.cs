@@ -106,5 +106,18 @@ public enum InstanceMigrationProblemCode
     BoundaryEventAlreadyTriggered,
 
     /// <summary>Den von Hand zugeordneten Zielknoten gibt es im Zielmodell nicht.</summary>
-    MappingTargetMissing
+    MappingTargetMissing,
+
+    /// <summary>
+    /// Der Token wartet als eines von mehreren Ereignissen eines ereignisbasierten Gateways.
+    /// Die Gruppe kann nur als Ganzes umziehen; einzeln zerrisse der Umzug sie.
+    /// </summary>
+    EventBasedGatewayWaiting,
+
+    /// <summary>
+    /// Die Instanz wartet an einer Call Activity auf eine laufende Kindinstanz. Die zieht der
+    /// Umzug nicht mit; das Kind liefe weiter gegen ein Token, das inzwischen zu einem anderen
+    /// Modell gehört. Kindinstanzen selbst sind normal migrierbar.
+    /// </summary>
+    CallActivityWaiting
 }

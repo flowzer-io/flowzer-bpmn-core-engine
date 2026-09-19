@@ -19,6 +19,21 @@ Ab `flowzer.forms/2` gehören auch die Policy und stabilen Filterreferenzen eine
 `flowzerSubject`-Felds zu diesem Snapshot. Das Deployment prüft sie gegen den aktiven
 Directory-Stand; Details: [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md).
 
+## Aufgaben ohne Formular
+
+Eine Formularbindung ist **nicht** verpflichtend. Ein `bpmn:userTask` ohne
+`zeebe:formDefinition` wird gelesen, trägt einen leeren Form-Key und bekommt deshalb
+auch keinen Snapshot: Gebunden wird nur, worauf ein Modell tatsächlich zeigt. Die
+Veröffentlichungsprüfung meldet den Verlust als Warnung `bpmn.user_task.form_missing`,
+ohne ihn zu verhindern.
+
+Zur Laufzeit antwortet `GET /usertask/{id}/form` für eine solche Aufgabe mit `204` —
+wie `GET /definition/meta/{id}/start-form` für einen Workflow ohne Startformular. Der
+Abschluss über `POST /usertask` läuft dann ohne Formulardaten; die serverseitige
+Formularprüfung entfällt, weil es keinen Vertrag gibt, gegen den sie prüfen könnte.
+Startformulare bleiben unverändert: Ein Startereignis ohne Formular startet wie bisher
+ohne Angaben.
+
 ## Historischer Bestand
 
 Seit Stabilisierung #297 übernimmt der PostgreSQL-Updateschritt fehlende Bindungen

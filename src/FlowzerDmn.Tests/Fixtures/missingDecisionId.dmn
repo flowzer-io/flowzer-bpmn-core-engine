@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Eine Decision ohne id laesst sich nicht ansprechen und nicht auswerten. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="missingIdDefinitions"
+             name="Ohne Id"
+             namespace="http://flowzer.maass.it/dmn/missing-id">
+  <decision name="Namenlos">
+    <literalExpression id="missingIdExpression">
+      <text>1 + 1</text>
+    </literalExpression>
+  </decision>
+</definitions>

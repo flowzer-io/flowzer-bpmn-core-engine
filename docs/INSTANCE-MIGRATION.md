@@ -25,6 +25,13 @@ Entschieden am 17. September 2026 (Christian Maaß):
 Es gibt weiterhin **keine automatische Migration**: Ein Deployment verändert keine
 laufende Instanz.
 
+**Für dieselbe Version: [Instanzeingriffe](INSTANCE-MODIFICATION.md).** Wenn nicht die Version
+das Problem ist, sondern der Vorgang — ein Schritt wurde versehentlich abgeschlossen, ein
+Worker hängt an einem Knoten, eine Variable trägt einen falschen Wert —, setzt der
+Instanzeingriff die Instanz innerhalb ihrer Version an eine andere Stelle. Er zieht den Token
+dabei zurück und legt am Ziel einen neuen an; die Aufgabe am verlassenen Knoten verschwindet
+also samt Kennung, statt wie hier mitzuziehen.
+
 ## Was „deckungsgleich" ausschließt
 
 Die erste Ausbaustufe migriert nur flache Prozesse im Ruhezustand. Nicht migrierbar ist
@@ -40,6 +47,15 @@ eine Instanz, wenn
   es erneut scharf, ein nicht unterbrechender Timer liefe ein zweites Mal),
 - sie an einem KI-Task wartet (dessen Lauf ist an Verbindungsrevision und Modell der
   Quellversion gebunden),
+- sie an einer Aufruf-Aktivität auf einen laufenden Kindvorgang wartet (Problemcode
+  `CallActivityWaiting`): Der Umzug zieht die Kindinstanz nicht mit, und sie liefe danach gegen
+  ein Token, das zu einem anderen Modell gehört. Die Kindinstanz selbst ist normal migrierbar —
+  ihr Bezug zum Aufrufer hängt an Instanz- und Tokenkennung, nicht an der Version. Siehe
+  [CALL-ACTIVITY.md](CALL-ACTIVITY.md).
+- sie an einem der Ereignisse eines ereignisbasierten Gateways wartet (Problemcode
+  `EventBasedGatewayWaiting`): Diese Tokens warten als Gruppe, von der genau eines gewinnt.
+  Eines davon allein umzuziehen zerrisse sie; die übrigen warteten auf ein Ereignis, das
+  niemanden mehr erreicht. Siehe [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 9).
 - sie bereits auf der deployten Version läuft.
 
 Bereits durchlaufene Knoten sind Historie und nie ein Hindernis — auch wenn es sie in
@@ -128,8 +144,9 @@ Je Instanz kommen zu den Befunden der Engine diese Codes hinzu:
 
 ## Grenzen
 
-- Keine Teilprozesse, keine Multi-Instance, keine KI-Tasks (siehe oben). Die Zuordnung führt
-  nur auf Knoten der obersten Ebene und nur auf denselben Elementtyp.
+- Keine Teilprozesse, keine Multi-Instance, keine KI-Tasks und keine Aufrufer mit wartender
+  Aufruf-Aktivität (siehe oben). Die Zuordnung führt nur auf Knoten der obersten Ebene und nur
+  auf denselben Elementtyp.
 - Variablen werden nicht umgeschrieben. Erwartet die Zielversion andere Variablen, ist
   das vor der Migration fachlich zu prüfen; die API kann es nicht erkennen.
 - Timer werden nicht umgerechnet: Nach dem Umzug gilt die Dauer der Zielversion ab dem
