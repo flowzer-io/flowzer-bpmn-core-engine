@@ -335,7 +335,7 @@ prüft das.
 
 ## Ablage
 
-PostgreSQL-Migration `018_inbound_triggers.sql` legt `inbound_triggers` an. Die verwalteten
+PostgreSQL-Migration `019_inbound_triggers.sql` legt `inbound_triggers` an. Die verwalteten
 Angaben stehen als JSON in `body`; Zählerstand, Aktivzustand und letzter Fehler liegen in eigenen
 Spalten, damit ein Aufruf in einem Statement zählen kann, ohne eine gleichzeitige Änderung der
 Verwaltung zu überschreiben. Der Schlüssel ist eindeutig indiziert.

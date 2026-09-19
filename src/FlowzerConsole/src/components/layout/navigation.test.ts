@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NAV_ITEMS, visibleNavItems } from './navigation';
+import { activeNavKey, NAV_ITEMS, visibleNavItems } from './navigation';
 import type { FlowzerCapability } from '@/lib/auth/roles';
 
 function only(...capabilities: FlowzerCapability[]) {
@@ -61,6 +61,22 @@ describe('visibleNavItems', () => {
 
     expect(eintrag?.path).toBe('/tasks');
     expect(eintrag?.requires, 'Aufgaben verlangen keine Rolle ausser dem Zugang.').toBeUndefined();
+  });
+
+  // Testzweck: Die Auswertungen lesen dieselbe Laufzeithistorie wie die Diagnose und
+  // verlangen deshalb dieselbe Rolle. Ohne sie lehnt die API ab — der Eintrag fuehrte
+  // dann nur zu einer Fehlerseite und gehoert deshalb nicht ins Menue.
+  it('zeigt die Auswertungen nur mit der Betriebsrolle', () => {
+    expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key)).not.toContain('analytics');
+    expect(visibleNavItems(only('access', 'operator')).map((item) => item.key)).toContain('analytics');
+  });
+
+  // Testzweck: Die Detailseite eines Workflows liegt unter der Uebersicht. Der Menuepunkt
+  // muss auch dort aktiv bleiben und darf nicht zum Betrieb daneben springen.
+  it('haelt den Menuepunkt auch auf der Auswertungs-Detailseite aktiv', () => {
+    expect(activeNavKey('/analytics')).toBe('analytics');
+    expect(activeNavKey('/analytics/urlaubsantrag')).toBe('analytics');
+    expect(activeNavKey('/operations')).toBe('operations');
   });
 
   // Testzweck: Ohne jede Faehigkeit bleibt nichts uebrig, was eine Rolle verlangt.

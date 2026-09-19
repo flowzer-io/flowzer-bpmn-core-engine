@@ -24,6 +24,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
   { key: 'triggers', label: 'Auslöser', icon: 'bolt', path: '/triggers', requires: 'operator' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
+  { key: 'analytics', label: 'Auswertungen', icon: 'timeline', path: '/analytics', requires: 'operator' },
 ] as const;
 
 export function activeNavKey(pathname: string): string {
@@ -47,6 +48,7 @@ export const PAGE_TITLES: Record<string, string> = {
   'ai-connections': 'KI-Verbindungen',
   triggers: 'Auslöser',
   operations: 'Betrieb & Diagnose',
+  analytics: 'Auswertungen',
   tasks: 'Meine Aufgaben',
 };
 

@@ -1,8 +1,17 @@
-import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
+import {
+  request,
+  requestFile,
+  requestOptionalStatusResult,
+  requestStatus,
+  requestStatusResult,
+  requestUpload,
+} from './client';
+import type { DownloadedFile } from './client';
 import { normalizeInstance } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
+  AnalyticsRangeQuery,
   BpmnDefinitionDto,
   BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
@@ -29,6 +38,8 @@ import type {
   TimerSubscriptionDto,
   TokenDto,
   VersionDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
@@ -49,9 +60,40 @@ import type {
   InboundTriggerSecretDto,
   CreateInboundTriggerInput,
   UpdateInboundTriggerInput,
+  ProcessPackageMappingDto,
+  ProcessPackagePreviewDto,
+  ProcessPackageImportResultDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
+
+/**
+ * Prozesspakete: ein Workflow samt Formularen als eine Datei.
+ *
+ * Ein Paket enthält nie Secrets, Instanzen oder Personenkennungen; was nur in der
+ * Quellinstallation gilt, steht als Platzhalter im Modell und wird beim Import zugeordnet.
+ */
+export const processPackagesApi = {
+  /** `GET /definition/meta/{id}/package` — Download; dieselbe Rolle wie Workflow lesen. */
+  export: (definitionId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    requestFile(`/definition/meta/${encodeURIComponent(definitionId)}/package`, { signal }),
+
+  /** `POST /definition/package/preview` — liest das Paket, ohne etwas anzulegen. */
+  preview: (file: File) =>
+    requestUpload<ProcessPackagePreviewDto>('/definition/package/preview', {
+      field: 'package',
+      value: file,
+      fileName: file.name,
+    }),
+
+  /** `POST /definition/package/import` — legt Workflow und Formulare an, deployt aber nicht. */
+  import: (file: File, mapping: ProcessPackageMappingDto) =>
+    requestUpload<ProcessPackageImportResultDto>(
+      '/definition/package/import',
+      { field: 'package', value: file, fileName: file.name },
+      { mapping: JSON.stringify(mapping) },
+    ),
+};
 
 export const definitionsApi = {
   /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
@@ -303,6 +345,13 @@ export const instancesApi = {
     });
     return normalizeInstance(instance);
   },
+
+  /**
+   * `DELETE /instance/{id}` — löscht eine beendete Instanz samt allem, was an ihr hängt.
+   * Verlangt das Betriebsrecht; laufende Instanzen antworten mit 409, unbekannte mit 404.
+   */
+  remove: (instanceId: string) =>
+    request<void>(`/instance/${instanceId}`, { method: 'DELETE' }),
 
   /**
    * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
@@ -596,6 +645,31 @@ export const operationsApi = {
 
   /** `GET /health/ready` */
   readiness: (signal?: AbortSignal) => requestStatusResult<HealthStatusDto>('/health/ready', { signal }),
+
+  /**
+   * `GET /operations/analytics/workflows` — Auswertung aller Workflows im Zeitraum.
+   * Ohne `from`/`to` entscheidet der Server (letzte 30 Tage).
+   */
+  analyticsOverview: (range: AnalyticsRangeQuery, signal?: AbortSignal) =>
+    requestStatusResult<WorkflowAnalyticsOverviewDto>('/operations/analytics/workflows', {
+      query: { from: range.from, to: range.to },
+      signal,
+    }),
+
+  /**
+   * `GET /operations/analytics/workflows/{metaDefinitionId}` — Schritte und Zeitreihe
+   * eines Workflows. Ohne `definitionId` zählen alle Versionen.
+   */
+  analyticsDetail: (
+    metaDefinitionId: string,
+    range: AnalyticsRangeQuery,
+    definitionId?: string | null,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<WorkflowAnalyticsDetailDto>(
+      `/operations/analytics/workflows/${encodeURIComponent(metaDefinitionId)}`,
+      { query: { from: range.from, to: range.to, definitionId: definitionId ?? undefined }, signal },
+    ),
 };
 
 export type { ProcessVariables };

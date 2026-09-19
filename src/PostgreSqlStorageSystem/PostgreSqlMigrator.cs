@@ -56,6 +56,53 @@ public static class PostgreSqlMigrator
         return applied;
     }
 
+    /// <summary>Versionen aller eingebetteten Migrationen, aufsteigend sortiert.</summary>
+    public static IReadOnlyList<int> AvailableVersions =>
+        LoadEmbeddedMigrations().Select(migration => migration.Version).ToArray();
+
+    /// <summary>
+    /// Liest den Migrationsstand einer Ablage, ohne etwas zu veraendern. Fuer die
+    /// Konfigurationspruefung und die Gesundheitsuebersicht: kein DDL, kein Advisory-Lock,
+    /// nur ein Blick in <c>{schema}.schema_migrations</c>.
+    /// </summary>
+    public static async Task<MigrationStatus> GetStatusAsync(string connectionString, string schema, CancellationToken cancellationToken = default)
+    {
+        var available = AvailableVersions;
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using (var schemaCommand = new NpgsqlCommand("SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = @schema)", connection))
+        {
+            schemaCommand.Parameters.AddWithValue("schema", schema);
+            if (await schemaCommand.ExecuteScalarAsync(cancellationToken) is not true)
+            {
+                return new MigrationStatus(false, false, [], available);
+            }
+        }
+
+        await using (var historyCommand = new NpgsqlCommand("SELECT to_regclass(@qualified) IS NOT NULL", connection))
+        {
+            historyCommand.Parameters.AddWithValue("qualified", $"{Quote(schema)}.schema_migrations");
+            if (await historyCommand.ExecuteScalarAsync(cancellationToken) is not true)
+            {
+                return new MigrationStatus(true, false, [], available);
+            }
+        }
+
+        var applied = new List<int>();
+        await using (var command = new NpgsqlCommand($"SELECT version FROM {Quote(schema)}.schema_migrations ORDER BY version", connection))
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                applied.Add(reader.GetInt32(0));
+            }
+        }
+
+        return new MigrationStatus(true, true, applied, available);
+    }
+
     private static IReadOnlyList<(int Version, string Name, string Sql)> LoadEmbeddedMigrations()
     {
         var assembly = typeof(PostgreSqlMigrator).Assembly;
@@ -84,4 +131,20 @@ public static class PostgreSqlMigrator
     }
 
     private static string Quote(string identifier) => "\"" + identifier.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+}
+
+/// <summary>
+/// Momentaufnahme des Migrationsstands: welche Migrationen die Ablage kennt und welche noch
+/// ausstehen. <paramref name="SchemaExists"/> und <paramref name="HistoryExists"/> trennen die
+/// noch gar nicht eingerichtete Datenbank von einer, der nur neue Migrationen fehlen.
+/// </summary>
+public sealed record MigrationStatus(
+    bool SchemaExists,
+    bool HistoryExists,
+    IReadOnlyList<int> Applied,
+    IReadOnlyList<int> Available)
+{
+    public IReadOnlyList<int> Pending => Available.Except(Applied).Order().ToArray();
+
+    public bool IsUpToDate => Pending.Count == 0;
 }

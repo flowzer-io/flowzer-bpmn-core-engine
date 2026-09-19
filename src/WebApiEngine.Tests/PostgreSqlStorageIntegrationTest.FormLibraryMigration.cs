@@ -29,14 +29,15 @@ public partial class PostgreSqlStorageIntegrationTest
 
         try
         {
-            await ApplyMigrationsBeforeFormLibrary(migrationSchema);
+            await ApplyMigrationsBelow(migrationSchema, 16);
             await SeedLegacySectionAndExistingForm(migrationSchema, seed);
 
-            // Enthaelt, nicht gleich: Der Lauf holt alles ab 16 nach. Eine Gleichheitspruefung
-            // wuerde bei jeder spaeter hinzukommenden Migration brechen, ohne dass an dem hier
-            // geprueften Uebergang etwas anders waere.
+            // Geprueft wird das Upgrade auf 16: Es muss das erste noch offene sein, nichts
+            // Aelteres darf liegen geblieben sein. Bewusst kein Vergleich auf genau {16} —
+            // das hiesse „16 ist die letzte Migration des Repositorys" und liesse den Test an
+            // jeder spaeteren, hier voellig unbeteiligten Migration scheitern.
             (await PostgreSqlMigrator.ApplyAsync(_connectionString, migrationSchema))
-                .Should().Contain(16);
+                .Should().StartWith(16);
 
             using var storage = new PostgreSqlStorage(_dataSource!, migrationSchema);
             (await storage.FormStorage.GetFormMetaData(seed.SectionId)).Name.Should().Be("Adresse");
@@ -116,7 +117,11 @@ public partial class PostgreSqlStorageIntegrationTest
         await command.ExecuteNonQueryAsync();
     }
 
-    private async Task ApplyMigrationsBeforeFormLibrary(string schema)
+    /// <summary>
+    /// Richtet ein Schema auf einem aelteren Migrationsstand ein: alle eingebetteten Migrationen
+    /// unterhalb von <paramref name="exclusiveMaxVersion"/> samt passender Historie.
+    /// </summary>
+    private async Task ApplyMigrationsBelow(string schema, int exclusiveMaxVersion)
     {
         await using var connection = await _dataSource!.OpenConnectionAsync();
         await using var transaction = await connection.BeginTransactionAsync();
@@ -129,7 +134,7 @@ public partial class PostgreSqlStorageIntegrationTest
             await setup.ExecuteNonQueryAsync();
         }
 
-        foreach (var (version, name, sql) in EmbeddedMigrations().Where(item => item.Version < 16))
+        foreach (var (version, name, sql) in EmbeddedMigrations().Where(item => item.Version < exclusiveMaxVersion))
         {
             await using var migration = new NpgsqlCommand(
                 sql.Replace("{schema}", Quote(schema), StringComparison.Ordinal),

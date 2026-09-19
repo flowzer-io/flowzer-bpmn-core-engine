@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <RootNamespace>FlowzerDmn</RootNamespace>
+        <!-- Die Bibliothek ist bewusst frei von Abhaengigkeiten: kein core-engine, kein
+             ClearScript. FEEL kommt ueber die Schnittstelle IFeelEngine von aussen. -->
+    </PropertyGroup>
+
+</Project>

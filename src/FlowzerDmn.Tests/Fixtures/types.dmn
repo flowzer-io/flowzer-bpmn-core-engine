@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Mehrere Ausgabespalten mit verschiedenen typeRef; dazu eine Regel mit leerem
+     Eintrag in der Ausgabe und einem Strich in der Eingabe. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="typesDefinitions"
+             name="Typen"
+             namespace="http://flowzer.maass.it/dmn/types">
+  <decision id="typedOutputs" name="Typisierte Ausgaben">
+    <variable name="typed"/>
+    <decisionTable id="typedOutputsTable" hitPolicy="FIRST">
+      <input id="typedInputKind">
+        <inputExpression id="typedInputKindExpression" typeRef="string">
+          <text>kind</text>
+        </inputExpression>
+      </input>
+      <output id="typedOutputText" name="text" typeRef="string"/>
+      <output id="typedOutputCount" name="count" typeRef="integer"/>
+      <output id="typedOutputRatio" name="ratio" typeRef="number"/>
+      <output id="typedOutputFlag" name="flag" typeRef="boolean"/>
+      <rule id="typedRuleFull">
+        <inputEntry id="typedRuleFullKind"><text>"voll"</text></inputEntry>
+        <outputEntry id="typedRuleFullText"><text>"eins"</text></outputEntry>
+        <outputEntry id="typedRuleFullCount"><text>3</text></outputEntry>
+        <outputEntry id="typedRuleFullRatio"><text>1.5</text></outputEntry>
+        <outputEntry id="typedRuleFullFlag"><text>true</text></outputEntry>
+      </rule>
+      <rule id="typedRuleSparse">
+        <description>Strich in der Eingabe, leere Eintraege in der Ausgabe</description>
+        <inputEntry id="typedRuleSparseKind"><text>-</text></inputEntry>
+        <outputEntry id="typedRuleSparseText"><text>"rest"</text></outputEntry>
+        <outputEntry id="typedRuleSparseCount"><text></text></outputEntry>
+        <outputEntry id="typedRuleSparseRatio"><text></text></outputEntry>
+        <outputEntry id="typedRuleSparseFlag"><text></text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
