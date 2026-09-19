@@ -5,7 +5,15 @@ public class OperationsDiagnosticsDto
     public required DateTime CheckedAtUtc { get; set; }
     public required string Environment { get; set; }
     public required OperationsStorageSnapshotDto Storage { get; set; }
+
+    /// <summary>
+    /// Wie viel gerade liegen bleibt. Nur die Zähler; die Liste steht unter
+    /// <c>GET /operations/incidents</c>.
+    /// </summary>
+    public required OperationsIncidentCountersDto Incidents { get; set; }
+
     public required TimerSchedulerDiagnosticsDto TimerScheduler { get; set; }
+    public required InstanceRetentionDiagnosticsDto Retention { get; set; }
     public required OperationsInstrumentationDto Instrumentation { get; set; }
     public required OperationsObservabilityDto Observability { get; set; }
 }
@@ -52,6 +60,39 @@ public class TimerSchedulerDiagnosticsDto
     public string? LastErrorMessage { get; set; }
 }
 
+/// <summary>
+/// Zustand der Aufbewahrung beendeter Instanzen. Bewusst ohne Kennungen: Der Betrieb sieht,
+/// dass und wie viel geloescht wurde, nicht welche Vorgaenge das betraf.
+/// </summary>
+public class InstanceRetentionDiagnosticsDto
+{
+    /// <summary>Ist ueberhaupt eine Frist gesetzt? Ohne Frist laeuft der Dienst nicht.</summary>
+    public required bool Enabled { get; set; }
+
+    /// <summary>Installationsweite Frist in Tagen; <c>null</c>, solange keine gesetzt ist.</summary>
+    public int? Days { get; set; }
+
+    public required int PollIntervalMinutes { get; set; }
+    public required int BatchSize { get; set; }
+    public required string Status { get; set; }
+    public DateTime? ServiceStartedAtUtc { get; set; }
+    public DateTime? LastRunStartedAtUtc { get; set; }
+    public DateTime? LastRunCompletedAtUtc { get; set; }
+    public DateTime? LastSuccessfulRunAtUtc { get; set; }
+    public DateTime? LastFailedRunAtUtc { get; set; }
+    public double? LastRunDurationMs { get; set; }
+
+    /// <summary>Im letzten Lauf geloeschte Instanzen.</summary>
+    public int LastDeletedInstances { get; set; }
+
+    public long SuccessfulRunCount { get; set; }
+    public long FailedRunCount { get; set; }
+    public long TotalDeletedInstances { get; set; }
+
+    /// <summary>Fehlermeldung des letzten Laufs; <c>null</c>, wenn der letzte Lauf trug.</summary>
+    public string? LastErrorMessage { get; set; }
+}
+
 public class OperationsInstrumentationDto
 {
     public required string MeterName { get; set; }
@@ -67,6 +108,12 @@ public class OperationsObservabilityDto
     public string? OtlpEndpointHint { get; set; }
     public string? OtlpProtocol { get; set; }
     public string? OtlpHeadersHint { get; set; }
+
+    // Der Scrape-Endpunkt ist anonym. Der Betrieb muss deshalb auf einen Blick sehen, ob er
+    // ueberhaupt offen ist und unter welchem Pfad — sonst prueft niemand, ob das Gateway ihn
+    // versehentlich nach aussen durchreicht.
+    public required bool PrometheusEnabled { get; set; }
+    public string? PrometheusPath { get; set; }
     public required string ServiceName { get; set; }
     public required string ServiceVersion { get; set; }
 }

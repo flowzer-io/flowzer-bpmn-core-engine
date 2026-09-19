@@ -86,8 +86,20 @@ Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
 Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
 solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
 für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
-Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
-Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
+
+**Mehrprozessschutz der Timer ist geschlossen.** Ein Scheduler-Durchgang übernimmt die
+fälligen Start-Timer jetzt exklusiv (`FOR UPDATE SKIP LOCKED` in derselben Transaktion,
+`IMessageSubscriptionStorage.ClaimDueTimerSubscriptions`); vorher überführten zwei API-Prozesse
+dieselbe Fälligkeit in zwei Instanzen. Instanztimer bleiben bewusst ohne Zeilensperre: Sie
+laufen über den Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren
+Zeilensperren nimmt — eine zusätzliche Zeilensperre davor drehte die Sperrreihenfolge um.
+Belegt in `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.Lifecycle.cs`; die
+Betriebsbedingungen stehen unter [Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb).
+Die Dateiablage bleibt Einzelprozess.
+
+Offen aus #93 bleiben die transaktionsweise Isolation einzelner Timer innerhalb eines
+Durchgangs (ein fehlgeschlagener Timer rollt den ganzen Durchgang zurück) und das begrenzte
+Nachholen wiederkehrender Timer.
 
 ## In diesem Strang bereits geschlossen
 
@@ -157,10 +169,26 @@ Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
 - Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
 - ~~Service-Tasks haben keinen Worker-Vertrag.~~ Erledigt: Abholen mit Sperre, atomare
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
-  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`. Offen bleibt, einen Auftrag ohne
-  verbleibende Versuche erneut freizugeben.
-- Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.
-- Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.
+  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`.
+- ~~Ein Auftrag ohne verbleibende Versuche lässt sich nicht erneut freigeben.~~ Erledigt mit
+  dem Störungszentrum: `GET /operations/incidents` führt liegen gebliebene Aufträge und
+  gescheiterte Instanzen an einer Stelle zusammen, `POST /job/{jobId}/retry` gibt einen
+  Auftrag mit korrigierten Eingaben wieder frei. Siehe `docs/OPERATIONS.md`, Abschnitt
+  „Störungen". Offen bleibt dabei:
+  - Die Spur der Freigaben (`retryHistory`) hängt am Auftrag und verschwindet mit ihm, sobald
+    er abgeschlossen ist; dauerhaft bleibt nur der Logeintrag. Eine instanzgebundene
+    Störungshistorie braucht einen eigenen Ereignistyp mit eigener Aufbewahrungsregel.
+  - Verbrauchte Versuche werden nicht gezählt — nur die verbleibenden und die Freigaben von Hand.
+  - Eine gescheiterte Instanz bleibt gescheitert; eine Neu-Ausführung gibt es weiterhin nicht.
+  - KI-Läufe erscheinen nicht als Störung; sie haben einen eigenen Lauf- und Freigabevertrag.
+- ~~Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.~~
+  Erledigt: Fristen werden beim Erreichen der Aufgabe an absolute Zeitpunkte gebunden,
+  überwacht und gemeldet. Siehe `docs/HUMAN-TASK-DEADLINES.md`.
+- ~~Zuweisungen (`assignee`, `candidateGroups`, `candidateUsers`) werden geparst, aber nicht ausgewertet.~~
+  Erledigt: Modellzuweisung und tatsächliche Bearbeitung (Claim/Release/Assign/Delegate)
+  sind getrennt und werden serverseitig geprüft. Siehe `docs/HUMAN-TASK-LIFECYCLE.md`.
+- Es gibt keine Aufbewahrungsregel: Beendete Instanzen samt Historie, Aufgaben und
+  Aufträgen bleiben unbegrenzt erhalten. Siehe M7 in `docs/PRODUCT-ROADMAP-2026-09.md`.
 
 
 ### 1. Timer-Ausführung und Persistenz
@@ -192,6 +220,8 @@ Vorhanden (Fähigkeitsvertrag 5):
 - Fangen ist immer unterbrechend: der gefangene Scope und alles darin wird zurückgezogen, samt seiner Message-, Signal- und Timer-Subscriptions
 - ohne Fänger endet die Instanz als `Failed` mit einer Begründung an `ProcessInstanceInfo.FailureReason`
 - ein externer Worker wirft einen fachlichen Fehler über `POST /job/{jobId}/throw-error`
+- eine gescheiterte Instanz erscheint mit ihrer Begründung in der Störungsliste
+  (`GET /operations/incidents`) und in der Instanzansicht der Konsole
 - `cancelActivity="false"` an einem Error-Boundary wird vor Speichern und Veröffentlichen abgelehnt
 
 Weiterhin offen:

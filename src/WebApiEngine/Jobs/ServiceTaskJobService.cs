@@ -81,8 +81,18 @@ public sealed class ServiceTaskJobService(
                 return problem.Value;
             }
 
-            await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
-            return JobOperationResult.Ok;
+            try
+            {
+                await businessLogic.CompleteServiceTaskJob(job!, variables, userId);
+                return JobOperationResult.Ok;
+            }
+            catch (ServiceTaskLeaseLostException)
+            {
+                // Ein zweiter API-Prozess war zwischen Besitzpruefung und Instanzsperre
+                // schneller. Der Worker soll den Auftrag erneut abholen, nicht wiederholen.
+                using var storage = storageProvider.GetTransactionalStorage();
+                return await ClassifyMissingJob(storage, jobId);
+            }
         }
         finally
         {
@@ -194,6 +204,17 @@ public sealed class ServiceTaskJobService(
                 return await ClassifyMissingJob(storage, jobId);
             }
 
+            // Dieselbe Sperrreihenfolge wie bei jedem Engine-Schreiber: erst die Instanz, dann
+            // die Zeilen des Auftrags. Ohne sie koennte ein zweiter API-Prozess den Auftrag
+            // gerade abschliessen, und der hier geschriebene Fehlversuch liesse ihn danach
+            // wieder in der Warteschlange auferstehen.
+            await storage.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+            job = await storage.ServiceTaskStorage.GetLockedJob(jobId, lockOwner, now);
+            if (job is null)
+            {
+                return await ClassifyMissingJob(storage, jobId);
+            }
+
             // Der Worker darf die Zahl der Versuche senken, nicht erhoehen: Sonst koennte ein
             // fehlerhafter Worker sich selbst unbegrenzt viele Anlaeufe verschaffen.
             var proposed = remainingRetries ?? job.Retries - 1;
@@ -214,6 +235,43 @@ public sealed class ServiceTaskJobService(
                 job.Retries);
 
             return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Gibt einen liegen gebliebenen Auftrag wieder frei. Das ist eine Betriebshandlung, keine
+    /// Worker-Rueckmeldung: Es gibt keine Sperre zu pruefen, denn der Auftrag gehoert gerade
+    /// niemandem.
+    ///
+    /// Laeuft unter derselben Vergabesperre wie Abholen und Zurueckmelden, damit zwischen der
+    /// Vorbedingung und dem Schreiben kein Worker denselben Auftrag uebernimmt. Ueber den frei
+    /// gewordenen Auftrag benachrichtigt derselbe Hintergrunddienst, der auch neue Auftraege
+    /// meldet — er sieht ihn beim naechsten Durchgang wieder als verfuegbar.
+    /// </summary>
+    public async Task<JobRetryResult> Retry(Guid jobId, Guid userId, int retries, Variables? corrections)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            var result = await businessLogic.RetryServiceTaskJob(jobId, retries, corrections, userId, now);
+            if (result == JobRetryResult.Ok)
+            {
+                // Die korrigierten Werte bleiben aus dem Log heraus; Auftrag, Person und die Zahl
+                // der Versuche genuegen, um eine Freigabe spaeter zuzuordnen.
+                logger.LogInformation(
+                    "Auftrag {JobId} von Benutzer {OperatorUserId} mit {Retries} Versuchen erneut freigegeben.",
+                    jobId,
+                    userId,
+                    retries);
+            }
+
+            return result;
         }
         finally
         {

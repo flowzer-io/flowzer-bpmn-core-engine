@@ -508,4 +508,21 @@ internal sealed class PostgreSqlAiRunStorage(PostgreSqlSession session) : IAiRun
         if (value.Kind != DateTimeKind.Utc)
             throw new ArgumentException("AI run timestamps must be UTC.", nameof(value));
     }
+
+    /// <summary>
+    /// Loescht alle Laeufe der Instanz, auch verleaste. Die Instanz gibt es danach nicht mehr;
+    /// ein spaetes Providerergebnis haette ohnehin kein Ziel mehr, an das es gehoeren koennte.
+    /// </summary>
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty)
+            throw new ArgumentException("Process instance ID is required.", nameof(processInstanceId));
+        return session.RunAsync(async (connection, transaction) =>
+        {
+            await using var command = session.CreateCommand(connection, transaction,
+                "DELETE FROM {schema}.ai_runs WHERE process_instance_id = @processInstanceId");
+            command.Parameters.AddWithValue("processInstanceId", processInstanceId);
+            return await command.ExecuteNonQueryAsync();
+        });
+    }
 }

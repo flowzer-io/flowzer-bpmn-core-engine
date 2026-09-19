@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <RootNamespace>FlowzerDmn.Tests</RootNamespace>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector" Version="8.0.1"/>
+        <PackageReference Include="FluentAssertions" Version="8.9.0"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0"/>
+        <PackageReference Include="NUnit" Version="4.5.1"/>
+        <PackageReference Include="NUnit.Analyzers" Version="4.12.0"/>
+        <PackageReference Include="NUnit3TestAdapter" Version="6.2.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- core-engine bringt nur die native V8-Bibliothek fuer osx-arm64 mit. Damit die
+             FEEL-Tests nicht ausgerechnet in der CI stillschweigend uebersprungen werden,
+             holt das Testprojekt die uebrigen Plattformen dazu. -->
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-x64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-arm64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.osx-x64" Version="7.5.0"/>
+        <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.5.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="NUnit.Framework"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- FlowzerDmn selbst haengt an nichts. core-engine kommt nur fuer den FEEL-Adapter
+             dazu, der den FeelinExpressionHandler an IFeelEngine anschliesst. -->
+        <ProjectReference Include="..\FlowzerDmn\FlowzerDmn.csproj"/>
+        <ProjectReference Include="..\core-engine\core-engine.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="Fixtures\*.dmn"/>
+    </ItemGroup>
+
+</Project>

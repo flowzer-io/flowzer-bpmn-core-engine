@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Model;
 using WebApiEngine.Auth;
+using WebApiEngine.BusinessLogic;
 using WebApiEngine.Jobs;
 using WebApiEngine.Shared;
 using Variables = System.Dynamic.ExpandoObject;
@@ -133,6 +134,58 @@ public class JobController(
             request.ErrorMessage,
             request.Retries,
             TimeSpan.FromSeconds(request.RetryBackoffSeconds)));
+    }
+
+    /// <summary>
+    /// Gibt einen liegen gebliebenen Auftrag wieder frei, auf Wunsch mit korrigierten Eingaben.
+    ///
+    /// Das ist eine Betriebshandlung und keine Worker-Rueckmeldung: Wer einen Auftrag mit
+    /// verbrauchten Versuchen wieder in die Warteschlange stellt, entscheidet, dass die Arbeit
+    /// erneut laufen soll — gegebenenfalls mit anderen Werten. Deshalb die Betriebsrolle statt
+    /// der Worker-Rolle der uebrigen Endpunkte unter <c>/job</c>.
+    /// </summary>
+    [HttpPost("{jobId:guid}/retry")]
+    // Eine Freigabe laesst einen Service-Task mit Seiteneffekt erneut laufen und darf dabei
+    // Prozessdaten aendern; das entscheidet der Betrieb, nicht der Worker.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType<ApiStatusResult>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult>> RetryJob(Guid jobId, [FromBody] RetryJobRequestDto request)
+    {
+        if (request.Retries is < 1 or > 100)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invalid service task job retry",
+                detail: "Retries must be between 1 and 100.");
+        }
+
+        var userId = currentUserContextAccessor.GetCurrentUser()
+            .RequireResolvedUserId("releasing stalled service task jobs");
+        var outcome = await jobService.Retry(jobId, userId, request.Retries, request.Variables);
+
+        return outcome switch
+        {
+            JobRetryResult.Ok => Ok(new ApiStatusResult { Successful = true }),
+            JobRetryResult.NotFound => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Service task job unavailable",
+                detail: "The job was not found; it may already be finished or its step is no longer waiting."),
+            JobRetryResult.NotExhausted => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Service task job is not stalled",
+                detail: "The job still has attempts left and does not need to be released."),
+            JobRetryResult.StillLocked => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Service task job is locked",
+                detail: "A worker currently holds this job; it cannot be released while it is being worked on."),
+            _ => Problem(
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Service task job retry failed",
+                detail: "The job could not be released.")
+        };
     }
 
     /// <summary>Alle Aufträge samt Zustand; für die Betriebssicht auf hängende Arbeit.</summary>

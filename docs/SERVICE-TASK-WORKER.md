@@ -1,6 +1,6 @@
 # Service-Tasks: Vertrag für externe Worker
 
-**Stand:** 9. September 2026
+**Stand:** 19. September 2026
 
 Die Engine führt Service-Tasks nicht selbst aus. Sie hätte dafür Netzwerkzugriff, Zugangsdaten und eine eigene Wiederholungslogik nötig, und jede fachliche Anbindung würde in der Engine landen. Stattdessen wird jeder wartende Service-Task ein **Auftrag**, den ein eigener Dienst holt, abarbeitet und zurückmeldet.
 
@@ -47,7 +47,7 @@ Sie ist am Modell ablesbar und begrenzt, was das Haus verlässt.
 
 ## Abholen und zurückmelden
 
-Alle Endpunkte unter `/job` verlangen die Rolle **Worker** (`Authentication__JwtBearer__Roles__Worker`). Ein Auftrag enthält die Eingabewerte des Prozessschritts; wer nur Aufgaben bearbeitet, soll deswegen nicht die Eingaben aller Service-Tasks lesen können. `GET /job` und die Webhook-Verwaltung verlangen zusätzlich die Betriebsrolle.
+Die Worker-Endpunkte unter `/job` verlangen die Rolle **Worker** (`Authentication__JwtBearer__Roles__Worker`). Ein Auftrag enthält die Eingabewerte des Prozessschritts; wer nur Aufgaben bearbeitet, soll deswegen nicht die Eingaben aller Service-Tasks lesen können. `GET /job`, die Webhook-Verwaltung und `POST /job/{jobId}/retry` sind dagegen Betriebssachen und verlangen die Betriebsrolle.
 
 Die Sperre gehört der angemeldeten Person zusammen mit ihrer Worker-Kennung, nicht der Kennung allein. Eine geratene Kennung genügt deshalb nicht, um fremde Aufträge zurückzumelden.
 
@@ -98,6 +98,19 @@ POST /job/{jobId}/fail
 
 Bleiben Versuche übrig, wird der Auftrag nach der Wartezeit wieder vergeben. Ist der letzte verbraucht, bleibt er liegen und wartet auf einen Eingriff, statt still zu verschwinden. `GET /job` zeigt alle Aufträge samt Zustand; der Endpunkt verlangt die Betriebsrolle.
 
+**Einen liegen gebliebenen Auftrag wieder freigeben**
+
+```http
+POST /job/{jobId}/retry
+{ "retries": 2, "variables": { "iban": "DE02120300000000202051" } }
+```
+
+Das ist der einzige Endpunkt unter `/job`, der die **Betriebsrolle** statt der Worker-Rolle verlangt: Ihn ruft nicht der Worker, sondern der Betrieb — meist aus dem Störungszentrum der Konsole.
+
+Für Worker-Autoren zählt vor allem die Semantik der Eingaben: Die mitgegebenen `variables` werden in die vorhandenen Eingaben des Auftrags **hineingemischt**. Genannte Felder werden überschrieben, ungenannte bleiben stehen. Beim nächsten `POST /job/fetch` bekommt der Worker den Auftrag also mit den korrigierten Werten — er muss dafür nichts Besonderes tun, aber er darf sich auch nicht darauf verlassen, dass ein Auftrag mit derselben `jobId` dieselben Eingaben trägt wie beim letzten Mal. Wer Eingaben zwischenspeichert, muss sie bei jedem Abholen neu lesen.
+
+`lastErrorMessage` bleibt als Verlauf stehen, `retries` wird gesetzt, eine Wartezeit entfällt. Ein Auftrag, der noch Versuche hat oder gerade einem Worker gehört, antwortet mit `409`; ein unbekannter oder verwaister mit `404`. Jede Freigabe wird am Auftrag protokolliert (`retryHistory`: Zeitpunkt, Benutzerkennung, Versuche und die **Namen** der korrigierten Felder, nie deren Werte). Begriff, Vertrag und Grenzen: [OPERATIONS.md, Abschnitt „Störungen"](OPERATIONS.md#störungen).
+
 **Fachlichen Fehler melden**
 
 ```http
@@ -136,7 +149,7 @@ POST /job/webhook
 { "type": "zahlung", "url": "https://zahlungsdienst.example/flowzer", "secret": "…" }
 ```
 
-Liegt ein Auftrag dieses Typs frei, ruft Flowzer die Adresse einmal je Auftrag auf:
+Liegt ein Auftrag dieses Typs frei, ruft Flowzer die Adresse einmal je Auftrag auf — auch wieder, nachdem ein liegen gebliebener Auftrag erneut freigegeben wurde:
 
 ```json
 { "event": "service-task.available", "jobId": "…", "type": "zahlung",
@@ -165,7 +178,12 @@ Die leere Freigabeliste ist Absicht: Eine Webhook-Anmeldung ist eine Aufforderun
 
 ## Was noch fehlt
 
-- Ein Auftrag ohne verbleibende Versuche bleibt liegen; einen Endpunkt, ihn erneut freizugeben, gibt es noch nicht. Bis dahin hilft nur ein Abbruch der Instanz.
+- ~~Ein Auftrag ohne verbleibende Versuche bleibt liegen; einen Endpunkt, ihn erneut freizugeben, gibt es noch nicht.~~ Erledigt mit `POST /job/{jobId}/retry` und dem Störungszentrum der Konsole.
+- Die Spur der Freigaben lebt am Auftrag und verschwindet mit ihm, sobald er abgeschlossen ist;
+  dauerhaft bleibt nur der Logeintrag. Eine instanzweite Störungshistorie braucht einen eigenen
+  Ereignistyp.
+- Die Engine zählt nicht, wie viele Versuche ein Auftrag insgesamt verbraucht hat — nur, wie
+  viele verbleiben und wie oft von Hand freigegeben wurde.
 - ~~Fehler eines Workers führen nicht zu einem BPMN-Fehlerereignis.~~ Erledigt mit
   `POST /job/{jobId}/throw-error` und der Error-Semantik des Fähigkeitsvertrags 5.
 - Escalation-Ereignisse und Kompensation bleiben offen: Ein Worker kann einen Fehler werfen,

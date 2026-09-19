@@ -22,7 +22,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
   { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms', matches: ['/form-sections'] },
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
+  { key: 'triggers', label: 'Auslöser', icon: 'bolt', path: '/triggers', requires: 'operator' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
+  { key: 'analytics', label: 'Auswertungen', icon: 'timeline', path: '/analytics', requires: 'operator' },
 ] as const;
 
 export function activeNavKey(pathname: string): string {
@@ -44,7 +46,9 @@ export const PAGE_TITLES: Record<string, string> = {
   instances: 'Instanzen',
   forms: 'Formulare',
   'ai-connections': 'KI-Verbindungen',
+  triggers: 'Auslöser',
   operations: 'Betrieb & Diagnose',
+  analytics: 'Auswertungen',
   tasks: 'Meine Aufgaben',
 };
 

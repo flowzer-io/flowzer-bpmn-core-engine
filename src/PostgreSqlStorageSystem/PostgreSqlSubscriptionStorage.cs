@@ -123,6 +123,38 @@ internal sealed class PostgreSqlSubscriptionStorage(PostgreSqlSession session, I
     public Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions() =>
         QueryAsync<TimerSubscription>("SELECT body FROM {schema}.timer_subscriptions ORDER BY due_at");
 
+    /// <summary>
+    /// Start-Timer werden exklusiv uebernommen, Instanztimer nur gelesen.
+    ///
+    /// Ein Start-Timer gehoert zu keiner Instanz; ohne Zeilensperre ueberfuehren zwei
+    /// API-Prozesse dieselbe Faelligkeit in zwei Instanzen. <c>SKIP LOCKED</c> laesst den
+    /// zweiten Durchgang weiterziehen, statt zu warten und danach dasselbe noch einmal zu tun.
+    ///
+    /// Instanztimer bleiben bewusst ohne Zeilensperre: Sie laufen anschliessend ueber den
+    /// Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren Zeilensperren nimmt.
+    /// Eine Zeilensperre an dieser Stelle drehte die Reihenfolge um (Zeile vor Advisory-Lock)
+    /// und koennte sich mit einem gleichzeitigen Aufgabenabschluss verklemmen.
+    ///
+    /// Die Uebernahme gilt bis zum Ende der Transaktion; sinnvoll ist sie deshalb nur in der
+    /// transaktionalen Sicht, die der Scheduler benutzt.
+    /// </summary>
+    public async Task<IReadOnlyList<TimerSubscription>> ClaimDueTimerSubscriptions(DateTime dueUpTo)
+    {
+        var dueUpToUtc = DateTime.SpecifyKind(dueUpTo, DateTimeKind.Utc);
+        var startTimers = await QueryAsync<TimerSubscription>("""
+            SELECT body FROM {schema}.timer_subscriptions
+            WHERE due_at <= @dueUpTo AND process_instance_id IS NULL
+            ORDER BY due_at
+            FOR UPDATE SKIP LOCKED
+            """, ("dueUpTo", dueUpToUtc));
+        var instanceTimers = await QueryAsync<TimerSubscription>("""
+            SELECT body FROM {schema}.timer_subscriptions
+            WHERE due_at <= @dueUpTo AND process_instance_id IS NOT NULL
+            ORDER BY due_at
+            """, ("dueUpTo", dueUpToUtc));
+        return [.. startTimers, .. instanceTimers];
+    }
+
     public Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId) =>
         QueryAsync<TimerSubscription>("SELECT body FROM {schema}.timer_subscriptions WHERE process_instance_id = @instanceId ORDER BY due_at", ("instanceId", instanceId));
 
