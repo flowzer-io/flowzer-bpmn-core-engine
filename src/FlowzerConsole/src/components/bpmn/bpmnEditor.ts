@@ -18,6 +18,7 @@
 
 import {
   calledProcessOf,
+  errorHolder,
   messageHolder,
   multiInstanceOf,
   readElementProperties,
@@ -62,6 +63,19 @@ export * from './elementProperties';
 
 interface ModelerLike {
   get: <T>(name: string) => T;
+}
+
+/**
+ * Wert der Auswahlliste fuer „neuen Fehler anlegen". Ein echter `bpmn:Error` kann so nicht
+ * heissen: Eine BPMN-Kennung darf kein `_` am Anfang und kein `#` enthalten.
+ */
+export const NEW_ERROR = '#neu';
+
+/** Teiländerung am Fehlerbezug: Auswahl, Neuanlage oder Loesen. */
+export interface ErrorReferencePatch {
+  errorId: string | null;
+  name: string;
+  code: string;
 }
 
 /** Ein Prozess samt dem Diagrammelement, über das bpmn-js die Änderung verbucht. */
@@ -199,9 +213,9 @@ export function createBpmnEditor(modeler: ModelerLike) {
   function createRootReference(
     element: DiagramElement,
     holder: ModdleElement,
-    referenceProperty: 'messageRef' | 'signalRef',
+    referenceProperty: 'messageRef' | 'signalRef' | 'errorRef',
     type: string,
-    name: string,
+    properties: Record<string, unknown>,
   ): ModdleElement | null {
     const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
     if (!definitions) return null;
@@ -209,7 +223,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
     const rootElements = (definitions.rootElements as ModdleElement[] | undefined) ?? [];
     // Die Kennung vergibt die Factory: Sie zieht sie aus dem Kennungsregister des Dokuments
     // und belegt sie dort. Eine selbst gewuerfelte koennte mit einer anderen kollidieren.
-    const created = factory().create(type, { name });
+    const created = factory().create(type, properties);
     created.$parent = definitions;
 
     modeling().updateModdleProperties(element, definitions, { rootElements: [...rootElements, created] });
@@ -584,12 +598,55 @@ export function createBpmnEditor(modeler: ModelerLike) {
       if (message) {
         modeling().updateModdleProperties(element, message, { name });
       } else {
-        message = createRootReference(element, holder, 'messageRef', 'bpmn:Message', name) ?? undefined;
+        message = createRootReference(element, holder, 'messageRef', 'bpmn:Message', { name }) ?? undefined;
         if (!message) return;
       }
 
       const key = merge(patch.correlationKey, text(extension(message, 'zeebe:Subscription'), 'correlationKey'));
       writeExtension(element, message, 'zeebe:Subscription', key === undefined ? null : { correlationKey: key });
+    },
+
+    /**
+     * Setzt den Fehlerbezug eines Error-Ereignisses.
+     *
+     * `errorId: NEW_ERROR` legt einen neuen `bpmn:Error` an, `errorId: null` loest den Bezug
+     * wieder, eine vorhandene Kennung waehlt den zugehoerigen Fehler aus. Name und Code ohne
+     * `errorId` aendern den gerade referenzierten Fehler — und legen ihn an, wenn noch keiner
+     * da ist. Alles laeuft ueber `modeling`, damit jeder Schritt rueckgaengig bleibt.
+     */
+    setErrorReference(elementId: string, patch: Partial<ErrorReferencePatch>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const holder = errorHolder(element.businessObject);
+      if (!holder) return;
+
+      if (patch.errorId === null) {
+        modeling().updateModdleProperties(element, holder, { errorRef: undefined });
+        return;
+      }
+
+      if (typeof patch.errorId === 'string' && patch.errorId !== NEW_ERROR) {
+        const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
+        const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+        const selected = rootElements.find(
+          (rootElement) => rootElement.$type === 'bpmn:Error' && text(rootElement, 'id') === patch.errorId,
+        );
+        if (!selected) return;
+        modeling().updateModdleProperties(element, holder, { errorRef: selected });
+        return;
+      }
+
+      const current = patch.errorId === NEW_ERROR ? undefined : (holder.errorRef as ModdleElement | undefined);
+      const name = (patch.name ?? text(current, 'name')).trim();
+      const errorCode = (patch.code ?? text(current, 'errorCode')).trim();
+
+      if (current) {
+        modeling().updateModdleProperties(element, current, { name, errorCode });
+        return;
+      }
+
+      createRootReference(element, holder, 'errorRef', 'bpmn:Error', { name, errorCode });
     },
 
     /** Setzt den Namen des Signals. Auch das Signal ist ein Wurzelelement des Dokuments. */
@@ -608,7 +665,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
         return;
       }
 
-      createRootReference(element, definition, 'signalRef', 'bpmn:Signal', trimmedName);
+      createRootReference(element, definition, 'signalRef', 'bpmn:Signal', { name: trimmedName });
     },
 
     setCalledProcess(elementId: string, patch: Partial<CalledProcess>): void {

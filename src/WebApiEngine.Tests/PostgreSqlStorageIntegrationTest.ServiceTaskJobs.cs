@@ -107,6 +107,42 @@ public partial class PostgreSqlStorageIntegrationTest
         (await storage.ServiceTaskStorage.GetJob(foreign.Id))!.DefinitionId.Should().Be(foreign.DefinitionId);
     }
 
+    // Testzweck: Die Spur der Freigaben von Hand liegt im Rumpf und muss ueber Speichern, Lesen
+    // und Vergeben erhalten bleiben. Ginge sie beim naechsten Anspruch verloren, waere die
+    // Auditspur genau dann leer, wenn der freigegebene Auftrag tatsaechlich wieder lief.
+    [Test]
+    public async Task ServiceTaskStorage_ShouldKeepTheManualRetryTrailOnPostgreSql()
+    {
+        var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        var now = new DateTime(2026, 9, 19, 12, 0, 0, DateTimeKind.Utc);
+        var actor = Guid.NewGuid();
+        var job = CreateServiceTaskJob(now);
+        job.Retries = 0;
+        job.RetryHistory.Add(new ServiceTaskJobRetry
+        {
+            At = now,
+            By = actor,
+            Retries = 2,
+            CorrectedKeys = ["iban"]
+        });
+        await storage.ServiceTaskStorage.SaveJob(job);
+
+        job.Retries = 2;
+        await storage.ServiceTaskStorage.SaveJob(job);
+        var owner = ServiceTaskJobService.BuildLockOwner(actor, "worker-a");
+        var claimed = (await storage.ServiceTaskStorage.ClaimJobs(job.Type, owner, now, now.AddMinutes(5), 1))
+            .Should().ContainSingle().Subject;
+
+        var entry = claimed.RetryHistory.Should().ContainSingle().Subject;
+        entry.By.Should().Be(actor);
+        entry.At.Should().Be(now);
+        entry.Retries.Should().Be(2);
+        entry.CorrectedKeys.Should().Equal("iban");
+        // Nur die Namen, nie die Werte: Die Spur wird gelesen, wenn niemand mehr weiss, was in
+        // den Feldern stand.
+        (await ReadJobBodyAsync(job.Id)).Should().NotContain("DE02120300000000202051");
+    }
+
     private async Task<string> ReadJobBodyAsync(Guid jobId)
     {
         await using var connection = await _dataSource!.OpenConnectionAsync();

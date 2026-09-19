@@ -44,6 +44,10 @@ public partial class InstanceEngine
                          not BPMN.Process.Process and 
                          not SubProcess))
         {
+            // Ein zuvor in diesem Schritt gefangener BPMN-Fehler kann diesen Token bereits
+            // zurueckgezogen haben. Ohne diese Pruefung wuerde ihn sein Handler wiederbeleben.
+            if (token.State != FlowNodeState.Active) continue;
+
             if (!FlowNodeHandlers.TryGetValue(token.CurrentBaseElement.GetType(), out var handler))
                 throw new InvalidOperationException($"No handler found for {token.CurrentBaseElement.GetType()}");
 
@@ -84,6 +88,7 @@ public partial class InstanceEngine
         foreach (var token in activeTokens.Where(t => t.CurrentBaseElement is Activity {
                      LoopCharacteristics: MultiInstanceLoopCharacteristics } ))
         {
+            if (token.State != FlowNodeState.Active) continue;
             new MultiInstanceHandler().Execute(this, token);
         }
         
@@ -91,6 +96,7 @@ public partial class InstanceEngine
         // zuerst ausgewertet werden und die Ausführungsreihenfolge unter aktuellen .NET-Laufzeiten deterministisch bleibt.
         foreach (var token in activeTokens.AsEnumerable().Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
         {
+            if (token.State != FlowNodeState.Active) continue;
             new ProcessFlowNodeHandler().Execute(this, token);
             new DefaultFlowNodeHandler().GenerateOutgoingTokens(FlowzerConfig, this, token);
         }
@@ -253,13 +259,23 @@ public partial class InstanceEngine
         { typeof(ServiceTask), new DoNothingFlowNodeHandler() },
         { typeof(InclusiveGateway), new DefaultFlowNodeHandler() },
         { typeof(FlowzerTerminateEvent), new TerminateEndEventHandler() },
+        { typeof(FlowzerErrorEndEvent), new ErrorEndEventHandler() },
         { typeof(UserTask), new DoNothingFlowNodeHandler() },
         { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateMessageCatchEvent), new DoNothingFlowNodeHandler() },
+        // Sendende Elemente: intern korrelieren oder — mit Auftragstyp — auf den Worker warten.
+        { typeof(FlowzerIntermediateMessageThrowEvent), new MessageThrowHandler() },
+        { typeof(FlowzerMessageEndEvent), new MessageThrowHandler() },
+        { typeof(SendTask), new MessageThrowHandler() },
+        // Ein Throw-Event ohne Ereignisdefinition ist ein Meilenstein: Es laeuft durch und
+        // macht den erreichten Punkt im Laufzeitverlauf sichtbar.
+        { typeof(IntermediateThrowEvent), new DefaultFlowNodeHandler() },
         { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateTimerCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(Process), new DoNothingFlowNodeHandler() },
         { typeof(SubProcess), new ProcessFlowNodeHandler() },
+        // Wartet wie ein Service-Task, aber auf eine Kindinstanz statt auf einen Worker.
+        { typeof(CallActivity), new CallActivityHandler() },
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},
         // {typeof(IntermediateThrowEvent), new IntermediateThrowEventHandler()},

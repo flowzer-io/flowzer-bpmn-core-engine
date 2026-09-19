@@ -1,14 +1,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
+import { IncidentsCard } from '@/components/operations/IncidentsCard';
 import { Card, CardHeader, EmptyState } from '@/components/ui/Card';
 import { Chip, toneColor, type Tone } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { ErrorState, LoadingRows, Skeleton } from '@/components/ui/States';
-import { useDiagnostics, useHealth, useInstances, useTimers } from '@/lib/api/queries';
-import type { OperationsDiagnosticsDto } from '@/lib/api/types';
-import { instanceBucket } from '@/lib/api/normalize';
+import { useDiagnostics, useHealth, useIncidents, useTimers } from '@/lib/api/queries';
+import type { InstanceRetentionDiagnosticsDto, OperationsDiagnosticsDto } from '@/lib/api/types';
 import { formatDueIn, formatDuration, formatNumber, formatRelative, parseApiDate, shortId } from '@/lib/format';
 import { useCan } from '@/stores/session';
 
@@ -26,9 +26,9 @@ export function OperationsPage() {
   // Ohne Betriebsrolle lehnt die API die Diagnose ab. Die Abfragen gar nicht erst zu
   // stellen ist ehrlicher als eine Seite voller Fehlermeldungen.
   const diagnosticsQuery = useDiagnostics({ enabled: mayOperate });
+  const incidentsQuery = useIncidents({ enabled: mayOperate });
   const timersQuery = useTimers({ enabled: mayOperate });
   const healthQuery = useHealth();
-  const instancesQuery = useInstances();
 
   const diagnostics = diagnosticsQuery.data;
 
@@ -49,11 +49,6 @@ export function OperationsPage() {
         (a, b) => (parseApiDate(a.dueAt)?.getTime() ?? 0) - (parseApiDate(b.dueAt)?.getTime() ?? 0),
       ),
     [timersQuery.data],
-  );
-
-  const failedInstances = useMemo(
-    () => (instancesQuery.data ?? []).filter((instance) => instanceBucket(instance.state) === 'error'),
-    [instancesQuery.data],
   );
 
   if (!mayOperate) {
@@ -197,43 +192,15 @@ export function OperationsPage() {
             ))}
           </Card>
 
-          <Card>
-            <CardHeader icon="error" iconClassName="text-fail" title="Fehlgeschlagene Instanzen" />
+          <IncidentsCard
+            incidents={incidentsQuery.data}
+            counters={diagnostics?.incidents}
+            pending={incidentsQuery.isPending}
+            error={incidentsQuery.error}
+            onRetry={() => void incidentsQuery.refetch()}
+          />
 
-            {failedInstances.length === 0 ? (
-              <EmptyState
-                className="border-border border-t"
-                icon="check_circle"
-                title="Keine Fehler"
-                description="Aktuell ist keine Instanz in einem Fehlerzustand."
-              />
-            ) : (
-              failedInstances.map((instance) => (
-                <button
-                  key={instance.instanceId}
-                  type="button"
-                  onClick={() => void navigate({ to: `/instances/${instance.instanceId}` })}
-                  className="border-border hover:bg-inset flex w-full cursor-pointer items-center gap-3 border-t border-x-0 border-b-0 bg-transparent px-[18px] py-3.5 text-left"
-                >
-                  <span
-                    className="text-fail grid h-8 w-8 flex-none place-items-center rounded-lg"
-                    style={{ background: 'color-mix(in oklab, var(--fail) 12%, transparent)' }}
-                  >
-                    <Icon name="warning" size={18} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13.5px] font-semibold">
-                      {instance.relatedDefinitionName}
-                    </div>
-                    <div className="text-faint mt-0.5 font-mono text-[11.5px]">
-                      #{shortId(instance.instanceId)} · {formatRelative(instance.startedAt)}
-                    </div>
-                  </div>
-                  <span className="text-accent flex-none text-[12.5px] font-semibold">Details</span>
-                </button>
-              ))
-            )}
-          </Card>
+          <RetentionCard retention={diagnostics?.retention} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-[18px]">
@@ -306,6 +273,14 @@ export function OperationsPage() {
                         : 'inaktiv'}
                     </strong>
                   </li>
+                  <li>
+                    Prometheus-Scrape:{' '}
+                    <strong className="text-text">
+                      {diagnostics.observability.prometheusEnabled
+                        ? (diagnostics.observability.prometheusPath ?? 'aktiv')
+                        : 'inaktiv'}
+                    </strong>
+                  </li>
                   <li className="font-mono text-[11.5px]">
                     {diagnostics.observability.serviceName} {diagnostics.observability.serviceVersion}
                   </li>
@@ -364,6 +339,76 @@ function DistributionBar({ segments }: { segments: { label: string; value: numbe
   );
 }
 
+/**
+ * Zustand der Aufbewahrung beendeter Instanzen.
+ *
+ * Zeigt die Frist mit, nicht nur den Dienststatus: Eine Frist ist eine Aussage darueber, wie
+ * lange Vorgangsdaten noch da sind — wer im Betrieb nachsieht, will genau das lesen und nicht
+ * erst in der Konfiguration nachschlagen.
+ */
+function RetentionCard({ retention }: { retention?: InstanceRetentionDiagnosticsDto }) {
+  return (
+    <Card>
+      <CardHeader
+        icon="schedule"
+        iconClassName={retention?.enabled ? 'text-accent' : 'text-muted'}
+        title="Aufbewahrung"
+        actions={
+          <span className="text-muted font-mono text-[11.5px]">
+            {retention?.enabled
+              ? `alle ${formatNumber(retention.pollIntervalMinutes)} min · max. ${formatNumber(retention.batchSize)}`
+              : '—'}
+          </span>
+        }
+      />
+
+      {!retention ? (
+        <LoadingRows rows={2} />
+      ) : !retention.enabled ? (
+        <EmptyState
+          className="border-border border-t"
+          icon="schedule"
+          title="Keine Aufbewahrungsfrist gesetzt"
+          description="Beendete Instanzen bleiben dauerhaft erhalten. Die Frist wird installationsweit über Retention:FinishedInstances:Days gesetzt; einzelne Workflows können sie überschreiben."
+        />
+      ) : (
+        <div className="border-border grid grid-cols-2 gap-x-3.5 gap-y-3 border-t px-[18px] py-3.5 sm:grid-cols-4">
+          <RetentionFact label="Frist" value={`${formatNumber(retention.days ?? 0)} Tage`} />
+          <RetentionFact label="Status" value={retention.status} />
+          <RetentionFact
+            label="Letzter Lauf"
+            value={retention.lastRunCompletedAtUtc ? formatRelative(retention.lastRunCompletedAtUtc) : 'noch keiner'}
+          />
+          <RetentionFact label="Zuletzt gelöscht" value={formatNumber(retention.lastDeletedInstances)} />
+          <RetentionFact label="Gelöscht gesamt" value={formatNumber(retention.totalDeletedInstances)} />
+          <RetentionFact label="Erfolgreiche Läufe" value={formatNumber(retention.successfulRunCount)} />
+          <RetentionFact label="Fehlgeschlagene Läufe" value={formatNumber(retention.failedRunCount)} />
+          <RetentionFact label="Dauer" value={formatDuration(retention.lastRunDurationMs)} />
+        </div>
+      )}
+
+      {retention?.lastErrorMessage && (
+        <div className="border-border text-fail border-t px-[18px] py-3 text-[12.5px]">
+          Letzter Fehler: {retention.lastErrorMessage}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function RetentionFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-muted font-mono text-[10px] font-semibold tracking-[0.09em] uppercase">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate text-[13.5px] font-semibold" title={value}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
 interface HealthCard {
   name: string;
   icon: string;
@@ -378,13 +423,29 @@ function buildHealthCards(
   if (!diagnostics) return [];
 
   const scheduler = diagnostics.timerScheduler;
+  const retention = diagnostics.retention;
   const schedulerLevel: HealthLevel = !scheduler.enabled
     ? 'warn'
     : scheduler.lastErrorMessage
       ? 'error'
       : 'ok';
 
+  // Eine Störung ist kein Zustand der Technik, sondern liegen gebliebene Arbeit. Sie gehört
+  // trotzdem in die Kachelreihe: Der Betrieb liest oben, ob etwas zu tun ist, und muss dafür
+  // nicht erst bis zur Liste scrollen.
+  const incidents = diagnostics.incidents;
+  const totalIncidents = incidents.jobExhausted + incidents.instanceFailed;
+
   return [
+    {
+      name: 'Störungen',
+      icon: 'warning',
+      level: totalIncidents === 0 ? 'ok' : 'error',
+      detail:
+        totalIncidents === 0
+          ? 'nichts bleibt liegen'
+          : `${formatNumber(incidents.jobExhausted)} Aufträge liegen · ${formatNumber(incidents.instanceFailed)} Instanzen gescheitert`,
+    },
     {
       name: 'Web-API',
       icon: 'api',
@@ -405,6 +466,15 @@ function buildHealthCards(
         ? 'deaktiviert'
         : (scheduler.lastErrorMessage ??
           `${scheduler.status} · letzter Lauf ${formatDuration(scheduler.lastTickDurationMs)}`),
+    },
+    {
+      name: 'Aufbewahrung',
+      icon: 'schedule',
+      level: !retention.enabled ? 'warn' : retention.lastErrorMessage ? 'error' : 'ok',
+      detail: !retention.enabled
+        ? 'keine Frist gesetzt'
+        : (retention.lastErrorMessage ??
+          `${formatNumber(retention.days ?? 0)} Tage · ${formatNumber(retention.totalDeletedInstances)} gelöscht`),
     },
     {
       name: 'OpenTelemetry',

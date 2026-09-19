@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v4.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v7.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -230,7 +230,7 @@ public static class BpmnCapabilityMatrix
         var capability = Contract.Elements.SingleOrDefault(item => item.ElementType == capabilityType);
         if (capability is null)
         {
-            var isEvent = element.Name.LocalName is "startEvent" or "intermediateCatchEvent" or "boundaryEvent" or "endEvent";
+            var isEvent = IsEventWithDefinition(element.Name.LocalName);
             throw Failure(isEvent ? "bpmn.event_definition.unsupported" : "bpmn.element.unsupported", elementId,
                 isEvent ? "eventDefinition" : null,
                 $"The BPMN element '{element.Name.LocalName}' is not supported by capability contract v{Contract.ContractVersion}.");
@@ -252,7 +252,7 @@ public static class BpmnCapabilityMatrix
         {
             return "serviceTask.aiTask";
         }
-        if (elementType is not ("startEvent" or "intermediateCatchEvent" or "boundaryEvent" or "endEvent"))
+        if (!IsEventWithDefinition(elementType))
         {
             return elementType;
         }
@@ -269,11 +269,21 @@ public static class BpmnCapabilityMatrix
         }
         if (eventDefinitions.Length == 0)
         {
-            return elementType is "endEvent" or "startEvent" ? $"{elementType}.plain" : elementType;
+            return elementType is "endEvent" or "startEvent" or "intermediateThrowEvent"
+                ? $"{elementType}.plain"
+                : elementType;
         }
 
         return $"{elementType}.{eventDefinitions[0]}";
     }
+
+    /// <summary>
+    /// Ereignisarten, deren Fähigkeit von ihrer Ereignisdefinition abhängt. Ein Intermediate-Throw
+    /// gehört seit Vertrag 6 dazu: Ohne diese Unterscheidung trüge ein Signalwurf dieselbe
+    /// Fähigkeit wie ein Nachrichtenwurf, obwohl nur der zweite ausgeführt wird.
+    /// </summary>
+    private static bool IsEventWithDefinition(string elementType) => elementType is
+        "startEvent" or "intermediateCatchEvent" or "intermediateThrowEvent" or "boundaryEvent" or "endEvent";
 
     private static void ValidateRequiredConfiguration(
         XElement element,
@@ -297,14 +307,60 @@ public static class BpmnCapabilityMatrix
                         "extensionElements.taskDefinition.type",
                         $"The service task '{elementId}' requires zeebe:taskDefinition/@type.");
                 break;
+            case "callActivity":
+                ValidateCallActivity(element, elementId);
+                break;
             case "userTask" when !HasFormKey(element):
                 throw Failure("bpmn.user_task.form_required", elementId,
                     "extensionElements.formDefinition.formKey",
                     $"The user task '{elementId}' requires formDefinition/@formKey or @formId.");
+            // Ein sendendes Element braucht ein Ziel: entweder die Nachricht, die es intern
+            // korreliert, oder den Auftragstyp des Workers, der sie nach draussen traegt.
+            // Ohne beides waere es ein Schritt, der nichts tut und nichts meldet.
+            case "sendTask" or "intermediateThrowEvent" or "endEvent"
+                when IsMessageThrow(element) && !HasTaskDefinitionType(element) && !HasMessageRef(element):
+                throw Failure("bpmn.message_throw.target_required", elementId, "messageRef",
+                    $"The sending element '{elementId}' requires messageRef or zeebe:taskDefinition/@type.");
             case "startEvent" or "intermediateCatchEvent" or "boundaryEvent" when HasEventDefinition(element, "timerEventDefinition")
                 && !HasTimerSchedule(element):
                 throw Failure("bpmn.timer.definition_required", elementId, "timerEventDefinition",
                     $"The timer event '{elementId}' requires timeCycle, timeDate, or timeDuration.");
+            // Ein Error-Boundary faengt laut BPMN 2.0 immer unterbrechend. cancelActivity="false"
+            // waere ein stilles Fehlverhalten und wird deshalb vor der Veroeffentlichung abgelehnt.
+            case "boundaryEvent" when HasEventDefinition(element, "errorEventDefinition")
+                && string.Equals(element.Attribute("cancelActivity")?.Value, "false", StringComparison.OrdinalIgnoreCase):
+                throw Failure("bpmn.error_boundary.cancel_activity_invalid", elementId, "cancelActivity",
+                    $"The error boundary event '{elementId}' must be interrupting; cancelActivity=\"false\" is not allowed.");
+        }
+    }
+
+    /// <summary>
+    /// Eine Call Activity muss wissen, welchen Prozess sie startet. Der Zielprozess wird hier
+    /// bewusst <b>nicht</b> gesucht: Er darf spaeter deployt werden, und erst die Laufzeit
+    /// entscheidet, welche Version dann aktuell ist.
+    ///
+    /// Die Prozesskennung bleibt in dieser Stufe ein Literal. Ein FEEL-Ausdruck waere erst zur
+    /// Laufzeit bekannt; eine Veroeffentlichung koennte dann nicht mehr zusagen, welche
+    /// Prozesse ein Workflow ueberhaupt aufruft.
+    /// </summary>
+    private static void ValidateCallActivity(XElement element, string elementId)
+    {
+        var processId = element.Descendants()
+            .FirstOrDefault(descendant => descendant.Name.LocalName == "calledElement")
+            ?.Attribute("processId")?.Value;
+
+        if (string.IsNullOrWhiteSpace(processId))
+        {
+            throw Failure("bpmn.call_activity.process_id_required", elementId,
+                "extensionElements.calledElement.processId",
+                $"The call activity '{elementId}' requires zeebe:calledElement/@processId.");
+        }
+
+        if (processId.TrimStart().StartsWith('='))
+        {
+            throw Failure("bpmn.call_activity.process_id_literal_required", elementId,
+                "extensionElements.calledElement.processId",
+                $"The call activity '{elementId}' requires a literal process id; FEEL expressions are not supported yet.");
         }
     }
 
@@ -331,6 +387,22 @@ public static class BpmnCapabilityMatrix
 
     private static bool HasEventDefinition(XElement element, string eventDefinitionName) => element.Descendants()
         .Any(descendant => descendant.Name.LocalName == eventDefinitionName);
+
+    /// <summary>
+    /// Ein Element, das eine Nachricht aussendet: der Send-Task selbst oder ein werfendes
+    /// Ereignis mit Nachrichtendefinition.
+    /// </summary>
+    private static bool IsMessageThrow(XElement element) => element.Name.LocalName == "sendTask"
+        || HasEventDefinition(element, "messageEventDefinition");
+
+    /// <summary>
+    /// Der Verweis auf die <c>bpmn:message</c>. Er steht am Send-Task selbst, an einem Ereignis
+    /// dagegen an seiner Nachrichtendefinition.
+    /// </summary>
+    private static bool HasMessageRef(XElement element) =>
+        !string.IsNullOrWhiteSpace(element.Attribute("messageRef")?.Value)
+        || element.Descendants().Any(descendant => descendant.Name.LocalName == "messageEventDefinition"
+            && !string.IsNullOrWhiteSpace(descendant.Attribute("messageRef")?.Value));
 
     private static bool HasTimerSchedule(XElement element) => element.Descendants()
         .Any(descendant => descendant.Name.LocalName is "timeCycle" or "timeDate" or "timeDuration");

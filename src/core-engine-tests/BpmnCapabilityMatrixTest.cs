@@ -1,3 +1,5 @@
+using System.Text.Json;
+using FluentAssertions.Execution;
 using core_engine.Exceptions;
 using FluentAssertions;
 
@@ -9,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("4");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("7");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -39,15 +41,12 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("4");
+        exception.ContractVersion.Should().Be("7");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
-    [TestCase("callActivity", "<bpmn:callActivity id='Call_1' />", "Call_1")]
     [TestCase("complexGateway", "<bpmn:complexGateway id='Complex_1' />", "Complex_1")]
     [TestCase("inclusiveGateway", "<bpmn:inclusiveGateway id='Inclusive_1' />", "Inclusive_1")]
-    [TestCase("intermediateThrowEvent", "<bpmn:intermediateThrowEvent id='Throw_1' />", "Throw_1")]
-    [TestCase("messageEnd", "<bpmn:endEvent id='MessageEnd_1'><bpmn:messageEventDefinition /></bpmn:endEvent>", "MessageEnd_1")]
     [TestCase("signalEnd", "<bpmn:endEvent id='SignalEnd_1'><bpmn:signalEventDefinition /></bpmn:endEvent>", "SignalEnd_1")]
     public void ValidateForDeployment_ShouldRejectEveryKnownNonExecutableCapability(
         string _capability, string flowElement, string elementId)
@@ -83,8 +82,8 @@ public class BpmnCapabilityMatrixTest
     // Testzweck: Nicht erlaubte Eventdefinitionen werden positionsbezogen vor dem Parser mit der Event-ID abgelehnt.
     [TestCase("startEvent", "errorEventDefinition")]
     [TestCase("intermediateCatchEvent", "escalationEventDefinition")]
-    [TestCase("boundaryEvent", "errorEventDefinition")]
-    [TestCase("endEvent", "errorEventDefinition")]
+    [TestCase("boundaryEvent", "escalationEventDefinition")]
+    [TestCase("endEvent", "escalationEventDefinition")]
     public void ValidateForDeployment_ShouldRejectUnsupportedEventDefinition(string eventType, string definitionType)
     {
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
@@ -497,6 +496,191 @@ public class BpmnCapabilityMatrixTest
             <zeebe:ioMapping><zeebe:input source="=request" target="request" /><zeebe:output source="=result" target="classification" /></zeebe:ioMapping>
           </bpmn:extensionElements>
         </bpmn:serviceTask>
+        """;
+
+    // Testzweck: Vertrag 6 sagt Error-End- und Error-Boundary-Events weiterhin als ausführbar zu.
+    [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:endEvent id='ErrorEnd_1'><bpmn:errorEventDefinition /></bpmn:endEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='ErrorEnd_1' />")]
+    [TestCase("<bpmn:startEvent id='Start_1' /><bpmn:task id='Task_1' /><bpmn:boundaryEvent id='Boundary_1' attachedToRef='Task_1'><bpmn:errorEventDefinition /></bpmn:boundaryEvent><bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Task_1' />")]
+    public void ValidateForDeployment_ShouldAcceptErrorEvents(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ein nicht unterbrechendes Error-Boundary ist laut BPMN 2.0 ungültig und wird mit
+    // eigenem Code und Sprungziel vor der Veröffentlichung abgelehnt.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectNonInterruptingErrorBoundary()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:task id='Task_1' />"
+            + "<bpmn:boundaryEvent id='Boundary_1' attachedToRef='Task_1' cancelActivity='false'>"
+            + "<bpmn:errorEventDefinition /></bpmn:boundaryEvent>"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
+        exception.ElementId.Should().Be("Boundary_1");
+        exception.PropertyPath.Should().Be("cancelActivity");
+        exception.ContractVersion.Should().Be("7");
+    }
+
+    // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
+    [Test]
+    public void HistoricContractVersion4_ShouldStillNotPromiseErrorEvents()
+    {
+        var contract = JsonSerializer.Deserialize<BpmnCapabilityContract>(
+            File.ReadAllText(Path.Combine("contracts", "v4.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        using (new AssertionScope())
+        {
+            contract.ContractVersion.Should().Be("4");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "endEvent.errorEventDefinition");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "boundaryEvent.errorEventDefinition");
+        }
+    }
+
+    private const string PlainThrowProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:intermediateThrowEvent id='Throw_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Throw_1' />";
+
+    private const string MessageThrowProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:intermediateThrowEvent id='Throw_1'>"
+        + "<bpmn:messageEventDefinition messageRef='Message_1' /></bpmn:intermediateThrowEvent>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Throw_1' />";
+
+    private const string MessageEndProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:endEvent id='MessageEnd_1'>"
+        + "<bpmn:messageEventDefinition messageRef='Message_1' /></bpmn:endEvent>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='MessageEnd_1' />";
+
+    private const string SendTaskWithMessageProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:sendTask id='Send_1' messageRef='Message_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Send_1' />";
+
+    private const string SendTaskWithJobProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:sendTask id='Send_1'><bpmn:extensionElements>"
+        + "<zeebe:taskDefinition type='mail-versenden' /></bpmn:extensionElements></bpmn:sendTask>"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Send_1' />";
+
+    // Testzweck: Vertrag 6 sagt sendende Nachrichtenelemente und den reinen Meilenstein-Throw zu.
+    [TestCase(PlainThrowProcess)]
+    [TestCase(MessageThrowProcess)]
+    [TestCase(MessageEndProcess)]
+    [TestCase(SendTaskWithMessageProcess)]
+    [TestCase(SendTaskWithJobProcess)]
+    public void ValidateForDeployment_ShouldAcceptSendingMessageElements(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        action.Should().NotThrow();
+    }
+
+    private const string ThrowWithoutTarget =
+        "<bpmn:intermediateThrowEvent id='Throw_1'><bpmn:messageEventDefinition /></bpmn:intermediateThrowEvent>";
+
+    private const string MessageEndWithoutTarget =
+        "<bpmn:endEvent id='MessageEnd_1'><bpmn:messageEventDefinition /></bpmn:endEvent>";
+
+    // Testzweck: Ein sendendes Element ohne Nachricht und ohne Auftragstyp hätte kein Ziel und
+    // wird mit eigenem Code am betroffenen Knoten abgelehnt.
+    [TestCase("<bpmn:sendTask id='Send_1' />", "Send_1")]
+    [TestCase(ThrowWithoutTarget, "Throw_1")]
+    [TestCase(MessageEndWithoutTarget, "MessageEnd_1")]
+    public void ValidateForDeployment_ShouldRejectSendingElementWithoutTarget(string flowElement, string elementId)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.message_throw.target_required");
+        exception.ElementId.Should().Be(elementId);
+        exception.PropertyPath.Should().Be("messageRef");
+    }
+
+    // Testzweck: Signalwürfe bleiben außen vor und werden als nicht unterstützte
+    // Ereignisdefinition gemeldet, nicht stillschweigend wie ein Nachrichtenwurf behandelt.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectSignalThrowEvent()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:intermediateThrowEvent id='Throw_1'><bpmn:signalEventDefinition />"
+            + "</bpmn:intermediateThrowEvent>"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_definition.unsupported");
+        exception.ElementId.Should().Be("Throw_1");
+        exception.PropertyPath.Should().Be("eventDefinition");
+    }
+
+    // Testzweck: Der historische Vertrag 5 bleibt unverändert und sagt sendende
+    // Nachrichtenelemente weiterhin nicht zu.
+    [Test]
+    public void HistoricContractVersion5_ShouldStillNotPromiseSendingMessageElements()
+    {
+        var contract = JsonSerializer.Deserialize<BpmnCapabilityContract>(
+            File.ReadAllText(Path.Combine("contracts", "v5.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        using (new AssertionScope())
+        {
+            contract.ContractVersion.Should().Be("5");
+            contract.Elements.Should().NotContain(capability => capability.ElementType == "sendTask");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "intermediateThrowEvent.messageEventDefinition");
+            contract.Elements.Should().Contain(capability =>
+                capability.ElementType == "endEvent.messageEventDefinition" && !capability.Executable);
+        }
+    }
+
+    // Testzweck: Vertrag 7 sagt die lokale Call Activity als ausführbar zu; eine vollständig
+    // konfigurierte Aufruf-Aktivität darf deshalb veröffentlicht werden.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptCallActivityWithLiteralProcessId()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(CallActivity("second-level-support")));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ohne Prozesskennung wüsste die Laufzeit nicht, was sie starten soll — das wird
+    // vor der Veröffentlichung mit stabilem Code am betroffenen Knoten abgelehnt.
+    [TestCase("<bpmn:callActivity id='Call_1' />")]
+    [TestCase("<bpmn:callActivity id='Call_1'><bpmn:extensionElements><zeebe:calledElement /></bpmn:extensionElements></bpmn:callActivity>")]
+    [TestCase("<bpmn:callActivity id='Call_1'><bpmn:extensionElements><zeebe:calledElement processId='  ' /></bpmn:extensionElements></bpmn:callActivity>")]
+    public void ValidateForDeployment_ShouldRejectCallActivityWithoutProcessId(string flowElement)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(flowElement));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.call_activity.process_id_required");
+        exception.ElementId.Should().Be("Call_1");
+        exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
+        exception.ContractVersion.Should().Be("7");
+    }
+
+    // Testzweck: Ein FEEL-Ausdruck als Prozesskennung ist in dieser Stufe nicht erlaubt; sonst
+    // stünde erst zur Laufzeit fest, welchen Prozess ein Workflow überhaupt aufruft.
+    [TestCase("=zielProzess")]
+    [TestCase("  =zielProzess")]
+    public void ValidateForDeployment_ShouldRejectCallActivityWithExpressionProcessId(string processId)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(CallActivity(processId)));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.call_activity.process_id_literal_required");
+        exception.ElementId.Should().Be("Call_1");
+        exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
+    }
+
+    private static string CallActivity(string processId) => $"""
+        <bpmn:callActivity id="Call_1">
+          <bpmn:extensionElements>
+            <zeebe:calledElement processId="{processId}" propagateAllParentVariables="false" />
+          </bpmn:extensionElements>
+        </bpmn:callActivity>
         """;
 
     private static string CreateProcess(string flowElements) => $"""

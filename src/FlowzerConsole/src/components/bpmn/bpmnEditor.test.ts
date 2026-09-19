@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createBpmnEditor } from './bpmnEditor';
+import { createBpmnEditor, NEW_ERROR } from './bpmnEditor';
 import type { DiagramElement, ModdleElement } from './moddle';
 
 /**
@@ -48,7 +48,7 @@ function createModelerDouble(elements: DiagramElement[]) {
   return createBpmnEditor({ get: <T,>(name: string) => services[name] as T });
 }
 
-const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal'];
+const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal', 'bpmn:Error'];
 
 function applyProperties(target: ModdleElement, properties: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(properties)) {
@@ -399,6 +399,85 @@ describe('setMessage und setSignal', () => {
     expect(signal.name).toBe('Freigabe erteilt');
     expect(signal.id).toMatch(/^Signal_/);
     expect((definition as ModdleElement).signalRef).toBe(signal);
+  });
+});
+
+// Testzweck: Ein bpmn:Error gehoert zum Dokument, nicht zum Ereignis. Werfen und Fangen
+// finden nur ueber denselben Fehler zueinander; ein je Ereignis neu angelegter Fehler bliebe
+// im Modell ohne Gegenstueck.
+describe('setErrorReference', () => {
+  function errorEvent(type = 'bpmn:EndEvent', errorRef?: ModdleElement) {
+    const definition = { $type: 'bpmn:ErrorEventDefinition' } as ModdleElement;
+    if (errorRef) definition.errorRef = errorRef;
+    const built = diagram({ $type: type, eventDefinitions: [definition] });
+    return { ...built, definition };
+  }
+
+  it('legt einen fehlenden Fehler als Wurzelelement an und verweist darauf', () => {
+    const { definitions, definition, editor } = errorEvent();
+
+    editor.setErrorReference('Element_1', { name: 'Antrag unvollstaendig', code: 'ANTRAG' });
+
+    const error = (definitions.rootElements as ModdleElement[]).find((root) => root.$type === 'bpmn:Error')!;
+    expect(error.name).toBe('Antrag unvollstaendig');
+    expect(error.errorCode).toBe('ANTRAG');
+    expect(error.id).toMatch(/^Error_/);
+    expect(definition.errorRef).toBe(error);
+  });
+
+  it('waehlt einen vorhandenen Fehler aus, statt einen zweiten anzulegen', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:BoundaryEvent');
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: 'Error_alt' });
+
+    expect(definition.errorRef).toBe(existing);
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(1);
+  });
+
+  it('aendert den Code des bereits referenzierten Fehlers', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, editor } = errorEvent('bpmn:BoundaryEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { code: 'NEU' });
+
+    expect(existing.errorCode).toBe('NEU');
+    expect(existing.name).toBe('Alt');
+  });
+
+  it('loest den Bezug, sodass das Boundary wieder jeden Fehler faengt', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:BoundaryEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: null });
+
+    expect(definition.errorRef).toBeUndefined();
+    // Der Fehler bleibt im Dokument: Andere Ereignisse koennen weiter auf ihn zeigen.
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(1);
+  });
+
+  it('legt bei „neuer Fehler" einen zweiten an, statt den vorhandenen umzubenennen', () => {
+    const existing = { $type: 'bpmn:Error', id: 'Error_alt', name: 'Alt', errorCode: 'ALT' } as ModdleElement;
+    const { definitions, definition, editor } = errorEvent('bpmn:EndEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setErrorReference('Element_1', { errorId: NEW_ERROR });
+
+    const errors = (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error');
+    expect(errors).toHaveLength(2);
+    expect(existing.name).toBe('Alt');
+    expect(definition.errorRef).toBe(errors[1]);
+  });
+
+  it('ruehrt ein Ereignis ohne Fehlerdefinition nicht an', () => {
+    const { definitions, editor } = diagram({ $type: 'bpmn:EndEvent' });
+
+    editor.setErrorReference('Element_1', { name: 'Egal' });
+
+    expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(0);
   });
 });
 

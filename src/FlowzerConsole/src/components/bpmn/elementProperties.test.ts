@@ -220,9 +220,9 @@ describe('readElementProperties für Timer', () => {
   });
 });
 
-// Testzweck: Eine wartende Nachricht löst die Engine über `messageRef` auf; eine gesendete
-// verschickt sie über einen Worker-Auftrag. Das Panel darf deshalb nicht überall dasselbe
-// Feld zeigen — sonst stünde am sendenden Ereignis ein Name ohne Wirkung.
+// Testzweck: Wartende und sendende Elemente tragen denselben `messageRef` samt
+// Korrelationsschlüssel — nur so finden Werfen und Fangen zueinander. Am sendenden Element
+// kommt der Auftragstyp als freiwillige Alternative hinzu.
 describe('readElementProperties für Nachrichten', () => {
   const message = {
     $type: 'bpmn:Message',
@@ -248,7 +248,7 @@ describe('readElementProperties für Nachrichten', () => {
     expect(properties.message?.name).toBe('Antrag eingegangen');
   });
 
-  it('zeigt am sendenden Ereignis keinen Nachrichtennamen, sondern einen Auftrag', () => {
+  it('liest am sendenden Ereignis Nachricht und den freiwilligen Auftragstyp', () => {
     const properties = readElementProperties(
       element({
         $type: 'bpmn:EndEvent',
@@ -257,9 +257,32 @@ describe('readElementProperties für Nachrichten', () => {
       }),
     );
 
-    expect(properties.message).toBeNull();
+    expect(properties.message).toEqual({ name: 'Antrag eingegangen', correlationKey: '=antragsnummer' });
+    expect(properties.sendsMessage).toBe(true);
     expect(properties.needsJobType).toBe(true);
+    expect(properties.jobTypeOptional).toBe(true);
     expect(properties.jobType).toBe('antrag-melden');
+  });
+
+  it('liest die Nachricht auch an einer Sendeaufgabe und bietet dort Eingangszuordnungen an', () => {
+    const properties = readElementProperties(element({ $type: 'bpmn:SendTask', messageRef: message }));
+
+    expect(properties.message?.name).toBe('Antrag eingegangen');
+    expect(properties.sendsMessage).toBe(true);
+    expect(properties.supportsInputMappings).toBe(true);
+  });
+
+  it('bietet am wartenden Nachrichtenereignis Ausgangszuordnungen an', () => {
+    const properties = readElementProperties(
+      element({
+        $type: 'bpmn:IntermediateCatchEvent',
+        eventDefinitions: [{ $type: 'bpmn:MessageEventDefinition', messageRef: message } as ModdleElement],
+      }),
+    );
+
+    expect(properties.sendsMessage).toBe(false);
+    expect(properties.supportsOutputMappings).toBe(true);
+    expect(properties.needsJobType).toBe(false);
   });
 });
 

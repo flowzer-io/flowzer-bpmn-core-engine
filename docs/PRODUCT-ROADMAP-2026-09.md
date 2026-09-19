@@ -350,9 +350,17 @@ und Abschluss bleiben identisch.
   Aufgaben über die tatsächliche Mitgliedschaft in geladenen Instanz-Tokens prüfen.
 - [ ] Explizites, am Deployment gespeichertes Expression-Profil, kein stiller
   Semantikwechsel durch V8-Fallback.
-- [ ] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
-- [ ] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
+- [x] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
+  `GET /operations/incidents` führt liegen gebliebene Aufträge und gescheiterte Instanzen
+  zusammen, `POST /job/{jobId}/retry` gibt einen Auftrag mit korrigierten Eingaben wieder
+  frei und hält Akteur, Zeitpunkt und die Namen der korrigierten Felder fest. Offen bleibt
+  eine Störungshistorie, die das Ende eines Auftrags überdauert (siehe RUNTIME-GAPS.md).
+- [x] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
   Instanz/Aufgaben/Jobs; Mehrprozessbetrieb erst nach Konkurrenztests freigeben.
+  Die Konkurrenztests laufen mit zwei getrennten API-Hosts gegen eine Datenbank
+  (`src/WebApiEngine.Tests/MultiProcess*.cs`); der Mehrprozessbetrieb ist damit für
+  PostgreSQL unter den in [Betrieb](OPERATIONS.md#mehrprozessbetrieb) genannten
+  Bedingungen freigegeben. Die Dateiablage bleibt Einzelprozess.
 - [ ] Dateiablage auf Entwicklung begrenzen; bestehende No-op-Transaktionen sind
   kein Rollback- oder Crash-Konsistenzversprechen.
 - [ ] Große Einheiten nach Verantwortung aufteilen, nicht allein nach Zeilenzahl.
@@ -380,40 +388,42 @@ Ablage bleibt ein Vorteil für die Zielgruppe.
 
 **Betriebsreife (zieht die offenen M6-Punkte vor):**
 
-- [ ] Error-End- und Error-Boundary-Events; Worker melden fachliche Fehler über
-  `POST /job/{id}/throw-error` mit `errorCode`, die Engine löst sie am Boundary auf.
-- [ ] Störungszentrum: Störung als eigenes Objekt, Auftrag ohne Versuche erneut freigeben,
-  Eingaben korrigieren, Abbruch, Audit; Sicht auf der Betriebsseite.
-- [ ] Aufbewahrung: Frist für beendete Instanzen global und je Workflow, vollständiges
-  Löschen aller angehängten Daten, manuelles Löschen durch die Betriebsrolle.
-- [ ] Prometheus-Scrape-Endpunkt neben OTLP, nur im Containernetz erreichbar.
-- [ ] Mehrprozessbetrieb mit Konkurrenztests nachweisen und freigeben.
+- [x] Error-End- und Error-Boundary-Events; Worker melden fachliche Fehler über
+  `POST /job/{id}/throw-error` mit `errorCode`, die Engine löst sie am Boundary auf. (#323)
+- [x] Störungszentrum: Störung als eigenes Objekt, Auftrag ohne Versuche erneut freigeben,
+  Eingaben korrigieren, Abbruch, Audit; Sicht auf der Betriebsseite. (#326)
+- [x] Aufbewahrung: Frist für beendete Instanzen global und je Workflow, vollständiges
+  Löschen aller angehängten Daten, manuelles Löschen durch die Betriebsrolle. (#325)
+- [x] Prometheus-Scrape-Endpunkt neben OTLP, nur im Containernetz erreichbar. (#322)
+- [x] Mehrprozessbetrieb mit Konkurrenztests nachweisen und freigeben. (#330; dazu
+  Konfigurationsprüfung, Backup/Restore und Upgrade-Nachweis in #338)
 
 **BPMN-Lücken in der Reihenfolge des Nutzens:**
 
-- [ ] Message-Throw-Event, Send-Task und Message-End-Event (Prozesse sprechen Prozesse an).
-- [ ] Lokale Call Activity (Wiederverwendung; Voraussetzung für #154).
-- [ ] Event-based Gateway, Inclusive Gateway, Event-Subprozess.
-- [ ] Escalation-Events; Kompensation bleibt ein eigener Strang.
-- [ ] BPMN-MIWG-Testsuite als Konformitätsnachweis statt nur des eigenen Fähigkeitsvertrags.
+- [x] Message-Throw-Event, Send-Task und Message-End-Event (Prozesse sprechen Prozesse an). (#329)
+- [x] Lokale Call Activity (Wiederverwendung; Voraussetzung für #154). (#333)
+- [x] Event-based Gateway, Inclusive Gateway, Event-Subprozess. (#341, Vertrag 9)
+- [x] Escalation-Events (#341, Vertrag 9); Kompensation bleibt ein eigener Strang.
+- [x] BPMN-MIWG-Testsuite als Konformitätsnachweis statt nur des eigenen Fähigkeitsvertrags.
+  (#335; Parser-Robustheit aus den Befunden in #337)
 
 **Entscheidungen und Eingriffe:**
 
-- [ ] DMN-Entscheidungstabellen mit Business-Rule-Task; FEEL ist vorhanden, der
-  Tabelleneditor kommt aus derselben bpmn.io-Familie wie der Modeler.
-- [ ] Token innerhalb derselben Version verschieben und Variablen einer laufenden Instanz
+- [x] DMN-Entscheidungstabellen mit Business-Rule-Task; FEEL ist vorhanden, der
+  Tabelleneditor kommt aus derselben bpmn.io-Familie wie der Modeler. (#324 Kern, #339 Bindung)
+- [x] Token innerhalb derselben Version verschieben und Variablen einer laufenden Instanz
   bearbeiten (Camunda: „Process Instance Modification“); baut auf der Zuordnungslogik der
-  Instanzmigration auf.
+  Instanzmigration auf. (#332)
 
 **Konnektoren und Nachfolge:**
 
-- [ ] Mitgelieferte Worker: HTTP/REST, E-Mail, eingehender Webhook-Trigger.
+- [x] Mitgelieferte Worker: HTTP/REST, E-Mail (#331), eingehender Webhook-Trigger (#336).
 - [x] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite
   (`docs/CAMUNDA-7-IMPORT.md`, „BPMN-Datei importieren“ im Workflow-Katalog).
-- [ ] MPL-2.0 vollziehen (SBOM, Meldestelle), damit die Nachfolge-Positionierung trägt.
+- [x] MPL-2.0 vollziehen (SBOM, Meldestelle), damit die Nachfolge-Positionierung trägt. (#328)
 
-**Später:** Auswertungen auf der Historie (Durchlaufzeiten, Engpässe), Versionsvergleich im
-Modeler, englische Oberfläche, Mehrmandanten-Hosting.
+**Später:** Versionsvergleich im Modeler, englische Oberfläche, Mehrmandanten-Hosting.
+Vorgezogen: Auswertungen auf der Historie (#334), Prozesspakete (#340).
 
 ## Verträge, Migration und Fertigkriterien
 

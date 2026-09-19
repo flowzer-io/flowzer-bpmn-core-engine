@@ -49,10 +49,37 @@ public class ServiceTaskJob
     /// <summary>Eingabewerte des Tokens zum Zeitpunkt der Anlage.</summary>
     public Variables? Variables { get; set; }
 
+    /// <summary>
+    /// Die Freigaben von Hand an diesem Auftrag, älteste zuerst. Bewusst nicht <c>required</c>:
+    /// Bestandsdokumente kennen die Eigenschaft nicht und laden als „nie freigegeben".
+    /// </summary>
+    public List<ServiceTaskJobRetry> RetryHistory { get; set; } = [];
+
     public bool IsAvailableAt(DateTime moment) =>
         (LockedUntil is null || LockedUntil <= moment)
         && (RetryAt is null || RetryAt <= moment)
         && Retries > 0;
+}
+
+/// <summary>
+/// Eine Freigabe von Hand: Der Betrieb hat einen liegen gebliebenen Auftrag wieder vergeben.
+///
+/// Der Eintrag nennt Akteur und Zeitpunkt, aber von den korrigierten Eingaben nur die
+/// Schlüsselnamen. Die Werte selbst stehen im Auftrag und gehören nicht ein zweites Mal in eine
+/// Spur, die auch dann noch gelesen wird, wenn niemand mehr weiß, was darin stand.
+/// </summary>
+public class ServiceTaskJobRetry
+{
+    public DateTime At { get; set; }
+
+    /// <summary>Wer freigegeben hat. Nur die Benutzerkennung, kein Name und keine Adresse.</summary>
+    public Guid By { get; set; }
+
+    /// <summary>Die Anzahl Versuche, die der Auftrag dabei bekommen hat.</summary>
+    public int Retries { get; set; }
+
+    /// <summary>Namen der überschriebenen Eingaben, alphabetisch. Nie deren Werte.</summary>
+    public List<string> CorrectedKeys { get; set; } = [];
 }
 
 /// <summary>

@@ -1,8 +1,80 @@
 # Laufzeitlücken und aktueller Restbestand
 
-**Stand:** 17. September 2026
+**Stand:** 19. September 2026
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
+
+## Fehlerereignisse: Error End und Error Boundary
+
+Fachliche Fehler laufen jetzt auf BPMN-Ebene weiter, statt die Instanz nur auf `Failed` zu
+setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 5), der
+Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
+bleiben ausdrücklich offen.
+
+## Lokale Call Activity
+
+Ein Prozess kann jetzt einen anderen Prozess derselben Installation aufrufen und auf dessen Ende
+warten. Die vollständige Semantik steht in [CALL-ACTIVITY.md](CALL-ACTIVITY.md), der Vertrag in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 7).
+
+Vorhanden:
+
+- `callActivity` ist ausführbar; `zeebe:calledElement/@processId` ist Pflicht und muss ein
+  Literal sein
+- das Token wartet wie an einem Service-Task; die Engine stellt den Aufruf bereit, die
+  Geschäftslogik startet die Kindinstanz in derselben Transaktion
+- Variablen hinein nach `propagateAllParentVariables` und `zeebe:ioMapping`-Eingang, heraus nach
+  `propagateAllChildVariables` und `zeebe:ioMapping`-Ausgang
+- Ende, Terminate, ungefangener BPMN-Fehler, Abbruch und fehlender Zielprozess sind als
+  BPMN-Fehler an der Aufruf-Aktivität fangbar
+- Abbruch des Aufrufers bricht laufende Kindinstanzen rekursiv mit ab
+- `GET /instance/{id}/children` und `parentInstanceId` machen den Verbund in der Konsole sichtbar
+
+Weiterhin offen:
+
+- Fernaufruf in eine andere Flowzer-Installation (#154, Stufe 2+)
+- FEEL-Ausdruck als Prozesskennung und Bindung an eine feste Version (`versionTag`)
+- Migration eines Aufrufers mit wartender Aufruf-Aktivität (`CallActivityWaiting`)
+- Multi-Instance an der Aufruf-Aktivität
+- Zwischenstände vor dem Ende der Kindinstanz
+- Kompensation beim Abbruch
+- Rekursion bricht ab Tiefe 10 ab; eine echte Zyklenerkennung gibt es nicht
+
+## Nachrichten senden: Message-Throw, Message-Ende und Send-Task
+
+Prozesse können einander jetzt etwas mitteilen, statt Nachrichten nur von außen über
+`POST /message` zu empfangen. Die vollständige Semantik steht in
+[BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 6).
+
+Vorhanden:
+
+- `intermediateThrowEvent` mit Nachrichtendefinition, `endEvent` mit Nachrichtendefinition und
+  `sendTask` sind ausführbar; ein Throw-Event ohne Ereignisdefinition läuft als Meilenstein durch
+- die Engine sammelt ausgehende Nachrichten mit ausgewertetem Korrelationsschlüssel und den
+  Eingabewerten nach `zeebe:ioMapping`; ohne Zuordnung geht bewusst nichts mit
+- die Geschäftslogik stellt sie nach dem Speichern der Instanz in derselben Transaktion über
+  denselben Weg zu wie `POST /message` — an eine wartende Instanz (auch die sendende selbst)
+  oder über ein Message-Start-Event an eine neue
+- ohne Empfänger verfällt die Nachricht; das sendende Element gilt trotzdem als abgeschlossen
+- mit `zeebe:taskDefinition/@type` wird stattdessen ein Auftrag für einen externen Worker
+  angelegt — derselbe Auftragspfad wie am Service-Task, samt Complete, Fail und Throw-Error
+- ein Message-Catch-Event schreibt die empfangenen Werte wie eine Empfangsaufgabe in seinen
+  Prozesskontext; zuvor gingen sie verloren
+
+Weiterhin offen:
+
+- Signal-Throw und Signal-Ende; ein Signalwurf wird als nicht unterstützte Ereignisdefinition
+  abgelehnt
+- Pufferung und Time-to-live: Eine Nachricht ohne Empfänger verfällt sofort
+- Nachrichten über Installationsgrenzen hinweg (#154)
+- Escalation-Throw (siehe Abschnitt 2 unten)
+- Eine Nachricht erreicht genau einen Empfänger; warten mehrere Instanzen auf denselben Namen
+  und Schlüssel, ist die Auswahl nicht weiter festgelegt
+- Die Zustellung läuft in der Transaktion des Aufrufers. Bei einem Fehler scheitert die ganze
+  Mutation; die nichttransaktionale Dateiablage kann dabei einen Zwischenstand zurücklassen —
+  dieselbe bekannte Grenze wie bei jedem anderen Schreibvorgang dort.
+- Gegenseitiges Antworten ohne Ende bricht nach 100 Zustellungen je Mutation ab; eine echte
+  Zyklenerkennung gibt es nicht.
 
 ## Korrektur #310: Manual Tasks und Timerdiagnose
 
@@ -14,8 +86,20 @@ Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
 Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
 solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
 für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
-Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
-Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
+
+**Mehrprozessschutz der Timer ist geschlossen.** Ein Scheduler-Durchgang übernimmt die
+fälligen Start-Timer jetzt exklusiv (`FOR UPDATE SKIP LOCKED` in derselben Transaktion,
+`IMessageSubscriptionStorage.ClaimDueTimerSubscriptions`); vorher überführten zwei API-Prozesse
+dieselbe Fälligkeit in zwei Instanzen. Instanztimer bleiben bewusst ohne Zeilensperre: Sie
+laufen über den Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren
+Zeilensperren nimmt — eine zusätzliche Zeilensperre davor drehte die Sperrreihenfolge um.
+Belegt in `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.Lifecycle.cs`; die
+Betriebsbedingungen stehen unter [Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb).
+Die Dateiablage bleibt Einzelprozess.
+
+Offen aus #93 bleiben die transaktionsweise Isolation einzelner Timer innerhalb eines
+Durchgangs (ein fehlgeschlagener Timer rollt den ganzen Durchgang zurück) und das begrenzte
+Nachholen wiederkehrender Timer.
 
 ## In diesem Strang bereits geschlossen
 
@@ -85,8 +169,18 @@ Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
 - Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
 - ~~Service-Tasks haben keinen Worker-Vertrag.~~ Erledigt: Abholen mit Sperre, atomare
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
-  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`. Offen bleibt, einen Auftrag ohne
-  verbleibende Versuche erneut freizugeben.
+  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`.
+- ~~Ein Auftrag ohne verbleibende Versuche lässt sich nicht erneut freigeben.~~ Erledigt mit
+  dem Störungszentrum: `GET /operations/incidents` führt liegen gebliebene Aufträge und
+  gescheiterte Instanzen an einer Stelle zusammen, `POST /job/{jobId}/retry` gibt einen
+  Auftrag mit korrigierten Eingaben wieder frei. Siehe `docs/OPERATIONS.md`, Abschnitt
+  „Störungen". Offen bleibt dabei:
+  - Die Spur der Freigaben (`retryHistory`) hängt am Auftrag und verschwindet mit ihm, sobald
+    er abgeschlossen ist; dauerhaft bleibt nur der Logeintrag. Eine instanzgebundene
+    Störungshistorie braucht einen eigenen Ereignistyp mit eigener Aufbewahrungsregel.
+  - Verbrauchte Versuche werden nicht gezählt — nur die verbleibenden und die Freigaben von Hand.
+  - Eine gescheiterte Instanz bleibt gescheitert; eine Neu-Ausführung gibt es weiterhin nicht.
+  - KI-Läufe erscheinen nicht als Störung; sie haben einen eigenen Lauf- und Freigabevertrag.
 - ~~Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.~~
   Erledigt: Fristen werden beim Erreichen der Aufgabe an absolute Zeitpunkte gebunden,
   überwacht und gemeldet. Siehe `docs/HUMAN-TASK-DEADLINES.md`.
@@ -117,17 +211,26 @@ Weiterhin offen:
 
 ### 2. Fehler- und Eskalationspfade
 
-Noch nicht produktionsreif umgesetzt:
+Fehlerpfade sind umgesetzt, Eskalation und Kompensation nicht.
 
-- Error Boundary Events
-- Escalation Catch/Throw
-- fachlich sinnvolle Fehlerpropagation auf BPMN-Ebene statt nur auf Ausnahmepfad
+Vorhanden (Fähigkeitsvertrag 5):
 
-Aktueller Status:
+- `bpmn:error`-Wurzelelemente, Error-End-Events und Error-Boundary-Events werden geparst und ausgeführt
+- ein Fehler wandert vom Ursprung nach außen, bis ein Error-Boundary mit passendem Code oder ohne `errorRef` ihn fängt
+- Fangen ist immer unterbrechend: der gefangene Scope und alles darin wird zurückgezogen, samt seiner Message-, Signal- und Timer-Subscriptions
+- ohne Fänger endet die Instanz als `Failed` mit einer Begründung an `ProcessInstanceInfo.FailureReason`
+- ein externer Worker wirft einen fachlichen Fehler über `POST /job/{jobId}/throw-error`
+- eine gescheiterte Instanz erscheint mit ihrer Begründung in der Störungsliste
+  (`GET /operations/incidents`) und in der Instanzansicht der Konsole
+- `cancelActivity="false"` an einem Error-Boundary wird vor Speichern und Veröffentlichen abgelehnt
 
-- `GetActiveEscalations()` liefert stabil eine leere Liste statt sofort zu scheitern
-- `HandleEscalation(...)` und `HandleError(...)` führen jetzt mindestens in einen kontrollierten Best-Effort-Fehlerzustand statt in eine rohe `NotImplementedException`
-- echte Eskalations- und Fehlersemantik bleibt weiterhin ein separates Folgepaket
+Weiterhin offen:
+
+- Escalation Catch/Throw; `GetActiveEscalations()` liefert weiterhin nur eine leere Liste und `HandleEscalation(...)` führt weiterhin nur in einen Best-Effort-Fehlerzustand
+- Kompensation (siehe Abschnitt 3)
+- Error-Start-Events in Event-Subprozessen und Fehlerpfade über Call Activities
+- ein Fehler in einem Multi-Instance-Körper unterbricht die ganze Multi-Instance-Aktivität; eine einzelne Ausprägung lässt sich nicht gesondert behandeln
+- `ProcessInstanceInfo.FailureReason` wird beim Scheitern geschrieben und nicht aus der Ablage zurückgelesen: Ein späterer Schreibvorgang an derselben Instanz würde ihn leeren. Eine gescheiterte Instanz wird heute nicht mehr geschrieben, ein Wiederaufsetzen müsste die Begründung mitführen.
 
 ### 3. Vollständige Kompensation bei Abbruch
 
