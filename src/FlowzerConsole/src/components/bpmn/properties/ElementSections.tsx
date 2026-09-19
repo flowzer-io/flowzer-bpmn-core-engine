@@ -275,29 +275,35 @@ export function ScheduleSection({ properties, editor, readOnly }: SectionProps) 
   );
 }
 
-/** Der Auftrag an einen externen Worker — an Service-Tasks und an sendenden Ereignissen. */
+/** Der Auftrag an einen externen Worker — an Service-Tasks und an sendenden Elementen. */
 export function JobSection({ properties, editor, readOnly }: SectionProps) {
   return (
     <Section
       icon="api"
-      title="Auftrag"
+      title={properties.jobTypeOptional ? 'Auftrag (optional)' : 'Auftrag'}
       hint={
-        properties.kind === 'serviceTask'
-          ? 'Der Auftragstyp verbindet den Schritt mit dem Worker, der ihn ausführt.'
-          : 'Diesen Schritt führt ein Worker aus — bei einem sendenden Ereignis verschickt er die Nachricht.'
+        properties.jobTypeOptional
+          ? 'Mit einem Auftragstyp verschickt ein Worker die Nachricht — etwa als E-Mail. Ohne ihn stellt Flowzer sie selbst an den wartenden Prozess zu.'
+          : 'Der Auftragstyp verbindet den Schritt mit dem Worker, der ihn ausführt.'
       }
     >
       <TextRow
         label="Auftragstyp"
         value={properties.jobType}
         disabled={readOnly}
-        placeholder="rechnung-pruefen"
+        placeholder={properties.jobTypeOptional ? 'mail-versenden' : 'rechnung-pruefen'}
         monospace
         onCommit={(value) => editor?.setJob(properties.id, { type: value })}
       />
-      {properties.jobType.trim().length === 0 && (
+      {properties.jobType.trim().length === 0 && !properties.jobTypeOptional && (
         <Notice tone="warn">
           Ohne Auftragstyp findet kein Worker diesen Schritt — die Instanz bliebe hier stehen.
+        </Notice>
+      )}
+      {properties.jobType.trim().length > 0 && properties.jobTypeOptional && (
+        <Notice>
+          Der Auftragstyp ersetzt die interne Zustellung: Die Nachricht geht an den Worker, nicht an
+          einen wartenden Prozess.
         </Notice>
       )}
       {/* Wiederholungen liest die Engine nur am Service-Task. An einem sendenden Ereignis oder
@@ -567,7 +573,11 @@ export function MappingsSection({ properties, editor, readOnly }: SectionProps) 
     <Section
       icon="data_object"
       title="Zuordnungen"
-      hint="Eingang bringt Prozessdaten in den Schritt, Ausgang schreibt sein Ergebnis zurück."
+      hint={
+        properties.sendsMessage
+          ? 'Der Eingang bestimmt, welche Werte mit der Nachricht mitgehen. Ohne Zuordnung geht nichts mit.'
+          : 'Eingang bringt Prozessdaten in den Schritt, Ausgang schreibt sein Ergebnis zurück.'
+      }
     >
       {properties.supportsInputMappings && (
         <IoMappingEditor
@@ -579,14 +589,18 @@ export function MappingsSection({ properties, editor, readOnly }: SectionProps) 
           onChange={(inputs) => editor?.setIoMappings(properties.id, inputs, properties.outputs)}
         />
       )}
-      <IoMappingEditor
-        label="Ausgang"
-        sourceLabel="=entscheidung"
-        targetLabel="antrag.status"
-        value={properties.outputs}
-        disabled={readOnly}
-        onChange={(outputs) => editor?.setIoMappings(properties.id, properties.inputs, outputs)}
-      />
+      {/* Ein sendendes Element hat kein Ergebnis zurückzuschreiben; das Feld wäre dort
+          eine Angabe ohne Wirkung. */}
+      {properties.supportsOutputMappings && (
+        <IoMappingEditor
+          label="Ausgang"
+          sourceLabel="=entscheidung"
+          targetLabel="antrag.status"
+          value={properties.outputs}
+          disabled={readOnly}
+          onChange={(outputs) => editor?.setIoMappings(properties.id, properties.inputs, outputs)}
+        />
+      )}
     </Section>
   );
 }
@@ -712,11 +726,25 @@ export function TimerSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
+/**
+ * Die Nachricht eines Elements — dieselben zwei Felder für beide Seiten: Der Name führt Werfen
+ * und Fangen zusammen, der Schlüssel entscheidet, welcher laufende Vorgang gemeint ist.
+ */
 export function MessageSection({ properties, editor, readOnly }: SectionProps) {
   const current: MessageReference = properties.message ?? { name: '', correlationKey: '' };
+  const sends = properties.sendsMessage;
+  const replacedByJob = sends && properties.jobType.trim().length > 0;
 
   return (
-    <Section icon="mail" title="Nachricht" hint="Die Instanz wartet, bis eine Nachricht dieses Namens eintrifft.">
+    <Section
+      icon="mail"
+      title="Nachricht"
+      hint={
+        sends
+          ? 'Dieser Schritt sendet die Nachricht und läuft sofort weiter — er wartet nicht auf eine Antwort.'
+          : 'Die Instanz wartet, bis eine Nachricht dieses Namens eintrifft.'
+      }
+    >
       <TextRow
         label="Name"
         value={current.name}
@@ -724,7 +752,7 @@ export function MessageSection({ properties, editor, readOnly }: SectionProps) {
         placeholder="Antrag eingegangen"
         onCommit={(name) => editor?.setMessage(properties.id, { name })}
       />
-      {current.name.trim().length === 0 && (
+      {current.name.trim().length === 0 && !replacedByJob && (
         <Notice tone="warn">
           Ohne Namen lässt sich der Workflow nicht speichern — die Nachricht wäre nicht zuzuordnen.
         </Notice>
@@ -735,9 +763,19 @@ export function MessageSection({ properties, editor, readOnly }: SectionProps) {
         disabled={readOnly}
         placeholder="=antragsnummer"
         monospace
-        hint="Bestimmt, welche laufende Instanz die Nachricht bekommt. Leer heißt: Sie startet eine neue."
+        hint={
+          sends
+            ? 'Bestimmt, welche wartende Instanz die Nachricht bekommt. Wartet keine, startet sie eine neue — und sonst verfällt sie.'
+            : 'Bestimmt, welche laufende Instanz die Nachricht bekommt. Leer heißt: Sie startet eine neue.'
+        }
         onCommit={(correlationKey) => editor?.setMessage(properties.id, { correlationKey })}
       />
+      {sends && (
+        <Notice>
+          Mitgegeben werden nur die Eingabewerte aus „Zuordnungen" — ohne Zuordnung geht nichts
+          mit. Der übrige Prozesskontext bleibt hier.
+        </Notice>
+      )}
     </Section>
   );
 }

@@ -263,6 +263,13 @@ public partial class InstanceEngine
         { typeof(UserTask), new DoNothingFlowNodeHandler() },
         { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateMessageCatchEvent), new DoNothingFlowNodeHandler() },
+        // Sendende Elemente: intern korrelieren oder — mit Auftragstyp — auf den Worker warten.
+        { typeof(FlowzerIntermediateMessageThrowEvent), new MessageThrowHandler() },
+        { typeof(FlowzerMessageEndEvent), new MessageThrowHandler() },
+        { typeof(SendTask), new MessageThrowHandler() },
+        // Ein Throw-Event ohne Ereignisdefinition ist ein Meilenstein: Es laeuft durch und
+        // macht den erreichten Punkt im Laufzeitverlauf sichtbar.
+        { typeof(IntermediateThrowEvent), new DefaultFlowNodeHandler() },
         { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateTimerCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(Process), new DoNothingFlowNodeHandler() },

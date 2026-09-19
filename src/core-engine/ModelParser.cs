@@ -193,7 +193,7 @@ public static class ModelParser
                 case "intermediateCatchEvent":
                 case "intermediateThrowEvent":
                     flowElements.Add(HandleIntermediateEvent(xmlFlowNode, rootElements,
-                        xmlFlowNode.Name.LocalName));
+                        xmlFlowNode.Name.LocalName, inputMappings, outputMappings));
                     break;
 
                 case "serviceTask":
@@ -229,6 +229,20 @@ public static class ModelParser
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         MessageRef = rootElements.OfType<MessageDefinition>()
                             .Single(m => m.FlowzerId == xmlFlowNode.Attribute("messageRef")?.Value),
+                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                    });
+                    break;
+
+                case "sendTask":
+                    flowElements.Add(new SendTask
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
+                        Implementation = ReadTaskDefinitionType(xmlFlowNode),
+                        FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
+                        MessageRef = ResolveMessageRef(rootElements, xmlFlowNode.Attribute("messageRef")?.Value),
+                        InputMappings = inputMappings,
                         LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
                     });
                     break;
@@ -310,7 +324,7 @@ public static class ModelParser
                     break;
 
                 case "endEvent":
-                    flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements));
+                    flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements, inputMappings));
                     break;
 
                 case "extensionElements":
@@ -419,7 +433,8 @@ public static class ModelParser
         return flowElements;
     }
 
-    private static EndEvent HandleEndEvent(XElement xmlFlowNode, List<IRootElement> rootElements)
+    private static EndEvent HandleEndEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
+        FlowzerList<FlowzerIoMapping>? inputMappings = null)
     {
         if (xmlFlowNode.HasDescendant("terminateEventDefinition", out _))
         {
@@ -432,12 +447,14 @@ public static class ModelParser
 
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
         {
-            xmlFlowNode.HasDescendant("taskDefinition", out var taskDefinition);
             return new FlowzerMessageEndEvent
             {
                 Id = xmlFlowNode.Attribute("id")!.Value,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
+                Implementation = ReadTaskDefinitionType(xmlFlowNode),
+                FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
+                MessageDefinition = ResolveMessageRef(rootElements, definition.Attribute("messageRef")?.Value),
+                InputMappings = inputMappings,
             };
         }
 
@@ -471,7 +488,8 @@ public static class ModelParser
     }
 
     private static Event HandleIntermediateEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
-        string name)
+        string name, FlowzerList<FlowzerIoMapping>? inputMappings = null,
+        FlowzerList<FlowzerIoMapping>? outputMappings = null)
     {
         if (xmlFlowNode.HasDescendant("timerEventDefinition", out var definition))
         {
@@ -486,7 +504,6 @@ public static class ModelParser
         var catchEvent = name.Contains("catch", StringComparison.InvariantCultureIgnoreCase);
         if (xmlFlowNode.HasDescendant("messageEventDefinition", out definition))
         {
-            xmlFlowNode.HasDescendant("taskDefinition", out var taskDefinition);
             return catchEvent
                 ? new FlowzerIntermediateMessageCatchEvent()
                 {
@@ -494,12 +511,16 @@ public static class ModelParser
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                     MessageDefinition = rootElements.OfType<MessageDefinition>()
                         .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                    OutputMappings = outputMappings,
                 }
                 : new FlowzerIntermediateMessageThrowEvent()
                 {
                     Id = xmlFlowNode.Attribute("id")!.Value,
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Implementation = taskDefinition?.Attribute("type")?.Value ?? "",
+                    Implementation = ReadTaskDefinitionType(xmlFlowNode),
+                    FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
+                    MessageDefinition = ResolveMessageRef(rootElements, definition.Attribute("messageRef")?.Value),
+                    InputMappings = inputMappings,
                 };
         }
 
@@ -538,8 +559,7 @@ public static class ModelParser
     private static ServiceTask HandleServiceTask(XElement xmlFlowNode, FlowzerList<FlowzerIoMapping>? inputMappings,
         FlowzerList<FlowzerIoMapping>? outputMappings)
     {
-        var taskDefinition = xmlFlowNode.Descendants()
-            .FirstOrDefault(e => e.Name.LocalName == "taskDefinition");
+        var taskDefinition = FindTaskDefinition(xmlFlowNode);
 
         return new ServiceTask
         {
@@ -558,6 +578,32 @@ public static class ModelParser
             OutputMappings = outputMappings,
             LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
         };
+    }
+
+    private static XElement? FindTaskDefinition(XElement xmlFlowNode) => xmlFlowNode.Descendants()
+        .FirstOrDefault(e => e.Name.LocalName == "taskDefinition");
+
+    /// <summary>
+    /// Der Auftragstyp aus <c>zeebe:taskDefinition/@type</c>. Leer heißt an einem sendenden
+    /// Element: Die Engine korreliert die Nachricht selbst, statt einen Worker zu beauftragen.
+    /// </summary>
+    private static string ReadTaskDefinitionType(XElement xmlFlowNode) =>
+        FindTaskDefinition(xmlFlowNode)?.Attribute("type")?.Value ?? "";
+
+    /// <summary>
+    /// Loest ein <c>messageRef</c> auf. Ein fehlendes Attribut ist zulaessig — ein sendendes
+    /// Element kann stattdessen einen Auftragstyp tragen. Ein Verweis ins Leere ist dagegen ein
+    /// Modellfehler und wird benannt, statt als „keine Nachricht" durchzurutschen.
+    /// </summary>
+    private static MessageDefinition? ResolveMessageRef(List<IRootElement> rootElements, string? messageRef)
+    {
+        if (string.IsNullOrWhiteSpace(messageRef))
+        {
+            return null;
+        }
+
+        return rootElements.OfType<MessageDefinition>().SingleOrDefault(m => m.FlowzerId == messageRef)
+               ?? throw new ModelValidationException($"The unknown message '{messageRef}' is referenced.");
     }
 
     /// <summary>

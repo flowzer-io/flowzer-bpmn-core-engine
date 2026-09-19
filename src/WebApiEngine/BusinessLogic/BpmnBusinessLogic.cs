@@ -306,12 +306,14 @@ public partial class BpmnBusinessLogic(
             return;
         }
 
+        // Auftraege entstehen nicht mehr nur an Service-Tasks: Ein Send-Task oder ein sendendes
+        // Nachrichtenereignis mit Auftragstyp wartet genauso auf einen Worker.
         var activeTokens = catchHandler.ActiveServiceTasks().ToArray();
         var normalTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is null)
+            .Where(token => token.CurrentFlowNode is not BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var aiTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is not null)
+            .Where(token => token.CurrentFlowNode is BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
             .Where(job => job.ProcessInstanceId == processInstanceId.Value)
@@ -341,21 +343,21 @@ public partial class BpmnBusinessLogic(
                 continue;
             }
 
-            var serviceTask = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            var workerTask = (IFlowzerWorkerTask)token.CurrentFlowNode!;
             await storageSystem.ServiceTaskStorage.SaveJob(new ServiceTaskJob
             {
                 Id = Guid.NewGuid(),
-                Type = serviceTask.Implementation,
-                Name = serviceTask.Name,
+                Type = workerTask.Implementation,
+                Name = token.CurrentFlowNode!.Name,
                 TokenId = token.Id,
-                FlowNodeId = serviceTask.Id,
+                FlowNodeId = token.CurrentFlowNode!.Id,
                 ProcessInstanceId = processInstanceId.Value,
                 MetaDefinitionId = metaDefinitionId,
                 DefinitionId = definitionId,
                 ProcessId = processId,
                 // Ein Modell ohne Angabe bekommt einen Versuch; sonst waere der Auftrag von
                 // Anfang an unbearbeitbar.
-                Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
+                Retries = workerTask.FlowzerRetries > 0 ? workerTask.FlowzerRetries : 1,
                 Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
         }
@@ -971,6 +973,26 @@ public partial class BpmnBusinessLogic(
     /// derselben Tokenkennung ein mehrdeutiger Altbestand.
     /// </param>
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
+        string relatedDefinitionId, Guid definitionId, string processId,
+        IReadOnlyList<InstanceMigrationRecord>? migrations = null,
+        IReadOnlySet<Guid>? movedTaskTokenIds = null)
+    {
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds);
+
+        // Erst speichern, dann senden: Die Anmeldungen dieser Instanz stehen damit schon in der
+        // Ablage, wenn eine ausgehende Nachricht auf einen wartenden Zweig derselben Instanz
+        // korreliert. Beides bleibt in der Transaktion des Aufrufers.
+        await DeliverOutgoingMessages(storageSystem,
+            new InstanceContext(instance, relatedDefinitionId, definitionId, processId));
+    }
+
+    /// <summary>
+    /// Schreibt Anmeldungen, Instanzdatensatz und Laufzeitverlauf — ohne Zustellung ausgehender
+    /// Nachrichten. Der Zustellpfad selbst benutzt diese Überladung, damit das Speichern eines
+    /// Empfängers nicht erneut in die Zustellung zurückspringt.
+    /// </summary>
+    private async Task PersistInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
         string relatedDefinitionId, Guid definitionId, string processId,
         IReadOnlyList<InstanceMigrationRecord>? migrations = null,
         IReadOnlySet<Guid>? movedTaskTokenIds = null)
