@@ -28,6 +28,7 @@ import type {
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   ExtendedBpmnMetaDefinitionDto,
+  InstanceModificationRequestDto,
   FormDto,
   FormAuthoringDraftDto,
   FormAuthoringPreviewDto,
@@ -101,6 +102,17 @@ export const queryKeys = {
       [...instanceIds].sort(),
       Object.entries(flowNodeMapping ?? {}).sort(([left], [right]) => left.localeCompare(right)),
     ] as const,
+  /**
+   * Die Anfrage steht im Schlüssel: Dieselbe Anfrage ist derselbe Trockenlauf, eine
+   * geänderte ist eine andere und darf nicht aus dem Cache der alten beantwortet werden.
+   *
+   * Bewusst nicht unter `instances`: Der Eingriff verwirft die Instanzansichten, der
+   * Trockenlauf aber ist die Grundlage genau dieser Entscheidung und bleibt dabei stehen.
+   */
+  instanceModificationPreview: (
+    instanceId: string,
+    request: Readonly<InstanceModificationRequestDto>,
+  ) => ['instance-modification-preview', instanceId, request] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -578,6 +590,57 @@ export function useMigrateInstances() {
     mutationFn: ({ instanceIds, targetDefinitionId, flowNodeMapping }: MigrateInstancesInput) =>
       instancesApi.migrate(instanceIds, targetDefinitionId, flowNodeMapping),
     onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
+  });
+}
+
+/**
+ * Prüft folgenlos, ob sich ein Eingriff an dieser Instanz ausführen ließe.
+ *
+ * Ohne `instanceId` läuft nichts: Der Dialog fragt erst beim Öffnen, und die Bestätigung
+ * fragt erst, wenn jemand „Weiter“ gedrückt hat. Wie bei der Migration bewusst ohne
+ * Frischezeit und ohne Nachladen — das Ergebnis wird zur Betriebsentscheidung gelesen,
+ * nicht überwacht.
+ */
+export function useInstanceModificationPreview(
+  instanceId: string | undefined,
+  request: InstanceModificationRequestDto,
+) {
+  return useQuery({
+    queryKey: queryKeys.instanceModificationPreview(instanceId ?? '', request),
+    queryFn: ({ signal }) => instancesApi.modificationPreview(instanceId!, request, signal),
+    enabled: Boolean(instanceId),
+    staleTime: 0,
+    refetchInterval: false,
+    // Die Grundlage einer Entscheidung wechselt nicht still unter dem Lesenden. Ob sie noch
+    // gilt, prüft die API beim Eingriff (409), nicht ein Fokuswechsel des Fensters.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+}
+
+export interface ModifyInstanceInput {
+  instanceId: string;
+  request: InstanceModificationRequestDto;
+}
+
+/**
+ * Führt den Eingriff aus.
+ *
+ * Die API antwortet mit der Instanz nach dem Eingriff. Sie wird sofort in den Cache
+ * geschrieben — wie beim Abbruch —, damit das Detail nicht bis zum nächsten Abruf den
+ * alten Schritt zeigt. Danach veraltet dasselbe wie nach einem Abbruch oder einer Migration.
+ */
+export function useModifyInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ instanceId, request }: ModifyInstanceInput) =>
+      instancesApi.modify(instanceId, request),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.instance(result.instance.instanceId), result.instance);
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
   });
 }
 

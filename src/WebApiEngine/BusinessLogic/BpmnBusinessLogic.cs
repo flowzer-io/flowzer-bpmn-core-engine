@@ -908,7 +908,7 @@ public partial class BpmnBusinessLogic(
             storageSystem.CommitChanges();
 
             return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
-                processInstance.ProcessId, instance, processInstance.Migrations);
+                processInstance.ProcessId, instance, processInstance.Migrations, processInstance.Modifications);
         }
         finally
         {
@@ -1081,14 +1081,20 @@ public partial class BpmnBusinessLogic(
     /// kennt diesen Fall; fuer jeden anderen Schreibvorgang bleibt ein Knotenwechsel unter
     /// derselben Tokenkennung ein mehrdeutiger Altbestand.
     /// </param>
+    /// <param name="modifications">
+    /// Die Eingriffsspur, die geschrieben werden soll. <c>null</c> heisst wie bei
+    /// <paramref name="migrations"/> „die gespeicherte uebernehmen".
+    /// </param>
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
         string relatedDefinitionId, Guid definitionId, string processId,
         IReadOnlyList<InstanceMigrationRecord>? migrations = null,
-        IReadOnlySet<Guid>? movedTaskTokenIds = null)
+        IReadOnlySet<Guid>? movedTaskTokenIds = null,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId,
             instance.InstanceId, movedTaskTokenIds);
-        await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations);
+        await AddOrUpdateInstance(
+            definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations, modifications);
         await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }
 
@@ -1102,28 +1108,38 @@ public partial class BpmnBusinessLogic(
 
     private async Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance,
-        IReadOnlyList<InstanceMigrationRecord>? migrations)
+        IReadOnlyList<InstanceMigrationRecord>? migrations,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         // Der Datensatz einer Instanz wird bei jedem Speichern frisch aus dem Engine-Zustand
-        // gebaut; die Migrationsspur steht aber ausschliesslich in der Ablage. Ohne dieses
+        // gebaut; die Eingriffsspuren stehen aber ausschliesslich in der Ablage. Ohne dieses
         // Nachlesen loeschte der naechste gewoehnliche Schreibvorgang — etwa der Abschluss
-        // einer Aufgabe — die Geschichte der Versionswechsel still weg.
-        var carried = migrations ?? await ReadMigrations(storageSystem, instance.InstanceId);
-        await storageSystem.InstanceStorage.AddOrUpdateInstance(
-            CreateProcessInstanceInfo(definitionId, relatedDefinitionId, processId, instance, carried));
+        // einer Aufgabe — die Geschichte der Versionswechsel und Anpassungen still weg.
+        var stored = migrations is null || modifications is null
+            ? await ReadTrace(storageSystem, instance.InstanceId)
+            : null;
+
+        await storageSystem.InstanceStorage.AddOrUpdateInstance(CreateProcessInstanceInfo(
+            definitionId,
+            relatedDefinitionId,
+            processId,
+            instance,
+            migrations ?? stored?.Migrations ?? [],
+            modifications ?? stored?.Modifications ?? []));
     }
 
-    private static async Task<IReadOnlyList<InstanceMigrationRecord>> ReadMigrations(
+    /// <summary>Die gespeicherten Spuren einer Instanz, oder <c>null</c>, wenn es sie noch nicht gibt.</summary>
+    private static async Task<ProcessInstanceInfo?> ReadTrace(
         ITransactionalStorage storageSystem, Guid instanceId)
     {
         try
         {
-            return (await storageSystem.InstanceStorage.GetProcessInstance(instanceId)).Migrations;
+            return await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         }
         // Eine neu gestartete Instanz liegt noch nicht in der Ablage; sie hat keine Spur.
         catch (Exception exception) when (exception is FileNotFoundException or KeyNotFoundException)
         {
-            return [];
+            return null;
         }
     }
 
@@ -1317,11 +1333,13 @@ public partial class BpmnBusinessLogic(
         string relatedDefinitionId,
         string processId,
         InstanceEngine instance,
-        IReadOnlyList<InstanceMigrationRecord> migrations)
+        IReadOnlyList<InstanceMigrationRecord> migrations,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         return new ProcessInstanceInfo
         {
             Migrations = [.. migrations],
+            Modifications = [.. modifications ?? []],
             InstanceId = instance.InstanceId,
             metaDefinitionId = relatedDefinitionId,
             DefinitionId = definitionId,

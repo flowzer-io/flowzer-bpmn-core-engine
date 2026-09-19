@@ -89,7 +89,19 @@ Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
 
 ### 0. Betriebsfähigkeit
 
-- Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
+- Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht kompensieren.
+- ~~Eine laufende Instanz lässt sich nicht an eine andere Stelle setzen.~~ Erledigt mit den
+  Instanzeingriffen: `POST /instance/{id}/modification` zieht einen wartenden Schritt zurück
+  und lässt ihn am gewählten Knoten derselben Version neu beginnen, auf Wunsch mit korrigierten
+  Variablen. Siehe `docs/INSTANCE-MODIFICATION.md`. Offen bleibt dabei:
+  - Tokens in Teilprozessen und Multi-Instance-Aktivitäten lassen sich nicht verschieben; ein
+    Token dort zurückzuziehen ließe einen Scope zurück, den niemand mehr abschließt.
+  - Neue Schritte ohne Quelle gibt es nicht — es wird nur verschoben, nie erzeugt. Ein zweiter
+    paralleler Zweig lässt sich damit nicht eröffnen.
+  - Variablen werden nur als ganze Werte der obersten Ebene geschrieben und entfernt; Pfade
+    und Indexe sind abgelehnt statt halb verstanden.
+  - Ein Eingriff lässt sich nicht zurücknehmen, und die Aufgaben-Kennung der verlassenen
+    Stelle kommt nicht wieder.
 - ~~Service-Tasks haben keinen Worker-Vertrag.~~ Erledigt: Abholen mit Sperre, atomare
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
   Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`.

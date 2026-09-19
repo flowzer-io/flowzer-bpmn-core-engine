@@ -569,6 +569,12 @@ Die Betriebsseite führt den Abschnitt **Störungen** mit den Zählern aus der D
 
 Ein Deployment verändert keine laufende Instanz. Wer laufende Instanzen einer älteren Version bewusst auf die deployte Version heben will, nutzt den Migrationsassistenten der Konsole: in der Instanzliste laufende Instanzen desselben Workflows und derselben Version ankreuzen und „Migrieren …" wählen, oder in der Instanzansicht „Migrieren …". Der Assistent prüft zuerst folgenlos (`POST /instance/migration/preview`), nennt je Instanz Hindernisse und Folgen — etwa einen verworfenen Aufgabenentwurf — und migriert erst nach ausdrücklicher Bestätigung (`POST /instance/migration`). Beides verlangt das Betriebsrecht. Nicht migrierbare Instanzen bleiben unverändert; jede Migration wird an der Instanz festgehalten und mit Instanz, Quell-/Zielversion und auslösender Person protokolliert. Regeln, Grenzen und Vertrag: [INSTANCE-MIGRATION.md](INSTANCE-MIGRATION.md).
 
+## Instanzen anpassen
+
+Wenn nicht die Version das Problem ist, sondern der Vorgang — ein Schritt wurde versehentlich abgeschlossen, ein Worker hängt an einem Knoten, eine Variable trägt einen falschen Wert —, setzt der Instanzeingriff eine laufende Instanz **innerhalb derselben Version** an eine andere Stelle. In der Instanzansicht führt „Instanz anpassen …" in einen Dialog: je wartendem Schritt „belassen" oder ein Zielknoten, dazu ein JSON-Feld für zu korrigierende Variablen und eine Checkliste für zu entfernende. Der Dialog prüft vor der Bestätigung folgenlos (`POST /instance/{id}/modification/preview`) und greift erst nach ausdrücklicher Bestätigung ein (`POST /instance/{id}/modification`). Beides verlangt das Betriebsrecht.
+
+**Anders als die Migration entstehen dabei neue Aufgaben-IDs.** Der Eingriff zieht den Schritt zurück und lässt ihn am Ziel neu beginnen; die Aufgabe am verlassenen Knoten verschwindet samt Übernahme, Entwurf und Fristen, ein dortiger Worker-Auftrag verfällt. Der Trockenlauf kündigt jede dieser Folgen einzeln an. Jeder Eingriff wird an der Instanz festgehalten — mit Zeitpunkt, auslösender Person, den verschobenen Schritten und den Namen der geänderten Variablen, aber ohne deren Werte. Regeln, Grenzen und Vertrag: [INSTANCE-MODIFICATION.md](INSTANCE-MODIFICATION.md).
+
 ## Workflow starten
 
 ### Wiederholte HTTP-Aufrufe
