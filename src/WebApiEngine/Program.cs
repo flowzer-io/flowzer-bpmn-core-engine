@@ -10,6 +10,7 @@ using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
 using WebApiEngine.Ai;
+using WebApiEngine.Connectors;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,6 +138,28 @@ builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
 builder.Services.AddHttpClient("flowzer-webhook")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
+
+// Mitgelieferte Konnektoren: eingebaute Worker im API-Prozess. Sie laufen ueber dieselben
+// Auftragsmechanismen wie externe Worker; die Engine kennt keinen Sonderpfad fuer sie.
+// Beide sind opt-in, und der E-Mail-Konnektor startet nur mit vollstaendiger Konfiguration.
+builder.Services.AddOptions<FlowzerConnectorOptions>()
+    .Bind(builder.Configuration.GetSection(FlowzerConnectorOptions.SectionName))
+    .Validate(options => options.IsValid(), "Connectors configuration is invalid or incomplete.")
+    .ValidateOnStart();
+builder.Services.AddSingleton(serviceProvider =>
+    serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<FlowzerConnectorOptions>>().Value);
+builder.Services.AddSingleton<ConnectorSecretResolver>();
+builder.Services.AddSingleton<ConnectorDiagnosticsState>();
+builder.Services.AddSingleton<ISmtpSender, MailKitSmtpSender>();
+// Keine Weiterleitungen: Ein freigegebenes Ziel koennte sonst auf eine interne Adresse
+// umleiten. Die Frist steht im Konnektor, damit sie je Auftrag gelten kann.
+builder.Services.AddHttpClient(HttpConnector.HttpClientName, client => client.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .RedactLoggedHeaders(["Authorization"]);
+builder.Services.AddSingleton<IBuiltInConnector, HttpConnector>();
+builder.Services.AddSingleton<IBuiltInConnector, EmailConnector>();
+builder.Services.AddHostedService<BuiltInConnectorBackgroundService>();
+
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
 builder.Services.AddFlowzerLimits(builder.Configuration);

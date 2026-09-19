@@ -197,6 +197,30 @@ public class ApiHardeningIntegrationTest
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
 
+    // Testzweck: Das Betriebsbild muss jeden mitgelieferten Konnektor nennen, auch den
+    // abgeschalteten: „nicht aktiviert“ ist eine Aussage, „gar nicht aufgefuehrt“ waere keine.
+    // Ohne diese Zeile liesse sich nicht erkennen, ob ein Konnektor aus ist oder fehlt.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldListEveryBuiltInConnector_IncludingTheDisabledOnes()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        var connectors = payload!.Result!.Connectors;
+        connectors.Select(connector => connector.JobType)
+            .Should().BeEquivalentTo(["flowzer:http", "flowzer:email"]);
+        connectors.Should().OnlyContain(connector => !connector.Enabled);
+        connectors.Should().OnlyContain(connector =>
+            connector.ProcessedJobs == 0 && connector.FailedJobs == 0 && connector.LastErrorMessage == null);
+    }
+
     // Testzweck: Ein Abbruch (Terminate-Endereignis oder Betriebsaktion „Instanz abbrechen“) ist ein
     // regulaerer Ausgang und darf die Fehlerzahl im Betriebsbild nicht erhoehen; er bekommt einen
     // eigenen Zaehler. Zusaetzlich wird geprueft, dass jede Instanz in genau einem Eimer landet.

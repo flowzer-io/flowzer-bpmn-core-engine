@@ -45,6 +45,16 @@ Deklariert der Task Eingaben, bekommt der Worker genau diese und sonst nichts:
 Festwert im Auftrag. Für Anbindungen an Fremdsysteme ist die Deklaration der bessere Weg:
 Sie ist am Modell ablesbar und begrenzt, was das Haus verlässt.
 
+## Mitgelieferte Worker
+
+Für zwei häufige Fälle muss kein eigener Dienst gebaut werden: Flowzer bringt einen
+HTTP-Konnektor (`flowzer:http`) und einen E-Mail-Konnektor (`flowzer:email`) mit. Sie laufen
+im API-Prozess, sind aber keine Ausnahme von diesem Vertrag: Sie holen ihre Aufträge über
+dieselbe Vergabe, halten dieselbe Sperre, verlängern dieselbe Lease und melden über dieselben
+drei Wege zurück. Beide sind standardmäßig aus und rufen ohne ausdrückliche Freigabeliste
+nichts auf. Eingaben, Ergebnisse, Secrets und Fehlerabbildung stehen in
+[CONNECTORS.md](CONNECTORS.md).
+
 ## Abholen und zurückmelden
 
 Alle Endpunkte unter `/job` verlangen die Rolle **Worker** (`Authentication__JwtBearer__Roles__Worker`). Ein Auftrag enthält die Eingabewerte des Prozessschritts; wer nur Aufgaben bearbeitet, soll deswegen nicht die Eingaben aller Service-Tasks lesen können. `GET /job` und die Webhook-Verwaltung verlangen zusätzlich die Betriebsrolle.

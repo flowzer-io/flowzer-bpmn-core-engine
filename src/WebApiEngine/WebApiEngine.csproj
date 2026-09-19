@@ -10,6 +10,9 @@
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.11" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+        <!-- Versand des E-Mail-Konnektors. Bewusst nicht System.Net.Mail.SmtpClient: der ist
+             als veraltet gekennzeichnet und fuer einen unbeaufsichtigten Dienst zu schwach. -->
+        <PackageReference Include="MailKit" Version="4.18.0" />
         <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />

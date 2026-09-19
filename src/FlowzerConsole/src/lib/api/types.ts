@@ -566,6 +566,18 @@ export interface OperationsObservabilityDto {
   serviceVersion: string;
 }
 
+/** Entspricht `OperationsConnectorDto`. */
+export interface OperationsConnectorDto {
+  name: string;
+  jobType: string;
+  enabled: boolean;
+  lastRunAtUtc?: string | null;
+  processedJobs: number;
+  failedJobs: number;
+  /** Die Meldung des Konnektors, niemals ein aufgelöstes Secret. */
+  lastErrorMessage?: string | null;
+}
+
 /** Entspricht `OperationsDiagnosticsDto`. */
 export interface OperationsDiagnosticsDto {
   checkedAtUtc: string;
@@ -574,6 +586,11 @@ export interface OperationsDiagnosticsDto {
   timerScheduler: TimerSchedulerDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
+  /**
+   * Auch abgeschaltete Konnektoren stehen hier: „nicht aktiviert“ ist eine Aussage fürs
+   * Betriebsbild, ein gar nicht aufgeführter Konnektor wäre keine.
+   */
+  connectors: OperationsConnectorDto[];
 }
 
 /** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */

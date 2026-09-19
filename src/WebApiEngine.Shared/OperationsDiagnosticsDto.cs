@@ -8,6 +8,26 @@ public class OperationsDiagnosticsDto
     public required TimerSchedulerDiagnosticsDto TimerScheduler { get; set; }
     public required OperationsInstrumentationDto Instrumentation { get; set; }
     public required OperationsObservabilityDto Observability { get; set; }
+
+    /// <summary>
+    /// Zustand der mitgelieferten Konnektoren. Abgeschaltete stehen bewusst mit drin: „nicht
+    /// aktiviert“ ist eine Aussage, „gar nicht aufgefuehrt“ waere keine.
+    /// </summary>
+    public required OperationsConnectorDto[] Connectors { get; set; }
+}
+
+/// <summary>Eine Zeile je mitgeliefertem Konnektor im Betriebsbild.</summary>
+public class OperationsConnectorDto
+{
+    public required string Name { get; set; }
+    public required string JobType { get; set; }
+    public required bool Enabled { get; set; }
+    public DateTime? LastRunAtUtc { get; set; }
+    public required long ProcessedJobs { get; set; }
+    public required long FailedJobs { get; set; }
+
+    /// <summary>Die vom Konnektor formulierte Meldung; niemals ein aufgeloestes Secret.</summary>
+    public string? LastErrorMessage { get; set; }
 }
 
 public class OperationsStorageSnapshotDto

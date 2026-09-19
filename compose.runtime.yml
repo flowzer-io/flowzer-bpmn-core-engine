@@ -26,6 +26,21 @@ services:
       AiExecution__Enabled: ${FLOWZER_AI_EXECUTION_ENABLED:-false}
       # Provider-Secrets hier absichtlich nicht auffuehren: `env:FLOWZER_AI_*`-Werte
       # ausschliesslich ueber den Orchestrator bzw. einen Compose-Override injizieren.
+      # Mitgelieferte Konnektoren: eingebaute Worker im API-Prozess. Beide sind aus, bis sie
+      # ausdruecklich eingeschaltet werden, und rufen ohne Freigabeliste nichts auf bzw.
+      # versenden nichts. Die Werte hinter `FLOWZER_CONNECTOR_SECRET_*` werden wie die
+      # KI-Secrets nur zur Laufzeit injiziert und stehen deshalb nicht hier.
+      Connectors__SecretEnvironmentVariablePrefix: FLOWZER_CONNECTOR_SECRET_
+      Connectors__Http__Enabled: ${FLOWZER_CONNECTOR_HTTP_ENABLED:-false}
+      Connectors__Http__AllowedHosts__0: ${FLOWZER_CONNECTOR_HTTP_ALLOWED_HOSTS:-}
+      Connectors__Email__Enabled: ${FLOWZER_CONNECTOR_EMAIL_ENABLED:-false}
+      Connectors__Email__From: ${FLOWZER_CONNECTOR_EMAIL_FROM:-}
+      Connectors__Email__AllowedRecipientDomains__0: ${FLOWZER_CONNECTOR_EMAIL_ALLOWED_DOMAINS:-}
+      Connectors__Email__Smtp__Host: ${FLOWZER_CONNECTOR_SMTP_HOST:-}
+      Connectors__Email__Smtp__Port: ${FLOWZER_CONNECTOR_SMTP_PORT:-587}
+      Connectors__Email__Smtp__UseStartTls: ${FLOWZER_CONNECTOR_SMTP_USE_STARTTLS:-true}
+      Connectors__Email__Smtp__Username: ${FLOWZER_CONNECTOR_SMTP_USERNAME:-}
+      Connectors__Email__Smtp__PasswordSecretName: ${FLOWZER_CONNECTOR_SMTP_PASSWORD_SECRET:-}
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
       # Laufzeit uebergeben, nie dem Konsolen-Container oder dem Browser.
       Authentication__Bff__ClientId: ${FLOWZER_BFF_CLIENT_ID:-}
