@@ -15,7 +15,7 @@ Drittanbieter-Code und daher ausgenommen.
 
 Ein ⚠️ markiert Pakete, deren Lizenz manuell geprüft werden sollte (nicht ohne
 Weiteres als unproblematisch für eine MPL-2.0-Nutzung eingestuft, unklar oder nicht
-automatisch ermittelbar). Aktuell 7 von 77
+automatisch ermittelbar). Aktuell 6 von 77
 Einträgen.
 
 ## .NET (NuGet)
@@ -25,19 +25,19 @@ den nuspec-Metadaten des lokalen NuGet-Cache.
 
 | Paket | Version | Lizenz | Verwendet in |
 |---|---|---|---|
+| AwesomeAssertions | 8.2.0 | Apache-2.0 | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | coverlet.collector | 8.0.1 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
-| FluentAssertions ⚠️ | 8.9.0 | siehe mitgelieferte Lizenzdatei "LICENSE" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | MailKit | 4.18.0 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.11 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Authentication.OpenIdConnect | 10.0.11 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.6 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 | Microsoft.AspNetCore.OpenApi | 10.0.11 | MIT | `src/WebApiEngine/WebApiEngine.csproj` |
 | Microsoft.ClearScript.V8 | 7.5.0 | MIT (siehe eingebettete License.txt) | `src/Flowzer.Shared/Flowzer.Shared.csproj`, `src/core-engine/core-engine.csproj` |
-| Microsoft.ClearScript.V8.Native.linux-arm64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj` |
-| Microsoft.ClearScript.V8.Native.linux-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj` |
+| Microsoft.ClearScript.V8.Native.linux-arm64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
+| Microsoft.ClearScript.V8.Native.linux-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | Microsoft.ClearScript.V8.Native.osx-arm64 | 7.5.0 | MIT (siehe eingebettete License.txt) | `src/core-engine/core-engine.csproj` |
-| Microsoft.ClearScript.V8.Native.osx-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj` |
-| Microsoft.ClearScript.V8.Native.win-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj` |
+| Microsoft.ClearScript.V8.Native.osx-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
+| Microsoft.ClearScript.V8.Native.win-x64 ⚠️ | 7.5.0 | siehe mitgelieferte Lizenzdatei "License.txt" im Paket (nicht automatisch als SPDX-Kennung bestimmbar) | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | Microsoft.Extensions.TimeProvider.Testing | 9.10.0 | MIT | `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj` |
 | Microsoft.NET.Test.Sdk | 18.4.0 | MIT | `src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj`, `src/WebApiEngine.Tests/WebApiEngine.Tests.csproj`, `src/core-engine-tests/core-engine-tests.csproj` |
 | Newtonsoft.Json | 13.0.4 | MIT | `src/Model/Model.csproj`, `src/PostgreSqlStorageSystem/PostgreSqlStorageSystem.csproj`, `src/WebApiEngine.Shared/WebApiEngine.Shared.csproj`, `src/core-engine/core-engine.csproj` |
@@ -115,6 +115,5 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 ## Auffälligkeiten im Detail
 
 - **bpmn-js** (npm, 18.28.0): Eigene "bpmn.io"-Lizenz (MIT-artig, im Paket als LICENSE hinterlegt) mit einer Zusatzbedingung: Das eingeblendete bpmn.io-Wasserzeichen im gerenderten Diagramm darf nicht entfernt oder verdeckt werden. Das ist keine Lizenzkollision, aber eine UI-Pflicht, die die Konsole einhalten muss.
-- **FluentAssertions** (nuget, 8.9.0): Ab Version 8 lizenziert Xceed FluentAssertions unter der "Xceed Community License Agreement" (siehe Paket-LICENSE): kostenlos für Open-Source-Projekte und nicht-kommerzielle Nutzung, für kommerzielle Nutzung ist eine bezahlte Lizenz erforderlich. FluentAssertions wird hier ausschließlich in Testprojekten (nicht im ausgelieferten Produkt) verwendet; die genaue Einstufung als "nicht-kommerziell" für ein von einem Unternehmen betriebenes Open-Source-Projekt sollte trotzdem von den Maintainern bewusst getroffen werden.
 
 Weiterer Kontext zur Meldung von Sicherheitslücken in einer dieser Abhängigkeiten oder im eigenen Code steht in [SECURITY.md](SECURITY.md).

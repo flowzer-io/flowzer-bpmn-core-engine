@@ -65,15 +65,6 @@ KNOWN_FILE_LICENSES: dict[tuple[str, str], str] = {
 # Pakete mit einer Lizenz, die besondere Aufmerksamkeit braucht (nicht automatisch als
 # "unproblematisch" einstufbar), samt Begründung für den Auffälligkeiten-Abschnitt.
 FLAGGED_NOTES: dict[tuple[str, str], str] = {
-    ('nuget', 'fluentassertions'): (
-        'Ab Version 8 lizenziert Xceed FluentAssertions unter der "Xceed Community '
-        'License Agreement" (siehe Paket-LICENSE): kostenlos für Open-Source-Projekte '
-        'und nicht-kommerzielle Nutzung, für kommerzielle Nutzung ist eine bezahlte '
-        'Lizenz erforderlich. FluentAssertions wird hier ausschließlich in Testprojekten '
-        '(nicht im ausgelieferten Produkt) verwendet; die genaue Einstufung als '
-        '"nicht-kommerziell" für ein von einem Unternehmen betriebenes Open-Source-Projekt '
-        'sollte trotzdem von den Maintainern bewusst getroffen werden.'
-    ),
     ('npm', 'bpmn-js'): (
         'Eigene "bpmn.io"-Lizenz (MIT-artig, im Paket als LICENSE hinterlegt) mit einer '
         'Zusatzbedingung: Das eingeblendete bpmn.io-Wasserzeichen im gerenderten Diagramm '

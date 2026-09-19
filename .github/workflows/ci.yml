@@ -43,6 +43,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Kein zusaetzlicher apt-get-Schritt fuer ClearScript/V8 noetig: Microsoft.ClearScript.
+      # V8.Native.linux-x64 (siehe src/WebApiEngine.Tests, src/core-engine-tests) verlangt laut
+      # readelf -d nur libc.so.6, libdl.so.2, libm.so.6, libpthread.so.0, librt.so.1 und
+      # ld-linux-x86-64.so.2 — alles Teil des glibc-Basissystems, das auf ubuntu-latest bereits
+      # vorhanden ist. Weder libicu (ICU-Daten liefert Microsoft.ClearScript.V8.ICUData als
+      # verwaltetes Paket mit) noch libatomic werden dynamisch nachgeladen.
       - name: Abhängigkeiten wiederherstellen
         run: dotnet restore core-engine.sln
 
