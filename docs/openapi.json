@@ -10638,9 +10638,51 @@
         },
         "additionalProperties": false
       },
+      "OperationsConnectorDto": {
+        "required": [
+          "enabled",
+          "failedJobs",
+          "jobType",
+          "name",
+          "processedJobs"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "jobType": {
+            "type": "string",
+            "nullable": true
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lastRunAtUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "processedJobs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "failedJobs": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastErrorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "OperationsDiagnosticsDto": {
         "required": [
           "checkedAtUtc",
+          "connectors",
           "environment",
           "incidents",
           "instrumentation",
@@ -10676,6 +10718,13 @@
           },
           "observability": {
             "$ref": "#/components/schemas/OperationsObservabilityDto"
+          },
+          "connectors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperationsConnectorDto"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false

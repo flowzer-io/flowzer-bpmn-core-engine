@@ -293,6 +293,44 @@ export function OperationsPage() {
               )}
             </div>
           </Card>
+
+          <Card>
+            <CardHeader icon="cable" title="Konnektoren" />
+            <div className="px-[18px] py-3">
+              {!diagnostics ? (
+                <Skeleton className="h-20" />
+              ) : diagnostics.connectors.length === 0 ? (
+                <div className="text-muted text-[13px]">Keine mitgelieferten Konnektoren.</div>
+              ) : (
+                // Abgeschaltete Konnektoren bleiben sichtbar: „nicht aktiviert“ ist eine
+                // Aussage fürs Betriebsbild, ein fehlender Eintrag wäre keine.
+                <ul className="space-y-3">
+                  {diagnostics.connectors.map((connector) => (
+                    <li key={connector.jobType}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-accent truncate font-mono text-[12px]">
+                          {connector.jobType}
+                        </span>
+                        <Chip tone={connector.enabled ? 'done' : 'muted'}>
+                          {connector.enabled ? 'aktiv' : 'aus'}
+                        </Chip>
+                      </div>
+                      <div className="text-muted mt-1 text-[12.5px]">
+                        {formatNumber(connector.processedJobs)} verarbeitet ·{' '}
+                        {formatNumber(connector.failedJobs)} fehlgeschlagen · letzter Lauf{' '}
+                        {formatRelative(connector.lastRunAtUtc)}
+                      </div>
+                      {connector.lastErrorMessage && (
+                        <div className="text-fail mt-1 text-[12.5px]">
+                          {connector.lastErrorMessage}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
         </div>
       </div>
     </PageContainer>
