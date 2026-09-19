@@ -301,6 +301,13 @@ export const instancesApi = {
   },
 
   /**
+   * `DELETE /instance/{id}` — löscht eine beendete Instanz samt allem, was an ihr hängt.
+   * Verlangt das Betriebsrecht; laufende Instanzen antworten mit 409, unbekannte mit 404.
+   */
+  remove: (instanceId: string) =>
+    request<void>(`/instance/${instanceId}`, { method: 'DELETE' }),
+
+  /**
    * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
    * zur aktuell deployten Version sind. Verlangt das Betriebsrecht; 400/422, wenn die
    * Auswahl verschiedene Workflows oder Quellversionen mischt.

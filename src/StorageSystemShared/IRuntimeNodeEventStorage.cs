@@ -16,6 +16,17 @@ public interface IRuntimeNodeEventStorage
 
     /// <summary>Liest die unveränderliche Ereignisspur einer Instanz in stabiler Zeitreihenfolge.</summary>
     Task<IReadOnlyList<RuntimeNodeEvent>> GetByProcessInstance(Guid processInstanceId);
+
+    /// <summary>
+    /// Entfernt die gesamte Ereignisspur einer Instanz und liefert deren Anzahl. Die einzige
+    /// Ausnahme vom Append-only-Vertrag: Mit der Instanz endet auch der Grund, die Spur zu
+    /// führen. Wird von der Aufbewahrung und vom Löschen einer Instanz von Hand gebraucht.
+    ///
+    /// Bewusst ohne stillen Standard: Eine Ablage, die Ereignisse führt, diesen Vertrag aber
+    /// nicht kennt, ließe die Spur einer gelöschten Instanz unbemerkt liegen.
+    /// </summary>
+    Task<int> DeleteByProcessInstance(Guid processInstanceId) =>
+        throw new NotSupportedException($"{GetType().Name} unterstuetzt das Loeschen von Ereignisspuren nicht.");
 }
 
 /// <summary>Storage-unabhängige Schutzgrenzen des datensparsamen Runtime-Ereignisvertrags.</summary>
@@ -45,6 +56,7 @@ internal sealed class UnsupportedRuntimeNodeEventStorage : IRuntimeNodeEventStor
     public Task<bool> AppendIfAbsent(RuntimeNodeEvent runtimeEvent) => Unsupported<bool>();
     public Task<IReadOnlyList<RuntimeNodeEvent>> GetByProcessInstance(Guid processInstanceId) =>
         Unsupported<IReadOnlyList<RuntimeNodeEvent>>();
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId) => Unsupported<int>();
 
     private static Task<T> Unsupported<T>() => Task.FromException<T>(
         new NotSupportedException("This storage adapter does not support runtime node events."));

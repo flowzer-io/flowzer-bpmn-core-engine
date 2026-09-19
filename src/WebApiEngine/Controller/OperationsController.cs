@@ -15,6 +15,7 @@ public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
+    InstanceRetentionDiagnosticsState instanceRetentionDiagnosticsState,
     IOptions<FlowzerObservabilityOptions> observabilityOptions,
     WebApiEngine.Persistence.FlowzerStorageOptions storageOptions,
     ILogger<OperationsController> logger) : ControllerBase
@@ -67,6 +68,7 @@ public class OperationsController(
                     PendingServices = activeInstances.Sum(instance => instance.ServiceSubscriptionCount)
                 },
                 TimerScheduler = timerSchedulerDiagnosticsState.GetSnapshot(),
+                Retention = instanceRetentionDiagnosticsState.GetSnapshot(),
                 Instrumentation = new OperationsInstrumentationDto
                 {
                     MeterName = FlowzerDiagnostics.MeterName,

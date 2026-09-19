@@ -40,6 +40,39 @@ public class InstanceController(
     }
 
     /// <summary>
+    /// Loescht eine beendete Instanz endgueltig — samt Tokens, Anmeldungen, Aufgabenentwuerfen,
+    /// Human-Task-Historie, Ereignisspur, Auftraegen an Worker und KI-Laeufen.
+    ///
+    /// Beendete Instanz: 204 und weg. Laufende Instanz: 409 — sie muss zuerst abgebrochen
+    /// werden. Unbekannte Kennung: 404. Es gibt bewusst keinen Ruempfe-Rueckgabewert: Nach
+    /// einem erfolgreichen Loeschen gibt es nichts mehr zu beschreiben.
+    /// </summary>
+    [HttpDelete("{instanceId}")]
+    // Ein Loeschen entfernt fremde Vorgangsdaten unwiderruflich; das ist eine Betriebsentscheidung.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<IActionResult> DeleteInstance(Guid instanceId)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("deleting instances");
+
+        var outcome = await bpmnBusinessLogic.DeleteInstance(instanceId);
+        return outcome switch
+        {
+            DeleteInstanceOutcome.Deleted => NoContent(),
+            DeleteInstanceOutcome.StillRunning => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The process instance is still running",
+                detail: "Eine laufende Instanz wird nicht geloescht. Brich sie zuerst ab."),
+            _ => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance)
+        };
+    }
+
+    /// <summary>
     /// Trockenlauf der Instanzmigration: Quell- und Zielversion sowie je Instanz, ob sie
     /// migrierbar ist und was der Umzug mitnimmt. Veraendert nichts.
     /// </summary>
