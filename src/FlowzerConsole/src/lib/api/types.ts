@@ -805,6 +805,8 @@ export interface UpdateInboundTriggerInput {
   correlationKeyPath?: string;
   variablesMode: InboundTriggerVariablesMode;
   allowedFields?: string[];
+}
+
 /* ------------------------------------------------------------------ Prozesspakete */
 
 /**
