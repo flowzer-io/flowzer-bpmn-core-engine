@@ -358,8 +358,19 @@ und Abschluss bleiben identisch.
 - [ ] Große Einheiten nach Verantwortung aufteilen, nicht allein nach Zeilenzahl.
 - [ ] Installation, Konfigurationsprüfung, Gesundheitsübersicht, Backup/Restore
   und Upgrade mit laufenden Instanzen reproduzierbar machen.
-- [ ] MPL-2.0, Abhängigkeits-/Lizenzhinweise, SBOM, Sicherheitsmeldestelle und
-  Beitragsdokumentation vervollständigen.
+- [x] MPL-2.0, Abhängigkeits-/Lizenzhinweise, SBOM, Sicherheitsmeldestelle und
+  Beitragsdokumentation vervollständigen. **Stand 19. September 2026:**
+  [SECURITY.md](../SECURITY.md) (unterstützte Stände, Meldeweg über GitHub Private
+  Vulnerability Reporting, Reaktionszeiten als Absicht, Umgang mit Disclosure),
+  [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md) (deterministisch erzeugt über
+  [`scripts/ci/generate-third-party-notices.py`](../scripts/ci/generate-third-party-notices.py),
+  Drift-Check in `ci.yml`), SBOM-Erzeugung (CycloneDX) für .NET-Solution und Konsole in
+  `ci.yml` sowie je Release-Image in `release.yml` (Syft/`anchore/sbom-action` gegen das
+  gebaute Image) und Lizenz-/DCO-Hinweis in [CONTRIBUTING.md](../CONTRIBUTING.md) sind
+  umgesetzt. Offen bleibt die inhaltliche Prüfung der als auffällig markierten
+  Abhängigkeiten (siehe „Auffälligkeiten im Detail“ in THIRD-PARTY-NOTICES.md) durch die
+  Maintainer sowie das Eintragen einer echten Kontaktadresse anstelle des Platzhalters
+  `<security-kontakt>` in SECURITY.md.
 - [ ] Prozesspakete aus BPMN, Formularen, Verträgen und Fähigkeiten exportieren;
   Verbindungen/Identitäten beim Import explizit zuordnen, niemals Secrets exportieren.
 

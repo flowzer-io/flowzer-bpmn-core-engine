@@ -362,4 +362,10 @@ Befehl einspielen und mit dem mitgelieferten Demo-Worker durchspielen.
 
 ## Lizenz
 
-Siehe [LICENSE](LICENSE).
+Flowzer BPMN Core Engine steht unter der [Mozilla Public License 2.0](LICENSE) (MPL-2.0):
+Ihr könnt die Engine frei nutzen, einbetten und verändern, auch kommerziell; Änderungen an
+den MPL-lizenzierten Quelldateien selbst müssen bei einer Weitergabe wieder unter MPL-2.0
+offengelegt werden, eigener Code drumherum bleibt frei lizenzierbar. Lizenzen und Hinweise
+zu den verwendeten Drittanbieter-Abhängigkeiten stehen in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md); Sicherheitslücken bitte über
+[SECURITY.md](SECURITY.md) melden.
