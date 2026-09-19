@@ -159,6 +159,7 @@ public class OperationsIncidentsTest
                 _storage,
                 new StubHostEnvironment(),
                 new TimerSchedulerDiagnosticsState(),
+                new InstanceRetentionDiagnosticsState(),
                 Options.Create(new FlowzerObservabilityOptions()),
                 new WebApiEngine.Persistence.FlowzerStorageOptions(),
                 NullLogger<OperationsController>.Instance);

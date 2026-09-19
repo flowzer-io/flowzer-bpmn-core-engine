@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Entscheidungslogik als einzelner FEEL-Ausdruck. Das typeRef der variable
+     bestimmt, in welchen .NET-Typ das Ergebnis umgesetzt wird. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="literalDefinitions"
+             name="Nettobetrag"
+             namespace="http://flowzer.maass.it/dmn/literal">
+  <decision id="netAmount" name="Nettobetrag">
+    <variable name="netAmount" typeRef="number"/>
+    <literalExpression id="netAmountExpression" expressionLanguage="feel">
+      <text>grossAmount / 1.19</text>
+    </literalExpression>
+  </decision>
+</definitions>

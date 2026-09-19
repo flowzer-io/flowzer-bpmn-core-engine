@@ -16,9 +16,26 @@ public interface IInstanceStorage
     Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances();
 
     /// <summary>
-    /// Entfernt eine Instanz endgueltig. Wird beim Loeschen eines Workflows gebraucht: Bleiben
-    /// die Datensaetze liegen, stehen sie danach ohne Definition in der Instanzliste — mit
-    /// leerem Namen und ohne abrufbares Diagramm.
+    /// Liefert ausschliesslich beendete Instanzen. Die Aufbewahrung braucht genau diese Menge;
+    /// laufende Instanzen darf sie nie zu Gesicht bekommen.
+    ///
+    /// Der Standard filtert die Gesamtliste und traegt damit fuer jede Ablage. Eine Ablage mit
+    /// eigenem Index sollte ihn ueberschreiben, damit ein Aufbewahrungslauf nicht bei jedem
+    /// Durchgang den gesamten Instanzbestand laedt.
+    /// </summary>
+    async Task<IEnumerable<ProcessInstanceInfo>> GetAllFinishedInstances() =>
+        (await GetAllInstances()).Where(instance => instance.IsFinished);
+
+    /// <summary>
+    /// Entfernt den Instanzdatensatz endgueltig — Tokens und Migrationseintraege stehen in
+    /// seinem Dokument und gehen mit. Wird beim Loeschen eines Workflows gebraucht: Bleiben die
+    /// Datensaetze liegen, stehen sie danach ohne Definition in der Instanzliste — mit leerem
+    /// Namen und ohne abrufbares Diagramm.
+    ///
+    /// <b>Loescht nur die Instanz selbst.</b> Anmeldungen, Aufgabendaten, Historie, Auftraege
+    /// und KI-Laeufe haengen an eigenen Ablagen und bleiben hier unberuehrt. Wer eine Instanz
+    /// samt allem Angehaengten entfernen will — die Aufbewahrung und das Loeschen von Hand —
+    /// nimmt <see cref="InstancePurge.ExecuteAsync"/>, nicht diese Methode.
     ///
     /// Bewusst ohne stillen Standard: Eine Ablage, die das nicht kann, muss das melden.
     /// </summary>

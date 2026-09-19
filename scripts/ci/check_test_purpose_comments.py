@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CS_TEST_DIRECTORIES = [
     ROOT / 'src' / 'core-engine-tests',
     ROOT / 'src' / 'WebApiEngine.Tests',
+    ROOT / 'src' / 'FlowzerDmn.Tests',
 ]
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',

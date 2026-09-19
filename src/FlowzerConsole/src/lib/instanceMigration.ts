@@ -136,6 +136,8 @@ const FINDING_TEXT: Record<string, (flowNodeId: string | null | undefined) => st
   ServiceTaskTypeChanged: (node) =>
     `Der Service-Task ${step(node, 'der laufenden Instanz')} ruft in der Zielversion einen anderen Worker-Typ auf.`,
   AiTaskNotSupported: (node) => `KI-Aufgaben wie ${step(node, 'in dieser Instanz')} lassen sich noch nicht migrieren.`,
+  CallActivityWaiting: (node) =>
+    `Der Schritt ${step(node, 'der laufenden Instanz')} wartet auf einen aufgerufenen Vorgang; solange der läuft, lässt sich diese Instanz nicht migrieren. Der aufgerufene Vorgang selbst ist migrierbar.`,
   BoundaryEventAlreadyTriggered: (node) =>
     `An ${step(node, 'einem Schritt')} hat bereits ein angeheftetes Ereignis (z. B. ein Timer) ausgelöst; die Migration würde es erneut scharf schalten.`,
   AlreadyOnTargetVersion: () => 'Die Instanz läuft bereits auf der Zielversion.',

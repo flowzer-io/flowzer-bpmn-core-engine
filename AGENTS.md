@@ -20,6 +20,8 @@ Dieses Repository enthält eine BPMN-Engine mit Parser, Laufzeit, API, Frontend 
 - `src/FlowzerBPMN/` – BPMN-Domänenmodell
 - `src/core-engine/` – Prozessausführung, Handler, Expressions
 - `src/core-engine-tests/` – Regressionstests und BPMN-Testdateien
+- `src/FlowzerDmn/` – DMN-Kern: Parser und Auswertung von Entscheidungstabellen, ohne Abhängigkeit auf core-engine ([docs/DMN.md](docs/DMN.md))
+- `src/FlowzerDmn.Tests/` – Tests des DMN-Kerns samt FEEL-Adapter und DMN-Beispieldateien
 - `src/WebApiEngine/` – REST-API
 - `src/FlowzerConsole/` – Oberfläche (React, TypeScript, Vite)
 

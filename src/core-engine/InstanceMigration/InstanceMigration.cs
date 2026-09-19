@@ -172,6 +172,15 @@ public static class InstanceMigration
             return;
         }
 
+        if (token.CurrentBaseElement is CallActivity)
+        {
+            problems.Add(new InstanceMigrationProblem(
+                InstanceMigrationProblemCode.CallActivityWaiting,
+                flowNodeId,
+                $"Flow node '{flowNodeId}' waits for a called process, which cannot be moved along yet."));
+            return;
+        }
+
         if (token.CurrentBaseElement is SubProcess || token.ParentTokenId != masterToken.Id)
         {
             problems.Add(new InstanceMigrationProblem(

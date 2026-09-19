@@ -18,8 +18,11 @@ import {
   notificationsApi,
   aiConnectionsApi,
   aiToolsApi,
+  inboundTriggersApi,
+  processPackagesApi,
 } from './endpoints';
 import type {
+  AnalyticsRangeQuery,
   BpmnMetaDefinitionDto,
   BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
@@ -55,6 +58,12 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  InboundTriggerDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
+  ProcessPackageMappingDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -84,6 +93,8 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
+  instanceChildren: (instanceId: string) =>
+    [...queryKeys.instances, 'children', instanceId] as const,
   /**
    * Kennungen und Zuordnung stehen sortiert im Schlüssel: dieselbe Auswahl mit derselben
    * Zuordnung ist dieselbe Prüfung — und eine geänderte Zuordnung ist eine andere, die
@@ -123,11 +134,31 @@ export const queryKeys = {
   aiTools: ['aiTools'] as const,
   aiToolList: () => [...queryKeys.aiTools, 'list'] as const,
 
+  inboundTriggers: ['inboundTriggers'] as const,
+  inboundTriggerList: () => [...queryKeys.inboundTriggers, 'list'] as const,
+
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
   incidents: () => [...queryKeys.operations, 'incidents'] as const,
   timers: () => [...queryKeys.operations, 'timers'] as const,
   health: () => [...queryKeys.operations, 'health'] as const,
+  analytics: () => [...queryKeys.operations, 'analytics'] as const,
+  analyticsOverview: (from?: string, to?: string) =>
+    [...queryKeys.analytics(), 'overview', from ?? null, to ?? null] as const,
+  analyticsDetail: (
+    metaDefinitionId: string,
+    from?: string,
+    to?: string,
+    definitionId?: string | null,
+  ) =>
+    [
+      ...queryKeys.analytics(),
+      'detail',
+      metaDefinitionId,
+      from ?? null,
+      to ?? null,
+      definitionId ?? null,
+    ] as const,
   notifications: ['notifications'] as const,
   notificationList: () => [...queryKeys.notifications, 'list'] as const,
 } as const;
@@ -226,6 +257,37 @@ export function useCreateDefinition() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
       // Der Ordner zaehlt seine Workflows mit; ohne das bliebe die Zahl im Baum stehen.
       void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+/** Lädt einen Workflow als Prozesspaket herunter. */
+export function useExportPackage() {
+  return useMutation({
+    mutationFn: (definitionId: string) => processPackagesApi.export(definitionId),
+  });
+}
+
+/** Liest ein hochgeladenes Paket, ohne etwas anzulegen. */
+export function usePreviewPackage() {
+  return useMutation({
+    mutationFn: (file: File) => processPackagesApi.preview(file),
+  });
+}
+
+/**
+ * Importiert ein Paket. Der Katalog und die Ordnerzählung ändern sich dabei, das
+ * Deployment nicht — veröffentlicht wird erst im Modellierer.
+ */
+export function useImportPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, mapping }: { file: File; mapping: ProcessPackageMappingDto }) =>
+      processPackagesApi.import(file, mapping),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
     },
   });
 }
@@ -519,6 +581,25 @@ export function useCancelInstance() {
 }
 
 /**
+ * Löscht eine beendete Instanz samt allem, was an ihr hängt.
+ *
+ * Anders als beim Abbruch kommt keine Instanz zurück, die man in den Cache schreiben könnte
+ * — es gibt sie nicht mehr. Ihr Detaileintrag wird deshalb aus dem Cache entfernt, statt ihn
+ * nur als veraltet zu markieren: Ein Nachladen liefe sonst in einen 404.
+ */
+export function useDeleteInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: (instanceId: string) => instancesApi.remove(instanceId),
+    onSuccess: (_result, instanceId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.instance(instanceId) });
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
+  });
+}
+
+/**
  * Prüft folgenlos, welche der ausgewählten Instanzen sich auf die aktuell deployte
  * Version heben lassen.
  *
@@ -604,6 +685,23 @@ export function useInstanceSubscriptions(instanceId: string | undefined) {
         userTasks: userTasks ?? [],
       };
     },
+  });
+}
+
+/**
+ * Die von Call Activities dieser Instanz gestarteten Kindinstanzen.
+ *
+ * Gleiche Machart wie {@link useInstance} und {@link useInstanceSubscriptions}: Die Anfrage
+ * läuft erst mit einer Kennung, und der Zustand der Kinder ändert sich im selben Takt wie
+ * der der Instanz selbst — eine fertig gewordene Kindinstanz soll die Elternansicht nicht
+ * länger als andere Laufzeitdaten falsch zeigen.
+ */
+export function useInstanceChildren(instanceId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.instanceChildren(instanceId ?? ''),
+    queryFn: ({ signal }) => instancesApi.children(instanceId!, signal),
+    enabled: Boolean(instanceId),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -957,6 +1055,56 @@ export function useSetAiConnectionEnabled() {
   });
 }
 
+/* ------------------------------------------------------- Eingehende Ausloeser */
+
+export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.inboundTriggerList(),
+    queryFn: ({ signal }) => inboundTriggersApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+/**
+ * Legt einen Ausloeser an. Das Ergebnis enthaelt das Geheimnis genau einmal — es wird
+ * bewusst nur an den Aufrufer zurueckgegeben und nie in den Cache der Liste geschrieben;
+ * die Invalidierung laedt die Liste stattdessen ohne Geheimnis neu.
+ */
+export function useCreateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateInboundTriggerInput) => inboundTriggersApi.create(input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useUpdateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ triggerId, input }: { triggerId: string; input: UpdateInboundTriggerInput }) =>
+      inboundTriggersApi.update(triggerId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+/** Wie das Anlegen: Das neue Geheimnis geht nur an den Aufrufer, nicht in den Cache. */
+export function useRotateInboundTriggerSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.rotateSecret(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useDeleteInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.remove(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
 /* --------------------------------------------------------------------- Betrieb */
 
 export function useDiagnostics(options?: QueryTuning<OperationsDiagnosticsDto>) {
@@ -1019,5 +1167,37 @@ export function useHealth() {
     queryKey: queryKeys.health(),
     queryFn: ({ signal }) => operationsApi.health(signal),
     refetchInterval: 30_000,
+  });
+}
+
+/**
+ * Auswertung der Laufzeithistorie. Bewusst ohne `refetchInterval`: Eine Auswertung ist
+ * ein Bericht über einen abgeschlossenen Zeitraum, kein Live-Bild — ein Balken, der
+ * sich unter dem Mauszeiger bewegt, wäre hier nur irritierend.
+ */
+export function useAnalyticsOverview(
+  range: AnalyticsRangeQuery,
+  options?: QueryTuning<WorkflowAnalyticsOverviewDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsOverview(range.from, range.to),
+    queryFn: ({ signal }) => operationsApi.analyticsOverview(range, signal),
+    staleTime: 60_000,
+    ...options,
+  });
+}
+
+/** Schritte und Zeitreihe eines Workflows; ohne `definitionId` über alle Versionen. */
+export function useAnalyticsDetail(
+  metaDefinitionId: string,
+  range: AnalyticsRangeQuery,
+  definitionId?: string | null,
+  options?: QueryTuning<WorkflowAnalyticsDetailDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsDetail(metaDefinitionId, range.from, range.to, definitionId),
+    queryFn: ({ signal }) => operationsApi.analyticsDetail(metaDefinitionId, range, definitionId, signal),
+    staleTime: 60_000,
+    ...options,
   });
 }
