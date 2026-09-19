@@ -19,6 +19,7 @@
 import {
   calledProcessOf,
   errorHolder,
+  escalationHolder,
   messageHolder,
   multiInstanceOf,
   readElementProperties,
@@ -76,6 +77,19 @@ export const NEW_ERROR = '#neu';
 /** Teiländerung am Fehlerbezug: Auswahl, Neuanlage oder Loesen. */
 export interface ErrorReferencePatch {
   errorId: string | null;
+  name: string;
+  code: string;
+}
+
+/**
+ * Wert der Auswahlliste fuer „neue Eskalation anlegen". Wie {@link NEW_ERROR} kann eine echte
+ * BPMN-Kennung so nicht heissen: Sie darf kein `#` enthalten.
+ */
+export const NEW_ESCALATION = '#neu-eskalation';
+
+/** Teiländerung am Eskalationsbezug: Auswahl, Neuanlage oder Loesen. */
+export interface EscalationReferencePatch {
+  escalationId: string | null;
   name: string;
   code: string;
 }
@@ -215,7 +229,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
   function createRootReference(
     element: DiagramElement,
     holder: ModdleElement,
-    referenceProperty: 'messageRef' | 'signalRef' | 'errorRef',
+    referenceProperty: 'messageRef' | 'signalRef' | 'errorRef' | 'escalationRef',
     type: string,
     properties: Record<string, unknown>,
   ): ModdleElement | null {
@@ -649,6 +663,50 @@ export function createBpmnEditor(modeler: ModelerLike) {
       }
 
       createRootReference(element, holder, 'errorRef', 'bpmn:Error', { name, errorCode });
+    },
+
+    /**
+     * Setzt den Eskalationsbezug eines Eskalationsereignisses.
+     *
+     * Dieselben Regeln wie beim Fehler: `escalationId: NEW_ESCALATION` legt eine neue
+     * `bpmn:Escalation` an, `escalationId: null` loest den Bezug, eine vorhandene Kennung
+     * waehlt die zugehoerige Eskalation aus. Name und Code ohne `escalationId` aendern die
+     * gerade referenzierte — und legen sie an, wenn noch keine da ist.
+     */
+    setEscalationReference(elementId: string, patch: Partial<EscalationReferencePatch>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const holder = escalationHolder(element.businessObject);
+      if (!holder) return;
+
+      if (patch.escalationId === null) {
+        modeling().updateModdleProperties(element, holder, { escalationRef: undefined });
+        return;
+      }
+
+      if (typeof patch.escalationId === 'string' && patch.escalationId !== NEW_ESCALATION) {
+        const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
+        const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+        const selected = rootElements.find(
+          (rootElement) => rootElement.$type === 'bpmn:Escalation' && text(rootElement, 'id') === patch.escalationId,
+        );
+        if (!selected) return;
+        modeling().updateModdleProperties(element, holder, { escalationRef: selected });
+        return;
+      }
+
+      const current =
+        patch.escalationId === NEW_ESCALATION ? undefined : (holder.escalationRef as ModdleElement | undefined);
+      const name = (patch.name ?? text(current, 'name')).trim();
+      const escalationCode = (patch.code ?? text(current, 'escalationCode')).trim();
+
+      if (current) {
+        modeling().updateModdleProperties(element, current, { name, escalationCode });
+        return;
+      }
+
+      createRootReference(element, holder, 'escalationRef', 'bpmn:Escalation', { name, escalationCode });
     },
 
     /** Setzt den Namen des Signals. Auch das Signal ist ein Wurzelelement des Dokuments. */

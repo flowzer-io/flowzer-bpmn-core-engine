@@ -12,6 +12,7 @@ import {
   CallActivitySection,
   DecisionSection,
   ErrorSection,
+  EscalationSection,
   FlowSection,
   FormSection,
   GatewaySection,
@@ -147,6 +148,7 @@ export function BpmnProperties({
           {properties.message && <MessageSection {...section} />}
           {properties.signalName !== null && <SignalSection {...section} />}
           {properties.error && <ErrorSection {...section} />}
+          {properties.escalation && <EscalationSection {...section} />}
           {properties.calledProcess && <CallActivitySection {...section} />}
           {properties.isBusinessRuleTask && (
             <DecisionSection

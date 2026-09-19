@@ -1,8 +1,8 @@
 # Versionierter BPMN-Fähigkeitsvertrag
 
 Flowzer führt nur eine bewusst begrenzte BPMN-Teilmenge aus. Der Vertrag
-`flowzer.bpmn-capabilities/8` liegt maschinenlesbar unter
-`contracts/bpmn-capabilities/v8.json` und unterscheidet je Elementart. Version 1 bis 7
+`flowzer.bpmn-capabilities/9` liegt maschinenlesbar unter
+`contracts/bpmn-capabilities/v9.json` und unterscheidet je Elementart. Version 1 bis 8
 bleiben unverändert als historische Verträge erhalten. Der aktuelle Vertrag unterscheidet:
 
 - **modelable:** Der BPMN-Modeler kann das Element darstellen beziehungsweise erzeugen.
@@ -30,35 +30,37 @@ stabilen Code, Schweregrad, Nachricht und – soweit möglich – `elementId` un
 macht ihn per Tastatur beziehungsweise Klick anwählbar. Die Gliederung kann zum selben
 Knoten im Diagramm wechseln.
 
-Version 8 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
+Version 9 meldet bewusst den ersten Fehler in deterministischer Dokumentreihenfolge.
 Nach der Korrektur kann der identische Endpunkt erneut aufgerufen werden. Eine spätere
 Mehrfachdiagnose ist eine additive Vertragsweiterentwicklung, kein Grund, heute Parser-
 oder Laufzeittexte als Clientvertrag zu verwenden.
 
-## Ausführbares Profil v8
+## Ausführbares Profil v9
 
 Offiziell ausführbar sind:
 
 - Plain-, Message-, Signal- und Timer-Start
 - Plain-, Terminate-, Error- und Message-Ende
 - User-, Worker-Service-, KI-Service-, Receive-, Send-, Manual- und generische Tasks
-- exklusive und parallele Gateways
-- Sequenzflüsse und lokale Subprozesse
+- exklusive, parallele, inklusive und ereignisbasierte Gateways
+- Sequenzflüsse, lokale Subprozesse und Event-Subprozesse
 - Message-, Signal-, Timer- und Error-Boundary-Events sowie Message-, Signal- und
   Timer-Intermediate-Catch-Events
 - Intermediate-Throw-Events ohne Ereignisdefinition (Meilenstein) und mit
   Nachrichtendefinition
 - lokale Aufruf-Aktivitäten (`callActivity`)
 - Business-Rule-Tasks (`businessRuleTask`)
+- Eskalationspfade: Throw-, Ende- und Boundary-Ereignis sowie Start im Event-Subprozess
+- Error- und Escalation-Start-Events **innerhalb** eines Event-Subprozesses
 
 Wie sich dieses Profil gegen eine fremde Messlatte schlägt, hält
 [BPMN-MIWG-COVERAGE.md](BPMN-MIWG-COVERAGE.md) je Referenzmodell der BPMN Model Interchange
 Working Group fest — gelesen, veröffentlichbar, ausgeführt, jeweils mit dem konkreten Grund.
 
-Insbesondere nicht als ausführbar zugesagt sind Script-Tasks,
-Inclusive-/Complex-Gateways, Signal-Throw- und Signal-End-Events sowie Escalation-Pfade und
-Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad mit Semantik-,
-Recovery- und Konkurrenztests belegt ist – nicht bereits dann, wenn der Parser XML lesen kann.
+Insbesondere nicht als ausführbar zugesagt sind Script-Tasks, Complex-Gateways,
+Signal-Throw- und Signal-End-Events sowie Kompensation und Transaktions-Subprozesse. Diese
+Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad mit Semantik-, Recovery- und
+Konkurrenztests belegt ist – nicht bereits dann, wenn der Parser XML lesen kann.
 
 `serviceTask.aiTask` ist modellierbar, parsebar und ausführbar. Beim Deployment bindet
 Flowzer die konkrete Verbindungsrevision und das effektive Modell unveränderlich an die
@@ -67,6 +69,127 @@ Definition. Seine vollständigen Vertrags-, Lauf- und Sicherheitsregeln stehen i
 Werkzeugreferenzen speichern. Eine solche Referenz blockiert das Deployment noch mit
 `bpmn.ai_task.tools_runtime_unavailable`, bis Aktionsjournal und parametergebundene
 Freigaben denselben Ausführungsschutz belegen. KI-Tasks ohne Werkzeuge bleiben ausführbar.
+
+## Gateways, Event-Subprozess und Eskalation (Vertrag 9)
+
+Version 9 erweitert Version 8 additiv. Die älteren Vertragsdateien bleiben unverändert und
+sagen diese Elemente weiterhin nicht zu.
+
+### Ereignisbasiertes Gateway (`eventBasedGateway`)
+
+Ein ereignisbasiertes Gateway entscheidet nicht selbst — es lässt die Ereignisse entscheiden.
+Erreicht ein Token das Gateway, werden **alle** Folge-Ereignisse gleichzeitig scharf: Für jedes
+entsteht ein wartendes Token mit genau der Message-, Signal- oder Timer-Subscription, die es
+auch einzeln hätte. Trifft eines ein, läuft sein Folgefluss weiter, und die übrigen Tokens
+derselben Gruppe (`Token.EventGroupId`) gehen auf `Withdrawn` — damit verschwinden ihre
+Subscriptions beim nächsten Speichern von selbst.
+
+Pflichtprüfungen vor dem Speichern und Veröffentlichen:
+
+- `bpmn.event_based_gateway.invalid_target` — ein Ausgang führt nicht zu einem wartenden
+  Element. Zulässig sind `intermediateCatchEvent` mit Nachricht, Zeit oder Signal sowie
+  `receiveTask`.
+- `bpmn.event_based_gateway.outgoing_required` — weniger als zwei Ausgänge; dann gäbe es
+  nichts zu entscheiden.
+- `bpmn.event_based_gateway.condition_not_allowed` — Bedingung an einem Ausgang oder ein
+  Standardfluss. Beides hätte keinen Zeitpunkt, an dem es ausgewertet würde.
+
+**Grenzen.** Die Tokens einer Ereignisgruppe sind eine Einheit. Der Instanzumzug fasst sie in
+dieser Stufe nicht an: Eine Instanz, die an einem solchen Token wartet, ist mit dem Problemcode
+`EventBasedGatewayWaiting` nicht migrierbar — ein einzelnes Mitglied zu verschieben würde die
+Gruppe zerreißen, und die übrigen warteten auf ein Ereignis, das niemanden mehr erreicht. Die
+Gruppe als Ganzes umzuziehen bleibt offen.
+
+### Inklusives Gateway (`inclusiveGateway`)
+
+**Split.** Jeder Ausgang mit wahrer Bedingung bekommt ein Token — dieselbe FEEL-Auswertung wie
+am exklusiven Gateway, nur nimmt das inklusive alle Treffer statt des ersten. Trifft keine
+Bedingung zu, greift der Standardfluss.
+
+**Join.** Der Join wartet auf so viele Tokens, wie der zugehörige Split aktiviert hat. Der
+Split schreibt dazu eine Merkzelle an die erzeugten Tokens (`Token.InclusiveForkId` und
+`Token.InclusiveForkSize`); sie wandert mit ihnen durch ihren Zweig, und der Join löst sie ein.
+Ein Join ohne zugehörigen Split verhält sich wie ein paralleler Join und wartet auf alle seine
+Eingänge.
+
+Pflichtprüfungen (analog zum exklusiven Gateway):
+
+- `bpmn.inclusive_gateway.condition_required` — ein nicht-defaultiger Ausgang eines Splits
+  ohne `conditionExpression`.
+- `bpmn.inclusive_gateway.default.invalid_reference` — der Standardfluss ist kein Ausgang
+  dieses Gateways.
+
+**Grenzen.** Zur Laufzeit ohne wahre Bedingung und ohne Standardfluss bricht die Mutation mit
+einer `FlowzerRuntimeException` ab — dieselbe Behandlung wie heute am exklusiven Gateway.
+Die Merkzelle trägt genau ein Split/Join-Paar: Verschachtelte inklusive Konstrukte verlieren
+beim inneren Join den äußeren Bezug, der äußere Join fällt dann auf die parallele Auslegung
+zurück. Unsymmetrische Konstrukte — ein aktivierter Zweig, der den Join gar nicht erreicht —
+lassen den Join warten; die vollständige BPMN-Semantik („warten, bis kein weiterer Token
+diesen Join mehr erreichen kann") ist nicht umgesetzt.
+
+**Nebenbefund.** Parallele und inklusive Gateways lesen ihre Sequenzflüsse jetzt aus dem
+Container ihres Tokens statt aus `Process.FlowElements`. Ein paralleles Gateway innerhalb
+eines eingebetteten Subprozesses funktioniert damit; zuvor fand es seine Eingänge nicht.
+
+### Event-Subprozess (`subProcess triggeredByEvent="true"`)
+
+Ein Event-Subprozess hängt an keinem Sequenzfluss. Er ist der Ereignisfänger seines Scopes:
+Solange der Prozess oder der Subprozess läuft, in dem er steht, ist sein Startereignis scharf —
+wie ein Boundary-Event an einer Aktivität. Seine Nachrichten- und Signal-Subscriptions stehen
+deshalb in denselben Listen wie die der Boundary-Events; ein Timer-Start erscheint als
+`TimerSubscriptionKind.BoundaryEvent` und läuft ab dem Beginn seines Scopes.
+
+- `bpmn.event_subprocess.start_required` — kein oder mehr als ein Startereignis, oder ein
+  Startereignis ohne Ereignisdefinition. Zulässig sind Nachricht, Zeit, Signal, Fehler und
+  Eskalation.
+- `bpmn.start_event.event_subprocess_only` — ein Fehler- oder Eskalationsstart außerhalb eines
+  Event-Subprozesses. Dort gibt es keinen Scope, dessen Fehler er fangen könnte.
+
+**Semantik.** `isInterrupting="true"` (der Vorgabewert) zieht alles zurück, was im Scope noch
+läuft, und der Event-Subprozess übernimmt; der Scope selbst bleibt als sein Gastgeber bestehen
+und endet mit ihm. `isInterrupting="false"` startet den Event-Subprozess zusätzlich, der Scope
+läuft daneben weiter, und das Ereignis bleibt scharf — eine Nachricht oder ein Signal darf also
+mehrfach auslösen. Die Nutzdaten des auslösenden Ereignisses landen wie bei einem Boundary-
+Event im Prozesskontext.
+
+**Error-Start.** Ein Fehler wird jetzt an jedem Scope zuerst dessen Event-Subprozess angeboten
+und erst danach dem Boundary-Event, das außen am Subprozess hängt — der Event-Subprozess liegt
+innerhalb des Scopes und ist damit näher am Ursprung. Auf Prozessebene ist er der einzige
+Fänger: Ohne ihn scheitert die Instanz wie bisher. Ein Fehlerstart ist immer unterbrechend.
+
+**Grenzen.** Ein `timeCycle` an einem nicht unterbrechenden Event-Subprozess löst in dieser
+Stufe nur einmal aus; ein Timer-Start gilt nach seinem Lauf als verbraucht. Kompensation,
+Transaktions- und Ad-hoc-Subprozesse bleiben offen.
+
+### Eskalation (`escalationEventDefinition`)
+
+Eskalation ist der freundliche Bruder des Fehlers: Sie meldet, dass jemand auf höherer Ebene
+entscheiden muss, **ohne** den laufenden Pfad abzubrechen. `bpmn:escalation`-Wurzelelemente
+werden mit `id`, `name` und `escalationCode` gelesen; ein `escalationEventDefinition` zeigt
+über `escalationRef` darauf.
+
+Ausführbar sind `intermediateThrowEvent`, `endEvent`, `boundaryEvent` (unterbrechend **oder**
+nicht unterbrechend) und das Startereignis im Event-Subprozess.
+
+- Ein Wurf ist nicht blockierend: Das werfende Element gilt als abgeschlossen und der Prozess
+  läuft weiter. Nur ein unterbrechender Fänger zieht den Pfad mit zurück.
+- Gefangen wird von innen nach außen: an jedem Scope zuerst sein Event-Subprozess, dann das
+  Eskalations-Boundary an ihm. Ein Fänger mit passendem Code hat Vorrang; einer ohne
+  `escalationRef` fängt jede Eskalation.
+- Unterbrechend zieht den Subprozess samt allem darin zurück; nicht unterbrechend öffnet den
+  Eskalationspfad zusätzlich und lässt den Subprozess weiterlaufen.
+- **Ungefangen verfällt die Eskalation.** Anders als beim Fehler scheitert die Instanz dadurch
+  ausdrücklich nicht; der Vorgang bleibt als `InstanceEngine.UnhandledEscalations` mit Knoten
+  und Code für die Diagnose erhalten.
+
+Die früheren Platzhalter `GetActiveEscalations()` und `HandleEscalation(code, code, body)` sind
+entfallen. An ihrer Stelle stehen `ActiveCatchEscalations` — was die Instanz gerade fangen kann
+— und `HandleEscalation(escalationCode, data)`, das eine Eskalation von außen in die Instanz
+meldet.
+
+**Grenzen.** Es gibt keinen Weg, mit dem ein externer Worker eine Eskalation an seinem Auftrag
+meldet; dafür bleibt der BPMN-Fehler. Eine ungefangene Eskalation wird nicht als eigenes
+Laufzeitereignis persistiert.
 
 ## Fehlerereignisse (Vertrag 5)
 
@@ -98,8 +221,8 @@ sagen Fehlerpfade weiterhin nicht zu.
 
 **Grenzen.** Ein Fehler innerhalb einer Multi-Instance-Aktivität unterbricht die ganze
 Aktivität und wird an deren Boundary aufgelöst — eine einzelne Ausprägung lässt sich nicht
-gesondert behandeln. Escalation-Ereignisse, Kompensation, Error-Start-Events in
-Event-Subprozessen bleiben offen. Der Gliederungseditor kennt
+gesondert behandeln. Eskalation und Error-Start-Events in Event-Subprozessen sind seit
+Vertrag 9 umgesetzt; Kompensation bleibt offen. Der Gliederungseditor kennt
 Fehlerereignisse so wenig wie die übrigen Ereignisdefinitionen und meldet sie als Blocker,
 statt sie beim Speichern zu verlieren.
 

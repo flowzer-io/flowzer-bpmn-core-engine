@@ -59,8 +59,17 @@ public partial class InstanceEngine
         {
             scopeToken = Tokens.Single(token => token.Id == parentTokenId);
 
+            // Der Event-Subprozess eines Scopes liegt innerhalb davon und ist damit naeher am
+            // Ursprung als das Boundary-Event, das aussen am Subprozess haengt. Deshalb faengt er
+            // zuerst — auch auf Prozessebene, wo es gar kein Boundary mehr gibt.
+            if (scopeToken.CurrentBaseElement is BPMN.Process.Process or SubProcess
+                && TryCatchErrorByEventSubProcess(scopeToken, errorCode, errorData))
+            {
+                return;
+            }
+
             // Am Master-Token haengt kein Boundary: Ein Fehler, der die Prozessebene erreicht,
-            // ist per BPMN nicht mehr fangbar.
+            // ist per BPMN sonst nicht mehr fangbar.
             if (scopeToken.ParentTokenId is null)
             {
                 break;

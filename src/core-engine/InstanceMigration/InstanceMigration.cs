@@ -181,6 +181,18 @@ public static class InstanceMigration
             return;
         }
 
+        // Die Tokens eines ereignisbasierten Gateways sind eine Einheit: Sie warten gemeinsam,
+        // und genau eines von ihnen gewinnt. Eines davon allein umzuziehen zerrisse die Gruppe.
+        if (token.EventGroupId is not null)
+        {
+            problems.Add(new InstanceMigrationProblem(
+                InstanceMigrationProblemCode.EventBasedGatewayWaiting,
+                flowNodeId,
+                $"Flow node '{flowNodeId}' is one of several events armed by an event based gateway; "
+                + "such a group can only move as a whole, which is not supported yet."));
+            return;
+        }
+
         if (token.CurrentBaseElement is SubProcess || token.ParentTokenId != masterToken.Id)
         {
             problems.Add(new InstanceMigrationProblem(

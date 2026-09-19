@@ -65,9 +65,9 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | `C.7.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.8.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.8.1.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | — | `exception` — NotSupportedException: getting values of object arrays is not implemented yet. |
-| `C.9.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.flow_node.unreachable` an `subProcess` | übersprungen (deployment rejected) |
+| `C.9.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
 | `C.9.1.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_CallCustomer' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
-| `C.9.2.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_AccelerateDecision' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.flow_node.unreachable` an `subProcess` | übersprungen (deployment rejected) |
+| `C.9.2.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_AccelerateDecision' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
 | `C.10.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 
 ## Häufigste Ablehnungsgründe
@@ -88,8 +88,7 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | Fehlercode | Elementart | Anzahl | Modelle | Deutung |
 | --- | --- | --- | --- | --- |
 | `bpmn.process.executable_required` | `definitions` | 15 | `A.1.0.bpmn`, `A.2.0.bpmn`, `A.2.1.bpmn`, `A.3.0.bpmn`, `A.4.0.bpmn`, `A.4.1.bpmn`, `B.1.0.bpmn`, `B.2.0.bpmn`, `C.2.0.bpmn`, `C.4.0.bpmn`, `C.5.0.bpmn`, `C.6.0.bpmn`, `C.7.0.bpmn`, `C.8.0.bpmn`, `C.10.0.bpmn` | Das Dokument enthält keinen Prozess mit `isExecutable="true"`. Die MIWG-Reihen A und B sind reine Modellierungs- und Layoutbeispiele. **Kein Befund über die Engine.** |
-| `bpmn.user_task.form_required` | `userTask` | 4 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.1.bpmn` | Wie oben: kein `zeebe:formDefinition` am User-Task. **Produktentscheidung.** |
-| `bpmn.flow_node.unreachable` | `subProcess` | 2 | `C.9.0.bpmn`, `C.9.2.bpmn` | Ein Knoten ohne Weg von einem Start- oder Boundary-Event. Hier ist es ein `subProcess triggeredByEvent="true"` — ein Event-Subprozess, den weder Vertrag noch Engine kennen. **Echte Ausführungslücke.** |
+| `bpmn.user_task.form_required` | `userTask` | 6 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.0.bpmn`, `C.9.1.bpmn`, `C.9.2.bpmn` | Wie oben: kein `zeebe:formDefinition` am User-Task. **Produktentscheidung.** |
 
 > Auch die Veröffentlichungsprüfung meldet bewusst den **ersten** Fehler in
 > Dokumentreihenfolge (siehe [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md)). Die Zahlen sind
@@ -136,12 +135,8 @@ Drei frühere Hürden sind gefallen und stehen deshalb nicht mehr in dieser List
 
 ### 3. Echte Ausführungslücken
 
-Elementarten, an denen ein Modell als **erste** Hürde scheitert, weil Vertrag und Engine
-sie nicht führen:
-
-| Elementart | Anzahl | Modelle |
-| --- | --- | --- |
-| `subProcess` | 2 | `C.9.0.bpmn`, `C.9.2.bpmn` |
+Im aktuellen Satz erreicht kein Modell diese Stufe: Die erste Hürde ist überall eine
+andere. Die Liste füllt sich, sobald die Hürden aus Gruppe 2 fallen.
 
 Weil jede Stufe beim ersten Fehler abbricht, ist diese Tabelle **keine** vollständige
 Lückenliste. Vom Vertrag v7 ausdrücklich nicht zugesagt sind darüber hinaus: Event-based

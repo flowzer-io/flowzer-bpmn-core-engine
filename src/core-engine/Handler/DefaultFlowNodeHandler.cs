@@ -28,17 +28,7 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         if (token.ParentTokenId == null) return []; 
         
         // 1.1 Finde alle passenden FlowElements des aktuellen FlowNodes
-        List<FlowElement>? flowElements = null;
-        var currentToken = token;
-        while (flowElements == null)
-        {
-            currentToken = processInstance.Tokens.Single(x => x.Id == currentToken.ParentTokenId);
-            if (currentToken.CurrentBaseElement is Process or SubProcess)
-            {
-                flowElements = ((IFlowElementContainer)currentToken.CurrentBaseElement).FlowElements;
-            }
-                
-        }
+        var flowElements = processInstance.GetContainerFlowElements(token);
 
         // 1.2 Finde alle ausgehenden Sequenzflüsse des aktuellen FlowNodes
         var outgoingSequenceFlows = flowElements
@@ -86,8 +76,12 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
                 LastSequenceFlow = x,
                 State = FlowNodeState.Ready,
                 ProcessInstanceId = token.ProcessInstanceId,
-                ActiveBoundaryEvents = processInstance.Process
-                    .FlowElements
+                // Die Merkzelle eines inklusiven Splits wandert mit dem Token durch seinen Zweig,
+                // bis der zugehoerige Join sie einloest. Die Gruppe eines ereignisbasierten
+                // Gateways endet dagegen am Catch-Event und wird deshalb nicht weitergereicht.
+                InclusiveForkId = token.InclusiveForkId,
+                InclusiveForkSize = token.InclusiveForkSize,
+                ActiveBoundaryEvents = flowElements
                     .OfType<BoundaryEvent>()
                     .Where(b => b.AttachedToRef == x.TargetRef)
                     .Select(b => b.ApplyResolveExpression<BoundaryEvent>

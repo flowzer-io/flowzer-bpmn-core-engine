@@ -33,6 +33,36 @@ describe('BPMN-Diagnosen', () => {
     }]);
   });
 
+  // Testzweck: Die Codes des Fähigkeitsvertrags v9 — ereignisbasiertes und inklusives Tor,
+  // Ereignis-Subprozess, Eskalationsstart — müssen die deutsche Handlungsanweisung bekommen
+  // statt der technischen Servermeldung.
+  it('ersetzt die Servermeldung der v9-Codes durch eine Handlungsanweisung', () => {
+    const codes = [
+      'bpmn.inclusive_gateway.condition_required',
+      'bpmn.inclusive_gateway.default.invalid_reference',
+      'bpmn.event_based_gateway.invalid_target',
+      'bpmn.event_based_gateway.outgoing_required',
+      'bpmn.event_based_gateway.condition_not_allowed',
+      'bpmn.event_subprocess.start_required',
+      'bpmn.start_event.event_subprocess_only',
+    ];
+
+    const diagnostics = normalizeBpmnDiagnostics(new ApiError('Modell ungültig', {
+      status: 422,
+      url: '/definition/deploy',
+      body: {
+        code: 'bpmn.model.invalid',
+        issues: codes.map((code) => ({ code, severity: 'error', message: 'technische Meldung' })),
+      },
+    }));
+
+    expect(diagnostics).toHaveLength(codes.length);
+    for (const diagnostic of diagnostics) {
+      expect(diagnostic.message).not.toBe('technische Meldung');
+      expect(diagnostic.message.length).toBeGreaterThan(20);
+    }
+  });
+
   // Testzweck: Legacy-Fehler ohne den neuen Vertrag dürfen nicht als scheinbar
   // adressierbare Modellfehler dargestellt werden; der Aufrufer zeigt dafür einen Toast.
   it('ignoriert Legacy- und fremde Problemantworten', () => {

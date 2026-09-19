@@ -849,7 +849,7 @@ public class ModelParserTest
     // Testzweck: Ein Element mit echter Ausführungssemantik, das Flowzer nicht kennt, bleibt
     // abgelehnt — aber als benannter Modellfehler mit Element-Id, nicht als NotSupportedException
     // mit rohem XML-Namen.
-    [TestCase("<bpmn:eventBasedGateway id='EventGateway_1' />", "eventBasedGateway", "EventGateway_1")]
+    [TestCase("<bpmn:transaction id='Transaction_1' />", "transaction", "Transaction_1")]
     [TestCase("<bpmn:transaction id='Transaction_1' />", "transaction", "Transaction_1")]
     [TestCase("<bpmn:adHocSubProcess id='AdHoc_1' />", "adHocSubProcess", "AdHoc_1")]
     public void ParseModel_ShouldRejectUnknownFlowElementWithNamedError(

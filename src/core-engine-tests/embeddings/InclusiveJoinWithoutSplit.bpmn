@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_InclusiveJoinWithoutSplit" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_InclusiveJoinWithoutSplit" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToFork</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:parallelGateway id="Gateway_Fork">
+      <bpmn:incoming>Flow_ToFork</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToA</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToB</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:serviceTask id="ServiceTask_A" name="ServiceTask_A">
+      <bpmn:extensionElements><zeebe:taskDefinition type="wegA" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToA</bpmn:incoming>
+      <bpmn:outgoing>Flow_AJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ServiceTask_B" name="ServiceTask_B">
+      <bpmn:extensionElements><zeebe:taskDefinition type="wegB" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToB</bpmn:incoming>
+      <bpmn:outgoing>Flow_BJoin</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:inclusiveGateway id="Gateway_Join">
+      <bpmn:incoming>Flow_AJoin</bpmn:incoming>
+      <bpmn:incoming>Flow_BJoin</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:inclusiveGateway>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToFork" sourceRef="StartEvent_1" targetRef="Gateway_Fork" />
+    <bpmn:sequenceFlow id="Flow_ToA" sourceRef="Gateway_Fork" targetRef="ServiceTask_A" />
+    <bpmn:sequenceFlow id="Flow_ToB" sourceRef="Gateway_Fork" targetRef="ServiceTask_B" />
+    <bpmn:sequenceFlow id="Flow_AJoin" sourceRef="ServiceTask_A" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_BJoin" sourceRef="ServiceTask_B" targetRef="Gateway_Join" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Gateway_Join" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

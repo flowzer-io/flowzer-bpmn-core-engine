@@ -23,6 +23,12 @@ public partial class InstanceEngine
                     .Select(e => e.Signal.Name));
             }
 
+            // Die Startereignisse scharfer Event-Subprozesse haengen am laufenden Scope.
+            signalDefinitions.AddRange(GetArmedEventSubProcessStarts()
+                .Select(entry => entry.StartEvent)
+                .OfType<FlowzerSignalStartEvent>()
+                .Select(startEvent => startEvent.Signal.Name));
+
             return signalDefinitions.Distinct().ToList();
         }
     }
@@ -86,6 +92,14 @@ public partial class InstanceEngine
                 ParentTokenId = token.ParentTokenId,
                 ProcessInstanceId = token.ProcessInstanceId,
             });
+            Run();
+            return;
+        }
+
+        // Zuletzt die Event-Subprozesse des Prozesses und seiner laufenden Subprozesse.
+        if (TryStartEventSubProcessBySignal(signalName,
+                JsonConvert.DeserializeObject<Variables>(signalData ?? "{}") ?? new Variables()))
+        {
             Run();
             return;
         }

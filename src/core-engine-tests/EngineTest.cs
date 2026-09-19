@@ -206,22 +206,24 @@ public class EngineTest
         }
     }
 
-    // Testzweck: Deckt den Fall „Handle Escalation Should Fail Instance Without Throwing Not Implemented Exception“ ab.
+    // Testzweck: Eine Eskalation ohne Fänger lässt die Instanz weiterlaufen; sie wird nur
+    // als unbehandelt vermerkt.
     [Test]
-    public async Task HandleEscalation_ShouldFailInstanceWithoutThrowingNotImplementedException()
+    public async Task HandleEscalation_WithoutCatcher_ShouldKeepTheInstanceRunning()
     {
         var instanceEngine = await Helper.StartFirstProcessOfFile("SimpleService.bpmn");
 
-        var action = () => instanceEngine.HandleEscalation("EscalationCode", "ESCALATION_CODE");
+        var action = () => instanceEngine.HandleEscalation("ESCALATION_CODE");
 
         action.Should().NotThrow();
 
         using (new AssertionScope())
         {
-            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Failed);
-            instanceEngine.IsFinished.Should().BeTrue();
-            instanceEngine.Tokens.Where(token => token.State == FlowNodeState.Failed).Should().NotBeEmpty();
-            instanceEngine.ActiveTokens.Should().BeEmpty();
+            instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Waiting);
+            instanceEngine.IsFinished.Should().BeFalse();
+            instanceEngine.Tokens.Should().NotContain(token => token.State == FlowNodeState.Failed);
+            instanceEngine.UnhandledEscalations.Should().ContainSingle()
+                .Which.EscalationCode.Should().Be("ESCALATION_CODE");
         }
     }
 
@@ -267,7 +269,7 @@ public class EngineTest
 
         instanceEngine.ProcessInstanceState.Should().Be(ProcessInstanceState.Completed);
 
-        var action = () => instanceEngine.HandleEscalation("EscalationCode", "ESCALATION_CODE");
+        var action = () => instanceEngine.HandleEscalation("ESCALATION_CODE");
 
         action.Should().NotThrow();
 

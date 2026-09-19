@@ -16,10 +16,12 @@ import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from 
 
 import {
   NEW_ERROR,
+  NEW_ESCALATION,
   type BpmnEditor,
   type CalledProcess,
   type ElementProperties,
   type ErrorReference,
+  type EscalationReference,
   type MessageReference,
   type ScriptDefinition,
   type TimerKind,
@@ -956,6 +958,93 @@ export function ErrorSection({ properties, editor, readOnly }: SectionProps) {
       )}
       {!hasReference && isBoundary && (
         <Notice>Ohne ausgewählten Fehler fängt dieses Ereignis jeden Fehler seines Bereichs.</Notice>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Der Eskalationsbezug eines Eskalationsereignisses.
+ *
+ * Wie beim Fehler gehoert eine `bpmn:Escalation` zum ganzen Dokument: Melden und Fangen finden
+ * ueber dieselbe Eskalation zueinander. Deshalb waehlt dieser Abschnitt eine vorhandene aus,
+ * statt jedes Mal eine neue anzulegen.
+ */
+export function EscalationSection({ properties, editor, readOnly }: SectionProps) {
+  const current: EscalationReference = properties.escalation ?? {
+    escalationId: '',
+    name: '',
+    code: '',
+    available: [],
+  };
+  // Boundary und Start fangen die Eskalation; das Zwischen- und das Ende-Ereignis melden sie.
+  const catches = properties.type === 'bpmn:BoundaryEvent' || properties.type === 'bpmn:StartEvent';
+  const hasReference = current.escalationId.length > 0;
+
+  const options = [
+    { value: '', label: catches ? 'Jede Eskalation' : 'Ohne Eskalationscode' },
+    ...current.available.map((option) => ({
+      value: option.id,
+      label: option.code.trim().length > 0 ? `${option.name || option.id} (${option.code})` : option.name || option.id,
+    })),
+    { value: NEW_ESCALATION, label: 'Neue Eskalation anlegen …' },
+  ];
+
+  return (
+    <Section
+      icon="notifications_active"
+      title="Eskalation"
+      hint={
+        catches
+          ? 'Das Ereignis fängt diese Eskalation und übernimmt die Entscheidung.'
+          : 'Eine Eskalation meldet nach außen, dass jemand auf höherer Ebene entscheiden muss.'
+      }
+    >
+      <SelectRow
+        label="Eskalation"
+        value={hasReference ? current.escalationId : ''}
+        options={options}
+        disabled={readOnly}
+        onChange={(value) =>
+          editor?.setEscalationReference(
+            properties.id,
+            value === NEW_ESCALATION ? { escalationId: NEW_ESCALATION } : { escalationId: value || null },
+          )
+        }
+      />
+      {hasReference && (
+        <>
+          <TextRow
+            label="Name"
+            value={current.name}
+            disabled={readOnly}
+            placeholder="Freigabe durch die Leitung"
+            onCommit={(name) => editor?.setEscalationReference(properties.id, { name })}
+          />
+          <TextRow
+            label="Eskalationscode"
+            value={current.code}
+            disabled={readOnly}
+            placeholder="FREIGABE_LEITUNG"
+            monospace
+            hint="Über diesen Code finden meldendes und fangendes Ereignis zueinander."
+            onCommit={(code) => editor?.setEscalationReference(properties.id, { code })}
+          />
+          {current.code.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Eskalationscode fängt nur ein Ereignis ohne eigene Eskalation diesen Fall.
+            </Notice>
+          )}
+        </>
+      )}
+      {!hasReference && catches && (
+        <Notice>Ohne ausgewählte Eskalation fängt dieses Ereignis jede Eskalation seines Bereichs.</Notice>
+      )}
+      {!catches && (
+        <Notice>
+          Anders als ein Fehler bricht eine Eskalation den laufenden Weg nicht ab — er läuft weiter.
+          Fängt sie niemand, verfällt sie.
+        </Notice>
       )}
     </Section>
   );

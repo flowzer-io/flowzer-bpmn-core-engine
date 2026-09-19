@@ -156,6 +156,25 @@ export interface ErrorReference {
   available: ErrorOption[];
 }
 
+/** Eine `bpmn:Escalation` des Dokuments, wie sie die Auswahlliste anbietet. */
+export interface EscalationOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+/**
+ * Der Eskalationsbezug eines Eskalationsereignisses. `escalationId` ist leer, solange das
+ * Ereignis auf keine `bpmn:Escalation` zeigt — ein fangendes Ereignis nimmt dann jede
+ * Eskalation seines Bereichs, ein werfendes meldet eine ohne Code.
+ */
+export interface EscalationReference {
+  escalationId: string;
+  name: string;
+  code: string;
+  available: EscalationOption[];
+}
+
 /** Alle Werte eines ausgewählten Elements, die das Panel anzeigt. */
 export interface ElementProperties {
   id: string;
@@ -230,6 +249,8 @@ export interface ElementProperties {
   signalName: string | null;
   /** Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses. */
   error: ErrorReference | null;
+  /** Eskalationsbezug eines werfenden oder fangenden Eskalationsereignisses. */
+  escalation: EscalationReference | null;
   /** Aufgerufener Prozess. */
   calledProcess: CalledProcess | null;
   /** Aufgerufene Entscheidung eines Business-Rule-Tasks; `null` an jedem anderen Element. */
@@ -407,6 +428,53 @@ function errorOf(businessObject: ModdleElement): ErrorReference | null {
     name: text(error, 'name'),
     code: text(error, 'errorCode'),
     available: availableErrors(businessObject),
+  };
+}
+
+/**
+ * Ereignisse, an denen die Engine eine Eskalationsdefinition auswertet. Der Start ist dabei
+ * nur im Ereignis-Subprozess sinnvoll — das prueft die Veroeffentlichung, nicht das Panel.
+ */
+const ESCALATION_EVENT_TYPES = [
+  'bpmn:IntermediateThrowEvent',
+  'bpmn:EndEvent',
+  'bpmn:BoundaryEvent',
+  'bpmn:StartEvent',
+];
+
+/**
+ * Der Traeger der Eskalationsreferenz. Oeffentlich aus demselben Grund wie {@link errorHolder}:
+ * Das Schreiben muss denselben Traeger treffen wie das Lesen.
+ */
+export function escalationHolder(businessObject: ModdleElement): ModdleElement | undefined {
+  if (!ESCALATION_EVENT_TYPES.includes(businessObject.$type)) return undefined;
+  return eventDefinition(businessObject, 'bpmn:EscalationEventDefinition');
+}
+
+/** Die `bpmn:Escalation`-Wurzelelemente des Dokuments, in Dokumentreihenfolge. */
+export function availableEscalations(businessObject: ModdleElement): EscalationOption[] {
+  const definitions = enclosing(businessObject, 'bpmn:Definitions');
+  const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+  return rootElements
+    .filter((rootElement) => rootElement.$type === 'bpmn:Escalation')
+    .map((rootElement) => ({
+      id: text(rootElement, 'id'),
+      name: text(rootElement, 'name'),
+      code: text(rootElement, 'escalationCode'),
+    }))
+    .filter((option) => option.id.length > 0);
+}
+
+function escalationOf(businessObject: ModdleElement): EscalationReference | null {
+  const holder = escalationHolder(businessObject);
+  if (!holder) return null;
+
+  const escalation = holder.escalationRef as ModdleElement | undefined;
+  return {
+    escalationId: text(escalation, 'id'),
+    name: text(escalation, 'name'),
+    code: text(escalation, 'escalationCode'),
+    available: availableEscalations(businessObject),
   };
 }
 
@@ -621,6 +689,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     sendsMessage: sendsMessage(businessObject),
     signalName: signalOf(businessObject),
     error: errorOf(businessObject),
+    escalation: escalationOf(businessObject),
     calledProcess: calledProcessOf(businessObject),
     calledDecision: calledDecisionOf(businessObject),
     isBusinessRuleTask: type === 'bpmn:BusinessRuleTask',

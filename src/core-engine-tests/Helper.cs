@@ -6,12 +6,13 @@ public class Helper
 {
     internal static FlowzerConfig TestFlowzerConfig { get; } = FlowzerConfig.CreateForTests();
     
-    internal static async Task<InstanceEngine> StartFirstProcessOfFile(string fileName)
+    internal static async Task<InstanceEngine> StartFirstProcessOfFile(string fileName,
+        System.Dynamic.ExpandoObject? data = null)
     {
         var model = await ModelParser.ParseModel(File.Open("embeddings/" + fileName,FileMode.Open));
         var process = model.GetProcesses();
         var processEngine = CreateProcessEngine(process.First());
-        var instanceEngine = processEngine.StartProcess();
+        var instanceEngine = processEngine.StartProcess(data);
         return instanceEngine;
     }
 
