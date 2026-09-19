@@ -20,8 +20,7 @@ import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Ch
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { instanceBucket } from '@/lib/api/normalize';
-import { useIncidents, useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
-import { useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
+import { useIncidents, useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
