@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Drei Tabellen ueber derselben Eingabe: ANY mit einigen Regeln, ANY mit
+     widerspruechlichen Regeln und UNIQUE mit ueberlappenden Regeln. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="anyDefinitions"
+             name="Freigaben"
+             namespace="http://flowzer.maass.it/dmn/any">
+  <decision id="anyAgrees" name="Einige Regeln">
+    <variable name="approval" typeRef="string"/>
+    <decisionTable id="anyAgreesTable" hitPolicy="ANY">
+      <input id="anyAgreesAmount">
+        <inputExpression id="anyAgreesAmountExpression" typeRef="number">
+          <text>amount</text>
+        </inputExpression>
+      </input>
+      <output id="anyAgreesOutput" name="approval" typeRef="string"/>
+      <rule id="anyAgreesSmall">
+        <inputEntry id="anyAgreesSmallAmount"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="anyAgreesSmallOut"><text>"Automatisch"</text></outputEntry>
+      </rule>
+      <rule id="anyAgreesTiny">
+        <inputEntry id="anyAgreesTinyAmount"><text>&lt; 50</text></inputEntry>
+        <outputEntry id="anyAgreesTinyOut"><text>"Automatisch"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="anyConflicts" name="Widerspruechliche Regeln">
+    <variable name="approval" typeRef="string"/>
+    <decisionTable id="anyConflictsTable" hitPolicy="ANY">
+      <input id="anyConflictsAmount">
+        <inputExpression id="anyConflictsAmountExpression" typeRef="number">
+          <text>amount</text>
+        </inputExpression>
+      </input>
+      <output id="anyConflictsOutput" name="approval" typeRef="string"/>
+      <rule id="anyConflictsSmall">
+        <inputEntry id="anyConflictsSmallAmount"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="anyConflictsSmallOut"><text>"Automatisch"</text></outputEntry>
+      </rule>
+      <rule id="anyConflictsTiny">
+        <inputEntry id="anyConflictsTinyAmount"><text>&lt; 50</text></inputEntry>
+        <outputEntry id="anyConflictsTinyOut"><text>"Vier Augen"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="uniqueOverlap" name="UNIQUE mit Ueberlappung">
+    <variable name="approval" typeRef="string"/>
+    <decisionTable id="uniqueOverlapTable" hitPolicy="UNIQUE">
+      <input id="uniqueOverlapAmount">
+        <inputExpression id="uniqueOverlapAmountExpression" typeRef="number">
+          <text>amount</text>
+        </inputExpression>
+      </input>
+      <output id="uniqueOverlapOutput" name="approval" typeRef="string"/>
+      <rule id="uniqueOverlapSmall">
+        <inputEntry id="uniqueOverlapSmallAmount"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="uniqueOverlapSmallOut"><text>"Automatisch"</text></outputEntry>
+      </rule>
+      <rule id="uniqueOverlapTiny">
+        <inputEntry id="uniqueOverlapTinyAmount"><text>&lt; 50</text></inputEntry>
+        <outputEntry id="uniqueOverlapTinyOut"><text>"Vier Augen"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>
