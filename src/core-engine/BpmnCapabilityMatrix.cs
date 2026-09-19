@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v4.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v5.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -305,6 +305,12 @@ public static class BpmnCapabilityMatrix
                 && !HasTimerSchedule(element):
                 throw Failure("bpmn.timer.definition_required", elementId, "timerEventDefinition",
                     $"The timer event '{elementId}' requires timeCycle, timeDate, or timeDuration.");
+            // Ein Error-Boundary faengt laut BPMN 2.0 immer unterbrechend. cancelActivity="false"
+            // waere ein stilles Fehlverhalten und wird deshalb vor der Veroeffentlichung abgelehnt.
+            case "boundaryEvent" when HasEventDefinition(element, "errorEventDefinition")
+                && string.Equals(element.Attribute("cancelActivity")?.Value, "false", StringComparison.OrdinalIgnoreCase):
+                throw Failure("bpmn.error_boundary.cancel_activity_invalid", elementId, "cancelActivity",
+                    $"The error boundary event '{elementId}' must be interrupting; cancelActivity=\"false\" is not allowed.");
         }
     }
 

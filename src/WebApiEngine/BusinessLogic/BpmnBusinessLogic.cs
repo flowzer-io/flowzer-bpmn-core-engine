@@ -729,6 +729,61 @@ public partial class BpmnBusinessLogic(
     }
 
     /// <summary>
+    /// Nimmt einen fachlichen Fehler eines Workers entgegen und loest ihn auf BPMN-Ebene auf:
+    /// Ein Error-Boundary am Service-Task oder an einem umschliessenden Subprozess faengt ihn,
+    /// sonst endet die Instanz als gescheitert.
+    ///
+    /// Der Auftrag ist damit abgeschlossen. Er traegt vor dem Weiterlaufen Code und Meldung in
+    /// <see cref="ServiceTaskJob.LastErrorMessage"/> und wird nie wieder vergeben; mit dem nicht
+    /// mehr wartenden Service-Task raeumt ihn derselbe Pfad ab, der auch einen erledigten
+    /// Auftrag entfernt.
+    /// </summary>
+    public async Task<InstanceEngine> ThrowServiceTaskJobError(
+        ServiceTaskJob job,
+        string errorCode,
+        string? errorMessage,
+        Variables? variables)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
+            var instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = job.ProcessInstanceId;
+
+            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.TokenId);
+            if (activeToken is null)
+            {
+                throw new ArgumentException(
+                    $"The service task token \"{job.TokenId}\" is not active for process instance \"{job.ProcessInstanceId}\".",
+                    nameof(job));
+            }
+
+            job.LastErrorMessage = string.IsNullOrWhiteSpace(errorMessage) ? errorCode : $"{errorCode}: {errorMessage}";
+            job.Retries = 0;
+            job.LockedBy = null;
+            job.LockedUntil = null;
+            job.RetryAt = null;
+            await storageSystem.ServiceTaskStorage.SaveJob(job);
+
+            instance.ThrowBpmnError(activeToken.Id, errorCode, errorMessage, variables);
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return instance;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Bricht eine laufende Instanz ab: aktive und wartende Tokens werden terminiert, offene
     /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
     /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
@@ -1225,6 +1280,7 @@ public partial class BpmnBusinessLogic(
             Tokens = instance.Tokens,
             IsFinished = instance.IsFinished,
             State = instance.State,
+            FailureReason = instance.FailureReason,
             MessageSubscriptionCount = instance.ActiveCatchMessages.Count,
             SignalSubscriptionCount = instance.ActiveCatchSignals.Count,
             UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),

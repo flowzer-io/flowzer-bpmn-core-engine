@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_ErrorBoundaryNestedSubProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:error id="Error_Fachlich" name="Antrag unvollstaendig" errorCode="ANTRAG_UNVOLLSTAENDIG" />
+  <bpmn:process id="Process_ErrorBoundaryNestedSubProcess" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:subProcess id="SubProcess_Outer" name="Aussen">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Regular</bpmn:outgoing>
+      <bpmn:startEvent id="OuterStart_1">
+        <bpmn:outgoing>Flow_OuterStart</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:subProcess id="SubProcess_Inner" name="Innen">
+        <bpmn:incoming>Flow_OuterStart</bpmn:incoming>
+        <bpmn:outgoing>Flow_OuterEnd</bpmn:outgoing>
+        <bpmn:startEvent id="InnerStart_1">
+          <bpmn:outgoing>Flow_InnerStart</bpmn:outgoing>
+        </bpmn:startEvent>
+        <bpmn:endEvent id="ErrorEnd_Inner" name="Fachlich gescheitert">
+          <bpmn:incoming>Flow_InnerStart</bpmn:incoming>
+          <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_Fachlich" />
+        </bpmn:endEvent>
+        <bpmn:sequenceFlow id="Flow_InnerStart" sourceRef="InnerStart_1" targetRef="ErrorEnd_Inner" />
+      </bpmn:subProcess>
+      <bpmn:endEvent id="OuterEnd_1">
+        <bpmn:incoming>Flow_OuterEnd</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_OuterStart" sourceRef="OuterStart_1" targetRef="SubProcess_Inner" />
+      <bpmn:sequenceFlow id="Flow_OuterEnd" sourceRef="SubProcess_Inner" targetRef="OuterEnd_1" />
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="BoundaryError_Outer" name="Fehler" attachedToRef="SubProcess_Outer">
+      <bpmn:outgoing>Flow_Boundary</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" errorRef="Error_Fachlich" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ServiceTask_Recover" name="Nacharbeit">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="recover" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Boundary</bpmn:incoming>
+      <bpmn:outgoing>Flow_Recovered</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Recovered">
+      <bpmn:incoming>Flow_Recovered</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Regular">
+      <bpmn:incoming>Flow_Regular</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="SubProcess_Outer" />
+    <bpmn:sequenceFlow id="Flow_Regular" sourceRef="SubProcess_Outer" targetRef="EndEvent_Regular" />
+    <bpmn:sequenceFlow id="Flow_Boundary" sourceRef="BoundaryError_Outer" targetRef="ServiceTask_Recover" />
+    <bpmn:sequenceFlow id="Flow_Recovered" sourceRef="ServiceTask_Recover" targetRef="EndEvent_Recovered" />
+  </bpmn:process>
+</bpmn:definitions>

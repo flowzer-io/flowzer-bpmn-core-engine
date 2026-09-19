@@ -4681,6 +4681,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job/{jobId}/throw-error": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["ThrowJobErrorRequestDto"];
+                    "text/json": components["schemas"]["ThrowJobErrorRequestDto"];
+                    "application/*+json": components["schemas"]["ThrowJobErrorRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ApiStatusResult"];
+                        "application/json": components["schemas"]["ApiStatusResult"];
+                        "text/json": components["schemas"]["ApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/job/{jobId}/lease": {
         parameters: {
             query?: never;
@@ -7164,6 +7218,7 @@ export interface components {
             state?: components["schemas"]["ProcessInstanceStateDto"];
             tokens?: components["schemas"]["TokenDto"][] | null;
             canInspect?: boolean;
+            failureReason?: string | null;
             /** Format: date-time */
             startedAt?: string | null;
             /** Format: date-time */
@@ -7457,6 +7512,14 @@ export interface components {
             kind: string | null;
             /** Format: uuid */
             id: string;
+        };
+        ThrowJobErrorRequestDto: {
+            workerId: string | null;
+            errorCode: string | null;
+            errorMessage?: string | null;
+            variables?: {
+                [key: string]: unknown;
+            } | null;
         };
         TimerSchedulerDiagnosticsDto: {
             enabled: boolean;

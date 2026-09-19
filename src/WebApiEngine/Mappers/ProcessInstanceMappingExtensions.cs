@@ -98,6 +98,7 @@ public static class ProcessInstanceMappingExtensions
             State = (ProcessInstanceStateDto)processInstanceInfo.State,
             Tokens = canInspect ? processInstanceInfo.Tokens.Select(token => token.ToDto()).ToList() : [],
             CanInspect = canInspect,
+            FailureReason = canInspect ? processInstanceInfo.FailureReason : null,
             StartedAt = GetStartedAt(processInstanceInfo),
             FinishedAt = GetFinishedAt(processInstanceInfo)
         };

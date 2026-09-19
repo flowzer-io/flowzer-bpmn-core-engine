@@ -17,6 +17,13 @@ public class ProcessInstanceInfo
     public required int ServiceSubscriptionCount { get; set; }
 
     /// <summary>
+    /// Warum diese Instanz fachlich gescheitert ist — etwa ein BPMN-Fehler, den niemand gefangen
+    /// hat. Bewusst nicht <c>required</c>: Bestandsdokumente kennen die Eigenschaft nicht und
+    /// laden als "keine Begruendung hinterlegt".
+    /// </summary>
+    public string? FailureReason { get; set; }
+
+    /// <summary>
     /// Die Versionswechsel dieser Instanz, aelteste zuerst. Bewusst nicht <c>required</c>:
     /// Bestandsdokumente kennen die Eigenschaft nicht und muessen als „nie migriert" laden.
     /// </summary>

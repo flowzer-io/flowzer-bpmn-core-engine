@@ -42,6 +42,7 @@ public static class ModelParser
 
         rootElements.AddRange(ParseMessages(root));
         rootElements.AddRange(ParseSignals(root));
+        rootElements.AddRange(ParseErrors(root));
         rootElements.AddRange(ParseProcesses(root, rootElements, definitionsId));
 
         var definitions = new Definitions
@@ -76,6 +77,39 @@ public static class ModelParser
                 Name = m.Attribute("name")!.Value,
                 FlowzerId = m.Attribute("id")?.Value,
             });
+    }
+
+    /// <summary>
+    /// Liest die <c>bpmn:error</c>-Wurzelelemente. Sie stehen neben den Prozessen im Dokument;
+    /// ein Error-End- oder Error-Boundary-Event zeigt ueber <c>errorRef</c> darauf.
+    /// </summary>
+    private static IEnumerable<Error> ParseErrors(XElement root)
+    {
+        return root.Elements().Where(n =>
+                n.Name.LocalName.Equals("error", StringComparison.InvariantCultureIgnoreCase))
+            .Select(m => new Error
+            {
+                Name = m.Attribute("name")?.Value ?? "",
+                ErrorCode = m.Attribute("errorCode")?.Value,
+                FlowzerId = m.Attribute("id")?.Value,
+            });
+    }
+
+    /// <summary>
+    /// Loest ein <c>errorRef</c> auf. Ein fehlendes Attribut ist zulaessig (der Fehler traegt dann
+    /// keinen Code); ein Verweis ins Leere ist dagegen ein Modellfehler und wird benannt.
+    /// </summary>
+    private static Error? ResolveErrorRef(XElement definition, List<IRootElement> rootElements, string elementId)
+    {
+        var errorRef = definition.Attribute("errorRef")?.Value;
+        if (string.IsNullOrWhiteSpace(errorRef))
+        {
+            return null;
+        }
+
+        return rootElements.OfType<Error>().SingleOrDefault(error => error.FlowzerId == errorRef)
+               ?? throw new ModelValidationException(
+                   $"The error event '{elementId}' references the unknown error '{errorRef}'.");
     }
 
     private static List<Process> ParseProcesses(XElement root, List<IRootElement> rootElements,
@@ -339,6 +373,22 @@ public static class ModelParser
                 continue;
             }
 
+            if (xmlFlowNode.HasDescendant("errorEventDefinition", out definition))
+            {
+                var boundaryErrorId = xmlFlowNode.Attribute("id")!.Value;
+                flowElements.Add(new FlowzerBoundaryErrorEvent
+                {
+                    Id = boundaryErrorId,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Error = ResolveErrorRef(definition, rootElements, boundaryErrorId),
+                    AttachedToRef = attachedTo,
+                    // Ein Error-Boundary unterbricht laut BPMN-Spezifikation immer. Die
+                    // Veroeffentlichungspruefung lehnt cancelActivity="false" bereits ab.
+                    CancelActivity = true
+                });
+                continue;
+            }
+
             throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
         }
 
@@ -399,6 +449,17 @@ public static class ModelParser
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 Signal = rootElements.OfType<Signal>()
                     .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+            };
+        }
+
+        if (xmlFlowNode.HasDescendant("errorEventDefinition", out definition))
+        {
+            var errorEndId = xmlFlowNode.Attribute("id")!.Value;
+            return new FlowzerErrorEndEvent
+            {
+                Id = errorEndId,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Error = ResolveErrorRef(definition, rootElements, errorEndId),
             };
         }
 

@@ -1,8 +1,15 @@
 # Laufzeitlücken und aktueller Restbestand
 
-**Stand:** 17. September 2026
+**Stand:** 19. September 2026
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
+
+## Fehlerereignisse: Error End und Error Boundary
+
+Fachliche Fehler laufen jetzt auf BPMN-Ebene weiter, statt die Instanz nur auf `Failed` zu
+setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 5), der
+Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
+bleiben ausdrücklich offen.
 
 ## Korrektur #310: Manual Tasks und Timerdiagnose
 
@@ -129,17 +136,24 @@ Weiterhin offen:
 
 ### 2. Fehler- und Eskalationspfade
 
-Noch nicht produktionsreif umgesetzt:
+Fehlerpfade sind umgesetzt, Eskalation und Kompensation nicht.
 
-- Error Boundary Events
-- Escalation Catch/Throw
-- fachlich sinnvolle Fehlerpropagation auf BPMN-Ebene statt nur auf Ausnahmepfad
+Vorhanden (Fähigkeitsvertrag 5):
 
-Aktueller Status:
+- `bpmn:error`-Wurzelelemente, Error-End-Events und Error-Boundary-Events werden geparst und ausgeführt
+- ein Fehler wandert vom Ursprung nach außen, bis ein Error-Boundary mit passendem Code oder ohne `errorRef` ihn fängt
+- Fangen ist immer unterbrechend: der gefangene Scope und alles darin wird zurückgezogen, samt seiner Message-, Signal- und Timer-Subscriptions
+- ohne Fänger endet die Instanz als `Failed` mit einer Begründung an `ProcessInstanceInfo.FailureReason`
+- ein externer Worker wirft einen fachlichen Fehler über `POST /job/{jobId}/throw-error`
+- `cancelActivity="false"` an einem Error-Boundary wird vor Speichern und Veröffentlichen abgelehnt
 
-- `GetActiveEscalations()` liefert stabil eine leere Liste statt sofort zu scheitern
-- `HandleEscalation(...)` und `HandleError(...)` führen jetzt mindestens in einen kontrollierten Best-Effort-Fehlerzustand statt in eine rohe `NotImplementedException`
-- echte Eskalations- und Fehlersemantik bleibt weiterhin ein separates Folgepaket
+Weiterhin offen:
+
+- Escalation Catch/Throw; `GetActiveEscalations()` liefert weiterhin nur eine leere Liste und `HandleEscalation(...)` führt weiterhin nur in einen Best-Effort-Fehlerzustand
+- Kompensation (siehe Abschnitt 3)
+- Error-Start-Events in Event-Subprozessen und Fehlerpfade über Call Activities
+- ein Fehler in einem Multi-Instance-Körper unterbricht die ganze Multi-Instance-Aktivität; eine einzelne Ausprägung lässt sich nicht gesondert behandeln
+- `ProcessInstanceInfo.FailureReason` wird beim Scheitern geschrieben und nicht aus der Ablage zurückgelesen: Ein späterer Schreibvorgang an derselben Instanz würde ihn leeren. Eine gescheiterte Instanz wird heute nicht mehr geschrieben, ein Wiederaufsetzen müsste die Begründung mitführen.
 
 ### 3. Vollständige Kompensation bei Abbruch
 
