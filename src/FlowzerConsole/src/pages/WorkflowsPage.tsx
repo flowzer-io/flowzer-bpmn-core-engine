@@ -247,6 +247,9 @@ export function WorkflowsPage() {
 
     toast.success(`„${meta.name}“ importiert`);
     return meta.definitionId;
+  }
+
+  /**
    * Laedt den Workflow als Paket herunter. Bewusst ueber die API und nicht ueber einen
    * Link: Der Download braucht dieselbe Anmeldung wie jeder andere Aufruf, und ein Fehler
    * soll als Meldung ankommen und nicht als unlesbare Datei im Downloadordner.
