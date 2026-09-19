@@ -108,6 +108,7 @@ internal sealed class HookedDefinitionStorage(IDefinitionStorage inner, Migratio
     public Task UpdateMetaDefinition(BpmnMetaDefinition metaDefinition) => inner.UpdateMetaDefinition(metaDefinition);
     public Task<BpmnMetaDefinition> GetMetaDefinitionById(string id) => inner.GetMetaDefinitionById(id);
     public Task DeleteMetaDefinition(string definitionId) => inner.DeleteMetaDefinition(definitionId);
+    public Task LockForDefinitionChange(string definitionId) => inner.LockForDefinitionChange(definitionId);
 }
 
 /// <summary>

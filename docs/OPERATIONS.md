@@ -1434,7 +1434,8 @@ lassen.
 Die prozessweiten Sperren der API (`BpmnBusinessLogic`, `ServiceTaskJobService`) sind dabei
 wirkungslos — sie schützen weiterhin nur den eigenen Prozess. Tragend sind die Sperren in der
 Ablage: der Advisory-Lock je Instanz, den jeder Engine-Schreiber vor weiteren Zeilensperren
-nimmt, Zeilensperren mit `FOR UPDATE`/`SKIP LOCKED` für Aufträge, Aufgaben, KI-Läufe und
+nimmt, der Advisory-Lock je Workflow-Kennung beim Speichern und Deployen einer Version,
+Zeilensperren mit `FOR UPDATE`/`SKIP LOCKED` für Aufträge, Aufgaben, KI-Läufe und
 fällige Start-Timer sowie Unique-Constraints und Revisionsvergleiche.
 
 ### Was belegt ist

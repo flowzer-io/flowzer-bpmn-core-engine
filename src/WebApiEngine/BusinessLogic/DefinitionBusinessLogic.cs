@@ -29,6 +29,11 @@ public class DefinitionBusinessLogic(
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
 
+        // Die Versionsnummer entsteht aus der bisher hoechsten. Ein zweiter API-Prozess, der
+        // denselben Workflow gleichzeitig speichert, muss warten — sonst vergeben beide
+        // dieselbe Nummer und einer scheitert am Unique-Index statt mit der naechsten Version.
+        await storageSystem.DefinitionStorage.LockForDefinitionChange(definitionId);
+
         if (deploy)
         {
             BpmnCapabilityMatrix.ValidateForDeployment(rawContent);

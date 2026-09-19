@@ -95,6 +95,10 @@ public partial class BpmnBusinessLogic(
         {
             using var storageSystem = storageProvider.GetTransactionalStorage();
 
+            // Die Engine-Sperre gilt nur im eigenen Prozess. Deployt ein zweiter API-Prozess
+            // denselben Workflow, lesen sonst beide dieselbe deployte Version, schalten sie ab
+            // und aktivieren danach jeder die eigene — zwei aktive Versionen.
+            await storageSystem.DefinitionStorage.LockForDefinitionChange(definition.DefinitionId);
 
             var xmlData = await storageSystem.DefinitionStorage.GetBinary(definition.Id);
             // Dieser zweite Check schützt auch interne Deploy-Aufrufer, die den HTTP-Upload
