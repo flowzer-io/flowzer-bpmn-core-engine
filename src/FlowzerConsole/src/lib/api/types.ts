@@ -576,6 +576,72 @@ export interface OperationsDiagnosticsDto {
   observability: OperationsObservabilityDto;
 }
 
+/** Zeitraumgrenzen einer Auswertung; beide Angaben sind freiwillig (Server-Standard: 30 Tage). */
+export interface AnalyticsRangeQuery {
+  from?: string;
+  to?: string;
+}
+
+/** Streuungsmaße einer gemessenen Dauer — alle Werte in Sekunden. */
+export interface DurationStatisticsDto {
+  sampleCount: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  meanSeconds: number;
+  maxSeconds: number;
+}
+
+/** Ein Workflow des Zeitraums, aufgeschlüsselt nach Ausgang der Instanzen. */
+export interface WorkflowAnalyticsSummaryDto {
+  metaDefinitionId: string;
+  name: string;
+  totalCount: number;
+  runningCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  failedCount: number;
+  /** null, solange keine Instanz des Zeitraums abgeschlossen ist. */
+  cycleTime: DurationStatisticsDto | null;
+}
+
+/** Antwort von `GET /operations/analytics/workflows`. */
+export interface WorkflowAnalyticsOverviewDto {
+  fromUtc: string;
+  toUtc: string;
+  workflows: WorkflowAnalyticsSummaryDto[];
+}
+
+/** Ein Schritt der Definition mit seiner Wartezeit und den aktuell wartenden Token. */
+export interface FlowNodeAnalyticsDto {
+  flowNodeId: string;
+  name: string | null;
+  executionCount: number;
+  waitingTokenCount: number;
+  /** null, wenn im Zeitraum kein Durchlauf vollständig beobachtet wurde. */
+  waitTime: DurationStatisticsDto | null;
+}
+
+/** Ein Tag der Zeitreihe; `day` ist ein reines Datum („2026-09-19“, C# `DateOnly`). */
+export interface AnalyticsDayPointDto {
+  day: string;
+  startedCount: number;
+  finishedCount: number;
+}
+
+/** Antwort von `GET /operations/analytics/workflows/{metaDefinitionId}`. */
+export interface WorkflowAnalyticsDetailDto {
+  fromUtc: string;
+  toUtc: string;
+  summary: WorkflowAnalyticsSummaryDto;
+  /** null = alle Versionen. */
+  definitionId: string | null;
+  /** Version, aus der die Knotennamen stammen; null, wenn keine lesbar war. */
+  namingDefinitionId: string | null;
+  /** Bereits serverseitig nach Median-Wartezeit absteigend sortiert. */
+  nodes: FlowNodeAnalyticsDto[];
+  timeline: AnalyticsDayPointDto[];
+}
+
 /** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */
 export const AI_PROVIDER_KINDS = ['OpenAi', 'OpenAiCompatible', 'Anthropic'] as const;
 export type AiProviderKind = (typeof AI_PROVIDER_KINDS)[number];

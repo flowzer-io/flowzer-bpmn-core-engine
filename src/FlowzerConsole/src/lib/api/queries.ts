@@ -19,6 +19,7 @@ import {
   aiToolsApi,
 } from './endpoints';
 import type {
+  AnalyticsRangeQuery,
   BpmnMetaDefinitionDto,
   BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
@@ -53,6 +54,8 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -125,6 +128,23 @@ export const queryKeys = {
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
   timers: () => [...queryKeys.operations, 'timers'] as const,
   health: () => [...queryKeys.operations, 'health'] as const,
+  analytics: () => [...queryKeys.operations, 'analytics'] as const,
+  analyticsOverview: (from?: string, to?: string) =>
+    [...queryKeys.analytics(), 'overview', from ?? null, to ?? null] as const,
+  analyticsDetail: (
+    metaDefinitionId: string,
+    from?: string,
+    to?: string,
+    definitionId?: string | null,
+  ) =>
+    [
+      ...queryKeys.analytics(),
+      'detail',
+      metaDefinitionId,
+      from ?? null,
+      to ?? null,
+      definitionId ?? null,
+    ] as const,
   notifications: ['notifications'] as const,
   notificationList: () => [...queryKeys.notifications, 'list'] as const,
 } as const;
@@ -979,5 +999,37 @@ export function useHealth() {
     queryKey: queryKeys.health(),
     queryFn: ({ signal }) => operationsApi.health(signal),
     refetchInterval: 30_000,
+  });
+}
+
+/**
+ * Auswertung der Laufzeithistorie. Bewusst ohne `refetchInterval`: Eine Auswertung ist
+ * ein Bericht über einen abgeschlossenen Zeitraum, kein Live-Bild — ein Balken, der
+ * sich unter dem Mauszeiger bewegt, wäre hier nur irritierend.
+ */
+export function useAnalyticsOverview(
+  range: AnalyticsRangeQuery,
+  options?: QueryTuning<WorkflowAnalyticsOverviewDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsOverview(range.from, range.to),
+    queryFn: ({ signal }) => operationsApi.analyticsOverview(range, signal),
+    staleTime: 60_000,
+    ...options,
+  });
+}
+
+/** Schritte und Zeitreihe eines Workflows; ohne `definitionId` über alle Versionen. */
+export function useAnalyticsDetail(
+  metaDefinitionId: string,
+  range: AnalyticsRangeQuery,
+  definitionId?: string | null,
+  options?: QueryTuning<WorkflowAnalyticsDetailDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsDetail(metaDefinitionId, range.from, range.to, definitionId),
+    queryFn: ({ signal }) => operationsApi.analyticsDetail(metaDefinitionId, range, definitionId, signal),
+    staleTime: 60_000,
+    ...options,
   });
 }

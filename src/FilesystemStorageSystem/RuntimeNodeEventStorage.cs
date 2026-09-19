@@ -45,9 +45,32 @@ internal sealed class RuntimeNodeEventStorage(Storage storage) : IRuntimeNodeEve
         }
     }
 
-    public async Task<IReadOnlyList<RuntimeNodeEvent>> GetByProcessInstance(Guid processInstanceId)
+    public Task<IReadOnlyList<RuntimeNodeEvent>> GetByProcessInstance(Guid processInstanceId)
     {
         if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        return ScanAsync(item => item.ProcessInstanceId == processInstanceId);
+    }
+
+    public Task<IReadOnlyList<RuntimeNodeEvent>> GetByDefinitionIds(
+        IReadOnlyCollection<Guid> definitionIds,
+        DateTimeOffset fromUtc,
+        DateTimeOffset toUtc)
+    {
+        ArgumentNullException.ThrowIfNull(definitionIds);
+        if (toUtc < fromUtc) throw new ArgumentOutOfRangeException(nameof(toUtc));
+        if (definitionIds.Count == 0) return Task.FromResult<IReadOnlyList<RuntimeNodeEvent>>([]);
+
+        var wanted = definitionIds.ToHashSet();
+        return ScanAsync(item => wanted.Contains(item.DefinitionId)
+            && item.OccurredAtUtc >= fromUtc && item.OccurredAtUtc < toUtc);
+    }
+
+    /// <summary>
+    /// Der Vollscan ist nur für den ausdrücklich auf Entwicklung begrenzten Adapter vertretbar;
+    /// PostgreSQL beantwortet dieselben Fragen über Indizes.
+    /// </summary>
+    private async Task<IReadOnlyList<RuntimeNodeEvent>> ScanAsync(Func<RuntimeNodeEvent, bool> matches)
+    {
         var result = new List<RuntimeNodeEvent>();
         foreach (var file in Directory.EnumerateFiles(_path, "event_*.json"))
         {
@@ -55,7 +78,7 @@ internal sealed class RuntimeNodeEventStorage(Storage storage) : IRuntimeNodeEve
             if (content is null) continue;
             var item = JsonConvert.DeserializeObject<RuntimeNodeEvent>(content, storage.NewtonSoftDefaultSettings)
                        ?? throw new InvalidDataException("Stored runtime node event is empty.");
-            if (item.ProcessInstanceId == processInstanceId) result.Add(item);
+            if (matches(item)) result.Add(item);
         }
 
         return result.OrderBy(item => item.OccurredAtUtc)

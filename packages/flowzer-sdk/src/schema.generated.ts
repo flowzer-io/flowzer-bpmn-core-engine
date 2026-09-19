@@ -4879,6 +4879,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/operations/analytics/workflows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                        "application/json": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                        "text/json": components["schemas"]["WorkflowAnalyticsOverviewDtoApiStatusResult"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operations/analytics/workflows/{metaDefinitionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    definitionId?: string;
+                };
+                header?: never;
+                path: {
+                    metaDefinitionId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                        "application/json": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                        "text/json": components["schemas"]["WorkflowAnalyticsDetailDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Content */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Timer": {
         parameters: {
             query?: never;
@@ -5628,6 +5738,14 @@ export interface components {
          * @enum {integer}
          */
         AiToolSideEffectDto: 0 | 1 | 2;
+        AnalyticsDayPointDto: {
+            /** Format: date */
+            day: string;
+            /** Format: int32 */
+            startedCount: number;
+            /** Format: int32 */
+            finishedCount: number;
+        };
         ApiProblemDetails: {
             type?: string | null;
             title?: string | null;
@@ -5808,6 +5926,18 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["DirectorySubjectSearchResultDto"];
         };
+        DurationStatisticsDto: {
+            /** Format: int32 */
+            sampleCount: number;
+            /** Format: double */
+            medianSeconds: number;
+            /** Format: double */
+            p90Seconds: number;
+            /** Format: double */
+            meanSeconds: number;
+            /** Format: double */
+            maxSeconds: number;
+        };
         ExtendedBpmnMetaDefinitionDto: {
             definitionId: string | null;
             name: string | null;
@@ -5883,6 +6013,15 @@ export interface components {
             maxJobs?: number;
             /** Format: int32 */
             lockSeconds?: number;
+        };
+        FlowNodeAnalyticsDto: {
+            flowNodeId: string | null;
+            name?: string | null;
+            /** Format: int32 */
+            executionCount: number;
+            /** Format: int32 */
+            waitingTokenCount: number;
+            waitTime?: components["schemas"]["DurationStatisticsDto"];
         };
         /**
          * Format: int32
@@ -6725,6 +6864,51 @@ export interface components {
             major?: number;
             /** Format: int32 */
             minor?: number;
+        };
+        WorkflowAnalyticsDetailDto: {
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            summary: components["schemas"]["WorkflowAnalyticsSummaryDto"];
+            /** Format: uuid */
+            definitionId?: string | null;
+            /** Format: uuid */
+            namingDefinitionId?: string | null;
+            nodes: components["schemas"]["FlowNodeAnalyticsDto"][] | null;
+            timeline: components["schemas"]["AnalyticsDayPointDto"][] | null;
+        };
+        WorkflowAnalyticsDetailDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["WorkflowAnalyticsDetailDto"];
+        };
+        WorkflowAnalyticsOverviewDto: {
+            /** Format: date-time */
+            fromUtc: string;
+            /** Format: date-time */
+            toUtc: string;
+            workflows: components["schemas"]["WorkflowAnalyticsSummaryDto"][] | null;
+        };
+        WorkflowAnalyticsOverviewDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["WorkflowAnalyticsOverviewDto"];
+        };
+        WorkflowAnalyticsSummaryDto: {
+            metaDefinitionId: string | null;
+            name: string | null;
+            /** Format: int32 */
+            totalCount: number;
+            /** Format: int32 */
+            runningCount: number;
+            /** Format: int32 */
+            completedCount: number;
+            /** Format: int32 */
+            cancelledCount: number;
+            /** Format: int32 */
+            failedCount: number;
+            cycleTime?: components["schemas"]["DurationStatisticsDto"];
         };
         WorkflowFolderDto: {
             /** Format: uuid */

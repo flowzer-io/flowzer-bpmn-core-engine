@@ -3,6 +3,7 @@ import { normalizeInstance } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
+  AnalyticsRangeQuery,
   BpmnDefinitionDto,
   BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
@@ -29,6 +30,8 @@ import type {
   TimerSubscriptionDto,
   TokenDto,
   VersionDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
@@ -558,6 +561,31 @@ export const operationsApi = {
 
   /** `GET /health/ready` */
   readiness: (signal?: AbortSignal) => requestStatusResult<HealthStatusDto>('/health/ready', { signal }),
+
+  /**
+   * `GET /operations/analytics/workflows` — Auswertung aller Workflows im Zeitraum.
+   * Ohne `from`/`to` entscheidet der Server (letzte 30 Tage).
+   */
+  analyticsOverview: (range: AnalyticsRangeQuery, signal?: AbortSignal) =>
+    requestStatusResult<WorkflowAnalyticsOverviewDto>('/operations/analytics/workflows', {
+      query: { from: range.from, to: range.to },
+      signal,
+    }),
+
+  /**
+   * `GET /operations/analytics/workflows/{metaDefinitionId}` — Schritte und Zeitreihe
+   * eines Workflows. Ohne `definitionId` zählen alle Versionen.
+   */
+  analyticsDetail: (
+    metaDefinitionId: string,
+    range: AnalyticsRangeQuery,
+    definitionId?: string | null,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<WorkflowAnalyticsDetailDto>(
+      `/operations/analytics/workflows/${encodeURIComponent(metaDefinitionId)}`,
+      { query: { from: range.from, to: range.to, definitionId: definitionId ?? undefined }, signal },
+    ),
 };
 
 export type { ProcessVariables };

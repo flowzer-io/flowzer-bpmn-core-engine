@@ -58,3 +58,11 @@ technischen History-Request aus.
 - Personenbezogene Auditdetails und Begründungen bleiben intern.
 - Kommentare, Formularänderungen, Timer, Worker-/KI-Läufe, Störungen und allgemeine
   Prozessschritte benötigen eigene spätere Ereignistypen und Retentionsregeln.
+
+## Verwandte Auswertungen
+
+Die Human-Task-Auditspur beantwortet, was an *einem* Vorgang geschah. Die Frage, wie
+lange Vorgänge *insgesamt* dauern und wo sie warten, beantwortet die verdichtete
+Betriebsauswertung unter `/operations/analytics` aus der datensparsamen
+Engine-Ereignisspur — ohne Personenbezug und ohne einzelne Instanzen. Kennzahlen,
+Datenquelle und Grenzen stehen in [ANALYTICS.md](ANALYTICS.md).
