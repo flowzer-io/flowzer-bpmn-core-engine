@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { OperationsPage } from './OperationsPage';
 import type { OperationsDiagnosticsDto, ProcessInstanceInfoDto } from '@/lib/api/types';
@@ -74,6 +74,8 @@ const mocks = vi.hoisted(() => {
         enabled: false,
         consoleExporterEnabled: false,
         otlpExporterEnabled: false,
+        prometheusEnabled: false,
+        prometheusPath: null as string | null,
         serviceName: 'Flowzer.WebApi',
         serviceVersion: '1.0.0',
       },
@@ -168,5 +170,30 @@ describe('Betrieb und Diagnose', () => {
 
     expect(screen.getByText(/BBBB-BBB/)).toBeInTheDocument();
     expect(screen.queryByText(/AAAA-AAA/)).not.toBeInTheDocument();
+  });
+
+  afterEach(() => {
+    mocks.diagnostics.observability.prometheusEnabled = false;
+    mocks.diagnostics.observability.prometheusPath = null;
+  });
+
+  // Testzweck: Ist der Prometheus-Scrape-Endpunkt offen, nennt die Betriebsseite seinen Pfad. Er
+  // antwortet ohne Anmeldung; wer ihn nicht sieht, prüft auch nicht, ob das Gateway diese
+  // Metrikquelle versehentlich nach außen durchreicht.
+  it('nennt den Pfad des Prometheus-Scrape-Endpunkts, wenn er eingeschaltet ist', () => {
+    mocks.diagnostics.observability.prometheusEnabled = true;
+    mocks.diagnostics.observability.prometheusPath = '/metrics';
+
+    render(<OperationsPage />);
+
+    expect(screen.getByText(/Prometheus-Scrape:/).closest('li')).toHaveTextContent('/metrics');
+  });
+
+  // Testzweck: Ohne eingeschalteten Endpunkt steht dort ausdrücklich „inaktiv“. Eine fehlende
+  // Zeile ließe offen, ob der Endpunkt aus ist oder die Diagnose ihn nur nicht meldet.
+  it('meldet den Prometheus-Scrape-Endpunkt als inaktiv, wenn er aus ist', () => {
+    render(<OperationsPage />);
+
+    expect(screen.getByText(/Prometheus-Scrape:/).closest('li')).toHaveTextContent('inaktiv');
   });
 });

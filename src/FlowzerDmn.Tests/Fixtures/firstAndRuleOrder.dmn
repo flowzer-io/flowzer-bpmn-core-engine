@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dieselben ueberlappenden Regeln einmal als FIRST und einmal als RULE ORDER:
+     FIRST liefert den ersten Treffer, RULE ORDER alle in Regelreihenfolge. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="firstDefinitions"
+             name="Versandart"
+             namespace="http://flowzer.maass.it/dmn/first">
+  <decision id="firstDecision" name="Erster Treffer">
+    <variable name="shipping" typeRef="string"/>
+    <decisionTable id="firstTable" hitPolicy="FIRST">
+      <input id="firstWeight">
+        <inputExpression id="firstWeightExpression" typeRef="number">
+          <text>weight</text>
+        </inputExpression>
+      </input>
+      <output id="firstOutput" name="shipping" typeRef="string"/>
+      <rule id="firstExpress">
+        <inputEntry id="firstExpressWeight"><text>&lt; 10</text></inputEntry>
+        <outputEntry id="firstExpressOut"><text>"Express"</text></outputEntry>
+      </rule>
+      <rule id="firstStandard">
+        <inputEntry id="firstStandardWeight"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="firstStandardOut"><text>"Standard"</text></outputEntry>
+      </rule>
+      <rule id="firstFreight">
+        <inputEntry id="firstFreightWeight"><text>-</text></inputEntry>
+        <outputEntry id="firstFreightOut"><text>"Freight"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="ruleOrderDecision" name="Alle Treffer in Regelreihenfolge">
+    <variable name="shippingOptions"/>
+    <decisionTable id="ruleOrderTable" hitPolicy="RULE ORDER">
+      <input id="ruleOrderWeight">
+        <inputExpression id="ruleOrderWeightExpression" typeRef="number">
+          <text>weight</text>
+        </inputExpression>
+      </input>
+      <output id="ruleOrderOutput" name="shipping" typeRef="string"/>
+      <rule id="ruleOrderExpress">
+        <inputEntry id="ruleOrderExpressWeight"><text>&lt; 10</text></inputEntry>
+        <outputEntry id="ruleOrderExpressOut"><text>"Express"</text></outputEntry>
+      </rule>
+      <rule id="ruleOrderStandard">
+        <inputEntry id="ruleOrderStandardWeight"><text>&lt; 100</text></inputEntry>
+        <outputEntry id="ruleOrderStandardOut"><text>"Standard"</text></outputEntry>
+      </rule>
+      <rule id="ruleOrderFreight">
+        <inputEntry id="ruleOrderFreightWeight"><text>-</text></inputEntry>
+        <outputEntry id="ruleOrderFreightOut"><text>"Freight"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

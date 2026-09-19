@@ -592,6 +592,9 @@ export interface OperationsObservabilityDto {
   otlpEndpointHint?: string | null;
   otlpProtocol?: string | null;
   otlpHeadersHint?: string | null;
+  /** Der Scrape-Endpunkt ist anonym und darf nur im Containernetz erreichbar sein. */
+  prometheusEnabled: boolean;
+  prometheusPath?: string | null;
   serviceName: string;
   serviceVersion: string;
 }

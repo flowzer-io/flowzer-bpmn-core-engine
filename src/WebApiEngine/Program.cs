@@ -186,6 +186,10 @@ app.UseFlowzerRateLimiting();
 
 app.MapControllers();
 
+// Nur wenn ausdruecklich eingeschaltet. Der Endpunkt antwortet ohne Anmeldung und gehoert
+// deshalb ausschliesslich ins Containernetz, nicht hinter das oeffentliche Gateway.
+app.MapFlowzerPrometheusScrapingEndpoint();
+
 await app.ApplyStartupMigrationsIfConfiguredAsync();
 
 app.Run();

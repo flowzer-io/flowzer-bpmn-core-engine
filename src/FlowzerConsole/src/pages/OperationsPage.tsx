@@ -308,6 +308,14 @@ export function OperationsPage() {
                         : 'inaktiv'}
                     </strong>
                   </li>
+                  <li>
+                    Prometheus-Scrape:{' '}
+                    <strong className="text-text">
+                      {diagnostics.observability.prometheusEnabled
+                        ? (diagnostics.observability.prometheusPath ?? 'aktiv')
+                        : 'inaktiv'}
+                    </strong>
+                  </li>
                   <li className="font-mono text-[11.5px]">
                     {diagnostics.observability.serviceName} {diagnostics.observability.serviceVersion}
                   </li>
