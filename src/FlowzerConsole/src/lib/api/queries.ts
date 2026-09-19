@@ -1066,6 +1066,11 @@ export function useDecisions(options?: QueryTuning<DecisionDefinition[]>) {
   return useQuery({
     queryKey: queryKeys.decisionList(),
     queryFn: ({ signal }) => decisionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
 /* ------------------------------------------------------- Eingehende Ausloeser */
 
 export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
@@ -1133,6 +1138,9 @@ export function useEvaluateDecision() {
       decisionId: string;
       variables: Record<string, unknown>;
     }) => decisionsApi.evaluate(decisionDefinitionId, { decisionId, variables }),
+  });
+}
+
 /**
  * Legt einen Ausloeser an. Das Ergebnis enthaelt das Geheimnis genau einmal — es wird
  * bewusst nur an den Aufrufer zurueckgegeben und nie in den Cache der Liste geschrieben;

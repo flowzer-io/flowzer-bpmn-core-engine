@@ -796,6 +796,8 @@ export interface DecisionEvaluationResult {
   value: unknown;
   matchedRules: string[];
   requiredResults: Record<string, { decisionId: string; value: unknown; matchedRules: string[] }>;
+}
+
 /* ------------------------------------------------------- Eingehende Ausloeser */
 
 /**
