@@ -366,6 +366,54 @@ und Abschluss bleiben identisch.
 Prozessverbund #154 folgt auf lokale Call Activities und Fehlerbehandlung;
 vollständige Kompensation und echtes Mehrmandanten-Hosting bleiben separate Stränge.
 
+## M7 – Engine-Vollständigkeit und Camunda-Nachfolge
+
+Aufgenommen am 19. September 2026 nach dem Vergleich mit Camunda 7/8. Ausgangslage:
+Flowzer spricht bereits das Camunda-8-Vokabular (`zeebe:taskDefinition`, `zeebe:ioMapping`,
+`zeebe:subscription`, FEEL, Job-Worker mit Lease und Retry). Camunda 7 Community ist seit
+Oktober 2025 abgekündigt, Camunda 8 steht unter einer Source-available-Lizenz ohne
+kostenfreien Produktivbetrieb. Bei Formularen, Human Tasks, Ordnerrechten, BFF-Sicherheit
+und KI-Tasks ist Flowzer stärker; bei Engine-Vollständigkeit, Störungsbehandlung und
+Betriebsreife liegt Camunda vorn. M7 schließt genau diese Lücken, in der Reihenfolge des
+Praxisnutzens. Nicht nachgebaut wird die verteilte Zeebe-Architektur: PostgreSQL als einzige
+Ablage bleibt ein Vorteil für die Zielgruppe.
+
+**Betriebsreife (zieht die offenen M6-Punkte vor):**
+
+- [ ] Error-End- und Error-Boundary-Events; Worker melden fachliche Fehler über
+  `POST /job/{id}/throw-error` mit `errorCode`, die Engine löst sie am Boundary auf.
+- [ ] Störungszentrum: Störung als eigenes Objekt, Auftrag ohne Versuche erneut freigeben,
+  Eingaben korrigieren, Abbruch, Audit; Sicht auf der Betriebsseite.
+- [ ] Aufbewahrung: Frist für beendete Instanzen global und je Workflow, vollständiges
+  Löschen aller angehängten Daten, manuelles Löschen durch die Betriebsrolle.
+- [ ] Prometheus-Scrape-Endpunkt neben OTLP, nur im Containernetz erreichbar.
+- [ ] Mehrprozessbetrieb mit Konkurrenztests nachweisen und freigeben.
+
+**BPMN-Lücken in der Reihenfolge des Nutzens:**
+
+- [ ] Message-Throw-Event, Send-Task und Message-End-Event (Prozesse sprechen Prozesse an).
+- [ ] Lokale Call Activity (Wiederverwendung; Voraussetzung für #154).
+- [ ] Event-based Gateway, Inclusive Gateway, Event-Subprozess.
+- [ ] Escalation-Events; Kompensation bleibt ein eigener Strang.
+- [ ] BPMN-MIWG-Testsuite als Konformitätsnachweis statt nur des eigenen Fähigkeitsvertrags.
+
+**Entscheidungen und Eingriffe:**
+
+- [ ] DMN-Entscheidungstabellen mit Business-Rule-Task; FEEL ist vorhanden, der
+  Tabelleneditor kommt aus derselben bpmn.io-Familie wie der Modeler.
+- [ ] Token innerhalb derselben Version verschieben und Variablen einer laufenden Instanz
+  bearbeiten (Camunda: „Process Instance Modification“); baut auf der Zuordnungslogik der
+  Instanzmigration auf.
+
+**Konnektoren und Nachfolge:**
+
+- [ ] Mitgelieferte Worker: HTTP/REST, E-Mail, eingehender Webhook-Trigger.
+- [ ] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite.
+- [ ] MPL-2.0 vollziehen (SBOM, Meldestelle), damit die Nachfolge-Positionierung trägt.
+
+**Später:** Auswertungen auf der Historie (Durchlaufzeiten, Engpässe), Versionsvergleich im
+Modeler, englische Oberfläche, Mehrmandanten-Hosting.
+
 ## Verträge, Migration und Fertigkriterien
 
 - Task-Zuweisungen erhalten einen diskriminierten Vertrag für stabile Referenzen
