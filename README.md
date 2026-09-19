@@ -181,7 +181,7 @@ keinen zweiten Verwaltungsbereich mehr. Flowzer kennt dabei keine konkrete Host-
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v6.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v8.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
@@ -247,7 +247,7 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
 - [docs/INBOUND-TRIGGERS.md](docs/INBOUND-TRIGGERS.md) – Workflows von außen starten: signierte Webhook-Auslöser ohne Anmeldung
-- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform und bewusste Abweichungen von Camunda
+- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform, Entscheidungskatalog und Business-Rule-Task
 - [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md) – hostneutraler TypeScript-Client für Aufgaben- und Formularintegration
 - [packages/flowzer-react/README.md](packages/flowzer-react/README.md) – optionale darstellungsfreie React-Hooks und Controller
 - [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md) – Eigentums-, Authentisierungs-, Cache- und Integrationsgrenzen

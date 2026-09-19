@@ -26,6 +26,8 @@ import {
   timerOf,
   type Assignment,
   type AssignmentMode,
+  type BusinessRuleMode,
+  type CalledDecision,
   type DirectoryAssignment,
   type EmbeddedForm,
   type CalledProcess,
@@ -689,6 +691,49 @@ export function createBpmnEditor(modeler: ModelerLike) {
           patch.propagateAllChildVariables ?? current?.propagateAllChildVariables ?? true,
         propagateAllParentVariables:
           patch.propagateAllParentVariables ?? current?.propagateAllParentVariables ?? true,
+      });
+    },
+
+    /**
+     * Legt fest, ob ein Business-Rule-Task die Entscheidung selbst rechnet oder als Auftrag an
+     * einen Worker geht.
+     *
+     * Beim Umschalten verschwindet die jeweils andere Erweiterung. Bliebe sie stehen, hinge am
+     * Element eine Konfiguration, die das Panel nicht mehr zeigt — und die Engine nähme beim
+     * Veröffentlichen den Auftragstyp, obwohl im Panel eine Entscheidung steht.
+     */
+    setBusinessRuleMode(elementId: string, mode: BusinessRuleMode): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:BusinessRuleTask') return;
+
+      if (mode === 'decision') {
+        writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
+        if (!extension(element.businessObject, 'zeebe:CalledDecision')) {
+          writeExtension(element, element.businessObject, 'zeebe:CalledDecision', {});
+        }
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'zeebe:CalledDecision', null);
+    },
+
+    /**
+     * Schreibt Teiländerungen der aufgerufenen Entscheidung.
+     *
+     * Die Erweiterung bleibt auch leer stehen: Sie ist der Umschalterzustand „Entscheidung".
+     * Würde sie beim Leeren des Feldes verschwinden, spränge das Panel beim Tippen zurück
+     * auf „Als Auftrag".
+     */
+    setCalledDecision(elementId: string, patch: Partial<CalledDecision>): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:BusinessRuleTask') return;
+
+      const current = extension(element.businessObject, 'zeebe:CalledDecision');
+      // Eine Entscheidung und ein Auftragstyp zugleich hiesse in der Engine: Auftragstyp.
+      writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
+      writeExtension(element, element.businessObject, 'zeebe:CalledDecision', {
+        decisionId: merge(patch.decisionId, text(current, 'decisionId')),
+        resultVariable: merge(patch.resultVariable, text(current, 'resultVariable')),
       });
     },
 

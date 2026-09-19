@@ -2,11 +2,10 @@
 
 Stand: 2026-09-19
 
-Flowzer bekommt Entscheidungstabellen wie Camunda. Dieses Dokument beschreibt den
-**Kern**: die eigenständige Bibliothek `src/FlowzerDmn/`, die DMN-Dateien liest und
-Entscheidungen auswertet. Die Anbindung an den Business-Rule-Task, an die API und an die
-Konsole kommt in späteren Paketen; dieser Baustein ist bewusst so geschnitten, dass er
-dafür bereitliegt.
+Flowzer hat Entscheidungstabellen wie Camunda. Dieses Dokument beschreibt beides: den
+**Kern** — die eigenständige Bibliothek `src/FlowzerDmn/`, die DMN-Dateien liest und
+Entscheidungen auswertet — und seine **Anbindung** an den Business-Rule-Task, an den
+Entscheidungskatalog der API und an die Konsole.
 
 ## Was es jetzt gibt
 
@@ -17,6 +16,11 @@ dafür bereitliegt.
 | Auswertung `DmnDecisionEvaluator` und `IFeelEngine` | `src/FlowzerDmn/Evaluation/` |
 | Fehler (`DmnParseException`, `DmnUnsupportedException`, …) | `src/FlowzerDmn/Exceptions/` |
 | Tests samt DMN-Beispieldateien | `src/FlowzerDmn.Tests/` |
+| Produktive FEEL-Brücke `FeelinFeelEngine` | `src/core-engine/Dmn/` |
+| Bereitstellung am Token (`PendingDecision`) | `src/core-engine/InstanceEngine/Decisions.cs` |
+| Auswertung in der Transaktion | `src/WebApiEngine/BusinessLogic/BpmnBusinessLogic.Decisions.cs` |
+| Katalog und Trockenlauf | `src/WebApiEngine/Controller/DecisionController.cs` |
+| Seite „Entscheidungen" mit dmn-js | `src/FlowzerConsole/src/pages/DecisionsPage.tsx` |
 
 Die Bibliothek hat **keine** Abhängigkeiten: weder auf `core-engine` noch auf
 ClearScript/V8, weder auf NuGet-Pakete für DMN noch auf Dateisystem oder Netz. Sie ist
@@ -159,8 +163,8 @@ andere Engine einsetzen als die Laufzeit.
 
 ### 6. Wie der Eingabewert an libfeelin übergeben wird
 
-Der Adapter auf den FEEL-Handler der Engine liegt vorerst im Testprojekt
-(`src/FlowzerDmn.Tests/Feel/FeelinFeelEngine.cs`). Er zeigt den entscheidenden Punkt:
+Der Adapter auf den FEEL-Handler der Engine liegt in `src/core-engine/Dmn/FeelinFeelEngine.cs`.
+Er zeigt den entscheidenden Punkt:
 
 **libfeelin liest den Eingabewert eines Unary-Tests aus dem Kontext unter dem Schlüssel
 `?`.** In `src/core-engine/Expression/Feelin/bundle.js` steht dazu
@@ -184,6 +188,126 @@ Schreibweisen: `> 10` (impliziter Vergleich mit dem Eingabewert) und `? > 10`
 Beide Adaptermethoden setzen ein `=` vor den Ausdruck, weil der Handler daran erkennt,
 dass etwas auszuwerten ist.
 
+### 7. Ohne FEEL kein DMN — und das laut gesagt
+
+`FlowzerConfig.FeelEngine` liefert immer die Brücke, die zum konfigurierten
+`ExpressionHandler` passt: Derselbe FEEL-Kern, der die Ausdrücke im Prozess rechnet, rechnet
+auch die Tabelle. Steht dort kein FEEL-fähiger Handler — insbesondere der
+`SimpleExpressionHandler`, den CI und Umgebungen ohne V8 benutzen —, dann steht an seiner
+Stelle ein Platzhalter, dessen **Benutzung** eine `FlowzerDmnUnavailableException` wirft.
+
+Das Lesen der Eigenschaft bleibt bewusst harmlos und der Zugriff ist verzögert: Eine
+Installation ohne V8 soll weiterhin starten und alles andere tun können. Erst wer eine
+Entscheidung auswerten will, bekommt die klare Ansage statt eines stillen Fehlurteils. Eine
+Tabelle auf dem `SimpleExpressionHandler` zu rechnen wäre genau das — er deckt die Ausdrücke
+des Testbestands ab, ist aber kein FEEL.
+
+## Der Entscheidungskatalog
+
+Eine *Entscheidungsdatei* ist ein DMN-Dokument. Sie liegt unter einer Katalogkennung
+(`DecisionDefinitionId`) und trägt fortlaufend nummerierte Versionen; jede Version hält das
+XML, den Zeitpunkt, die Person und die Liste der enthaltenen `decisionId`s samt Namen fest.
+Die Kennung kommt aus `dmn:definitions/@id` oder wird vom Server vergeben und folgt
+denselben Regeln wie eine BPMN-Katalogkennung (`DefinitionIdRules`) — sie wird in der
+Dateiablage zum Dateinamen, und eine Kennung wie `../../x` zeigte sonst aus dem Ablageordner
+heraus.
+
+**Immer gilt genau die jüngste Version.** In dieser Stufe gibt es bewusst keine Entwürfe:
+Speichern heißt neue Version, und die wirkt sofort. Das ist die einfachste Regel, die
+funktioniert; ein Entwurfsstand mit eigener Freigabe ist eine spätere Stufe und keine
+Lücke, die hier still gelassen wurde.
+
+| Endpunkt | Rolle | Zweck |
+|---|---|---|
+| `GET /decision` | Zugang | Katalog mit jüngster Version und enthaltenen `decisionId`s |
+| `POST /decision` | modeler | neue Datei aus XML |
+| `PUT /decision/{id}` | modeler | neue Version aus XML |
+| `GET /decision/{id}` | Zugang | jüngste Version mit XML |
+| `GET /decision/{id}/versions` | Zugang | Versionsliste |
+| `GET /decision/{id}/versions/{version}` | Zugang | eine bestimmte Version mit XML |
+| `DELETE /decision/{id}` | modeler | löschen, nur wenn unbenutzt |
+| `POST /decision/{id}/evaluate` | operator oder modeler | Trockenlauf |
+
+Beim Speichern parst der Server das XML mit `DmnModelParser`. Ein Parse-Fehler antwortet mit
+**422** und der Meldung des Kerns — eine Datei, die Flowzer nicht rechnen kann, soll gar
+nicht erst im Katalog stehen.
+
+Gelöscht wird nur, was kein deployter Workflow benutzt. Geprüft wird über die deployten
+BPMN-XML nach `zeebe:calledDecision`; sonst antwortet **409** und nennt die Workflows. Der
+Grund ist derselbe wie beim Formular: Eine gelöschte Entscheidung ließe jede laufende
+Instanz an ihrem Business-Rule-Task mit `DECISION_NOT_FOUND` stehen.
+
+Der **Trockenlauf** rechnet eine Entscheidung mit gegebenen Variablen durch, ohne eine
+Instanz anzufassen. Er liefert dasselbe `DmnDecisionResult` wie die Laufzeit — Wert,
+getroffene Regeln und Zwischenergebnisse. Dafür war die Bibliothek von Anfang an ohne Ein-
+und Ausgabe geschnitten.
+
+## Bindung an den Business-Rule-Task
+
+Wie in Camunda 8 über `zeebe:calledDecision`:
+
+```xml
+<bpmn:businessRuleTask id="Rabatt" name="Rabatt ermitteln">
+  <bpmn:extensionElements>
+    <zeebe:calledDecision decisionId="rabatt" resultVariable="rabattErgebnis" />
+  </bpmn:extensionElements>
+</bpmn:businessRuleTask>
+```
+
+Beide Angaben sind Pflicht; ohne sie lehnt die Veröffentlichung mit
+`bpmn.business_rule_task.decision_required` beziehungsweise
+`bpmn.business_rule_task.result_variable_required` ab. Ein Task mit `zeebe:taskDefinition`
+statt `calledDecision` ist dagegen ein Auftrag für einen externen Worker und läuft über
+`IFlowzerWorkerTask` denselben Weg wie ein Service-Task.
+
+Der Ablauf folgt genau dem Muster der Aufruf-Aktivität, und zwar aus demselben Grund: **Die
+Engine kennt den Katalog nicht.** Sie stellt am Token eine `PendingDecision` bereit; die
+Geschäftslogik holt sie ab, sucht die Entscheidung, rechnet sie und schließt den Token
+wieder — alles in derselben Transaktion wie das Speichern der Instanz. Scheitert ein
+Schritt, scheitert die ganze Mutation.
+
+Gesucht wird die **jüngste Version jeder Entscheidungsdatei**, die diese `decisionId`
+enthält. Findet sie sich in mehreren Dateien, ist das kein Zufall, den man stillschweigend
+auflösen dürfte, sondern ein Modellfehler: `DECISION_AMBIGUOUS`.
+
+## Variablenfluss
+
+**Hinein:** Liegt am Task ein `zeebe:ioMapping`-Eingang, gilt genau diese Auswahl. **Ohne
+Zuordnung bekommt die Entscheidung alle Prozessvariablen** — hier bewusst anders als bei der
+ausgehenden Nachricht und der Aufruf-Aktivität, die ohne Zuordnung nichts mitnehmen. Der
+Unterschied ist die Reichweite: Die Tabelle läuft lokal in derselben Transaktion, es
+verlässt nichts den Server. Eine Tabelle, die nach einer Variablen fragt, soll sie finden,
+statt an einer vergessenen Zuordnung leer auszugehen.
+
+**Heraus:** Der Wert aus `DmnDecisionResult.Value` steht unter `resultVariable` im
+Prozesskontext. Dabei wird er in die Form umgesetzt, die die Engine für Variablen führt:
+ein Objekt der Ausgabespalten wird zu `Variables`, eine Liste zu einer Liste, ein Skalar
+bleibt ein Skalar — rekursiv. Ohne diese Umsetzung stünde das Ergebnis zwar im Prozess, wäre
+aber in keinem FEEL-Ausdruck erreichbar: `rabattErgebnis.rabatt` an einer Gateway-Bedingung
+liefe ins Leere. Ein `zeebe:ioMapping`-Ausgang greift zusätzlich und kann daraus einzelne
+Werte an anderer Stelle ablegen.
+
+Weil eine Tabelle mit genau einer Ausgabespalte trotzdem ein Objekt liefert (siehe
+*Bewusste Entscheidungen*, Punkt 1), heißt der Zugriff auch dann `rabattErgebnis.rabatt` und
+nicht `rabattErgebnis`. Wer später eine zweite Spalte ergänzt, bricht damit keinen laufenden
+Prozess.
+
+## Fehlercodes
+
+Alle drei sind BPMN-Fehler am Business-Rule-Task und damit von einem Error-Boundary fangbar
+— genauso wie die Fehler einer Aufruf-Aktivität.
+
+| Code | Wann |
+|---|---|
+| `DECISION_NOT_FOUND` | Keine deployte Entscheidungsdatei enthält diese `decisionId`. |
+| `DECISION_AMBIGUOUS` | Mehrere Dateien enthalten sie; die Meldung nennt sie. |
+| `DECISION_EVALUATION_FAILED` | Die Auswertung ist gescheitert: `DmnHitPolicyViolationException`, `DmnInputOutOfRangeException` oder `DmnEvaluationException`. Die Meldung des Kerns wird durchgereicht. |
+
+Dass eine Hit-Policy-Verletzung und ein Wert ausserhalb der `inputValues` hier als fangbarer
+BPMN-Fehler ankommen und nicht als Serverfehler, ist der Zweck der strengen Prüfung aus
+*Bewusste Entscheidungen*, Punkt 2: Der Tippfehler in der Saison fällt auf, und der Prozess
+kann selbst entscheiden, was dann geschehen soll.
+
 ## Grenzen
 
 - Nur `decisionTable` und `literalExpression`. Kein `context`, `invocation`, `relation`,
@@ -196,20 +320,29 @@ dass etwas auszuwerten ist.
   bleibt offen.
 - Die Datums- und Zeitumsetzung ist über den Text der FEEL-Werte gelöst und deshalb nur
   so gut wie deren Schreibweise.
-- Die produktive Brücke von `FeelinExpressionHandler` auf `IFeelEngine` liegt noch im
-  Testprojekt, nicht im `core-engine`-Paket.
+- **Ohne FEEL-fähigen Ausdrucks-Handler ist DMN nicht benutzbar.** Der
+  `SimpleExpressionHandler` kann keine Tabelle rechnen; der Zugriff meldet eine
+  `FlowzerDmnUnavailableException`, statt still ein Fehlurteil zu liefern.
+- Im Katalog gibt es **keine Entwürfe**: Speichern heißt neue Version, und die jüngste
+  Version gilt sofort.
+- **Keine Versionsbindung am Task** (`versionTag`). Es gilt immer die jüngste Version der
+  Entscheidungsdatei.
+- Keine Ordner und keine Rechte je Entscheidungsdatei; es gelten die Rollen der API.
+- Kein Import aus Camunda 7 (`camunda:decisionRef`).
+- Multi-Instance am Business-Rule-Task ist ungeprüft.
+- Die Konsole bindet `dmn-js` ein; der Editor selbst ist nur mit einem Rauchtest abgedeckt,
+  weil `dmn-js` in jsdom nicht montierbar ist (diagram-js misst über
+  `SVGGraphicsElement.getBBox()`).
 
 ## Was als Nächstes kommt
 
-1. **Business-Rule-Task binden.** Wie in Camunda 8 über `zeebe:calledDecision` mit
-   `decisionId` und `resultVariable`: Der Task wertet die genannte Decision mit den
-   Prozessvariablen aus und schreibt `DmnDecisionResult.Value` unter `resultVariable`
-   zurück. Dafür wandert der FEEL-Adapter aus dem Testprojekt in `core-engine`.
-2. **Verwaltung und Deployment über die API.** DMN-Dateien ablegen, versionieren und
-   ausliefern wie BPMN-Modelle, dazu ein Trockenlauf-Endpunkt, der eine Decision mit
-   gegebenen Variablen durchrechnet, ohne eine Instanz anzufassen – dafür ist die
-   Bibliothek bereits geschnitten.
-3. **Editor in der Konsole.** `dmn-js` für Entscheidungstabellen, analog zum
-   BPMN-Editor.
-4. **DMN TCK.** Die offiziellen Testfälle anbinden, um den Abdeckungsgrad ehrlich
-   beziffern zu können.
+1. **DMN TCK.** Die offiziellen Testfälle (github.com/dmn-tck/tck) anbinden, um den
+   Abdeckungsgrad ehrlich beziffern zu können. Das ist der größte offene Punkt: Solange die
+   TCK fehlt, beruht jede Aussage über die Abdeckung auf eigenen Beispieldateien.
+2. **Entwürfe und Freigabe im Katalog.** Heute wirkt jedes Speichern sofort. Ein
+   Entwurfsstand mit eigener Freigabe würde dem Weg der Formulare folgen
+   ([FORM-AUTHORING.md](FORM-AUTHORING.md)).
+3. **Versionsbindung am Task.** `versionTag` wie in Camunda 8, damit ein veröffentlichter
+   Workflow an genau der Tabelle hängt, gegen die er geprüft wurde.
+4. **Weitere boxed expressions.** `context` und `invocation` sind die nächsten, die in
+   echten Modellen vorkommen.

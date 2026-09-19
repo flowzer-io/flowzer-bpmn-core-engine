@@ -84,6 +84,23 @@ export interface CalledProcess {
   propagateAllParentVariables: boolean;
 }
 
+/**
+ * Die Entscheidung, die ein Business-Rule-Task aufruft (`zeebe:calledDecision`). Die Engine
+ * verlangt beide Angaben: `decisionId` nennt die Entscheidung in der DMN-Datei,
+ * `resultVariable` den Namen, unter dem ihr Ergebnis im Prozess landet.
+ */
+export interface CalledDecision {
+  decisionId: string;
+  resultVariable: string;
+}
+
+/**
+ * Wie ein Business-Rule-Task arbeitet: Die Engine rechnet die Entscheidungstabelle selbst,
+ * oder ein Worker uebernimmt den Schritt ueber einen Auftragstyp. Beides zugleich gibt es
+ * nicht — ein gesetzter Auftragstyp schlaegt die Entscheidung, genau wie im Parser.
+ */
+export type BusinessRuleMode = 'decision' | 'job';
+
 export interface ScriptDefinition {
   expression: string;
   resultVariable: string;
@@ -215,6 +232,11 @@ export interface ElementProperties {
   error: ErrorReference | null;
   /** Aufgerufener Prozess. */
   calledProcess: CalledProcess | null;
+  /** Aufgerufene Entscheidung eines Business-Rule-Tasks; `null` an jedem anderen Element. */
+  calledDecision: CalledDecision | null;
+  isBusinessRuleTask: boolean;
+  /** Nur am Business-Rule-Task aussagekraeftig. */
+  businessRuleMode: BusinessRuleMode;
   /** Skript einer Skript-Aufgabe; `null`, wenn sie stattdessen als Auftrag läuft. */
   script: ScriptDefinition | null;
   isScriptTask: boolean;
@@ -236,6 +258,7 @@ const INPUT_MAPPING_TYPES = [
   'bpmn:UserTask',
   'bpmn:ServiceTask',
   'bpmn:ScriptTask',
+  'bpmn:BusinessRuleTask',
   'bpmn:SubProcess',
   'bpmn:CallActivity',
   // An einem sendenden Element bestimmt der Eingang, was mit der Nachricht mitgeht.
@@ -247,6 +270,7 @@ const OUTPUT_MAPPING_TYPES = [
   'bpmn:UserTask',
   'bpmn:ServiceTask',
   'bpmn:ScriptTask',
+  'bpmn:BusinessRuleTask',
   'bpmn:SubProcess',
   'bpmn:CallActivity',
   'bpmn:StartEvent',
@@ -404,6 +428,26 @@ export function calledProcessOf(businessObject: ModdleElement): CalledProcess | 
   };
 }
 
+export function calledDecisionOf(businessObject: ModdleElement): CalledDecision | null {
+  if (businessObject.$type !== 'bpmn:BusinessRuleTask') return null;
+
+  const called = extension(businessObject, 'zeebe:CalledDecision');
+  return {
+    decisionId: text(called, 'decisionId'),
+    resultVariable: text(called, 'resultVariable'),
+  };
+}
+
+/**
+ * Wie der Business-Rule-Task arbeitet. Dieselbe Reihenfolge wie `ValidateBusinessRuleTask`
+ * in `BpmnCapabilityMatrix.cs`: Ein gesetzter Auftragstyp entscheidet, sonst gilt die
+ * Entscheidung — auch dann, wenn noch gar keine ausgewaehlt ist.
+ */
+export function businessRuleModeOf(businessObject: ModdleElement): BusinessRuleMode {
+  const type = text(extension(businessObject, 'zeebe:TaskDefinition'), 'type');
+  return type.trim().length > 0 ? 'job' : 'decision';
+}
+
 function scriptOf(businessObject: ModdleElement): ScriptDefinition | null {
   const script = extension(businessObject, 'zeebe:Script');
   if (!script) return null;
@@ -433,6 +477,11 @@ export function multiInstanceOf(businessObject: ModdleElement): MultiInstance | 
 function needsJobType(businessObject: ModdleElement): boolean {
   if (businessObject.$type === 'bpmn:ServiceTask') return true;
   if (sendsMessage(businessObject)) return true;
+
+  // Ein Business-Rule-Task braucht einen Auftragstyp nur, solange er nicht selbst rechnet.
+  if (businessObject.$type === 'bpmn:BusinessRuleTask') {
+    return businessRuleModeOf(businessObject) === 'job';
+  }
 
   return businessObject.$type === 'bpmn:ScriptTask' && !extension(businessObject, 'zeebe:Script');
 }
@@ -573,6 +622,9 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     signalName: signalOf(businessObject),
     error: errorOf(businessObject),
     calledProcess: calledProcessOf(businessObject),
+    calledDecision: calledDecisionOf(businessObject),
+    isBusinessRuleTask: type === 'bpmn:BusinessRuleTask',
+    businessRuleMode: businessRuleModeOf(businessObject),
     script: scriptOf(businessObject),
     isScriptTask: type === 'bpmn:ScriptTask',
     multiInstance: multiInstanceOf(businessObject),

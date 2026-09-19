@@ -15,6 +15,7 @@ import { EmptyState } from '@/components/ui/Card';
 import { AnalyticsDetailPage } from '@/pages/AnalyticsDetailPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { DecisionsPage } from '@/pages/DecisionsPage';
 import { FormsPage } from '@/pages/FormsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
@@ -138,6 +139,12 @@ const formSectionsRoute = createRoute({
   component: FormsPage,
 });
 
+const decisionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/decisions',
+  component: DecisionsPage,
+});
+
 const operationsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/operations',
@@ -256,6 +263,7 @@ const routeTree = rootRoute.addChildren([
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
     formSectionsRoute,
+    decisionsRoute,
     aiConnectionsRoute,
     triggersRoute,
     operationsRoute,

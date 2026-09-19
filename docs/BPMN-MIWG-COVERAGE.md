@@ -21,9 +21,9 @@ diesen Modellen tut — einschließlich aller Ablehnungen und ihrer Gründe.
 | Stufe | Ergebnis |
 | --- | --- |
 | Modelle im Satz | 22 |
-| gelesen (Parser, mit ausführbarem Prozess) | 0 |
+| gelesen (Parser, mit ausführbarem Prozess) | 1 |
 | gelesen, aber leer (kein `isExecutable="true"`) | 15 |
-| veröffentlichbar (Fähigkeitsvertrag) | 0 |
+| veröffentlichbar (Fähigkeitsvertrag) | 1 |
 | ausgeführt bis Ende | 0 |
 
 „gelesen, aber leer" ist bewusst getrennt: Der Parser liest ausschließlich Prozesse mit
@@ -64,8 +64,8 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | `C.6.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.7.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
 | `C.8.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
-| `C.8.1.bpmn` | `rejected` | `parser.element.unsupported` — `businessRuleTask` | `rejected` | `bpmn.element.unsupported` an `businessRuleTask` | übersprungen (deployment rejected) |
-| `C.9.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.element.unsupported` an `businessRuleTask` | übersprungen (deployment rejected) |
+| `C.8.1.bpmn` | `ok` | 1 ausführbare(r) Prozess(e) | `ok` | — | `exception` — NotSupportedException: getting values of object arrays is not implemented yet. |
+| `C.9.0.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_HandleTimeout' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.flow_node.unreachable` an `subProcess` | übersprungen (deployment rejected) |
 | `C.9.1.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_CallCustomer' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.user_task.form_required` an `userTask` | übersprungen (deployment rejected) |
 | `C.9.2.bpmn` | `rejected` | `parser.FlowzerModelParseException` — `User task 'UserTask_AccelerateDecision' requires either formKey or formId in formDefinition.` | `rejected` | `bpmn.flow_node.unreachable` an `subProcess` | übersprungen (deployment rejected) |
 | `C.10.0.bpmn` | `empty` | kein Prozess mit `isExecutable="true"` | `rejected` | `bpmn.process.executable_required` an `definitions` | übersprungen (deployment rejected) |
@@ -77,7 +77,6 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | Grund | Anzahl | Modelle | Deutung |
 | --- | --- | --- | --- |
 | `parser.FlowzerModelParseException` | 6 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.0.bpmn`, `C.9.1.bpmn`, `C.9.2.bpmn` | Flowzer verlangt an jedem User-Task ein `zeebe:formDefinition` mit `formKey` oder `formId`. Werkzeugneutrale Modelle tragen keines. **Produktentscheidung, keine BPMN-Lücke.** |
-| `parser.element.unsupported` an `businessRuleTask` | 1 | `C.8.1.bpmn` | Eine Elementart mit Ausführungssemantik, die `ModelParser.GetFlowElements` nicht kennt. Reines Diagramm-Beiwerk zählt nicht mehr dazu — es wird überlesen. **Echte Ausführungslücke.** |
 
 > Reines Diagramm-Beiwerk überliest der Parser (siehe
 > [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md), „Was überlesen wird"). An einem Element
@@ -90,8 +89,7 @@ für Timer vorgestellt — höchstens 200 Schritte.
 | --- | --- | --- | --- | --- |
 | `bpmn.process.executable_required` | `definitions` | 15 | `A.1.0.bpmn`, `A.2.0.bpmn`, `A.2.1.bpmn`, `A.3.0.bpmn`, `A.4.0.bpmn`, `A.4.1.bpmn`, `B.1.0.bpmn`, `B.2.0.bpmn`, `C.2.0.bpmn`, `C.4.0.bpmn`, `C.5.0.bpmn`, `C.6.0.bpmn`, `C.7.0.bpmn`, `C.8.0.bpmn`, `C.10.0.bpmn` | Das Dokument enthält keinen Prozess mit `isExecutable="true"`. Die MIWG-Reihen A und B sind reine Modellierungs- und Layoutbeispiele. **Kein Befund über die Engine.** |
 | `bpmn.user_task.form_required` | `userTask` | 4 | `C.1.0.bpmn`, `C.1.1.bpmn`, `C.3.0.bpmn`, `C.9.1.bpmn` | Wie oben: kein `zeebe:formDefinition` am User-Task. **Produktentscheidung.** |
-| `bpmn.element.unsupported` | `businessRuleTask` | 2 | `C.8.1.bpmn`, `C.9.0.bpmn` | Elementart, die der Fähigkeitsvertrag v7 nicht führt. **Echte Ausführungslücke.** |
-| `bpmn.flow_node.unreachable` | `subProcess` | 1 | `C.9.2.bpmn` | Ein Knoten ohne Weg von einem Start- oder Boundary-Event. Hier ist es ein `subProcess triggeredByEvent="true"` — ein Event-Subprozess, den weder Vertrag noch Engine kennen. **Echte Ausführungslücke.** |
+| `bpmn.flow_node.unreachable` | `subProcess` | 2 | `C.9.0.bpmn`, `C.9.2.bpmn` | Ein Knoten ohne Weg von einem Start- oder Boundary-Event. Hier ist es ein `subProcess triggeredByEvent="true"` — ein Event-Subprozess, den weder Vertrag noch Engine kennen. **Echte Ausführungslücke.** |
 
 > Auch die Veröffentlichungsprüfung meldet bewusst den **ersten** Fehler in
 > Dokumentreihenfolge (siehe [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md)). Die Zahlen sind
@@ -143,8 +141,7 @@ sie nicht führen:
 
 | Elementart | Anzahl | Modelle |
 | --- | --- | --- |
-| `businessRuleTask` | 2 | `C.8.1.bpmn`, `C.9.0.bpmn` |
-| `subProcess` | 1 | `C.9.2.bpmn` |
+| `subProcess` | 2 | `C.9.0.bpmn`, `C.9.2.bpmn` |
 
 Weil jede Stufe beim ersten Fehler abbricht, ist diese Tabelle **keine** vollständige
 Lückenliste. Vom Vertrag v7 ausdrücklich nicht zugesagt sind darüber hinaus: Event-based

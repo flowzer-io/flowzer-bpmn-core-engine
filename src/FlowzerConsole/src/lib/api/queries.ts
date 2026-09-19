@@ -18,6 +18,7 @@ import {
   notificationsApi,
   aiConnectionsApi,
   aiToolsApi,
+  decisionsApi,
   inboundTriggersApi,
   processPackagesApi,
 } from './endpoints';
@@ -59,6 +60,7 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  DecisionDefinition,
   InboundTriggerDto,
   CreateInboundTriggerInput,
   UpdateInboundTriggerInput,
@@ -140,6 +142,12 @@ export const queryKeys = {
   formSectionList: () => [...queryKeys.formSections, 'list'] as const,
   formSectionVersions: (sectionId: string) => [...queryKeys.formSections, 'versions', sectionId] as const,
   formSectionDraft: (sectionId: string) => [...queryKeys.formSections, 'draft', sectionId] as const,
+
+  decisions: ['decisions'] as const,
+  decisionList: () => [...queryKeys.decisions, 'list'] as const,
+  decision: (decisionDefinitionId: string) => [...queryKeys.decisions, 'detail', decisionDefinitionId] as const,
+  decisionVersions: (decisionDefinitionId: string) =>
+    [...queryKeys.decisions, 'versions', decisionDefinitionId] as const,
 
   aiConnections: ['aiConnections'] as const,
   aiConnectionList: () => [...queryKeys.aiConnections, 'list'] as const,
@@ -1118,6 +1126,17 @@ export function useSetAiConnectionEnabled() {
   });
 }
 
+/* ---------------------------------------------------------------- Entscheidungen */
+
+export function useDecisions(options?: QueryTuning<DecisionDefinition[]>) {
+  return useQuery({
+    queryKey: queryKeys.decisionList(),
+    queryFn: ({ signal }) => decisionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
 /* ------------------------------------------------------- Eingehende Ausloeser */
 
 export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
@@ -1126,6 +1145,65 @@ export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
     queryFn: ({ signal }) => inboundTriggersApi.list(signal),
     staleTime: 30_000,
     ...options,
+  });
+}
+
+/** Die jüngste Version samt DMN-XML. Ohne Kennung bleibt die Abfrage aus. */
+export function useDecision(decisionDefinitionId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.decision(decisionDefinitionId ?? ''),
+    queryFn: ({ signal }) => decisionsApi.get(decisionDefinitionId!, signal),
+    enabled: Boolean(decisionDefinitionId),
+  });
+}
+
+export function useDecisionVersions(decisionDefinitionId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.decisionVersions(decisionDefinitionId ?? ''),
+    queryFn: ({ signal }) => decisionsApi.listVersions(decisionDefinitionId!, signal),
+    enabled: Boolean(decisionDefinitionId),
+  });
+}
+
+export function useCreateDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name?: string; xml: string }) => decisionsApi.create(input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+  });
+}
+
+/** Speichern ist immer eine neue Version; der Cache der alten wird deshalb verworfen. */
+export function useUpdateDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ decisionDefinitionId, input }: {
+      decisionDefinitionId: string;
+      input: { name?: string; xml: string };
+    }) => decisionsApi.update(decisionDefinitionId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+  });
+}
+
+export function useDeleteDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (decisionDefinitionId: string) => decisionsApi.remove(decisionDefinitionId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+  });
+}
+
+/**
+ * Der Trockenlauf wertet nur aus und ändert nichts — deshalb eine Mutation ohne
+ * Invalidierung: Er soll genau dann laufen, wenn jemand ihn auslöst.
+ */
+export function useEvaluateDecision() {
+  return useMutation({
+    mutationFn: ({ decisionDefinitionId, decisionId, variables }: {
+      decisionDefinitionId: string;
+      decisionId: string;
+      variables: Record<string, unknown>;
+    }) => decisionsApi.evaluate(decisionDefinitionId, { decisionId, variables }),
   });
 }
 

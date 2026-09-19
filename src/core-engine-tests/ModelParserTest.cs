@@ -728,6 +728,46 @@ public class ModelParserTest
         task.OutputMappings.Should().ContainSingle();
     }
 
+    // Testzweck: Ein Business-Rule-Task mit zeebe:calledDecision wird samt Decision-Id,
+    // Ergebnisvariable und Zuordnungen gelesen; ohne Auftragstyp bleibt er ein Warteschritt.
+    [Test]
+    public async Task ParseModel_ShouldReadBusinessRuleTaskWithCalledDecision()
+    {
+        var model = await ModelParser.ParseModel(
+            File.Open("embeddings/BusinessRuleTaskWithMapping.bpmn", FileMode.Open));
+
+        var task = model.GetProcesses().Single().FlowElements.OfType<BusinessRuleTask>().Should().ContainSingle().Which;
+
+        using (new AssertionScope())
+        {
+            task.Id.Should().Be("Decision_1");
+            task.FlowzerCalledDecisionId.Should().Be("rabattstufe");
+            task.FlowzerResultVariable.Should().Be("ergebnis");
+            task.Implementation.Should().BeEmpty();
+            task.InputMappings.Should().ContainSingle();
+            task.OutputMappings.Should().ContainSingle();
+        }
+    }
+
+    // Testzweck: Derselbe Knoten mit zeebe:taskDefinition ist ein Auftrag an einen Worker —
+    // er muss ohne zeebe:calledDecision parsebar bleiben.
+    [Test]
+    public async Task ParseModel_ShouldReadBusinessRuleTaskAsWorkerJob()
+    {
+        var model = await ModelParser.ParseModel(
+            File.Open("embeddings/BusinessRuleTaskAsJob.bpmn", FileMode.Open));
+
+        var task = model.GetProcesses().Single().FlowElements.OfType<BusinessRuleTask>().Should().ContainSingle().Which;
+
+        using (new AssertionScope())
+        {
+            task.Implementation.Should().Be("bonitaet-pruefen");
+            task.FlowzerRetries.Should().Be(3);
+            task.FlowzerCalledDecisionId.Should().BeNull();
+            task.FlowzerResultVariable.Should().BeNull();
+        }
+    }
+
     // Testzweck: Der Name einer bpmn:message ist laut BPMN 2.0 optional. Ein fremdes Dokument
     // ohne Namen muss gelesen werden — eine NullReferenceException wäre ein Robustheitsmangel.
     [Test]

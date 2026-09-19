@@ -126,6 +126,52 @@ public class ApplicationRolesIntegrationTest
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
+    // Testzweck: Entscheidungsdateien zu schreiben verlangt die Modelliererrolle; der Katalog
+    // selbst bleibt mit der blossen Zugangsrolle lesbar — genau wie beim Formularbestand.
+    [Test]
+    public async Task Decisions_ShouldRequireTheModelerRoleForWriting()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+
+        var write = await client.PostAsJsonAsync("/decision", new { xml = "<definitions/>" });
+        var delete = await client.DeleteAsync("/decision/beliebig");
+        var read = await client.GetAsync("/decision");
+
+        write.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        delete.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        read.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Den Trockenlauf duerfen Modellierende und der Betrieb ausloesen, eine blosse
+    // Zugangsrolle nicht. Die Ablehnung ist eine fehlende Einzelberechtigung, kein
+    // Zugangsverlust — sonst zeigte die Oberflaeche den falschen Hinweis.
+    [Test]
+    public async Task DecisionDryRun_ShouldBeOpenToOperatorsAndModelersOnly()
+    {
+        await using var factory = CreateFactory(modelerRole: "modeler", operatorRole: "operator");
+        using var client = factory.CreateClient();
+        var request = new { decisionId = "beliebig", variables = new { } };
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken());
+        var withoutRole = await client.PostAsJsonAsync("/decision/beliebig/evaluate", request);
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["operator"]));
+        var asOperator = await client.PostAsJsonAsync("/decision/beliebig/evaluate", request);
+
+        client.DefaultRequestHeaders.Authorization = Bearer(CreateToken(roles: ["modeler"]));
+        var asModeler = await client.PostAsJsonAsync("/decision/beliebig/evaluate", request);
+
+        withoutRole.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        withoutRole.Headers.GetValues("X-Flowzer-Access-Denied").Should().ContainSingle()
+            .Which.Should().Be("capability");
+        // Die Entscheidungsdatei gibt es nicht; entscheidend ist, dass der Aufruf bis zu
+        // dieser Pruefung durchkommt.
+        asOperator.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        asModeler.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     // Testzweck: Die Diagnose ist dem Betrieb vorbehalten.
     [Test]
     public async Task Diagnostics_ShouldRequireTheOperatorRole()

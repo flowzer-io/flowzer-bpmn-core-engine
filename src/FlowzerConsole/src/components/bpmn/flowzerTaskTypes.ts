@@ -41,10 +41,15 @@ export class FlowzerTaskTypes {
       if (!/^bpmn:(Task|UserTask|ManualTask|ServiceTask|SendTask|ReceiveTask|ScriptTask|BusinessRuleTask)$/.test(target.type)) return entries;
       const ai = Boolean(extension(target.businessObject, 'flowzer:AiTask'));
       const result = { ...entries };
+
+      // Der eigene Eintrag ersetzt den englischen Standardeintrag von bpmn-js. Zwei Einträge
+      // für denselben Typ wären im Menü nicht auseinanderzuhalten.
+      delete result['replace-with-rule-task'];
+
       if (ai) {
         // Auch beim Wechsel zu Human/Manual dürfen keine versteckten KI-Einstellungen
         // am neuen Typ hängen bleiben. Bestehende Zuordnungen bleiben dagegen erhalten.
-        for (const [id, entry] of Object.entries(entries)) result[id] = {
+        for (const [id, entry] of Object.entries(result)) result[id] = {
           ...entry,
           action: (...args) => this.change(() => {
             this.editor.setServiceTaskMode(target.id, 'worker');
@@ -65,6 +70,19 @@ export class FlowzerTaskTypes {
           }),
         };
       }
+
+      if (target.type !== 'bpmn:BusinessRuleTask') {
+        result['replace-with-business-rule-task'] = {
+          label: 'Business-Rule-Task', className: 'bpmn-icon-business-rule-task',
+          action: () => this.change(() => {
+            // Eine KI-Konfiguration gehört nicht an einen Schritt, der eine Entscheidung
+            // rechnet — sie wäre unsichtbar und liefe beim Veröffentlichen mit.
+            if (ai) this.editor.setServiceTaskMode(target.id, 'worker');
+            this.replace.replaceElement(target, { type: 'bpmn:BusinessRuleTask' });
+          }),
+        };
+      }
+
       return result;
     };
   }

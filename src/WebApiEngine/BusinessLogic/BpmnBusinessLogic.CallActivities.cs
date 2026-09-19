@@ -54,6 +54,10 @@ public partial class BpmnBusinessLogic
         InstanceContext source)
     {
         var steps = 0;
+        // Dasselbe Budget gilt fuer alles, was in dieser Mutation weiterlaeuft — auch fuer die
+        // Entscheidungen, die in BpmnBusinessLogic.Decisions.cs gerechnet werden.
+        void CountStep() => RequireBudget(++steps);
+
         var live = new Dictionary<Guid, InstanceContext> { [source.Instance.InstanceId] = source };
         // Ein Ende wird genau einmal gemeldet. Ohne diese Spur meldete eine Instanz, die
         // mehrfach durch die Schlange laeuft, denselben Abschluss erneut an ihren Aufrufer.
@@ -62,6 +66,11 @@ public partial class BpmnBusinessLogic
 
         while (pending.TryDequeue(out var current))
         {
+            // Entscheidungen zuerst: Sie rechnen lokal und lassen die Instanz gleich hier
+            // weiterlaufen. Erst danach steht fest, ob dahinter ein Aufruf, eine ausgehende
+            // Nachricht oder das Ende dieses Vorgangs wartet.
+            await EvaluatePendingDecisions(storageSystem, current, CountStep);
+
             foreach (var call in current.Instance.TakePendingCallActivities())
             {
                 RequireBudget(++steps);

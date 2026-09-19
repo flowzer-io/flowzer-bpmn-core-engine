@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_BusinessRuleTaskWithoutMapping" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_BusinessRuleTaskWithoutMapping" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="Decision_1" name="Rabattstufe ermitteln">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="rabattstufe" resultVariable="ergebnis" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Decision</bpmn:outgoing>
+    </bpmn:businessRuleTask>
+    <bpmn:exclusiveGateway id="Gateway_1" name="Rabatt gewaehrt?" default="Flow_Standard">
+      <bpmn:incoming>Flow_Decision</bpmn:incoming>
+      <bpmn:outgoing>Flow_Rabatt</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Standard</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="EndEvent_Rabatt">
+      <bpmn:incoming>Flow_Rabatt</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Standard">
+      <bpmn:incoming>Flow_Standard</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Decision_1" />
+    <bpmn:sequenceFlow id="Flow_Decision" sourceRef="Decision_1" targetRef="Gateway_1" />
+    <bpmn:sequenceFlow id="Flow_Rabatt" sourceRef="Gateway_1" targetRef="EndEvent_Rabatt">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">=ergebnis.rabatt = 10</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Standard" sourceRef="Gateway_1" targetRef="EndEvent_Standard" />
+  </bpmn:process>
+</bpmn:definitions>
