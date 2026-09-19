@@ -737,6 +737,76 @@ export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, '
   secretReference?: string;
 }
 
+/* ------------------------------------------------------- Eingehende Ausloeser */
+
+/**
+ * Art eines eingehenden Ausloesers: Er startet entweder einen Workflow oder stellt
+ * eine Nachricht an eine laufende Instanz zu.
+ *
+ * Anders als bei den KI-Verbindungen kommen diese Aufzaehlungen als Zeichenketten
+ * aus der API; eine Normalisierung von Zahlen ist deshalb nicht noetig.
+ */
+export type InboundTriggerKind = 'start' | 'message';
+
+/** Woher die Prozessvariablen kommen: aus einzelnen Feldern oder aus dem ganzen Body. */
+export type InboundTriggerVariablesMode = 'fields' | 'body';
+
+export interface InboundTriggerDto {
+  id: string;
+  /** Oeffentlicher Teil der Aufrufadresse `POST /trigger/{key}`. */
+  key: string;
+  name: string;
+  kind: InboundTriggerKind;
+  /** Nur bei `kind === 'start'` gesetzt. */
+  definitionId?: string | null;
+  /** Nur bei `kind === 'message'` gesetzt. */
+  messageName?: string | null;
+  /** Nur bei `kind === 'message'`: Pfad zum Korrelationswert im Body, z. B. `order.id`. */
+  correlationKeyPath?: string | null;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields: string[];
+  enabled: boolean;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  useCount: number;
+  lastFailureAt?: string | null;
+  /**
+   * Kurzer fester Grund der letzten Ablehnung: `disabled`, `timestamp`, `signature`,
+   * `payload`, `correlation-key` oder `not-deployed`. Enthaelt nie Daten des Aufrufers.
+   */
+  lastFailureReason?: string | null;
+}
+
+/**
+ * Antwort auf Anlegen und Rotieren. Das Geheimnis wird genau einmal uebertragen und
+ * darf deshalb weder in den Query-Cache der Liste noch in eine andere Ansicht gelangen.
+ */
+export interface InboundTriggerSecretDto {
+  trigger: InboundTriggerDto;
+  secret: string;
+}
+
+export interface CreateInboundTriggerInput {
+  name: string;
+  kind: InboundTriggerKind;
+  definitionId?: string;
+  messageName?: string;
+  correlationKeyPath?: string;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields?: string[];
+}
+
+/** Die Art bleibt fest: `PUT` ignoriert sie, deshalb steht sie hier gar nicht erst. */
+export interface UpdateInboundTriggerInput {
+  name: string;
+  enabled: boolean;
+  definitionId?: string;
+  messageName?: string;
+  correlationKeyPath?: string;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields?: string[];
+}
+
 /* ------------------------------------------------------------------ Prozesspakete */
 
 /**

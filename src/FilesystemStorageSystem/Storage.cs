@@ -29,6 +29,7 @@ public class Storage : IStorageSystem
         IdentityDirectoryStorage = new IdentityDirectoryStorage(this);
         AiConnectionStorage = new AiConnectionStorage(this);
         AiRunStorage = new AiRunStorage(this);
+        InboundTriggerStorage = new InboundTriggerStorage(this);
     }
 
     public IMessageSubscriptionStorage SubscriptionStorage { get; }
@@ -46,6 +47,7 @@ public class Storage : IStorageSystem
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
+    public IInboundTriggerStorage InboundTriggerStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

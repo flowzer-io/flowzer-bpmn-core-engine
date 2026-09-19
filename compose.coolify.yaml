@@ -90,6 +90,11 @@ services:
       # Ohne freigegebene Zieladresse nimmt die Engine keine Webhook-Anmeldung an.
       ServiceTaskWebhooks__Enabled: "${FLOWZER_WEBHOOKS_ENABLED:-true}"
       ServiceTaskWebhooks__AllowedHosts__0: "${FLOWZER_WEBHOOK_ALLOWED_HOST:-}"
+      # Eingehende Ausloeser: Ohne installationsweiten Schluessel nimmt die Installation
+      # keinen an. Der Wert ist ein echtes Secret und wird zur Laufzeit injiziert.
+      InboundTriggers__SecretKey: "${FLOWZER_INBOUND_TRIGGER_SECRET_KEY:-}"
+      InboundTriggers__PermitLimit: "${FLOWZER_INBOUND_TRIGGER_PERMITS:-60}"
+      InboundTriggers__WindowSeconds: "${FLOWZER_INBOUND_TRIGGER_WINDOW_SECONDS:-60}"
       RateLimiting__Enabled: "${FLOWZER_RATE_LIMIT_ENABLED:-true}"
       RateLimiting__PermitLimit: "${FLOWZER_RATE_LIMIT_PERMITS:-300}"
       RateLimiting__WindowSeconds: "${FLOWZER_RATE_LIMIT_WINDOW_SECONDS:-60}"

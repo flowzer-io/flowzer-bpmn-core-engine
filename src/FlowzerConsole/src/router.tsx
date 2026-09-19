@@ -25,6 +25,7 @@ import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
 import type { AnalyticsSearch } from '@/lib/analytics';
 import { AiConnectionsPage } from '@/pages/AiConnectionsPage';
+import { TriggersPage } from '@/pages/TriggersPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
@@ -143,6 +144,12 @@ const operationsRoute = createRoute({
   component: OperationsPage,
 });
 
+const triggersRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/triggers',
+  component: TriggersPage,
+});
+
 /**
  * Die Auswertungen liegen wie die Instanzen unter einer gemeinsamen Adresse: Die
  * Uebersicht ist die Indexroute, die Detailseite ein Kind davon. So bleibt der gewaehlte
@@ -250,6 +257,7 @@ const routeTree = rootRoute.addChildren([
     formsRoute,
     formSectionsRoute,
     aiConnectionsRoute,
+    triggersRoute,
     operationsRoute,
     analyticsRoute.addChildren([analyticsIndexRoute, analyticsDetailRoute]),
     tasksRoute,

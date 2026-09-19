@@ -55,4 +55,7 @@ public interface IStorageSystem
 
     /// <summary>Dauerhafte, revisions- und leasegeschuetzte KI-Laufzustaende.</summary>
     IAiRunStorage AiRunStorage => UnsupportedAiRunStorage.Instance;
+
+    /// <summary>Von aussen aufrufbare Ausloeser samt abgeleitetem Geheimnis und Nutzungszaehlern.</summary>
+    IInboundTriggerStorage InboundTriggerStorage => UnsupportedInboundTriggerStorage.Instance;
 }

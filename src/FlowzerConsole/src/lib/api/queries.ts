@@ -17,6 +17,7 @@ import {
   notificationsApi,
   aiConnectionsApi,
   aiToolsApi,
+  inboundTriggersApi,
   processPackagesApi,
 } from './endpoints';
 import type {
@@ -55,6 +56,9 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  InboundTriggerDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
   ProcessPackageMappingDto,
   WorkflowAnalyticsDetailDto,
   WorkflowAnalyticsOverviewDto,
@@ -125,6 +129,9 @@ export const queryKeys = {
   aiConnectionList: () => [...queryKeys.aiConnections, 'list'] as const,
   aiTools: ['aiTools'] as const,
   aiToolList: () => [...queryKeys.aiTools, 'list'] as const,
+
+  inboundTriggers: ['inboundTriggers'] as const,
+  inboundTriggerList: () => [...queryKeys.inboundTriggers, 'list'] as const,
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
@@ -1023,6 +1030,56 @@ export function useSetAiConnectionEnabled() {
       enabled: boolean;
     }) => aiConnectionsApi.setEnabled(connectionId, expectedRevision, enabled),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.aiConnections }),
+  });
+}
+
+/* ------------------------------------------------------- Eingehende Ausloeser */
+
+export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.inboundTriggerList(),
+    queryFn: ({ signal }) => inboundTriggersApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+/**
+ * Legt einen Ausloeser an. Das Ergebnis enthaelt das Geheimnis genau einmal — es wird
+ * bewusst nur an den Aufrufer zurueckgegeben und nie in den Cache der Liste geschrieben;
+ * die Invalidierung laedt die Liste stattdessen ohne Geheimnis neu.
+ */
+export function useCreateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateInboundTriggerInput) => inboundTriggersApi.create(input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useUpdateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ triggerId, input }: { triggerId: string; input: UpdateInboundTriggerInput }) =>
+      inboundTriggersApi.update(triggerId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+/** Wie das Anlegen: Das neue Geheimnis geht nur an den Aufrufer, nicht in den Cache. */
+export function useRotateInboundTriggerSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.rotateSecret(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useDeleteInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.remove(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
   });
 }
 
