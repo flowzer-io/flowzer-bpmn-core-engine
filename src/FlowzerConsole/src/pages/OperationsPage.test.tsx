@@ -207,6 +207,8 @@ describe('Betrieb und Diagnose', () => {
     expect(within(httpRow as HTMLElement).getByText('aktiv')).toBeInTheDocument();
     expect(httpRow?.textContent).toContain('142 verarbeitet');
     expect(httpRow?.textContent).toContain('3 fehlgeschlagen');
+  });
+
   afterEach(() => {
     mocks.diagnostics.observability.prometheusEnabled = false;
     mocks.diagnostics.observability.prometheusPath = null;

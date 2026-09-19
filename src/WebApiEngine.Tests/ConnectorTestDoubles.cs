@@ -136,7 +136,9 @@ internal sealed class ServiceTaskOnlyProvider(IServiceTaskStorage serviceTaskSto
         public IDefinitionStorage DefinitionStorage => throw new NotSupportedException();
         public IFolderStorage FolderStorage => throw new NotSupportedException();
         public IMessageSubscriptionStorage SubscriptionStorage => throw new NotSupportedException();
-        public IInstanceStorage InstanceStorage => throw new NotSupportedException();
+        // Fail und Complete nehmen seit dem Mehrprozessnachweis die Instanzsperre; hier gibt es
+        // nur die Sperre, alles andere braucht die Auftragsvergabe nicht.
+        public IInstanceStorage InstanceStorage { get; } = new LockOnlyInstanceStorage();
         public IFormStorage FormStorage => throw new NotSupportedException();
         public IServiceTaskStorage ServiceTaskStorage { get; } = serviceTaskStorage;
 
@@ -151,5 +153,21 @@ internal sealed class ServiceTaskOnlyProvider(IServiceTaskStorage serviceTaskSto
         public void Dispose()
         {
         }
+    }
+
+    /// <summary>Nur die Mutationssperre (Standard: keine Sperre); alles andere wird nicht gebraucht.</summary>
+    private sealed class LockOnlyInstanceStorage : IInstanceStorage
+    {
+        public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId) =>
+            throw new NotSupportedException();
+
+        public Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo) =>
+            throw new NotSupportedException();
+
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() =>
+            throw new NotSupportedException();
+
+        public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() =>
+            throw new NotSupportedException();
     }
 }
