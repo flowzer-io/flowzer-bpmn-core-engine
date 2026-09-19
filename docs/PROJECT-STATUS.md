@@ -106,7 +106,9 @@ aber noch nicht nach `main` gemergt oder integriert abgenommen. Ohne `Idempotenc
 liefert ein wiederholter Abschluss aus Kompatibilitätsgründen weiterhin `404`; mit dem
 in PR #187 ergänzten Schlüssel greift die persistente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
-API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
+API-Prozesses, und sie bleibt deshalb auf einen API-Prozess begrenzt. Für PostgreSQL ist
+der Mehrprozessbetrieb inzwischen mit Konkurrenztests belegt und freigegeben:
+[Betrieb](OPERATIONS.md#mehrprozessbetrieb).
 
 ## Formularbindung – PR #181 (aufbauend auf #179)
 

@@ -58,8 +58,11 @@ public static class BpmnCapabilityMatrix
                 "The BPMN definition must contain at least one executable process.");
         }
 
+        var namelessMessageIds = FindNamelessMessageIds(document);
+
         List<BpmnCapabilityIssue> issues = [];
-        foreach (var process in executableProcesses) ValidateContainer(process, allowToolAuthoring, issues);
+        foreach (var process in executableProcesses)
+            ValidateContainer(process, allowToolAuthoring, namelessMessageIds, issues);
         if (issues.Count > 0)
         {
             var first = issues[0];
@@ -68,7 +71,21 @@ public static class BpmnCapabilityMatrix
         }
     }
 
-    private static void ValidateContainer(XElement container, bool allowToolAuthoring, List<BpmnCapabilityIssue> issues)
+    /// <summary>
+    /// Die <c>bpmn:message</c>-Wurzelelemente ohne <c>name</c>. Der Name ist in BPMN optional —
+    /// der Parser liest sie deshalb — aber eine namenlose Nachricht koennte nie korrelieren.
+    /// Beanstandet wird sie erst am Ereignis, das auf sie zeigt.
+    /// </summary>
+    private static ISet<string> FindNamelessMessageIds(XDocument document) => document.Root?
+        .Elements()
+        .Where(element => element.Name.LocalName == "message"
+            && !string.IsNullOrWhiteSpace(element.Attribute("id")?.Value)
+            && string.IsNullOrWhiteSpace(element.Attribute("name")?.Value))
+        .Select(element => element.Attribute("id")!.Value)
+        .ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(StringComparer.Ordinal);
+
+    private static void ValidateContainer(XElement container, bool allowToolAuthoring,
+        ISet<string> namelessMessageIds, List<BpmnCapabilityIssue> issues)
     {
         var flowElements = container.Elements().Where(IsFlowElement).ToArray();
         var knownIds = flowElements
@@ -84,7 +101,7 @@ public static class BpmnCapabilityMatrix
             try
             {
                 ValidateUniqueElementId(element, uniqueIds);
-                ValidateElement(element, knownIds, allowToolAuthoring);
+                ValidateElement(element, knownIds, namelessMessageIds, allowToolAuthoring);
             }
             catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
         }
@@ -107,7 +124,7 @@ public static class BpmnCapabilityMatrix
                     catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
                 }
 
-                ValidateContainer(element, allowToolAuthoring, issues);
+                ValidateContainer(element, allowToolAuthoring, namelessMessageIds, issues);
             }
         }
     }
@@ -156,8 +173,14 @@ public static class BpmnCapabilityMatrix
         "errorEventDefinition", "escalationEventDefinition"
     ];
 
-    private static bool IsFlowElement(XElement element) => element.Name.LocalName is not (
-        "extensionElements" or "incoming" or "outgoing" or "documentation" or "laneSet" or "lane");
+    /// Ein Kindelement, das die Pruefung als ausfuehrbaren Bestandteil bewertet. Reines
+    /// Diagramm-Beiwerk gehoert nicht dazu: Es darf laut BPMN 2.0 ueberall stehen, traegt keine
+    /// Ausfuehrungssemantik und teilweise — wie <c>ioSpecification</c> — nicht einmal eine
+    /// Kennung. Dieselbe Liste ueberliest auch der Parser (<see cref="BpmnDiagramDecorations"/>).
+    /// </summary>
+    private static bool IsFlowElement(XElement element) =>
+        element.Name.LocalName is not ("extensionElements" or "incoming" or "outgoing")
+        && !BpmnDiagramDecorations.Contains(element.Name.LocalName);
 
     private static void ValidateUniqueElementId(XElement element, ISet<string> uniqueIds)
     {
@@ -372,7 +395,8 @@ public static class BpmnCapabilityMatrix
         }
     }
 
-    private static void ValidateElement(XElement element, ISet<string> knownIds, bool allowToolAuthoring)
+    private static void ValidateElement(XElement element, ISet<string> knownIds,
+        ISet<string> namelessMessageIds, bool allowToolAuthoring)
     {
         var elementId = element.Attribute("id")?.Value;
         if (string.IsNullOrWhiteSpace(elementId))
@@ -397,7 +421,37 @@ public static class BpmnCapabilityMatrix
                 $"The BPMN element '{element.Name.LocalName}' is parsed but not executable in capability contract v{Contract.ContractVersion}.");
         }
 
+        ValidateMessageReference(element, elementId, namelessMessageIds);
         ValidateRequiredConfiguration(element, elementId, knownIds, allowToolAuthoring);
+    }
+
+    /// <summary>
+    /// Ein Element, das auf eine <c>bpmn:message</c> ohne <c>name</c> zeigt. Der Parser liest
+    /// eine solche Nachricht seit der Lesetoleranz klaglos — korrelieren koennte sie aber nie,
+    /// denn Name und Schluessel sind der ganze Vertrag zwischen Sender und Empfaenger. Gemeldet
+    /// wird am Ereignis, nicht an der Nachricht: Dort steht der Knoten, den die Konsole markiert.
+    /// Ein Verweis ins Leere bleibt unberuehrt — den benennt der Parser.
+    /// </summary>
+    private static void ValidateMessageReference(XElement element, string elementId, ISet<string> namelessMessageIds)
+    {
+        if (namelessMessageIds.Count == 0)
+        {
+            return;
+        }
+
+        // Bewusst nur die eigenen Kinder: Eine messageEventDefinition steht immer direkt am
+        // Ereignis. Ueber Descendants wuerde ein Subprozess den Fehler seines inneren Ereignisses
+        // erben und die Konsole den falschen Knoten markieren.
+        var messageRef = element.Attribute("messageRef")?.Value
+                         ?? element.Elements()
+                             .FirstOrDefault(child => child.Name.LocalName == "messageEventDefinition")
+                             ?.Attribute("messageRef")?.Value;
+
+        if (!string.IsNullOrWhiteSpace(messageRef) && namelessMessageIds.Contains(messageRef))
+        {
+            throw Failure("bpmn.message.name_required", elementId, "messageRef",
+                $"The element '{elementId}' references the message '{messageRef}', which requires a non-empty name.");
+        }
     }
 
     private static string GetCapabilityType(XElement element, string elementId)

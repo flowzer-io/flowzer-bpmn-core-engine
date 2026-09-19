@@ -24,8 +24,30 @@ services:
       Ai__AllowLocalEndpoints: ${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}
       Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
       AiExecution__Enabled: ${FLOWZER_AI_EXECUTION_ENABLED:-false}
+      # Eingehende Ausloeser: Ohne installationsweiten Schluessel nimmt die Installation
+      # keinen an. Der Wert ist ein echtes Secret und wird zur Laufzeit injiziert.
+      InboundTriggers__SecretKey: ${FLOWZER_INBOUND_TRIGGER_SECRET_KEY:-}
+      # Aufbewahrung beendeter Instanzen; ohne Wert bleibt sie aus (siehe OPERATIONS.md).
+      Retention__FinishedInstances__Days: ${FLOWZER_RETENTION_DAYS:-}
+      Retention__FinishedInstances__PollIntervalMinutes: ${FLOWZER_RETENTION_POLL_INTERVAL_MINUTES:-60}
+      Retention__FinishedInstances__BatchSize: ${FLOWZER_RETENTION_BATCH_SIZE:-100}
       # Provider-Secrets hier absichtlich nicht auffuehren: `env:FLOWZER_AI_*`-Werte
       # ausschliesslich ueber den Orchestrator bzw. einen Compose-Override injizieren.
+      # Mitgelieferte Konnektoren: eingebaute Worker im API-Prozess. Beide sind aus, bis sie
+      # ausdruecklich eingeschaltet werden, und rufen ohne Freigabeliste nichts auf bzw.
+      # versenden nichts. Die Werte hinter `FLOWZER_CONNECTOR_SECRET_*` werden wie die
+      # KI-Secrets nur zur Laufzeit injiziert und stehen deshalb nicht hier.
+      Connectors__SecretEnvironmentVariablePrefix: FLOWZER_CONNECTOR_SECRET_
+      Connectors__Http__Enabled: ${FLOWZER_CONNECTOR_HTTP_ENABLED:-false}
+      Connectors__Http__AllowedHosts__0: ${FLOWZER_CONNECTOR_HTTP_ALLOWED_HOSTS:-}
+      Connectors__Email__Enabled: ${FLOWZER_CONNECTOR_EMAIL_ENABLED:-false}
+      Connectors__Email__From: ${FLOWZER_CONNECTOR_EMAIL_FROM:-}
+      Connectors__Email__AllowedRecipientDomains__0: ${FLOWZER_CONNECTOR_EMAIL_ALLOWED_DOMAINS:-}
+      Connectors__Email__Smtp__Host: ${FLOWZER_CONNECTOR_SMTP_HOST:-}
+      Connectors__Email__Smtp__Port: ${FLOWZER_CONNECTOR_SMTP_PORT:-587}
+      Connectors__Email__Smtp__UseStartTls: ${FLOWZER_CONNECTOR_SMTP_USE_STARTTLS:-true}
+      Connectors__Email__Smtp__Username: ${FLOWZER_CONNECTOR_SMTP_USERNAME:-}
+      Connectors__Email__Smtp__PasswordSecretName: ${FLOWZER_CONNECTOR_SMTP_PASSWORD_SECRET:-}
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
       # Laufzeit uebergeben, nie dem Konsolen-Container oder dem Browser.
       Authentication__Bff__ClientId: ${FLOWZER_BFF_CLIENT_ID:-}
@@ -48,6 +70,11 @@ services:
       # und Clientadresse fuer OIDC, Secure-Cookies und Rate-Limits uebernommen.
       ForwardedHeaders__KnownNetworks__0: ${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}
       ForwardedHeaders__ForwardLimit: ${FLOWZER_FORWARDED_HEADER_LIMIT:-3}
+      # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
+      # seinen Port nicht auf dem Host, und das Konsolen-Gateway leitet /metrics bewusst nicht
+      # weiter: Abgeholt wird ausschliesslich aus diesem Compose-Netz unter api:8080.
+      Observability__Prometheus__Enabled: ${FLOWZER_METRICS_ENABLED:-false}
+      Observability__Prometheus__Path: ${FLOWZER_METRICS_PATH:-/metrics}
     volumes:
       - ./.data/runtime-storage:/data/flowzer-storage
       # Session-, OIDC-Korrelations- und Antiforgery-Cookies muessen einen Container-

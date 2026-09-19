@@ -58,4 +58,6 @@ public interface IStorageSystem
 
     /// <summary>Versionierte DMN-Entscheidungsdateien samt ihrem Katalog.</summary>
     IDecisionStorage DecisionStorage => UnsupportedDecisionStorage.Instance;
+    /// <summary>Von aussen aufrufbare Ausloeser samt abgeleitetem Geheimnis und Nutzungszaehlern.</summary>
+    IInboundTriggerStorage InboundTriggerStorage => UnsupportedInboundTriggerStorage.Instance;
 }

@@ -74,6 +74,7 @@ public partial class PostgreSqlStorageIntegrationTest
             // Die Staende verweisen auf ihren Katalogkopf; der Fremdschluessel steht auf
             // RESTRICT und verlangt deshalb diese Reihenfolge.
             "decision_definition_versions", "decision_definitions",
+            "inbound_triggers",
             "timer_subscriptions", "form_section_authoring_drafts", "form_section_versions",
             "form_section_metadata", "form_authoring_drafts", "forms", "form_metadata",
             // Ordner zuletzt: Unterordner verweisen auf ihren Elternordner, und der

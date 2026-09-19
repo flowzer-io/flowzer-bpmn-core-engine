@@ -289,6 +289,30 @@ internal sealed class AiRunStorage(Storage storage) : IAiRunStorage
         finally { Gate.Release(); }
     }
 
+    /// <summary>
+    /// Loescht alle Laeufe der Instanz, auch verleaste. Laeuft unter derselben Sperre wie
+    /// Vergabe und Zustandswechsel, damit kein Lauf zwischen Lesen und Loeschen neu geschrieben
+    /// und dadurch uebersehen wird.
+    /// </summary>
+    public async Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty)
+            throw new ArgumentException("Process instance ID is required.", nameof(processInstanceId));
+        await Gate.WaitAsync();
+        try
+        {
+            var deleted = 0;
+            foreach (var run in ReadAll().Where(run => run.ProcessInstanceId == processInstanceId))
+            {
+                StorageFile.DeleteIfExists(File(run.Id));
+                deleted++;
+            }
+
+            return deleted;
+        }
+        finally { Gate.Release(); }
+    }
+
     private List<AiRun> ReadAll() => StorageFile.ReadExistingFiles(_path, "*.json")
         .Select(entry => Deserialize(entry.Content))
         .ToList();

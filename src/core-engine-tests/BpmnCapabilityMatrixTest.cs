@@ -740,6 +740,27 @@ public class BpmnCapabilityMatrixTest
         action.Should().NotThrow();
     }
 
+    // Testzweck: Reines Diagramm-Beiwerk darf laut BPMN 2.0 in jedem Prozess stehen und löst
+    // keinen Fähigkeitsfehler aus — insbesondere verlangt `bpmn:ioSpecification` keine `id` mehr.
+    [TestCase("<bpmn:laneSet id='LaneSet_1'><bpmn:lane id='Lane_1'><bpmn:flowNodeRef>Start_1</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>")]
+    [TestCase("<bpmn:textAnnotation id='Annotation_1'><bpmn:text>Hinweis</bpmn:text></bpmn:textAnnotation>")]
+    [TestCase("<bpmn:association id='Association_1' sourceRef='Start_1' targetRef='Annotation_1' />")]
+    [TestCase("<bpmn:dataObject id='DataObject_1' />")]
+    [TestCase("<bpmn:dataObjectReference id='DataObjectReference_1' />")]
+    [TestCase("<bpmn:dataStoreReference id='DataStore_1' />")]
+    [TestCase("<bpmn:ioSpecification><bpmn:dataInput id='DataInput_1' /><bpmn:dataOutput id='DataOutput_1' /></bpmn:ioSpecification>")]
+    [TestCase("<bpmn:group id='Group_1' />")]
+    [TestCase("<bpmn:category id='Category_1' />")]
+    [TestCase("<bpmn:documentation>Ein Prozess mit Beiwerk.</bpmn:documentation>")]
+    [TestCase("<bpmn:property id='Property_1' name='__targetRef_placeholder' />")]
+    public void ValidateForDeployment_ShouldTolerateDiagramDecoration(string decoration)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(
+            CreateProcess($"<bpmn:startEvent id='Start_1' />{decoration}"));
+
+        action.Should().NotThrow();
+    }
+
     // Testzweck: Ein Ausgang, der nicht auf ein wartendes Element zeigt, wird mit eigenem Code
     // am betroffenen Ziel abgelehnt — sonst entschiede niemand, wann es weitergeht.
     [Test]
@@ -812,6 +833,24 @@ public class BpmnCapabilityMatrixTest
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
             InclusiveGatewayProcess("<bpmn:sequenceFlow id='Flow_B' sourceRef='Gateway_1' targetRef='Task_B'>"
                 + "<bpmn:conditionExpression>=wegB</bpmn:conditionExpression></bpmn:sequenceFlow>")));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Datenzuordnungen an einer Aktivität sind ebenfalls Beiwerk und dürfen die
+    // Aktivität nicht unveröffentlichbar machen.
+    [Test]
+    public void ValidateForDeployment_ShouldTolerateDataAssociationsOnAnActivity()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess("""
+            <bpmn:startEvent id="Start_1" />
+            <bpmn:task id="Task_1">
+              <bpmn:ioSpecification />
+              <bpmn:dataInputAssociation id="DataInputAssociation_1" />
+              <bpmn:dataOutputAssociation id="DataOutputAssociation_1" />
+            </bpmn:task>
+            <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Task_1" />
+            """));
 
         action.Should().NotThrow();
     }
@@ -925,6 +964,48 @@ public class BpmnCapabilityMatrixTest
             contract.Elements.Should().NotContain(capability =>
                 capability.ElementType == "endEvent.escalationEventDefinition");
         }
+    }
+
+    // Testzweck: Eine echte Ausführungslücke bleibt eine Ablehnung — die Lesetoleranz für Beiwerk
+    // darf den Fähigkeitsvertrag nicht aufweichen. Seit Vertrag 9 ist das ereignisbasierte
+    // Gateway ausführbar; der Transaktions-Subprozess steht weiterhin außerhalb des Vertrags.
+    [Test]
+    public void ValidateForDeployment_ShouldStillRejectTransactionSubProcess()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(
+            CreateProcess("<bpmn:transaction id='Transaction_1' />"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.element.unsupported");
+        exception.ElementId.Should().Be("Transaction_1");
+    }
+
+    private const string NamelessMessageDefinitions = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                          xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                          id="Definitions_NamelessMessage">
+          <bpmn:message id="Message_Nameless" />
+          <bpmn:process id="Process_1" isExecutable="true">
+            {0}
+          </bpmn:process>
+        </bpmn:definitions>
+        """;
+
+    // Testzweck: Der Parser liest eine bpmn:message ohne Namen seit der Lesetoleranz klaglos.
+    // Korrelieren könnte sie nie — deshalb beanstandet die Veröffentlichungsprüfung das
+    // Ereignis, das auf sie zeigt.
+    [TestCase("<bpmn:startEvent id='Start_1'><bpmn:messageEventDefinition messageRef='Message_Nameless' /></bpmn:startEvent>", "Start_1")]
+    [TestCase("<bpmn:receiveTask id='Receive_1' messageRef='Message_Nameless' />", "Receive_1")]
+    [TestCase("<bpmn:sendTask id='Send_1' messageRef='Message_Nameless' />", "Send_1")]
+    public void ValidateForDeployment_ShouldRejectReferenceToNamelessMessage(string flowElement, string elementId)
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(
+            string.Format(NamelessMessageDefinitions, flowElement));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.message.name_required");
+        exception.ElementId.Should().Be(elementId);
+        exception.PropertyPath.Should().Be("messageRef");
     }
 
     private static string CreateProcess(string flowElements) => $"""

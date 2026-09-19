@@ -40,6 +40,39 @@ public class InstanceController(
     }
 
     /// <summary>
+    /// Loescht eine beendete Instanz endgueltig — samt Tokens, Anmeldungen, Aufgabenentwuerfen,
+    /// Human-Task-Historie, Ereignisspur, Auftraegen an Worker und KI-Laeufen.
+    ///
+    /// Beendete Instanz: 204 und weg. Laufende Instanz: 409 — sie muss zuerst abgebrochen
+    /// werden. Unbekannte Kennung: 404. Es gibt bewusst keinen Ruempfe-Rueckgabewert: Nach
+    /// einem erfolgreichen Loeschen gibt es nichts mehr zu beschreiben.
+    /// </summary>
+    [HttpDelete("{instanceId}")]
+    // Ein Loeschen entfernt fremde Vorgangsdaten unwiderruflich; das ist eine Betriebsentscheidung.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    public async Task<IActionResult> DeleteInstance(Guid instanceId)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("deleting instances");
+
+        var outcome = await bpmnBusinessLogic.DeleteInstance(instanceId);
+        return outcome switch
+        {
+            DeleteInstanceOutcome.Deleted => NoContent(),
+            DeleteInstanceOutcome.StillRunning => Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "The process instance is still running",
+                detail: "Eine laufende Instanz wird nicht geloescht. Brich sie zuerst ab."),
+            _ => Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance)
+        };
+    }
+
+    /// <summary>
     /// Trockenlauf der Instanzmigration: Quell- und Zielversion sowie je Instanz, ob sie
     /// migrierbar ist und was der Umzug mitnimmt. Veraendert nichts.
     /// </summary>
@@ -85,6 +118,109 @@ public class InstanceController(
             return MigrationProblem<InstanceMigrationResultDto>(outcome.Status, outcome.Message);
 
         return Ok(new ApiStatusResult<InstanceMigrationResultDto>(outcome.ToDto()));
+    }
+
+    /// <summary>
+    /// Trockenlauf des Instanzeingriffs. Veraendert nichts und beantwortet zugleich, was
+    /// ueberhaupt moeglich waere: Eine leere Anfrage nennt nur die wartenden Schritte und die
+    /// Knoten, die als Ziel in Frage kommen.
+    /// </summary>
+    [HttpPost("{instanceId:guid}/modification/preview")]
+    // Ein Eingriff verschiebt fremde Arbeit und aendert fremde Daten; das ist eine
+    // Betriebsentscheidung, genau wie der Instanzabbruch.
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType<ApiStatusResult<InstanceModificationPreviewDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<InstanceModificationPreviewDto>>> PreviewInstanceModification(
+        Guid instanceId,
+        [FromBody] InstanceModificationRequestDto? request)
+    {
+        currentUserContextAccessor.GetCurrentUser().RequireResolvedUserId("modifying instances");
+
+        var preview = await bpmnBusinessLogic.PreviewInstanceModification(instanceId, request.ToRequest());
+        if (preview.Status != InstanceModificationRequestStatus.Accepted)
+            return ModificationProblem<InstanceModificationPreviewDto>(preview.Status, preview.Message, []);
+
+        return Ok(new ApiStatusResult<InstanceModificationPreviewDto>(preview.ToDto()));
+    }
+
+    /// <summary>
+    /// Fuehrt den Eingriff aus: Die genannten Schritte werden zurueckgezogen und beginnen am
+    /// Zielknoten neu, die genannten Variablen werden korrigiert. Aufgaben und Auftraege der
+    /// verlassenen Stellen verschwinden dabei samt ihren Kennungen.
+    /// </summary>
+    [HttpPost("{instanceId:guid}/modification")]
+    [Authorize(Policy = FlowzerPolicies.Operator)]
+    [ProducesResponseType<ApiStatusResult<InstanceModificationResultDto>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
+    [ProducesResponseType<WebApiEngine.Middleware.InstanceModificationProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
+    public async Task<ActionResult<ApiStatusResult<InstanceModificationResultDto>>> ModifyInstance(
+        Guid instanceId,
+        [FromBody] InstanceModificationRequestDto? request)
+    {
+        var user = currentUserContextAccessor.GetCurrentUser();
+        user.RequireResolvedUserId("modifying instances");
+
+        var outcome = await bpmnBusinessLogic.ModifyInstance(instanceId, request.ToRequest(), user.UserId);
+        if (outcome.Status != InstanceModificationRequestStatus.Accepted)
+            return ModificationProblem<InstanceModificationResultDto>(
+                outcome.Status, outcome.Message, outcome.Problems);
+
+        // Die Instanz wird nach dem Eingriff frisch gelesen: Die Antwort soll denselben Stand
+        // zeigen, den die Oberflaeche beim naechsten Abruf saehe — nicht den der Engine im
+        // Augenblick des Schreibens.
+        var instance = await instanceAccess.GetAsync(instanceId);
+        if (instance is null)
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Process instance not found",
+                detail: MissingInstance);
+
+        return Ok(new ApiStatusResult<InstanceModificationResultDto>(outcome.ToDto(instance)));
+    }
+
+    /// <summary>
+    /// Bildet die Ablehnung eines Eingriffs auf ihren Statuscode ab: Was es nicht gibt, ist 404,
+    /// eine beendete Instanz ist ein Zustandskonflikt, alles andere eine unbrauchbare Angabe.
+    /// Die Befunde des Plans reisen mit, damit die Oberflaeche dieselben Codes uebersetzt wie
+    /// im Trockenlauf.
+    /// </summary>
+    private ActionResult<ApiStatusResult<T>> ModificationProblem<T>(
+        InstanceModificationRequestStatus status,
+        string? message,
+        IReadOnlyList<InstanceModificationFinding> problems)
+    {
+        var statusCode = status switch
+        {
+            InstanceModificationRequestStatus.UnknownInstance => StatusCodes.Status404NotFound,
+            InstanceModificationRequestStatus.InstanceNotRunning => StatusCodes.Status409Conflict,
+            InstanceModificationRequestStatus.ModificationFailed => StatusCodes.Status500InternalServerError,
+            _ => StatusCodes.Status422UnprocessableEntity
+        };
+
+        if (statusCode != StatusCodes.Status422UnprocessableEntity)
+            return Problem(
+                statusCode: statusCode,
+                title: statusCode switch
+                {
+                    StatusCodes.Status404NotFound => "Process instance not found",
+                    StatusCodes.Status409Conflict => "The process instance is no longer running",
+                    _ => "The modification failed"
+                },
+                detail: message);
+
+        return StatusCode(StatusCodes.Status422UnprocessableEntity, new Middleware.InstanceModificationProblemDetails
+        {
+            Status = StatusCodes.Status422UnprocessableEntity,
+            Title = "The modification request could not be processed",
+            Detail = message,
+            Type = "about:blank",
+            Instance = Request.Path,
+            Problems = [.. problems.Select(problem => problem.ToDto())]
+        });
     }
 
     /// <summary>

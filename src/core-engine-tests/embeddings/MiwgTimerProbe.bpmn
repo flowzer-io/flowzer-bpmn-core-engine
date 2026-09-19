@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kleinstmodell fuer den generischen Durchlauf des MIWG-Nachweises: reines Startereignis,
+  ein Intermediate-Timer-Catch, Ende. Es belegt, dass der Durchlauf wartende Zeitereignisse
+  wirklich durch Vorstellen der Zeit bedient. Kein MIWG-Referenzmodell erreicht diese Stufe,
+  deshalb waere der Zweig sonst unbelegt.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="MiwgTimerProbeDefinitions"
+                  targetNamespace="https://flowzer.io/tests">
+  <bpmn:process id="MiwgTimerProbe" name="Timer probe" isExecutable="true">
+    <bpmn:startEvent id="Start">
+      <bpmn:outgoing>ToTimer</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:intermediateCatchEvent id="WaitOneHour" name="Wait one hour">
+      <bpmn:incoming>ToTimer</bpmn:incoming>
+      <bpmn:outgoing>ToEnd</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="WaitOneHourTimer">
+        <bpmn:timeDuration>PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End">
+      <bpmn:incoming>ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="ToTimer" sourceRef="Start" targetRef="WaitOneHour" />
+    <bpmn:sequenceFlow id="ToEnd" sourceRef="WaitOneHour" targetRef="End" />
+  </bpmn:process>
+</bpmn:definitions>

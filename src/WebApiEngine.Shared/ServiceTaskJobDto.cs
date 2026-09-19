@@ -85,6 +85,24 @@ public class FailJobRequestDto
 }
 
 /// <summary>
+/// Die Betriebsanweisung, einen liegen gebliebenen Auftrag wieder freizugeben — mit der
+/// Möglichkeit, die Eingaben vorher zu korrigieren.
+/// </summary>
+public class RetryJobRequestDto
+{
+    /// <summary>Versuche, die der Auftrag bekommt. 1 bis 100; ohne Angabe einer.</summary>
+    public int Retries { get; set; } = 1;
+
+    /// <summary>
+    /// Korrigierte Eingaben. Sie werden in die vorhandenen Werte des Auftrags
+    /// <em>hineingemischt</em>; genannte Schlüssel werden überschrieben, ungenannte bleiben.
+    /// Derselbe Konverter wie beim Abschluss, sonst überleben die Werte die Ablage nicht.
+    /// </summary>
+    [JsonConverter(typeof(ExpandoObjectConverter))]
+    public ExpandoObject? Variables { get; set; }
+}
+
+/// <summary>
 /// Ein fachlicher Fehler statt eines Ergebnisses. Der Auftrag ist damit abgeschlossen; die
 /// Engine loest den Fehler auf BPMN-Ebene auf, statt die Instanz nur scheitern zu lassen.
 /// </summary>
