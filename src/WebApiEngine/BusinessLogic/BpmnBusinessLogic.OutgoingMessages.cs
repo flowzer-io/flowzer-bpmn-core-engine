@@ -23,7 +23,12 @@ public partial class BpmnBusinessLogic
     /// Scheitert eine Zustellung, scheitert die ganze Mutation, und ein transaktionaler
     /// Adapter verwirft auch den Fortschritt des Senders.
     /// </summary>
-    private async Task DeliverOutgoingMessages(ITransactionalStorage storageSystem, InstanceContext source)
+    /// <param name="advanced">
+    /// Nimmt die weitergelaufenen Empfänger auf. Der Prozessaustausch braucht sie, weil eine
+    /// Nachricht einen aufgerufenen Vorgang beenden kann und dessen Aufrufer dann weiterläuft.
+    /// </param>
+    private async Task DeliverOutgoingMessages(ITransactionalStorage storageSystem, InstanceContext source,
+        ICollection<InstanceContext>? advanced = null)
     {
         if (source.Instance.OutgoingMessages.Count == 0)
         {
@@ -49,6 +54,11 @@ public partial class BpmnBusinessLogic
 
                 await PersistInstance(storageSystem, target.Instance, target.RelatedDefinitionId,
                     target.DefinitionId, target.ProcessId);
+                if (target.Instance.InstanceId != source.Instance.InstanceId)
+                {
+                    advanced?.Add(target);
+                }
+
                 pending.Enqueue(target);
             }
         }

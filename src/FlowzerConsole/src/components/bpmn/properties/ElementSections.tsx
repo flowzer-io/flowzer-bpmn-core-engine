@@ -871,12 +871,26 @@ export function ErrorSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
+/**
+ * Keine Vorschlagsliste deployter Prozesskennungen: Dafür gibt es keinen passenden Haken.
+ * `useDefinitions()` liefert den Katalog der Workflows — `definitionId` ist dort die Kennung des
+ * `bpmn:definitions`-Elements samt Anzeigename und Version, nicht die Kennung des `bpmn:process`,
+ * die eine Call Activity aufruft (beim Anlegen vergibt die API beide getrennt). Die Prozesskennung
+ * steht nur im BPMN-XML jeder deployten Version; sie einzusammeln hieße, im Panel für jeden
+ * Workflow ein XML nachzuladen. Deshalb bleibt es Freitext — was ohnehin nötig ist, solange der
+ * Zielprozess noch gar nicht deployt sein muss.
+ */
 export function CallActivitySection({ properties, editor, readOnly }: SectionProps) {
   const current: CalledProcess = properties.calledProcess ?? {
     processId: '',
     propagateAllChildVariables: true,
     propagateAllParentVariables: true,
   };
+  const processId = current.processId.trim();
+  // Die Engine schlägt die Kennung in dieser Stufe wörtlich nach. Ein führendes `=` ist die
+  // Schreibweise eines FEEL-Ausdrucks — hier keine dynamische Auswahl, sondern ein Wert, den
+  // das Veröffentlichen zurückweist.
+  const looksLikeExpression = processId.startsWith('=');
 
   return (
     <Section
@@ -890,17 +904,24 @@ export function CallActivitySection({ properties, editor, readOnly }: SectionPro
         disabled={readOnly}
         placeholder="Process_Urlaubsantrag"
         monospace
+        hint="Eine feste Kennung des Zielprozesses; ein Ausdruck ist hier nicht möglich."
         onCommit={(processId) => editor?.setCalledProcess(properties.id, { processId })}
       />
-      {current.processId.trim().length === 0 && (
+      {processId.length === 0 && (
         <Notice tone="warn">Ohne Prozesskennung lässt sich der Workflow nicht speichern.</Notice>
+      )}
+      {looksLikeExpression && (
+        <Notice tone="warn">
+          Die Prozesskennung muss ein Literal sein. Ein FEEL-Ausdruck — alles ab „=" — wird beim
+          Veröffentlichen abgelehnt.
+        </Notice>
       )}
       {/* Ohne Prozesskennung gibt es nichts weiterzugeben — und die Erweiterung, an der die
           Schalter haengen, steht dann bewusst gar nicht im Diagramm. */}
       <CheckRow
         label="Daten in den aufgerufenen Prozess geben"
         checked={current.propagateAllParentVariables}
-        disabled={readOnly || current.processId.trim().length === 0}
+        disabled={readOnly || processId.length === 0}
         onChange={(propagateAllParentVariables) =>
           editor?.setCalledProcess(properties.id, { propagateAllParentVariables })
         }
@@ -908,7 +929,7 @@ export function CallActivitySection({ properties, editor, readOnly }: SectionPro
       <CheckRow
         label="Ergebnis zurück in diesen Prozess übernehmen"
         checked={current.propagateAllChildVariables}
-        disabled={readOnly || current.processId.trim().length === 0}
+        disabled={readOnly || processId.length === 0}
         onChange={(propagateAllChildVariables) =>
           editor?.setCalledProcess(properties.id, { propagateAllChildVariables })
         }

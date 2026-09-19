@@ -237,6 +237,7 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/CALL-ACTIVITY.md](docs/CALL-ACTIVITY.md) – lokale Aufruf-Aktivität: ein Prozess ruft einen anderen auf und wartet auf sein Ende
 - [docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md) – Prozesspakete: Format, Import-Semantik, Zuordnungen und was nie mitreist
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation

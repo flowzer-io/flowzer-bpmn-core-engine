@@ -68,6 +68,28 @@ public sealed class InstanceAccessService(
             : null;
     }
 
+    /// <summary>
+    /// Die direkten Kindinstanzen eines Vorgangs, älteste zuerst. <c>null</c> heisst: Der
+    /// Vorgang ist für diese Person nicht sichtbar — dieselbe Grenze wie die Instanzansicht.
+    /// </summary>
+    public async Task<List<CalledInstanceDto>?> GetCalledAsync(Guid instanceId)
+    {
+        if (await GetAsync(instanceId) is null) return null;
+        var parent = await FindAsync(instanceId);
+        if (parent is null) return null;
+
+        // Die Instanz liegt als JSON-Dokument; eine eigene Spalte lohnt erst, wenn diese Sicht
+        // nicht mehr über den ohnehin vollständig geladenen Bestand laufen kann.
+        var children = (await storage.InstanceStorage.GetAllInstances())
+            .Where(candidate => candidate.ParentInstanceId == instanceId)
+            .OrderBy(candidate => candidate.Tokens.Count == 0
+                ? DateTime.MaxValue
+                : candidate.Tokens.Min(token => token.StartTime))
+            .ThenBy(candidate => candidate.InstanceId);
+
+        return await children.ToCalledInstanceDtosAsync(storage.DefinitionStorage, parent);
+    }
+
     public async Task<bool> CanInspectAsync(Guid instanceId)
     {
         var (_, canInspect) = await GetPermissionsAsync();

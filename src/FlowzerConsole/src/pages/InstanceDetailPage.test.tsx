@@ -6,7 +6,7 @@ import { InstanceDetailPage } from './InstanceDetailPage';
 
 const mocks = vi.hoisted(() => ({
   instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn(),
-  cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(), remove: vi.fn(),
+  cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(), children: vi.fn(), remove: vi.fn(),
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@flowzer/react', () => ({
@@ -16,6 +16,7 @@ vi.mock('@flowzer/react', () => ({
 vi.mock('@/stores/breadcrumbs', () => ({ useBreadcrumbs: vi.fn() }));
 vi.mock('@/lib/api/queries', () => ({
   useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
+  useInstanceChildren: mocks.children,
   useCancelInstance: () => ({ mutate: mocks.cancel, isPending: false }),
   useDeleteInstance: () => ({ mutate: mocks.remove, isPending: false }),
   useInstanceMigrationPreview: mocks.migrationPreview,
@@ -39,6 +40,7 @@ beforeEach(() => {
   mocks.runtime.mockReturnValue({ data: undefined, isPending: false });
   mocks.history.mockReturnValue({ data: undefined, isPending: false });
   mocks.subscriptions.mockReturnValue({ data: undefined, isPending: false });
+  mocks.children.mockReturnValue({ data: undefined, isPending: false });
   mocks.migrationPreview.mockReturnValue({
     data: undefined, isPending: true, error: null, refetch: vi.fn(),
   });
@@ -276,5 +278,69 @@ describe('Abbruch und Version in der Betriebsansicht', () => {
     mocks.instance.mockReturnValue({ data: overview, isPending: false });
     render(<InstanceDetailPage instanceId="instance-1" />);
     expect(screen.queryByRole('button', { name: 'Migrieren …' })).not.toBeInTheDocument();
+  });
+});
+
+describe('Eltern- und Kindbezug einer Call Activity', () => {
+  const inspectable = { ...overview, canInspect: true };
+
+  // Testzweck: Eine Kindinstanz ist ohne ihren Aufrufer nicht zu verstehen — der Vorgang
+  // beginnt woanders. Der Hinweis steht deshalb im Kopf und führt dorthin.
+  it('nennt die aufrufende Instanz und öffnet sie', async () => {
+    mocks.instance.mockReturnValue({
+      data: { ...inspectable, parentInstanceId: 'parent-1', parentTokenId: 'token-9' },
+      isPending: false,
+    });
+
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    const link = screen.getByRole('button', { name: /Aufgerufen von/ });
+    await user.click(link);
+
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/instances/parent-1' });
+  });
+
+  // Testzweck: Die Elterninstanz wartet an der Call Activity auf fremde Vorgänge. Ohne deren
+  // Namen, Version und Zustand bliebe der wartende Schritt unerklärt.
+  it('listet die aufgerufenen Vorgänge mit Zustand und Sprung in die Kindinstanz', async () => {
+    // „Läuft" statt „Wartet": Sonst trüge der Statuschip der Elterninstanz denselben Text
+    // wie der der Kindinstanz, und der geprüfte Zustand wäre nicht mehr zuzuordnen.
+    mocks.instance.mockReturnValue({ data: { ...inspectable, state: 'Running' }, isPending: false });
+    mocks.children.mockReturnValue({
+      data: [{
+        instanceId: 'child-1', relatedDefinitionId: 'pruefung',
+        relatedDefinitionName: 'Bonitätsprüfung', definitionVersion: { major: 3, minor: 2 },
+        state: 'Waiting', callActivityFlowNodeId: 'CallActivity_1',
+      }],
+      isPending: false,
+    });
+
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    await user.click(screen.getByRole('tab', { name: 'Warteobjekte' }));
+
+    expect(mocks.children).toHaveBeenCalledWith('instance-1');
+    expect(screen.getByText('Aufgerufene Vorgänge')).toBeInTheDocument();
+    expect(screen.getByText('Bonitätsprüfung')).toBeInTheDocument();
+    expect(screen.getByText(/v3\.2/)).toBeInTheDocument();
+    expect(screen.getByText('Wartet')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Bonitätsprüfung/ }));
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/instances/child-1' });
+  });
+
+  // Testzweck: Die allermeisten Instanzen rufen nichts auf. Ein leerer Kasten „Keine
+  // aufgerufenen Vorgänge“ wäre in jeder von ihnen reines Rauschen.
+  it('zeigt ohne Kindinstanzen gar keinen Abschnitt', async () => {
+    mocks.instance.mockReturnValue({ data: inspectable, isPending: false });
+    mocks.children.mockReturnValue({ data: [], isPending: false });
+
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    await user.click(screen.getByRole('tab', { name: 'Warteobjekte' }));
+
+    expect(screen.queryByText('Aufgerufene Vorgänge')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Aufgerufen von/ })).not.toBeInTheDocument();
   });
 });
