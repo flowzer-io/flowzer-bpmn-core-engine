@@ -31,6 +31,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
+        DecisionStorage = new PostgreSqlDecisionStorage(_session);
         InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
@@ -51,6 +52,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
+    public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
 
     public void Dispose() => _session.Dispose();
@@ -84,6 +86,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
+        DecisionStorage = new PostgreSqlDecisionStorage(_session);
         InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
@@ -104,6 +107,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
+    public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
 
     /// <summary>

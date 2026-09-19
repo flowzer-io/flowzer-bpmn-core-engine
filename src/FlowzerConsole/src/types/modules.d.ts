@@ -18,6 +18,16 @@ declare module 'bpmn-js/lib/Viewer' {
   export default Viewer;
 }
 
+declare module 'dmn-js/lib/Modeler' {
+  const Modeler: unknown;
+  export default Modeler;
+}
+
+declare module 'dmn-js/lib/Viewer' {
+  const Viewer: unknown;
+  export default Viewer;
+}
+
 declare module 'bpmn-moddle' {
   interface ParseResult {
     rootElement: unknown;

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_CallActivityPropagateAll" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_CallActivityPropagateAll" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:callActivity id="Call_1" name="Teilvorgang">
+      <bpmn:extensionElements>
+        <zeebe:calledElement processId="teilvorgang" propagateAllParentVariables="true" propagateAllChildVariables="true" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Call</bpmn:outgoing>
+    </bpmn:callActivity>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_Call</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Call_1" />
+    <bpmn:sequenceFlow id="Flow_Call" sourceRef="Call_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

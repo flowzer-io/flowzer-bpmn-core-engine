@@ -93,7 +93,9 @@ server {
   # (/Definition/meta). Ein daraus erzeugter Client traefe eine Regel mit ~ nicht und bekaeme
   # die Startseite der Oberflaeche mit Status 200 statt der Antwort der API.
   # bff umfasst Login, Session und CSRF unter derselben Origin.
-  location ~* ^/(ai/connection|ai/tool|bff|health|definition|folder|identity-directory|inbound-trigger|instance|job|message|notifications|trigger|usertask|form-section|form|timer)(/|\$) {
+  # decision steht vor definition und trifft die Konsolenseite /decisions nicht: Die Regel
+  # verlangt hinter dem Namen einen Schraegstrich oder das Ende der Adresse.
+  location ~* ^/(ai/connection|ai/tool|bff|health|decision|definition|folder|identity-directory|inbound-trigger|instance|job|message|notifications|trigger|usertask|form-section|form|timer)(/|\$) {
     proxy_pass \$flowzer_api;
   }
 

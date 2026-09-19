@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EventSubProcessErrorStart" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:error id="Error_Pruefung" name="Pruefung gescheitert" errorCode="PRUEFUNG" />
+  <bpmn:process id="Process_EventSubProcessErrorStart" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToMain</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:serviceTask id="ServiceTask_Main" name="ServiceTask_Main">
+      <bpmn:extensionElements><zeebe:taskDefinition type="main" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToMain</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Regular"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToMain" sourceRef="StartEvent_1" targetRef="ServiceTask_Main" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="ServiceTask_Main" targetRef="EndEvent_Regular" />
+    <bpmn:subProcess id="EventSub" triggeredByEvent="true">
+      <bpmn:startEvent id="EventSub_Start">
+        <bpmn:outgoing>EventSub_Flow_ToTask</bpmn:outgoing>
+        <bpmn:errorEventDefinition id="EED_Pruefung" errorRef="Error_Pruefung" />
+      </bpmn:startEvent>
+      <bpmn:serviceTask id="ServiceTask_Repair" name="ServiceTask_Repair">
+        <bpmn:extensionElements><zeebe:taskDefinition type="repair" /></bpmn:extensionElements>
+        <bpmn:incoming>EventSub_Flow_ToTask</bpmn:incoming>
+        <bpmn:outgoing>EventSub_Flow_ToEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="EventSub_End"><bpmn:incoming>EventSub_Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="EventSub_Flow_ToTask" sourceRef="EventSub_Start" targetRef="ServiceTask_Repair" />
+      <bpmn:sequenceFlow id="EventSub_Flow_ToEnd" sourceRef="ServiceTask_Repair" targetRef="EventSub_End" />
+    </bpmn:subProcess>
+  </bpmn:process>
+</bpmn:definitions>

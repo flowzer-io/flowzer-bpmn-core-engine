@@ -344,11 +344,75 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("4");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("9");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
                 && element.GetProperty("executable").GetBoolean());
+        // Seit Vertrag 7 sagt der Katalog die lokale Aufruf-Aktivität als ausführbar zu.
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "callActivity"
+                && element.GetProperty("executable").GetBoolean());
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "boundaryEvent.errorEventDefinition"
+                && element.GetProperty("executable").GetBoolean());
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "sendTask"
+                && element.GetProperty("executable").GetBoolean());
     }
+
+    // Testzweck: Der Veröffentlichungsvertrag der Aufruf-Aktivität gilt auch am API-Rand: Die
+    // Prozesskennung ist Pflicht und muss ein Literal sein; beide Fälle melden ihren stabilen Code.
+    [TestCase("", "bpmn.call_activity.process_id_required")]
+    [TestCase("=zielProzess", "bpmn.call_activity.process_id_literal_required")]
+    public async Task ValidateDefinition_ShouldRejectCallActivityWithoutLiteralProcessId(
+        string processId, string expectedCode)
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/validate/deployment",
+            new StringContent(CreateCallActivityXml("workflow-call-activity", processId), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("bpmn.model.invalid");
+        var issue = problem.RootElement.GetProperty("issues")[0];
+        issue.GetProperty("code").GetString().Should().Be(expectedCode);
+        issue.GetProperty("elementId").GetString().Should().Be("Call_1");
+    }
+
+    // Testzweck: Eine vollständig konfigurierte Aufruf-Aktivität ist seit Vertrag 7 veröffentlichbar.
+    [Test]
+    public async Task ValidateDefinition_ShouldAcceptCallActivityWithLiteralProcessId()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/validate/deployment",
+            new StringContent(CreateCallActivityXml("workflow-call-activity", "Process_Called"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private static string CreateCallActivityXml(string definitionId, string processId) => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="{definitionId}">
+                  <bpmn:process id="Process_{definitionId}" isExecutable="true">
+                    <bpmn:startEvent id="Start_1" />
+                    <bpmn:callActivity id="Call_1">
+                      <bpmn:extensionElements>
+                        <zeebe:calledElement processId="{processId}" propagateAllParentVariables="false" />
+                      </bpmn:extensionElements>
+                    </bpmn:callActivity>
+                    <bpmn:endEvent id="End_1" />
+                    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Call_1" />
+                    <bpmn:sequenceFlow id="Flow_2" sourceRef="Call_1" targetRef="End_1" />
+                  </bpmn:process>
+                </bpmn:definitions>
+                """;
 
     // Testzweck: Prüft, dass ein fehlgeschlagener Deploy-Versuch keine halb persistierte Definitionsversion zurücklässt.
     [Test]

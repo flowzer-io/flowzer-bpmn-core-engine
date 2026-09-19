@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EscalationEventSubProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:escalation id="Escalation_Nachfrage" name="Nachfrage noetig" escalationCode="NACHFRAGE" />
+  <bpmn:process id="Process_EscalationEventSubProcess" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToSub</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:subProcess id="SubProcess_1">
+      <bpmn:incoming>Flow_ToSub</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAfter</bpmn:outgoing>
+      <bpmn:startEvent id="SubStart_1"><bpmn:outgoing>SubFlow_ToEnd</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:endEvent id="SubEnd_Escalation">
+        <bpmn:incoming>SubFlow_ToEnd</bpmn:incoming>
+        <bpmn:escalationEventDefinition id="ESD_End" escalationRef="Escalation_Nachfrage" />
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="SubFlow_ToEnd" sourceRef="SubStart_1" targetRef="SubEnd_Escalation" />
+    </bpmn:subProcess>
+    <bpmn:serviceTask id="ServiceTask_After" name="ServiceTask_After">
+      <bpmn:extensionElements><zeebe:taskDefinition type="after" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAfter</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:subProcess id="EventSub" triggeredByEvent="true">
+      <bpmn:startEvent id="EventSub_Start" isInterrupting="false">
+        <bpmn:outgoing>EventSub_Flow_ToTask</bpmn:outgoing>
+        <bpmn:escalationEventDefinition id="ESD_Start" escalationRef="Escalation_Nachfrage" />
+      </bpmn:startEvent>
+      <bpmn:serviceTask id="ServiceTask_Inform" name="ServiceTask_Inform">
+        <bpmn:extensionElements><zeebe:taskDefinition type="inform" /></bpmn:extensionElements>
+        <bpmn:incoming>EventSub_Flow_ToTask</bpmn:incoming>
+        <bpmn:outgoing>EventSub_Flow_ToEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="EventSub_End"><bpmn:incoming>EventSub_Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="EventSub_Flow_ToTask" sourceRef="EventSub_Start" targetRef="ServiceTask_Inform" />
+      <bpmn:sequenceFlow id="EventSub_Flow_ToEnd" sourceRef="ServiceTask_Inform" targetRef="EventSub_End" />
+    </bpmn:subProcess>
+    <bpmn:sequenceFlow id="Flow_ToSub" sourceRef="StartEvent_1" targetRef="SubProcess_1" />
+    <bpmn:sequenceFlow id="Flow_ToAfter" sourceRef="SubProcess_1" targetRef="ServiceTask_After" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="ServiceTask_After" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

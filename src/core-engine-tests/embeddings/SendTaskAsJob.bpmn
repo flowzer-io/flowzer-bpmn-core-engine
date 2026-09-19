@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_SendTaskAsJob" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Bestaetigung" name="Bestaetigung versandt" />
+  <bpmn:process id="Process_SendTaskAsJob" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:sendTask id="Send_Job" name="Bestaetigung senden" messageRef="Message_Bestaetigung">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="mail-versenden" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Send</bpmn:outgoing>
+    </bpmn:sendTask>
+    <bpmn:endEvent id="EndEvent_1">
+      <bpmn:incoming>Flow_Send</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Send_Job" />
+    <bpmn:sequenceFlow id="Flow_Send" sourceRef="Send_Job" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

@@ -306,12 +306,14 @@ public partial class BpmnBusinessLogic(
             return;
         }
 
+        // Auftraege entstehen nicht mehr nur an Service-Tasks: Ein Send-Task oder ein sendendes
+        // Nachrichtenereignis mit Auftragstyp wartet genauso auf einen Worker.
         var activeTokens = catchHandler.ActiveServiceTasks().ToArray();
         var normalTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is null)
+            .Where(token => token.CurrentFlowNode is not BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var aiTokens = activeTokens
-            .Where(token => ((BPMN.Activities.ServiceTask)token.CurrentFlowNode!).FlowzerAiTask is not null)
+            .Where(token => token.CurrentFlowNode is BPMN.Activities.ServiceTask { FlowzerAiTask: not null })
             .ToArray();
         var existing = (await storageSystem.ServiceTaskStorage.GetJobs())
             .Where(job => job.ProcessInstanceId == processInstanceId.Value)
@@ -341,21 +343,21 @@ public partial class BpmnBusinessLogic(
                 continue;
             }
 
-            var serviceTask = (BPMN.Activities.ServiceTask)token.CurrentFlowNode!;
+            var workerTask = (IFlowzerWorkerTask)token.CurrentFlowNode!;
             await storageSystem.ServiceTaskStorage.SaveJob(new ServiceTaskJob
             {
                 Id = Guid.NewGuid(),
-                Type = serviceTask.Implementation,
-                Name = serviceTask.Name,
+                Type = workerTask.Implementation,
+                Name = token.CurrentFlowNode!.Name,
                 TokenId = token.Id,
-                FlowNodeId = serviceTask.Id,
+                FlowNodeId = token.CurrentFlowNode!.Id,
                 ProcessInstanceId = processInstanceId.Value,
                 MetaDefinitionId = metaDefinitionId,
                 DefinitionId = definitionId,
                 ProcessId = processId,
                 // Ein Modell ohne Angabe bekommt einen Versuch; sonst waere der Auftrag von
                 // Anfang an unbearbeitbar.
-                Retries = serviceTask.FlowzerRetries > 0 ? serviceTask.FlowzerRetries : 1,
+                Retries = workerTask.FlowzerRetries > 0 ? workerTask.FlowzerRetries : 1,
                 Variables = SelectJobVariables(processVariables.Value, token.Variables)
             });
         }
@@ -729,6 +731,172 @@ public partial class BpmnBusinessLogic(
     }
 
     /// <summary>
+    /// Nimmt einen fachlichen Fehler eines Workers entgegen und loest ihn auf BPMN-Ebene auf:
+    /// Ein Error-Boundary am Service-Task oder an einem umschliessenden Subprozess faengt ihn,
+    /// sonst endet die Instanz als gescheitert.
+    ///
+    /// Der Auftrag ist damit abgeschlossen. Er traegt vor dem Weiterlaufen Code und Meldung in
+    /// <see cref="ServiceTaskJob.LastErrorMessage"/> und wird nie wieder vergeben; mit dem nicht
+    /// mehr wartenden Service-Task raeumt ihn derselbe Pfad ab, der auch einen erledigten
+    /// Auftrag entfernt.
+    /// </summary>
+    public async Task<InstanceEngine> ThrowServiceTaskJobError(
+        ServiceTaskJob job,
+        string errorCode,
+        string? errorMessage,
+        Variables? variables)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
+
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
+            var instance = new InstanceEngine(processInstance.Tokens);
+            instance.InstanceId = job.ProcessInstanceId;
+
+            var activeToken = instance.GetActiveServiceTasks().SingleOrDefault(token => token.Id == job.TokenId);
+            if (activeToken is null)
+            {
+                throw new ArgumentException(
+                    $"The service task token \"{job.TokenId}\" is not active for process instance \"{job.ProcessInstanceId}\".",
+                    nameof(job));
+            }
+
+            job.LastErrorMessage = string.IsNullOrWhiteSpace(errorMessage) ? errorCode : $"{errorCode}: {errorMessage}";
+            job.Retries = 0;
+            job.LockedBy = null;
+            job.LockedUntil = null;
+            job.RetryAt = null;
+            await storageSystem.ServiceTaskStorage.SaveJob(job);
+
+            instance.ThrowBpmnError(activeToken.Id, errorCode, errorMessage, variables);
+            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            storageSystem.CommitChanges();
+
+            return instance;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Gibt einen liegen gebliebenen Auftrag wieder frei — die Betriebsantwort auf eine Stoerung.
+    ///
+    /// Vorbedingung, Korrektur und Schreiben liegen bewusst hier und nicht beim Aufrufer: Der
+    /// Auftrag wird unter der Engine-Sperre und der Zeilensperre der Instanz neu gelesen. Eine
+    /// ausserhalb gepruefte Vorbedingung waere schon wieder falsch, wenn zwischen Pruefung und
+    /// Schreiben ein Worker den Auftrag uebernimmt; er bekaeme dann seine Versuche unter der
+    /// Hand zurueckgesetzt.
+    ///
+    /// <paramref name="corrections"/> werden in die vorhandenen Eingaben hineingemischt: Der
+    /// Betrieb korrigiert einzelne Werte, er schreibt den Auftrag nicht neu. Die bisherige
+    /// Fehlermeldung bleibt als Verlauf stehen.
+    /// </summary>
+    public async Task<JobRetryResult> RetryServiceTaskJob(
+        Guid jobId,
+        int retries,
+        Variables? corrections,
+        Guid userId,
+        DateTime now)
+    {
+        await _engineMutationLock.WaitAsync();
+        try
+        {
+            using var storageSystem = storageProvider.GetTransactionalStorage();
+
+            var job = await storageSystem.ServiceTaskStorage.GetJob(jobId);
+            if (job is null)
+            {
+                return JobRetryResult.NotFound;
+            }
+
+            await storageSystem.InstanceStorage.LockForMutation(job.ProcessInstanceId);
+
+            // Nach der Zeilensperre noch einmal lesen: Zwischen dem ersten Lesen und der Sperre
+            // kann derselbe Auftrag abgeschlossen oder uebernommen worden sein.
+            job = await storageSystem.ServiceTaskStorage.GetJob(jobId);
+            if (job is null)
+            {
+                return JobRetryResult.NotFound;
+            }
+
+            if (job.LockedUntil is { } lockedUntil && lockedUntil > now)
+            {
+                return JobRetryResult.StillLocked;
+            }
+
+            if (job.Retries > 0)
+            {
+                return JobRetryResult.NotExhausted;
+            }
+
+            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(job.ProcessInstanceId);
+            var instance = new InstanceEngine(processInstance.Tokens) { InstanceId = job.ProcessInstanceId };
+            if (instance.GetActiveServiceTasks().All(token => token.Id != job.TokenId))
+            {
+                // Der Auftrag ist verwaist: Sein Token wartet nicht mehr. Ihn freizugeben, wuerde
+                // einem Worker Arbeit geben, deren Ergebnis niemand mehr annimmt.
+                return JobRetryResult.NotFound;
+            }
+
+            var correctedKeys = MergeJobVariables(job, corrections);
+
+            job.Retries = retries;
+            job.RetryAt = null;
+            job.LockedBy = null;
+            job.LockedUntil = null;
+            job.RetryHistory.Add(new ServiceTaskJobRetry
+            {
+                At = now,
+                By = userId,
+                Retries = retries,
+                CorrectedKeys = correctedKeys
+            });
+
+            await storageSystem.ServiceTaskStorage.SaveJob(job);
+            storageSystem.CommitChanges();
+
+            return JobRetryResult.Ok;
+        }
+        finally
+        {
+            _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Mischt die Korrekturen in die Eingaben des Auftrags und liefert die ueberschriebenen
+    /// Schluessel alphabetisch. Hineingemischt statt ersetzt: Ein Auftrag traegt die gebundenen
+    /// Eingaben seines Schritts, und der Betrieb korrigiert daran einen Wert — er kennt die
+    /// uebrigen nicht zwingend und darf sie nicht versehentlich entfernen.
+    /// </summary>
+    private static List<string> MergeJobVariables(ServiceTaskJob job, Variables? corrections)
+    {
+        if (corrections is null)
+        {
+            return [];
+        }
+
+        job.Variables ??= new Variables();
+        var target = (IDictionary<string, object?>)job.Variables;
+        var correctedKeys = new List<string>();
+        foreach (var entry in (IDictionary<string, object?>)corrections)
+        {
+            target[entry.Key] = entry.Value;
+            correctedKeys.Add(entry.Key);
+        }
+
+        correctedKeys.Sort(StringComparer.Ordinal);
+        return correctedKeys;
+    }
+
+    /// <summary>
     /// Bricht eine laufende Instanz ab: aktive und wartende Tokens werden terminiert, offene
     /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
     /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
@@ -754,10 +922,13 @@ public partial class BpmnBusinessLogic(
             instance.Cancel();
 
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
+            // Erst danach: Der Abbruch dieser Instanz steht damit schon in der Ablage, wenn ein
+            // Kind sein Ende melden will und seinen Aufrufer nicht mehr wartend vorfindet.
+            await CancelCalledInstances(storageSystem, instanceId);
             storageSystem.CommitChanges();
 
             return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
-                processInstance.ProcessId, instance, processInstance.Migrations);
+                processInstance.ProcessId, instance, processInstance.Migrations, processInstance.Modifications);
         }
         finally
         {
@@ -977,14 +1148,47 @@ public partial class BpmnBusinessLogic(
     /// kennt diesen Fall; fuer jeden anderen Schreibvorgang bleibt ein Knotenwechsel unter
     /// derselben Tokenkennung ein mehrdeutiger Altbestand.
     /// </param>
+    /// <param name="modifications">
+    /// Die Eingriffsspur, die geschrieben werden soll. <c>null</c> heisst wie bei
+    /// <paramref name="migrations"/> „die gespeicherte uebernehmen".
+    /// </param>
     private async Task SaveInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
         string relatedDefinitionId, Guid definitionId, string processId,
         IReadOnlyList<InstanceMigrationRecord>? migrations = null,
-        IReadOnlySet<Guid>? movedTaskTokenIds = null)
+        IReadOnlySet<Guid>? movedTaskTokenIds = null,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
+    {
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds, modifications);
+
+        // Erst speichern, dann senden und aufrufen: Die Anmeldungen dieser Instanz stehen damit
+        // schon in der Ablage, wenn eine ausgehende Nachricht auf einen wartenden Zweig
+        // derselben Instanz korreliert. Alles bleibt in der Transaktion des Aufrufers.
+        await RunProcessExchange(storageSystem,
+            new InstanceContext(instance, relatedDefinitionId, definitionId, processId));
+
+        // Ein gestarteter Aufruf haengt seine Kindinstanz an das wartende Token, und ein sofort
+        // fertiger Kindvorgang laesst diese Instanz gleich weiterlaufen. Beides entsteht erst im
+        // Austausch und muss deshalb noch einmal geschrieben werden.
+        await PersistInstance(storageSystem, instance, relatedDefinitionId, definitionId, processId,
+            migrations, movedTaskTokenIds, modifications);
+    }
+
+    /// <summary>
+    /// Schreibt Anmeldungen, Instanzdatensatz und Laufzeitverlauf — ohne Zustellung ausgehender
+    /// Nachrichten. Der Zustellpfad selbst benutzt diese Überladung, damit das Speichern eines
+    /// Empfängers nicht erneut in die Zustellung zurückspringt.
+    /// </summary>
+    private async Task PersistInstance(ITransactionalStorage storageSystem, InstanceEngine instance,
+        string relatedDefinitionId, Guid definitionId, string processId,
+        IReadOnlyList<InstanceMigrationRecord>? migrations = null,
+        IReadOnlySet<Guid>? movedTaskTokenIds = null,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         await SaveSubscriptions(storageSystem, instance, relatedDefinitionId, definitionId, processId,
             instance.InstanceId, movedTaskTokenIds);
-        await AddOrUpdateInstance(definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations);
+        await AddOrUpdateInstance(
+            definitionId, relatedDefinitionId, processId, storageSystem, instance, migrations, modifications);
         await SaveRuntimeNodeEvents(storageSystem, instance, definitionId);
     }
 
@@ -998,28 +1202,38 @@ public partial class BpmnBusinessLogic(
 
     private async Task AddOrUpdateInstance(Guid definitionId, string relatedDefinitionId, string processId,
         ITransactionalStorage storageSystem, InstanceEngine instance,
-        IReadOnlyList<InstanceMigrationRecord>? migrations)
+        IReadOnlyList<InstanceMigrationRecord>? migrations,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         // Der Datensatz einer Instanz wird bei jedem Speichern frisch aus dem Engine-Zustand
-        // gebaut; die Migrationsspur steht aber ausschliesslich in der Ablage. Ohne dieses
+        // gebaut; die Eingriffsspuren stehen aber ausschliesslich in der Ablage. Ohne dieses
         // Nachlesen loeschte der naechste gewoehnliche Schreibvorgang — etwa der Abschluss
-        // einer Aufgabe — die Geschichte der Versionswechsel still weg.
-        var carried = migrations ?? await ReadMigrations(storageSystem, instance.InstanceId);
-        await storageSystem.InstanceStorage.AddOrUpdateInstance(
-            CreateProcessInstanceInfo(definitionId, relatedDefinitionId, processId, instance, carried));
+        // einer Aufgabe — die Geschichte der Versionswechsel und Anpassungen still weg.
+        var stored = migrations is null || modifications is null
+            ? await ReadTrace(storageSystem, instance.InstanceId)
+            : null;
+
+        await storageSystem.InstanceStorage.AddOrUpdateInstance(CreateProcessInstanceInfo(
+            definitionId,
+            relatedDefinitionId,
+            processId,
+            instance,
+            migrations ?? stored?.Migrations ?? [],
+            modifications ?? stored?.Modifications ?? []));
     }
 
-    private static async Task<IReadOnlyList<InstanceMigrationRecord>> ReadMigrations(
+    /// <summary>Die gespeicherten Spuren einer Instanz, oder <c>null</c>, wenn es sie noch nicht gibt.</summary>
+    private static async Task<ProcessInstanceInfo?> ReadTrace(
         ITransactionalStorage storageSystem, Guid instanceId)
     {
         try
         {
-            return (await storageSystem.InstanceStorage.GetProcessInstance(instanceId)).Migrations;
+            return await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
         }
         // Eine neu gestartete Instanz liegt noch nicht in der Ablage; sie hat keine Spur.
         catch (Exception exception) when (exception is FileNotFoundException or KeyNotFoundException)
         {
-            return [];
+            return null;
         }
     }
 
@@ -1213,18 +1427,25 @@ public partial class BpmnBusinessLogic(
         string relatedDefinitionId,
         string processId,
         InstanceEngine instance,
-        IReadOnlyList<InstanceMigrationRecord> migrations)
+        IReadOnlyList<InstanceMigrationRecord> migrations,
+        IReadOnlyList<InstanceModificationRecord>? modifications = null)
     {
         return new ProcessInstanceInfo
         {
             Migrations = [.. migrations],
+            Modifications = [.. modifications ?? []],
             InstanceId = instance.InstanceId,
+            // Die Herkunft steht am Master-Token und ueberlebt damit jeden Storage-Roundtrip.
+            // Sie hier abzuleiten haelt Datensatz und Tokenstand ohne zweite Quelle zusammen.
+            ParentInstanceId = instance.MasterToken.CallingInstanceId,
+            ParentTokenId = instance.MasterToken.CallingTokenId,
             metaDefinitionId = relatedDefinitionId,
             DefinitionId = definitionId,
             ProcessId = processId,
             Tokens = instance.Tokens,
             IsFinished = instance.IsFinished,
             State = instance.State,
+            FailureReason = instance.FailureReason,
             MessageSubscriptionCount = instance.ActiveCatchMessages.Count,
             SignalSubscriptionCount = instance.ActiveCatchSignals.Count,
             UserTaskSubscriptionCount = instance.GetActiveUserTasks().Count(),

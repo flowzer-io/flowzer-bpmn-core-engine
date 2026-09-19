@@ -7,7 +7,7 @@ import {
   requestUpload,
 } from './client';
 import type { DownloadedFile } from './client';
-import { normalizeInstance } from './normalize';
+import { normalizeInstance, toProcessInstanceState } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
@@ -15,6 +15,7 @@ import type {
   BpmnDefinitionDto,
   BpmnCapabilityContract,
   BpmnMetaDefinitionDto,
+  CalledInstanceDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
@@ -28,10 +29,14 @@ import type {
   HealthStatusDto,
   InstanceMigrationPreviewDto,
   InstanceMigrationResultDto,
+  InstanceModificationPreviewDto,
+  InstanceModificationRequestDto,
+  InstanceModificationResultDto,
   MessageDto,
   MessageSubscriptionDto,
   NotificationDto,
   OperationsDiagnosticsDto,
+  OperationsIncidentDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   SignalSubscriptionDto,
@@ -56,6 +61,10 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  DecisionDefinition,
+  DecisionDefinitionDetail,
+  DecisionDefinitionVersion,
+  DecisionEvaluationResult,
   InboundTriggerDto,
   InboundTriggerSecretDto,
   CreateInboundTriggerInput,
@@ -324,6 +333,28 @@ function mappingOrUndefined(
   return flowNodeMapping && Object.keys(flowNodeMapping).length > 0 ? flowNodeMapping : undefined;
 }
 
+/**
+ * Der Rumpf einer Eingriffsanfrage ohne leere Abschnitte.
+ *
+ * Aus demselben Grund wie bei der Zuordnung: Ein leeres `moves` oder ein `variables` ohne
+ * Inhalt ist keine Änderung. Bliebe es im Rumpf stehen, sähe die API eine andere Anfrage
+ * als die, die der Dialog meint — und antwortete auf den Trockenlauf einer leeren Anfrage
+ * mit `NothingToDo` statt mit den wartenden Schritten.
+ */
+function modificationBody(request: InstanceModificationRequestDto): InstanceModificationRequestDto {
+  const set = request.variables?.set;
+  const remove = request.variables?.remove;
+  const variables = {
+    set: set && Object.keys(set).length > 0 ? set : undefined,
+    remove: remove && remove.length > 0 ? remove : undefined,
+  };
+
+  return {
+    moves: request.moves && request.moves.length > 0 ? request.moves : undefined,
+    variables: variables.set || variables.remove ? variables : undefined,
+  };
+}
+
 // Alle Instanz-Endpunkte antworten in `ApiStatusResult<T>`.
 export const instancesApi = {
   /** `GET /instance` */
@@ -336,6 +367,18 @@ export const instancesApi = {
   get: async (instanceId: string, signal?: AbortSignal) => {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}`, { signal });
     return normalizeInstance(instance);
+  },
+
+  /**
+   * `GET /instance/{id}/children` — die von Call Activities dieser Instanz gestarteten
+   * Kindinstanzen. Dieselbe Rechteprüfung wie die Instanzansicht; ohne das Recht 404.
+   *
+   * Der Zustand kommt wie bei den Instanzen als Zahl und wird hier in das sprechende
+   * Literal übersetzt — sonst stünde in der Liste ein „4" statt „Abgeschlossen".
+   */
+  children: async (instanceId: string, signal?: AbortSignal) => {
+    const children = await requestStatusResult<CalledInstanceDto[]>(`/instance/${instanceId}/children`, { signal });
+    return (children ?? []).map((child) => ({ ...child, state: toProcessInstanceState(child.state) }));
   },
 
   /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */
@@ -387,6 +430,38 @@ export const instancesApi = {
       method: 'POST',
       body: { instanceIds, targetDefinitionId, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
     }),
+
+  /**
+   * `POST /instance/{id}/modification/preview` — prüft folgenlos, ob sich der Eingriff so
+   * ausführen ließe. Verlangt das Betriebsrecht; 404 für eine unbekannte, 409 für eine nicht
+   * mehr laufende Instanz, 422 für eine Anfrage, die so nicht zulässig ist.
+   *
+   * Eine leere Anfrage ist hier erlaubt und beantwortet nur, welche Schritte warten und
+   * welche Knoten als Ziel in Frage kommen.
+   */
+  modificationPreview: (
+    instanceId: string,
+    request: InstanceModificationRequestDto,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<InstanceModificationPreviewDto>(`/instance/${instanceId}/modification/preview`, {
+      method: 'POST',
+      body: modificationBody(request),
+      signal,
+    }),
+
+  /**
+   * `POST /instance/{id}/modification` — verschiebt wartende Schritte und korrigiert
+   * Variablen. Die API antwortet mit der Instanz nach dem Eingriff; sie wird hier wie bei
+   * jedem anderen Instanzendpunkt normalisiert, damit Zustände als Literale ankommen.
+   */
+  modify: async (instanceId: string, request: InstanceModificationRequestDto) => {
+    const result = await requestStatusResult<InstanceModificationResultDto>(
+      `/instance/${instanceId}/modification`,
+      { method: 'POST', body: modificationBody(request) },
+    );
+    return { ...result, instance: normalizeInstance(result.instance) };
+  },
 
   /** `GET /instance/{id}/subscription/messages` */
   messageSubscriptions: (instanceId: string, signal?: AbortSignal) =>
@@ -618,6 +693,59 @@ export const aiToolsApi = {
   },
 };
 
+/**
+ * Der Entscheidungskatalog (DMN). Eine Entscheidungsdefinition ist eine ganze DMN-Datei; die
+ * `decisionId`, die ein Business-Rule-Task aufruft, steht darin als einzelne Entscheidung.
+ * Speichern legt immer eine neue Version an — deployte Workflows behalten die ihre.
+ */
+export const decisionsApi = {
+  /** `GET /decision` — Katalog, je Eintrag die jüngste Version. */
+  list: (signal?: AbortSignal) => requestStatusResult<DecisionDefinition[]>('/decision', { signal }),
+
+  /** `POST /decision` — legt eine Entscheidungsdefinition aus DMN-XML an. */
+  create: (input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>('/decision', { method: 'POST', body: input }),
+
+  /** `PUT /decision/{id}` — speichert das XML als neue Version. */
+  update: (decisionDefinitionId: string, input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `GET /decision/{id}` — jüngste Version samt XML. */
+  get: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { signal }),
+
+  /** `GET /decision/{id}/versions` */
+  listVersions: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionVersion[]>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions`,
+      { signal },
+    ),
+
+  /** `GET /decision/{id}/versions/{version}` */
+  getVersion: (decisionDefinitionId: string, version: number, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions/${version}`,
+      { signal },
+    ),
+
+  /** `DELETE /decision/{id}` — antwortet mit 409, wenn ein deployter Workflow die Entscheidung benutzt. */
+  remove: (decisionDefinitionId: string) =>
+    requestStatus(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { method: 'DELETE' }),
+
+  /** `POST /decision/{id}/evaluate` — Trockenlauf ohne Instanz und ohne Seiteneffekt. */
+  evaluate: (
+    decisionDefinitionId: string,
+    input: { decisionId: string; variables: Record<string, unknown> },
+  ) =>
+    requestStatusResult<DecisionEvaluationResult>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/evaluate`,
+      { method: 'POST', body: input },
+    ),
+};
+
 export const messagesApi = {
   /** `POST /message` — korreliert eine Nachricht in laufende Instanzen. */
   publish: (message: MessageDto) => requestStatusResult<string>('/message', { method: 'POST', body: message }),
@@ -636,6 +764,13 @@ export const operationsApi = {
   /** `GET /operations/diagnostics` */
   diagnostics: (signal?: AbortSignal) =>
     requestStatusResult<OperationsDiagnosticsDto>('/operations/diagnostics', { signal }),
+
+  /**
+   * `GET /operations/incidents` — alles, was ohne Eingriff liegen bleibt, neueste Störung
+   * zuerst. Verlangt das Betriebsrecht.
+   */
+  incidents: (signal?: AbortSignal) =>
+    requestStatusResult<OperationsIncidentDto[]>('/operations/incidents', { signal }),
 
   /** `GET /timer` — alle offenen Timer der Engine. */
   timers: (signal?: AbortSignal) => requestStatusResult<TimerSubscriptionDto[]>('/timer', { signal }),
@@ -670,6 +805,20 @@ export const operationsApi = {
       `/operations/analytics/workflows/${encodeURIComponent(metaDefinitionId)}`,
       { query: { from: range.from, to: range.to, definitionId: definitionId ?? undefined }, signal },
     ),
+};
+
+/** Aufträge an externe Worker; die Konsole benutzt davon nur den Betriebseingriff. */
+export const jobsApi = {
+  /**
+   * `POST /job/{id}/retry` — gibt einen liegen gebliebenen Auftrag wieder frei. `variables`
+   * werden in die vorhandenen Eingaben hineingemischt; ungenannte Schlüssel bleiben stehen.
+   * Verlangt das Betriebsrecht; ein Auftrag, der gar nicht liegt, antwortet mit 409.
+   */
+  retry: (jobId: string, retries: number, variables?: ProcessVariables) =>
+    requestStatus(`/job/${jobId}/retry`, {
+      method: 'POST',
+      body: { retries, variables },
+    }),
 };
 
 export type { ProcessVariables };

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_ErrorBoundaryCatchAll" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:error id="Error_Fachlich" name="Antrag unvollstaendig" errorCode="ANTRAG_UNVOLLSTAENDIG" />
+  <bpmn:process id="Process_ErrorBoundaryCatchAll" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:subProcess id="SubProcess_1" name="Pruefung">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Regular</bpmn:outgoing>
+      <bpmn:startEvent id="SubStart_Error">
+        <bpmn:outgoing>Flow_SubError</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:startEvent id="SubStart_Wait">
+        <bpmn:outgoing>Flow_SubWait</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:serviceTask id="ServiceTask_Wait" name="Parallel wartend">
+        <bpmn:extensionElements>
+          <zeebe:taskDefinition type="wait" />
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_SubWait</bpmn:incoming>
+        <bpmn:outgoing>Flow_SubWaitEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="SubEnd_Wait">
+        <bpmn:incoming>Flow_SubWaitEnd</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="ErrorEnd_1" name="Fachlich gescheitert">
+        <bpmn:incoming>Flow_SubError</bpmn:incoming>
+        <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_Fachlich" />
+      </bpmn:endEvent>
+      <bpmn:sequenceFlow id="Flow_SubError" sourceRef="SubStart_Error" targetRef="ErrorEnd_1" />
+      <bpmn:sequenceFlow id="Flow_SubWait" sourceRef="SubStart_Wait" targetRef="ServiceTask_Wait" />
+      <bpmn:sequenceFlow id="Flow_SubWaitEnd" sourceRef="ServiceTask_Wait" targetRef="SubEnd_Wait" />
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="BoundaryError_1" name="Fehler" attachedToRef="SubProcess_1">
+      <bpmn:outgoing>Flow_Boundary</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_2" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="ServiceTask_Recover" name="Nacharbeit">
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="recover" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Boundary</bpmn:incoming>
+      <bpmn:outgoing>Flow_Recovered</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Recovered">
+      <bpmn:incoming>Flow_Recovered</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Regular">
+      <bpmn:incoming>Flow_Regular</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="SubProcess_1" />
+    <bpmn:sequenceFlow id="Flow_Regular" sourceRef="SubProcess_1" targetRef="EndEvent_Regular" />
+    <bpmn:sequenceFlow id="Flow_Boundary" sourceRef="BoundaryError_1" targetRef="ServiceTask_Recover" />
+    <bpmn:sequenceFlow id="Flow_Recovered" sourceRef="ServiceTask_Recover" targetRef="EndEvent_Recovered" />
+  </bpmn:process>
+</bpmn:definitions>

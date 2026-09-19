@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EventBasedGateway" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Freigabe" name="Freigabe" />
+  <bpmn:process id="Process_EventBasedGateway" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToGateway</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:eventBasedGateway id="Gateway_Event">
+      <bpmn:incoming>Flow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToMessage</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToTimer</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Catch_Freigabe">
+      <bpmn:incoming>Flow_ToMessage</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approved</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageEventDefinition_1" messageRef="Message_Freigabe" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Catch_Frist">
+      <bpmn:incoming>Flow_ToTimer</bpmn:incoming>
+      <bpmn:outgoing>Flow_Expired</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerEventDefinition_1">
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">PT1H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:serviceTask id="ServiceTask_Approved" name="ServiceTask_Approved">
+      <bpmn:extensionElements><zeebe:taskDefinition type="approve" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_Approved</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovedEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="ServiceTask_Expired" name="ServiceTask_Expired">
+      <bpmn:extensionElements><zeebe:taskDefinition type="expire" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_Expired</bpmn:incoming>
+      <bpmn:outgoing>Flow_ExpiredEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:sequenceFlow id="Flow_ToGateway" sourceRef="StartEvent_1" targetRef="Gateway_Event" />
+    <bpmn:sequenceFlow id="Flow_ToMessage" sourceRef="Gateway_Event" targetRef="Catch_Freigabe" />
+    <bpmn:sequenceFlow id="Flow_ToTimer" sourceRef="Gateway_Event" targetRef="Catch_Frist" />
+    <bpmn:sequenceFlow id="Flow_Approved" sourceRef="Catch_Freigabe" targetRef="ServiceTask_Approved" />
+    <bpmn:sequenceFlow id="Flow_Expired" sourceRef="Catch_Frist" targetRef="ServiceTask_Expired" />
+    <bpmn:sequenceFlow id="Flow_ApprovedEnd" sourceRef="ServiceTask_Approved" targetRef="EndEvent_Approved" />
+    <bpmn:sequenceFlow id="Flow_ExpiredEnd" sourceRef="ServiceTask_Expired" targetRef="EndEvent_Expired" />
+    <bpmn:endEvent id="EndEvent_Approved"><bpmn:incoming>Flow_ApprovedEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Expired"><bpmn:incoming>Flow_ExpiredEnd</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

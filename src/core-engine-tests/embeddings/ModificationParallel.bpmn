@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_ModificationParallel" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_ModificationParallel" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:parallelGateway id="Gateway_Fork">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_Left</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Right</bpmn:outgoing>
+    </bpmn:parallelGateway>
+    <bpmn:userTask id="UserTask_Left" name="Links">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="left-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Left</bpmn:incoming>
+      <bpmn:outgoing>Flow_LeftEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:userTask id="UserTask_Right" name="Rechts">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="right-form" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Right</bpmn:incoming>
+      <bpmn:outgoing>Flow_RightEnd</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="EndEvent_Left">
+      <bpmn:incoming>Flow_LeftEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="EndEvent_Right">
+      <bpmn:incoming>Flow_RightEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Gateway_Fork" />
+    <bpmn:sequenceFlow id="Flow_Left" sourceRef="Gateway_Fork" targetRef="UserTask_Left" />
+    <bpmn:sequenceFlow id="Flow_Right" sourceRef="Gateway_Fork" targetRef="UserTask_Right" />
+    <bpmn:sequenceFlow id="Flow_LeftEnd" sourceRef="UserTask_Left" targetRef="EndEvent_Left" />
+    <bpmn:sequenceFlow id="Flow_RightEnd" sourceRef="UserTask_Right" targetRef="EndEvent_Right" />
+  </bpmn:process>
+</bpmn:definitions>

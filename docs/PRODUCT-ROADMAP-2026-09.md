@@ -350,7 +350,11 @@ und Abschluss bleiben identisch.
   Aufgaben über die tatsächliche Mitgliedschaft in geladenen Instanz-Tokens prüfen.
 - [ ] Explizites, am Deployment gespeichertes Expression-Profil, kein stiller
   Semantikwechsel durch V8-Fallback.
-- [ ] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
+- [x] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
+  `GET /operations/incidents` führt liegen gebliebene Aufträge und gescheiterte Instanzen
+  zusammen, `POST /job/{jobId}/retry` gibt einen Auftrag mit korrigierten Eingaben wieder
+  frei und hält Akteur, Zeitpunkt und die Namen der korrigierten Felder fest. Offen bleibt
+  eine Störungshistorie, die das Ende eines Auftrags überdauert (siehe RUNTIME-GAPS.md).
 - [x] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
   Instanz/Aufgaben/Jobs; Mehrprozessbetrieb erst nach Konkurrenztests freigeben.
   Die Konkurrenztests laufen mit zwei getrennten API-Hosts gegen eine Datenbank
@@ -425,7 +429,8 @@ Ablage bleibt ein Vorteil für die Zielgruppe.
 **Konnektoren und Nachfolge:**
 
 - [x] Mitgelieferte Worker: HTTP/REST, E-Mail (#331), eingehender Webhook-Trigger (#336).
-- [ ] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite.
+- [x] Importer für Camunda-7-Modelle (`camunda:*` → `zeebe:*`) und eine Migrationsseite
+  (`docs/CAMUNDA-7-IMPORT.md`, „BPMN-Datei importieren“ im Workflow-Katalog).
 - [x] MPL-2.0 vollziehen (SBOM, Meldestelle), damit die Nachfolge-Positionierung trägt. (#328)
 
 **Später:** Versionsvergleich im Modeler, englische Oberfläche, Mehrmandanten-Hosting.

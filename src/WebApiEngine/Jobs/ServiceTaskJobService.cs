@@ -101,6 +101,45 @@ public sealed class ServiceTaskJobService(
     }
 
     /// <summary>
+    /// Nimmt einen fachlichen Fehler entgegen. Besitz- und Leaseregeln sind dieselben wie beim
+    /// Abschluss: Wer den Auftrag im Moment der Meldung nicht mehr haelt, aendert nichts.
+    /// </summary>
+    public async Task<JobOperationResult> ThrowError(
+        Guid jobId,
+        Guid userId,
+        string workerId,
+        string errorCode,
+        string? errorMessage,
+        Variables? variables)
+    {
+        var lockOwner = BuildLockOwner(userId, workerId);
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            var (job, problem) = await LoadOwnJob(jobId, lockOwner);
+            if (problem is not null)
+            {
+                return problem.Value;
+            }
+
+            await businessLogic.ThrowServiceTaskJobError(job!, errorCode, errorMessage, variables);
+
+            // Der Fehlercode ist eine Eingabe des Workers und bleibt deshalb aus dem Log heraus;
+            // Auftrags- und Benutzerkennung genuegen zur Korrelation.
+            logger.LogInformation(
+                "Auftrag {JobId} hat einen fachlichen BPMN-Fehler gemeldet.",
+                jobId);
+
+            return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Verlaengert eine laufende Lease vom vertrauenswuerdigen Serverzeitpunkt aus. Die Ablage
     /// prueft Besitzer und Ablauf atomar; die Prozesssperre haelt den lokalen Complete-/Fail-
     /// Pfad waehrenddessen fern.
@@ -196,6 +235,43 @@ public sealed class ServiceTaskJobService(
                 job.Retries);
 
             return JobOperationResult.Ok;
+        }
+        finally
+        {
+            _assignmentLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// Gibt einen liegen gebliebenen Auftrag wieder frei. Das ist eine Betriebshandlung, keine
+    /// Worker-Rueckmeldung: Es gibt keine Sperre zu pruefen, denn der Auftrag gehoert gerade
+    /// niemandem.
+    ///
+    /// Laeuft unter derselben Vergabesperre wie Abholen und Zurueckmelden, damit zwischen der
+    /// Vorbedingung und dem Schreiben kein Worker denselben Auftrag uebernimmt. Ueber den frei
+    /// gewordenen Auftrag benachrichtigt derselbe Hintergrunddienst, der auch neue Auftraege
+    /// meldet — er sieht ihn beim naechsten Durchgang wieder als verfuegbar.
+    /// </summary>
+    public async Task<JobRetryResult> Retry(Guid jobId, Guid userId, int retries, Variables? corrections)
+    {
+        var now = timeProvider.GetUtcNow().UtcDateTime;
+
+        await _assignmentLock.WaitAsync();
+        try
+        {
+            var result = await businessLogic.RetryServiceTaskJob(jobId, retries, corrections, userId, now);
+            if (result == JobRetryResult.Ok)
+            {
+                // Die korrigierten Werte bleiben aus dem Log heraus; Auftrag, Person und die Zahl
+                // der Versuche genuegen, um eine Freigabe spaeter zuzuordnen.
+                logger.LogInformation(
+                    "Auftrag {JobId} von Benutzer {OperatorUserId} mit {Retries} Versuchen erneut freigegeben.",
+                    jobId,
+                    userId,
+                    retries);
+            }
+
+            return result;
         }
         finally
         {

@@ -6,7 +6,7 @@ internal class ExclusiveGatewayHandler : DefaultFlowNodeHandler
 {
     public override List<Token> GenerateOutgoingTokens(FlowzerConfig config, InstanceEngine processInstance, Token token)
     {
-        var outgoingSequenceFlows = processInstance.Process.FlowElements
+        var outgoingSequenceFlows = processInstance.GetContainerFlowElements(token)
             .OfType<SequenceFlow>()
             .Where(x => x.SourceRef == token.CurrentFlowNode)
             .ToArray();

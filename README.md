@@ -181,7 +181,7 @@ keinen zweiten Verwaltungsbereich mehr. Flowzer kennt dabei keine konkrete Host-
 
 ## BPMN-Fähigkeitsvertrag
 
-`contracts/bpmn-capabilities/v4.json` beschreibt maschinenlesbar, welche BPMN-
+`contracts/bpmn-capabilities/v8.json` beschreibt maschinenlesbar, welche BPMN-
 Elementarten nur modellierbar beziehungsweise parsebar und welche wirklich ausführbar
 sind. `GET /definition/capabilities` veröffentlicht den Vertrag; Vorabprüfung, Save und
 Deploy erzwingen ihn serverseitig. Strukturierte `422`-Befunde sind im Diagramm und in
@@ -231,18 +231,23 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 - [docs/DEMO.md](docs/DEMO.md) – Console-Demo, Startbefehl und erwartete Ausgabe
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
+- [docs/CAMUNDA-7-IMPORT.md](docs/CAMUNDA-7-IMPORT.md) – Camunda-7-Modelle übernehmen: Mapping nach `zeebe:*`, was verloren geht, External Tasks ↔ Flowzer-Aufträge
+- [docs/BPMN-MIWG-COVERAGE.md](docs/BPMN-MIWG-COVERAGE.md) – Nachweis gegen die Referenzmodelle der BPMN MIWG: was Flowzer liest, veröffentlichen würde und ausführt
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
 - [docs/ANALYTICS.md](docs/ANALYTICS.md) – Auswertungen auf der Laufzeithistorie: Durchlaufzeit, Engpässe, Ausgang, samt Grenzen
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/CALL-ACTIVITY.md](docs/CALL-ACTIVITY.md) – lokale Aufruf-Aktivität: ein Prozess ruft einen anderen auf und wartet auf sein Ende
 - [docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md) – Prozesspakete: Format, Import-Semantik, Zuordnungen und was nie mitreist
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
+- [docs/INSTANCE-MODIFICATION.md](docs/INSTANCE-MODIFICATION.md) – in derselben Version einen wartenden Schritt verschieben und Variablen korrigieren
+- [docs/CONNECTORS.md](docs/CONNECTORS.md) – mitgelieferte HTTP- und E-Mail-Worker: Aktivierung, Freigabelisten, Secrets und Fehlerabbildung
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
 - [docs/INBOUND-TRIGGERS.md](docs/INBOUND-TRIGGERS.md) – Workflows von außen starten: signierte Webhook-Auslöser ohne Anmeldung
-- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform und bewusste Abweichungen von Camunda
+- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform, Entscheidungskatalog und Business-Rule-Task
 - [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md) – hostneutraler TypeScript-Client für Aufgaben- und Formularintegration
 - [packages/flowzer-react/README.md](packages/flowzer-react/README.md) – optionale darstellungsfreie React-Hooks und Controller
 - [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md) – Eigentums-, Authentisierungs-, Cache- und Integrationsgrenzen

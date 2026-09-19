@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Model;
+using WebApiEngine.Connectors;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ public class OperationsController(
     IStorageSystem storageSystem,
     IHostEnvironment environment,
     TimerSchedulerDiagnosticsState timerSchedulerDiagnosticsState,
+    ConnectorDiagnosticsState connectorDiagnosticsState,
     InstanceRetentionDiagnosticsState instanceRetentionDiagnosticsState,
     IOptions<FlowzerObservabilityOptions> observabilityOptions,
     WebApiEngine.Persistence.FlowzerStorageOptions storageOptions,
@@ -36,6 +38,7 @@ public class OperationsController(
                 .ToArray();
             var messages = (await storageSystem.SubscriptionStorage.GetAllMessageSubscriptions()).ToArray();
             var timers = (await storageSystem.SubscriptionStorage.GetAllTimerSubscriptions()).ToArray();
+            var stalledJobs = (await storageSystem.ServiceTaskStorage.GetJobs()).Count(IsStalled);
 
             var payload = new OperationsDiagnosticsDto
             {
@@ -67,6 +70,14 @@ public class OperationsController(
                     PendingSignals = activeInstances.Sum(instance => instance.SignalSubscriptionCount),
                     PendingServices = activeInstances.Sum(instance => instance.ServiceSubscriptionCount)
                 },
+                // Nur die Zaehler, nicht die Liste: Die Betriebsseite zeigt damit die Kachel
+                // „Stoerungen", ohne fuer jeden Abruf die Eingaben aller liegen gebliebenen
+                // Auftraege mitzuladen.
+                Incidents = new OperationsIncidentCountersDto
+                {
+                    JobExhausted = stalledJobs,
+                    InstanceFailed = instances.Count(instance => instance.State is ProcessInstanceState.Failed)
+                },
                 TimerScheduler = timerSchedulerDiagnosticsState.GetSnapshot(),
                 Retention = instanceRetentionDiagnosticsState.GetSnapshot(),
                 Instrumentation = new OperationsInstrumentationDto
@@ -76,7 +87,8 @@ public class OperationsController(
                     Notes =
                         "Die lokale Diagnosebasis bleibt klein, kann jetzt aber optional über OpenTelemetry-Exporter nach außen angebunden werden."
                 },
-                Observability = CreateObservabilitySnapshot(observabilityOptions.Value)
+                Observability = CreateObservabilitySnapshot(observabilityOptions.Value),
+                Connectors = connectorDiagnosticsState.GetSnapshot()
             };
 
             activity?.SetTag("flowzer.instances.total", payload.Storage.TotalInstances);
@@ -94,6 +106,107 @@ public class OperationsController(
                 ErrorMessage = "Operations diagnostics are currently unavailable."
             });
         }
+    }
+
+    /// <summary>
+    /// Alles, was ohne einen Eingriff liegen bleibt — an einer Stelle, neueste Störung zuerst.
+    ///
+    /// Die Liste wird abgeleitet und nicht geführt: Ein Auftrag ohne verbleibende Versuche und
+    /// eine gescheiterte Instanz sind bereits vollständig beschrieben. Eine eigene Tabelle
+    /// daneben könnte nur noch veralten und müsste bei jedem Abbruch, jeder Migration und jedem
+    /// Neustart mitgepflegt werden.
+    ///
+    /// KI-Läufe stehen hier bewusst nicht: Sie haben einen eigenen Lauf- und Freigabevertrag.
+    /// </summary>
+    [HttpGet("incidents")]
+    public async Task<ActionResult<ApiStatusResult<OperationsIncidentDto[]>>> GetIncidents()
+    {
+        using var activity = FlowzerDiagnostics.ActivitySource.StartActivity("operations.incidents", ActivityKind.Internal);
+
+        try
+        {
+            var metaNames = (await storageSystem.DefinitionStorage.GetAllMetaDefinitions())
+                .GroupBy(metaDefinition => metaDefinition.DefinitionId)
+                .ToDictionary(group => group.Key, group => group.First().Name);
+            var jobs = (await storageSystem.ServiceTaskStorage.GetJobs()).Where(IsStalled);
+            var failedInstances = (await storageSystem.InstanceStorage.GetAllInstances())
+                .Where(instance => instance.State is ProcessInstanceState.Failed);
+
+            var incidents = jobs.Select(job => ToIncident(job, metaNames))
+                .Concat(failedInstances.Select(instance => ToIncident(instance, metaNames)))
+                .OrderByDescending(incident => incident.Since)
+                .ToArray();
+
+            activity?.SetTag("flowzer.incidents.total", incidents.Length);
+
+            return Ok(new ApiStatusResult<OperationsIncidentDto[]>(incidents));
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Could not build the operations incident list.");
+
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiStatusResult<OperationsIncidentDto[]>
+            {
+                Successful = false,
+                ErrorMessage = "The operations incident list is currently unavailable."
+            });
+        }
+    }
+
+    /// <summary>
+    /// Ein Auftrag liegt, wenn seine Versuche verbraucht sind. Eine noch laufende Sperre zählt
+    /// nicht dagegen: Sie wäre an einem Auftrag ohne Versuche ein Rest aus einem abgebrochenen
+    /// Anlauf und darf die Störung nicht verstecken.
+    /// </summary>
+    private static bool IsStalled(ServiceTaskJob job) => job.Retries <= 0;
+
+    private static OperationsIncidentDto ToIncident(ServiceTaskJob job, IReadOnlyDictionary<string, string> metaNames) =>
+        new()
+        {
+            Kind = OperationsIncidentKinds.JobExhausted,
+            InstanceId = job.ProcessInstanceId,
+            MetaDefinitionId = job.MetaDefinitionId,
+            DefinitionId = job.DefinitionId,
+            DefinitionName = metaNames.GetValueOrDefault(job.MetaDefinitionId, job.MetaDefinitionId),
+            FlowNodeId = job.FlowNodeId,
+            FlowNodeName = string.IsNullOrWhiteSpace(job.Name) ? job.FlowNodeId : job.Name,
+            JobId = job.Id,
+            JobType = job.Type,
+            Message = job.LastErrorMessage,
+            Since = job.RetryAt ?? job.CreatedAt,
+            ManualRetries = job.RetryHistory.Count,
+            Variables = job.Variables is null
+                ? []
+                : ((IDictionary<string, object?>)job.Variables).ToDictionary(entry => entry.Key, entry => entry.Value)
+        };
+
+    private static OperationsIncidentDto ToIncident(
+        ProcessInstanceInfo instance,
+        IReadOnlyDictionary<string, string> metaNames)
+    {
+        // Der Knoten, an dem es aufgehört hat. Das Master-Token scheitert mit, trägt aber den
+        // Prozess und nicht den Schritt; gesucht ist deshalb das jüngste gescheiterte Token
+        // darunter.
+        var failedNode = instance.Tokens
+            .Where(token => token.State == FlowNodeState.Failed && token.ParentTokenId is not null)
+            .OrderByDescending(token => token.LastStateChangeTime)
+            .Select(token => token.CurrentFlowNode)
+            .FirstOrDefault(flowNode => flowNode is not null);
+
+        return new OperationsIncidentDto
+        {
+            Kind = OperationsIncidentKinds.InstanceFailed,
+            InstanceId = instance.InstanceId,
+            MetaDefinitionId = instance.metaDefinitionId,
+            DefinitionId = instance.DefinitionId,
+            DefinitionName = metaNames.GetValueOrDefault(instance.metaDefinitionId, instance.metaDefinitionId),
+            FlowNodeId = failedNode?.Id,
+            FlowNodeName = string.IsNullOrWhiteSpace(failedNode?.Name) ? failedNode?.Id : failedNode.Name,
+            Message = instance.FailureReason,
+            Since = instance.Tokens.Count == 0
+                ? DateTime.UtcNow
+                : instance.Tokens.Max(token => token.LastStateChangeTime)
+        };
     }
 
     private static string ResolveStorageRootHint(IHostEnvironment environment)

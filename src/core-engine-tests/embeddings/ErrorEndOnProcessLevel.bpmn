@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_ErrorEndOnProcessLevel" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:error id="Error_Fachlich" name="Antrag unvollstaendig" errorCode="ANTRAG_UNVOLLSTAENDIG" />
+  <bpmn:process id="Process_ErrorEndOnProcessLevel" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:endEvent id="ErrorEnd_1" name="Fachlich gescheitert">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:errorEventDefinition id="ErrorEventDefinition_1" errorRef="Error_Fachlich" />
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="ErrorEnd_1" />
+  </bpmn:process>
+</bpmn:definitions>
