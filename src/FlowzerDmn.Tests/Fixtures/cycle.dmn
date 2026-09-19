@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Zwei Decisions, die einander brauchen. Das muss beim Parsen auffallen. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="cycleDefinitions"
+             name="Zyklus"
+             namespace="http://flowzer.maass.it/dmn/cycle">
+  <decision id="first" name="Erste">
+    <variable name="first"/>
+    <informationRequirement id="firstNeedsSecond">
+      <requiredDecision href="#second"/>
+    </informationRequirement>
+    <literalExpression id="firstExpression">
+      <text>second + 1</text>
+    </literalExpression>
+  </decision>
+  <decision id="second" name="Zweite">
+    <variable name="second"/>
+    <informationRequirement id="secondNeedsFirst">
+      <requiredDecision href="#first"/>
+    </informationRequirement>
+    <literalExpression id="secondExpression">
+      <text>first + 1</text>
+    </literalExpression>
+  </decision>
+</definitions>
