@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Eine Decision mit einer boxed expression, die diese Ausbaustufe nicht kennt. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="unsupportedDefinitions"
+             name="Nicht unterstuetzt"
+             namespace="http://flowzer.maass.it/dmn/unsupported">
+  <decision id="invocationDecision" name="Aufruf">
+    <variable name="result"/>
+    <invocation id="unsupportedInvocation">
+      <literalExpression id="unsupportedInvocationBody">
+        <text>berechneRabatt</text>
+      </literalExpression>
+    </invocation>
+  </decision>
+</definitions>

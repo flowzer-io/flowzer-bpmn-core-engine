@@ -15,9 +15,11 @@ import { ErrorState, Skeleton } from '@/components/ui/States';
 import { FolderDelegationDialog } from '@/components/workflows/FolderDelegationDialog';
 import { FolderDialog } from '@/components/workflows/FolderDialog';
 import { FolderTree, WORKFLOW_DRAG_TYPE } from '@/components/workflows/FolderTree';
+import { ImportPackageDialog } from '@/components/workflows/ImportPackageDialog';
 import { MoveWorkflowDialog } from '@/components/workflows/MoveWorkflowDialog';
 import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
 import { StartWorkflowDialog } from '@/components/workflows/StartWorkflowDialog';
+import { WorkflowRetentionDialog } from '@/components/workflows/WorkflowRetentionDialog';
 import { useStartWorkflow } from '@/components/workflows/useStartWorkflow';
 import {
   useCreateDefinition,
@@ -25,9 +27,11 @@ import {
   useDefinitions,
   useDeleteDefinition,
   useDeleteFolder,
+  useExportPackage,
   useFolders,
   useInstances,
   useMoveDefinition,
+  useUpdateDefinitionMeta,
   useUpdateFolder,
   useUpdateFolderAssignments,
 } from '@/lib/api/queries';
@@ -40,6 +44,7 @@ import type {
 import { instanceBucket } from '@/lib/api/normalize';
 import { ancestorIds, folderPath, pathLabel, sortByPath } from '@/lib/folderTree';
 import { formatRelative, parseApiDate } from '@/lib/format';
+import { saveFile } from '@/lib/saveFile';
 import { iconForLabel } from '@/lib/taskView';
 import { useCan } from '@/stores/session';
 
@@ -94,7 +99,9 @@ export function WorkflowsPage() {
   const createDefinition = useCreateDefinition();
   const deleteDefinition = useDeleteDefinition();
   const moveDefinition = useMoveDefinition();
+  const updateDefinitionMeta = useUpdateDefinitionMeta();
   const startWorkflow = useStartWorkflow();
+  const exportPackage = useExportPackage();
   const createFolder = useCreateFolder();
   const updateFolder = useUpdateFolder();
   const deleteFolder = useDeleteFolder();
@@ -106,11 +113,13 @@ export function WorkflowsPage() {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [folderDialog, setFolderDialog] = useState<{ folder: WorkflowFolderDto | null } | null>(null);
   const [delegating, setDelegating] = useState<WorkflowFolderDto | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
   const [pendingFolderDelete, setPendingFolderDelete] = useState<WorkflowFolderDto | null>(null);
   const [moving, setMoving] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
+  const [retentionFor, setRetentionFor] = useState<ExtendedBpmnMetaDefinitionDto | null>(null);
 
   const selectedFolder = folders.find((folder) => folder.id === selectedFolderId) ?? null;
 
@@ -207,6 +216,24 @@ export function WorkflowsPage() {
     );
   }
 
+  /**
+   * Laedt den Workflow als Paket herunter. Bewusst ueber die API und nicht ueber einen
+   * Link: Der Download braucht dieselbe Anmeldung wie jeder andere Aufruf, und ein Fehler
+   * soll als Meldung ankommen und nicht als unlesbare Datei im Downloadordner.
+   */
+  function exportPaket(definitionId: string, name: string) {
+    exportPackage.mutate(definitionId, {
+      onSuccess: (file) => {
+        saveFile(file);
+        toast.success(`„${name}" als Paket gespeichert`);
+      },
+      onError: (error) =>
+        toast.error('Paket konnte nicht erstellt werden', {
+          description: error instanceof Error ? error.message : undefined,
+        }),
+    });
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -233,6 +260,20 @@ export function WorkflowsPage() {
             >
               Ordner
             </Button>
+            {mayPublish && (
+              <Button
+                icon="inventory_2"
+                disabled={!mayEditHere}
+                title={
+                  mayEditHere
+                    ? 'Einen Workflow samt Formularen aus einer Paketdatei übernehmen.'
+                    : 'In diesem Ordner dürfen Sie keine Workflows anlegen.'
+                }
+                onClick={() => setImporting(true)}
+              >
+                Paket importieren
+              </Button>
+            )}
             <Button
               variant="primary"
               icon="add"
@@ -469,6 +510,19 @@ export function WorkflowsPage() {
                       >
                         Bearbeiten
                       </Button>
+                      <Button
+                        size="sm"
+                        icon="inventory_2"
+                        title={`„${definition.name}" als Paket exportieren`}
+                        className="w-[38px] px-0"
+                        loading={exportPackage.isPending && exportPackage.variables === definition.definitionId}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          exportPaket(definition.definitionId, definition.name);
+                        }}
+                      >
+                        <span className="sr-only">{definition.name} als Paket exportieren</span>
+                      </Button>
                       {mayEditThis && (
                         <Button
                           size="sm"
@@ -481,6 +535,20 @@ export function WorkflowsPage() {
                           }}
                         >
                           <span className="sr-only">{definition.name} verschieben</span>
+                        </Button>
+                      )}
+                      {mayEditThis && (
+                        <Button
+                          size="sm"
+                          icon="schedule"
+                          title={`Aufbewahrung für „${definition.name}" festlegen`}
+                          className="w-[38px] px-0"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setRetentionFor(definition);
+                          }}
+                        >
+                          <span className="sr-only">Aufbewahrung für {definition.name} festlegen</span>
                         </Button>
                       )}
                       {mayEditThis && (
@@ -531,6 +599,23 @@ export function WorkflowsPage() {
             },
           )
         }
+      />
+
+      <ImportPackageDialog
+        open={importing}
+        onOpenChange={setImporting}
+        folders={folders}
+        selectedFolderId={selectedFolderId}
+        mayUseRoot={mayPublish}
+        onImported={(result) =>
+          toast.success(`„${result.name}" importiert`, {
+            description: 'Der Workflow ist angelegt, aber noch nicht veröffentlicht.',
+          })
+        }
+        onOpenInModeler={(definitionId) => {
+          setImporting(false);
+          void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}` });
+        }}
       />
 
       <FolderDialog
@@ -614,6 +699,39 @@ export function WorkflowsPage() {
         onSubmit={(folderId) => {
           if (!moving) return;
           moveWorkflow(moving.definitionId, folderId, moving.name);
+        }}
+      />
+
+      <WorkflowRetentionDialog
+        open={retentionFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setRetentionFor(null);
+        }}
+        workflowName={retentionFor?.name ?? ''}
+        retentionDays={retentionFor?.retentionDays ?? null}
+        busy={updateDefinitionMeta.isPending}
+        onSubmit={(retentionDays) => {
+          if (!retentionFor) return;
+          // Name und Beschreibung werden unveraendert mitgeschickt: PUT /definition/meta
+          // ersetzt den Katalogeintrag, ein Weglassen loeschte sie.
+          updateDefinitionMeta.mutate(
+            {
+              definitionId: retentionFor.definitionId,
+              name: retentionFor.name,
+              description: retentionFor.description ?? null,
+              retentionDays,
+            },
+            {
+              onSuccess: () => {
+                setRetentionFor(null);
+                toast.success('Aufbewahrung gespeichert');
+              },
+              onError: (error) =>
+                toast.error('Aufbewahrung konnte nicht gespeichert werden', {
+                  description: error instanceof Error ? error.message : undefined,
+                }),
+            },
+          );
         }}
       />
 

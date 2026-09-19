@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Datei mit Diagrammteil, wie sie ein Editor speichert. DMNDI wird nicht
+     ausgewertet, darf aber auch nicht stoeren. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:di="http://www.omg.org/spec/DMN/20180521/DI/"
+             id="diagramDefinitions"
+             name="Mit Diagramm"
+             namespace="http://flowzer.maass.it/dmn/diagram">
+  <decision id="diagramDecision" name="Ampel">
+    <variable name="signal" typeRef="string"/>
+    <decisionTable id="diagramTable" hitPolicy="UNIQUE">
+      <input id="diagramInputSpeed">
+        <inputExpression id="diagramInputSpeedExpression" typeRef="number">
+          <text>speed</text>
+        </inputExpression>
+      </input>
+      <output id="diagramOutput" name="signal" typeRef="string"/>
+      <rule id="diagramRuleSlow">
+        <inputEntry id="diagramRuleSlowSpeed"><text>&lt;= 50</text></inputEntry>
+        <outputEntry id="diagramRuleSlowOut"><text>"gruen"</text></outputEntry>
+      </rule>
+      <rule id="diagramRuleFast">
+        <inputEntry id="diagramRuleFastSpeed"><text>&gt; 50</text></inputEntry>
+        <outputEntry id="diagramRuleFastOut"><text>"rot"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <dmndi:DMNDI>
+    <dmndi:DMNDiagram id="diagram">
+      <dmndi:DMNShape id="diagramShape" dmnElementRef="diagramDecision">
+        <dc:Bounds height="80" width="180" x="160" y="100"/>
+      </dmndi:DMNShape>
+    </dmndi:DMNDiagram>
+  </dmndi:DMNDI>
+</definitions>

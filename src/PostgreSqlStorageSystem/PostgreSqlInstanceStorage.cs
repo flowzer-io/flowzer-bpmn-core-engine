@@ -48,6 +48,13 @@ internal sealed class PostgreSqlInstanceStorage(PostgreSqlSession session) : IIn
 
     public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => Query("SELECT body FROM {schema}.instances");
 
+    /// <summary>
+    /// Nutzt den vorhandenen Index auf <c>is_finished</c>. Ein Aufbewahrungslauf laedt damit nur
+    /// die beendeten Instanzen und nicht bei jedem Durchgang den gesamten Bestand.
+    /// </summary>
+    public Task<IEnumerable<ProcessInstanceInfo>> GetAllFinishedInstances() =>
+        Query("SELECT body FROM {schema}.instances WHERE is_finished = true");
+
     public Task DeleteInstance(Guid processInstanceId) => session.RunAsync(async (connection, transaction) =>
     {
         await using var command = session.CreateCommand(connection, transaction, "DELETE FROM {schema}.instances WHERE instance_id = @id");

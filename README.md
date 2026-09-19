@@ -205,6 +205,17 @@ persistenten Aktionsjournal und parametergebundenen Freigaben bewusst gesperrt.
 Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 [docs/AI-TASKS.md](docs/AI-TASKS.md).
 
+## Prozesspakete
+
+Ein Workflow lässt sich als **ein Paket** herunterladen und in eine andere Installation
+tragen — Vorlagen weitergeben, Test nach Produktion, Partner. Das Paket
+(`flowzer.process-package/1`) enthält das BPMN der exportierten Fassung, die daran
+gebundenen Formulare und ein Manifest. Es enthält **niemals** Secrets, Instanzen, Aufgaben,
+Historie oder Personenkennungen: Verzeichniszuweisungen und KI-Verbindungen stehen nur mit
+ihrem Anzeigenamen im Manifest und als Platzhalter im Modell. Beim Import werden sie
+ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
+[docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md).
+
 ## Release und Deployment
 
 `main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
@@ -221,13 +232,17 @@ Details: [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) und
 - [docs/GLIEDERUNG-TEILMENGE.md](docs/GLIEDERUNG-TEILMENGE.md) – Gliederungsansicht neben dem Diagramm: abgedeckte BPMN-Teilmenge und wie Verluste verhindert werden
 - [docs/BPMN-CAPABILITIES.md](docs/BPMN-CAPABILITIES.md) – versionierter Vertrag zwischen Modeler, Parser, Validierung und Runtime
 - [docs/RUNTIME-DIAGRAM.md](docs/RUNTIME-DIAGRAM.md) – objektberechtigte, versionstreue Laufzeitprojektion und datensparsame Engine-Ereignisspur
+- [docs/ANALYTICS.md](docs/ANALYTICS.md) – Auswertungen auf der Laufzeithistorie: Durchlaufzeit, Engpässe, Ausgang, samt Grenzen
 - [docs/AI-CONNECTIONS.md](docs/AI-CONNECTIONS.md) – sichere KI-Verbindungsmetadaten, Secret-Store und Rollen
 - [docs/AI-TASKS.md](docs/AI-TASKS.md) – versionierter KI-Aufgabenvertrag und bewusste Runtime-Grenze
 - [docs/FORM-SECTIONS.md](docs/FORM-SECTIONS.md) – versionierte, serverseitig gebundene Formularabschnitte
 - [docs/USER-TASK-DRAFTS.md](docs/USER-TASK-DRAFTS.md) – private, revisionsgeschützte Aufgabenentwürfe
+- [docs/PROCESS-PACKAGES.md](docs/PROCESS-PACKAGES.md) – Prozesspakete: Format, Import-Semantik, Zuordnungen und was nie mitreist
 - [docs/INSTANCE-MIGRATION.md](docs/INSTANCE-MIGRATION.md) – laufende Instanzen bewusst auf die deployte Version heben
 - [docs/HUMAN-TASK-LIFECYCLE.md](docs/HUMAN-TASK-LIFECYCLE.md) – Übernahme, Freigabe, Zuweisung und Delegation
 - [docs/HUMAN-TASK-DEADLINES.md](docs/HUMAN-TASK-DEADLINES.md) – serverseitige Fristen, Wiedervorlagen und deduplizierte Benachrichtigungen
+- [docs/INBOUND-TRIGGERS.md](docs/INBOUND-TRIGGERS.md) – Workflows von außen starten: signierte Webhook-Auslöser ohne Anmeldung
+- [docs/DMN.md](docs/DMN.md) – Entscheidungstabellen: Parser, Hit-Policies, Ergebnisform und bewusste Abweichungen von Camunda
 - [packages/flowzer-sdk/README.md](packages/flowzer-sdk/README.md) – hostneutraler TypeScript-Client für Aufgaben- und Formularintegration
 - [packages/flowzer-react/README.md](packages/flowzer-react/README.md) – optionale darstellungsfreie React-Hooks und Controller
 - [docs/HOST-INTEGRATION.md](docs/HOST-INTEGRATION.md) – Eigentums-, Authentisierungs-, Cache- und Integrationsgrenzen
@@ -349,6 +364,25 @@ Zusätzlich zur Dev-Compose-Variante gibt es jetzt auch eine runtime-nahe Contai
 ```
 
 Der Runtime-Gateway-Stack ist anschließend standardmäßig unter [http://localhost:5288](http://localhost:5288) erreichbar.
+
+## Betriebskommandos
+
+```bash
+# Konfiguration einer Installation prüfen, ohne die API zu starten.
+# Exit-Code: 0 = in Ordnung, 1 = Fehler, 2 = nur Warnungen.
+dotnet WebApiEngine.dll --check-config
+
+# PostgreSQL-Migrationen als eigener, wiederholbarer Schritt anwenden.
+dotnet WebApiEngine.dll --migrate
+
+# Sichern und wiederherstellen (PostgreSQL plus Dateiablage und Keyring).
+./scripts/runtime/backup.sh --schema flowzer
+./scripts/runtime/restore.sh backups/<zeitstempel>.dump --schema flowzer
+```
+
+Reihenfolge bei einem Update: sichern → `--check-config` → `--migrate` → Replikate heben.
+Details in [docs/OPERATIONS.md](docs/OPERATIONS.md#konfigurationsprüfung---check-config)
+und im [Runbook](docs/RUNBOOK-PILOT.md).
 
 ## Beispiele
 
