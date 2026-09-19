@@ -932,6 +932,14 @@ Die Web-API stellt aktuell folgende Endpunkte bereit:
 Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_migrations`
 gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
 Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja geantwortet.
+Die Laufzeitrolle braucht dafür `SELECT` auf `schema_migrations`; das Rollenskript
+`deploy/postgresql/01-datenbank-und-rollen.sql` vergibt es. Installationen, deren Rollen
+vor diesem Paket angelegt wurden, meldeten dauerhaft `Unknown` und holen das Recht einmalig
+nach (als Superuser bzw. Migrationsrolle):
+
+```sql
+GRANT SELECT ON TABLE flowzer.schema_migrations TO <laufzeitrolle>;
+```
 `Pending` ist ebenfalls kein 503: Ein Replikat, das vor dem Migrationsschritt hochkommt,
 soll sichtbar sein, nicht unsichtbar. Für ein Deployment-Gate ist deshalb `details`
 auszuwerten, nicht der Statuscode. Die Antwort enthält keine Verbindungszeichenfolge und
