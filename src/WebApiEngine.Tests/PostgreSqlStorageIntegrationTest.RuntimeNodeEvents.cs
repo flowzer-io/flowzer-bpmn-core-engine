@@ -46,16 +46,57 @@ public partial class PostgreSqlStorageIntegrationTest
         (await reader.RuntimeNodeEventStorage.GetByProcessInstance(item.ProcessInstanceId)).Should().BeEmpty();
     }
 
-    private static RuntimeNodeEvent CreateRuntimeNodeEvent() => new()
+    // Testzweck: Die Auswertungsabfrage liest je gebundener Version und Zeitraum — der Anfang
+    // zaehlt mit, das Ende nicht —, sie beantwortet mehrere Versionen in einem Lauf und laesst
+    // fremde Versionen draussen. Die Reihenfolge bleibt die stabile Zeitreihenfolge.
+    [Test]
+    public async Task RuntimeNodeEvents_ShouldBeQueryableByDefinitionAndPeriod()
+    {
+        var wanted = Guid.NewGuid();
+        var alsoWanted = Guid.NewGuid();
+        var origin = DateTimeOffset.Parse("2026-09-19T12:00:00Z");
+        var atStart = CreateRuntimeNodeEvent(wanted, origin.AddHours(-1));
+        var inside = CreateRuntimeNodeEvent(alsoWanted, origin);
+        var atEnd = CreateRuntimeNodeEvent(wanted, origin.AddHours(1));
+        var tooEarly = CreateRuntimeNodeEvent(wanted, origin.AddHours(-2));
+        var otherVersion = CreateRuntimeNodeEvent(Guid.NewGuid(), origin);
+        using var writer = new PostgreSqlStorage(_dataSource!, Schema);
+        foreach (var item in new[] { atStart, inside, atEnd, tooEarly, otherVersion })
+        {
+            (await writer.RuntimeNodeEventStorage.AppendIfAbsent(item)).Should().BeTrue();
+        }
+
+        using var reader = new PostgreSqlStorage(_dataSource!, Schema);
+        var stored = await reader.RuntimeNodeEventStorage.GetByDefinitionIds(
+            [wanted, alsoWanted], origin.AddHours(-1), origin.AddHours(1));
+
+        stored.Select(item => item.Id).Should().Equal(atStart.Id, inside.Id);
+    }
+
+    // Testzweck: Ohne Versionsauswahl darf die Ablage nicht den ganzen Bestand liefern — und
+    // schon gar keine Abfrage ohne Einschraenkung absetzen.
+    [Test]
+    public async Task RuntimeNodeEvents_ShouldReturnNothingForAnEmptyDefinitionSelection()
+    {
+        using var storage = new PostgreSqlStorage(_dataSource!, Schema);
+        await storage.RuntimeNodeEventStorage.AppendIfAbsent(CreateRuntimeNodeEvent());
+
+        (await storage.RuntimeNodeEventStorage.GetByDefinitionIds(
+            [], DateTimeOffset.UnixEpoch, DateTimeOffset.UtcNow.AddYears(1))).Should().BeEmpty();
+    }
+
+    private static RuntimeNodeEvent CreateRuntimeNodeEvent(
+        Guid? definitionId = null,
+        DateTimeOffset? occurredAtUtc = null) => new()
     {
         Id = Guid.NewGuid(),
         ProcessInstanceId = Guid.NewGuid(),
-        DefinitionId = Guid.NewGuid(),
+        DefinitionId = definitionId ?? Guid.NewGuid(),
         TokenId = Guid.NewGuid(),
         FlowNodeId = "ReviewTask",
         State = FlowNodeState.Completed,
         CorrelationId = Guid.NewGuid(),
-        OccurredAtUtc = DateTimeOffset.UtcNow
+        OccurredAtUtc = occurredAtUtc ?? DateTimeOffset.UtcNow
     };
 
     private static StorageSystem.ProcessInstanceInfo CreateRuntimeEventInstance(RuntimeNodeEvent item) => new()

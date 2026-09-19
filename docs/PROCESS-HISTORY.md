@@ -79,3 +79,11 @@ Grenzen der Dateiablage stehen in [OPERATIONS.md](OPERATIONS.md), Abschnitt
 - Archivierung oder Export vor dem Löschen gibt es nicht. Wer eine Historie über die
   Frist hinaus braucht, holt sie vorher über `GET /instance/{id}/history` ab oder nimmt
   den betroffenen Workflow mit `retentionDays = 0` von der Aufbewahrung aus.
+
+## Verwandte Auswertungen
+
+Die Human-Task-Auditspur beantwortet, was an *einem* Vorgang geschah. Die Frage, wie
+lange Vorgänge *insgesamt* dauern und wo sie warten, beantwortet die verdichtete
+Betriebsauswertung unter `/operations/analytics` aus der datensparsamen
+Engine-Ereignisspur — ohne Personenbezug und ohne einzelne Instanzen. Kennzahlen,
+Datenquelle und Grenzen stehen in [ANALYTICS.md](ANALYTICS.md).

@@ -5803,6 +5803,146 @@
         }
       }
     },
+    "/operations/analytics/workflows": {
+      "get": {
+        "tags": [
+          "OperationsAnalytics"
+        ],
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/operations/analytics/workflows/{metaDefinitionId}": {
+      "get": {
+        "tags": [
+          "OperationsAnalytics"
+        ],
+        "parameters": [
+          {
+            "name": "metaDefinitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "definitionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowAnalyticsDetailDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Timer": {
       "get": {
         "tags": [
@@ -6895,6 +7035,29 @@
         "type": "integer",
         "format": "int32"
       },
+      "AnalyticsDayPointDto": {
+        "required": [
+          "day",
+          "finishedCount",
+          "startedCount"
+        ],
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date"
+          },
+          "startedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "finishedCount": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "ApiProblemDetails": {
         "type": "object",
         "properties": {
@@ -7540,6 +7703,39 @@
         },
         "additionalProperties": false
       },
+      "DurationStatisticsDto": {
+        "required": [
+          "maxSeconds",
+          "meanSeconds",
+          "medianSeconds",
+          "p90Seconds",
+          "sampleCount"
+        ],
+        "type": "object",
+        "properties": {
+          "sampleCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "medianSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "p90Seconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "meanSeconds": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxSeconds": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
       "ExtendedBpmnMetaDefinitionDto": {
         "required": [
           "definitionId",
@@ -7821,6 +8017,36 @@
           "lockSeconds": {
             "type": "integer",
             "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "FlowNodeAnalyticsDto": {
+        "required": [
+          "executionCount",
+          "flowNodeId",
+          "waitingTokenCount"
+        ],
+        "type": "object",
+        "properties": {
+          "flowNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "executionCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waitingTokenCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "waitTime": {
+            "$ref": "#/components/schemas/DurationStatisticsDto"
           }
         },
         "additionalProperties": false
@@ -10719,6 +10945,158 @@
         },
         "additionalProperties": false
       },
+      "WorkflowAnalyticsDetailDto": {
+        "required": [
+          "fromUtc",
+          "nodes",
+          "summary",
+          "timeline",
+          "toUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsSummaryDto"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "namingDefinitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FlowNodeAnalyticsDto"
+            },
+            "nullable": true
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsDayPointDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsDetailDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsDetailDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsOverviewDto": {
+        "required": [
+          "fromUtc",
+          "toUtc",
+          "workflows"
+        ],
+        "type": "object",
+        "properties": {
+          "fromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "toUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowAnalyticsSummaryDto"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsOverviewDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/WorkflowAnalyticsOverviewDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkflowAnalyticsSummaryDto": {
+        "required": [
+          "cancelledCount",
+          "completedCount",
+          "failedCount",
+          "metaDefinitionId",
+          "name",
+          "runningCount",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "metaDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runningCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelledCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cycleTime": {
+            "$ref": "#/components/schemas/DurationStatisticsDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "WorkflowFolderDto": {
         "required": [
           "id",
@@ -10888,6 +11266,9 @@
     },
     {
       "name": "Operations"
+    },
+    {
+      "name": "OperationsAnalytics"
     },
     {
       "name": "Timer"
