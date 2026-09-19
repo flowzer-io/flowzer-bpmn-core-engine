@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Dieselben Rabattregeln, fuenfmal mit unterschiedlicher Verdichtung. So laesst sich
+     COLLECT mit und ohne Aggregation an einem Datensatz vergleichen. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="collectDefinitions"
+             name="Rabatte"
+             namespace="http://flowzer.maass.it/dmn/collect">
+  <decision id="collectList" name="Rabattliste">
+    <variable name="discounts"/>
+    <decisionTable id="collectListTable" hitPolicy="COLLECT">
+      <input id="collectListCustomer">
+        <inputExpression id="collectListCustomerExpression" typeRef="string">
+          <text>customerType</text>
+        </inputExpression>
+      </input>
+      <input id="collectListOrder">
+        <inputExpression id="collectListOrderExpression" typeRef="number">
+          <text>orderSize</text>
+        </inputExpression>
+      </input>
+      <output id="collectListOutput" name="discount" typeRef="number"/>
+      <rule id="collectListBusiness">
+        <inputEntry id="collectListBusinessCustomer"><text>"Business"</text></inputEntry>
+        <inputEntry id="collectListBusinessOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectListBusinessOut"><text>5</text></outputEntry>
+      </rule>
+      <rule id="collectListLargeOrder">
+        <inputEntry id="collectListLargeOrderCustomer"><text>-</text></inputEntry>
+        <inputEntry id="collectListLargeOrderOrder"><text>&gt; 10</text></inputEntry>
+        <outputEntry id="collectListLargeOrderOut"><text>3</text></outputEntry>
+      </rule>
+      <rule id="collectListPrivate">
+        <inputEntry id="collectListPrivateCustomer"><text>"Private"</text></inputEntry>
+        <inputEntry id="collectListPrivateOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectListPrivateOut"><text>1</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="collectSum" name="Rabattsumme">
+    <variable name="totalDiscount" typeRef="number"/>
+    <decisionTable id="collectSumTable" hitPolicy="COLLECT" aggregation="SUM">
+      <input id="collectSumCustomer">
+        <inputExpression id="collectSumCustomerExpression" typeRef="string">
+          <text>customerType</text>
+        </inputExpression>
+      </input>
+      <input id="collectSumOrder">
+        <inputExpression id="collectSumOrderExpression" typeRef="number">
+          <text>orderSize</text>
+        </inputExpression>
+      </input>
+      <output id="collectSumOutput" name="discount" typeRef="number"/>
+      <rule id="collectSumBusiness">
+        <inputEntry id="collectSumBusinessCustomer"><text>"Business"</text></inputEntry>
+        <inputEntry id="collectSumBusinessOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectSumBusinessOut"><text>5</text></outputEntry>
+      </rule>
+      <rule id="collectSumLargeOrder">
+        <inputEntry id="collectSumLargeOrderCustomer"><text>-</text></inputEntry>
+        <inputEntry id="collectSumLargeOrderOrder"><text>&gt; 10</text></inputEntry>
+        <outputEntry id="collectSumLargeOrderOut"><text>3</text></outputEntry>
+      </rule>
+      <rule id="collectSumPrivate">
+        <inputEntry id="collectSumPrivateCustomer"><text>"Private"</text></inputEntry>
+        <inputEntry id="collectSumPrivateOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectSumPrivateOut"><text>1</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="collectMin" name="Kleinster Rabatt">
+    <variable name="minDiscount" typeRef="number"/>
+    <decisionTable id="collectMinTable" hitPolicy="COLLECT" aggregation="MIN">
+      <input id="collectMinCustomer">
+        <inputExpression id="collectMinCustomerExpression" typeRef="string">
+          <text>customerType</text>
+        </inputExpression>
+      </input>
+      <input id="collectMinOrder">
+        <inputExpression id="collectMinOrderExpression" typeRef="number">
+          <text>orderSize</text>
+        </inputExpression>
+      </input>
+      <output id="collectMinOutput" name="discount" typeRef="number"/>
+      <rule id="collectMinBusiness">
+        <inputEntry id="collectMinBusinessCustomer"><text>"Business"</text></inputEntry>
+        <inputEntry id="collectMinBusinessOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectMinBusinessOut"><text>5</text></outputEntry>
+      </rule>
+      <rule id="collectMinLargeOrder">
+        <inputEntry id="collectMinLargeOrderCustomer"><text>-</text></inputEntry>
+        <inputEntry id="collectMinLargeOrderOrder"><text>&gt; 10</text></inputEntry>
+        <outputEntry id="collectMinLargeOrderOut"><text>3</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="collectMax" name="Groesster Rabatt">
+    <variable name="maxDiscount" typeRef="number"/>
+    <decisionTable id="collectMaxTable" hitPolicy="COLLECT" aggregation="MAX">
+      <input id="collectMaxCustomer">
+        <inputExpression id="collectMaxCustomerExpression" typeRef="string">
+          <text>customerType</text>
+        </inputExpression>
+      </input>
+      <input id="collectMaxOrder">
+        <inputExpression id="collectMaxOrderExpression" typeRef="number">
+          <text>orderSize</text>
+        </inputExpression>
+      </input>
+      <output id="collectMaxOutput" name="discount" typeRef="number"/>
+      <rule id="collectMaxBusiness">
+        <inputEntry id="collectMaxBusinessCustomer"><text>"Business"</text></inputEntry>
+        <inputEntry id="collectMaxBusinessOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectMaxBusinessOut"><text>5</text></outputEntry>
+      </rule>
+      <rule id="collectMaxLargeOrder">
+        <inputEntry id="collectMaxLargeOrderCustomer"><text>-</text></inputEntry>
+        <inputEntry id="collectMaxLargeOrderOrder"><text>&gt; 10</text></inputEntry>
+        <outputEntry id="collectMaxLargeOrderOut"><text>3</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+  <decision id="collectCount" name="Anzahl Rabatte">
+    <variable name="discountCount" typeRef="integer"/>
+    <decisionTable id="collectCountTable" hitPolicy="COLLECT" aggregation="COUNT">
+      <input id="collectCountCustomer">
+        <inputExpression id="collectCountCustomerExpression" typeRef="string">
+          <text>customerType</text>
+        </inputExpression>
+      </input>
+      <input id="collectCountOrder">
+        <inputExpression id="collectCountOrderExpression" typeRef="number">
+          <text>orderSize</text>
+        </inputExpression>
+      </input>
+      <output id="collectCountOutput" name="discount" typeRef="number"/>
+      <rule id="collectCountBusiness">
+        <inputEntry id="collectCountBusinessCustomer"><text>"Business"</text></inputEntry>
+        <inputEntry id="collectCountBusinessOrder"><text>-</text></inputEntry>
+        <outputEntry id="collectCountBusinessOut"><text>5</text></outputEntry>
+      </rule>
+      <rule id="collectCountLargeOrder">
+        <inputEntry id="collectCountLargeOrderCustomer"><text>-</text></inputEntry>
+        <inputEntry id="collectCountLargeOrderOrder"><text>&gt; 10</text></inputEntry>
+        <outputEntry id="collectCountLargeOrderOut"><text>3</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

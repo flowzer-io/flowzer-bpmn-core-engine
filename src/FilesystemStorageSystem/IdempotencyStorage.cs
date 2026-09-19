@@ -48,5 +48,24 @@ internal sealed class IdempotencyStorage(Storage storage) : IIdempotencyStorage
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Nimmt auch offene Reservierungen mit: Die Instanz, deren Doppelausloesung sie verhindern
+    /// sollen, gibt es nach dem Loeschen nicht mehr.
+    /// </summary>
+    public Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        var deleted = 0;
+        foreach (var entry in StorageFile.ReadExistingFiles(_path, "*.json"))
+        {
+            var record = JsonConvert.DeserializeObject<IdempotencyRecord>(entry.Content, _settings);
+            if (record?.ProcessInstanceId != processInstanceId) continue;
+            StorageFile.DeleteIfExists(entry.Path);
+            deleted++;
+        }
+
+        return Task.FromResult(deleted);
+    }
+
     private string PathOf(string hash) => Path.Combine(_path, $"idempotency_{hash}.json");
 }

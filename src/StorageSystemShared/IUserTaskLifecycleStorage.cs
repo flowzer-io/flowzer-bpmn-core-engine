@@ -27,6 +27,20 @@ public interface IUserTaskLifecycleStorage
     /// überhaupt sichtbar werden dürfen.
     /// </summary>
     Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId);
+
+    /// <summary>
+    /// Entfernt die Human-Task-Auditspur eines Vorgangs und liefert deren Anzahl.
+    ///
+    /// Die Spur überlebt sonst bewusst das Ende der Subscription — in PostgreSQL ausdrücklich
+    /// ohne Fremdschlüssel auf die Instanztabelle, damit eine technische Bereinigung sie nicht
+    /// unbemerkt mitnimmt. Die Aufbewahrung nimmt sie ausdrücklich mit: Nach Ablauf der Frist
+    /// ist der Vorgang Historie, und Historie ohne Instanz ist nur noch Datenbestand.
+    ///
+    /// Bewusst ohne stillen Standard: Eine Ablage, die die Spur führt, aber diesen Vertrag nicht
+    /// kennt, meldete ein vollständiges Löschen, ohne die Personendaten der Spur zu entfernen.
+    /// </summary>
+    Task<int> DeleteEventsByProcessInstance(Guid processInstanceId) =>
+        throw new NotSupportedException($"{GetType().Name} unterstuetzt das Loeschen der Auditspur nicht.");
 }
 
 public enum UserTaskLifecycleWriteStatus
@@ -99,6 +113,7 @@ internal sealed class UnsupportedUserTaskLifecycleStorage : IUserTaskLifecycleSt
         Unsupported<IReadOnlyList<UserTaskAssignmentEvent>>();
     public Task<IReadOnlyList<UserTaskAssignmentEvent>> GetEventsByProcessInstance(Guid processInstanceId) =>
         Unsupported<IReadOnlyList<UserTaskAssignmentEvent>>();
+    public Task<int> DeleteEventsByProcessInstance(Guid processInstanceId) => Unsupported<int>();
     private static Task<T> Unsupported<T>() => Task.FromException<T>(
         new NotSupportedException("This storage adapter does not support the user-task lifecycle."));
 }

@@ -58,6 +58,22 @@ public interface IMessageSubscriptionStorage
     #region Timers
 
     Task<IEnumerable<TimerSubscription>> GetAllTimerSubscriptions();
+
+    /// <summary>
+    /// Uebernimmt die faelligen Timer-Anmeldungen eines Scheduler-Durchgangs.
+    ///
+    /// Die Standardimplementierung liest und filtert nur; sie traegt fuer Ablagen ohne
+    /// Transaktionen, die ohnehin auf einen Prozess begrenzt sind. Eine Ablage mit echten
+    /// Transaktionen uebernimmt die Start-Timer stattdessen exklusiv: Sie besitzen keine
+    /// Instanz und damit auch keine Instanzsperre, die einen zweiten API-Prozess davon
+    /// abhielte, dieselbe Faelligkeit ein zweites Mal in eine Instanz zu ueberfuehren.
+    /// </summary>
+    async Task<IReadOnlyList<TimerSubscription>> ClaimDueTimerSubscriptions(DateTime dueUpTo) =>
+        (await GetAllTimerSubscriptions())
+        .Where(subscription => subscription.DueAt <= dueUpTo)
+        .OrderBy(subscription => subscription.DueAt)
+        .ToArray();
+
     Task<IEnumerable<TimerSubscription>> GetTimerSubscriptions(Guid instanceId);
     Task AddTimerSubscription(TimerSubscription timerSubscription);
     Task RemoveTimerSubscription(Guid timerSubscriptionId);
