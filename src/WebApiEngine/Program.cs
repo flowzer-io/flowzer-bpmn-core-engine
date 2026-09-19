@@ -10,6 +10,7 @@ using WebApiEngine.Limits;
 using WebApiEngine.Middleware;
 using WebApiEngine.Persistence;
 using WebApiEngine.Ai;
+using WebApiEngine.InboundTriggers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -137,6 +138,15 @@ builder.Services.AddSingleton<ServiceTaskWebhookNotifier>();
 builder.Services.AddHttpClient("flowzer-webhook")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHostedService<ServiceTaskWebhookBackgroundService>();
+
+// Eingehende Ausloeser: eine anonyme Adresse je Ausloeser, ausgewiesen durch eine Signatur.
+// Ohne installationsweiten Schluessel nimmt die Installation keine an; siehe InboundTriggerOptions.
+builder.Services.AddOptions<InboundTriggerOptions>()
+    .Bind(builder.Configuration.GetSection(InboundTriggerOptions.SectionName))
+    .Validate(options => options.IsValid(), "InboundTriggers configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddScoped<InboundTriggerService>();
+builder.Services.AddScoped<InboundTriggerInvocation>();
 builder.Services.AddFlowzerCors(builder.Configuration, builder.Environment);
 builder.Services.AddFlowzerAuthentication(builder.Configuration);
 builder.Services.AddFlowzerLimits(builder.Configuration);

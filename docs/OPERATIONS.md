@@ -316,6 +316,33 @@ Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von ei
 
 Service-Tasks werden von eigenen Diensten abgearbeitet, nicht von der Engine. Der Vertrag steht in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md).
 
+### Eingehende Auslöser
+
+Ein fremdes System — Ticketsystem, Shop, Formulardienst — startet über `POST /trigger/{key}`
+einen Workflow oder stellt einer wartenden Instanz eine Nachricht zu, **ohne Anmeldung** und
+ausgewiesen allein durch eine HMAC-Signatur über Zeitstempel und Körper. Zweck, Sicherheitsmodell
+und Beispiele stehen in [INBOUND-TRIGGERS.md](INBOUND-TRIGGERS.md).
+
+| Einstellung | Standard | Bedeutung |
+|---|---|---|
+| `InboundTriggers__SecretKey` | *leer* | Installationsweiter Schlüssel, unter dem die Geheimnisse der Auslöser versiegelt liegen. **Ohne ihn nimmt die Installation keinen Auslöser an.** Mindestens 32 Zeichen; ein kürzerer Wert hält den Start an. |
+| `InboundTriggers__PermitLimit` | `60` | Aufrufe je Auslöser und Fenster, zusätzlich zum allgemeinen Kontingent je Aufrufer |
+| `InboundTriggers__WindowSeconds` | `60` | Länge dieses Fensters |
+
+Der fehlende Standardwert ist Absicht — wie die leere Freigabeliste ausgehender Webhooks: Ein
+eingebauter Schlüssel stünde im Quelltext und wäre damit keiner. Geht der Schlüssel verloren,
+antwortet jeder Aufruf mit 401; die Auslöser und ihre Adressen bleiben bestehen und brauchen über
+`rotate-secret` ein neues Geheimnis. Er gehört deshalb in die gesicherten Zugangsdaten der
+Installation, nicht nur in eine Compose-Datei.
+
+Die Verwaltung unter `/inbound-trigger` verlangt die Betriebsrolle; in der Konsole liegt sie
+unter **Betrieb → Auslöser** (`/triggers`). Beide Pfade — `trigger` und `inbound-trigger` — stehen
+in der Weiterleitungsliste des Gateways (`deploy/console/entrypoint.sh`);
+`tests/ui-smoke/check-gateway-routes.sh` prüft das.
+
+Die Migration `018_inbound_triggers.sql` legt die Tabelle `inbound_triggers` an. Vor dem Upgrade
+wie üblich in einer Testinstallation anwenden.
+
 ### KI-Verbindungen
 
 Die sichere Verwaltungsbasis fuer Providerfamilie, Datenflussgrenze und ausschließlich

@@ -22,6 +22,7 @@ import { OutlinePage } from '@/pages/OutlinePage';
 import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
 import { AiConnectionsPage } from '@/pages/AiConnectionsPage';
+import { TriggersPage } from '@/pages/TriggersPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
@@ -140,6 +141,12 @@ const operationsRoute = createRoute({
   component: OperationsPage,
 });
 
+const triggersRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/triggers',
+  component: TriggersPage,
+});
+
 const aiConnectionsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/ai-connections',
@@ -200,6 +207,7 @@ const routeTree = rootRoute.addChildren([
     formsRoute,
     formSectionsRoute,
     aiConnectionsRoute,
+    triggersRoute,
     operationsRoute,
     tasksRoute,
   ]),

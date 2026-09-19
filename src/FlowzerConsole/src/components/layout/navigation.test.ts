@@ -45,6 +45,15 @@ describe('visibleNavItems', () => {
       .toContain('ai-connections');
   });
 
+  // Testzweck: Eingehende Ausloeser sind Betriebssache — ihre Schluessel und Adressen
+  // gehoeren nicht in die Navigation von Personen ohne Betriebsrolle.
+  it('zeigt Ausloeser nur mit der Betriebsrolle', () => {
+    expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key))
+      .not.toContain('triggers');
+    expect(visibleNavItems(only('access', 'operator')).map((item) => item.key))
+      .toContain('triggers');
+  });
+
   // Testzweck: Die eigenen Aufgaben stehen im Menue. Sie waren frueher nur ueber das
   // Dashboard erreichbar — wer wusste, dass es sie gibt, fand sie; sonst nicht.
   it('fuehrt die eigenen Aufgaben im Menue', () => {

@@ -45,6 +45,10 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  InboundTriggerDto,
+  InboundTriggerSecretDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
@@ -519,6 +523,40 @@ export const aiConnectionsApi = {
       body: { expectedRevision, enabled },
     }),
   ),
+};
+
+/**
+ * Verwaltung der eingehenden Webhook-Ausloeser. Alle Endpunkte verlangen die
+ * Betriebsrolle; das Geheimnis kommt nur aus `create` und `rotateSecret` zurueck.
+ */
+export const inboundTriggersApi = {
+  /** `GET /inbound-trigger` — Liste ohne jedes Geheimnis. */
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<InboundTriggerDto[]>('/inbound-trigger', { signal }),
+
+  /** `POST /inbound-trigger` — legt an und liefert das Geheimnis genau einmal. */
+  create: (input: CreateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerSecretDto>('/inbound-trigger', { method: 'POST', body: input }),
+
+  /** `PUT /inbound-trigger/{id}` — die Art wird serverseitig ignoriert und hier nicht gesendet. */
+  update: (triggerId: string, input: UpdateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerDto>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `POST /inbound-trigger/{id}/rotate-secret` — ersetzt das Geheimnis, ohne Body. */
+  rotateSecret: (triggerId: string) =>
+    requestStatusResult<InboundTriggerSecretDto>(
+      `/inbound-trigger/${encodeURIComponent(triggerId)}/rotate-secret`,
+      { method: 'POST' },
+    ),
+
+  /** `DELETE /inbound-trigger/{id}` — danach ist die Adresse nicht mehr erreichbar. */
+  remove: (triggerId: string) =>
+    requestStatusResult<string>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'DELETE',
+    }),
 };
 
 /** Ausschliesslich installierte, typisierte Werkzeugvertraege ohne Handlerdetails. */

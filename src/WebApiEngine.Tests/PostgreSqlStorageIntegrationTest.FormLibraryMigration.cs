@@ -32,8 +32,11 @@ public partial class PostgreSqlStorageIntegrationTest
             await ApplyMigrationsBeforeFormLibrary(migrationSchema);
             await SeedLegacySectionAndExistingForm(migrationSchema, seed);
 
+            // Enthaelt, nicht gleich: Der Lauf holt alles ab 16 nach. Eine Gleichheitspruefung
+            // wuerde bei jeder spaeter hinzukommenden Migration brechen, ohne dass an dem hier
+            // geprueften Uebergang etwas anders waere.
             (await PostgreSqlMigrator.ApplyAsync(_connectionString, migrationSchema))
-                .Should().Equal(16);
+                .Should().Contain(16);
 
             using var storage = new PostgreSqlStorage(_dataSource!, migrationSchema);
             (await storage.FormStorage.GetFormMetaData(seed.SectionId)).Name.Should().Be("Adresse");
