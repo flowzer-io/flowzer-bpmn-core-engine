@@ -60,7 +60,7 @@ public class MiwgConformanceTest
     };
 
     private static readonly Regex UnsupportedElementPattern =
-        new(@"^(?:\{[^}]*\})?(?<element>[^\s{}]+) is not supported at moment\.$", RegexOptions.Compiled);
+        new(@"^The BPMN element '(?<element>[^']+)' \(id '[^']*'\) is not supported\.$", RegexOptions.Compiled);
 
     public static IEnumerable<string> ModelNames => EnumerateModelFiles().Select(Path.GetFileName)!;
 
@@ -370,21 +370,16 @@ public class MiwgConformanceTest
 
     /// <summary>
     /// Normalisiert die Parserablehnung auf einen stabilen Code. Das „ist nicht unterstützt"-
-    /// Wurfmuster des Parsers trägt den Elementnamen im Text; ohne diese Normalisierung stünde
-    /// der XML-Namensraum in der eingecheckten Tabelle.
+    /// Wurfmuster des Parsers trägt Elementart und Kennung im Text; festgehalten wird nur die
+    /// Elementart, damit die Tabelle nicht an einer modellspezifischen Kennung hängt.
     /// </summary>
     private static (string Code, string Detail) DescribeParseFailure(Exception exception)
     {
-        if (exception is NotSupportedException)
-        {
-            var match = UnsupportedElementPattern.Match(exception.Message);
-            if (match.Success)
-            {
-                return ("parser.element.unsupported", match.Groups["element"].Value);
-            }
-        }
+        var match = UnsupportedElementPattern.Match(exception.Message);
 
-        return ($"parser.{exception.GetType().Name}", exception.Message);
+        return match.Success
+            ? ("parser.element.unsupported", match.Groups["element"].Value)
+            : ($"parser.{exception.GetType().Name}", exception.Message);
     }
 
     /// <summary>
