@@ -6270,6 +6270,8 @@ export interface components {
             otlpEndpointHint?: string | null;
             otlpProtocol?: string | null;
             otlpHeadersHint?: string | null;
+            prometheusEnabled: boolean;
+            prometheusPath?: string | null;
             serviceName: string | null;
             serviceVersion: string | null;
         };

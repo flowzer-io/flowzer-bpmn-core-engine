@@ -46,6 +46,7 @@ Umgebungswerte übernommen. Die Browser-API-Wurzeladresse `/` bleibt unterstütz
 - definierter Storage-Pfad für dateibasierte Persistenz
 - kleine Metrics-/Tracing-Grundlage über `Meter` und `ActivitySource`
 - optionale OpenTelemetry-Exporter für Console und OTLP
+- optionaler Prometheus-Scrape-Endpunkt, ausschließlich für das Containernetz
 
 ## Authentifizierung (BFF und externe Bearer-Clients)
 
@@ -655,6 +656,7 @@ Der Diagnose-Endpunkt ist bewusst **pragmatisch statt vollständig**. Er liefert
 - Namen des lokalen `Meter`- und `ActivitySource`-Setups
 - Snapshot, ob Console- und/oder OTLP-Exporter aktiviert sind
 - redigierte OTLP-Endpunkt- und Header-Hinweise für Betriebsprüfungen
+- ob der Prometheus-Scrape-Endpunkt offen ist und unter welchem Pfad
 
 ### Human-Task-Deadline-Scheduler
 
@@ -846,7 +848,11 @@ Relevante Konfiguration in `src/WebApiEngine/appsettings.json`:
   "OtlpEndpoint": "",
   "OtlpHeaders": "",
   "OtlpProtocol": "grpc",
-  "ServiceName": "Flowzer.WebApi"
+  "ServiceName": "Flowzer.WebApi",
+  "Prometheus": {
+    "Enabled": false,
+    "Path": "/metrics"
+  }
 }
 ```
 
@@ -872,8 +878,79 @@ Observability__OtlpHeaders='authorization=Bearer <token>'
 - ob ein OTLP-Exporter aktiv ist
 - welchen redigierten OTLP-Endpunkt die API nutzt
 - welches Service-Name/-Version-Paar exportiert wird
+- ob der Prometheus-Scrape-Endpunkt offen ist und unter welchem Pfad
 
 Die OTLP-Konfiguration redigiert dabei Benutzerinformationen, Query-Parameter und Headerinhalte bewusst, damit der Diagnose-Endpunkt keine Secrets zurückspiegelt.
+
+### Prometheus-Scrape-Endpunkt
+
+Wer Prometheus und Grafana betreibt, braucht keinen OTLP-Collector dazwischen: Die API kann
+ihre Metriken direkt zum Abholen anbieten.
+
+```bash
+Observability__Prometheus__Enabled=true
+Observability__Prometheus__Path=/metrics
+```
+
+Der Scrape-Endpunkt ist ein **eigener** Schalter. Er braucht `Observability__Enabled` nicht:
+Wer nur ihn setzt, bekommt Metriken und sonst nichts — keine Traces, keinen Console- und keinen
+OTLP-Exporter. Umgekehrt lassen sich beide Wege kombinieren, dann bedienen sie dieselbe
+Messreihe. Ohne den Schalter wird der Endpunkt gar nicht erst angelegt; der Pfad antwortet dann
+wie jede unbekannte Adresse mit 404.
+
+Ausgeliefert werden die Instrumente aus `Flowzer.WebApi` und die bereits registrierte
+ASP.NET-Core-Instrumentierung. Prometheus schreibt Punkte als Unterstriche und hängt an Zähler
+`_total` an; aus `flowzer.http.requests` wird also `flowzer_http_requests_total`, aus
+`flowzer.timer.scheduler.ticks` entsprechend `flowzer_timer_scheduler_ticks_total`. Ein
+Instrument taucht erst auf, wenn es mindestens einen Messwert bekommen hat.
+
+#### Netzgrenze: nur im Containernetz, nie am öffentlichen Gateway
+
+Prometheus bringt keine Sitzung mit. Der Endpunkt antwortet deshalb **ohne Anmeldung** und ohne
+Anfragekontingent. Er gibt die Innenansicht der Installation preis — Instanzzahlen,
+Fehlerquoten, Scheduler-Takt, Antwortzeiten je Route. Er darf ausschließlich aus dem
+Containernetz erreichbar sein.
+
+Konkret heißt das:
+
+- Der API-Container veröffentlicht seinen Port nicht auf dem Host; erreichbar ist er nur unter
+  `api:8080` im Compose-Netz. Prometheus gehört in dasselbe Netz.
+- Das Konsolen-Gateway (`deploy/console/entrypoint.sh`) führt eine Liste der Pfade, die es an
+  die API weiterreicht. `metrics` steht dort bewusst **nicht** drin und darf nicht ergänzt
+  werden. `tests/ui-smoke/check-gateway-routes.sh` prüft das als Negativtest.
+- `compose.runtime.yml` und `compose.coolify.yaml` reichen `FLOWZER_METRICS_ENABLED` und
+  `FLOWZER_METRICS_PATH` an den API-Container durch. Am `deploy/nginx/runtime.conf` ist nichts
+  zu tun: Das Runtime-Gateway reicht ohnehin nur an die Konsole weiter, und die Konsole
+  beantwortet einen Aufruf von `/metrics` mit ihrer Startseite. Der Aufruf erreicht die API
+  also gar nicht erst.
+- Steht ein eigener Reverse Proxy davor, muss dessen Konfiguration denselben Pfad sperren.
+
+Beispiel für `prometheus.yml`, wenn Prometheus im selben Compose-Netz läuft:
+
+```yaml
+scrape_configs:
+  - job_name: flowzer-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:8080']
+```
+
+Ein abweichender Pfad (`Observability__Prometheus__Path`) wird auf die Form mit genau einem
+führenden Schrägstrich normalisiert und muss in `metrics_path` genauso stehen. Ein Wert, der in
+Wahrheit eine Adresse ist (`http://…`) oder einen Query-Teil enthält, bricht den Start ab,
+statt den Endpunkt still an anderer Stelle zu öffnen.
+
+Im Laufzeit-Stack reichen dafür die beiden Werte aus `.env` (siehe `.env.example`):
+`FLOWZER_METRICS_ENABLED` und `FLOWZER_METRICS_PATH`. `compose.runtime.yml` setzt daraus
+`Observability__Prometheus__Enabled` und `Observability__Prometheus__Path` im API-Container.
+
+Die Scrape-Aufrufe selbst laufen durch dieselbe Request-Diagnose wie jeder andere Aufruf und
+zählen damit in `flowzer_http_requests_total` mit.
+
+Das verwendete Paket `OpenTelemetry.Exporter.Prometheus.AspNetCore` gibt es bisher nur als
+Vorabversion (hier `1.18.0-beta.1`); eine stabile Fassung hat OpenTelemetry .NET nicht
+veröffentlicht. Die Version gehört zur selben Freigabe wie die übrigen OpenTelemetry-Pakete des
+Projekts.
 
 ### Container-Logs
 
