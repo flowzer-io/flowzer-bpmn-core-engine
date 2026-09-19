@@ -125,12 +125,12 @@ internal static class MiwgCoverageReport
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["parser.element.unsupported"] =
-                "`ModelParser.GetFlowElements` wirft bei jedem Kindelement eines Prozesses, das es nicht "
-                + "kennt — auch bei reinem Diagramm-Beiwerk ohne Ausführungssemantik. **Lesehürde.**",
-            ["parser.NullReferenceException"] =
-                "`ModelParser.ParseMessages` liest `bpmn:message/@name` als Pflichtattribut "
-                + "(`Attribute(\"name\")!.Value`). BPMN erlaubt den Namen optional; alle fünf Fälle haben ein "
-                + "`bpmn:message` ohne `name` auf Dokumentebene. **Robustheitslücke, keine Fähigkeitslücke.**",
+                "Eine Elementart mit Ausführungssemantik, die `ModelParser.GetFlowElements` nicht kennt. "
+                + "Reines Diagramm-Beiwerk zählt nicht mehr dazu — es wird überlesen. "
+                + "**Echte Ausführungslücke.**",
+            ["parser.ModelValidationException"] =
+                "Ein benannter Modellfehler des Parsers: fehlende Kennung, Verweis ins Leere oder eine "
+                + "unvollständige Pflichtangabe. **Modellfehler, keine Fähigkeitslücke.**",
             ["parser.FlowzerModelParseException"] =
                 "Flowzer verlangt an jedem User-Task ein `zeebe:formDefinition` mit `formKey` oder `formId`. "
                 + "Werkzeugneutrale Modelle tragen keines. **Produktentscheidung, keine BPMN-Lücke.**",
@@ -145,9 +145,11 @@ internal static class MiwgCoverageReport
                 "Elementart, die der Vertrag als lesbar, aber ausdrücklich nicht als ausführbar führt. "
                 + "**Echte Ausführungslücke.**",
             ["bpmn.element.id_required"] =
-                "`BpmnCapabilityMatrix.IsFlowElement` behandelt jedes nicht ausdrücklich ausgenommene "
-                + "Kindelement eines Prozesses als Flow-Element und verlangt eine `id`. Betroffen ist hier "
-                + "`bpmn:ioSpecification`, ein reguläres BPMN-Element ohne `id`. **Prüfhürde.**",
+                "Ein ausführbarer Prozessbestandteil ohne `id`. Diagramm-Beiwerk wie `bpmn:ioSpecification` "
+                + "zählt nicht mehr dazu und wird überlesen. **Modellfehler.**",
+            ["bpmn.message.name_required"] =
+                "Das Element zeigt auf eine `bpmn:message` ohne `name`. Der Parser liest sie, aber "
+                + "korrelieren könnte sie nie. **Modellfehler.**",
             ["bpmn.flow_node.unreachable"] =
                 "Ein Knoten ohne Weg von einem Start- oder Boundary-Event. Hier ist es ein "
                 + "`subProcess triggeredByEvent=\"true\"` — ein Event-Subprozess, den weder Vertrag noch "
@@ -181,8 +183,10 @@ internal static class MiwgCoverageReport
         }
 
         report.AppendLine();
-        report.AppendLine("> Der Parser wirft beim ersten Kindelement, das er nicht kennt. Gemeldet wird deshalb");
-        report.AppendLine("> immer nur die **erste** Hürde eines Modells — hinter ihr können weitere liegen.");
+        report.AppendLine("> Reines Diagramm-Beiwerk überliest der Parser (siehe");
+        report.AppendLine("> [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md), „Was überlesen wird\"). An einem Element");
+        report.AppendLine("> mit Ausführungssemantik, das er nicht kennt, bricht er dagegen ab. Gemeldet wird");
+        report.AppendLine("> deshalb immer nur die **erste** Hürde eines Modells — hinter ihr können weitere liegen.");
         report.AppendLine();
 
         report.AppendLine("### Veröffentlichen (Fähigkeitsvertrag)");
@@ -231,33 +235,36 @@ internal static class MiwgCoverageReport
         report.AppendLine("sagt **nichts** über die Engine — eine Ausführungsengine darf solche Modelle ablehnen.");
         report.AppendLine("Diese Modelle gehören in einen Import- oder Anzeigenachweis, nicht in die Ausführungsbilanz.");
         report.AppendLine();
+        var alsoRejectedWhileReading = noExecutableProcess.Count(observation => observation.Parse != "empty");
         report.AppendLine($"Bei {noExecutableProcess.Count(observation => observation.Parse == "empty")} davon läuft auch der Parser ohne Ausnahme durch — er liest dann schlicht nichts.");
-        report.AppendLine($"Die übrigen {noExecutableProcess.Count(observation => observation.Parse != "empty")} scheitern zusätzlich schon beim Lesen (siehe Gruppe 2).");
+        report.AppendLine(alsoRejectedWhileReading == 0
+            ? "Keines scheitert zusätzlich schon beim Lesen."
+            : $"Die übrigen {alsoRejectedWhileReading} scheitern zusätzlich schon beim Lesen (siehe Gruppe 2).");
         report.AppendLine();
 
         report.AppendLine("### 2. Lese- und Prüfhürden vor der eigentlichen Semantik");
         report.AppendLine();
         report.AppendLine("Diese Fälle scheitern, **bevor** irgendeine Ausführungsfrage gestellt wird:");
         report.AppendLine();
-        report.AppendLine("- **Der Parser lehnt Diagramm-Beiwerk ab.** `ModelParser.GetFlowElements` wirft in seinem");
-        report.AppendLine("  `default`-Zweig `NotSupportedException` für jedes Kindelement eines Prozesses, das es");
-        report.AppendLine("  nicht kennt — `laneSet`, `lane`, `textAnnotation`, `association`, `dataObjectReference`");
-        report.AppendLine("  und Weiteres. Nichts davon trägt Ausführungssemantik. In diesem Satz ist `laneSet` die");
-        report.AppendLine("  erste solche Hürde; weitere liegen dahinter, weil der Parser beim ersten Treffer abbricht.");
-        report.AppendLine("- **`bpmn:message` ohne `name` wirft eine `NullReferenceException`.** Der Name ist in BPMN");
-        report.AppendLine("  optional, `ModelParser.ParseMessages` liest ihn als Pflichtattribut. Eine unbehandelte");
-        report.AppendLine("  `NullReferenceException` auf fremdem Eingabedokument ist ein Robustheitsmangel, keine");
-        report.AppendLine("  Fähigkeitsgrenze — sie trifft hier fünf Modelle.");
-        report.AppendLine("- **`bpmn:ioSpecification` braucht eine `id`.** `BpmnCapabilityMatrix.IsFlowElement`");
-        report.AppendLine("  behandelt jedes nicht ausdrücklich ausgenommene Kindelement eines Prozesses als");
-        report.AppendLine("  Flow-Element und verlangt eine `id`. `ioSpecification` ist reguläres BPMN und hat keine.");
         report.AppendLine("- **User-Tasks brauchen ein `zeebe:formDefinition`.** Das ist eine bewusste");
         report.AppendLine("  Produktentscheidung von Flowzer und keine BPMN-Lücke; werkzeugneutrale Modelle tragen");
-        report.AppendLine("  diese Erweiterung nie.");
+        report.AppendLine("  diese Erweiterung nie. Sie ist in diesem Satz die verbliebene Lesehürde und steht vor");
+        report.AppendLine("  jeder Aussage darüber, welche BPMN-Semantik Flowzer wirklich fehlt.");
         report.AppendLine();
-        report.AppendLine("Ein Paket „unbekanntes Beiwerk überlesen statt werfen\" plus die beiden Robustheitsfixes");
-        report.AppendLine("würde die Lesequote deutlich heben, **ohne** die Ausführungszusage zu berühren. Erst danach");
-        report.AppendLine("zeigt dieser Bericht, welche BPMN-Semantik Flowzer wirklich fehlt.");
+        report.AppendLine("Drei frühere Hürden sind gefallen und stehen deshalb nicht mehr in dieser Liste:");
+        report.AppendLine();
+        report.AppendLine("- **Diagramm-Beiwerk wird überlesen.** `laneSet`, `lane`, `textAnnotation`, `association`,");
+        report.AppendLine("  Datenobjekte, `ioSpecification` und Verwandtes tragen keine Ausführungssemantik. Parser");
+        report.AppendLine("  und Veröffentlichungsprüfung gehen seither über dieselbe Liste hinweg, statt zu werfen.");
+        report.AppendLine("  Überlesen heißt ausdrücklich **nicht** ausgeführt: Lanes weisen keine Arbeit zu.");
+        report.AppendLine("- **`bpmn:message` ohne `name` wird gelesen.** Der Name ist in BPMN optional; die frühere");
+        report.AppendLine("  `NullReferenceException` war ein Robustheitsmangel. Ein Element, das auf eine namenlose");
+        report.AppendLine("  Nachricht zeigt, beanstandet nun die Veröffentlichungsprüfung mit");
+        report.AppendLine("  `bpmn.message.name_required` am Knoten — dort, wo es die Konsole markieren kann.");
+        report.AppendLine("- **Unbekannte Elemente heißen beim Namen.** Statt einer `NotSupportedException` mit rohem");
+        report.AppendLine("  XML-Namen wirft der Parser eine `ModelValidationException` mit Elementart und Kennung.");
+        report.AppendLine("  Bei einem Deployment sieht man sie ohnehin nicht: Dort läuft die Veröffentlichungs-");
+        report.AppendLine("  prüfung vor dem Parser und meldet `bpmn.element.unsupported` am betroffenen Knoten.");
         report.AppendLine();
 
         report.AppendLine("### 3. Echte Ausführungslücken");

@@ -233,6 +233,44 @@ sichtbar.
   Transaktionen ab; der Aufrufer bekommt einen Fehler und wiederholt. Ein Sperren in fester
   Reihenfolge gibt es nicht, weil der Empfänger erst während der Zustellung bekannt wird.
 
+## Was überlesen wird
+
+Ein BPMN-Dokument aus einem fremden Werkzeug trägt fast immer Bestandteile, die laut
+BPMN 2.0 erlaubt sind, aber keine Ausführungssemantik haben. Flowzer **überliest** sie —
+im Parser und in der Veröffentlichungsprüfung, ohne Ausnahme und ohne Fähigkeitsfehler:
+
+- Gliederung: `laneSet`, `lane`
+- Beschriftung und Gruppierung: `textAnnotation`, `association`, `group`, `category`,
+  `documentation`
+- Datenbeiwerk an Prozess und Aktivität: `dataObject`, `dataObjectReference`,
+  `dataStoreReference`, `ioSpecification`, `dataInput`, `dataOutput`,
+  `dataInputAssociation`, `dataOutputAssociation`, `property`
+- auf Dokumentebene: `bpmn:collaboration` mit `participant` und `messageFlow`. Der
+  ausführbare Prozess wird weiterhin über `bpmn:process` gefunden.
+
+**Überlesen heißt ausdrücklich nicht ausgeführt.** Eine Lane weist keine Arbeit zu, ein
+Datenobjekt trägt keine Variablen, ein Message-Flow stellt nichts zu. Wer das braucht,
+modelliert es als zugesagtes Element: Zuständigkeit über die Aufgabenzuweisung am
+User-Task, Daten über `zeebe:ioMapping`, Nachrichten über `messageRef`.
+
+Die Toleranz betrifft **Lesen und Prüfen, nicht die Ausführbarkeit**; der Vertrag
+`flowzer.bpmn-capabilities/7` bleibt unverändert. Ein Element mit echter
+Ausführungssemantik, das der Vertrag nicht führt — etwa `eventBasedGateway`,
+`businessRuleTask`, `transaction` oder `adHocSubProcess` — wird weiterhin abgelehnt, vor
+dem Veröffentlichen mit `bpmn.element.unsupported` am betroffenen Knoten.
+
+Zwei Angaben sind in BPMN optional und werden deshalb auch optional gelesen: der `name`
+einer `bpmn:message` und einer `bpmn:signal`. Ein Element, das auf eine **namenlose**
+Nachricht zeigt, könnte allerdings nie korrelieren — Name und Korrelationsschlüssel sind
+der ganze Vertrag zwischen Sender und Empfänger. Das wird vor Speichern und
+Veröffentlichen mit `bpmn.message.name_required` am verweisenden Knoten abgelehnt, nicht
+an der Nachricht.
+
+Eine fehlende `id` bleibt ein Modellfehler: Die Engine verweist über sie auf jeden Knoten.
+Sie wird aber als benannter Fehler mit der Elementart gemeldet — im Parser als
+`ModelValidationException`, vor der Veröffentlichung als `bpmn.element.id_required` —, nie
+als unbehandelte `NullReferenceException`.
+
 ## Statische Prüfungen
 
 Neben der Elementmatrix prüft Version 3 vor Save und Deploy:

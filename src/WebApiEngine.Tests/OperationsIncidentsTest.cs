@@ -10,6 +10,7 @@ using Model;
 using StorageSystem;
 using WebApiEngine.Auth;
 using WebApiEngine.Controller;
+using WebApiEngine.Connectors;
 using WebApiEngine.Diagnostics;
 using WebApiEngine.Shared;
 using Variables = System.Dynamic.ExpandoObject;
@@ -159,6 +160,7 @@ public class OperationsIncidentsTest
                 _storage,
                 new StubHostEnvironment(),
                 new TimerSchedulerDiagnosticsState(),
+                new ConnectorDiagnosticsState(),
                 new InstanceRetentionDiagnosticsState(),
                 Options.Create(new FlowzerObservabilityOptions()),
                 new WebApiEngine.Persistence.FlowzerStorageOptions(),

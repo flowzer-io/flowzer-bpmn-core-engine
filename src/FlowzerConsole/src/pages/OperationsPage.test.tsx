@@ -85,6 +85,26 @@ const mocks = vi.hoisted(() => {
         serviceName: 'Flowzer.WebApi',
         serviceVersion: '1.0.0',
       },
+      connectors: [
+        {
+          name: 'http',
+          jobType: 'flowzer:http',
+          enabled: true,
+          lastRunAtUtc: '2026-09-17T08:55:00Z',
+          processedJobs: 142,
+          failedJobs: 3,
+          lastErrorMessage: 'Zeitüberschreitung beim Zielsystem',
+        },
+        {
+          name: 'email',
+          jobType: 'flowzer:email',
+          enabled: false,
+          lastRunAtUtc: null,
+          processedJobs: 0,
+          failedJobs: 0,
+          lastErrorMessage: null,
+        },
+      ],
     },
     incidents: vi.fn(),
     retryJob: vi.fn(),
@@ -278,6 +298,23 @@ describe('Störungsliste', () => {
     expect(within(dialog).getByText(/kein gültiges JSON/)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Erneut freigeben' }));
     expect(mocks.retryJob).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: „nicht aktiviert“ ist eine Aussage fürs Betriebsbild — wer den E-Mail-Versand
+  // vermisst, muss sehen, dass der Konnektor da, aber abgeschaltet ist. Ein gar nicht
+  // aufgeführter Konnektor wäre keine Aussage, sondern eine offene Frage.
+  it('führt einen abgeschalteten Konnektor sichtbar als „aus“ und zeigt die Zähler des aktiven', () => {
+    render(<OperationsPage />);
+
+    const emailRow = screen.getByText('flowzer:email').closest('li');
+    expect(emailRow).not.toBeNull();
+    expect(within(emailRow as HTMLElement).getByText('aus')).toBeInTheDocument();
+
+    const httpRow = screen.getByText('flowzer:http').closest('li');
+    expect(httpRow).not.toBeNull();
+    expect(within(httpRow as HTMLElement).getByText('aktiv')).toBeInTheDocument();
+    expect(httpRow?.textContent).toContain('142 verarbeitet');
+    expect(httpRow?.textContent).toContain('3 fehlgeschlagen');
   });
 
   afterEach(() => {

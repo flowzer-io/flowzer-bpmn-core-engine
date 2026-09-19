@@ -36,7 +36,7 @@ public static class ModelParser
     {
         var xDocument = XDocument.Parse(xml);
         var root = xDocument.Root!;
-        var definitionsId = root.Attribute("id")!.Value;
+        var definitionsId = RequireId(root);
 
         FlowzerList<IRootElement> rootElements = [];
 
@@ -54,29 +54,98 @@ public static class ModelParser
         return definitions;
     }
 
+    /// <summary>
+    /// Liest die <c>bpmn:message</c>-Wurzelelemente. Der <c>name</c> ist in BPMN 2.0
+    /// <b>optional</b>; ein fremdes Dokument ohne Namen darf den Parser deshalb nicht zu Fall
+    /// bringen. Ein Ereignis, das auf eine namenlose Nachricht zeigt, koennte allerdings nie
+    /// korrelieren — das beanstandet die Veroeffentlichungspruefung mit
+    /// <c>bpmn.message.name_required</c> am Ereignis.
+    /// </summary>
     private static IEnumerable<MessageDefinition> ParseMessages(XElement root)
     {
         return root.Elements().Where(n =>
                 n.Name.LocalName.Equals("message", StringComparison.InvariantCultureIgnoreCase))
             .Select(m => new MessageDefinition
             {
-                Name = m.Attribute("name")!.Value,
+                Name = m.Attribute("name")?.Value ?? "",
                 FlowzerId = m.Attribute("id")?.Value,
                 FlowzerCorrelationKey = m.Descendants()
-                    .SingleOrDefault(s => s.Name.LocalName == "subscription")?
+                    .FirstOrDefault(s => s.Name.LocalName == "subscription")?
                     .Attribute("correlationKey")?.Value,
             });
     }
 
+    /// <summary>
+    /// Liest die <c>bpmn:signal</c>-Wurzelelemente. Wie bei der Nachricht ist der <c>name</c>
+    /// laut BPMN optional und wird deshalb leer gelesen statt geworfen.
+    /// </summary>
     private static IEnumerable<Signal> ParseSignals(XElement root)
     {
         return root.Elements().Where(n =>
                 n.Name.LocalName.Equals("signal", StringComparison.InvariantCultureIgnoreCase))
             .Select(m => new Signal()
             {
-                Name = m.Attribute("name")!.Value,
+                Name = m.Attribute("name")?.Value ?? "",
                 FlowzerId = m.Attribute("id")?.Value,
             });
+    }
+
+    /// <summary>
+    /// Die Kennung eines BPMN-Elements. Sie bleibt Pflicht — die Engine verweist ueber sie auf
+    /// jeden Knoten —, aber ein fremdes Dokument ohne Kennung bekommt den benannten Modellfehler
+    /// mit der Elementart statt einer <c>NullReferenceException</c>.
+    /// </summary>
+    private static string RequireId(XElement element)
+    {
+        var id = element.Attribute("id")?.Value;
+
+        return string.IsNullOrWhiteSpace(id)
+            ? throw new ModelValidationException(
+                $"The '{element.Name.LocalName}' element requires a non-empty id.")
+            : id;
+    }
+
+    /// <summary>
+    /// Ein Element, das Flowzer nicht ausfuehren kann. Gemeldet wird die Elementart samt
+    /// Ereignisdefinition und die Kennung — nicht der rohe XML-Name mit Namensraum. Reines
+    /// Diagramm-Beiwerk landet hier nie; es wird ueberlesen (<see cref="BpmnDiagramDecorations"/>).
+    /// </summary>
+    private static ModelValidationException UnsupportedElement(XElement element)
+    {
+        var eventDefinition = element.Elements()
+            .FirstOrDefault(child => child.Name.LocalName.EndsWith("EventDefinition", StringComparison.Ordinal));
+        var kind = eventDefinition is null
+            ? element.Name.LocalName
+            : $"{element.Name.LocalName}.{eventDefinition.Name.LocalName}";
+
+        return new ModelValidationException(
+            $"The BPMN element '{kind}' (id '{element.Attribute("id")?.Value ?? "(unknown)"}') is not supported.");
+    }
+
+    /// <summary>
+    /// Loest ein <c>signalRef</c> auf. Ein Verweis ins Leere ist ein Modellfehler und wird
+    /// benannt, statt als <c>InvalidOperationException</c> aus einer LINQ-Abfrage zu entgleiten.
+    /// </summary>
+    private static Signal RequireSignal(IEnumerable<IRootElement> rootElements, XElement definition, string elementId)
+    {
+        var signalRef = definition.Attribute("signalRef")?.Value;
+
+        return rootElements.OfType<Signal>().FirstOrDefault(signal => signal.FlowzerId == signalRef)
+               ?? throw new ModelValidationException(
+                   $"The event '{elementId}' references the unknown signal '{signalRef ?? "(none)"}'.");
+    }
+
+    /// <summary>
+    /// Loest ein <c>messageRef</c> an einem Element auf, das ohne Nachricht keinen Sinn ergibt
+    /// (fangende Ereignisse, Empfangsaufgabe). Fehlender oder unbekannter Verweis ist ein
+    /// benannter Modellfehler.
+    /// </summary>
+    private static MessageDefinition RequireMessage(
+        IEnumerable<IRootElement> rootElements, string? messageRef, string elementId)
+    {
+        return rootElements.OfType<MessageDefinition>().FirstOrDefault(message => message.FlowzerId == messageRef)
+               ?? throw new ModelValidationException(
+                   $"The element '{elementId}' references the unknown message '{messageRef ?? "(none)"}'.");
     }
 
     /// <summary>
@@ -107,7 +176,7 @@ public static class ModelParser
             return null;
         }
 
-        return rootElements.OfType<Error>().SingleOrDefault(error => error.FlowzerId == errorRef)
+        return rootElements.OfType<Error>().FirstOrDefault(error => error.FlowzerId == errorRef)
                ?? throw new ModelValidationException(
                    $"The error event '{elementId}' references the unknown error '{errorRef}'.");
     }
@@ -126,7 +195,7 @@ public static class ModelParser
         processes.AddRange(
             xmlProcessNodes.Select(xmlProcessNode => new Process
             {
-                Id = xmlProcessNode.Attribute("id")!.Value,
+                Id = RequireId(xmlProcessNode),
                 Name = xmlProcessNode.Attribute("name")?.Value,
                 IsExecutable = true,
                 FlowElements = GetFlowElements(rootElements, xmlProcessNode),
@@ -211,7 +280,7 @@ public static class ModelParser
                 case "subProcess":
                     flowElements.Add(new SubProcess
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         InputMappings = inputMappings,
@@ -224,11 +293,11 @@ public static class ModelParser
                 case "receiveTask":
                     flowElements.Add(new ReceiveTask
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        MessageRef = rootElements.OfType<MessageDefinition>()
-                            .Single(m => m.FlowzerId == xmlFlowNode.Attribute("messageRef")?.Value),
+                        MessageRef = RequireMessage(rootElements, xmlFlowNode.Attribute("messageRef")?.Value,
+                            RequireId(xmlFlowNode)),
                         LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
                     });
                     break;
@@ -236,7 +305,7 @@ public static class ModelParser
                 case "sendTask":
                     flowElements.Add(new SendTask
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         Implementation = ReadTaskDefinitionType(xmlFlowNode),
@@ -269,30 +338,13 @@ public static class ModelParser
                     break;
 
                 case "callActivity":
-                    flowElements.Add(new CallActivity
-                    {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
-                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                        DefaultId = xmlFlowNode.Attribute("default")?.Value,
-                        FlowzerCalledElementProcessId = xmlFlowNode.Descendants()
-                            .Single(e => e.Name.LocalName == "calledElement")
-                            .Attribute("processId")!.Value,
-                        FlowzerPropagateAllChildVariables = bool.Parse(xmlFlowNode.Descendants()
-                            .Single(e => e.Name.LocalName == "calledElement")
-                            .Attribute("propagateAllChildVariables")?.Value ?? "true"),
-                        FlowzerPropagateAllParentVariables = bool.Parse(xmlFlowNode.Descendants()
-                            .Single(e => e.Name.LocalName == "calledElement")
-                            .Attribute("propagateAllParentVariables")?.Value ?? "true"),
-                        InputMappings = inputMappings,
-                        OutputMappings = outputMappings,
-                        LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
-                    });
+                    flowElements.Add(HandleCallActivity(xmlFlowNode, inputMappings, outputMappings));
                     break;
 
                 case "task":
                     flowElements.Add(new Task
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
@@ -302,7 +354,7 @@ public static class ModelParser
                 case "manualTask":
                     flowElements.Add(new ManualTask
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                         LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
@@ -312,7 +364,7 @@ public static class ModelParser
                 case "exclusiveGateway":
                     flowElements.Add(new ExclusiveGateway
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                     });
@@ -321,7 +373,7 @@ public static class ModelParser
                 case "complexGateway":
                     flowElements.Add(new ComplexGateway()
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                     });
@@ -330,7 +382,7 @@ public static class ModelParser
                 case "inclusiveGateway":
                     flowElements.Add(new InclusiveGateway()
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                         DefaultId = xmlFlowNode.Attribute("default")?.Value,
                     });
@@ -339,7 +391,7 @@ public static class ModelParser
                 case "parallelGateway":
                     flowElements.Add(new ParallelGateway
                     {
-                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Id = RequireId(xmlFlowNode),
                         Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                     });
                     break;
@@ -357,24 +409,31 @@ public static class ModelParser
                     break;
 
                 default:
-                    throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+                    // Reines Diagramm-Beiwerk — Lanes, Beschriftungen, Datenobjekte — darf laut
+                    // BPMN 2.0 ueberall stehen und traegt keine Ausfuehrungssemantik. Es wird
+                    // ueberlesen; gemeldet wird nur eine echte Ausfuehrungsluecke.
+                    if (BpmnDiagramDecorations.Contains(xmlFlowNode.Name.LocalName))
+                    {
+                        break;
+                    }
+
+                    throw UnsupportedElement(xmlFlowNode);
             }
         }
 
         foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "boundaryEvent"))
         {
-            var attachedToRef = xmlFlowNode.Attribute("attachedToRef")!.Value;
-            var attachedTo = (Activity)flowElements.Single(e => e.Id == attachedToRef);
+            var attachedTo = RequireAttachedActivity(xmlFlowNode, flowElements);
             if (!bool.TryParse(xmlFlowNode.Attribute("cancelActivity")?.Value, out var cancelActivity))
                 cancelActivity = true;
             if (xmlFlowNode.HasDescendant("messageEventDefinition", out var definition))
             {
                 flowElements.Add(new FlowzerBoundaryMessageEvent
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    MessageDefinition = rootElements.OfType<MessageDefinition>()
-                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                    MessageDefinition = RequireMessage(rootElements, definition.Attribute("messageRef")?.Value,
+                        RequireId(xmlFlowNode)),
                     AttachedToRef = attachedTo,
                     CancelActivity = cancelActivity
                 });
@@ -385,10 +444,9 @@ public static class ModelParser
             {
                 flowElements.Add(new FlowzerBoundarySignalEvent()
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Signal = rootElements.OfType<Signal>()
-                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                    Signal = RequireSignal(rootElements, definition, RequireId(xmlFlowNode)),
                     AttachedToRef = attachedTo,
                     CancelActivity = cancelActivity
                 });
@@ -399,7 +457,7 @@ public static class ModelParser
             {
                 flowElements.Add(new FlowzerBoundaryTimerEvent
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                     TimerDefinition = ParseTimerEventDefinition(definition),
                     AttachedToRef = attachedTo,
@@ -410,7 +468,7 @@ public static class ModelParser
 
             if (xmlFlowNode.HasDescendant("errorEventDefinition", out definition))
             {
-                var boundaryErrorId = xmlFlowNode.Attribute("id")!.Value;
+                var boundaryErrorId = RequireId(xmlFlowNode);
                 flowElements.Add(new FlowzerBoundaryErrorEvent
                 {
                     Id = boundaryErrorId,
@@ -424,20 +482,19 @@ public static class ModelParser
                 continue;
             }
 
-            throw new NotSupportedException($"{xmlFlowNode.Name} is not supported at moment.");
+            throw UnsupportedElement(xmlFlowNode);
         }
 
         foreach (var xmlFlowNode in xmlProcessNode.Elements().Where(x => x.Name.LocalName == "sequenceFlow"))
         {
-            var sourceRef = xmlFlowNode.Attribute("sourceRef")!.Value;
-            var targetRef = xmlFlowNode.Attribute("targetRef")!.Value;
-            var source = (FlowNode)flowElements.Single(e => e.Id == sourceRef);
-            var target = (FlowNode)flowElements.Single(e => e.Id == targetRef);
+            var sequenceFlowId = RequireId(xmlFlowNode);
+            var source = RequireFlowNode(xmlFlowNode, "sourceRef", flowElements, sequenceFlowId);
+            var target = RequireFlowNode(xmlFlowNode, "targetRef", flowElements, sequenceFlowId);
             var isDefault = source.GetType().GetInterfaces().Contains(typeof(IHasDefault))
-                            && ((IHasDefault)source).DefaultId == xmlFlowNode.Attribute("id")!.Value;
+                            && ((IHasDefault)source).DefaultId == sequenceFlowId;
             var newSequenceFlow = new SequenceFlow
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = sequenceFlowId,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 SourceRef = source,
                 TargetRef = target,
@@ -454,6 +511,78 @@ public static class ModelParser
         return flowElements;
     }
 
+    /// <summary>
+    /// Die Aktivitaet, an der ein Boundary-Event haengt. Ein fehlendes oder ins Leere zeigendes
+    /// <c>attachedToRef</c> ist ein Modellfehler mit Namen, keine Nullreferenz und kein
+    /// misslungener Typumwandlungsversuch.
+    /// </summary>
+    private static Activity RequireAttachedActivity(XElement xmlFlowNode, IEnumerable<FlowElement> flowElements)
+    {
+        var boundaryId = RequireId(xmlFlowNode);
+        var attachedToRef = xmlFlowNode.Attribute("attachedToRef")?.Value;
+        var attachedTo = flowElements.FirstOrDefault(element => element.Id == attachedToRef);
+
+        return attachedTo as Activity
+               ?? throw new ModelValidationException(
+                   $"The boundary event '{boundaryId}' must be attached to an activity of the same container; "
+                   + $"'{attachedToRef ?? "(none)"}' is not one.");
+    }
+
+    /// <summary>
+    /// Quelle oder Ziel eines Sequenzflusses. Ein Verweis ins Leere — oder auf etwas, das kein
+    /// Knoten ist — wird benannt, statt als Ausnahme aus LINQ oder aus einer Typumwandlung zu kommen.
+    /// </summary>
+    private static FlowNode RequireFlowNode(
+        XElement xmlFlowNode, string attributeName, IEnumerable<FlowElement> flowElements, string sequenceFlowId)
+    {
+        var reference = xmlFlowNode.Attribute(attributeName)?.Value;
+        var referenced = flowElements.FirstOrDefault(element => element.Id == reference);
+
+        return referenced as FlowNode
+               ?? throw new ModelValidationException(
+                   $"The sequence flow '{sequenceFlowId}' references the unknown {attributeName} "
+                   + $"'{reference ?? "(none)"}'.");
+    }
+
+    /// <summary>
+    /// Eine Aufruf-Aktivitaet. Ohne <c>zeebe:calledElement/@processId</c> wuesste die Laufzeit
+    /// nicht, was sie starten soll; das ist ein benannter Modellfehler. Die beiden
+    /// Weitergabeschalter bleiben bei unlesbarem Wert auf ihrem Vorgabewert <c>true</c>, statt
+    /// das ganze Dokument an einem Schreibfehler scheitern zu lassen.
+    /// </summary>
+    private static CallActivity HandleCallActivity(
+        XElement xmlFlowNode,
+        FlowzerList<FlowzerIoMapping>? inputMappings,
+        FlowzerList<FlowzerIoMapping>? outputMappings)
+    {
+        var callActivityId = RequireId(xmlFlowNode);
+        var calledElement = xmlFlowNode.Descendants()
+            .FirstOrDefault(element => element.Name.LocalName == "calledElement");
+        var processId = calledElement?.Attribute("processId")?.Value;
+        if (string.IsNullOrWhiteSpace(processId))
+        {
+            throw new ModelValidationException(
+                $"The call activity '{callActivityId}' requires zeebe:calledElement/@processId.");
+        }
+
+        return new CallActivity
+        {
+            Id = callActivityId,
+            Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+            DefaultId = xmlFlowNode.Attribute("default")?.Value,
+            FlowzerCalledElementProcessId = processId,
+            FlowzerPropagateAllChildVariables = ReadFlag(calledElement, "propagateAllChildVariables"),
+            FlowzerPropagateAllParentVariables = ReadFlag(calledElement, "propagateAllParentVariables"),
+            InputMappings = inputMappings,
+            OutputMappings = outputMappings,
+            LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+        };
+    }
+
+    /// <summary>Ein optionaler Ja/Nein-Schalter; fehlend oder unlesbar heisst <c>true</c>.</summary>
+    private static bool ReadFlag(XElement? element, string attributeName) =>
+        !bool.TryParse(element?.Attribute(attributeName)?.Value, out var value) || value;
+
     private static EndEvent HandleEndEvent(XElement xmlFlowNode, List<IRootElement> rootElements,
         FlowzerList<FlowzerIoMapping>? inputMappings = null)
     {
@@ -461,7 +590,7 @@ public static class ModelParser
         {
             return new FlowzerTerminateEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             };
         }
@@ -470,7 +599,7 @@ public static class ModelParser
         {
             return new FlowzerMessageEndEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 Implementation = ReadTaskDefinitionType(xmlFlowNode),
                 FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
@@ -483,16 +612,15 @@ public static class ModelParser
         {
             return new FlowzerSignalEndEvent()
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                Signal = rootElements.OfType<Signal>()
-                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                Signal = RequireSignal(rootElements, definition, RequireId(xmlFlowNode)),
             };
         }
 
         if (xmlFlowNode.HasDescendant("errorEventDefinition", out definition))
         {
-            var errorEndId = xmlFlowNode.Attribute("id")!.Value;
+            var errorEndId = RequireId(xmlFlowNode);
             return new FlowzerErrorEndEvent
             {
                 Id = errorEndId,
@@ -503,7 +631,7 @@ public static class ModelParser
 
         return new EndEvent
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
+            Id = RequireId(xmlFlowNode),
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
         };
     }
@@ -516,7 +644,7 @@ public static class ModelParser
         {
             return new FlowzerIntermediateTimerCatchEvent()
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 TimerDefinition = ParseTimerEventDefinition(definition),
             };
@@ -528,15 +656,14 @@ public static class ModelParser
             return catchEvent
                 ? new FlowzerIntermediateMessageCatchEvent()
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    MessageDefinition = rootElements.OfType<MessageDefinition>()
-                        .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                    MessageDefinition = RequireMessage(rootElements, definition.Attribute("messageRef")?.Value, RequireId(xmlFlowNode)),
                     OutputMappings = outputMappings,
                 }
                 : new FlowzerIntermediateMessageThrowEvent()
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                     Implementation = ReadTaskDefinitionType(xmlFlowNode),
                     FlowzerRetries = ParseRetries(FindTaskDefinition(xmlFlowNode)),
@@ -550,29 +677,27 @@ public static class ModelParser
             return catchEvent
                 ? new FlowzerIntermediateSignalCatchEvent()
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Signal = rootElements.OfType<Signal>()
-                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                    Signal = RequireSignal(rootElements, definition, RequireId(xmlFlowNode)),
                 }
                 : new FlowzerIntermediateSignalThrowEvent()
                 {
-                    Id = xmlFlowNode.Attribute("id")!.Value,
+                    Id = RequireId(xmlFlowNode),
                     Name = xmlFlowNode.Attribute("name")?.Value ?? "",
-                    Signal = rootElements.OfType<Signal>()
-                        .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                    Signal = RequireSignal(rootElements, definition, RequireId(xmlFlowNode)),
                 };
         }
 
         if (catchEvent)
             return new IntermediateCatchEvent()
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             };
         return new IntermediateThrowEvent()
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
+            Id = RequireId(xmlFlowNode),
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
         };
     }
@@ -584,7 +709,7 @@ public static class ModelParser
 
         return new ServiceTask
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
+            Id = RequireId(xmlFlowNode),
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
@@ -592,7 +717,7 @@ public static class ModelParser
                 xmlFlowNode.Attribute("Implementation")?.Value
                 ?? taskDefinition?.Attribute("type")?.Value
                 ?? throw new ModelValidationException(
-                    $"Implementation not defined for Service task '{xmlFlowNode.Attribute("id")!.Value}'"),
+                    $"Implementation not defined for Service task '{RequireId(xmlFlowNode)}'"),
             FlowzerRetries = ParseRetries(taskDefinition),
             FlowzerAiTask = AiTaskContractParser.Parse(xmlFlowNode),
             InputMappings = inputMappings,
@@ -623,7 +748,7 @@ public static class ModelParser
             return null;
         }
 
-        return rootElements.OfType<MessageDefinition>().SingleOrDefault(m => m.FlowzerId == messageRef)
+        return rootElements.OfType<MessageDefinition>().FirstOrDefault(m => m.FlowzerId == messageRef)
                ?? throw new ModelValidationException($"The unknown message '{messageRef}' is referenced.");
     }
 
@@ -659,7 +784,7 @@ public static class ModelParser
 
     private static BPMN.Common.Expression? ParseExpression(XElement loopCharacteristicsXmlNode, string xmlNodeName)
     {
-        var element = loopCharacteristicsXmlNode.Descendants().SingleOrDefault(x => x.Name.LocalName == xmlNodeName);
+        var element = loopCharacteristicsXmlNode.Descendants().FirstOrDefault(x => x.Name.LocalName == xmlNodeName);
         if (element != null)
         {
             return new BPMN.Common.Expression
@@ -702,7 +827,7 @@ public static class ModelParser
 
         return new FlowzerScriptTask
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
+            Id = RequireId(xmlFlowNode),
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
@@ -736,7 +861,7 @@ public static class ModelParser
             .FirstOrDefault(e => e.Name.LocalName == "taskSchedule");
         return new UserTask
         {
-            Id = xmlFlowNode.Attribute("id")!.Value,
+            Id = RequireId(xmlFlowNode),
             Name = xmlFlowNode.Attribute("name")?.Value ?? "",
             // Container = process,
             DefaultId = xmlFlowNode.Attribute("default")?.Value,
@@ -904,13 +1029,28 @@ public static class ModelParser
             .SelectMany(extension => extension.Elements(ZeebeExtensionNamespace + "ioMapping"))
             .SelectMany(mapping => mapping.Elements(ZeebeExtensionNamespace + mappingName))
             .Select(element => new FlowzerIoMapping(
-                element.Attribute("source")!.Value,
-                element.Attribute("target")!.Value))
+                RequireMappingValue(element, "source", xmlFlowNode),
+                RequireMappingValue(element, "target", xmlFlowNode)))
             .ToFlowzerList();
 
         return mappings.Any()
             ? mappings
             : null;
+    }
+
+    /// <summary>
+    /// Quelle beziehungsweise Ziel einer Ein-/Ausgangszuordnung. Beide sind in der
+    /// Zeebe-Erweiterung Pflicht; eine unvollstaendige Zuordnung wird benannt gemeldet.
+    /// </summary>
+    private static string RequireMappingValue(XElement mapping, string attributeName, XElement xmlFlowNode)
+    {
+        var value = mapping.Attribute(attributeName)?.Value;
+
+        return string.IsNullOrWhiteSpace(value)
+            ? throw new ModelValidationException(
+                $"The io mapping of '{xmlFlowNode.Attribute("id")?.Value ?? "(unknown)"}' requires "
+                + $"a non-empty {attributeName}.")
+            : value;
     }
 
     /// <summary>
@@ -937,11 +1077,17 @@ public static class ModelParser
             $"User task '{xmlFlowNode.Attribute("id")?.Value ?? "(unknown)"}' requires either formKey or formId in formDefinition.");
     }
 
+    /// <summary>
+    /// Sucht eine Ereignis- oder Erweiterungsdefinition unterhalb eines Elements. Bewusst der
+    /// <b>erste</b> Treffer: Ein Ereignis mit mehr als einer Ereignisdefinition ist ein
+    /// Modellfehler, den die Veroeffentlichungspruefung mit <c>bpmn.event_definition.invalid</c>
+    /// benennt — der Parser soll daran nicht mit einer LINQ-Ausnahme zerbrechen.
+    /// </summary>
     private static bool HasDescendant(this XElement element, string name,
         [NotNullWhen(returnValue: true)] out XElement? descendant)
     {
         descendant = element.Descendants()
-            .SingleOrDefault(x => x.Name.LocalName.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+            .FirstOrDefault(x => x.Name.LocalName.Equals(name, StringComparison.InvariantCultureIgnoreCase));
         return descendant != null;
     }
 
@@ -955,7 +1101,7 @@ public static class ModelParser
         {
             returnEvent = new FlowzerTimerStartEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
                 TimerDefinition = ParseTimerEventDefinition(definition),
@@ -967,11 +1113,10 @@ public static class ModelParser
         {
             returnEvent = new FlowzerMessageStartEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
-                MessageDefinition = rootElements.OfType<MessageDefinition>()
-                    .Single(m => m.FlowzerId == definition.Attribute("messageRef")?.Value),
+                MessageDefinition = RequireMessage(rootElements, definition.Attribute("messageRef")?.Value, RequireId(xmlFlowNode)),
                 OutputMappings = outputMappings
             };
         }
@@ -980,11 +1125,10 @@ public static class ModelParser
         {
             returnEvent = new FlowzerSignalStartEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 // Container = process,
-                Signal = rootElements.OfType<Signal>()
-                    .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
+                Signal = RequireSignal(rootElements, definition, RequireId(xmlFlowNode)),
                 OutputMappings = outputMappings
             };
         }
@@ -998,7 +1142,7 @@ public static class ModelParser
             // Diagramm soll dadurch nicht unspeicherbar werden.
             returnEvent = new StartEvent
             {
-                Id = xmlFlowNode.Attribute("id")!.Value,
+                Id = RequireId(xmlFlowNode),
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 OutputMappings = outputMappings,
                 FlowzerFormKey = ReadFormKey(xmlFlowNode.Descendants()
@@ -1013,7 +1157,7 @@ public static class ModelParser
     private static TimerEventDefinition ParseTimerEventDefinition(XElement xElementTimerEventDefinition)
     {
         TimerEventDefinition? timerEventDefinition = null;
-        var element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeCycle");
+        var element = xElementTimerEventDefinition.Descendants().FirstOrDefault(x => x.Name.LocalName == "timeCycle");
         if (element != null)
         {
             timerEventDefinition = new TimerEventDefinition()
@@ -1025,7 +1169,7 @@ public static class ModelParser
             };
         }
 
-        element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDate");
+        element = xElementTimerEventDefinition.Descendants().FirstOrDefault(x => x.Name.LocalName == "timeDate");
         if (element != null)
         {
             timerEventDefinition = new TimerEventDefinition()
@@ -1037,7 +1181,7 @@ public static class ModelParser
             };
         }
 
-        element = xElementTimerEventDefinition.Descendants().SingleOrDefault(x => x.Name.LocalName == "timeDuration");
+        element = xElementTimerEventDefinition.Descendants().FirstOrDefault(x => x.Name.LocalName == "timeDuration");
         if (element != null)
         {
             timerEventDefinition = new TimerEventDefinition()
@@ -1049,8 +1193,11 @@ public static class ModelParser
             };
         }
 
-        if (timerEventDefinition == null)
-            throw new ArgumentException("TimerEventDefinition found, but no Implementation.");
-        return timerEventDefinition;
+        // Ein Zeitereignis ohne timeCycle, timeDate oder timeDuration hat keinen Termin. Das ist
+        // ein benannter Modellfehler — die Veroeffentlichungspruefung meldet ihn als
+        // bpmn.timer.definition_required am Knoten.
+        return timerEventDefinition ?? throw new ModelValidationException(
+            $"The timer event '{xElementTimerEventDefinition.Parent?.Attribute("id")?.Value ?? "(unknown)"}' "
+            + "requires timeCycle, timeDate, or timeDuration.");
     }
 }

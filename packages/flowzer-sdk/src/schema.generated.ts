@@ -7803,6 +7803,18 @@ export interface components {
             errorMessage?: string | null;
             result?: components["schemas"]["NotificationDto"][] | null;
         };
+        OperationsConnectorDto: {
+            name: string | null;
+            jobType: string | null;
+            enabled: boolean;
+            /** Format: date-time */
+            lastRunAtUtc?: string | null;
+            /** Format: int64 */
+            processedJobs: number;
+            /** Format: int64 */
+            failedJobs: number;
+            lastErrorMessage?: string | null;
+        };
         OperationsDiagnosticsDto: {
             /** Format: date-time */
             checkedAtUtc: string;
@@ -7813,6 +7825,7 @@ export interface components {
             retention: components["schemas"]["InstanceRetentionDiagnosticsDto"];
             instrumentation: components["schemas"]["OperationsInstrumentationDto"];
             observability: components["schemas"]["OperationsObservabilityDto"];
+            connectors: components["schemas"]["OperationsConnectorDto"][] | null;
         };
         OperationsDiagnosticsDtoApiStatusResult: {
             successful?: boolean;
