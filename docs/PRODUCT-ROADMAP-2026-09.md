@@ -351,8 +351,12 @@ und Abschluss bleiben identisch.
 - [ ] Explizites, am Deployment gespeichertes Expression-Profil, kein stiller
   Semantikwechsel durch V8-Fallback.
 - [ ] Störungszentrum mit Diagnose, sicherem Retry, Eingabekorrektur, Abbruch und Audit.
-- [ ] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
+- [x] PostgreSQL-Revisionen, atomare Lease-Prüfung und gemeinsamer Commit von
   Instanz/Aufgaben/Jobs; Mehrprozessbetrieb erst nach Konkurrenztests freigeben.
+  Die Konkurrenztests laufen mit zwei getrennten API-Hosts gegen eine Datenbank
+  (`src/WebApiEngine.Tests/MultiProcess*.cs`); der Mehrprozessbetrieb ist damit für
+  PostgreSQL unter den in [Betrieb](OPERATIONS.md#mehrprozessbetrieb) genannten
+  Bedingungen freigegeben. Die Dateiablage bleibt Einzelprozess.
 - [ ] Dateiablage auf Entwicklung begrenzen; bestehende No-op-Transaktionen sind
   kein Rollback- oder Crash-Konsistenzversprechen.
 - [ ] Große Einheiten nach Verantwortung aufteilen, nicht allein nach Zeilenzahl.
