@@ -66,6 +66,7 @@ public partial class InstanceEngine
         //Complete all Completing Tokens
         foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
         {
+            WithdrawEventGroupSiblings(token);
             token.State = FlowNodeState.Completed;
             PrepareOutputData(token);
             
@@ -105,6 +106,24 @@ public partial class InstanceEngine
         {
             // ToDo: Hier kann man noch Nachrichtenflüsse einbauen etc.
             token.State = FlowNodeState.Terminated;
+        }
+    }
+
+    /// <summary>
+    /// Ein ereignisbasiertes Gateway stellt mehrere Ereignisse gleichzeitig scharf; genau eines
+    /// gewinnt. Sobald ein Mitglied der Gruppe abschliesst, werden die uebrigen zurueckgezogen —
+    /// damit verschwinden auch ihre Message-, Signal- und Timer-Subscriptions.
+    /// </summary>
+    private void WithdrawEventGroupSiblings(Token token)
+    {
+        if (token.EventGroupId is not { } eventGroupId) return;
+
+        foreach (var sibling in Tokens.Where(candidate =>
+                     candidate.EventGroupId == eventGroupId
+                     && candidate.Id != token.Id
+                     && candidate.State is FlowNodeState.Ready or FlowNodeState.Active))
+        {
+            sibling.State = FlowNodeState.Withdrawn;
         }
     }
 
@@ -257,7 +276,9 @@ public partial class InstanceEngine
         { typeof(ExclusiveGateway), new ExclusiveGatewayHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
         { typeof(ServiceTask), new DoNothingFlowNodeHandler() },
-        { typeof(InclusiveGateway), new DefaultFlowNodeHandler() },
+        { typeof(InclusiveGateway), new InclusiveGatewayHandler() },
+        // Stellt alle Folgeereignisse gleichzeitig scharf; das erste, das eintrifft, gewinnt.
+        { typeof(EventBasedGateway), new EventBasedGatewayHandler() },
         { typeof(FlowzerTerminateEvent), new TerminateEndEventHandler() },
         { typeof(FlowzerErrorEndEvent), new ErrorEndEventHandler() },
         { typeof(UserTask), new DoNothingFlowNodeHandler() },
@@ -272,6 +293,15 @@ public partial class InstanceEngine
         { typeof(IntermediateThrowEvent), new DefaultFlowNodeHandler() },
         { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateTimerCatchEvent), new DoNothingFlowNodeHandler() },
+        // Eskalation meldet nach aussen und laeuft weiter; nur ein unterbrechender Faenger stoppt den Pfad.
+        { typeof(FlowzerIntermediateEscalationThrowEvent), new EscalationThrowHandler() },
+        { typeof(FlowzerEscalationEndEvent), new EscalationThrowHandler() },
+        // Die Startereignisse eines Event-Subprozesses laufen durch: Ihr Ereignis ist bereits
+        // eingetroffen, als die Engine den Event-Subprozess angelegt hat.
+        { typeof(FlowzerTimerStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerSignalStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerErrorStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerEscalationStartEvent), new DefaultFlowNodeHandler() },
         { typeof(Process), new DoNothingFlowNodeHandler() },
         { typeof(SubProcess), new ProcessFlowNodeHandler() },
         // Wartet wie ein Service-Task, aber auf eine Kindinstanz statt auf einen Worker.

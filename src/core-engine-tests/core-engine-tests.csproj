@@ -44,6 +44,11 @@
               Link="contracts\v5.json">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
+        <!-- Ebenso der Vertrag 8: Er sagt Gateways, Event-Subprozesse und Eskalation weiterhin nicht zu. -->
+        <None Include="..\..\contracts\bpmn-capabilities\v8.json"
+              Link="contracts\v8.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
         <!-- Die Beispiel-BPMN wird im Original geprueft, damit das Beispiel nicht
              unbemerkt von der Doku abweicht. -->
         <None Include="..\..\examples\urlaubsantrag\urlaubsantrag.bpmn"

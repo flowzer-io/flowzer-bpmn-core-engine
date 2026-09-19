@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EventSubProcessInterruptingMessage" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_Abbruch" name="Abbruch" />
+  <bpmn:process id="Process_EventSubProcessInterruptingMessage" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToMain</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:serviceTask id="ServiceTask_Main" name="ServiceTask_Main">
+      <bpmn:extensionElements><zeebe:taskDefinition type="main" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToMain</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_Regular"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToMain" sourceRef="StartEvent_1" targetRef="ServiceTask_Main" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="ServiceTask_Main" targetRef="EndEvent_Regular" />
+    <bpmn:subProcess id="EventSub" triggeredByEvent="true">
+      <bpmn:startEvent id="EventSub_Start">
+        <bpmn:outgoing>EventSub_Flow_ToTask</bpmn:outgoing>
+        <bpmn:messageEventDefinition id="MED_Abbruch" messageRef="Message_Abbruch" />
+      </bpmn:startEvent>
+      <bpmn:serviceTask id="ServiceTask_Handle" name="ServiceTask_Handle">
+        <bpmn:extensionElements><zeebe:taskDefinition type="handle" /></bpmn:extensionElements>
+        <bpmn:incoming>EventSub_Flow_ToTask</bpmn:incoming>
+        <bpmn:outgoing>EventSub_Flow_ToEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="EventSub_End"><bpmn:incoming>EventSub_Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="EventSub_Flow_ToTask" sourceRef="EventSub_Start" targetRef="ServiceTask_Handle" />
+      <bpmn:sequenceFlow id="EventSub_Flow_ToEnd" sourceRef="ServiceTask_Handle" targetRef="EventSub_End" />
+    </bpmn:subProcess>
+  </bpmn:process>
+</bpmn:definitions>

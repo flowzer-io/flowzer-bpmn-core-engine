@@ -11,7 +11,7 @@ public class BpmnCapabilityMatrixTest
     [Test]
     public void Contract_ShouldExposeVersionedExecutionCapabilities()
     {
-        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("8");
+        BpmnCapabilityMatrix.Contract.ContractVersion.Should().Be("9");
         BpmnCapabilityMatrix.Contract.Elements.Should().Contain(capability =>
             capability.ElementType == "scriptTask"
             && capability.Modelable
@@ -41,12 +41,11 @@ public class BpmnCapabilityMatrixTest
         var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
         exception.Code.Should().Be("bpmn.element.not_executable");
         exception.ElementId.Should().Be("Script_1");
-        exception.ContractVersion.Should().Be("8");
+        exception.ContractVersion.Should().Be("9");
     }
 
     // Testzweck: Alle im Vertrag als nur parsebar markierten P0/P1-Elemente werden mit ihrem eigenen BPMN-Knoten abgelehnt.
     [TestCase("complexGateway", "<bpmn:complexGateway id='Complex_1' />", "Complex_1")]
-    [TestCase("inclusiveGateway", "<bpmn:inclusiveGateway id='Inclusive_1' />", "Inclusive_1")]
     [TestCase("signalEnd", "<bpmn:endEvent id='SignalEnd_1'><bpmn:signalEventDefinition /></bpmn:endEvent>", "SignalEnd_1")]
     public void ValidateForDeployment_ShouldRejectEveryKnownNonExecutableCapability(
         string _capability, string flowElement, string elementId)
@@ -80,10 +79,10 @@ public class BpmnCapabilityMatrixTest
     }
 
     // Testzweck: Nicht erlaubte Eventdefinitionen werden positionsbezogen vor dem Parser mit der Event-ID abgelehnt.
-    [TestCase("startEvent", "errorEventDefinition")]
     [TestCase("intermediateCatchEvent", "escalationEventDefinition")]
-    [TestCase("boundaryEvent", "escalationEventDefinition")]
-    [TestCase("endEvent", "escalationEventDefinition")]
+    [TestCase("startEvent", "conditionalEventDefinition")]
+    [TestCase("boundaryEvent", "conditionalEventDefinition")]
+    [TestCase("endEvent", "cancelEventDefinition")]
     public void ValidateForDeployment_ShouldRejectUnsupportedEventDefinition(string eventType, string definitionType)
     {
         var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
@@ -522,7 +521,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.error_boundary.cancel_activity_invalid");
         exception.ElementId.Should().Be("Boundary_1");
         exception.PropertyPath.Should().Be("cancelActivity");
-        exception.ContractVersion.Should().Be("8");
+        exception.ContractVersion.Should().Be("9");
     }
 
     // Testzweck: Der historische Vertrag 4 bleibt unverändert und sagt Fehlerpfade weiterhin nicht zu.
@@ -658,7 +657,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be("bpmn.call_activity.process_id_required");
         exception.ElementId.Should().Be("Call_1");
         exception.PropertyPath.Should().Be("extensionElements.calledElement.processId");
-        exception.ContractVersion.Should().Be("8");
+        exception.ContractVersion.Should().Be("9");
     }
 
     // Testzweck: Ein FEEL-Ausdruck als Prozesskennung ist in dieser Stufe nicht erlaubt; sonst
@@ -703,7 +702,7 @@ public class BpmnCapabilityMatrixTest
         exception.Code.Should().Be(code);
         exception.ElementId.Should().Be("BusinessRule_1");
         exception.PropertyPath.Should().Be(propertyPath);
-        exception.ContractVersion.Should().Be("8");
+        exception.ContractVersion.Should().Be("9");
     }
 
     private static string BusinessRuleTask(string extension) => $"""
@@ -721,6 +720,212 @@ public class BpmnCapabilityMatrixTest
           </bpmn:extensionElements>
         </bpmn:callActivity>
         """;
+
+    private const string EventBasedGatewayProcess =
+        "<bpmn:startEvent id='Start_1' /><bpmn:eventBasedGateway id='Gateway_1' />"
+        + "<bpmn:intermediateCatchEvent id='Catch_Message'><bpmn:messageEventDefinition messageRef='Message_1' />"
+        + "</bpmn:intermediateCatchEvent>"
+        + "<bpmn:receiveTask id='Receive_1' messageRef='Message_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Gateway_1' />"
+        + "<bpmn:sequenceFlow id='Flow_2' sourceRef='Gateway_1' targetRef='Catch_Message' />"
+        + "<bpmn:sequenceFlow id='Flow_3' sourceRef='Gateway_1' targetRef='Receive_1' />";
+
+    // Testzweck: Vertrag 9 sagt das ereignisbasierte Gateway zu, solange jeder Ausgang zu einem
+    // wartenden Element fuehrt.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptEventBasedGatewayWithCatchingTargets()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(EventBasedGatewayProcess));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ein Ausgang, der nicht auf ein wartendes Element zeigt, wird mit eigenem Code
+    // am betroffenen Ziel abgelehnt — sonst entschiede niemand, wann es weitergeht.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectEventBasedGatewayWithNonCatchingTarget()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:startEvent id='Start_1' /><bpmn:eventBasedGateway id='Gateway_1' />"
+            + "<bpmn:intermediateCatchEvent id='Catch_Message'><bpmn:messageEventDefinition messageRef='Message_1' />"
+            + "</bpmn:intermediateCatchEvent>"
+            + "<bpmn:task id='Task_1' />"
+            + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Gateway_1' />"
+            + "<bpmn:sequenceFlow id='Flow_2' sourceRef='Gateway_1' targetRef='Catch_Message' />"
+            + "<bpmn:sequenceFlow id='Flow_3' sourceRef='Gateway_1' targetRef='Task_1' />"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_based_gateway.invalid_target");
+        exception.ElementId.Should().Be("Task_1");
+        exception.PropertyPath.Should().Be("targetRef");
+    }
+
+    // Testzweck: Mit nur einem Ausgang gaebe es nichts zu entscheiden.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectEventBasedGatewayWithASingleOutgoingFlow()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:startEvent id='Start_1' /><bpmn:eventBasedGateway id='Gateway_1' />"
+            + "<bpmn:intermediateCatchEvent id='Catch_Message'><bpmn:messageEventDefinition messageRef='Message_1' />"
+            + "</bpmn:intermediateCatchEvent>"
+            + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Gateway_1' />"
+            + "<bpmn:sequenceFlow id='Flow_2' sourceRef='Gateway_1' targetRef='Catch_Message' />"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_based_gateway.outgoing_required");
+        exception.ElementId.Should().Be("Gateway_1");
+    }
+
+    // Testzweck: Bedingungen haetten am ereignisbasierten Gateway keinen Zeitpunkt, an dem sie
+    // ausgewertet wuerden — die Ereignisse entscheiden.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectConditionsAtAnEventBasedGateway()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:startEvent id='Start_1' /><bpmn:eventBasedGateway id='Gateway_1' />"
+            + "<bpmn:intermediateCatchEvent id='Catch_Message'><bpmn:messageEventDefinition messageRef='Message_1' />"
+            + "</bpmn:intermediateCatchEvent>"
+            + "<bpmn:receiveTask id='Receive_1' messageRef='Message_1' />"
+            + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Gateway_1' />"
+            + "<bpmn:sequenceFlow id='Flow_2' sourceRef='Gateway_1' targetRef='Catch_Message'>"
+            + "<bpmn:conditionExpression>=eilig</bpmn:conditionExpression></bpmn:sequenceFlow>"
+            + "<bpmn:sequenceFlow id='Flow_3' sourceRef='Gateway_1' targetRef='Receive_1' />"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_based_gateway.condition_not_allowed");
+        exception.ElementId.Should().Be("Gateway_1");
+    }
+
+    private static string InclusiveGatewayProcess(string secondFlow) =>
+        "<bpmn:startEvent id='Start_1' /><bpmn:inclusiveGateway id='Gateway_1' />"
+        + "<bpmn:task id='Task_A' /><bpmn:task id='Task_B' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Gateway_1' />"
+        + "<bpmn:sequenceFlow id='Flow_A' sourceRef='Gateway_1' targetRef='Task_A'>"
+        + "<bpmn:conditionExpression>=wegA</bpmn:conditionExpression></bpmn:sequenceFlow>"
+        + secondFlow;
+
+    // Testzweck: Vertrag 9 sagt das inklusive Gateway zu, solange jeder Ausgang eine Bedingung
+    // traegt oder der Standardfluss greift.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptInclusiveGatewayWithConditions()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            InclusiveGatewayProcess("<bpmn:sequenceFlow id='Flow_B' sourceRef='Gateway_1' targetRef='Task_B'>"
+                + "<bpmn:conditionExpression>=wegB</bpmn:conditionExpression></bpmn:sequenceFlow>")));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ein nicht-defaultiger Ausgang ohne Bedingung waere unbestimmt — dieselbe Regel
+    // wie am exklusiven Gateway, mit eigenem Code.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectInclusiveGatewayWithoutCondition()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            InclusiveGatewayProcess("<bpmn:sequenceFlow id='Flow_B' sourceRef='Gateway_1' targetRef='Task_B' />")));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.inclusive_gateway.condition_required");
+        exception.ElementId.Should().Be("Flow_B");
+        exception.PropertyPath.Should().Be("conditionExpression");
+    }
+
+    private static string EventSubProcess(string startEvent) =>
+        "<bpmn:startEvent id='Start_1' /><bpmn:task id='Task_1' />"
+        + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Task_1' />"
+        + "<bpmn:subProcess id='EventSub_1' triggeredByEvent='true'>"
+        + startEvent
+        + "<bpmn:task id='Task_Handle' />"
+        + "<bpmn:sequenceFlow id='SubFlow_1' sourceRef='SubStart_1' targetRef='Task_Handle' />"
+        + "</bpmn:subProcess>";
+
+    // Testzweck: Vertrag 9 sagt den Event-Subprozess zu; er braucht keinen eingehenden
+    // Sequenzfluss und gilt trotzdem als erreichbar.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptAnEventSubProcess()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(EventSubProcess(
+            "<bpmn:startEvent id='SubStart_1'><bpmn:messageEventDefinition messageRef='Message_1' /></bpmn:startEvent>")));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Ein Event-Subprozess ohne ausloesendes Ereignis begaenne nie.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectAnEventSubProcessWithoutEventDefinition()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(EventSubProcess(
+            "<bpmn:startEvent id='SubStart_1' />")));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.event_subprocess.start_required");
+        exception.ElementId.Should().Be("SubStart_1");
+        exception.PropertyPath.Should().Be("eventDefinition");
+    }
+
+    // Testzweck: Ein Fehlerstart faengt, was im Scope passiert. Ausserhalb eines
+    // Event-Subprozesses gibt es keinen solchen Scope.
+    [Test]
+    public void ValidateForDeployment_ShouldRejectAnErrorStartOutsideAnEventSubProcess()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:startEvent id='Start_1'><bpmn:errorEventDefinition /></bpmn:startEvent>"));
+
+        var exception = action.Should().Throw<BpmnCapabilityValidationException>().Which;
+        exception.Code.Should().Be("bpmn.start_event.event_subprocess_only");
+        exception.ElementId.Should().Be("Start_1");
+        exception.PropertyPath.Should().Be("eventDefinition");
+    }
+
+    // Testzweck: Vertrag 9 sagt Eskalationspfade zu — Wurf, Ende, Boundary (auch nicht
+    // unterbrechend) und Start im Event-Subprozess.
+    [Test]
+    public void ValidateForDeployment_ShouldAcceptEscalationElements()
+    {
+        var action = () => BpmnCapabilityMatrix.ValidateForDeployment(CreateProcess(
+            "<bpmn:startEvent id='Start_1' />"
+            + "<bpmn:subProcess id='Sub_1'>"
+            + "<bpmn:startEvent id='SubStart_1' />"
+            + "<bpmn:intermediateThrowEvent id='Throw_1'><bpmn:escalationEventDefinition /></bpmn:intermediateThrowEvent>"
+            + "<bpmn:endEvent id='SubEnd_1'><bpmn:escalationEventDefinition /></bpmn:endEvent>"
+            + "<bpmn:sequenceFlow id='SubFlow_1' sourceRef='SubStart_1' targetRef='Throw_1' />"
+            + "<bpmn:sequenceFlow id='SubFlow_2' sourceRef='Throw_1' targetRef='SubEnd_1' />"
+            + "</bpmn:subProcess>"
+            + "<bpmn:boundaryEvent id='Boundary_1' attachedToRef='Sub_1' cancelActivity='false'>"
+            + "<bpmn:escalationEventDefinition /></bpmn:boundaryEvent>"
+            + "<bpmn:task id='Task_Notify' />"
+            + "<bpmn:sequenceFlow id='Flow_1' sourceRef='Start_1' targetRef='Sub_1' />"
+            + "<bpmn:sequenceFlow id='Flow_2' sourceRef='Boundary_1' targetRef='Task_Notify' />"
+            + "<bpmn:subProcess id='EventSub_1' triggeredByEvent='true'>"
+            + "<bpmn:startEvent id='EventSubStart_1'><bpmn:escalationEventDefinition /></bpmn:startEvent>"
+            + "<bpmn:task id='Task_Inform' />"
+            + "<bpmn:sequenceFlow id='EventSubFlow_1' sourceRef='EventSubStart_1' targetRef='Task_Inform' />"
+            + "</bpmn:subProcess>"));
+
+        action.Should().NotThrow();
+    }
+
+    // Testzweck: Der historische Vertrag 8 bleibt unverändert und sagt Gateways, Event-
+    // Subprozesse und Eskalation weiterhin nicht zu.
+    [Test]
+    public void HistoricContractVersion8_ShouldStillNotPromiseGatewaysAndEscalation()
+    {
+        var contract = JsonSerializer.Deserialize<BpmnCapabilityContract>(
+            File.ReadAllText(Path.Combine("contracts", "v8.json")),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+        using (new AssertionScope())
+        {
+            contract.ContractVersion.Should().Be("8");
+            contract.Elements.Should().Contain(capability =>
+                capability.ElementType == "inclusiveGateway" && !capability.Executable);
+            contract.Elements.Should().NotContain(capability => capability.ElementType == "eventBasedGateway");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "subProcess.eventSubProcess");
+            contract.Elements.Should().NotContain(capability =>
+                capability.ElementType == "endEvent.escalationEventDefinition");
+        }
+    }
 
     private static string CreateProcess(string flowElements) => $"""
         <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"

@@ -54,6 +54,27 @@ public class Token
     public Guid? ParentTokenId { get; init; }
 
     /// <summary>
+    /// Nur an den Tokens, die ein ereignisbasiertes Gateway gleichzeitig scharf gestellt hat:
+    /// die gemeinsame Kennung dieser Gruppe. Trifft eines der Ereignisse ein, zieht die Engine
+    /// die uebrigen Mitglieder derselben Gruppe zurueck — genau so verschwinden auch deren
+    /// Message-, Signal- und Timer-Subscriptions. Null an jedem anderen Token.
+    /// </summary>
+    public Guid? EventGroupId { get; set; }
+
+    /// <summary>
+    /// Nur an den Tokens, die ein inklusives Gateway als Split erzeugt hat: die gemeinsame
+    /// Kennung dieser Verzweigung. Sie wandert mit dem Token durch seinen Zweig, damit der
+    /// zugehoerige Join weiss, welche Tokens zusammengehoeren. Null an jedem anderen Token.
+    /// </summary>
+    public Guid? InclusiveForkId { get; set; }
+
+    /// <summary>
+    /// Zu <see cref="InclusiveForkId"/>: wie viele Zweige der Split aktiviert hat. Der Join
+    /// wartet auf genau diese Anzahl und setzt die Merkzelle danach zurueck.
+    /// </summary>
+    public int? InclusiveForkSize { get; set; }
+
+    /// <summary>
     /// Nur an einem Token, das an einer Call Activity wartet: die Instanz, die dieser Schritt
     /// gestartet hat. Sie ist zugleich die Merkfaehigkeit der Engine — ein Token mit gesetzter
     /// Kennung fordert keinen zweiten Aufruf mehr an, auch nicht nach einem Neuladen aus der

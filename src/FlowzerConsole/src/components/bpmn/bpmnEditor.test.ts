@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createBpmnEditor, NEW_ERROR } from './bpmnEditor';
+import { createBpmnEditor, NEW_ERROR, NEW_ESCALATION } from './bpmnEditor';
 import type { DiagramElement, ModdleElement } from './moddle';
 
 /**
@@ -48,7 +48,7 @@ function createModelerDouble(elements: DiagramElement[]) {
   return createBpmnEditor({ get: <T,>(name: string) => services[name] as T });
 }
 
-const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal', 'bpmn:Error'];
+const ROOT_ELEMENT_TYPES = ['bpmn:Message', 'bpmn:Signal', 'bpmn:Error', 'bpmn:Escalation'];
 
 function applyProperties(target: ModdleElement, properties: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(properties)) {
@@ -478,6 +478,103 @@ describe('setErrorReference', () => {
     editor.setErrorReference('Element_1', { name: 'Egal' });
 
     expect((definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Error')).toHaveLength(0);
+  });
+});
+
+// Testzweck: Eine bpmn:Escalation gehoert wie ein bpmn:Error zum Dokument. Melden und Fangen
+// finden nur ueber dieselbe Eskalation zueinander; eine je Ereignis neu angelegte bliebe im
+// Modell ohne Gegenstueck.
+describe('setEscalationReference', () => {
+  function escalationEvent(type = 'bpmn:IntermediateThrowEvent', escalationRef?: ModdleElement) {
+    const definition = { $type: 'bpmn:EscalationEventDefinition' } as ModdleElement;
+    if (escalationRef) definition.escalationRef = escalationRef;
+    const built = diagram({ $type: type, eventDefinitions: [definition] });
+    return { ...built, definition };
+  }
+
+  // Testzweck: Ohne vorhandene Eskalation entsteht das Wurzelelement samt Factory-Kennung —
+  // sonst zeigte das Ereignis auf nichts.
+  it('legt eine fehlende Eskalation als Wurzelelement an und verweist darauf', () => {
+    const { definitions, definition, editor } = escalationEvent();
+
+    editor.setEscalationReference('Element_1', { name: 'Freigabe durch die Leitung', code: 'FREIGABE' });
+
+    const escalation = (definitions.rootElements as ModdleElement[]).find(
+      (root) => root.$type === 'bpmn:Escalation',
+    )!;
+    expect(escalation.name).toBe('Freigabe durch die Leitung');
+    expect(escalation.escalationCode).toBe('FREIGABE');
+    expect(escalation.id).toMatch(/^Escalation_/);
+    expect(definition.escalationRef).toBe(escalation);
+  });
+
+  // Testzweck: Die Auswahl einer vorhandenen Eskalation darf keine zweite anlegen — sonst
+  // faende das fangende Ereignis die gemeldete nie.
+  it('waehlt eine vorhandene Eskalation aus, statt eine zweite anzulegen', () => {
+    const existing = {
+      $type: 'bpmn:Escalation',
+      id: 'Escalation_alt',
+      name: 'Alt',
+      escalationCode: 'ALT',
+    } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:BoundaryEvent');
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: 'Escalation_alt' });
+
+    expect(definition.escalationRef).toBe(existing);
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(1);
+  });
+
+  // Testzweck: Das Loesen macht aus dem Ereignis wieder einen Faenger fuer jede Eskalation,
+  // laesst die Eskalation selbst aber im Dokument stehen.
+  it('loest den Bezug, sodass das Ereignis wieder jede Eskalation faengt', () => {
+    const existing = { $type: 'bpmn:Escalation', id: 'Escalation_alt', name: 'Alt' } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:StartEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: null });
+
+    expect(definition.escalationRef).toBeUndefined();
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(1);
+  });
+
+  // Testzweck: „Neue Eskalation" legt eine zweite an, statt die vorhandene umzubenennen —
+  // sonst aenderte die Neuanlage still jedes andere Ereignis, das auf sie zeigt.
+  it('legt bei „neue Eskalation" eine zweite an, statt die vorhandene umzubenennen', () => {
+    const existing = {
+      $type: 'bpmn:Escalation',
+      id: 'Escalation_alt',
+      name: 'Alt',
+      escalationCode: 'ALT',
+    } as ModdleElement;
+    const { definitions, definition, editor } = escalationEvent('bpmn:EndEvent', existing);
+    (definitions.rootElements as ModdleElement[]).push(existing);
+
+    editor.setEscalationReference('Element_1', { escalationId: NEW_ESCALATION });
+
+    const escalations = (definitions.rootElements as ModdleElement[]).filter(
+      (root) => root.$type === 'bpmn:Escalation',
+    );
+    expect(escalations).toHaveLength(2);
+    expect(existing.name).toBe('Alt');
+    expect(definition.escalationRef).toBe(escalations[1]);
+  });
+
+  // Testzweck: Ein Ereignis ohne Eskalationsdefinition bleibt unberuehrt — der Adapter darf
+  // keine Definition erfinden, die die Engine dort nicht erwartet.
+  it('ruehrt ein Ereignis ohne Eskalationsdefinition nicht an', () => {
+    const { definitions, editor } = diagram({ $type: 'bpmn:EndEvent' });
+
+    editor.setEscalationReference('Element_1', { name: 'Egal' });
+
+    expect(
+      (definitions.rootElements as ModdleElement[]).filter((root) => root.$type === 'bpmn:Escalation'),
+    ).toHaveLength(0);
   });
 });
 

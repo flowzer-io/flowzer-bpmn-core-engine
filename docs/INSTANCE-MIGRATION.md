@@ -45,6 +45,10 @@ eine Instanz, wenn
   ein Token, das zu einem anderen Modell gehört. Die Kindinstanz selbst ist normal migrierbar —
   ihr Bezug zum Aufrufer hängt an Instanz- und Tokenkennung, nicht an der Version. Siehe
   [CALL-ACTIVITY.md](CALL-ACTIVITY.md).
+- sie an einem der Ereignisse eines ereignisbasierten Gateways wartet (Problemcode
+  `EventBasedGatewayWaiting`): Diese Tokens warten als Gruppe, von der genau eines gewinnt.
+  Eines davon allein umzuziehen zerrisse sie; die übrigen warteten auf ein Ereignis, das
+  niemanden mehr erreicht. Siehe [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 9).
 - sie bereits auf der deployten Version läuft.
 
 Bereits durchlaufene Knoten sind Historie und nie ein Hindernis — auch wenn es sie in

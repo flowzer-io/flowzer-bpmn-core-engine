@@ -12,7 +12,7 @@ namespace core_engine;
 /// </summary>
 public static class BpmnCapabilityMatrix
 {
-    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v8.json";
+    private const string CapabilityResourceSuffix = "Contracts.bpmn_capabilities.v9.json";
     private static readonly Lazy<BpmnCapabilityContract> ContractLoader = new(LoadContract);
 
     /// <summary>Der unveränderte Vertrag, den Hosts zur Information ihrer Modellieransichten ausliefern können.</summary>
@@ -101,10 +101,60 @@ public static class BpmnCapabilityMatrix
         {
             if (element.Name.LocalName == "subProcess")
             {
+                if (IsEventSubProcess(element))
+                {
+                    try { ValidateEventSubProcess(element); }
+                    catch (BpmnCapabilityValidationException failure) { issues.AddRange(failure.Issues); }
+                }
+
                 ValidateContainer(element, allowToolAuthoring, issues);
             }
         }
     }
+
+    /// <summary>
+    /// Ein <c>subProcess</c> mit <c>triggeredByEvent="true"</c> — der Event-Subprozess. Er haengt
+    /// an keinem Sequenzfluss, sondern an einem Ereignis seines umschliessenden Scopes.
+    /// </summary>
+    private static bool IsEventSubProcess(XElement element) =>
+        element.Name.LocalName == "subProcess"
+        && string.Equals(element.Attribute("triggeredByEvent")?.Value, "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Ein Event-Subprozess braucht genau ein Startereignis, und dieses braucht die
+    /// Ereignisdefinition, die ihn ausloest. Ohne sie waere er ein Block, der nie beginnt — und
+    /// mit mehreren Startereignissen waere nicht bestimmt, welches ihn ausloest.
+    /// </summary>
+    private static void ValidateEventSubProcess(XElement eventSubProcess)
+    {
+        var eventSubProcessId = eventSubProcess.Attribute("id")?.Value;
+        var startEvents = eventSubProcess.Elements()
+            .Where(element => element.Name.LocalName == "startEvent")
+            .ToArray();
+
+        if (startEvents.Length != 1)
+        {
+            throw Failure("bpmn.event_subprocess.start_required", eventSubProcessId, "startEvent",
+                $"The event sub process '{eventSubProcessId}' requires exactly one start event.");
+        }
+
+        var startEventId = startEvents[0].Attribute("id")?.Value ?? eventSubProcessId;
+        var hasTrigger = EventSubProcessStartDefinitions.Any(definition =>
+            HasEventDefinition(startEvents[0], definition));
+
+        if (!hasTrigger)
+        {
+            throw Failure("bpmn.event_subprocess.start_required", startEventId, "eventDefinition",
+                $"The start event '{startEventId}' of an event sub process requires a message, timer, "
+                + "signal, error, or escalation event definition.");
+        }
+    }
+
+    private static readonly string[] EventSubProcessStartDefinitions =
+    [
+        "messageEventDefinition", "timerEventDefinition", "signalEventDefinition",
+        "errorEventDefinition", "escalationEventDefinition"
+    ];
 
     private static bool IsFlowElement(XElement element) => element.Name.LocalName is not (
         "extensionElements" or "incoming" or "outgoing" or "documentation" or "laneSet" or "lane");
@@ -123,11 +173,13 @@ public static class BpmnCapabilityMatrix
     {
         var flowNodes = flowElements
             // Boundary-Events werden durch das angeheftete Activity-Ereignis aktiviert und
-            // besitzen deshalb absichtlich keinen eingehenden SequenceFlow.
+            // besitzen deshalb absichtlich keinen eingehenden SequenceFlow. Ein Event-Subprozess
+            // wird von einem Ereignis seines Scopes aktiviert und ebenso wenig angeflossen.
             .Where(element => element.Name.LocalName is not ("sequenceFlow" or "boundaryEvent"))
+            .Where(element => !IsEventSubProcess(element))
             .ToArray();
         var activationRoots = flowElements
-            .Where(element => element.Name.LocalName is "startEvent" or "boundaryEvent")
+            .Where(element => element.Name.LocalName is "startEvent" or "boundaryEvent" || IsEventSubProcess(element))
             .Select(element => element.Attribute("id")!.Value)
             .ToArray();
 
@@ -148,7 +200,110 @@ public static class BpmnCapabilityMatrix
         }
 
         ValidateExclusiveGatewaySplits(flowElements);
+        ValidateInclusiveGatewaySplits(flowElements);
+        ValidateEventBasedGateways(flowElements);
     }
+
+    /// <summary>
+    /// Ein inklusiver Split nimmt jeden Ausgang, dessen Bedingung zutrifft. Damit gilt dieselbe
+    /// Pflicht wie am exklusiven Gateway: Jeder nicht-defaultige Ausgang braucht eine Bedingung,
+    /// sonst waere nicht bestimmt, wann er genommen wird.
+    /// </summary>
+    private static void ValidateInclusiveGatewaySplits(IReadOnlyCollection<XElement> flowElements)
+    {
+        var sequenceFlowsBySource = GroupSequenceFlowsBySource(flowElements);
+
+        foreach (var gateway in flowElements.Where(element => element.Name.LocalName == "inclusiveGateway"))
+        {
+            var gatewayId = gateway.Attribute("id")!.Value;
+            if (!sequenceFlowsBySource.TryGetValue(gatewayId, out var outgoingFlows) || outgoingFlows.Length < 2)
+            {
+                continue;
+            }
+
+            var defaultFlowId = gateway.Attribute("default")?.Value;
+            if (!string.IsNullOrWhiteSpace(defaultFlowId)
+                && !outgoingFlows.Any(flow => string.Equals(flow.Attribute("id")?.Value, defaultFlowId, StringComparison.Ordinal)))
+            {
+                throw Failure("bpmn.inclusive_gateway.default.invalid_reference", gatewayId, "default",
+                    $"The default flow '{defaultFlowId}' of inclusive gateway '{gatewayId}' must be outgoing from that gateway.");
+            }
+
+            foreach (var flow in outgoingFlows.Where(flow => !string.Equals(flow.Attribute("id")?.Value, defaultFlowId, StringComparison.Ordinal)))
+            {
+                if (!flow.Elements().Any(element => element.Name.LocalName == "conditionExpression"
+                    && !string.IsNullOrWhiteSpace(element.Value)))
+                {
+                    var flowId = flow.Attribute("id")!.Value;
+                    throw Failure("bpmn.inclusive_gateway.condition_required", flowId, "conditionExpression",
+                        $"The non-default sequence flow '{flowId}' of inclusive gateway '{gatewayId}' requires a conditionExpression.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ein ereignisbasiertes Gateway entscheidet nicht selbst, sondern laesst die Ereignisse
+    /// entscheiden. Deshalb muss jeder Ausgang zu einem wartenden Element fuehren, es muessen
+    /// mindestens zwei sein — sonst waere nichts zu entscheiden —, und Bedingungen haetten hier
+    /// keinen Zeitpunkt, an dem sie ausgewertet wuerden.
+    /// </summary>
+    private static void ValidateEventBasedGateways(IReadOnlyCollection<XElement> flowElements)
+    {
+        var sequenceFlowsBySource = GroupSequenceFlowsBySource(flowElements);
+        var elementsById = flowElements
+            .Where(element => !string.IsNullOrWhiteSpace(element.Attribute("id")?.Value))
+            .GroupBy(element => element.Attribute("id")!.Value, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        foreach (var gateway in flowElements.Where(element => element.Name.LocalName == "eventBasedGateway"))
+        {
+            var gatewayId = gateway.Attribute("id")!.Value;
+            var outgoingFlows = sequenceFlowsBySource.TryGetValue(gatewayId, out var flows) ? flows : [];
+
+            if (outgoingFlows.Length < 2)
+            {
+                throw Failure("bpmn.event_based_gateway.outgoing_required", gatewayId, "outgoing",
+                    $"The event based gateway '{gatewayId}' requires at least two outgoing sequence flows.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(gateway.Attribute("default")?.Value)
+                || outgoingFlows.Any(flow => flow.Elements().Any(element =>
+                    element.Name.LocalName == "conditionExpression" && !string.IsNullOrWhiteSpace(element.Value))))
+            {
+                throw Failure("bpmn.event_based_gateway.condition_not_allowed", gatewayId, "conditionExpression",
+                    $"The outgoing sequence flows of event based gateway '{gatewayId}' must not carry conditions "
+                    + "or a default flow; the events decide.");
+            }
+
+            foreach (var flow in outgoingFlows)
+            {
+                var targetRef = flow.Attribute("targetRef")?.Value;
+                if (targetRef is null || !elementsById.TryGetValue(targetRef, out var target)
+                                      || !IsEventBasedGatewayTarget(target))
+                {
+                    throw Failure("bpmn.event_based_gateway.invalid_target", targetRef ?? gatewayId, "targetRef",
+                        $"Each outgoing sequence flow of event based gateway '{gatewayId}' must lead to a message, "
+                        + "timer, or signal intermediate catch event, or to a receive task.");
+                }
+            }
+        }
+    }
+
+    private static bool IsEventBasedGatewayTarget(XElement target) => target.Name.LocalName switch
+    {
+        "receiveTask" => true,
+        "intermediateCatchEvent" => HasEventDefinition(target, "messageEventDefinition")
+                                    || HasEventDefinition(target, "timerEventDefinition")
+                                    || HasEventDefinition(target, "signalEventDefinition"),
+        _ => false
+    };
+
+    private static Dictionary<string, XElement[]> GroupSequenceFlowsBySource(
+        IReadOnlyCollection<XElement> flowElements) => flowElements
+        .Where(element => element.Name.LocalName == "sequenceFlow")
+        .GroupBy(element => element.Attribute("sourceRef")!.Value, StringComparer.Ordinal)
+        .ToDictionary(group => group.Key, group => group.ToArray(), StringComparer.Ordinal);
 
     private static ISet<string> FindReachableNodeIds(IEnumerable<XElement> flowElements, IEnumerable<string> startNodeIds)
     {
@@ -252,6 +407,10 @@ public static class BpmnCapabilityMatrix
         {
             return "serviceTask.aiTask";
         }
+        if (IsEventSubProcess(element))
+        {
+            return "subProcess.eventSubProcess";
+        }
         if (!IsEventWithDefinition(elementType))
         {
             return elementType;
@@ -324,6 +483,14 @@ public static class BpmnCapabilityMatrix
                 when IsMessageThrow(element) && !HasTaskDefinitionType(element) && !HasMessageRef(element):
                 throw Failure("bpmn.message_throw.target_required", elementId, "messageRef",
                     $"The sending element '{elementId}' requires messageRef or zeebe:taskDefinition/@type.");
+            // Fehler- und Eskalationsstart faengt, was im Scope passiert. Ausserhalb eines
+            // Event-Subprozesses gibt es keinen solchen Scope: Das Ereignis wuerde nie ausloesen.
+            case "startEvent" when (HasEventDefinition(element, "errorEventDefinition")
+                                    || HasEventDefinition(element, "escalationEventDefinition"))
+                && !(element.Parent is { } parent && IsEventSubProcess(parent)):
+                throw Failure("bpmn.start_event.event_subprocess_only", elementId, "eventDefinition",
+                    $"The start event '{elementId}' catches an error or escalation and is therefore only "
+                    + "allowed inside an event sub process.");
             case "startEvent" or "intermediateCatchEvent" or "boundaryEvent" when HasEventDefinition(element, "timerEventDefinition")
                 && !HasTimerSchedule(element):
                 throw Failure("bpmn.timer.definition_required", elementId, "timerEventDefinition",

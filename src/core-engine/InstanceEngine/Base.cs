@@ -62,17 +62,34 @@ public partial class InstanceEngine: ICatchHandler
         _ => throw new FlowzerRuntimeException("ProcessInstanceState nicht ermittelbar")
     };
     
-    public System.Threading.Tasks.Task<IEnumerable<Escalation>> GetActiveEscalations()
-    {
-        return System.Threading.Tasks.Task.FromResult<IEnumerable<Escalation>>([]);
-    }
-
     public IEnumerable<Token> GetActiveUserTasks() => Tokens
         .Where(token => token is { CurrentFlowNode: UserTask, State: FlowNodeState.Active });
 
     private Token GetToken(Guid tokenId)
     {
         return Tokens.Single(token => token.Id == tokenId);
+    }
+
+    /// <summary>
+    /// Die FlowElements des Containers, in dem dieses Token laeuft — des Prozesses oder des
+    /// Subprozesses, dem es untersteht.
+    ///
+    /// Wer stattdessen <see cref="Process"/> liest, sieht nur die oberste Ebene: Ein Gateway
+    /// innerhalb eines Subprozesses faende seine eigenen Sequenzfluesse dort nicht.
+    /// </summary>
+    public FlowzerList<FlowElement> GetContainerFlowElements(Token token)
+    {
+        var current = token;
+        while (current.ParentTokenId is { } parentTokenId)
+        {
+            current = Tokens.Single(candidate => candidate.Id == parentTokenId);
+            if (current.CurrentBaseElement is IFlowElementContainer container)
+            {
+                return container.FlowElements;
+            }
+        }
+
+        return Process.FlowElements;
     }
 
     /// <summary>
@@ -88,11 +105,6 @@ public partial class InstanceEngine: ICatchHandler
     public IEnumerable<Token> GetActiveTasks() => Tokens
         .Where(token => token.State == FlowNodeState.Active);
     
-    public void HandleEscalation(string escalationCode, string? code, object? escalationBody = null)
-    {
-        FailInstanceBestEffort();
-    }
-
     public void HandleError(string name, string errorCode, string? errorMessage = null, object? errorBody = null)
     {
         FailInstanceBestEffort();
@@ -253,10 +265,33 @@ public partial class InstanceEngine: ICatchHandler
             }
         }
 
+        // Ein Timer-Start eines Event-Subprozesses laeuft ab dem Beginn seines Scopes. Er
+        // verhaelt sich wie ein Boundary-Timer am Scope und wird hier auch so ausgeloest.
+        var dueEventSubProcessTimers = GetArmedEventSubProcessStarts()
+            .Where(entry => entry.StartEvent is FlowzerTimerStartEvent)
+            .Where(entry => GetEventSubProcessTimerDueDate(entry) <= time)
+            .ToArray();
+
+        foreach (var dueEventSubProcessTimer in dueEventSubProcessTimers)
+        {
+            StartEventSubProcess(dueEventSubProcessTimer, null);
+            requiresRun = true;
+        }
+
         if (requiresRun)
         {
             Run();
         }
+    }
+
+    private static DateTime GetEventSubProcessTimerDueDate(ArmedEventSubProcessStart armedStart)
+    {
+        var timerStartEvent = (FlowzerTimerStartEvent)armedStart.StartEvent;
+
+        return TimerDueDateCalculator.GetDueDate(
+            armedStart.ScopeToken.LastStateChangeTime,
+            timerStartEvent.TimerDefinition,
+            timerStartEvent);
     }
 
     /// <summary>
@@ -278,13 +313,29 @@ public partial class InstanceEngine: ICatchHandler
     List<DateTime> ICatchHandler.ActiveTimers => Tokens
         .Where(token => token.State == FlowNodeState.Active)
         .SelectMany(GetActiveTimerDates)
+        .Concat(GetEventSubProcessTimerSubscriptionDescriptors().Select(descriptor => descriptor.DueAt))
         .Distinct()
         .ToList();
 
     List<TimerSubscriptionDescriptor> ICatchHandler.ActiveTimerSubscriptions => Tokens
         .Where(token => token.State == FlowNodeState.Active)
         .SelectMany(GetActiveTimerSubscriptionDescriptors)
+        .Concat(GetEventSubProcessTimerSubscriptionDescriptors())
         .ToList();
+
+    /// <summary>
+    /// Die Timer-Startereignisse scharfer Event-Subprozesse. Sie erscheinen bewusst als
+    /// <see cref="TimerSubscriptionKind.BoundaryEvent"/>: Fachlich sind sie genau das — ein
+    /// Ereignis, das an einem laufenden Scope haengt und ihn unterbrechen kann.
+    /// </summary>
+    private IEnumerable<TimerSubscriptionDescriptor> GetEventSubProcessTimerSubscriptionDescriptors() =>
+        GetArmedEventSubProcessStarts()
+            .Where(entry => entry.StartEvent is FlowzerTimerStartEvent)
+            .Select(entry => new TimerSubscriptionDescriptor(
+                GetEventSubProcessTimerDueDate(entry),
+                entry.StartEvent.Id,
+                TimerSubscriptionKind.BoundaryEvent,
+                entry.ScopeToken.Id));
 
     private static IEnumerable<DateTime> GetActiveTimerDates(Token token)
     {

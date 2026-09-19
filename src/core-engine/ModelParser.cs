@@ -43,6 +43,7 @@ public static class ModelParser
         rootElements.AddRange(ParseMessages(root));
         rootElements.AddRange(ParseSignals(root));
         rootElements.AddRange(ParseErrors(root));
+        rootElements.AddRange(ParseEscalations(root));
         rootElements.AddRange(ParseProcesses(root, rootElements, definitionsId));
 
         var definitions = new Definitions
@@ -99,7 +100,7 @@ public static class ModelParser
     /// Loest ein <c>errorRef</c> auf. Ein fehlendes Attribut ist zulaessig (der Fehler traegt dann
     /// keinen Code); ein Verweis ins Leere ist dagegen ein Modellfehler und wird benannt.
     /// </summary>
-    private static Error? ResolveErrorRef(XElement definition, List<IRootElement> rootElements, string elementId)
+    private static Error? ResolveErrorRef(XElement definition, IEnumerable<IRootElement> rootElements, string elementId)
     {
         var errorRef = definition.Attribute("errorRef")?.Value;
         if (string.IsNullOrWhiteSpace(errorRef))
@@ -110,6 +111,42 @@ public static class ModelParser
         return rootElements.OfType<Error>().SingleOrDefault(error => error.FlowzerId == errorRef)
                ?? throw new ModelValidationException(
                    $"The error event '{elementId}' references the unknown error '{errorRef}'.");
+    }
+
+    /// <summary>
+    /// Liest die <c>bpmn:escalation</c>-Wurzelelemente. Sie stehen wie die Fehler neben den
+    /// Prozessen im Dokument; ein <c>escalationEventDefinition</c> zeigt ueber
+    /// <c>escalationRef</c> darauf.
+    /// </summary>
+    private static IEnumerable<Escalation> ParseEscalations(XElement root)
+    {
+        return root.Elements().Where(n =>
+                n.Name.LocalName.Equals("escalation", StringComparison.InvariantCultureIgnoreCase))
+            .Select(m => new Escalation
+            {
+                Name = m.Attribute("name")?.Value ?? "",
+                EscalationCode = m.Attribute("escalationCode")?.Value ?? "",
+                FlowzerId = m.Attribute("id")?.Value,
+            });
+    }
+
+    /// <summary>
+    /// Loest ein <c>escalationRef</c> auf. Ein fehlendes Attribut ist zulaessig (die Eskalation
+    /// traegt dann keinen Code); ein Verweis ins Leere ist ein Modellfehler und wird benannt.
+    /// </summary>
+    private static Escalation? ResolveEscalationRef(XElement definition, IEnumerable<IRootElement> rootElements,
+        string elementId)
+    {
+        var escalationRef = definition.Attribute("escalationRef")?.Value;
+        if (string.IsNullOrWhiteSpace(escalationRef))
+        {
+            return null;
+        }
+
+        return rootElements.OfType<Escalation>()
+                   .SingleOrDefault(escalation => escalation.FlowzerId == escalationRef)
+               ?? throw new ModelValidationException(
+                   $"The escalation event '{elementId}' references the unknown escalation '{escalationRef}'.");
     }
 
     private static List<Process> ParseProcesses(XElement root, List<IRootElement> rootElements,
@@ -218,6 +255,10 @@ public static class ModelParser
                         OutputMappings = outputMappings,
                         FlowElements = GetFlowElements(rootElements, xmlFlowNode),
                         LoopCharacteristics = ParseLoopCharacteristics(xmlFlowNode),
+                        // Ein Event-Subprozess haengt an keinem Sequenzfluss; er beginnt, wenn sein
+                        // Startereignis im umschliessenden Scope eintrifft.
+                        TriggeredByEvent = string.Equals(xmlFlowNode.Attribute("triggeredByEvent")?.Value,
+                            "true", StringComparison.OrdinalIgnoreCase),
                     });
                     break;
 
@@ -344,6 +385,14 @@ public static class ModelParser
                     });
                     break;
 
+                case "eventBasedGateway":
+                    flowElements.Add(new EventBasedGateway
+                    {
+                        Id = xmlFlowNode.Attribute("id")!.Value,
+                        Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    });
+                    break;
+
                 case "endEvent":
                     flowElements.Add(HandleEndEvent(xmlFlowNode, rootElements, inputMappings));
                     break;
@@ -420,6 +469,21 @@ public static class ModelParser
                     // Ein Error-Boundary unterbricht laut BPMN-Spezifikation immer. Die
                     // Veroeffentlichungspruefung lehnt cancelActivity="false" bereits ab.
                     CancelActivity = true
+                });
+                continue;
+            }
+
+            if (xmlFlowNode.HasDescendant("escalationEventDefinition", out definition))
+            {
+                var boundaryEscalationId = xmlFlowNode.Attribute("id")!.Value;
+                flowElements.Add(new FlowzerBoundaryEscalationEvent
+                {
+                    Id = boundaryEscalationId,
+                    Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                    Escalation = ResolveEscalationRef(definition, rootElements, boundaryEscalationId),
+                    AttachedToRef = attachedTo,
+                    // Anders als beim Fehler sind beide Arten zulaessig.
+                    CancelActivity = cancelActivity
                 });
                 continue;
             }
@@ -501,6 +565,17 @@ public static class ModelParser
             };
         }
 
+        if (xmlFlowNode.HasDescendant("escalationEventDefinition", out definition))
+        {
+            var escalationEndId = xmlFlowNode.Attribute("id")!.Value;
+            return new FlowzerEscalationEndEvent
+            {
+                Id = escalationEndId,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Escalation = ResolveEscalationRef(definition, rootElements, escalationEndId),
+            };
+        }
+
         return new EndEvent
         {
             Id = xmlFlowNode.Attribute("id")!.Value,
@@ -562,6 +637,17 @@ public static class ModelParser
                     Signal = rootElements.OfType<Signal>()
                         .Single(m => m.FlowzerId == definition.Attribute("signalRef")?.Value),
                 };
+        }
+
+        if (xmlFlowNode.HasDescendant("escalationEventDefinition", out definition) && !catchEvent)
+        {
+            var escalationThrowId = xmlFlowNode.Attribute("id")!.Value;
+            return new FlowzerIntermediateEscalationThrowEvent
+            {
+                Id = escalationThrowId,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Escalation = ResolveEscalationRef(definition, rootElements, escalationThrowId),
+            };
         }
 
         if (catchEvent)
@@ -989,6 +1075,33 @@ public static class ModelParser
             };
         }
 
+        // Fehler- und Eskalationsstart gibt es nur im Event-Subprozess. Der Parser liest sie
+        // ueberall; dass sie ausserhalb eines Event-Subprozesses stehen, weist der
+        // Faehigkeitsvertrag vor dem Speichern zurueck.
+        else if (xmlFlowNode.HasDescendant("errorEventDefinition", out definition))
+        {
+            var errorStartId = xmlFlowNode.Attribute("id")!.Value;
+            returnEvent = new FlowzerErrorStartEvent
+            {
+                Id = errorStartId,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Error = ResolveErrorRef(definition, rootElements, errorStartId),
+                OutputMappings = outputMappings,
+            };
+        }
+
+        else if (xmlFlowNode.HasDescendant("escalationEventDefinition", out definition))
+        {
+            var escalationStartId = xmlFlowNode.Attribute("id")!.Value;
+            returnEvent = new FlowzerEscalationStartEvent
+            {
+                Id = escalationStartId,
+                Name = xmlFlowNode.Attribute("name")?.Value ?? "",
+                Escalation = ResolveEscalationRef(definition, rootElements, escalationStartId),
+                OutputMappings = outputMappings,
+            };
+        }
+
         else
         {
             // Nur am reinen Startereignis: Ein Startformular fuellt aus, wer den Workflow von
@@ -1006,8 +1119,11 @@ public static class ModelParser
             };
         }
 
+        // BPMN 2.0: Fehlt das Attribut, unterbricht das Startereignis seinen Scope.
+        var isInterrupting = !string.Equals(xmlFlowNode.Attribute("isInterrupting")?.Value, "false",
+            StringComparison.OrdinalIgnoreCase);
 
-        return returnEvent;
+        return returnEvent with { FlowzerIsInterrupting = isInterrupting };
     }
 
     private static TimerEventDefinition ParseTimerEventDefinition(XElement xElementTimerEventDefinition)

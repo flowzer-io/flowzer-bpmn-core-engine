@@ -13,4 +13,11 @@ public record StartEvent : CatchEvent
     /// Nachrichten- oder Signalstart gibt es niemanden, der das Formular ausfüllen könnte.
     /// </summary>
     public string? FlowzerFormKey { get; init; }
+
+    /// <summary>
+    /// Nur am Startereignis eines Event-Subprozesses: ob das Ereignis den umschliessenden Scope
+    /// unterbricht. Entspricht <c>isInterrupting</c>; BPMN 2.0 setzt <c>true</c> voraus, wenn das
+    /// Attribut fehlt. An einem gewoehnlichen Startereignis ist der Wert ohne Bedeutung.
+    /// </summary>
+    public bool FlowzerIsInterrupting { get; init; } = true;
 }

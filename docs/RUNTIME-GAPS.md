@@ -4,12 +4,45 @@
 
 Dieses Dokument hält die aktuell noch offenen Laufzeit- und Engine-Lücken fest, damit `main` nicht nur "grün", sondern auch fachlich ehrlich bleibt.
 
+## Gateways, Event-Subprozess und Eskalation
+
+Die vier verbliebenen Lücken der obersten Prozessebene gegenüber Camunda sind geschlossen. Die
+vollständige Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 9).
+
+Vorhanden:
+
+- `eventBasedGateway` stellt alle Folge-Ereignisse gleichzeitig scharf; das erste, das eintrifft,
+  gewinnt, die übrigen Tokens der Gruppe werden zurückgezogen und ihre Subscriptions
+  verschwinden
+- `inclusiveGateway` nimmt beim Split jeden Ausgang mit wahrer Bedingung und wartet beim Join
+  auf genau die Zweige, die der zugehörige Split aktiviert hat
+- `subProcess triggeredByEvent="true"` ist der Ereignisfänger seines Scopes: Nachricht, Signal
+  und Timer-Start, unterbrechend oder nicht, auch in einem eingebetteten Subprozess
+- ein Error-Start-Event im Event-Subprozess fängt einen Fehler seines Scopes, bevor die Instanz
+  daran scheitert — an jedem Scope vor dessen Boundary-Event
+- Eskalation als Throw-, Ende-, Boundary- und Start-Ereignis; nicht blockierend, und ohne
+  Fänger verfällt sie, statt die Instanz scheitern zu lassen
+- Nebenbefund aus #323 behoben: Parallele Gateways lesen ihre Sequenzflüsse aus dem Container
+  ihres Tokens; in einem eingebetteten Subprozess funktionieren sie jetzt
+
+Weiterhin offen:
+
+- `timeCycle` an einem nicht unterbrechenden Event-Subprozess löst nur einmal aus
+- verschachtelte und unsymmetrische inklusive Konstrukte: Die Merkzelle trägt genau ein
+  Split/Join-Paar, der äußere Join fällt danach auf die parallele Auslegung zurück
+- Instanzumzug einer Ereignisgruppe (`EventBasedGatewayWaiting`); die Gruppe kann nur als
+  Ganzes ziehen, und das ist nicht umgesetzt
+- kein Weg für einen externen Worker, eine Eskalation an seinem Auftrag zu melden
+- eine ungefangene Eskalation wird nicht als eigenes Laufzeitereignis persistiert; sie steht nur
+  als `InstanceEngine.UnhandledEscalations` am laufenden Vorgang
+- Kompensation, Transaktions- und Ad-hoc-Subprozesse (siehe Abschnitt 3 weiter unten)
+
 ## Fehlerereignisse: Error End und Error Boundary
 
 Fachliche Fehler laufen jetzt auf BPMN-Ebene weiter, statt die Instanz nur auf `Failed` zu
 setzen. Die Semantik steht in [BPMN-CAPABILITIES.md](BPMN-CAPABILITIES.md) (Vertrag 5), der
-Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Escalation und Kompensation
-bleiben ausdrücklich offen.
+Worker-Weg in [SERVICE-TASK-WORKER.md](SERVICE-TASK-WORKER.md). Eskalation ist seit Vertrag 9
+umgesetzt; Kompensation bleibt ausdrücklich offen.
 
 ## Lokale Call Activity
 
@@ -103,7 +136,6 @@ Weiterhin offen:
   abgelehnt
 - Pufferung und Time-to-live: Eine Nachricht ohne Empfänger verfällt sofort
 - Nachrichten über Installationsgrenzen hinweg (#154)
-- Escalation-Throw (siehe Abschnitt 2 unten)
 - Eine Nachricht erreicht genau einen Empfänger; warten mehrere Instanzen auf denselben Namen
   und Schlüssel, ist die Auswahl nicht weiter festgelegt
 - Die Zustellung läuft in der Transaktion des Aufrufers. Bei einem Fehler scheitert die ganze
@@ -219,7 +251,7 @@ Weiterhin offen:
 
 ### 2. Fehler- und Eskalationspfade
 
-Fehlerpfade sind umgesetzt, Eskalation und Kompensation nicht.
+Fehler- **und** Eskalationspfade sind umgesetzt; Kompensation nicht.
 
 Vorhanden (Fähigkeitsvertrag 5):
 
@@ -230,11 +262,19 @@ Vorhanden (Fähigkeitsvertrag 5):
 - ein externer Worker wirft einen fachlichen Fehler über `POST /job/{jobId}/throw-error`
 - `cancelActivity="false"` an einem Error-Boundary wird vor Speichern und Veröffentlichen abgelehnt
 
+Zusätzlich seit Fähigkeitsvertrag 9:
+
+- Eskalation als Throw-, Ende-, Boundary- und Start-Ereignis im Event-Subprozess; die
+  Platzhalter `GetActiveEscalations()` und `HandleEscalation(code, code, body)` sind durch
+  `ActiveCatchEscalations` und `HandleEscalation(escalationCode, data)` ersetzt
+- eine ungefangene Eskalation verfällt und lässt die Instanz ausdrücklich nicht scheitern
+- Error-Start-Events in Event-Subprozessen fangen einen Fehler ihres Scopes
+
 Weiterhin offen:
 
-- Escalation Catch/Throw; `GetActiveEscalations()` liefert weiterhin nur eine leere Liste und `HandleEscalation(...)` führt weiterhin nur in einen Best-Effort-Fehlerzustand
 - Kompensation (siehe Abschnitt 3)
-- Error-Start-Events in Event-Subprozessen und Fehlerpfade über Call Activities
+- kein Weg für einen externen Worker, eine Eskalation an seinem Auftrag zu melden
+- Fehlerpfade über Call Activities
 - ein Fehler in einem Multi-Instance-Körper unterbricht die ganze Multi-Instance-Aktivität; eine einzelne Ausprägung lässt sich nicht gesondert behandeln
 - `ProcessInstanceInfo.FailureReason` wird beim Scheitern geschrieben und nicht aus der Ablage zurückgelesen: Ein späterer Schreibvorgang an derselben Instanz würde ihn leeren. Eine gescheiterte Instanz wird heute nicht mehr geschrieben, ein Wiederaufsetzen müsste die Begründung mitführen.
 
@@ -268,7 +308,7 @@ Weiterhin offen:
 ## Empfohlene nächste Runtime-Schritte
 
 1. Recovery- und Wiederholungsstrategie nur noch für Boundary- und Spezialtimer weiter härten
-2. Error-/Escalation-Semantik gezielt modellieren und testen
+2. Kompensation und Transaktions-Subprozesse angehen; Fehler- und Eskalationssemantik stehen
 3. KI-Provider erst hinter dauerhaftem Lauf-, Freigabe- und Zielprüfvertrag anbinden
 4. `Cancel()` später um echte Kompensationsstrategien erweitern
 5. Boundary-Timer nur noch bei echten Randfällen weiter vertiefen
