@@ -15,6 +15,7 @@ import { ErrorState, Skeleton } from '@/components/ui/States';
 import { FolderDelegationDialog } from '@/components/workflows/FolderDelegationDialog';
 import { FolderDialog } from '@/components/workflows/FolderDialog';
 import { FolderTree, WORKFLOW_DRAG_TYPE } from '@/components/workflows/FolderTree';
+import { ImportWorkflowDialog, type ImportedWorkflow } from '@/components/workflows/ImportWorkflowDialog';
 import { ImportPackageDialog } from '@/components/workflows/ImportPackageDialog';
 import { MoveWorkflowDialog } from '@/components/workflows/MoveWorkflowDialog';
 import { NewWorkflowDialog } from '@/components/workflows/NewWorkflowDialog';
@@ -31,6 +32,7 @@ import {
   useFolders,
   useInstances,
   useMoveDefinition,
+  useSaveDefinition,
   useUpdateDefinitionMeta,
   useUpdateFolder,
   useUpdateFolderAssignments,
@@ -44,6 +46,7 @@ import type {
 import { instanceBucket } from '@/lib/api/normalize';
 import { ancestorIds, folderPath, pathLabel, sortByPath } from '@/lib/folderTree';
 import { formatRelative, parseApiDate } from '@/lib/format';
+import { withDefinitionId } from '@/lib/modeling/bpmnImport';
 import { saveFile } from '@/lib/saveFile';
 import { iconForLabel } from '@/lib/taskView';
 import { useCan } from '@/stores/session';
@@ -97,6 +100,7 @@ export function WorkflowsPage() {
   const foldersQuery = useFolders();
   const instancesQuery = useInstances();
   const createDefinition = useCreateDefinition();
+  const saveDefinition = useSaveDefinition();
   const deleteDefinition = useDeleteDefinition();
   const moveDefinition = useMoveDefinition();
   const updateDefinitionMeta = useUpdateDefinitionMeta();
@@ -217,6 +221,35 @@ export function WorkflowsPage() {
   }
 
   /**
+   * Legt einen importierten Workflow an: erst den Katalogeintrag, dann das Modell als
+   * erste gespeicherte Version.
+   *
+   * Die Reihenfolge ist nicht beliebig. `POST /definition/new` vergibt die Kennung, unter
+   * der Flowzer die Definition führt, und die API liest sie beim Speichern aus
+   * `bpmn:definitions/@id`. Die Kennung aus der fremden Datei muss deshalb vorher ersetzt
+   * werden — sonst läge die Version unter einer Kennung, zu der es keinen Katalogeintrag
+   * gibt. Veröffentlicht wird hier nichts: Was der Bericht als nachzuarbeiten meldet,
+   * würde die Veröffentlichung ohnehin ablehnen.
+   */
+  async function importWorkflow(workflow: ImportedWorkflow): Promise<string> {
+    const meta = await createDefinition.mutateAsync({ name: workflow.name, folderId: selectedFolderId });
+
+    try {
+      await saveDefinition.mutateAsync({ xml: withDefinitionId(workflow.xml, meta.definitionId) });
+    } catch (error) {
+      // Der Katalogeintrag steht schon; ihn hier still zu loeschen, naehme dem Import die
+      // einzige Spur. Er bleibt als leerer Workflow sichtbar und laesst sich loeschen.
+      toast.error(`„${meta.name}“ wurde angelegt, das Modell konnte aber nicht gespeichert werden`, {
+        description: error instanceof Error ? error.message : undefined,
+      });
+      throw error;
+    }
+
+    toast.success(`„${meta.name}“ importiert`);
+    return meta.definitionId;
+  }
+
+  /**
    * Laedt den Workflow als Paket herunter. Bewusst ueber die API und nicht ueber einen
    * Link: Der Download braucht dieselbe Anmeldung wie jeder andere Aufruf, und ein Fehler
    * soll als Meldung ankommen und nicht als unlesbare Datei im Downloadordner.
@@ -274,6 +307,18 @@ export function WorkflowsPage() {
                 Paket importieren
               </Button>
             )}
+            <Button
+              icon="upload"
+              disabled={!mayEditHere}
+              title={
+                mayEditHere
+                  ? 'Eine BPMN-Datei übernehmen — Camunda-7-Modelle werden dabei übersetzt.'
+                  : 'In diesem Ordner dürfen Sie keine Workflows anlegen.'
+              }
+              onClick={() => setImporting(true)}
+            >
+              BPMN-Datei importieren
+            </Button>
             <Button
               variant="primary"
               icon="add"
@@ -578,6 +623,15 @@ export function WorkflowsPage() {
       </div>
 
       <StartWorkflowDialog {...startWorkflow.dialog} />
+
+      <ImportWorkflowDialog
+        open={importing}
+        onOpenChange={setImporting}
+        onCreate={importWorkflow}
+        onOpenModeler={(definitionId) =>
+          void navigate({ to: `/workflows/${encodeURIComponent(definitionId)}` })
+        }
+      />
 
       <NewWorkflowDialog
         open={creating}
