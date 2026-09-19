@@ -14,8 +14,20 @@ Start und einmaliges Nachholen eines überfälligen Timer-Starts nach Neustart.
 Fehler einzelner Timer führen nun zu einem fehlgeschlagenen Scheduler-Tick. Nur
 solche klassifizierten Einzelfehler werden beim Hochlauf toleriert, damit die API
 für Diagnose erreichbar bleibt. Wiederherstellungs-/Commitfehler bleiben fatal.
-Mehrprozessschutz, transaktionsweise Isolation einzelner Timer und begrenztes
-Nachholen wiederkehrender Timer bleiben offene Arbeiten aus #93.
+
+**Mehrprozessschutz der Timer ist geschlossen.** Ein Scheduler-Durchgang übernimmt die
+fälligen Start-Timer jetzt exklusiv (`FOR UPDATE SKIP LOCKED` in derselben Transaktion,
+`IMessageSubscriptionStorage.ClaimDueTimerSubscriptions`); vorher überführten zwei API-Prozesse
+dieselbe Fälligkeit in zwei Instanzen. Instanztimer bleiben bewusst ohne Zeilensperre: Sie
+laufen über den Advisory-Lock der Instanz, den jeder Engine-Schreiber vor weiteren
+Zeilensperren nimmt — eine zusätzliche Zeilensperre davor drehte die Sperrreihenfolge um.
+Belegt in `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.Lifecycle.cs`; die
+Betriebsbedingungen stehen unter [Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb).
+Die Dateiablage bleibt Einzelprozess.
+
+Offen aus #93 bleiben die transaktionsweise Isolation einzelner Timer innerhalb eines
+Durchgangs (ein fehlgeschlagener Timer rollt den ganzen Durchgang zurück) und das begrenzte
+Nachholen wiederkehrender Timer.
 
 ## In diesem Strang bereits geschlossen
 

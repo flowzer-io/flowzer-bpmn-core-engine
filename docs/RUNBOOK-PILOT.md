@@ -220,7 +220,9 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
   M0-/Produktionsabschluss.
 - Rollen müssen produktiv explizit gesetzt werden; leere Fähigkeitsrollen bleiben
   im bestehenden Vertrag permissiv.
-- Dateiablage und auch PostgreSQL sind noch nicht für Mehrprozessbetrieb freigegeben.
+- Mehrprozessbetrieb ist ausschließlich mit PostgreSQL und unter den Bedingungen in
+  [Betrieb](OPERATIONS.md#mehrprozessbetrieb) freigegeben; die Dateiablage bleibt
+  Einzelprozess.
 - Recovery, Fehler-/Eskalations-/Kompensationssemantik, Alarmierung und vollständige
   Secret-Store-/TLS-Automatisierung bleiben weitere Pakete.
 

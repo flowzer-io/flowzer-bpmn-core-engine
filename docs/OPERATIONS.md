@@ -449,11 +449,12 @@ nachträglich als verifizierter Akteur übernommen. Es ist keine Schemaänderung
 bestehenden JSON-Token-Dokumenten erforderlich.
 
 Grenzen: Der Zyklus verwendet das vorhandene Storage-Transaktionsinterface und
-eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback**; der Schutz
-ist kein Nachweis für mehrere API-Prozesse. Persistente Idempotenzschlüssel schützen
+eine prozesslokale Sperre. Dateiablage hat weiterhin **keinen Rollback** und bleibt
+Einzelprozess. Mit PostgreSQL trägt zusätzlich der Advisory-Lock der Instanz; der
+gleichzeitige Abschluss derselben Aufgabe aus zwei API-Prozessen ist unter
+[Mehrprozessbetrieb](#mehrprozessbetrieb) belegt. Persistente Idempotenzschlüssel schützen
 die direkten HTTP-Starts und -Abschlüsse. Der Human-Task-Lifecycle besitzt eine
-append-only Auditspur mit objektberechtigter Minimalprojektion; der allgemeine
-Mehrprozessschutz bleibt ein weiteres M6-Paket. Instanzrechte und das
+append-only Auditspur mit objektberechtigter Minimalprojektion. Instanzrechte und das
 begrenzte Formular-Prüfprofil werden in eigenen Abschnitten beschrieben. Ohne
 `Idempotency-Key` wird ein wiederholter Abschluss weiterhin mit `404` abgelehnt; mit
 Schlüssel liefert der gemeinsame Abschlussweg die gespeicherte Erfolgswiederholung.
@@ -688,9 +689,11 @@ automatische Delegation und BPMN-Eskalationsereignisse gehören nicht zu diesem 
 Scheduler-Backfill, Tick-Erfolg und Tick-Fehler erscheinen derzeit im API-Log; ein
 eigener Deadline-Diagnoseblock im Operations-Endpunkt ist noch nicht vorhanden.
 
-PostgreSQL ist für mehrere API-Prozesse vorgesehen: Deadline-Fortschritt und
-Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per
-Compare-and-swap und Unique-Deduplication geschrieben. Die Dateiablage schützt nur
+PostgreSQL trägt den Fristendienst in mehreren API-Prozessen: Deadline-Fortschritt und
+Benachrichtigungen werden in der bestehenden transaktionalen Engine-Grenze per Zeilensperre
+auf der Aufgabe, Compare-and-swap und Unique-Deduplication geschrieben. Dass zwei
+gleichzeitig laufende Fristendienste eine fällige Benachrichtigung genau einmal erzeugen,
+ist unter [Mehrprozessbetrieb](#mehrprozessbetrieb) belegt. Die Dateiablage schützt nur
 innerhalb eines API-Prozesses und bleibt ein Entwicklungsadapter. Die Migration liegt
 unter `src/PostgreSqlStorageSystem/Migrations/008_user_task_deadlines.sql` und wird
 wie alle Migrationen getrennt über `dotnet WebApiEngine.dll --migrate` angewendet.
@@ -966,6 +969,68 @@ dotnet WebApiEngine.dll --migrate
 ```
 
 genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt).
+
+## Mehrprozessbetrieb
+
+**Freigegeben — ausschließlich mit `Storage__Provider=PostgreSql` und unter den unten
+genannten Bedingungen.** Mehrere API-Prozesse dürfen dasselbe Schema derselben Datenbank
+bedienen; sie brauchen weder eine Rollenverteilung noch einen Leader, und jeder Prozess darf
+seine Hintergrunddienste (Timer-Scheduler, Fristendienst, Worker-Benachrichtigung) laufen
+lassen.
+
+Die prozessweiten Sperren der API (`BpmnBusinessLogic`, `ServiceTaskJobService`) sind dabei
+wirkungslos — sie schützen weiterhin nur den eigenen Prozess. Tragend sind die Sperren in der
+Ablage: der Advisory-Lock je Instanz, den jeder Engine-Schreiber vor weiteren Zeilensperren
+nimmt, Zeilensperren mit `FOR UPDATE`/`SKIP LOCKED` für Aufträge, Aufgaben, KI-Läufe und
+fällige Start-Timer sowie Unique-Constraints und Revisionsvergleiche.
+
+### Was belegt ist
+
+Nachgewiesen durch `src/WebApiEngine.Tests/MultiProcessConcurrencyTest.cs` und
+`MultiProcessConcurrencyTest.Lifecycle.cs`: zwei vollständig getrennte API-Hosts mit eigenem
+DI-Container gegen einen PostgreSQL-Container, je Invariante 20 Runden.
+
+| Invariante | Ergebnis |
+|---|---|
+| Auftragsvergabe (`POST /job/fetch`) von beiden Hosts | jeder Auftrag geht an genau einen Host |
+| Abschluss gegen Fehlschlag desselben Auftrags | genau einer gewinnt, der andere bekommt 409/404; kein Auftrag steht danach wieder in der Warteschlange |
+| Aufgabenabschluss auf beiden Hosts | genau ein Erfolg, genau ein Folge-Token |
+| Nachricht an ein wartendes Catch-Event | genau einmal bedient; der zweite Aufruf findet keine Anmeldung mehr |
+| Fälliger Start-Timer | genau eine Instanz, auch mit zwei laufenden Schedulern (Poll-Intervall 1 s) |
+| Fälliger Intermediate-Timer | Token läuft genau einmal weiter |
+| Fristendienst auf beiden Hosts | fällige Benachrichtigung entsteht genau einmal |
+| Instanzabbruch gegen Aufgabenabschluss | genau ein Eingriff gewinnt; abgebrochen ohne Folge-Token oder abgeschlossen, nie beides |
+| Deployment desselben Workflows von beiden Hosts | genau eine deployte Version, keine Version ohne BPMN, gebundene Formulare vollständig |
+| Instanzmigration gegen Aufgabenabschluss | kein Token geht verloren; die Aufgabe wartet genau einmal weiter oder ist genau einmal abgeschlossen |
+
+### Was weiterhin nicht gilt
+
+- **Dateiablage bleibt Einzelprozess.** `Storage__Provider=Filesystem` kennt weder
+  Transaktionen noch Datenbanksperren; mehrere API-Prozesse auf derselben Ablage sind
+  unverändert nicht unterstützt und auch nicht getestet.
+- **Schemamigration genau einmal.** `dotnet WebApiEngine.dll --migrate` läuft als eigener
+  Schritt vor dem Start der Replikate, nicht in jedem Prozess. `ApplyMigrationsOnStartup`
+  darf im Mehrprozessbetrieb nicht gesetzt sein; der Migrator nimmt zwar einen Advisory-Lock,
+  aber ein Replikat soll nicht auf die Migration eines anderen warten.
+- **Nachrichten-Startereignisse sind nicht idempotent.** Zwei gleichzeitige `POST /message`
+  auf ein Start-Ereignis erzeugen zwei Instanzen. Das ist der Vertrag des Endpunkts und keine
+  Mehrprozesslücke — er kennt bislang keinen `Idempotency-Key`. Wer genau einen Start braucht,
+  benutzt `POST /definition/meta/{id}/instance` mit `Idempotency-Key`.
+- **Kein Lastnachweis.** Belegt sind Korrektheitsinvarianten unter Konkurrenz, keine
+  Durchsatz- oder Latenzzahlen. Der Compose-Stack skaliert die API weiterhin nicht.
+- **Keine Aussage für Drittadapter.** Eine externe `IStorageSystem`-Implementierung ohne
+  Datenbanksperren fällt auf die Standardimplementierungen zurück und ist damit
+  Einzelprozess.
+
+### Betriebsregeln
+
+1. Migration einmal ausführen, danach alle Replikate starten.
+2. Alle Replikate zeigen auf dieselbe Datenbank **und** dasselbe Schema.
+3. Der Verbindungspool je Replikat bleibt unter der Verbindungsgrenze der Laufzeitrolle
+   (`Maximum Pool Size`, Default hier 20) — sonst landet eine Lastspitze in
+   „too many connections for role" statt in der Warteschlange.
+4. Poll-Intervalle der Hintergrunddienste müssen nicht versetzt werden; gleichzeitige
+   Durchgänge sind der getestete Normalfall.
 
 ## Recovery- und Backup-Hinweise für die dateibasierte Persistenz
 
