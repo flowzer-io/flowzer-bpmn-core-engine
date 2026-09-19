@@ -87,5 +87,36 @@ internal sealed class RuntimeNodeEventStorage(Storage storage) : IRuntimeNodeEve
             .ToArray();
     }
 
+    /// <summary>
+    /// Die Dateiablage hat keinen Instanzindex: Die Ereignisdateien werden einmal gelesen und
+    /// die der Instanz geloescht. Vertretbar, weil dieser Adapter ausdruecklich der
+    /// Entwicklungsweg mit einem API-Prozess ist; produktiv loescht PostgreSQL ueber den Index.
+    /// </summary>
+    public async Task<int> DeleteByProcessInstance(Guid processInstanceId)
+    {
+        if (processInstanceId == Guid.Empty) throw new ArgumentOutOfRangeException(nameof(processInstanceId));
+        await Gate.WaitAsync();
+        try
+        {
+            var deleted = 0;
+            foreach (var file in Directory.GetFiles(_path, "event_*.json"))
+            {
+                var content = await StorageFile.ReadAllTextIfExistsAsync(file);
+                if (content is null) continue;
+                var item = JsonConvert.DeserializeObject<RuntimeNodeEvent>(content, storage.NewtonSoftDefaultSettings)
+                           ?? throw new InvalidDataException("Stored runtime node event is empty.");
+                if (item.ProcessInstanceId != processInstanceId) continue;
+                StorageFile.DeleteIfExists(file);
+                deleted++;
+            }
+
+            return deleted;
+        }
+        finally
+        {
+            Gate.Release();
+        }
+    }
+
     private string EventFile(Guid id) => Path.Combine(_path, $"event_{id:N}.json");
 }

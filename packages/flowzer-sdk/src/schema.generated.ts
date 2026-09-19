@@ -3821,6 +3821,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/migration/preview": {
         parameters: {
             query?: never;
@@ -3977,45 +4053,6 @@ export interface paths {
                         "text/plain": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
                         "application/json": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
                         "text/json": components["schemas"]["ProcessInstanceInfoDtoListApiStatusResult"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/Instance/{instanceId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    instanceId: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
-                        "application/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
-                        "text/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
                     };
                 };
             };
@@ -5861,6 +5898,8 @@ export interface components {
             description?: string | null;
             /** Format: uuid */
             folderId?: string | null;
+            /** Format: int32 */
+            retentionDays?: number | null;
         };
         BpmnMetaDefinitionDtoApiStatusResult: {
             successful?: boolean;
@@ -5944,6 +5983,8 @@ export interface components {
             description?: string | null;
             /** Format: uuid */
             folderId?: string | null;
+            /** Format: int32 */
+            retentionDays?: number | null;
             latestVersion?: components["schemas"]["VersionDto"];
             /** Format: date-time */
             latestVersionDateTime?: string;
@@ -6324,6 +6365,37 @@ export interface components {
             migrated: boolean;
             problems: components["schemas"]["InstanceMigrationFindingDto"][] | null;
         };
+        InstanceRetentionDiagnosticsDto: {
+            enabled: boolean;
+            /** Format: int32 */
+            days?: number | null;
+            /** Format: int32 */
+            pollIntervalMinutes: number;
+            /** Format: int32 */
+            batchSize: number;
+            status: string | null;
+            /** Format: date-time */
+            serviceStartedAtUtc?: string | null;
+            /** Format: date-time */
+            lastRunStartedAtUtc?: string | null;
+            /** Format: date-time */
+            lastRunCompletedAtUtc?: string | null;
+            /** Format: date-time */
+            lastSuccessfulRunAtUtc?: string | null;
+            /** Format: date-time */
+            lastFailedRunAtUtc?: string | null;
+            /** Format: double */
+            lastRunDurationMs?: number | null;
+            /** Format: int32 */
+            lastDeletedInstances?: number;
+            /** Format: int64 */
+            successfulRunCount?: number;
+            /** Format: int64 */
+            failedRunCount?: number;
+            /** Format: int64 */
+            totalDeletedInstances?: number;
+            lastErrorMessage?: string | null;
+        };
         MessageDefinitionDto: {
             name: string | null;
             flowzerId?: string | null;
@@ -6389,6 +6461,7 @@ export interface components {
             environment: string | null;
             storage: components["schemas"]["OperationsStorageSnapshotDto"];
             timerScheduler: components["schemas"]["TimerSchedulerDiagnosticsDto"];
+            retention: components["schemas"]["InstanceRetentionDiagnosticsDto"];
             instrumentation: components["schemas"]["OperationsInstrumentationDto"];
             observability: components["schemas"]["OperationsObservabilityDto"];
         };
@@ -6409,6 +6482,8 @@ export interface components {
             otlpEndpointHint?: string | null;
             otlpProtocol?: string | null;
             otlpHeadersHint?: string | null;
+            prometheusEnabled: boolean;
+            prometheusPath?: string | null;
             serviceName: string | null;
             serviceVersion: string | null;
         };

@@ -536,6 +536,25 @@ export function useCancelInstance() {
 }
 
 /**
+ * Löscht eine beendete Instanz samt allem, was an ihr hängt.
+ *
+ * Anders als beim Abbruch kommt keine Instanz zurück, die man in den Cache schreiben könnte
+ * — es gibt sie nicht mehr. Ihr Detaileintrag wird deshalb aus dem Cache entfernt, statt ihn
+ * nur als veraltet zu markieren: Ein Nachladen liefe sonst in einen 404.
+ */
+export function useDeleteInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: (instanceId: string) => instancesApi.remove(instanceId),
+    onSuccess: (_result, instanceId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.instance(instanceId) });
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
+  });
+}
+
+/**
  * Prüft folgenlos, welche der ausgewählten Instanzen sich auf die aktuell deployte
  * Version heben lassen.
  *

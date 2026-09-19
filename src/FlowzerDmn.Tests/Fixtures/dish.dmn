@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Das klassische Dish-Beispiel: Saison und Gaestezahl bestimmen das Gericht.
+     Trefferregel UNIQUE, die Saison ist ueber inputValues begrenzt. -->
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             id="dishDefinitions"
+             name="Dish"
+             namespace="http://flowzer.maass.it/dmn/dish">
+  <decision id="dish" name="Dish">
+    <variable name="desiredDish" typeRef="string"/>
+    <decisionTable id="dishTable" hitPolicy="UNIQUE">
+      <input id="dishInputSeason" label="Saison">
+        <inputExpression id="dishInputSeasonExpression" typeRef="string">
+          <text>season</text>
+        </inputExpression>
+        <inputValues id="dishInputSeasonValues">
+          <text>"Fall","Winter","Spring","Summer"</text>
+        </inputValues>
+      </input>
+      <input id="dishInputGuests" label="Gaeste">
+        <inputExpression id="dishInputGuestsExpression" typeRef="number">
+          <text>guestCount</text>
+        </inputExpression>
+      </input>
+      <output id="dishOutput" name="desiredDish" label="Gericht" typeRef="string"/>
+      <rule id="dishRuleSpareribs">
+        <description>Herbst, kleine Runde</description>
+        <inputEntry id="dishRuleSpareribsSeason"><text>"Fall"</text></inputEntry>
+        <inputEntry id="dishRuleSpareribsGuests"><text>&lt;= 8</text></inputEntry>
+        <outputEntry id="dishRuleSpareribsDish"><text>"Spareribs"</text></outputEntry>
+      </rule>
+      <rule id="dishRuleRoastbeef">
+        <inputEntry id="dishRuleRoastbeefSeason"><text>"Winter"</text></inputEntry>
+        <inputEntry id="dishRuleRoastbeefGuests"><text>&lt;= 8</text></inputEntry>
+        <outputEntry id="dishRuleRoastbeefDish"><text>"Roastbeef"</text></outputEntry>
+      </rule>
+      <rule id="dishRuleDryAged">
+        <inputEntry id="dishRuleDryAgedSeason"><text>"Spring"</text></inputEntry>
+        <inputEntry id="dishRuleDryAgedGuests"><text>&lt; 5</text></inputEntry>
+        <outputEntry id="dishRuleDryAgedDish"><text>"Dry Aged Gourmet Steak"</text></outputEntry>
+      </rule>
+      <rule id="dishRuleSteak">
+        <description>Fruehling, mittlere Runde</description>
+        <inputEntry id="dishRuleSteakSeason"><text>"Spring"</text></inputEntry>
+        <inputEntry id="dishRuleSteakGuests"><text>[5..8]</text></inputEntry>
+        <outputEntry id="dishRuleSteakDish"><text>"Steak"</text></outputEntry>
+      </rule>
+      <rule id="dishRuleStew">
+        <inputEntry id="dishRuleStewSeason"><text>"Fall","Winter","Spring"</text></inputEntry>
+        <inputEntry id="dishRuleStewGuests"><text>&gt; 8</text></inputEntry>
+        <outputEntry id="dishRuleStewDish"><text>"Stew"</text></outputEntry>
+      </rule>
+      <rule id="dishRuleSalad">
+        <description>Im Sommer ist die Gaestezahl egal</description>
+        <inputEntry id="dishRuleSaladSeason"><text>"Summer"</text></inputEntry>
+        <inputEntry id="dishRuleSaladGuests"><text>-</text></inputEntry>
+        <outputEntry id="dishRuleSaladDish"><text>"Light Salad and a nice Steak"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

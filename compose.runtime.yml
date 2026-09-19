@@ -24,6 +24,10 @@ services:
       Ai__AllowLocalEndpoints: ${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}
       Ai__SecretEnvironmentVariablePrefix: FLOWZER_AI_
       AiExecution__Enabled: ${FLOWZER_AI_EXECUTION_ENABLED:-false}
+      # Aufbewahrung beendeter Instanzen; ohne Wert bleibt sie aus (siehe OPERATIONS.md).
+      Retention__FinishedInstances__Days: ${FLOWZER_RETENTION_DAYS:-}
+      Retention__FinishedInstances__PollIntervalMinutes: ${FLOWZER_RETENTION_POLL_INTERVAL_MINUTES:-60}
+      Retention__FinishedInstances__BatchSize: ${FLOWZER_RETENTION_BATCH_SIZE:-100}
       # Provider-Secrets hier absichtlich nicht auffuehren: `env:FLOWZER_AI_*`-Werte
       # ausschliesslich ueber den Orchestrator bzw. einen Compose-Override injizieren.
       # Der Client ist vertraulich: Der Schluessel wird nur dem API-Container zur
@@ -48,6 +52,11 @@ services:
       # und Clientadresse fuer OIDC, Secure-Cookies und Rate-Limits uebernommen.
       ForwardedHeaders__KnownNetworks__0: ${FLOWZER_TRUSTED_PROXY_NETWORK:-172.16.0.0/12}
       ForwardedHeaders__ForwardLimit: ${FLOWZER_FORWARDED_HEADER_LIMIT:-3}
+      # Prometheus-Scrape-Endpunkt, standardmaessig aus. Der API-Container veroeffentlicht
+      # seinen Port nicht auf dem Host, und das Konsolen-Gateway leitet /metrics bewusst nicht
+      # weiter: Abgeholt wird ausschliesslich aus diesem Compose-Netz unter api:8080.
+      Observability__Prometheus__Enabled: ${FLOWZER_METRICS_ENABLED:-false}
+      Observability__Prometheus__Path: ${FLOWZER_METRICS_PATH:-/metrics}
     volumes:
       - ./.data/runtime-storage:/data/flowzer-storage
       # Session-, OIDC-Korrelations- und Antiforgery-Cookies muessen einen Container-

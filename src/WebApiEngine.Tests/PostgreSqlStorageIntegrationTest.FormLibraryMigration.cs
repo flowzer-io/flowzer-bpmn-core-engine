@@ -32,11 +32,12 @@ public partial class PostgreSqlStorageIntegrationTest
             await ApplyMigrationsBeforeFormLibrary(migrationSchema);
             await SeedLegacySectionAndExistingForm(migrationSchema, seed);
 
-            // 16 laeuft, und nichts darunter laeuft erneut. Bewusst keine Gleichheit auf {16}:
-            // Jede spaetere additive Migration stuende sonst hier und haette mit dem Zweck
-            // dieses Tests — dem Upgrade von 15 auf 16 — nichts zu tun.
+            // Geprueft wird das Upgrade auf 16: Es muss das erste noch offene sein, nichts
+            // Aelteres darf liegen geblieben sein. Bewusst kein Vergleich auf genau {16} —
+            // das hiesse „16 ist die letzte Migration des Repositorys" und liesse den Test an
+            // jeder spaeteren, hier voellig unbeteiligten Migration scheitern.
             (await PostgreSqlMigrator.ApplyAsync(_connectionString, migrationSchema))
-                .Should().Contain(16).And.OnlyContain(version => version >= 16);
+                .Should().StartWith(16);
 
             using var storage = new PostgreSqlStorage(_dataSource!, migrationSchema);
             (await storage.FormStorage.GetFormMetaData(seed.SectionId)).Name.Should().Be("Adresse");
