@@ -102,6 +102,7 @@ builder.Services.AddSingleton<AiRunExecutor>();
 builder.Services.AddHostedService<AiRunBackgroundService>();
 builder.Services.AddScoped<UserTaskViewService>();
 builder.Services.AddSingleton<FormKeyResolver>();
+builder.Services.AddScoped<WebApiEngine.ProcessPackages.ProcessPackageService>();
 builder.Services.AddOptions<UserTaskDeadlineOptions>()
     .Bind(builder.Configuration.GetSection(UserTaskDeadlineOptions.SectionName))
     .Validate(options => options.IsValid(), "UserTaskDeadlines configuration is invalid.")

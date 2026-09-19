@@ -17,6 +17,7 @@ import {
   notificationsApi,
   aiConnectionsApi,
   aiToolsApi,
+  processPackagesApi,
 } from './endpoints';
 import type {
   AnalyticsRangeQuery,
@@ -54,6 +55,7 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  ProcessPackageMappingDto,
   WorkflowAnalyticsDetailDto,
   WorkflowAnalyticsOverviewDto,
 } from './types';
@@ -243,6 +245,37 @@ export function useCreateDefinition() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
       // Der Ordner zaehlt seine Workflows mit; ohne das bliebe die Zahl im Baum stehen.
       void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+/** Lädt einen Workflow als Prozesspaket herunter. */
+export function useExportPackage() {
+  return useMutation({
+    mutationFn: (definitionId: string) => processPackagesApi.export(definitionId),
+  });
+}
+
+/** Liest ein hochgeladenes Paket, ohne etwas anzulegen. */
+export function usePreviewPackage() {
+  return useMutation({
+    mutationFn: (file: File) => processPackagesApi.preview(file),
+  });
+}
+
+/**
+ * Importiert ein Paket. Der Katalog und die Ordnerzählung ändern sich dabei, das
+ * Deployment nicht — veröffentlicht wird erst im Modellierer.
+ */
+export function useImportPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, mapping }: { file: File; mapping: ProcessPackageMappingDto }) =>
+      processPackagesApi.import(file, mapping),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
     },
   });
 }
