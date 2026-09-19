@@ -51,6 +51,10 @@ Offiziell ausführbar sind:
 - lokale Aufruf-Aktivitäten (`callActivity`)
 - Business-Rule-Tasks (`businessRuleTask`)
 
+Wie sich dieses Profil gegen eine fremde Messlatte schlägt, hält
+[BPMN-MIWG-COVERAGE.md](BPMN-MIWG-COVERAGE.md) je Referenzmodell der BPMN Model Interchange
+Working Group fest — gelesen, veröffentlichbar, ausgeführt, jeweils mit dem konkreten Grund.
+
 Insbesondere nicht als ausführbar zugesagt sind Script-Tasks,
 Inclusive-/Complex-Gateways, Signal-Throw- und Signal-End-Events sowie Escalation-Pfade und
 Kompensation. Diese Grenzen werden erweitert, wenn der jeweilige Runtime-Pfad mit Semantik-,

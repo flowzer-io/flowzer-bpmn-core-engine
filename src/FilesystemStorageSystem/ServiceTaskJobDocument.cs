@@ -26,6 +26,7 @@ internal sealed class ServiceTaskJobDocument
     public DateTime? RetryAt { get; set; }
     public string? LastErrorMessage { get; set; }
     public ExpandoObject? Variables { get; set; }
+    public List<ServiceTaskJobRetry> RetryHistory { get; set; } = [];
 
     public static string Serialize(ServiceTaskJob job)
     {
@@ -50,7 +51,8 @@ internal sealed class ServiceTaskJobDocument
             Retries = job.Retries,
             RetryAt = job.RetryAt,
             LastErrorMessage = job.LastErrorMessage,
-            Variables = job.Variables
+            Variables = job.Variables,
+            RetryHistory = job.RetryHistory
         });
     }
 
@@ -88,7 +90,8 @@ internal sealed class ServiceTaskJobDocument
             Retries = document.Retries,
             RetryAt = document.RetryAt,
             LastErrorMessage = document.LastErrorMessage,
-            Variables = document.Variables
+            Variables = document.Variables,
+            RetryHistory = document.RetryHistory
         };
     }
 }

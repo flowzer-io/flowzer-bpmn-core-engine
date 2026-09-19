@@ -537,6 +537,62 @@ In der Konsole steht der Abbruch in der Instanzansicht („Instanz abbrechen"), 
 
 Eine abgebrochene Instanz gilt als **fertig**, nicht als fehlgeschlagen: Sie erscheint in der Instanzliste unter „Fertig" mit dem Status „Abgebrochen". Denselben Zustand (`Terminated`) erreicht auch ein Terminate-Endereignis im Modell — etwa der abgelehnte Urlaubsantrag aus `examples/urlaubsantrag`. Als Fehler zählen nur `Failed`-Instanzen.
 
+## Störungen
+
+Eine **Störung** ist etwas, das ohne Eingriff liegen bleibt. Flowzer kennt davon genau zwei Arten, und beide werden **abgeleitet**, nicht geführt — es gibt keine Störungstabelle:
+
+| Art | Was sie bedeutet | Woran sie erkannt wird |
+| --- | --- | --- |
+| `jobExhausted` | Ein Service-Task-Auftrag hat keine Versuche mehr und wartet auf einen Eingriff | `retries == 0` am Auftrag |
+| `instanceFailed` | Eine Instanz ist gescheitert, etwa an einem ungefangenen BPMN-Fehler | Instanzzustand `Failed` |
+
+Eine eigene Ablage daneben könnte nur noch veralten: Beide Zustände stehen bereits vollständig in Auftrag und Instanz, und eine zweite Quelle müsste bei jedem Abbruch, jeder Migration und jedem Neustart mitgepflegt werden. Abgebrochene Instanzen (`Terminated`) sind **keine** Störung — sie sind ein regulärer Ausgang. KI-Läufe stehen ebenfalls nicht in der Liste; sie haben einen eigenen Lauf- und Freigabevertrag.
+
+### Endpunkte
+
+`GET /operations/incidents` (Betriebsrolle) liefert alle Störungen, neueste zuerst. Je Eintrag:
+
+| Feld | Bedeutung |
+| --- | --- |
+| `kind` | `jobExhausted` oder `instanceFailed` |
+| `instanceId`, `metaDefinitionId`, `definitionId`, `definitionName` | Der betroffene Vorgang; `definitionName` fällt auf die technische Kennung zurück, wenn es keinen Katalognamen gibt |
+| `flowNodeId`, `flowNodeName` | Der Schritt. Bei `instanceFailed` der Knoten des jüngsten gescheiterten Tokens unterhalb des Master-Tokens — nicht der Prozess selbst |
+| `jobId`, `jobType` | Nur bei `jobExhausted` |
+| `message` | `lastErrorMessage` des Auftrags bzw. `failureReason` der Instanz |
+| `since` | Bei `jobExhausted` `retryAt`, ersatzweise `createdAt` des Auftrags — weil der letzte Fehlschlag keine Wartezeit mehr setzt, in aller Regel der Anlagezeitpunkt. Bei `instanceFailed` der Endezeitpunkt der Instanz, also der letzte Statuswechsel ihrer Tokens |
+| `manualRetries` | Wie oft dieser Auftrag schon von Hand freigegeben wurde. Bewusst **nicht** „verbrauchte Versuche": Die Engine speichert nur die verbleibenden, und eine Freigabe setzt sie neu — die Gesamtzahl der Anläufe ließe sich daraus nur raten |
+| `variables` | Die aktuellen Eingaben des Auftrags, damit die Korrektur sie vorbelegen kann. Dieselben Daten, die `GET /job` derselben Rolle ohnehin liefert |
+
+`GET /operations/diagnostics` trägt zusätzlich nur die Zähler unter `incidents.jobExhausted` und `incidents.instanceFailed`. Die Betriebsseite zeigt damit ihre Kachel, ohne bei jedem Abruf die Eingaben aller liegen gebliebenen Aufträge mitzuladen.
+
+### Erneut freigeben
+
+```http
+POST /job/{jobId}/retry
+{ "retries": 2, "variables": { "iban": "DE02120300000000202051" } }
+```
+
+Der Endpunkt verlangt die **Betriebsrolle**, nicht die Worker-Rolle der übrigen Endpunkte unter `/job`: Wer einen Auftrag mit verbrauchten Versuchen wieder in die Warteschlange stellt, entscheidet, dass ein Schritt mit Seiteneffekt ein weiteres Mal läuft — gegebenenfalls mit anderen Werten.
+
+- **Vorbedingung:** Der Auftrag liegt tatsächlich (`retries == 0`) und niemand hält eine gültige Sperre darauf. Sonst **409** mit Problem Details; ein unbekannter oder verwaister Auftrag (sein Token wartet nicht mehr) antwortet mit **404**, `retries` außerhalb von 1 bis 100 mit **400**.
+- **Wirkung:** `retries` wird gesetzt, `retryAt`, `lockedBy` und `lockedUntil` werden geleert. `lastErrorMessage` **bleibt** stehen — sie ist der einzige Hinweis darauf, warum jemand eingegriffen hat.
+- **Eingabekorrektur:** `variables` werden in die vorhandenen Eingaben **hineingemischt**. Genannte Schlüssel werden überschrieben, ungenannte bleiben; ohne `variables` ändert sich an den Eingaben nichts. Der Worker sieht die korrigierten Werte beim nächsten `POST /job/fetch`.
+- Alles zusammen läuft unter der Vergabesperre und der Zeilensperre der Instanz, in einer Transaktion wie die übrigen Job-Operationen. Die Vorbedingung wird **innerhalb** dieser Sperren neu gelesen; sonst könnte ein Worker zwischen Prüfung und Schreiben übernehmen und bekäme seine Versuche unter der Hand zurückgesetzt.
+- Ein per Webhook angemeldeter Worker erfährt von der Freigabe auf demselben Weg wie von einem neuen Auftrag: Der Hintergrunddienst sieht den Auftrag beim nächsten Durchgang wieder als verfügbar und meldet ihn erneut.
+
+Eine **gescheiterte Instanz** lässt sich nicht erneut ausführen; `Failed` bleibt `Failed`. Für sie gibt es Abbruch und Migration, und die Begründung steht in `failureReason` (nur mit Diagnoseberechtigung).
+
+### Audit
+
+Jede Freigabe hinterlässt einen Eintrag in `retryHistory` am Auftrag mit **Zeitpunkt, Benutzerkennung, vergebenen Versuchen und den Namen der korrigierten Eingaben** — nie deren Werten. Die Spur wird gelesen, wenn niemand mehr weiß, was in den Feldern stand; die Werte selbst stehen im Auftrag und gehören nicht ein zweites Mal daneben. Über die Benutzerkennung hinaus werden keine personenbezogenen Daten gespeichert.
+
+Warum dort und nicht in der [append-only Vorgangshistorie](PROCESS-HISTORY.md): Diese ist an Human Tasks gebunden (`userTaskId`, Aktionen `claim`/`release`/`assign`/`delegate`/`complete`) und enthält **ausdrücklich keine Benutzer-IDs**. Eine `job-retry`-Aktion mit Akteur würde beide Regeln brechen. Der `RuntimeNodeEvent`-Vertrag scheidet aus demselben Grund aus: Er ist datensparsam ohne Akteur und beschreibt Knotenzustände, keine Betriebshandlungen. Beides wären Verträge, die man für eine Zeile aufweicht.
+
+**Grenze, bewusst:** Die Spur lebt so lange wie der Auftrag. Schließt der Worker ihn ab, verschwindet sie mit ihm. Dauerhaft bleibt nur der Logeintrag der Freigabe (Auftrags- und Benutzerkennung, Zahl der Versuche; keine Werte). Eine instanzweite Störungshistorie über das Auftragsende hinaus braucht einen eigenen Ereignistyp mit eigener Aufbewahrungsregel — siehe „Bewusst noch offen".
+
+### In der Konsole
+
+Die Betriebsseite führt den Abschnitt **Störungen** mit den Zählern aus der Diagnose und der Liste aus `/operations/incidents`: Art, Workflow, Schritt, Meldung, Alter und ein Sprung zur Instanz. Liegt ein Auftrag, steht dort „Erneut freigeben" mit einem Dialog für die Anzahl Versuche (Standard 1) und ein JSON-Feld „Eingaben korrigieren", vorbelegt mit den aktuellen Eingaben. Ungültiges JSON blockiert das Absenden mit einem Hinweis. Dieselbe Aktion steht in der Instanzansicht, wenn genau dieser Vorgang einen liegen gebliebenen Auftrag hat; die Instanzansicht zeigt außerdem die Begründung einer gescheiterten Instanz.
 ## Instanzen löschen
 
 `DELETE /instance/{instanceId}` entfernt eine **beendete** Instanz endgültig und verlangt das
@@ -1469,6 +1525,11 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
 - vollständige produktionsnahe Reverse-Proxy-/TLS- und Secret-Store-Automatisierung
 - Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring
+- eine Störungshistorie, die das Ende eines Auftrags überdauert: `retryHistory` verschwindet
+  mit dem abgeschlossenen Auftrag, dauerhaft bleibt nur der Logeintrag. Dafür braucht es einen
+  eigenen, instanzgebundenen Ereignistyp mit eigener Aufbewahrungsregel
+- ein Zähler der tatsächlich verbrauchten Versuche eines Auftrags; heute steht nur fest, wie
+  viele verbleiben und wie oft von Hand freigegeben wurde
 - Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
   Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
   aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).

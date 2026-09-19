@@ -205,8 +205,18 @@ Nachholen wiederkehrender Timer.
 - Instanzen lassen sich über `POST /instance/{id}/cancel` abbrechen (Best-Effort-Terminierung), aber nicht zurücksetzen oder kompensieren.
 - ~~Service-Tasks haben keinen Worker-Vertrag.~~ Erledigt: Abholen mit Sperre, atomare
   Lease-Verlängerung, Ergebnis- und Fehlermeldung sowie optionale Benachrichtigung per
-  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`. Offen bleibt, einen Auftrag ohne
-  verbleibende Versuche erneut freizugeben.
+  Webhook. Siehe `docs/SERVICE-TASK-WORKER.md`.
+- ~~Ein Auftrag ohne verbleibende Versuche lässt sich nicht erneut freigeben.~~ Erledigt mit
+  dem Störungszentrum: `GET /operations/incidents` führt liegen gebliebene Aufträge und
+  gescheiterte Instanzen an einer Stelle zusammen, `POST /job/{jobId}/retry` gibt einen
+  Auftrag mit korrigierten Eingaben wieder frei. Siehe `docs/OPERATIONS.md`, Abschnitt
+  „Störungen". Offen bleibt dabei:
+  - Die Spur der Freigaben (`retryHistory`) hängt am Auftrag und verschwindet mit ihm, sobald
+    er abgeschlossen ist; dauerhaft bleibt nur der Logeintrag. Eine instanzgebundene
+    Störungshistorie braucht einen eigenen Ereignistyp mit eigener Aufbewahrungsregel.
+  - Verbrauchte Versuche werden nicht gezählt — nur die verbleibenden und die Freigaben von Hand.
+  - Eine gescheiterte Instanz bleibt gescheitert; eine Neu-Ausführung gibt es weiterhin nicht.
+  - KI-Läufe erscheinen nicht als Störung; sie haben einen eigenen Lauf- und Freigabevertrag.
 - ~~Fälligkeiten (`dueDate`, `followUpDate`) werden geliefert, aber nicht ausgewertet.~~
   Erledigt: Fristen werden beim Erreichen der Aufgabe an absolute Zeitpunkte gebunden,
   überwacht und gemeldet. Siehe `docs/HUMAN-TASK-DEADLINES.md`.
@@ -246,6 +256,8 @@ Vorhanden (Fähigkeitsvertrag 5):
 - Fangen ist immer unterbrechend: der gefangene Scope und alles darin wird zurückgezogen, samt seiner Message-, Signal- und Timer-Subscriptions
 - ohne Fänger endet die Instanz als `Failed` mit einer Begründung an `ProcessInstanceInfo.FailureReason`
 - ein externer Worker wirft einen fachlichen Fehler über `POST /job/{jobId}/throw-error`
+- eine gescheiterte Instanz erscheint mit ihrer Begründung in der Störungsliste
+  (`GET /operations/incidents`) und in der Instanzansicht der Konsole
 - `cancelActivity="false"` an einem Error-Boundary wird vor Speichern und Veröffentlichen abgelehnt
 
 Weiterhin offen:

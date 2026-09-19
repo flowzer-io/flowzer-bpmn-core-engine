@@ -13,6 +13,7 @@ import {
   formSectionsApi,
   identityDirectoryApi,
   instancesApi,
+  jobsApi,
   operationsApi,
   notificationsApi,
   aiConnectionsApi,
@@ -41,6 +42,7 @@ import type {
   FormFolderRequestDto,
   FormVersionSummaryDto,
   OperationsDiagnosticsDto,
+  OperationsIncidentDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   TimerSubscriptionDto,
@@ -145,6 +147,7 @@ export const queryKeys = {
 
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
+  incidents: () => [...queryKeys.operations, 'incidents'] as const,
   timers: () => [...queryKeys.operations, 'timers'] as const,
   health: () => [...queryKeys.operations, 'health'] as const,
   analytics: () => [...queryKeys.operations, 'analytics'] as const,
@@ -1189,6 +1192,43 @@ export function useDiagnostics(options?: QueryTuning<OperationsDiagnosticsDto>) 
     refetchInterval: LIVE_REFETCH_MS,
     ...options,
   });
+}
+
+/**
+ * Alles, was ohne Eingriff liegen bleibt. Wie die uebrigen Betriebslisten mit Nachladeintervall:
+ * Eine Stoerung soll in der Betriebssicht erscheinen, ohne dass jemand die Seite neu laedt.
+ */
+export function useIncidents(options?: QueryTuning<OperationsIncidentDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.incidents(),
+    queryFn: ({ signal }) => operationsApi.incidents(signal),
+    refetchInterval: LIVE_REFETCH_MS,
+    ...options,
+  });
+}
+
+/**
+ * Gibt einen liegen gebliebenen Auftrag wieder frei.
+ *
+ * Danach haengt alles an der Instanz: Die Stoerung verschwindet aus der Liste, der Auftrag
+ * wartet wieder auf einen Worker, und die Zaehler der Diagnose stimmen nicht mehr. Deshalb
+ * dieselbe Verwerfung wie bei Abbruch und Migration.
+ */
+export function useRetryJob() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ jobId, retries, variables }: RetryJobInput) =>
+      jobsApi.retry(jobId, retries, variables),
+    onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
+  });
+}
+
+export interface RetryJobInput {
+  jobId: string;
+  retries: number;
+  /** Korrigierte Eingaben; sie werden in die vorhandenen hineingemischt. */
+  variables?: ProcessVariables;
 }
 
 export function useTimers(options?: QueryTuning<TimerSubscriptionDto[]>) {

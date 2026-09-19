@@ -5351,6 +5351,78 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job/{jobId}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RetryJobRequestDto"];
+                    "text/json": components["schemas"]["RetryJobRequestDto"];
+                    "application/*+json": components["schemas"]["RetryJobRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ApiStatusResult"];
+                        "application/json": components["schemas"]["ApiStatusResult"];
+                        "text/json": components["schemas"]["ApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/job": {
         parameters: {
             query?: never;
@@ -5694,6 +5766,43 @@ export interface paths {
                         "text/plain": components["schemas"]["OperationsDiagnosticsDtoApiStatusResult"];
                         "application/json": components["schemas"]["OperationsDiagnosticsDtoApiStatusResult"];
                         "text/json": components["schemas"]["OperationsDiagnosticsDtoApiStatusResult"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/operations/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["OperationsIncidentDtoArrayApiStatusResult"];
+                        "application/json": components["schemas"]["OperationsIncidentDtoArrayApiStatusResult"];
+                        "text/json": components["schemas"]["OperationsIncidentDtoArrayApiStatusResult"];
                     };
                 };
             };
@@ -7699,6 +7808,7 @@ export interface components {
             checkedAtUtc: string;
             environment: string | null;
             storage: components["schemas"]["OperationsStorageSnapshotDto"];
+            incidents: components["schemas"]["OperationsIncidentCountersDto"];
             timerScheduler: components["schemas"]["TimerSchedulerDiagnosticsDto"];
             retention: components["schemas"]["InstanceRetentionDiagnosticsDto"];
             instrumentation: components["schemas"]["OperationsInstrumentationDto"];
@@ -7708,6 +7818,39 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["OperationsDiagnosticsDto"];
+        };
+        OperationsIncidentCountersDto: {
+            /** Format: int32 */
+            jobExhausted: number;
+            /** Format: int32 */
+            instanceFailed: number;
+        };
+        OperationsIncidentDto: {
+            kind: string | null;
+            /** Format: uuid */
+            instanceId: string;
+            metaDefinitionId: string | null;
+            /** Format: uuid */
+            definitionId: string;
+            definitionName: string | null;
+            flowNodeId?: string | null;
+            flowNodeName?: string | null;
+            /** Format: uuid */
+            jobId?: string | null;
+            jobType?: string | null;
+            message?: string | null;
+            /** Format: date-time */
+            since: string;
+            /** Format: int32 */
+            manualRetries?: number | null;
+            variables?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        OperationsIncidentDtoArrayApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["OperationsIncidentDto"][] | null;
         };
         OperationsInstrumentationDto: {
             meterName: string | null;
@@ -7959,6 +8102,13 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["RenewJobLeaseResultDto"];
+        };
+        RetryJobRequestDto: {
+            /** Format: int32 */
+            retries?: number;
+            variables?: {
+                [key: string]: unknown;
+            } | null;
         };
         RuntimeDiagramDto: {
             /** Format: uuid */

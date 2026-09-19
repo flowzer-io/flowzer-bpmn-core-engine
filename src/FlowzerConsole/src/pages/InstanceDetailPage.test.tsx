@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,7 @@ import { InstanceDetailPage } from './InstanceDetailPage';
 const mocks = vi.hoisted(() => ({
   instance: vi.fn(), runtime: vi.fn(), history: vi.fn(), subscriptions: vi.fn(), navigate: vi.fn(),
   cancel: vi.fn(), migrationPreview: vi.fn(), migrate: vi.fn(), children: vi.fn(), remove: vi.fn(),
+  incidents: vi.fn(), retryJob: vi.fn(), can: vi.fn(),
 }));
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }));
 vi.mock('@flowzer/react', () => ({
@@ -14,12 +15,15 @@ vi.mock('@flowzer/react', () => ({
   useInstanceRuntimeDiagram: mocks.runtime,
 }));
 vi.mock('@/stores/breadcrumbs', () => ({ useBreadcrumbs: vi.fn() }));
+vi.mock('@/stores/session', () => ({ useCan: () => mocks.can }));
 vi.mock('@/lib/api/queries', () => ({
   useInstance: mocks.instance, useInstanceSubscriptions: mocks.subscriptions,
   useInstanceChildren: mocks.children,
   useCancelInstance: () => ({ mutate: mocks.cancel, isPending: false }),
   useDeleteInstance: () => ({ mutate: mocks.remove, isPending: false }),
   useInstanceMigrationPreview: mocks.migrationPreview,
+  useIncidents: mocks.incidents,
+  useRetryJob: () => ({ mutate: mocks.retryJob, isPending: false }),
   useMigrateInstances: () => ({
     mutate: mocks.migrate, isPending: false, data: undefined, error: null, reset: vi.fn(),
   }),
@@ -44,6 +48,8 @@ beforeEach(() => {
   mocks.migrationPreview.mockReturnValue({
     data: undefined, isPending: true, error: null, refetch: vi.fn(),
   });
+  mocks.incidents.mockReturnValue({ data: [], isPending: false, error: null, refetch: vi.fn() });
+  mocks.can.mockReturnValue(false);
 });
 
 describe('Datensparsame Instanzansicht', () => {
@@ -281,6 +287,98 @@ describe('Abbruch und Version in der Betriebsansicht', () => {
   });
 });
 
+describe('Störungen an der Instanz', () => {
+  const inspectable = { ...overview, canInspect: true };
+  const stalledJob = {
+    kind: 'jobExhausted' as const,
+    instanceId: 'instance-1',
+    metaDefinitionId: 'urlaub',
+    definitionId: 'definition-1',
+    definitionName: 'Urlaubsantrag',
+    flowNodeId: 'ServiceTask_1',
+    flowNodeName: 'Zahlung auslösen',
+    jobId: 'job-1',
+    jobType: 'zahlung',
+    message: 'IBAN ungültig',
+    since: '2026-09-19T10:00:00Z',
+    manualRetries: 0,
+    variables: { iban: 'DE00' },
+  };
+
+  beforeEach(() => {
+    mocks.instance.mockReturnValue({ data: inspectable, isPending: false });
+    mocks.runtime.mockReturnValue({
+      data: {
+        instanceId: 'instance-1', definitionId: 'definition-1', processId: 'Process_1', state: 2,
+        snapshotAtUtc: '2026-09-09T10:00:00Z', diagramXml: '<definitions />', events: [], nodes: [],
+      },
+      isPending: false,
+    });
+  });
+
+  // Testzweck: „Gescheitert“ allein sagt nicht, woran. Die Begründung der Engine steht deshalb
+  // im Kopf der Instanz und nicht nur im Betriebsbild.
+  it('zeigt die Begründung einer gescheiterten Instanz', () => {
+    mocks.instance.mockReturnValue({
+      data: {
+        ...inspectable,
+        state: 'Failed',
+        finishedAt: '2026-09-19T10:00:00Z',
+        failureReason: "Unhandled BPMN error 'BONITAET' at 'ServiceTask_1'.",
+      },
+      isPending: false,
+    });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    expect(screen.getByText(/Unhandled BPMN error 'BONITAET'/)).toBeInTheDocument();
+  });
+
+  // Testzweck: Wer die Instanz vor sich hat, soll ihren liegen gebliebenen Auftrag von dort aus
+  // freigeben können — ohne den Umweg über die Betriebsseite.
+  it('bietet die Freigabe eines liegen gebliebenen Auftrags dieser Instanz an', async () => {
+    mocks.can.mockReturnValue(true);
+    mocks.incidents.mockReturnValue({
+      data: [stalledJob], isPending: false, error: null, refetch: vi.fn(),
+    });
+    const user = userEvent.setup();
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Erneut freigeben' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Zahlung auslösen');
+    // Das Korrekturfeld ist mit den aktuellen Eingaben vorbelegt; mitgeschickt wird nur, was
+    // sich davon unterscheidet — sonst stünde jedes Feld in der Freigabespur als korrigiert.
+    fireEvent.change(within(dialog).getByLabelText(/Eingaben korrigieren/), {
+      target: { value: '{ "iban": "DE02", "amount": 5 }' },
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Erneut freigeben' }));
+
+    expect(mocks.retryJob).toHaveBeenCalledWith(
+      { jobId: 'job-1', retries: 1, variables: { iban: 'DE02', amount: 5 } },
+      expect.anything(),
+    );
+  });
+
+  // Testzweck: Die Störung einer fremden Instanz gehört nicht in diese Instanz. Ohne den Filter
+  // böte die Detailseite eine Freigabe an, die einen ganz anderen Vorgang beträfe.
+  it('bietet die Freigabe für den liegen gebliebenen Auftrag einer anderen Instanz nicht an', () => {
+    mocks.can.mockReturnValue(true);
+    mocks.incidents.mockReturnValue({
+      data: [{ ...stalledJob, instanceId: 'instance-2' }],
+      isPending: false, error: null, refetch: vi.fn(),
+    });
+    render(<InstanceDetailPage instanceId="instance-1" />);
+
+    expect(screen.queryByRole('button', { name: 'Erneut freigeben' })).not.toBeInTheDocument();
+  });
+
+  // Testzweck: Ohne Betriebsrecht lehnt die API die Störungsliste ab; die Oberfläche fragt sie
+  // dann gar nicht erst an, statt im Hintergrund an einer 403 zu scheitern.
+  it('fragt die Störungsliste ohne Betriebsrecht nicht an', () => {
+    render(<InstanceDetailPage instanceId="instance-1" />);
+    expect(mocks.incidents).toHaveBeenCalledWith({ enabled: false });
+});
+
 describe('Eltern- und Kindbezug einer Call Activity', () => {
   const inspectable = { ...overview, canInspect: true };
 
@@ -343,4 +441,5 @@ describe('Eltern- und Kindbezug einer Call Activity', () => {
     expect(screen.queryByText('Aufgerufene Vorgänge')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Aufgerufen von/ })).not.toBeInTheDocument();
   });
+});
 });
