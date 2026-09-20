@@ -50,6 +50,7 @@ public static class ConfigurationCheck
     private const string AreaLimits = "Grenzen";
     private const string AreaForwardedHeaders = "Proxy-Vertrauen";
     private const string AreaObservability = "Beobachtbarkeit";
+    private const string AreaExpressions = "Ausdruecke";
 
     public static bool IsConfigurationCheckRun(string[] args) =>
         args.Any(argument => string.Equals(argument, Argument, StringComparison.OrdinalIgnoreCase));
@@ -137,7 +138,30 @@ public static class ConfigurationCheck
         rows.Add(await CheckAuthenticationAsync(services, cancellationToken));
         rows.Add(CheckWebhookAllowList(services));
         rows.Add(CheckAiBoundaries(services));
+        rows.Add(CheckExpressionEngine());
         return rows;
+    }
+
+    /// <summary>
+    /// Prueft, ob Ausdruecke wirklich als FEEL gerechnet werden. Fehlt die native
+    /// V8-Bibliothek der Plattform, faellt die Engine auf den einfachen Handler zurueck und
+    /// laeuft weiter - Bedingungen und Zuweisungen werden dann nach einer stark
+    /// vereinfachten Regel ausgewertet. Fuer eine Installation ist das ein Fehler und keine
+    /// Warnung: Der Prozess sieht gesund aus und entscheidet trotzdem anders.
+    /// </summary>
+    private static ConfigurationCheckRow CheckExpressionEngine()
+    {
+        var handler = core_engine.FlowzerConfig.Default.ExpressionHandler;
+        if (handler is core_engine.Expression.Feelin.FeelinExpressionHandler)
+        {
+            return new ConfigurationCheckRow(AreaExpressions, ConfigurationCheckState.Ok,
+                "FEEL ueber libfeelin (V8) aktiv.");
+        }
+
+        var identifier = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        return new ConfigurationCheckRow(AreaExpressions, ConfigurationCheckState.Error,
+            $"Kein FEEL: Es laeuft {handler.GetType().Name}. Der Installation fehlt die native "
+            + $"V8-Bibliothek fuer {identifier} (Paket Microsoft.ClearScript.V8.Native.{identifier}).");
     }
 
     /// <summary>

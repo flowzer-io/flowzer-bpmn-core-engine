@@ -60,7 +60,8 @@ public class HealthController(
                 Details = new HealthReadinessDetailsDto
                 {
                     StorageProvider = storageOptions.Describe(),
-                    MigrationState = "Unknown"
+                    MigrationState = "Unknown",
+                    ExpressionEngine = DescribeExpressionEngine()
                 }
             };
 
@@ -74,6 +75,17 @@ public class HealthController(
     }
 
     /// <summary>
+    /// Welcher Ausdrucks-Handler tatsaechlich laeuft. Fehlt die native V8-Bibliothek der
+    /// Plattform, baut <see cref="core_engine.FlowzerConfig"/> stillschweigend den einfachen
+    /// Handler - die Installation laeuft dann ohne FEEL weiter. Ein Betreiber soll das sehen,
+    /// ohne einen Prozess starten zu muessen.
+    /// </summary>
+    private static string DescribeExpressionEngine() =>
+        core_engine.FlowzerConfig.Default.ExpressionHandler is core_engine.Expression.Feelin.FeelinExpressionHandler
+            ? "Feel"
+            : "Simple";
+
+    /// <summary>
     /// Ergaenzt die Probe um den Migrationsstand. Bewusst nachgelagert und fehlertolerant: eine
     /// nicht lesbare Historie meldet <c>Unknown</c>, macht den Knoten aber nicht unbereit -
     /// die Ablage selbst hat oben bereits geantwortet.
@@ -83,7 +95,8 @@ public class HealthController(
         var details = new HealthReadinessDetailsDto
         {
             StorageProvider = storageOptions.Describe(),
-            MigrationState = "NotApplicable"
+            MigrationState = "NotApplicable",
+            ExpressionEngine = DescribeExpressionEngine()
         };
 
         if (!storageOptions.IsPostgreSql)

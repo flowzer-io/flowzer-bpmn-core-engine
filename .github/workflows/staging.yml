@@ -1,0 +1,38 @@
+name: Staging
+
+# Staging (staging.flowzer.de, SecureSteps): jeder Stand auf `main` wird gebaut und sofort
+# ausgerollt. Damit laeuft dort immer der Entwicklungsstand, waehrend `release` die Produktion
+# bedient. Zugangsdaten liegen im GitHub-Environment `securesteps-staging`.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: staging-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  images:
+    uses: ./.github/workflows/images.yml
+    with:
+      # `latest` folgt dem Entwicklungsstand, nicht dem Release.
+      publish_latest: true
+    permissions:
+      contents: read
+      packages: write
+
+  deploy:
+    needs: images
+    uses: ./.github/workflows/coolify-deploy.yml
+    with:
+      environment: securesteps-staging
+      concurrency_group: coolify-flowzer-staging
+      image_tag: ${{ needs.images.outputs.image_tag }}
+    secrets: inherit

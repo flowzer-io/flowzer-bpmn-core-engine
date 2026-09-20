@@ -223,7 +223,16 @@ ausdrücklich zugeordnet; veröffentlicht wird nichts. Details:
 
 ## Release und Deployment
 
-`main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`. Der Workflow `release.yml` baut bei jedem Push auf `release` die Images `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console`, pinnt den Tag in Coolify und löst dort das Deployment aus (`compose.coolify.yaml`). Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+`main` ist der Entwicklungsstand, `release` das ausgerollte Paket; ein Release ist ein Pull Request von `main` nach `release`.
+
+Beide Wege bauen dieselben Images und deployen über dieselben wiederverwendbaren Workflows:
+
+| Umgebung | Branch | Workflow | Adresse | GitHub-Environment |
+|---|---|---|---|---|
+| Staging | `main` | `staging.yml` | https://staging.flowzer.de | `securesteps-staging` |
+| Produktion | `release` | `release.yml` | https://flowzer.maass.it | `maassit-production` |
+
+`images.yml` baut `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console` und veröffentlicht sie unter `sha-<12 Zeichen>`; `latest` folgt `main`. `coolify-deploy.yml` pinnt den Tag als `FLOWZER_IMAGE_TAG` in der Coolify-Anwendung, löst das Deployment aus, wartet es ab und prüft danach `/health/ready` der öffentlichen Adresse. Beide Umgebungen fahren dieselbe `compose.coolify.yaml`; sie unterscheiden sich nur in ihren Coolify-Variablen. Jeder Merge nach `main` erneuert damit Staging, ohne die Produktion zu berühren.
 
 ## Dokumentation
 

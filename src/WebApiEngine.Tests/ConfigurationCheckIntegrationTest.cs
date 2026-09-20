@@ -44,6 +44,9 @@ public class ConfigurationCheckIntegrationTest
 
         output.Should().Contain("Bereich").And.Contain("Zustand").And.Contain("Hinweis");
         output.Should().Contain("Ablage").And.Contain("Authentifizierung").And.Contain("Webhook-Ziele");
+        // Ohne die native V8-Bibliothek laeuft die Installation ohne FEEL weiter. Die Pruefung
+        // muss das melden, sonst faellt es erst an falsch entschiedenen Prozessen auf.
+        output.Should().Contain("Ausdruecke").And.Contain("libfeelin");
         output.Should().Contain("keine Beanstandungen");
         exitCode.Should().Be(0, "die Ausgabe war:\n{0}", output);
     }
