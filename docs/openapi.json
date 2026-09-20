@@ -10903,6 +10903,7 @@
       },
       "HealthReadinessDetailsDto": {
         "required": [
+          "expressionEngine",
           "migrationState",
           "storageProvider"
         ],
@@ -10924,6 +10925,10 @@
           "expectedMigrationVersion": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "expressionEngine": {
+            "type": "string",
             "nullable": true
           }
         },

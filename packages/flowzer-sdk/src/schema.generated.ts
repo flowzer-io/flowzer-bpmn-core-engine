@@ -7710,6 +7710,7 @@ export interface components {
             pendingMigrationCount?: number | null;
             /** Format: int32 */
             expectedMigrationVersion?: number | null;
+            expressionEngine: string | null;
         };
         HealthStatusDto: {
             status: string | null;

@@ -3,6 +3,12 @@ name: Images
 # Baut die Container-Images fuer API und Konsole und veroeffentlicht sie in der GitHub
 # Container Registry. Wird von `release.yml` (Branch release) und `staging.yml` (Branch main)
 # aufgerufen, damit beide Wege exakt dasselbe Image aus derselben Revision bekommen.
+#
+# Gebaut wird fuer amd64 und arm64, jede Architektur auf einem Laeufer ihrer eigenen Art:
+# Produktion laeuft auf amd64, Staging auf einem ARM-Server. Emulation waere fuer den
+# .NET- und den Node-Build unzumutbar langsam, native Laeufer sind fuer oeffentliche
+# Repositories kostenlos. Die beiden Teilbilder werden danach zu einem Manifest vereint,
+# sodass jeder Server unter demselben Tag sein passendes Image zieht.
 
 on:
   workflow_call:
@@ -14,7 +20,7 @@ on:
     outputs:
       image_tag:
         description: Der gebaute Tag, Form `sha-<12 Zeichen>`.
-        value: ${{ jobs.images.outputs.image_tag }}
+        value: ${{ jobs.tag.outputs.image_tag }}
 
 permissions:
   contents: read
@@ -26,30 +32,51 @@ env:
   IMAGE_CONSOLE: ghcr.io/${{ github.repository_owner }}/flowzer-console
 
 jobs:
-  images:
-    name: Images bauen und veroeffentlichen
+  tag:
+    name: Image-Tag bestimmen
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 5
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
+      extra_tag: ${{ steps.meta.outputs.extra_tag }}
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
 
-      - name: Image-Tag bestimmen
+      - name: Tag ableiten
         id: meta
         run: |
           short_sha="$(git rev-parse --short=12 HEAD)"
           echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
           # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
-          extra_api=""; extra_console=""
+          extra_tag=""
           if [ "${{ inputs.publish_latest }}" = "true" ]; then
-            extra_api="$IMAGE_API:latest"; extra_console="$IMAGE_CONSOLE:latest"
+            extra_tag="latest"
           elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
-            extra_api="$IMAGE_API:${GITHUB_REF#refs/tags/}"; extra_console="$IMAGE_CONSOLE:${GITHUB_REF#refs/tags/}"
+            extra_tag="${GITHUB_REF#refs/tags/}"
           fi
-          echo "extra_api=$extra_api" >> "$GITHUB_OUTPUT"
-          echo "extra_console=$extra_console" >> "$GITHUB_OUTPUT"
+          echo "extra_tag=$extra_tag" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.image }} auf ${{ matrix.platform }}
+    needs: tag
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, console]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
 
       - name: Buildx einrichten
         uses: docker/setup-buildx-action@v3
@@ -61,61 +88,91 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: API-Image bauen und pushen
-        id: build_api
+      # Ohne Tag gepusht: Jede Architektur landet als eigener Digest, den der Merge-Job
+      # anschliessend unter dem gemeinsamen Tag zusammenfasst.
+      - name: Image bauen und als Digest pushen
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.api
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ${{ env.IMAGE_API }}:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.meta.outputs.extra_api }}
+          file: Dockerfile.${{ matrix.image }}
+          platforms: ${{ matrix.platform }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
+          outputs: type=image,name=ghcr.io/${{ github.repository_owner }}/flowzer-${{ matrix.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }},mode=max
 
-      # Syft (anchore/sbom-action) liest bereits das gepushte, digest-referenzierte Image ueber
-      # die Docker-Anmeldung von oben aus GHCR - keine zusaetzlichen Secrets noetig. Die Variante
-      # ueber `docker/build-push-action`-eigene `sbom: true`/`provenance: true`-Inputs wuerde die
-      # SBOM stattdessen nur als Registry-Attestation an das Image haengen, nicht als eigenstaendige,
-      # herunterladbare Datei - hier ist aber ein Release-Artefakt zum Herunterladen gefordert.
-      - name: SBOM fuer das API-Image erzeugen
+      # Der Digest steht im Dateiinhalt, nicht im Namen: Ein Doppelpunkt im Dateinamen
+      # ueberlebt den Artefakt-Transport nicht zuverlaessig.
+      - name: Digest festhalten
+        run: |
+          mkdir -p /tmp/digests
+          printf '%s\n' "${{ steps.build.outputs.digest }}" > "/tmp/digests/${{ matrix.image }}-${{ matrix.arch }}"
+
+      - name: Digest weiterreichen
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.image }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  manifest:
+    name: Manifest fuer ${{ matrix.image }} veroeffentlichen
+    needs: [tag, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        image: [api, console]
+    steps:
+      - name: Digests holen
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digest-${{ matrix.image }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Buildx einrichten
+        uses: docker/setup-buildx-action@v3
+
+      - name: Bei GHCR anmelden
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Architekturen unter einem Tag vereinen
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/flowzer-${{ matrix.image }}
+          IMAGE_TAG: ${{ needs.tag.outputs.image_tag }}
+          EXTRA_TAG: ${{ needs.tag.outputs.extra_tag }}
+        run: |
+          digests=""
+          for file in /tmp/digests/*; do
+            digests="$digests $IMAGE@$(cat "$file")"
+          done
+          test -n "$digests" || { echo "Keine Digests gefunden." >&2; exit 1; }
+          tags="--tag $IMAGE:$IMAGE_TAG"
+          [ -n "$EXTRA_TAG" ] && tags="$tags --tag $IMAGE:$EXTRA_TAG"
+          # shellcheck disable=SC2086
+          docker buildx imagetools create $tags $digests
+          docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG" --format '{{json .Manifest}}' \
+            | jq -r '.manifests[] | .platform.os + "/" + .platform.architecture' | sort -u
+
+      # Syft liest das fertige, digest-referenzierte Manifest ueber die Docker-Anmeldung von
+      # oben aus GHCR - keine zusaetzlichen Secrets noetig. Die Variante ueber die
+      # `sbom: true`-Eingabe von `docker/build-push-action` haengt die SBOM nur als
+      # Registry-Attestation an das Image, nicht als herunterladbare Datei - hier ist aber ein
+      # Release-Artefakt zum Herunterladen gefordert.
+      - name: SBOM erzeugen
         uses: anchore/sbom-action@v0
         with:
-          image: ${{ env.IMAGE_API }}@${{ steps.build_api.outputs.digest }}
+          image: ghcr.io/${{ github.repository_owner }}/flowzer-${{ matrix.image }}:${{ needs.tag.outputs.image_tag }}
           format: cyclonedx-json
-          output-file: sbom-flowzer-api-${{ steps.meta.outputs.image_tag }}.cdx.json
-          artifact-name: sbom-flowzer-api-${{ steps.meta.outputs.image_tag }}.cdx.json
-          upload-artifact: true
-          upload-release-assets: false
-
-      - name: Konsolen-Image bauen und pushen
-        id: build_console
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.console
-          push: true
-          platforms: linux/amd64
-          tags: |
-            ${{ env.IMAGE_CONSOLE }}:${{ steps.meta.outputs.image_tag }}
-            ${{ steps.meta.outputs.extra_console }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=console
-          cache-to: type=gha,scope=console,mode=max
-
-      - name: SBOM fuer das Konsolen-Image erzeugen
-        uses: anchore/sbom-action@v0
-        with:
-          image: ${{ env.IMAGE_CONSOLE }}@${{ steps.build_console.outputs.digest }}
-          format: cyclonedx-json
-          output-file: sbom-flowzer-console-${{ steps.meta.outputs.image_tag }}.cdx.json
-          artifact-name: sbom-flowzer-console-${{ steps.meta.outputs.image_tag }}.cdx.json
+          output-file: sbom-flowzer-${{ matrix.image }}-${{ needs.tag.outputs.image_tag }}.cdx.json
+          artifact-name: sbom-flowzer-${{ matrix.image }}-${{ needs.tag.outputs.image_tag }}.cdx.json
           upload-artifact: true
           upload-release-assets: false

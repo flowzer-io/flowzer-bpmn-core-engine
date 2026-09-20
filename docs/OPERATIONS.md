@@ -928,6 +928,7 @@ Die Web-API stellt aktuell folgende Endpunkte bereit:
 | `details.migrationState` | `UpToDate`, `Pending`, `NotApplicable` (Dateiablage) oder `Unknown` |
 | `details.pendingMigrationCount` | Zahl der noch nicht angewendeten Migrationen; `null` bei `Unknown` |
 | `details.expectedMigrationVersion` | höchste in diesem Paket eingebettete Migrationsversion |
+| `details.expressionEngine` | `Feel` (libfeelin in V8) oder `Simple` — siehe unten |
 
 Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_migrations`
 gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
@@ -936,6 +937,26 @@ Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja g
 soll sichtbar sein, nicht unsichtbar. Für ein Deployment-Gate ist deshalb `details`
 auszuwerten, nicht der Statuscode. Die Antwort enthält keine Verbindungszeichenfolge und
 keine Anmeldedaten.
+
+### Ausdrücke: FEEL oder einfacher Handler
+
+Bedingungen, Zuweisungen und Entscheidungstabellen rechnet Flowzer mit FEEL über libfeelin in
+ClearScript V8. Fehlt die **native V8-Bibliothek der Plattform**, baut die Engine
+stillschweigend den einfachen Ausdrucks-Handler: Die Installation startet, Prozesse laufen,
+aber Bedingungen werden nach einer stark vereinfachten Regel ausgewertet — ein Zweig kann
+damit anders entscheiden als im Modell gemeint, ohne dass irgendetwas fehlschlägt.
+
+Sichtbar ist das an zwei Stellen: `GET /health/ready` meldet `details.expressionEngine`, und
+`dotnet WebApiEngine.dll --check-config` führt den Bereich `Ausdruecke` und wertet `Simple`
+als **Fehler**. Die mitgelieferten Images tragen die passende Bibliothek für ihre
+Architektur; wer selbst baut, gibt beim Veröffentlichen `/p:FlowzerV8Native=<RID>` an
+(`linux-x64` oder `linux-arm64`), sonst kommen alle Entwicklungsplattformen mit ins Paket.
+
+### Architekturen
+
+Die Images `flowzer-api` und `flowzer-console` erscheinen unter einem Tag als Manifest für
+`linux/amd64` und `linux/arm64`; jeder Server zieht damit sein passendes Image. Gebaut wird
+je Architektur auf einem eigenen Läufer, nicht emuliert.
 
 Typische URLs lokal:
 
