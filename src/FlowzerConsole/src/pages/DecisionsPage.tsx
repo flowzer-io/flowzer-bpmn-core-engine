@@ -264,16 +264,16 @@ export function DecisionsPage() {
                       </span>
                     ))}
                 </span>
+                {/* Die API liefert nur die Benutzerkennung; eine GUID sagt niemandem etwas. */}
                 <span className="text-faint text-[11.5px]">
                   Zuletzt deployt {formatTimestamp(entry.deployedAt)}
-                  {entry.deployedBy ? ` von ${entry.deployedBy}` : ''}
                 </span>
               </button>
             );
           })}
         </div>
 
-        <Card className="flex min-h-[560px] flex-col">
+        <Card className="flex min-h-[calc(100vh-220px)] flex-col overflow-hidden">
           <div className="border-border bg-surface-2 flex items-center justify-between gap-3 border-b px-[22px] py-3.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <Icon name="rule" size={19} className="text-accent" />
