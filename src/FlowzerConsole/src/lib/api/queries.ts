@@ -1169,7 +1169,16 @@ export function useCreateDecision() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { name?: string; xml: string }) => decisionsApi.create(input),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+    onSuccess: (created) => {
+      // Die neue Entscheidung gehoert sofort in die Liste. Die Seite waehlt sie direkt nach
+      // dem Anlegen aus; stuende sie bis zum Nachladen nicht in der Liste, hielte die Seite
+      // sie fuer weggefiltert und spraenge auf den ersten Eintrag zurueck.
+      queryClient.setQueryData<DecisionDefinition[]>(queryKeys.decisionList(), (current) =>
+        current && !current.some((entry) => entry.decisionDefinitionId === created.decisionDefinitionId)
+          ? [...current, created]
+          : current);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.decisions });
+    },
   });
 }
 

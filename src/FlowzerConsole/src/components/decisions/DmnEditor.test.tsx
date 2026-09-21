@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DmnEditor, type DmnEditorHandle } from './DmnEditor';
+import { germanDmnTranslateModule } from '@/lib/decisions/dmnTranslate';
 
 /**
  * dmn-js laesst sich in jsdom nicht montieren: diagram-js misst seine Ebenen ueber
@@ -11,27 +12,41 @@ import { DmnEditor, type DmnEditorHandle } from './DmnEditor';
  * bpmn-js tut — und prueft, was die Konsole selbst verantwortet: montieren, importieren,
  * auslesen, abraeumen.
  */
+type Listener = (event?: unknown) => void;
+
 const harness = vi.hoisted(() => ({
   instances: [] as Array<{
     container: HTMLElement;
+    options: Record<string, unknown>;
     importXML: ReturnType<typeof vi.fn>;
     saveXML: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
+    listeners: Map<string, Listener>;
   }>,
 }));
 
+/** Eine Ansicht, wie dmn-js sie beim ersten Oeffnen erzeugt: mit eigenem Ereignis-Bus. */
+class FakeViewer {
+  listeners = new Map<string, Listener>();
+  on(event: string, callback: Listener) { this.listeners.set(event, callback); }
+  fire(event: string) { this.listeners.get(event)?.(); }
+}
+
 class FakeManager {
   container: HTMLElement;
+  options: Record<string, unknown>;
   importXML = vi.fn().mockResolvedValue({ warnings: [] });
   saveXML = vi.fn().mockResolvedValue({ xml: '<definitions gespeichert="ja" />' });
   destroy = vi.fn();
+  listeners = new Map<string, Listener>();
 
-  constructor({ container }: { container: HTMLElement }) {
-    this.container = container;
+  constructor(options: { container: HTMLElement } & Record<string, unknown>) {
+    this.container = options.container;
+    this.options = options;
     harness.instances.push(this);
   }
 
-  on() { /* Für den Rauchtest ist die Ereignisverdrahtung ohne Belang. */ }
+  on(event: string, callback: Listener) { this.listeners.set(event, callback); }
   getViews() { return []; }
   getActiveView() { return undefined; }
   open() {}
@@ -65,6 +80,36 @@ describe('DMN-Editor', () => {
     await waitFor(() => expect(harness.instances).toHaveLength(1));
     await expect(ref.current!.getXml()).resolves.toBe('<definitions gespeichert="ja" />');
     expect(harness.instances[0]!.saveXML).toHaveBeenCalledWith({ format: true });
+  });
+
+  // Testzweck: Jede Ansicht bekommt die deutsche Beschriftung. dmn-js ueberschreibt die
+  // Module aus `common` mit denen der Ansicht - ueber `common` allein bliebe alles englisch.
+  it('gibt jeder Ansicht die deutsche Beschriftung mit', async () => {
+    render(<DmnEditor xml="<definitions />" />);
+    await waitFor(() => expect(harness.instances).toHaveLength(1));
+
+    const options = harness.instances[0]!.options;
+    for (const view of ['drd', 'decisionTable', 'literalExpression', 'boxedExpression']) {
+      expect(options[view]).toEqual({ additionalModules: [germanDmnTranslateModule] });
+    }
+  });
+
+  // Testzweck: Allein das Oeffnen einer Ansicht ist keine Bearbeitung. Vorher meldete schon
+  // der Wechsel in die Tabelle "ungespeicherte Aenderungen", weil dmn-js dabei neu zeichnet.
+  // Erst ein Befehl auf dem Befehlsstapel zaehlt.
+  it('meldet eine Aenderung erst bei einem Bearbeitungsbefehl', async () => {
+    const onChange = vi.fn();
+    render(<DmnEditor xml="<definitions />" onChange={onChange} />);
+    await waitFor(() => expect(harness.instances[0]!.importXML).toHaveBeenCalled());
+
+    const viewer = new FakeViewer();
+    harness.instances[0]!.listeners.get('viewer.created')?.({ viewer });
+
+    viewer.fire('elements.changed');
+    expect(onChange).not.toHaveBeenCalled();
+
+    viewer.fire('commandStack.changed');
+    expect(onChange).toHaveBeenCalledOnce();
   });
 
   // Testzweck: Beim Abbauen wird die dmn-js-Instanz zerstoert; sonst bliebe ihr
