@@ -181,8 +181,9 @@ public static class FlowzerAuthenticationExtensions
     /// Grundanforderung erneut enthalten, sonst waere ein Endpunkt mit Rollenpflicht
     /// ausgerechnet ohne Anmeldung und ohne Zugangsrolle erreichbar.
     ///
-    /// Ist kein Rollenname konfiguriert, bleibt es bei der Grundanforderung: Ohne Rollenpflege
-    /// soll sich gegenueber der bisherigen Installation nichts aendern.
+    /// Ist kein Rollenname konfiguriert, bleibt es bei der Grundanforderung. Das ist nur noch
+    /// mit <see cref="FlowzerAuthenticationOptions.JwtBearerSettings.LegacyPermissiveRoles"/>
+    /// erreichbar; ohne den Schalter lehnt <c>Validate()</c> leere Namen beim Start ab.
     /// </summary>
     private static void AddApplicationRolePolicies(AuthorizationBuilder authorization, FlowzerAuthenticationOptions options)
     {

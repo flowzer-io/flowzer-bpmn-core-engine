@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Npgsql;
 using PostgreSqlStorageSystem;
@@ -24,9 +25,9 @@ public sealed record ConfigurationCheckRow(string Area, ConfigurationCheckState 
 /// <summary>
 /// Startargument <c>--check-config</c>: prueft die Konfiguration einer Installation, ohne die
 /// API zu starten. Der Host wird wie beim normalen Start gebaut (Optionsbindung und
-/// <c>ValidateOnStart</c>); zusaetzlich werden Ablage, Migrationsstand, Authority und die
-/// Freigabelisten geprueft. Das Ergebnis ist eine Tabelle und ein Exit-Code:
-/// 0 alles in Ordnung, 1 mindestens ein Fehler, 2 nur Warnungen.
+/// <c>ValidateOnStart</c>); zusaetzlich werden Ablage, Migrationsstand, Authority, Rollennamen,
+/// der BFF-Schluesselring und die Freigabelisten geprueft. Das Ergebnis ist eine Tabelle und
+/// ein Exit-Code: 0 alles in Ordnung, 1 mindestens ein Fehler, 2 nur Warnungen.
 /// Es werden ausschliesslich nicht geheime Werte ausgegeben - keine Verbindungszeichenfolgen,
 /// keine Client-Secrets, keine Tokens.
 /// </summary>
@@ -41,10 +42,24 @@ public static class ConfigurationCheck
     /// <summary>Zeitfenster fuer Netzwerkproben; eine Pruefung darf nicht haengen bleiben.</summary>
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
 
+    /// <summary>Obergrenze fuer das Discovery-Dokument; echte Dokumente sind wenige Kilobyte gross.</summary>
+    private const long DiscoveryDocumentLimitBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Praefix der Probedatei im Schluesselring; ohne <c>.xml</c>-Endung, damit Data Protection sie nie
+    /// liest, und mit Zufallsanteil wie bei der Ablage, damit ein Rest eines fremden Laufs nichts verfaelscht.
+    /// </summary>
+    private const string KeyringProbeFilePrefix = ".flowzer-check-config-";
+
+    /// <summary>Laenge, auf die ein fremder Issuer in der Ausgabe gekuerzt wird.</summary>
+    private const int IssuerDisplayLimit = 200;
+
     private const string AreaConfiguration = "Konfiguration";
     private const string AreaStorage = "Ablage";
     private const string AreaMigrations = "Migrationen";
     private const string AreaAuthentication = "Authentifizierung";
+    private const string AreaRoles = "Rollen";
+    private const string AreaKeyring = "Schluesselring";
     private const string AreaWebhooks = "Webhook-Ziele";
     private const string AreaAi = "KI-Datenfluss";
     private const string AreaLimits = "Grenzen";
@@ -136,6 +151,20 @@ public static class ConfigurationCheck
         }
 
         rows.Add(await CheckAuthenticationAsync(services, cancellationToken));
+
+        var authentication = services.GetRequiredService<FlowzerAuthenticationOptions>();
+        // Ohne Authentifizierung sind Rollennamen wirkungslos; die Authentifizierungszeile
+        // warnt dann bereits vor der ungeschuetzten API.
+        if (authentication.IsAuthenticationEnabled)
+        {
+            rows.Add(CheckRoles(authentication));
+        }
+
+        if (authentication.IsBffEnabled)
+        {
+            rows.Add(CheckKeyring(authentication));
+        }
+
         rows.Add(CheckWebhookAllowList(services));
         rows.Add(CheckAiBoundaries(services));
         rows.Add(CheckExpressionEngine());
@@ -288,6 +317,18 @@ public static class ConfigurationCheck
                 $"Schema {options.Scheme}: die API ist ungeschuetzt und nur fuer lokale Pruefungen geeignet.");
         }
 
+        var row = await ProbeAuthorityAsync(options, cancellationToken);
+        // Nur ein Hinweis, keine Abwertung: Lokale Identity Provider ohne TLS sind ein
+        // gewollter Entwicklungsfall, gehoeren aber sichtbar in die Ausgabe.
+        return options.JwtBearer.RequireHttpsMetadata
+            ? row
+            : row with { Hint = row.Hint + " (RequireHttpsMetadata=false: nur fuer lokale Identity Provider ohne TLS)" };
+    }
+
+    private static async Task<ConfigurationCheckRow> ProbeAuthorityAsync(
+        FlowzerAuthenticationOptions options,
+        CancellationToken cancellationToken)
+    {
         if (!Uri.TryCreate(options.JwtBearer.Authority, UriKind.Absolute, out var authority))
         {
             return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Error,
@@ -295,8 +336,9 @@ public static class ConfigurationCheck
         }
 
         var discovery = new Uri(authority.AbsoluteUri.TrimEnd('/') + "/.well-known/openid-configuration");
-        // Nur Namensaufloesung und ein HEAD auf das Discovery-Dokument. Es werden weder
-        // Anmeldedaten mitgeschickt noch Antwortinhalte gelesen oder protokolliert.
+        // Namensaufloesung und ein GET auf das Discovery-Dokument. Es werden keine Anmeldedaten
+        // mitgeschickt; vom Inhalt werden nur issuer und token_endpoint gelesen, nichts davon
+        // wird protokolliert.
         try
         {
             await System.Net.Dns.GetHostAddressesAsync(authority.Host, cancellationToken);
@@ -309,19 +351,139 @@ public static class ConfigurationCheck
 
         try
         {
-            using var client = new HttpClient { Timeout = ProbeTimeout };
-            using var request = new HttpRequestMessage(HttpMethod.Head, discovery);
-            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            return response.IsSuccessStatusCode
-                ? new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Ok,
-                    $"Schema {options.Scheme}, Authority {authority.Host} antwortet auf die OIDC-Discovery.")
-                : new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
+            using var client = new HttpClient { Timeout = ProbeTimeout, MaxResponseContentBufferSize = DiscoveryDocumentLimitBytes };
+            using var response = await client.GetAsync(discovery, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
                     $"Schema {options.Scheme}: Authority {authority.Host} antwortet auf die OIDC-Discovery mit {(int)response.StatusCode}.");
+            }
+
+            await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
+            var (problems, notes) = DescribeDiscovery(document.RootElement, options.JwtBearer.Authority);
+            if (problems.Count > 0)
+            {
+                return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
+                    $"Schema {options.Scheme}: OIDC-Discovery von {authority.Host}: {string.Join(" ", problems.Concat(notes))}");
+            }
+
+            var summary = notes.Count == 0
+                ? "token_endpoint vorhanden, Issuer passt."
+                : "token_endpoint vorhanden. " + string.Join(" ", notes);
+            return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Ok,
+                $"Schema {options.Scheme}, Authority {authority.Host} antwortet auf die OIDC-Discovery; {summary}");
+        }
+        catch (JsonException)
+        {
+            return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
+                $"Schema {options.Scheme}: Authority {authority.Host} liefert unter /.well-known/openid-configuration kein JSON-Dokument.");
         }
         catch (Exception exception)
         {
             return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
                 $"Schema {options.Scheme}: OIDC-Discovery bei {authority.Host} nicht erreichbar ({Flatten(exception)}).");
+        }
+    }
+
+    /// <summary>
+    /// Liest nur zwei Felder: Ohne <c>issuer</c> oder <c>token_endpoint</c> kann der Anmeldefluss
+    /// nicht funktionieren, das ist ein Problem. Ein Issuer, der von der Authority abweicht, ist
+    /// dagegen nur ein Hinweis: Zur Laufzeit gilt der Issuer aus den Metadaten, und bei Entra
+    /// <c>common</c>/<c>organizations</c> oder hinter einem Proxy weicht er regelmaessig ab.
+    /// Der Issuer ist oeffentlich und darf gekuerzt genannt werden.
+    /// </summary>
+    private static (List<string> Problems, List<string> Notes) DescribeDiscovery(JsonElement discovery, string configuredAuthority)
+    {
+        var problems = new List<string>();
+        var notes = new List<string>();
+        if (discovery.ValueKind != JsonValueKind.Object)
+        {
+            problems.Add("Das Dokument ist kein JSON-Objekt.");
+            return (problems, notes);
+        }
+
+        var issuer = discovery.TryGetProperty("issuer", out var issuerElement) && issuerElement.ValueKind == JsonValueKind.String
+            ? issuerElement.GetString()
+            : null;
+        if (string.IsNullOrWhiteSpace(issuer))
+        {
+            problems.Add("Es nennt keinen issuer.");
+        }
+        else if (!string.Equals(issuer.Trim().TrimEnd('/'), configuredAuthority.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        {
+            var shown = issuer.Length > IssuerDisplayLimit ? issuer[..IssuerDisplayLimit] + "…" : issuer;
+            notes.Add($"Hinweis: Der Issuer {shown} weicht von der konfigurierten Authority ab; bei Entra common/organizations "
+                      + "und hinter einem Proxy ist das erwartet, sonst die Authority pruefen. Zur Laufzeit gilt der Issuer aus den Metadaten.");
+        }
+
+        var hasTokenEndpoint = discovery.TryGetProperty("token_endpoint", out var tokenEndpoint)
+                               && tokenEndpoint.ValueKind == JsonValueKind.String
+                               && !string.IsNullOrWhiteSpace(tokenEndpoint.GetString());
+        if (!hasTokenEndpoint)
+        {
+            problems.Add("Es nennt keinen token_endpoint.");
+        }
+
+        return (problems, notes);
+    }
+
+    /// <summary>
+    /// Leere privilegierte Rollennamen oeffnen die jeweilige Faehigkeit fuer jede angemeldete
+    /// Person. Ausgegeben werden nur Rollennamen, keine Secrets.
+    /// </summary>
+    private static ConfigurationCheckRow CheckRoles(FlowzerAuthenticationOptions options)
+    {
+        var jwt = options.JwtBearer;
+        var missing = jwt.MissingPrivilegedRoleKeys();
+        if (missing.Count == 0)
+        {
+            return new ConfigurationCheckRow(AreaRoles, ConfigurationCheckState.Ok,
+                $"Zugang {jwt.RequiredRole}, Modeler {jwt.Roles.Modeler}, Operator {jwt.Roles.Operator}, Worker {jwt.Roles.Worker}.");
+        }
+
+        var keys = string.Join(", ", missing);
+        if (jwt.LegacyPermissiveRoles)
+        {
+            return new ConfigurationCheckRow(AreaRoles, ConfigurationCheckState.Warning,
+                $"LegacyPermissiveRoles aktiv, ohne Rollennamen: {keys}. Damit hat jede angemeldete Person "
+                + "diese Faehigkeit bzw. diesen Zugang.");
+        }
+
+        // Sicherheitsnetz: Validate() laesst den Host in diesem Fall gar nicht erst entstehen.
+        return new ConfigurationCheckRow(AreaRoles, ConfigurationCheckState.Error,
+            $"Rollennamen fehlen: {keys}. Die API startet so nicht; Namen setzen oder "
+            + "Authentication:JwtBearer:LegacyPermissiveRoles=true ausdruecklich waehlen.");
+    }
+
+    /// <summary>
+    /// Der BFF-Schluesselring muss dauerhaft beschreibbar sein, sonst ueberleben Sitzungen
+    /// keinen Neustart. Das Verzeichnis wird bewusst nicht angelegt: Im Container ist es das
+    /// eingehaengte Volume, und ein fehlendes Volume darf nicht durch ein Verzeichnis im
+    /// Container-Dateisystem verdeckt werden. Wie bei der Dateiablage beweist nur ein
+    /// Schreibversuch das Recht; vorhandene Schluessel werden weder gelesen noch ausgegeben.
+    /// </summary>
+    private static ConfigurationCheckRow CheckKeyring(FlowzerAuthenticationOptions options)
+    {
+        var path = options.Bff.DataProtectionKeysPath;
+        if (!Directory.Exists(path))
+        {
+            return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Error,
+                $"Schluesselring {path} existiert nicht als Verzeichnis. Im Container muss das Volume eingehaengt sein; die Pruefung legt nichts an.");
+        }
+
+        try
+        {
+            var probe = Path.Combine(path, KeyringProbeFilePrefix + Guid.NewGuid().ToString("N"));
+            File.WriteAllText(probe, string.Empty);
+            File.Delete(probe);
+            return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Ok,
+                $"Schluesselring beschreibbar: {path}");
+        }
+        catch (Exception exception)
+        {
+            return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Error,
+                $"Schluesselring {path} ist nicht beschreibbar: {exception.Message}");
         }
     }
 

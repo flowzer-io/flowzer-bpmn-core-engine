@@ -128,7 +128,11 @@ public class ApiLimitsIntegrationTest
             ["RateLimiting:WindowSeconds"] = "60",
             ["Authentication:Scheme"] = "JwtBearer",
             ["Authentication:JwtBearer:Authority"] = Issuer,
-            ["Authentication:JwtBearer:Audience"] = Audience
+            ["Authentication:JwtBearer:Audience"] = Audience,
+            ["Authentication:JwtBearer:RequiredRole"] = "access",
+            ["Authentication:JwtBearer:Roles:Modeler"] = "modeler",
+            ["Authentication:JwtBearer:Roles:Operator"] = "operator",
+            ["Authentication:JwtBearer:Roles:Worker"] = "worker"
         });
         using var client = factory.CreateClient();
 
@@ -182,7 +186,7 @@ public class ApiLimitsIntegrationTest
             Audience = Audience,
             Expires = DateTime.UtcNow.AddMinutes(5),
             SigningCredentials = new SigningCredentials(SigningKey, SecurityAlgorithms.HmacSha256),
-            Subject = new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString())])
+            Subject = new ClaimsIdentity([new Claim("sub", Guid.NewGuid().ToString()), new Claim("roles", "access")])
         });
     }
 

@@ -187,7 +187,8 @@ public class UserTaskAssignmentEndpointTest
             Subject = new ClaimsIdentity(
             [
                 new Claim("sub", Guid.NewGuid().ToString()),
-                new Claim("preferred_username", userName)
+                new Claim("preferred_username", userName),
+                new Claim("roles", "access")
             ])
         });
     }
@@ -206,7 +207,10 @@ public class UserTaskAssignmentEndpointTest
             builder.UseSetting("Authentication:Scheme", "JwtBearer");
             builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
             builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+            builder.UseSetting("Authentication:JwtBearer:RequiredRole", "access");
+            builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
             builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
+            builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
 
             builder.ConfigureServices(services =>
             {

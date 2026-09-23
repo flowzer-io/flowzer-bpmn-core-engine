@@ -20,7 +20,8 @@ zuordnen oder bestehende Rollennamen konfigurieren. Personen benötigen die Zuga
 und nur ihre fachlich erforderlichen Zusatzrollen; technische Worker erhalten keine
 Modeler-/Operatorrechte. Leere Umgebungswerte schalten diese Compose-Grenzen nicht ab.
 Die historische rollenlose API-Konfiguration außerhalb dieser Vorlagen bleibt ein
-Kompatibilitätspfad, keine Produktionsfreigabe. `Authentication=None` ist weiterhin
+Kompatibilitätspfad, keine Produktionsfreigabe: Sie verlangt ausdrücklich
+`Authentication__JwtBearer__LegacyPermissiveRoles=true`, sonst startet die API nicht. `Authentication=None` ist weiterhin
 nur für ausdrücklich lokalen Entwicklungsbetrieb gedacht.
 
 KI-Datenfluss und Ausführung besitzen getrennte Opt-ins in beiden Vorlagen:
@@ -72,12 +73,13 @@ vorgesehen und kein Produktionspfad.
 | `RateLimiting__Enabled` | Default `true`; Kontingent je Aufrufer. Health-Endpunkte sind ausgenommen |
 | `RateLimiting__PermitLimit` / `RateLimiting__WindowSeconds` | Default 300 Anfragen je 60 Sekunden. Gezählt wird je angemeldeter Person; ohne Anmeldung je Adresse, die nur mit gesetztem `ForwardedHeaders` hinter einem Proxy stimmt |
 | `Limits__MaxUploadBytes` | Default 8 MiB, abgestimmt auf `client_max_body_size` des mitgelieferten Gateways; darüber antwortet die API 413 |
-| `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
-| `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
-| `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch, Instanzmigration und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__Modeler` | Pflicht bei `JwtBearer`/`Bff`; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
+| `Authentication__JwtBearer__Roles__Worker` | Pflicht bei `JwtBearer`/`Bff`; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
+| `Authentication__JwtBearer__Roles__Operator` | Pflicht bei `JwtBearer`/`Bff`; Rolle für Diagnose, Instanzabbruch, Instanzmigration und die Sicht auf alle Aufgaben. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
 | `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
 | `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
-| `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
+| `Authentication__JwtBearer__RequiredRole` | Pflicht bei `JwtBearer`/`Bff`; Zugangsrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann genügt jede Anmeldung), sonst startet die API nicht |
+| `Authentication__JwtBearer__LegacyPermissiveRoles` | Default `false`. Nur für Bestandsinstallationen: `true` erlaubt leere Werte bei `RequiredRole`, `Roles__Modeler`, `Roles__Operator` und `Roles__Worker`; jede angemeldete Person erhält dann die jeweilige Fähigkeit. Ohne den Schalter bricht der Start mit einer Meldung ab, die alle fehlenden Schlüssel nennt. Die KI-Rollen bleiben davon unberührt fail-closed |
 
 ### Dienstgrenzen bei Coolify-Compose
 
@@ -524,7 +526,7 @@ Regeln, die im Betrieb zählen:
 
 - **Vererbung nach unten.** Eine Zuweisung gilt für ihren Ordner und für alle Unterordner. Nach unten kann sie nur stärker werden, nie schwächer — sonst ließe sich ein geerbtes Recht durch einen Unterordner aushebeln.
 - **Die oberste Ebene bleibt der Rolle fürs Modellieren vorbehalten.** Sie gehört niemandem im Besonderen; wer nur einen Ordner verantwortet, soll nicht nebenbei neue Wurzeln anlegen können.
-- **Die Rolle `Roles:Modeler` gilt weiterhin überall.** Ist kein Rollenname konfiguriert, ist sie für alle Zugelassenen erfüllt — dann ändert sich gegenüber der bisherigen Installation nichts, und alle Ordner stehen allen offen.
+- **Die Rolle `Roles:Modeler` gilt weiterhin überall.** Ist kein Rollenname konfiguriert (nur mit `LegacyPermissiveRoles=true` zulässig), ist sie für alle Zugelassenen erfüllt — dann ändert sich gegenüber der bisherigen Installation nichts, und alle Ordner stehen allen offen.
 - **Lesen und Starten bleiben offen.** Ordner schränken die Sicht auf den Katalog nicht ein und verhindern auch keinen Instanzstart; sie regeln ausschließlich das Ändern.
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
@@ -1399,7 +1401,9 @@ Geprüft wird je eine Zeile pro Bereich:
 | Konfiguration | Bindung und Validierung aller Optionsabschnitte (Storage, Authentication, Ai, AiExecution, UserTaskDeadlines, IdentityDirectory) |
 | Ablage | PostgreSQL: Verbindung mit der Laufzeitkennung und Existenz des Schemas. Dateiablage: Wurzelverzeichnis anlegbar und tatsächlich beschreibbar (Schreibprobe, kein Existenztest) |
 | Migrationen | nur PostgreSQL: Migrationsstand über die **Migrationskennung**, gemeldet als „aktuell“ oder „n ausstehend“ samt Versionsnummern |
-| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP HEAD** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten und ohne den Antwortinhalt zu lesen |
+| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP GET** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten. Aus dem Dokument werden nur `issuer` und `token_endpoint` gelesen und nicht protokolliert: Fehlt `issuer` oder `token_endpoint`, warnt die Zeile. Ein Issuer, der von der Authority abweicht, wird nur als Hinweis in der OK-Zeile genannt, weil zur Laufzeit der Issuer aus den Metadaten gilt (Entra `common`/`organizations`, Proxy). `RequireHttpsMetadata=false` erscheint als Zusatz im Hinweis, ohne den Zustand zu verschlechtern |
+| Rollen | nur bei `JwtBearer`/`Bff`: `OK` mit den Namen von Zugangs-, Modeler-, Operator- und Worker-Rolle; `Warnung`, wenn `LegacyPermissiveRoles=true` gesetzt ist und Namen fehlen – die Zeile nennt die fehlenden Schlüssel, deren Fähigkeit dann jede angemeldete Person hat. Fehlen Namen ohne den Schalter, bricht schon die Optionsvalidierung mit einer benannten Fehlerzeile ab |
+| Schluesselring | nur bei `Bff`: `Authentication:Bff:DataProtectionKeysPath` muss als Verzeichnis existieren (im Container das eingehängte Volume; die Prüfung legt nichts an, damit ein fehlendes Volume nicht verdeckt wird) und beschreibbar sein: eine zufällig benannte Probedatei `.flowzer-check-config-…` wird geschrieben und wieder gelöscht. Vorhandene Schlüssel werden weder gelesen noch ausgegeben. Den Check mit demselben Benutzer ausführen wie die API, sonst täuscht ein Lauf als root Schreibrechte vor |
 | Webhook-Ziele | `ServiceTaskWebhooks`: aktiviert/abgeschaltet und die **Anzahl** freigegebener Ziele (keine Adressen) |
 | KI-Datenfluss | `Ai`/`AiExecution`: Cloud-, Lokal- und Ausführungs-Opt-ins als Zusammenfassung |
 
@@ -1423,11 +1427,16 @@ dieselbe Registrierung deshalb vorab gegen eine Wegwerf-Sammlung aus und meldet 
 fehlerhaften Abschnitt als benannte Zeile statt als rohe Ausnahme.
 
 Als Warnung gelten unter anderem: ausstehende Migrationen, ein noch fehlendes Schema,
-`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider und aktivierte
-Webhooks ohne freigegebenes Ziel. Als Fehler gelten eine unbrauchbare oder nicht erreichbare
-Ablage, eine nicht lesbare Migrationshistorie und jede fehlgeschlagene Optionsvalidierung.
-`--check-config` prüft Erreichbarkeit, nicht Berechtigung: dass Client-Secret, Scopes und
-Audience zusammenpassen, zeigt erst eine echte Anmeldung.
+`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider, ein Discovery-Dokument
+ohne `issuer` oder `token_endpoint` (ein abweichender Issuer ist nur ein Hinweis in der
+OK-Zeile, etwa bei Entra `common` oder hinter einem Proxy), leere Rollennamen mit
+`LegacyPermissiveRoles=true` und aktivierte Webhooks ohne freigegebenes Ziel. Als Fehler
+gelten eine unbrauchbare oder nicht erreichbare Ablage, eine nicht lesbare
+Migrationshistorie, ein nicht beschreibbarer BFF-Schlüsselring und jede fehlgeschlagene
+Optionsvalidierung – dazu gehören leere privilegierte Rollennamen ohne den Legacy-Schalter.
+`--check-config` prüft Erreichbarkeit und das Discovery-Dokument, nicht
+Berechtigung: dass Client-Secret, Scopes und Audience zusammenpassen, zeigt erst eine echte
+Anmeldung.
 
 Beispiel:
 
@@ -1437,7 +1446,9 @@ Bereich            Zustand  Hinweis
 Konfiguration      OK       Alle Optionsabschnitte gebunden und validiert.
 Ablage             OK       PostgreSQL erreichbar (db:5432/flowzer), Schema flowzer vorhanden.
 Migrationen        OK       aktuell (16 angewendet, hoechste Version 16).
-Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery.
+Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery; token_endpoint vorhanden, Issuer passt.
+Rollen             OK       Zugang flowzer-access, Modeler flowzer-modeler, Operator flowzer-operator, Worker flowzer-worker.
+Schluesselring     OK       Schluesselring beschreibbar: /var/lib/flowzer/data-protection
 Webhook-Ziele      OK       aktiviert mit 1 freigegebenen Ziel(en), HTTP gesperrt.
 KI-Datenfluss      OK       Cloud gesperrt, lokale Endpunkte gesperrt, Ausfuehrung aus.
 ```
@@ -1577,7 +1588,8 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 ### Instanzdaten und Rollen
 
 `Roles:Operator` muss für produktive Installationen explizit auf eine eng vergebene
-Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist im bestehenden Vertrag permissiv.
+Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist nur mit
+`LegacyPermissiveRoles=true` zulässig und dann permissiv.
 Die neuen Instanzansichten in PR #179 liefern ohne diese Rolle nur eine Übersicht
 für den authentifizierten Initiator oder einen aktuell berechtigten Bearbeiter.
 Technische Subscription-Routen und Tokenscopes bleiben der Diagnose vorbehalten.

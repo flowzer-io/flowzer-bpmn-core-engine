@@ -39,17 +39,50 @@ public sealed class FlowzerAuthenticationOptions
         public bool RequireHttpsMetadata { get; set; } = true;
 
         /// <summary>
-        /// Optionale Pflichtrolle. Leer = jede authentifizierte Person. Gesetzt = das Token muss die
-        /// Rolle als Keycloak-Clientrolle unter <c>resource_access.&lt;Audience&gt;.roles</c> oder als
-        /// App-Rolle im Claim <c>roles</c> (Entra ID) tragen; sonst antwortet die API 403.
+        /// Pflichtrolle fuer jeden Fachendpunkt: Das Token muss die Rolle als Keycloak-Clientrolle
+        /// unter <c>resource_access.&lt;Audience&gt;.roles</c> oder als App-Rolle im Claim
+        /// <c>roles</c> (Entra ID) tragen; sonst antwortet die API 403. Leer ist nur mit
+        /// <see cref="LegacyPermissiveRoles"/> zulaessig und heisst dann: jede authentifizierte Person.
         /// </summary>
         public string RequiredRole { get; set; } = string.Empty;
 
         /// <summary>
-        /// Namen der Anwendungsrollen. Leer gelassen ist die jeweilige Faehigkeit fuer alle
-        /// zugelassenen Personen offen; so aendert das Update fuer bestehende Installationen nichts.
+        /// Namen der Anwendungsrollen. Modeler, Operator und Worker muessen bei aktiver
+        /// Authentifizierung gesetzt sein; leer sind sie nur mit <see cref="LegacyPermissiveRoles"/>
+        /// zulaessig, dann ist die jeweilige Faehigkeit fuer alle zugelassenen Personen offen.
         /// </summary>
         public ApplicationRoles Roles { get; set; } = new();
+
+        /// <summary>
+        /// Nur fuer Bestandsinstallationen: erlaubt leere privilegierte Rollennamen
+        /// (<see cref="RequiredRole"/>, Modeler, Operator, Worker); jede angemeldete Person darf
+        /// dann, was der fehlende Name schuetzen wuerde. Ohne diesen Schalter startet die API
+        /// nicht, solange einer dieser Namen fehlt. Die KI-Rollen sind davon unberuehrt und
+        /// bleiben bei leerem Wert gesperrt.
+        /// </summary>
+        public bool LegacyPermissiveRoles { get; set; } = false;
+
+        /// <summary>
+        /// Liefert die Konfigurationsschluessel der privilegierten Rollennamen, die leer sind.
+        /// Die KI-Rollen gehoeren nicht dazu: Sie sind bei leerem Wert bereits fail-closed.
+        /// </summary>
+        public IReadOnlyList<string> MissingPrivilegedRoleKeys()
+        {
+            var missing = new List<string>();
+            AddIfMissing(missing, RequiredRole, "Authentication:JwtBearer:RequiredRole");
+            AddIfMissing(missing, Roles.Modeler, "Authentication:JwtBearer:Roles:Modeler");
+            AddIfMissing(missing, Roles.Operator, "Authentication:JwtBearer:Roles:Operator");
+            AddIfMissing(missing, Roles.Worker, "Authentication:JwtBearer:Roles:Worker");
+            return missing;
+        }
+
+        private static void AddIfMissing(List<string> missing, string? value, string key)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                missing.Add(key);
+            }
+        }
     }
 
     /// <summary>
@@ -59,13 +92,22 @@ public sealed class FlowzerAuthenticationOptions
     /// </summary>
     public sealed class ApplicationRoles
     {
-        /// <summary>Darf Definitionen und Formulare anlegen, aendern und veroeffentlichen.</summary>
+        /// <summary>
+        /// Darf Definitionen und Formulare anlegen, aendern und veroeffentlichen. Leer nur mit
+        /// <see cref="JwtBearerSettings.LegacyPermissiveRoles"/> zulaessig.
+        /// </summary>
         public string Modeler { get; set; } = string.Empty;
 
-        /// <summary>Darf Diagnose sehen, alle Aufgaben sehen und Instanzen abbrechen.</summary>
+        /// <summary>
+        /// Darf Diagnose sehen, alle Aufgaben sehen und Instanzen abbrechen. Leer nur mit
+        /// <see cref="JwtBearerSettings.LegacyPermissiveRoles"/> zulaessig.
+        /// </summary>
         public string Operator { get; set; } = string.Empty;
 
-        /// <summary>Darf Auftraege fuer Service-Tasks abholen und zurueckmelden.</summary>
+        /// <summary>
+        /// Darf Auftraege fuer Service-Tasks abholen und zurueckmelden. Leer nur mit
+        /// <see cref="JwtBearerSettings.LegacyPermissiveRoles"/> zulaessig.
+        /// </summary>
         public string Worker { get; set; } = string.Empty;
 
         /// <summary>Darf aktive KI-Verbindungen beim Modellieren verwenden.</summary>
@@ -114,6 +156,17 @@ public sealed class FlowzerAuthenticationOptions
         {
             throw new InvalidOperationException(
                 $"Authentication:JwtBearer:Audience must be set when Authentication:Scheme is '{Scheme}'.");
+        }
+
+        // Leere privilegierte Rollennamen oeffnen die Faehigkeit fuer jede angemeldete Person.
+        // Das darf nicht still passieren, sondern nur als ausdrueckliche Wahl fuer den Bestand.
+        var missingRoleKeys = JwtBearer.MissingPrivilegedRoleKeys();
+        if (missingRoleKeys.Count > 0 && !JwtBearer.LegacyPermissiveRoles)
+        {
+            throw new InvalidOperationException(
+                $"{string.Join(", ", missingRoleKeys)} must be set when Authentication:Scheme is '{Scheme}'. "
+                + "Empty role names grant the capability to every authenticated person; to keep that legacy behaviour, "
+                + "set Authentication:JwtBearer:LegacyPermissiveRoles=true explicitly.");
         }
 
         if (!IsBffEnabled)
