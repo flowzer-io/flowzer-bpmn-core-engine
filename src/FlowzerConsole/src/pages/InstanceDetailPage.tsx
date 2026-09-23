@@ -36,8 +36,10 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
 
   const instanceQuery = useInstance(instanceId);
   const instance = instanceQuery.data;
-  const xmlQuery = useDefinitionXml(instance?.definitionId);
-  const subscriptionsQuery = useInstanceSubscriptions(instanceId);
+  const canInspect = instance?.canInspect === true;
+  const xmlQuery = useDefinitionXml(canInspect ? instance.definitionId : undefined);
+  const historyQuery = useInstanceHistory(canInspect ? instanceId : undefined, canInspect);
+  const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
 
   const model = useMemo(() => parseBpmn(xmlQuery.data), [xmlQuery.data]);
   const { markers, activeNodeIds } = useMemo(
@@ -64,6 +66,12 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
         <ErrorState error={instanceQuery.error} onRetry={() => void instanceQuery.refetch()} />
       </div>
     );
+  }
+
+  if (!canInspect) {
+    return <InstanceOverview instance={instance}
+      onBack={() => void navigate({ to: '/instances' })}
+      onTasks={() => void navigate({ to: '/tasks' })} />;
   }
 
   const bucket = instanceBucket(instance.state);
@@ -240,7 +248,9 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
 
             <Tabs.Content value="timeline">
               <SectionLabel className="mb-3.5">Verlauf</SectionLabel>
-              <Timeline tokens={instance.tokens} model={model} />
+              {historyQuery.isPending && <InlineSpinner />}
+              {historyQuery.error && <ErrorState error={historyQuery.error} onRetry={() => void historyQuery.refetch()} />}
+              {historyQuery.data && <Timeline entries={historyQuery.data.entries} model={model} />}
             </Tabs.Content>
 
             <Tabs.Content value="subscriptions">
@@ -263,19 +273,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   );
 }
 
-function Timeline({ tokens, model }: { tokens: TokenDto[]; model: ReturnType<typeof parseBpmn> }) {
+function Timeline({ entries, model }: { entries: ProcessHistoryEntryDto[]; model: ReturnType<typeof parseBpmn> }) {
   const events = useMemo(
-    () =>
-      tokens
-        // Die Engine führt zusätzlich ein Token auf Prozessebene ohne Flow-Node.
-        // Es ist kein Prozessschritt und gehört nicht in den Verlauf.
-        .filter((token) => Boolean(token.currentFlowNodeId))
-        .map((token) => ({
-          token,
-          at: parseApiDate(token.lastStateChangeTime) ?? parseApiDate(token.startTime),
-        }))
-        .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
-    [tokens],
+    () => entries
+      .filter((entry) => Boolean(entry.flowNodeId))
+      .map((entry) => ({ entry, at: parseApiDate(entry.occurredAtUtc) }))
+      .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
+    [entries],
   );
 
   if (events.length === 0) {
@@ -284,22 +288,22 @@ function Timeline({ tokens, model }: { tokens: TokenDto[]; model: ReturnType<typ
 
   return (
     <div>
-      {events.map(({ token, at }, index) => {
-        const tone: Tone = isFailedToken(token) ? 'fail' : isLiveToken(token) ? 'run' : 'done';
-        const node = token.currentFlowNodeId ? model.nodeById.get(token.currentFlowNodeId) : undefined;
+      {events.map(({ entry, at }, index) => {
+        const action = entry.action.toLowerCase();
+        const tone: Tone = action.includes('fail') ? 'fail'
+          : action.includes('start') || action.includes('claim') || action.includes('activate') ? 'run' : 'done';
+        const node = model.nodeById.get(entry.flowNodeId);
 
         return (
-          <div key={token.id} className="flex gap-3.5">
+          <div key={entry.id} className="flex gap-3.5">
             <div className="flex flex-none flex-col items-center">
               <Dot tone={tone} size={12} halo className="mt-1" />
               {index < events.length - 1 && <span className="bg-border my-1 w-0.5 flex-1" />}
             </div>
             <div className="pb-[18px]">
-              <div className="text-[13.5px] font-semibold">
-                {nodeLabel(model, token.currentFlowNodeId)}
-              </div>
+              <div className="text-[13.5px] font-semibold">{nodeLabel(model, entry.flowNodeId)}</div>
               <div className="text-muted mt-0.5 text-[12.5px]">
-                {nodeTypeLabel(node?.type)} · {token.state}
+                {nodeTypeLabel(node?.type)} · {entry.action} · Revision {entry.revision}
               </div>
               <div className="text-faint mt-1 font-mono text-[11.5px]">{formatTimestamp(at)}</div>
             </div>

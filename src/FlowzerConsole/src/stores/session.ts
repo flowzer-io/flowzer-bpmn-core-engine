@@ -18,6 +18,12 @@ type SessionStatus = 'unknown' | 'anonymous' | 'signed-in';
 interface SessionState {
   status: SessionStatus;
   user: SessionUser | null;
+  /**
+   * Opaker Namespace für öffentliche Query-/Paket-Keys. Dieser Wert darf nie
+   * aus einer Subject-ID abgeleitet werden, weil Query-Keys im Client sichtbar
+   * und damit kein geeigneter Ort für personenbezogene Kennungen sind.
+   */
+  publicScope: string;
   /** Die API hat einen Aufruf mit 403 abgelehnt, weil die Zugangsrolle fehlt. */
   accessDenied: boolean;
   refresh: () => Promise<void>;
@@ -48,35 +54,76 @@ const DEVELOPMENT_USER: SessionUser = {
   roles: new Set(['access', 'modeler', 'operator', 'worker']),
 };
 
+/** Erzeugt einen nicht ableitbaren Namespace für öffentliche Cache-Schlüssel. */
+function createPublicScope(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+
+  // Der Fallback ist für ältere Browser-/Testumgebungen gedacht, in denen
+  // randomUUID noch fehlt. Die Zufallsbytes bleiben trotzdem kryptografisch.
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+let previousSubjectId: string | null = null;
+
+function rotatePublicScope(): string {
+  return createPublicScope();
+}
+
 export const useSession = create<SessionState>()((set, get) => ({
   status: 'unknown',
   user: null,
+  publicScope: createPublicScope(),
   accessDenied: false,
 
   refresh: async () => {
     if (!isAuthenticationConfigured()) {
       if (!import.meta.env.DEV) {
         // Fail-closed: lieber die Anmeldeseite als eine Oberfläche, die nichts kann.
-        set({ status: 'anonymous', user: null });
+        if (previousSubjectId !== null) {
+          previousSubjectId = null;
+          set({ status: 'anonymous', user: null, publicScope: rotatePublicScope() });
+        } else {
+          set({ status: 'anonymous', user: null });
+        }
         return;
       }
 
-      set({ status: 'signed-in', user: DEVELOPMENT_USER });
+      if (previousSubjectId !== DEVELOPMENT_USER.id) {
+        previousSubjectId = DEVELOPMENT_USER.id;
+        set({ status: 'signed-in', user: DEVELOPMENT_USER, publicScope: rotatePublicScope() });
+      } else {
+        set({ status: 'signed-in', user: DEVELOPMENT_USER });
+      }
       return;
     }
 
     const user = await getUser();
     if (!user || user.expired) {
-      set({ status: 'anonymous', user: null });
+      if (previousSubjectId !== null) {
+        previousSubjectId = null;
+        set({ status: 'anonymous', user: null, publicScope: rotatePublicScope() });
+      } else {
+        set({ status: 'anonymous', user: null });
+      }
       return;
     }
 
     const claims = decodeJwtPayload(user.access_token);
     const profile = user.profile;
+    const subjectId = typeof profile.sub === 'string' ? profile.sub : '';
     const name = (profile.name ?? profile.preferred_username ?? profile.email ?? 'Unbekannt') as string;
+
+    // Bei einem Kontowechsel wird der bisherige öffentliche Scope verworfen,
+    // bevor der neue Benutzer sichtbar wird. Bei einer Token-Erneuerung für
+    // dasselbe Konto bleibt er dagegen stabil und hält die Query-Caches warm.
+    const subjectChanged = previousSubjectId !== subjectId;
+    previousSubjectId = subjectId;
 
     set({
       status: 'signed-in',
+      ...(subjectChanged ? { publicScope: rotatePublicScope() } : {}),
       user: {
         id: (profile.sub ?? '') as string,
         name,
