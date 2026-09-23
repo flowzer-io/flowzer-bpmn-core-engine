@@ -163,18 +163,33 @@ public class ConfigurationCheckIntegrationTest
     }
 
     // Testzweck: Meldet das Discovery-Dokument einen anderen Issuer als die konfigurierte
-    // Authority, warnt die Pruefung mit Klartext zur Authority (Exit-Code 2).
+    // Authority, bleibt die Zeile OK (Exit-Code 0), nennt den Issuer aber als Hinweis: Bei Entra
+    // common/organizations und hinter einem Proxy ist die Abweichung erwartet, zur Laufzeit gilt
+    // der Issuer aus den Metadaten.
     [Test]
-    public async Task CheckConfig_ShouldWarn_WhenTheDiscoveryIssuerDiffersFromTheAuthority()
+    public async Task CheckConfig_ShouldHint_WhenTheDiscoveryIssuerDiffersFromTheAuthority()
     {
         _authority!.Issuer = "https://anderer-issuer.example.invalid/realms/flowzer";
 
         var (exitCode, output) = await RunCheckAsync(ValidConfiguration());
 
-        exitCode.Should().Be(2, "die Ausgabe war:\n{0}", output);
-        output.Should().Contain("Authentifizierung").And.Contain("Warnung");
+        exitCode.Should().Be(0, "die Ausgabe war:\n{0}", output);
+        output.Should().Contain("Authentifizierung").And.NotContain("Warnung");
         output.Should().Contain("https://anderer-issuer.example.invalid/realms/flowzer")
             .And.Contain("weicht von der konfigurierten Authority");
+    }
+
+    // Testzweck: Ein Discovery-Dokument ohne token_endpoint kann keinen Anmeldefluss tragen;
+    // die Pruefung warnt (Exit-Code 2) und nennt das fehlende Feld.
+    [Test]
+    public async Task CheckConfig_ShouldWarn_WhenTheDiscoveryHasNoTokenEndpoint()
+    {
+        _authority!.OmitTokenEndpoint = true;
+
+        var (exitCode, output) = await RunCheckAsync(ValidConfiguration());
+
+        exitCode.Should().Be(2, "die Ausgabe war:\n{0}", output);
+        output.Should().Contain("Authentifizierung").And.Contain("Warnung").And.Contain("token_endpoint");
     }
 
     private Dictionary<string, string> ValidConfiguration() => new()
@@ -296,6 +311,9 @@ public class ConfigurationCheckIntegrationTest
         /// <summary>Gemeldeter Issuer; ohne Angabe die eigene Adresse wie bei einem echten IdP.</summary>
         public string? Issuer { get; set; }
 
+        /// <summary>Laesst token_endpoint weg, um ein unbrauchbares Discovery-Dokument nachzustellen.</summary>
+        public bool OmitTokenEndpoint { get; set; }
+
         public static DiscoveryEndpointStub Start()
         {
             for (var attempt = 0; attempt < 10; attempt++)
@@ -332,11 +350,12 @@ public class ConfigurationCheckIntegrationTest
                     return;
                 }
 
-                var document = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, string>
+                var fields = new Dictionary<string, string> { ["issuer"] = Issuer ?? Authority };
+                if (!OmitTokenEndpoint)
                 {
-                    ["issuer"] = Issuer ?? Authority,
-                    ["token_endpoint"] = Authority + "/protocol/openid-connect/token"
-                });
+                    fields["token_endpoint"] = Authority + "/protocol/openid-connect/token";
+                }
+                var document = JsonSerializer.SerializeToUtf8Bytes(fields);
                 context.Response.StatusCode = (int)HttpStatusCode.OK;
                 context.Response.ContentType = "application/json";
                 context.Response.Close(document, willBlock: true);

@@ -1401,9 +1401,9 @@ Geprüft wird je eine Zeile pro Bereich:
 | Konfiguration | Bindung und Validierung aller Optionsabschnitte (Storage, Authentication, Ai, AiExecution, UserTaskDeadlines, IdentityDirectory) |
 | Ablage | PostgreSQL: Verbindung mit der Laufzeitkennung und Existenz des Schemas. Dateiablage: Wurzelverzeichnis anlegbar und tatsächlich beschreibbar (Schreibprobe, kein Existenztest) |
 | Migrationen | nur PostgreSQL: Migrationsstand über die **Migrationskennung**, gemeldet als „aktuell“ oder „n ausstehend“ samt Versionsnummern |
-| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP GET** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten. Aus dem Dokument werden nur `issuer` und `token_endpoint` gelesen und nicht protokolliert: Weicht der Issuer von der Authority ab (Vergleich ohne abschließenden Schrägstrich, ohne Groß-/Kleinschreibung) oder fehlt `token_endpoint`, ist das eine Warnung. Bei `RequireHttpsMetadata=false` trägt die Zeile einen Hinweis, ohne dadurch schlechter bewertet zu werden |
+| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP GET** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten. Aus dem Dokument werden nur `issuer` und `token_endpoint` gelesen und nicht protokolliert: Fehlt `issuer` oder `token_endpoint`, warnt die Zeile. Ein Issuer, der von der Authority abweicht, wird nur als Hinweis in der OK-Zeile genannt, weil zur Laufzeit der Issuer aus den Metadaten gilt (Entra `common`/`organizations`, Proxy). `RequireHttpsMetadata=false` erscheint als Zusatz im Hinweis, ohne den Zustand zu verschlechtern |
 | Rollen | nur bei `JwtBearer`/`Bff`: `OK` mit den Namen von Zugangs-, Modeler-, Operator- und Worker-Rolle; `Warnung`, wenn `LegacyPermissiveRoles=true` gesetzt ist und Namen fehlen – die Zeile nennt die fehlenden Schlüssel, deren Fähigkeit dann jede angemeldete Person hat. Fehlen Namen ohne den Schalter, bricht schon die Optionsvalidierung mit einer benannten Fehlerzeile ab |
-| Schluesselring | nur bei `Bff`: `Authentication:Bff:DataProtectionKeysPath` existiert oder lässt sich anlegen, und eine Probedatei `.flowzer-check-config` lässt sich schreiben und wieder löschen. Vorhandene Schlüssel werden weder gelesen noch ausgegeben |
+| Schluesselring | nur bei `Bff`: `Authentication:Bff:DataProtectionKeysPath` muss als Verzeichnis existieren (im Container das eingehängte Volume; die Prüfung legt nichts an, damit ein fehlendes Volume nicht verdeckt wird) und beschreibbar sein: eine zufällig benannte Probedatei `.flowzer-check-config-…` wird geschrieben und wieder gelöscht. Vorhandene Schlüssel werden weder gelesen noch ausgegeben |
 | Webhook-Ziele | `ServiceTaskWebhooks`: aktiviert/abgeschaltet und die **Anzahl** freigegebener Ziele (keine Adressen) |
 | KI-Datenfluss | `Ai`/`AiExecution`: Cloud-, Lokal- und Ausführungs-Opt-ins als Zusammenfassung |
 
@@ -1427,13 +1427,14 @@ dieselbe Registrierung deshalb vorab gegen eine Wegwerf-Sammlung aus und meldet 
 fehlerhaften Abschnitt als benannte Zeile statt als rohe Ausnahme.
 
 Als Warnung gelten unter anderem: ausstehende Migrationen, ein noch fehlendes Schema,
-`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider, ein abweichender
-Issuer oder fehlender `token_endpoint` im Discovery-Dokument, leere Rollennamen mit
+`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider, ein Discovery-Dokument
+ohne `issuer` oder `token_endpoint` (ein abweichender Issuer ist nur ein Hinweis in der
+OK-Zeile, etwa bei Entra `common` oder hinter einem Proxy), leere Rollennamen mit
 `LegacyPermissiveRoles=true` und aktivierte Webhooks ohne freigegebenes Ziel. Als Fehler
 gelten eine unbrauchbare oder nicht erreichbare Ablage, eine nicht lesbare
 Migrationshistorie, ein nicht beschreibbarer BFF-Schlüsselring und jede fehlgeschlagene
 Optionsvalidierung – dazu gehören leere privilegierte Rollennamen ohne den Legacy-Schalter.
-`--check-config` prüft Erreichbarkeit und die Stimmigkeit von Issuer und Authority, nicht
+`--check-config` prüft Erreichbarkeit und das Discovery-Dokument, nicht
 Berechtigung: dass Client-Secret, Scopes und Audience zusammenpassen, zeigt erst eine echte
 Anmeldung.
 
@@ -1445,7 +1446,7 @@ Bereich            Zustand  Hinweis
 Konfiguration      OK       Alle Optionsabschnitte gebunden und validiert.
 Ablage             OK       PostgreSQL erreichbar (db:5432/flowzer), Schema flowzer vorhanden.
 Migrationen        OK       aktuell (16 angewendet, hoechste Version 16).
-Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery; Issuer und token_endpoint passen.
+Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery; token_endpoint vorhanden, Issuer passt.
 Rollen             OK       Zugang flowzer-access, Modeler flowzer-modeler, Operator flowzer-operator, Worker flowzer-worker.
 Schluesselring     OK       Schluesselring beschreibbar: /var/lib/flowzer/data-protection
 Webhook-Ziele      OK       aktiviert mit 1 freigegebenen Ziel(en), HTTP gesperrt.

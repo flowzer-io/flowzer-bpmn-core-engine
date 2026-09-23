@@ -295,9 +295,10 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
   ist der Aufruf zu planen (Cron/Systemd-Timer) und das Zielverzeichnis vom Host
   wegzusichern; die Skripte selbst kopieren nichts an einen zweiten Ort.
 - `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Aus der OIDC-Discovery liest
-  es nur `issuer` (muss der Authority entsprechen) und `token_endpoint` (muss vorhanden
-  sein). Das belegt nicht, dass Client-Secret, Scopes und Audience zusammenpassen. Ein
-  nicht erreichbarer Identity Provider oder ein abweichender Issuer ist deshalb eine
+  es nur `issuer` und `token_endpoint`; fehlt eines, warnt es. Ein Issuer, der von der
+  Authority abweicht, ist nur ein Hinweis (Entra `common`/`organizations`, Proxy), weil zur
+  Laufzeit der Issuer aus den Metadaten gilt. Das belegt nicht, dass Client-Secret, Scopes und
+  Audience zusammenpassen. Ein nicht erreichbarer Identity Provider ist deshalb eine
   Warnung, kein Fehler.
 - Ein Rückwärts-Update (älteres Paket auf neueres Schema) ist nicht vorgesehen; es gibt
   keine Abwärtsmigrationen. Der Rückweg ist der Restore einer Sicherung.

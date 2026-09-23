@@ -45,8 +45,14 @@ public static class ConfigurationCheck
     /// <summary>Obergrenze fuer das Discovery-Dokument; echte Dokumente sind wenige Kilobyte gross.</summary>
     private const long DiscoveryDocumentLimitBytes = 1024 * 1024;
 
-    /// <summary>Feste Probedatei im Schluesselring; ohne <c>.xml</c>-Endung, damit Data Protection sie nie liest.</summary>
-    private const string KeyringProbeFileName = ".flowzer-check-config";
+    /// <summary>
+    /// Praefix der Probedatei im Schluesselring; ohne <c>.xml</c>-Endung, damit Data Protection sie nie
+    /// liest, und mit Zufallsanteil wie bei der Ablage, damit ein Rest eines fremden Laufs nichts verfaelscht.
+    /// </summary>
+    private const string KeyringProbeFilePrefix = ".flowzer-check-config-";
+
+    /// <summary>Laenge, auf die ein fremder Issuer in der Ausgabe gekuerzt wird.</summary>
+    private const int IssuerDisplayLimit = 200;
 
     private const string AreaConfiguration = "Konfiguration";
     private const string AreaStorage = "Ablage";
@@ -355,12 +361,18 @@ public static class ConfigurationCheck
 
             await using var content = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(content, cancellationToken: cancellationToken);
-            var problems = DescribeDiscoveryProblems(document.RootElement, options.JwtBearer.Authority);
-            return problems.Count == 0
-                ? new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Ok,
-                    $"Schema {options.Scheme}, Authority {authority.Host} antwortet auf die OIDC-Discovery; Issuer und token_endpoint passen.")
-                : new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
-                    $"Schema {options.Scheme}: OIDC-Discovery von {authority.Host}: {string.Join(" ", problems)}");
+            var (problems, notes) = DescribeDiscovery(document.RootElement, options.JwtBearer.Authority);
+            if (problems.Count > 0)
+            {
+                return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Warning,
+                    $"Schema {options.Scheme}: OIDC-Discovery von {authority.Host}: {string.Join(" ", problems.Concat(notes))}");
+            }
+
+            var summary = notes.Count == 0
+                ? "token_endpoint vorhanden, Issuer passt."
+                : "token_endpoint vorhanden. " + string.Join(" ", notes);
+            return new ConfigurationCheckRow(AreaAuthentication, ConfigurationCheckState.Ok,
+                $"Schema {options.Scheme}, Authority {authority.Host} antwortet auf die OIDC-Discovery; {summary}");
         }
         catch (JsonException)
         {
@@ -375,18 +387,20 @@ public static class ConfigurationCheck
     }
 
     /// <summary>
-    /// Prueft nur die zwei Felder, an denen eine falsch eingetragene Authority sofort auffaellt:
-    /// Der Issuer muss der Authority entsprechen, sonst passen die Tokens nicht zur
-    /// Konfiguration, und ohne <c>token_endpoint</c> kann der Anmeldefluss nicht funktionieren.
-    /// Der Issuer ist oeffentlich und darf deshalb genannt werden.
+    /// Liest nur zwei Felder: Ohne <c>issuer</c> oder <c>token_endpoint</c> kann der Anmeldefluss
+    /// nicht funktionieren, das ist ein Problem. Ein Issuer, der von der Authority abweicht, ist
+    /// dagegen nur ein Hinweis: Zur Laufzeit gilt der Issuer aus den Metadaten, und bei Entra
+    /// <c>common</c>/<c>organizations</c> oder hinter einem Proxy weicht er regelmaessig ab.
+    /// Der Issuer ist oeffentlich und darf gekuerzt genannt werden.
     /// </summary>
-    private static List<string> DescribeDiscoveryProblems(JsonElement discovery, string configuredAuthority)
+    private static (List<string> Problems, List<string> Notes) DescribeDiscovery(JsonElement discovery, string configuredAuthority)
     {
         var problems = new List<string>();
+        var notes = new List<string>();
         if (discovery.ValueKind != JsonValueKind.Object)
         {
             problems.Add("Das Dokument ist kein JSON-Objekt.");
-            return problems;
+            return (problems, notes);
         }
 
         var issuer = discovery.TryGetProperty("issuer", out var issuerElement) && issuerElement.ValueKind == JsonValueKind.String
@@ -396,9 +410,11 @@ public static class ConfigurationCheck
         {
             problems.Add("Es nennt keinen issuer.");
         }
-        else if (!string.Equals(issuer.TrimEnd('/'), configuredAuthority.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        else if (!string.Equals(issuer.Trim().TrimEnd('/'), configuredAuthority.Trim().TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
         {
-            problems.Add($"Der Issuer {issuer} weicht von der konfigurierten Authority {configuredAuthority} ab.");
+            var shown = issuer.Length > IssuerDisplayLimit ? issuer[..IssuerDisplayLimit] + "…" : issuer;
+            notes.Add($"Hinweis: Der Issuer {shown} weicht von der konfigurierten Authority ab; bei Entra common/organizations "
+                      + "und hinter einem Proxy ist das erwartet, sonst die Authority pruefen. Zur Laufzeit gilt der Issuer aus den Metadaten.");
         }
 
         var hasTokenEndpoint = discovery.TryGetProperty("token_endpoint", out var tokenEndpoint)
@@ -409,7 +425,7 @@ public static class ConfigurationCheck
             problems.Add("Es nennt keinen token_endpoint.");
         }
 
-        return problems;
+        return (problems, notes);
     }
 
     /// <summary>
@@ -442,16 +458,23 @@ public static class ConfigurationCheck
 
     /// <summary>
     /// Der BFF-Schluesselring muss dauerhaft beschreibbar sein, sonst ueberleben Sitzungen
-    /// keinen Neustart. Wie bei der Dateiablage beweist nur ein Schreibversuch das Recht;
-    /// vorhandene Schluessel werden weder gelesen noch ausgegeben.
+    /// keinen Neustart. Das Verzeichnis wird bewusst nicht angelegt: Im Container ist es das
+    /// eingehaengte Volume, und ein fehlendes Volume darf nicht durch ein Verzeichnis im
+    /// Container-Dateisystem verdeckt werden. Wie bei der Dateiablage beweist nur ein
+    /// Schreibversuch das Recht; vorhandene Schluessel werden weder gelesen noch ausgegeben.
     /// </summary>
     private static ConfigurationCheckRow CheckKeyring(FlowzerAuthenticationOptions options)
     {
         var path = options.Bff.DataProtectionKeysPath;
+        if (!Directory.Exists(path))
+        {
+            return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Error,
+                $"Schluesselring {path} existiert nicht als Verzeichnis. Im Container muss das Volume eingehaengt sein; die Pruefung legt nichts an.");
+        }
+
         try
         {
-            Directory.CreateDirectory(path);
-            var probe = Path.Combine(path, KeyringProbeFileName);
+            var probe = Path.Combine(path, KeyringProbeFilePrefix + Guid.NewGuid().ToString("N"));
             File.WriteAllText(probe, string.Empty);
             File.Delete(probe);
             return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Ok,
@@ -460,7 +483,7 @@ public static class ConfigurationCheck
         catch (Exception exception)
         {
             return new ConfigurationCheckRow(AreaKeyring, ConfigurationCheckState.Error,
-                $"Schluesselring {path} ist nicht anlegbar oder nicht beschreibbar: {exception.Message}");
+                $"Schluesselring {path} ist nicht beschreibbar: {exception.Message}");
         }
     }
 
