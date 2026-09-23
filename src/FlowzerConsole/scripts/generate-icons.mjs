@@ -89,6 +89,7 @@ const ICONS = [
   'notifications',
   'notifications_active',
   'notifications_off',
+  'pan_tool',
   'person',
   'person_add',
   'play_arrow',
@@ -125,6 +126,7 @@ const ICONS = [
   'unfold_more',
   'upgrade',
   'upload',
+  'visibility',
   'warning',
 ];
 
