@@ -1,0 +1,13 @@
+{
+  "name": "flowzer-installation-auth",
+  "private": true,
+  "description": "Installations- und Auth-Abnahme gegen einen isolierten Keycloak (R1b)",
+  "scripts": {
+    "install:browsers": "playwright install --with-deps chromium",
+    "test": "playwright test",
+    "acceptance": "./run.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1"
+  }
+}

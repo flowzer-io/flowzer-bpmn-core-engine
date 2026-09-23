@@ -1,0 +1,222 @@
+{
+  "realm": "flowzer-test",
+  "displayName": "Flowzer Installationsabnahme (nur Test)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "rememberMe": false,
+  "loginWithEmailAllowed": false,
+  "duplicateEmailsAllowed": false,
+  "bruteForceProtected": false,
+  "accessTokenLifespan": 30,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "revokeRefreshToken": false,
+  "roles": {
+    "client": {
+      "flowzer-api": [
+        { "name": "access", "description": "Zugang zu Flowzer (RequiredRole)" },
+        { "name": "modeler", "description": "Workflows und Formulare modellieren" },
+        { "name": "operator", "description": "Betrieb, Diagnose und Verzeichnisabgleich" },
+        { "name": "worker", "description": "Service-Task-Aufträge abholen" }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "team",
+      "path": "/team",
+      "subGroups": [
+        { "name": "review", "path": "/team/review", "subGroups": [] }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "flowzer-api",
+      "name": "Flowzer API (Audience und Rollen)",
+      "description": "Trägt nur Audience und Clientrollen; keine Anmeldung über diesen Client.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": []
+    },
+    {
+      "clientId": "flowzer-bff",
+      "name": "Flowzer BFF (vertraulich)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "flowzer-bff-test-secret-not-for-production",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "frontchannelLogout": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["https://flowzer.test:8443/bff/signin-oidc"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://flowzer.test:8443/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "flowzer-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "flowzer-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "flowzer-test-cli",
+      "name": "Testclient für Bearer-Aufrufe",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "flowzer-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "flowzer-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "other-audience-cli",
+      "name": "Testclient mit fremder Audience",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "protocolMappers": [
+        {
+          "name": "other-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.custom.audience": "other-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "flowzer-directory",
+      "name": "Flowzer Verzeichnisabgleich (Servicekonto, nur lesend)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "flowzer-directory-test-secret-not-for-production",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "fullScopeAllowed": true,
+      "redirectUris": [],
+      "webOrigins": []
+    }
+  ],
+  "clientScopeMappings": {
+    "flowzer-api": [
+      { "client": "flowzer-bff", "roles": ["access", "modeler", "operator", "worker"] },
+      { "client": "flowzer-test-cli", "roles": ["access", "modeler", "operator", "worker"] }
+    ]
+  },
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@flowzer.test",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Testperson",
+      "credentials": [{ "type": "password", "value": "alice-test-password", "temporary": false }],
+      "requiredActions": [],
+      "clientRoles": { "flowzer-api": ["access", "modeler", "operator", "worker"] },
+      "groups": ["/team/review"]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "email": "bob@flowzer.test",
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Testperson",
+      "credentials": [{ "type": "password", "value": "bob-test-password", "temporary": false }],
+      "requiredActions": [],
+      "clientRoles": { "flowzer-api": ["access"] },
+      "groups": []
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "email": "carol@flowzer.test",
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Testperson",
+      "credentials": [{ "type": "password", "value": "carol-test-password", "temporary": false }],
+      "requiredActions": [],
+      "clientRoles": {},
+      "groups": []
+    },
+    {
+      "username": "dave",
+      "enabled": true,
+      "email": "dave@flowzer.test",
+      "emailVerified": true,
+      "firstName": "Dave",
+      "lastName": "Testperson",
+      "credentials": [{ "type": "password", "value": "dave-test-password", "temporary": false }],
+      "requiredActions": [],
+      "clientRoles": { "flowzer-api": ["access"] },
+      "groups": ["/team/review"]
+    },
+    {
+      "username": "service-account-flowzer-directory",
+      "enabled": true,
+      "serviceAccountClientId": "flowzer-directory",
+      "clientRoles": { "realm-management": ["view-users", "query-groups"] }
+    }
+  ]
+}

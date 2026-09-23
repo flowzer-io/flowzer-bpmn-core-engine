@@ -1,0 +1,21 @@
+# TLS-Proxy des Abnahme-Stacks. Zertifikat und Schlüssel stammen aus dem Init-Container
+# `certs`; Caddy holt keine öffentlichen Zertifikate und leitet kein HTTP um.
+# Eingehende X-Forwarded-*-Header ersetzt Caddy standardmäßig durch eigene Werte, der
+# Host-Header (einschließlich :8443) geht unverändert an das Ziel.
+{
+	admin 127.0.0.1:2019
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+	}
+}
+
+https://flowzer.test:8443 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy console:8080
+}
+
+https://auth.flowzer.test:8443 {
+	tls /certs/server.crt /certs/server.key
+	reverse_proxy keycloak:8080
+}

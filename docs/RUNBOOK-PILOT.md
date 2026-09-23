@@ -161,6 +161,15 @@ docker compose -f compose.runtime.yml up -d --wait
    Bearer bei bestehender Browser-Sitzung als 401 prüfen; er darf nicht auf Cookie
    zurückfallen.
 
+Diese Prüfungen sind für einen Keycloak-Aufbau als reproduzierbare Abnahme automatisiert:
+`tests/installation-auth/run.sh` baut API und Konsole aus dem Repository, startet sie mit
+eigener Test-CA und isoliertem Keycloak (synthetischer Realm, ohne Produktionszugang) und
+prüft `--check-config`, Anmeldung über den BFF, Cookie- und CSRF-Vertrag, Rollen- und
+Audience-Ablehnungen, den Verzeichnisabgleich sowie einen API-Neustart. Ergebnis, Grenzen und
+beobachtete Abweichungen des letzten Laufs stehen in
+[docs/acceptance/auth.md](acceptance/auth.md); die Abnahme ersetzt nicht die Prüfung gegen
+den tatsächlichen Identity Provider der Zielumgebung.
+
 ## 6. Betrieb
 
 ### Backup und Restore
