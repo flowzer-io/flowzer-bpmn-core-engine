@@ -117,7 +117,13 @@ Konfiguration, Secrets oder Tokens.
   "Scheme": "Bff",
   "JwtBearer": {
     "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0",
-    "Audience": "api://<api-client-id>"
+    "Audience": "api://<api-client-id>",
+    "RequiredRole": "flowzer-access",
+    "Roles": {
+      "Modeler": "flowzer-modeler",
+      "Operator": "flowzer-operator",
+      "Worker": "flowzer-worker"
+    }
   },
   "Bff": {
     "ClientId": "<confidential-client-id>",

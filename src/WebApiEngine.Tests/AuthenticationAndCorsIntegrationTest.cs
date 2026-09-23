@@ -464,7 +464,9 @@ public class AuthenticationAndCorsIntegrationTest
     }
 
     // Testzweck: Verwenden und Verwalten von KI-Verbindungen sind getrennte, fail-closed
-    // Rollen; ein reiner Verwender darf lesen, aber keine Secret-Referenz schreiben.
+    // Rollen; ein reiner Verwender darf lesen, aber keine Secret-Referenz schreiben. Der
+    // Legacy-Schalter fuer leere Rollennamen ist bewusst gesetzt, damit die Tokens nur die
+    // KI-Rolle tragen; zugleich belegt der Fall, dass die KI-Rollen auch dann gesperrt bleiben.
     [Test]
     public async Task AiConnectionPolicies_ShouldSeparateUseAndManagementRoles()
     {
@@ -476,6 +478,7 @@ public class AuthenticationAndCorsIntegrationTest
             ["Authentication:JwtBearer:Audience"] = Audience,
             ["Authentication:JwtBearer:Roles:AiConnectionUser"] = "ai-user",
             ["Authentication:JwtBearer:Roles:AiConnectionManager"] = "ai-manager",
+            ["Authentication:JwtBearer:LegacyPermissiveRoles"] = "true",
             ["Ai:AllowCloudProviders"] = "true"
         };
         await using var factory = new TestWebApplicationFactory(
@@ -566,11 +569,20 @@ public class AuthenticationAndCorsIntegrationTest
         {
             ["Authentication:Scheme"] = "JwtBearer",
             ["Authentication:JwtBearer:Authority"] = Issuer,
-            ["Authentication:JwtBearer:Audience"] = Audience
+            ["Authentication:JwtBearer:Audience"] = Audience,
+            ["Authentication:JwtBearer:Roles:Modeler"] = "modeler",
+            ["Authentication:JwtBearer:Roles:Operator"] = "operator",
+            ["Authentication:JwtBearer:Roles:Worker"] = "worker"
         };
         if (requiredRole is not null)
         {
             settings["Authentication:JwtBearer:RequiredRole"] = requiredRole;
+        }
+        else
+        {
+            // Ohne Zugangsrolle pruefen die Faelle die reine Anmeldung ("jede angemeldete
+            // Person"). Das ist nur noch als ausdrueckliche Legacy-Wahl zulaessig.
+            settings["Authentication:JwtBearer:LegacyPermissiveRoles"] = "true";
         }
 
         return new TestWebApplicationFactory(storage, environmentName, settings, useStaticSigningKey: true);

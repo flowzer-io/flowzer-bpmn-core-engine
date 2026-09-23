@@ -182,7 +182,7 @@ Nach `MaxConsecutiveFailures` Fehlversuchen in Folge wird eine Adresse nicht meh
 | `ServiceTaskWebhooks__TimeoutSeconds` | Default 10 |
 | `ServiceTaskWebhooks__PollIntervalSeconds` | Default 5; wie oft nach freien Aufträgen gesehen wird |
 | `ServiceTaskWebhooks__MaxConsecutiveFailures` | Default 10; gezählt werden Durchgänge, nicht einzelne Aufträge |
-| `Authentication__JwtBearer__Roles__Worker` | Rolle für die Endpunkte unter `/job`. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__Worker` | Rolle für die Endpunkte unter `/job`; Pflicht bei aktiver Authentifizierung. Leer nur mit `Authentication__JwtBearer__LegacyPermissiveRoles=true`, dann für alle Zugelassenen offen |
 
 Die leere Freigabeliste ist Absicht: Eine Webhook-Anmeldung ist eine Aufforderung an die Engine, eine fremde Adresse aufzurufen. Ohne ausdrückliche Freigabe nimmt sie keine an.
 

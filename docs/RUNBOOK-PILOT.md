@@ -278,10 +278,11 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 
 ## 7. Bekannte Grenzen des Piloten
 
-- Der BFF-Slice ist noch nicht nach `main` gemergt und kein vollständiger
-  M0-/Produktionsabschluss.
-- Rollen müssen produktiv explizit gesetzt werden; leere Fähigkeitsrollen bleiben
-  im bestehenden Vertrag permissiv.
+- Zugangs-, Modeler-, Operator- und Worker-Rolle müssen bei `JwtBearer`/`Bff` gesetzt
+  sein; fehlt ein Name, startet die API nicht (fail-closed). Nur Bestandsinstallationen
+  dürfen mit `Authentication__JwtBearer__LegacyPermissiveRoles=true` ausdrücklich beim
+  alten Verhalten bleiben – dann erhält jede angemeldete Person die Fähigkeit des
+  fehlenden Namens, und `--check-config` warnt in der Zeile `Rollen`.
 - Mehrprozessbetrieb ist ausschließlich mit PostgreSQL und unter den Bedingungen in
   [Betrieb](OPERATIONS.md#mehrprozessbetrieb) freigegeben; die Dateiablage bleibt
   Einzelprozess.
@@ -293,9 +294,11 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 - `backup.sh`/`restore.sh` werden **nicht** von Coolify aufgerufen. Im Produktivbetrieb
   ist der Aufruf zu planen (Cron/Systemd-Timer) und das Zielverzeichnis vom Host
   wegzusichern; die Skripte selbst kopieren nichts an einen zweiten Ort.
-- `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Ein DNS-/HEAD-Treffer auf die
-  OIDC-Discovery belegt nicht, dass Client-Secret, Scopes und Audience zusammenpassen. Ein
-  nicht erreichbarer Identity Provider ist deshalb eine Warnung, kein Fehler.
+- `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Aus der OIDC-Discovery liest
+  es nur `issuer` (muss der Authority entsprechen) und `token_endpoint` (muss vorhanden
+  sein). Das belegt nicht, dass Client-Secret, Scopes und Audience zusammenpassen. Ein
+  nicht erreichbarer Identity Provider oder ein abweichender Issuer ist deshalb eine
+  Warnung, kein Fehler.
 - Ein Rückwärts-Update (älteres Paket auf neueres Schema) ist nicht vorgesehen; es gibt
   keine Abwärtsmigrationen. Der Rückweg ist der Restore einer Sicherung.
 

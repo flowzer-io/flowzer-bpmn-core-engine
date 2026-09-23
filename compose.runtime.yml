@@ -19,6 +19,8 @@ services:
       Authentication__JwtBearer__Roles__Worker: ${FLOWZER_AUTH_ROLE_WORKER:-flowzer-worker}
       Authentication__JwtBearer__Roles__AiConnectionUser: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_USER:-}
       Authentication__JwtBearer__Roles__AiConnectionManager: ${FLOWZER_AUTH_ROLE_AI_CONNECTION_MANAGER:-}
+      # Nur fuer Bestandsinstallationen: erlaubt leere privilegierte Rollennamen (siehe OPERATIONS.md).
+      Authentication__JwtBearer__LegacyPermissiveRoles: ${FLOWZER_AUTH_LEGACY_PERMISSIVE_ROLES:-false}
       # Keine Workflowangabe kann diese Installationsgrenzen erweitern.
       Ai__AllowCloudProviders: ${FLOWZER_AI_ALLOW_CLOUD_PROVIDERS:-false}
       Ai__AllowLocalEndpoints: ${FLOWZER_AI_ALLOW_LOCAL_ENDPOINTS:-false}

@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace WebApiEngine.Tests;
@@ -102,6 +103,80 @@ public class ConfigurationCheckIntegrationTest
         output.Should().NotContain("Unhandled exception");
     }
 
+    // Testzweck: Ein leerer privilegierter Rollenname ohne ausdrueckliche Legacy-Wahl ist ein
+    // Startfehler (Exit-Code 1); die Ausgabe nennt den fehlenden Schluessel und den Schalter.
+    [Test]
+    public async Task CheckConfig_ShouldFail_WhenAPrivilegedRoleIsEmptyWithoutLegacySwitch()
+    {
+        var settings = ValidConfiguration();
+        settings["Authentication__JwtBearer__Roles__Modeler"] = "";
+
+        var (exitCode, output) = await RunCheckAsync(settings);
+
+        exitCode.Should().Be(1, "die Ausgabe war:\n{0}", output);
+        output.Should().Contain("Authentication:JwtBearer:Roles:Modeler").And.Contain("LegacyPermissiveRoles");
+        output.Should().NotContain("Unhandled exception");
+    }
+
+    // Testzweck: Mit ausdruecklich gewaehlter Legacy-Kompatibilitaet startet die Installation,
+    // die Pruefung warnt aber in der Zeile Rollen und nennt den fehlenden Schluessel (Exit-Code 2).
+    [Test]
+    public async Task CheckConfig_ShouldWarn_WhenAPrivilegedRoleIsEmptyWithLegacySwitch()
+    {
+        var settings = ValidConfiguration();
+        settings["Authentication__JwtBearer__Roles__Modeler"] = "";
+        settings["Authentication__JwtBearer__LegacyPermissiveRoles"] = "true";
+
+        var (exitCode, output) = await RunCheckAsync(settings);
+
+        exitCode.Should().Be(2, "die Ausgabe war:\n{0}", output);
+        output.Should().Contain("Rollen").And.Contain("Warnung");
+        output.Should().Contain("Authentication:JwtBearer:Roles:Modeler");
+    }
+
+    // Testzweck: Im BFF-Modus muss der Schluesselring anlegbar und beschreibbar sein. Zeigt der
+    // Pfad auf eine vorhandene Datei, meldet die Pruefung einen Fehler (Exit-Code 1), ohne das
+    // Client-Secret auszugeben.
+    [Test]
+    public async Task CheckConfig_ShouldFail_WhenTheBffKeyringIsNotWritable()
+    {
+        var keyringFile = _storageRoot + "-keyring-file";
+        await File.WriteAllTextAsync(keyringFile, "kein Verzeichnis");
+        try
+        {
+            var settings = ValidConfiguration();
+            settings["Authentication__Scheme"] = "Bff";
+            settings["Authentication__Bff__ClientId"] = "flowzer-console";
+            settings["Authentication__Bff__ClientSecret"] = "bff-streng-geheim";
+            settings["Authentication__Bff__DataProtectionKeysPath"] = keyringFile;
+
+            var (exitCode, output) = await RunCheckAsync(settings);
+
+            exitCode.Should().Be(1, "die Ausgabe war:\n{0}", output);
+            output.Should().Contain("Schluesselring").And.Contain("Fehler");
+            output.Should().NotContain("bff-streng-geheim");
+        }
+        finally
+        {
+            File.Delete(keyringFile);
+        }
+    }
+
+    // Testzweck: Meldet das Discovery-Dokument einen anderen Issuer als die konfigurierte
+    // Authority, warnt die Pruefung mit Klartext zur Authority (Exit-Code 2).
+    [Test]
+    public async Task CheckConfig_ShouldWarn_WhenTheDiscoveryIssuerDiffersFromTheAuthority()
+    {
+        _authority!.Issuer = "https://anderer-issuer.example.invalid/realms/flowzer";
+
+        var (exitCode, output) = await RunCheckAsync(ValidConfiguration());
+
+        exitCode.Should().Be(2, "die Ausgabe war:\n{0}", output);
+        output.Should().Contain("Authentifizierung").And.Contain("Warnung");
+        output.Should().Contain("https://anderer-issuer.example.invalid/realms/flowzer")
+            .And.Contain("weicht von der konfigurierten Authority");
+    }
+
     private Dictionary<string, string> ValidConfiguration() => new()
     {
         ["ASPNETCORE_ENVIRONMENT"] = "Production",
@@ -112,6 +187,9 @@ public class ConfigurationCheckIntegrationTest
         ["Authentication__JwtBearer__Audience"] = "flowzer-api",
         ["Authentication__JwtBearer__RequireHttpsMetadata"] = "false",
         ["Authentication__JwtBearer__RequiredRole"] = "flowzer-access",
+        ["Authentication__JwtBearer__Roles__Modeler"] = "flowzer-modeler",
+        ["Authentication__JwtBearer__Roles__Operator"] = "flowzer-operator",
+        ["Authentication__JwtBearer__Roles__Worker"] = "flowzer-worker",
         ["ServiceTaskWebhooks__Enabled"] = "true",
         ["ServiceTaskWebhooks__AllowedHosts__0"] = "worker.example.invalid"
     };
@@ -198,8 +276,8 @@ public class ConfigurationCheckIntegrationTest
     }
 
     /// <summary>
-    /// Minimaler OIDC-Discovery-Endpunkt. Die Pruefung fragt ihn nur mit HEAD ab; mehr braucht
-    /// sie nicht, um "Authority antwortet" von "Authority nicht erreichbar" zu unterscheiden.
+    /// Minimaler OIDC-Discovery-Endpunkt. Er liefert nur die beiden Felder, die die Pruefung
+    /// liest: <c>issuer</c> (standardmaessig die eigene Adresse) und <c>token_endpoint</c>.
     /// </summary>
     private sealed class DiscoveryEndpointStub : IDisposable
     {
@@ -214,6 +292,9 @@ public class ConfigurationCheckIntegrationTest
         }
 
         public string Authority { get; }
+
+        /// <summary>Gemeldeter Issuer; ohne Angabe die eigene Adresse wie bei einem echten IdP.</summary>
+        public string? Issuer { get; set; }
 
         public static DiscoveryEndpointStub Start()
         {
@@ -251,9 +332,14 @@ public class ConfigurationCheckIntegrationTest
                     return;
                 }
 
+                var document = JsonSerializer.SerializeToUtf8Bytes(new Dictionary<string, string>
+                {
+                    ["issuer"] = Issuer ?? Authority,
+                    ["token_endpoint"] = Authority + "/protocol/openid-connect/token"
+                });
                 context.Response.StatusCode = (int)HttpStatusCode.OK;
                 context.Response.ContentType = "application/json";
-                context.Response.Close();
+                context.Response.Close(document, willBlock: true);
             }
         }
 

@@ -186,6 +186,7 @@ internal sealed class MultiProcessApiHost : WebApplicationFactory<Program>
         builder.UseSetting("Authentication:Scheme", "JwtBearer");
         builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
         builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+        builder.UseSetting("Authentication:JwtBearer:RequiredRole", "access");
         builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
         builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
         builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
@@ -210,6 +211,7 @@ internal sealed class MultiProcessApiHost : WebApplicationFactory<Program>
             Subject = new ClaimsIdentity([
                 new Claim("sub", userId.ToString()),
                 new Claim("preferred_username", "multi-process"),
+                new Claim("roles", "access"),
                 new Claim("roles", "operator"),
                 new Claim("roles", "modeler"),
                 new Claim("roles", "worker")

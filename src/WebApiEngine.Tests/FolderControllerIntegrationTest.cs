@@ -265,7 +265,7 @@ public class FolderControllerIntegrationTest
 
     private static string CreateToken(string[]? roles = null, string[]? groups = null, string? userName = null)
     {
-        var claims = new List<Claim> { new("sub", Guid.NewGuid().ToString()) };
+        var claims = new List<Claim> { new("sub", Guid.NewGuid().ToString()), new("roles", "access") };
         claims.AddRange((roles ?? []).Select(role => new Claim("roles", role)));
         claims.AddRange((groups ?? []).Select(group => new Claim("groups", group)));
         if (userName is not null)
@@ -308,8 +308,10 @@ public class FolderControllerIntegrationTest
             builder.UseSetting("Authentication:Scheme", "JwtBearer");
             builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
             builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+            builder.UseSetting("Authentication:JwtBearer:RequiredRole", "access");
             builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
             builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
+            builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
 
             builder.ConfigureServices(services =>
             {
