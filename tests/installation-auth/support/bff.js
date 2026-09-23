@@ -5,6 +5,7 @@ const { expect } = require('@playwright/test');
 
 const FLOWZER_HOST = 'flowzer.test';
 const AUTH_HOST = 'auth.flowzer.test';
+const LOGIN_STEP_TIMEOUT_MS = 45_000;
 
 function isConsoleUrl(url) {
   return url.hostname === FLOWZER_HOST && !url.pathname.startsWith('/bff/');
@@ -30,12 +31,16 @@ async function loginWithBrowser(page, user, { returnTo = '/' } = {}) {
 
     // Mit SSO-Sitzung zeigt Keycloak nur kurz die sich selbst absendende form_post-Seite;
     // deshalb auf das Formular ODER die Konsole warten, nicht auf den momentanen Host.
+    // Promise.any: Es zaehlt das erste erfolgreiche Ergebnis; ein Fehler nur, wenn beide
+    // Wege scheitern. Der erste Login nach dem Start von Keycloak kann laenger dauern.
     const usernameField = page.locator('input[name="username"]');
-    const outcome = await Promise.race([
-      usernameField.waitFor({ state: 'visible', timeout: 30_000 }).then(() => 'form', () => null),
-      page.waitForURL(isConsoleUrl, { timeout: 30_000 }).then(() => 'console', () => null)
-    ]);
-    if (!outcome) {
+    let outcome;
+    try {
+      outcome = await Promise.any([
+        usernameField.waitFor({ state: 'visible', timeout: LOGIN_STEP_TIMEOUT_MS }).then(() => 'form'),
+        page.waitForURL(isConsoleUrl, { timeout: LOGIN_STEP_TIMEOUT_MS }).then(() => 'console')
+      ]);
+    } catch {
       throw new Error(`Anmeldung fuer ${user.username}: weder Anmeldeformular noch Konsole erreicht (${page.url()}).`);
     }
 
@@ -46,7 +51,7 @@ async function loginWithBrowser(page, user, { returnTo = '/' } = {}) {
       await page.locator('#kc-login').click();
     }
 
-    await page.waitForURL(isConsoleUrl, { timeout: 30_000 });
+    await page.waitForURL(isConsoleUrl, { timeout: LOGIN_STEP_TIMEOUT_MS });
     return { authorizationRequest, formShown };
   } finally {
     page.off('request', onRequest);
@@ -66,6 +71,15 @@ async function fetchInPage(page, path, init = {}) {
   }, { path, init });
 }
 
+/**
+ * Cookie-Header für Aufrufe außerhalb der Seite (Node-Seite), z. B. um einen fremden Origin
+ * zu setzen, den ein Browser-fetch nie senden würde.
+ */
+async function cookieHeaderFor(context, url) {
+  const cookies = await context.cookies(url);
+  return cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
+}
+
 async function readSession(page) {
   const response = await fetchInPage(page, '/bff/session');
   return { status: response.status, body: response.status === 200 ? JSON.parse(response.text) : null };
@@ -81,4 +95,4 @@ async function expectCapabilities(page, expected) {
   return session.body;
 }
 
-module.exports = { expectCapabilities, fetchInPage, loginWithBrowser, readSession };
+module.exports = { cookieHeaderFor, expectCapabilities, fetchInPage, loginWithBrowser, readSession };

@@ -412,7 +412,9 @@ jobs:
 
   # Installations- und Auth-Abnahme gegen einen isolierten Keycloak (R1b, Issue #256). Baut API
   # und Konsole aus dem Repository, startet sie mit eigener Test-CA und prueft Golden Path und
-  # Negativfaelle. Kein Pflicht-Check; bei Fehlern liegen Logs und Report als Artefakt bereit.
+  # Negativfaelle. Nicht als Pflicht-Check in der Branch-Protection eingetragen; ein roter Lauf
+  # faerbt aber den Workflow rot. Bei Fehler, Abbruch oder Timeout liegen Logs und Report als
+  # Artefakt bereit.
   installation_auth:
     name: Installations- und Auth-Abnahme (isolierter Keycloak)
     runs-on: ubuntu-latest
@@ -439,13 +441,17 @@ jobs:
         timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
+      # Eigenes Schritt-Timeout unter dem Job-Timeout: So erreicht der Abbruch run.sh noch
+      # rechtzeitig, dessen EXIT-Falle Logs sammelt und den Stack abraeumt. `exec`, weil der
+      # Runner bei Abbruch oder Timeout nur seinem direkten Kindprozess das Signal schickt.
       - name: Abnahme ausfuehren
+        timeout-minutes: 25
         env:
           PLAYWRIGHT_SKIP_BROWSER_INSTALL: '1'
-        run: tests/installation-auth/run.sh
+        run: exec tests/installation-auth/run.sh
 
       - name: Logs und Playwright-Report hochladen
-        if: failure()
+        if: ${{ !success() }}
         uses: actions/upload-artifact@v4
         with:
           name: installation-auth-report

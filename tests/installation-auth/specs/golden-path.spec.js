@@ -1,8 +1,8 @@
 // Golden Path: frisch installierter Stack, Anmeldung über den BFF, Sitzung, CSRF und Abmeldung.
 const { test, expect } = require('@playwright/test');
 const { apiRequest } = require('../support/http');
-const { fetchInPage, loginWithBrowser, readSession } = require('../support/bff');
-const { ensureBaseline, findUser } = require('../support/keycloak');
+const { cookieHeaderFor, fetchInPage, loginWithBrowser, readSession } = require('../support/bff');
+const { ensureBaseline, findUser, getUserToken } = require('../support/keycloak');
 const { BASE_URL, ISSUER, USERS } = require('../support/constants');
 
 test.describe('Golden Path', () => {
@@ -126,5 +126,49 @@ test.describe('Golden Path', () => {
         description: 'POST /bff/logout beendet nur die Flowzer-Sitzung; die Keycloak-SSO-Sitzung bleibt bestehen.'
       });
     });
+  });
+
+  // Testzweck: Ein schreibender Cookie-Aufruf mit fremdem oder fehlendem Origin wird trotz
+  // gueltigem CSRF-Token mit 400 abgewiesen; die Sitzung bleibt davon unberuehrt.
+  test('Schreibender Cookie-Aufruf mit fremdem Origin wird trotz CSRF-Token abgewiesen', async ({ page, context }) => {
+    await loginWithBrowser(page, USERS.bob);
+    const csrf = JSON.parse((await fetchInPage(page, '/bff/csrf')).text);
+    const cookie = await cookieHeaderFor(context, BASE_URL);
+    expect(cookie).toContain('__Host-Flowzer-Session=');
+    expect(cookie).toContain('__Host-Flowzer-Csrf=');
+
+    for (const origin of ['https://evil.example', undefined]) {
+      const headers = { cookie, [csrf.headerName]: csrf.requestToken, ...(origin ? { origin } : {}) };
+      const response = await apiRequest('/bff/logout', { method: 'POST', headers });
+      expect(response.status, `Origin ${origin ?? '(fehlt)'}`).toBe(400);
+      expect(response.headers['content-type']).toContain('application/problem+json');
+      expect(response.json().detail).toBe('Invalid request origin.');
+    }
+
+    // Kontrollfall: Derselbe Token aus der Seite (gleiche Origin) beendet die Sitzung.
+    expect((await readSession(page)).status, 'Sitzung besteht nach den Ablehnungen').toBe(200);
+    const logout = await fetchInPage(page, '/bff/logout', {
+      method: 'POST',
+      headers: { [csrf.headerName]: csrf.requestToken }
+    });
+    expect(logout.status).toBe(204);
+  });
+
+  // Testzweck: Ein ungueltiger Bearer (kaputte Signatur) fuehrt bei bestehender Cookie-Sitzung zu
+  // 401; die Anfrage faellt nicht auf das Cookie zurueck.
+  test('Ungueltiger Bearer faellt bei bestehender Cookie-Sitzung nicht auf das Cookie zurueck', async ({ page, context }) => {
+    await loginWithBrowser(page, USERS.bob);
+    const cookie = await cookieHeaderFor(context, BASE_URL);
+
+    const withCookie = await apiRequest('/definition/meta', { headers: { cookie } });
+    expect(withCookie.status, 'Kontrollfall: Cookie-Sitzung allein').toBe(200);
+
+    const [header, payload, signature] = (await getUserToken(USERS.bob)).split('.');
+    const brokenSignature = `${signature.slice(0, -4)}${signature.slice(-4) === 'AAAA' ? 'BBBB' : 'AAAA'}`;
+    const brokenToken = `${header}.${payload}.${brokenSignature}`;
+
+    const withBrokenBearer = await apiRequest('/definition/meta', { bearer: brokenToken, headers: { cookie } });
+    expect(withBrokenBearer.status).toBe(401);
+    expect((await readSession(page)).status, 'Cookie-Sitzung bleibt gueltig').toBe(200);
   });
 });

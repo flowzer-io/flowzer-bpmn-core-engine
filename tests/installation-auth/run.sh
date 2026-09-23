@@ -62,6 +62,9 @@ collect_logs() {
 
 finish() {
   local status=$?
+  # Ein weiteres Signal (z. B. SIGTERM nach SIGINT beim Abbruch durch den Runner) darf das
+  # Sammeln der Logs und das Aufräumen nicht mehr unterbrechen.
+  trap '' INT TERM
   if [ "$status" -ne 0 ]; then
     collect_logs
   fi
@@ -84,6 +87,32 @@ finish() {
 }
 trap finish EXIT
 
+# Bei Abbruch (Strg+C, Abbruch oder Timeout des CI-Runners) regulär beenden, damit die
+# EXIT-Falle Logs sammelt und aufräumt; 130/143 entsprechen der üblichen Signal-Konvention.
+# Bash führt eine Falle erst aus, wenn ein Vordergrundprozess endet. Lange Schritte laufen
+# deshalb über run_child im Hintergrund: `wait` wird vom Signal sofort unterbrochen, und das
+# Signal geht an den Kindprozess weiter, statt bis zum Ende der Specs liegen zu bleiben.
+CHILD_PID=""
+on_signal() {
+  local code="$1"
+  if [ -n "$CHILD_PID" ]; then
+    kill -TERM "$CHILD_PID" 2>/dev/null || true
+    wait "$CHILD_PID" 2>/dev/null || true
+  fi
+  exit "$code"
+}
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+
+run_child() {
+  local exit_code=0
+  "$@" &
+  CHILD_PID=$!
+  wait "$CHILD_PID" || exit_code=$?
+  CHILD_PID=""
+  return "$exit_code"
+}
+
 rm -rf "$LOG_DIR"
 
 phase "Testläufer vorbereiten"
@@ -98,11 +127,12 @@ phase "Reste eines früheren Laufs entfernen"
 "${COMPOSE[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 
 phase "Stack bauen und starten"
-"${COMPOSE[@]}" up -d --build --wait --wait-timeout 600
+run_child "${COMPOSE[@]}" up -d --build --wait --wait-timeout 600
 
 phase "Versionen"
 "${COMPOSE[@]}" images
 "${COMPOSE[@]}" ps -a --format 'table {{.Service}}\t{{.Status}}'
 
 phase "Abnahme ausführen (check-config, Golden Path, Negativfälle, Verzeichnis, Neustart)"
-(cd "$SCRIPT_DIR" && npx playwright test)
+cd "$SCRIPT_DIR"
+run_child npx playwright test

@@ -71,7 +71,8 @@ test.describe.serial('Verzeichnisabgleich', () => {
     await synchronizeDirectory(await getUserToken(USERS.alice));
   });
 
-  // Testzweck: Das Servicekonto des Abgleichs ist in Keycloak nur lesend berechtigt; ein
+  // Testzweck: Das Servicekonto des Abgleichs ist in Keycloak nur lesend berechtigt: Sein Token
+  // traegt ausschliesslich die explizit zugeordneten Leserechte (fullScopeAllowed=false), und ein
   // Schreibversuch an der Admin-API wird abgewiesen (Vorgabe aus OPERATIONS.md).
   test('Servicekonto des Abgleichs darf nicht schreiben', async () => {
     const tokenResponse = await httpRequest(`${AUTH_URL}/realms/${REALM}/protocol/openid-connect/token`, {
@@ -84,6 +85,10 @@ test.describe.serial('Verzeichnisabgleich', () => {
     });
     expect(tokenResponse.status).toBe(200);
     const serviceToken = tokenResponse.json().access_token;
+    const resourceAccess = decodeJwtPayload(serviceToken).resource_access;
+    expect(Object.keys(resourceAccess)).toEqual(['realm-management']);
+    // view-users enthaelt in Keycloak query-users als zusammengesetzte Rolle.
+    expect([...resourceAccess['realm-management'].roles].sort()).toEqual(['query-groups', 'query-users', 'view-users']);
 
     const read = await httpRequest(`${AUTH_URL}/admin/realms/${REALM}/users?max=1`, {
       headers: { authorization: `Bearer ${serviceToken}` }
@@ -126,10 +131,10 @@ test.describe.serial('Verzeichnisabgleich', () => {
     expect(dave.isActive).toBe(true);
   });
 
-  // Testzweck: Nach Deaktivierung in Keycloak und erneutem Abgleich bietet die Suche dave nicht
-  // mehr an und seine BFF-Sitzung endet beim naechsten serverseitigen Refresh. Dokumentierte
-  // Grenze: Ein vorher ausgestellter Bearer bleibt bis zum Ablauf gueltig, weil Flowzer Tokens
-  // nicht gegen den Provider oder das Verzeichnis nachprueft.
+  // Testzweck: Nach Deaktivierung in Keycloak endet die BFF-Sitzung beim naechsten
+  // serverseitigen Refresh, und nach erneutem Abgleich bietet die Suche dave nicht mehr an.
+  // Dokumentierte Grenze: Ein vorher ausgestellter Bearer wird weiter angenommen, weil Flowzer
+  // Tokens nicht gegen den Provider oder das Verzeichnis nachprueft.
   test('Deaktivierte Person verschwindet aus der Suche; alter Bearer gilt bis Ablauf (Grenze)', async ({ page }) => {
     const aliceToken = await getUserToken(USERS.alice);
     await loginWithBrowser(page, USERS.dave);
@@ -143,6 +148,15 @@ test.describe.serial('Verzeichnisabgleich', () => {
     expect(newGrant.status, 'Keycloak stellt dave kein neues Token mehr aus').toBe(400);
     expect(newGrant.body.error).toBe('invalid_grant');
 
+    // Grenze sofort nach der Deaktivierung pruefen, weit innerhalb der 30 s Tokenlaufzeit und
+    // unabhaengig von der Dauer des Abgleichs.
+    const withOldToken = await apiRequest('/definition/meta', { bearer: daveToken });
+    expect(withOldToken.status, 'Grenze: alter Bearer wird nach der Deaktivierung weiter angenommen').toBe(200);
+    test.info().annotations.push({
+      type: 'Grenze',
+      description: 'Deaktivierung in Keycloak entzieht einem ausgestellten Bearer nicht den Zugang; er gilt bis zum Ablauf.'
+    });
+
     // Der Refresh der BFF-Sitzung scheitert an Keycloak mit invalid_grant; die Sitzung endet.
     // Mit 30 s Tokenlaufzeit und 60 s Erneuerungsvorlauf geschieht das bei der naechsten Anfrage.
     expect((await readSession(page)).status, 'BFF-Sitzung nach Deaktivierung').toBe(401);
@@ -151,15 +165,8 @@ test.describe.serial('Verzeichnisabgleich', () => {
     const items = await searchSubjects(aliceToken, definitionId, 'dave');
     expect(items.find(item => item.username === 'dave')).toBeUndefined();
 
-    expect(Date.now(), 'Pruefung noch innerhalb der Tokenlaufzeit').toBeLessThan(daveExpiresAt);
-    const withOldToken = await apiRequest('/definition/meta', { bearer: daveToken });
-    expect(withOldToken.status, 'Grenze: alter Bearer wird bis Ablauf weiter angenommen').toBe(200);
-    test.info().annotations.push({
-      type: 'Grenze',
-      description: 'Verzeichnis-Deaktivierung entzieht keinen Zugang; ein ausgestellter Bearer gilt bis zum Ablauf.'
-    });
-
-    // Beobachtung ohne Zusicherung: Die JWT-Pruefung nutzt die Standardtoleranz fuer Uhrabweichung.
+    // Reine Beobachtung ohne Zusicherung: Wie lange die JWT-Pruefung den Bearer ueber exp hinaus
+    // annimmt, haengt an ihrer Uhrentoleranz und ist kein Abnahmekriterium.
     await new Promise(resolve => setTimeout(resolve, Math.max(0, daveExpiresAt - Date.now()) + 2_000));
     const afterExpiry = await apiRequest('/definition/meta', { bearer: daveToken });
     const observation = `Alter Bearer 2 s nach exp: HTTP ${afterExpiry.status}`;

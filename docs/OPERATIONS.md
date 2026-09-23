@@ -220,9 +220,9 @@ bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
 
 Eine Deaktivierung in Keycloak entfernt die Person nach dem nächsten erfolgreichen Lauf aus
 Auswahl und Suche, entzieht aber keinen Zugang: Ein bereits ausgestelltes Access-Token bleibt
-bis zu seinem Ablauf gültig, bei Bearer-Aufrufen zuzüglich der Standardtoleranz der
-JWT-Prüfung von fünf Minuten (belegt durch die Abnahme in
-[docs/acceptance/auth.md](acceptance/auth.md)).
+bis zu seinem Ablauf gültig, bei Bearer-Aufrufen zusätzlich um die Uhrentoleranz der
+JWT-Prüfung (Bibliotheksstandard fünf Minuten, nicht angepasst). Die Grenze ist durch die
+Abnahme in [docs/acceptance/auth.md](acceptance/auth.md) belegt.
 
 Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
 `POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,

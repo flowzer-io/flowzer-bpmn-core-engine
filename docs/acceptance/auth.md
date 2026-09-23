@@ -29,9 +29,14 @@ tatsächlichen Identity Provider einer Zielumgebung.
 | 5 | 2026-09-24 01:02 | 123 s | 14 bestanden, 0 fehlgeschlagen, 0 `fixme` |
 | 6 | 2026-09-24 01:06 | 123 s | 14 bestanden, 0 fehlgeschlagen, 0 `fixme` (Hauptagent, main c1a65bb mit #353) |
 | 7 | 2026-09-24 01:12 | 123 s | 14 bestanden, 0 fehlgeschlagen, 0 `fixme` (Hauptagent, mit verschärften check-config-Prüfungen) |
+| 8 | 2026-09-24 01:26 | 125 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (Nacharbeit nach Review: neue Origin-/Bearer-Fälle, Reihenfolge Deaktivierung, `fullScopeAllowed=false`) |
+| 9 | 2026-09-24 01:28 | 115 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` |
+| 10 | 2026-09-24 01:38 | 126 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (endgültiger Stand mit unterbrechbarem `run.sh`) |
+| 11 | 2026-09-24 01:40 | 164 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (Start 76 s statt 37 s bei vollständigem Build-Cache; Specs unverändert 85 s) |
 
-Die Läufe liefen unmittelbar nacheinander, jeweils vom leeren Zustand (`down -v`) bis zum
-Aufräumen; vor Lauf 5 wurden nur ein Kommentar und ein Import umgestellt. Davon entfallen rund 30–40 s auf Bauen (mit Build-Cache) und
+Die Läufe liefen paarweise unmittelbar nacheinander, jeweils vom leeren Zustand (`down -v`)
+bis zum Aufräumen; vor Lauf 5 wurden nur ein Kommentar und ein Import umgestellt, vor Lauf 10
+am ausgeführten Code nur die Signalbehandlung in `run.sh`. Davon entfallen rund 30–40 s auf Bauen (mit Build-Cache) und
 Starten, rund 85 s auf die Specs; die längsten Fälle warten bewusst eine Tokenlaufzeit ab.
 Zwei frühere Läufe mit einem Zwischenstand (123 s, 113 s) waren ebenfalls grün. Ein Bau ohne
 Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
@@ -52,6 +57,8 @@ Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
 | `POST /bff/logout` ohne `X-Flowzer-CSRF` | 400 `application/problem+json`, Sitzung bleibt | erfüllt |
 | `POST /bff/logout` mit Token aus `/bff/csrf` | Erfolg | erfüllt mit **204** (Vertrag des Controllers; die Vorgabe nannte 200) |
 | `GET /bff/session` nach Abmeldung | 401 | erfüllt |
+| `POST /bff/logout` mit gültigem CSRF-Token und Cookies, aber `Origin: https://evil.example` bzw. ohne `Origin` (Aufruf außerhalb des Browsers) | 400 „Invalid request origin.“, Sitzung bleibt; derselbe Token aus der Seite meldet danach ab (204) | erfüllt |
+| Bearer mit kaputter Signatur bei bestehender Cookie-Sitzung | 401, kein Rückfall auf das Cookie; Cookie allein weiterhin 200 | erfüllt |
 
 ## Negativfälle
 
@@ -69,13 +76,17 @@ Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
 
 | Fall | Erwartung | Ergebnis |
 |---|---|---|
-| Servicekonto `flowzer-directory` | lesen 200, Benutzer anlegen 403 | erfüllt |
+| Servicekonto `flowzer-directory` (`fullScopeAllowed=false`, Leserechte per Scope-Zuordnung) | Token trägt nur `view-users`, `query-groups` (und das darin enthaltene `query-users`); lesen 200, Benutzer anlegen 403 | erfüllt |
 | `POST /identity-directory/sync` (alice, Operator) | 202, danach neuer erfolgreicher Stand: 4 Personen, 2 Gruppen, 2 Mitgliedschaften | erfüllt |
 | `POST /identity-directory/sync` (bob) | 403 `capability` | erfüllt |
 | `GET /identity-directory/workflows/{id}/subjects?query=dave` | dave aktiv gefunden | erfüllt |
-| dave per Admin-API deaktiviert | kein neues Token (400 `invalid_grant`); BFF-Sitzung von dave endet beim nächsten Refresh (401) | erfüllt |
+| dave per Admin-API deaktiviert | kein neues Token (400 `invalid_grant`) | erfüllt |
+| daves vorher ausgestellter Bearer, sofort nach der Deaktivierung | wird weiter angenommen (200) – dokumentierte Grenze, kein Fehlschlag | erfüllt |
+| BFF-Sitzung von dave | endet beim nächsten Refresh (401) | erfüllt |
 | erneuter Abgleich, erneute Suche | dave nicht mehr angeboten | erfüllt |
-| daves vorher ausgestellter Bearer | wird bis zum Ablauf weiter angenommen (dokumentierte Grenze, kein Fehlschlag) | erfüllt; 2 s **nach** `exp` weiterhin 200 (siehe Beobachtungen) |
+
+Zusätzlich protokolliert der Test ohne Zusicherung, wie die API daves alten Bearer 2 s nach
+`exp` beantwortet; in allen Läufen war das 200 (siehe Beobachtung 5).
 
 ## Neustart
 
@@ -95,6 +106,22 @@ Keycloak lehnt den Pushed Authorization Request mit `invalid_redirect_uri` ab, b
 Browser-Login-Fälle schlugen fehl, alle Bearer-Fälle blieben grün. `run.sh` sammelte Logs
 (ohne Testsecrets) und räumte auf. Dieser Lauf ist bewusst nicht Teil der Standardabnahme.
 
+## Abbruch des Laufs
+
+`run.sh` wurde dreimal gezielt unterbrochen, zweimal unter Runner-Bedingungen (Schritt-Shell
+mit `exec`, SIGINT, nach 7,5 s SIGTERM, nach 10 s SIGKILL):
+
+| Signal | Zeitpunkt | Ergebnis |
+|---|---|---|
+| SIGINT | während `docker compose up --build --wait` | Exit 130 nach 2,9 s; Logs gesammelt, Stack und Volumes entfernt |
+| SIGINT | während der Specs | Exit 130 nach 1,9 s; Playwright beendet, Logs gesammelt, aufgeräumt |
+| SIGTERM | während der Specs | Exit 143 nach 2 s; Logs gesammelt, aufgeräumt |
+
+Die Falle greift damit weit vor dem SIGTERM des Runners. Ohne die Ausführung im Hintergrund
+(`run_child`) hätte Bash das Signal erst nach dem Ende von Playwright behandelt. Ohne `exec`
+im CI-Schritt erreichte das Signal `run.sh` gar nicht. Einen HTML-Report schreibt Playwright
+bei einem Abbruch nicht; die Compose-Logs liegen trotzdem vor.
+
 ## Beobachtungen und Abweichungen
 
 1. **Pushed Authorization Requests:** Der OIDC-Handler von .NET 10 nutzt PAR automatisch, weil
@@ -110,9 +137,10 @@ Browser-Login-Fälle schlugen fehl, alle Bearer-Fälle blieben grün. `run.sh` s
    60 s abläuft. Bei 30 s Laufzeit erneuert er deshalb bei **jeder** Anfrage (Rollenentzug
    sofort sichtbar, dafür ein Token-Aufruf pro Anfrage). Bei einer üblichen Laufzeit von
    5 Minuten wird ein Rollenentzug in einer bestehenden Sitzung erst nach bis zu 4 Minuten wirksam.
-5. **Bearer nach `exp`:** Die JWT-Bearer-Prüfung setzt keine eigene Uhrentoleranz; es gilt der
-   Standard von 5 Minuten. Ein Bearer einer deaktivierten Person wurde 2 s nach `exp` noch
-   angenommen. Die BFF-Prüfung selbst verwendet 1 Minute.
+5. **Beobachtung – Bearer nach `exp`:** Die JWT-Bearer-Prüfung setzt keine eigene
+   Uhrentoleranz, also gilt vermutlich der Standard von 5 Minuten. Beobachtet (nicht
+   zugesichert): Der Bearer der deaktivierten Person wurde 2 s nach `exp` noch mit 200
+   beantwortet. Die BFF-Prüfung selbst verwendet 1 Minute.
 6. **Fehlerbild bei abgelehnter Autorisierung:** Scheitert der PAR-Aufruf an Keycloak, liefert
    `/bff/login` 500 mit generischer Meldung; die Ursache steht nur im API- und Keycloak-Log.
 7. **Npgsql-Hinweis:** `--migrate` und `--check-config` schreiben „Cannot load library
@@ -130,8 +158,8 @@ Keiner dieser Punkte ließ einen Testfall scheitern; es gibt keine `test.fixme`-
 - **Verzeichnis-Deaktivierung entzieht keinen Zugang.** Sie entfernt die Person aus Auswahl
   und Suche. Den Zugang beendet erst Keycloak: kein neues Token, BFF-Sitzung endet beim
   nächsten Refresh.
-- **Bearer gelten bis zum Ablauf** (zuzüglich 5 Minuten Toleranz, siehe oben). Introspection
-  oder Backchannel-Widerruf gibt es nicht.
+- **Bearer gelten bis zum Ablauf**, beobachtet auch kurz darüber hinaus (Uhrentoleranz, siehe
+  Beobachtung 5). Introspection oder Backchannel-Widerruf gibt es nicht.
 - **Logout ist lokal.** `POST /bff/logout` beendet nur die Flowzer-Sitzung; die SSO-Sitzung bei
   Keycloak bleibt, ein erneuter Login kommt ohne Formular zurück. IdP-Logout ist offen (R1c).
 - **Sitzungen sind prozesslokal.** Ein API-Neustart beendet alle Browser-Sitzungen (401);

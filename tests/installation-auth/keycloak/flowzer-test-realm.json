@@ -152,7 +152,7 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": true,
-      "fullScopeAllowed": true,
+      "fullScopeAllowed": false,
       "redirectUris": [],
       "webOrigins": []
     }
@@ -161,6 +161,9 @@
     "flowzer-api": [
       { "client": "flowzer-bff", "roles": ["access", "modeler", "operator", "worker"] },
       { "client": "flowzer-test-cli", "roles": ["access", "modeler", "operator", "worker"] }
+    ],
+    "realm-management": [
+      { "client": "flowzer-directory", "roles": ["view-users", "query-groups"] }
     ]
   },
   "users": [

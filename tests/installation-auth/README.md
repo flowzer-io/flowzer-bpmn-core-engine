@@ -28,6 +28,10 @@ früheren Laufs, startet den Stack mit `docker compose up -d --build --wait` und
 Dienste unter `logs/` (Testsecrets aus `env/*.env` ersetzt), der HTML-Report unter
 `playwright-report/`.
 
+Ein Abbruch per Strg+C oder `SIGTERM` beendet Stack-Start bzw. Playwright sofort; auch dann
+werden die Logs gesammelt und der Stack abgeräumt (Exit 130 bzw. 143). Die CI ruft das Skript
+deshalb mit `exec` auf: Der Runner schickt sein Abbruchsignal nur an den direkten Kindprozess.
+
 Bei stehendem Stack (`--keep`) lassen sich einzelne Specs direkt starten:
 
 ```bash
@@ -58,9 +62,9 @@ offensichtliche Testwerte und gehören in keine echte Installation.
 | Datei | Inhalt |
 |---|---|
 | `specs/check-config.spec.js` | `--check-config` im API-Container endet mit 0; Discovery-Issuer entspricht der Authority |
-| `specs/golden-path.spec.js` | Readiness, anonym 401, BFF-Anmeldung über Keycloak, Fähigkeiten, Cookie-Attribute, CSRF, Abmeldung |
+| `specs/golden-path.spec.js` | Readiness, anonym 401, BFF-Anmeldung über Keycloak, Fähigkeiten, Cookie-Attribute, CSRF, fremder Origin, ungültiger Bearer neben Cookie, Abmeldung |
 | `specs/negative.spec.js` | fremde Audience 401, ohne Zugangsrolle 403 `application`, ohne Modeler 403 `capability`, Rollenentzug für Bearer und BFF-Sitzung |
-| `specs/directory.spec.js` | Servicekonto nur lesend, manueller Abgleich, workflowgebundene Suche, Deaktivierung (inklusive dokumentierter Grenze) |
+| `specs/directory.spec.js` | Servicekonto nur mit explizit zugeordneten Leserechten, manueller Abgleich, workflowgebundene Suche, Deaktivierung (inklusive dokumentierter Grenze) |
 | `specs/restart.spec.js` | `docker compose restart api`: alte Sitzung 401, Health wieder gesund, Keyring unverändert, erneute Anmeldung |
 
 Die Playwright-Projekte erzwingen die Reihenfolge `check-config` → Abläufe → Neustart.
