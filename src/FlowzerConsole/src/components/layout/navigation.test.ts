@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NAV_ITEMS, visibleNavItems } from './navigation';
+import { activeNavKey, NAV_ITEMS, visibleNavItems } from './navigation';
 import type { FlowzerCapability } from '@/lib/auth/roles';
 
 function only(...capabilities: FlowzerCapability[]) {
@@ -10,7 +10,7 @@ function only(...capabilities: FlowzerCapability[]) {
 
 describe('visibleNavItems', () => {
   // Testzweck: Lesen darf jeder Zugelassene. Reine Pflegebereiche fuer Betrieb und
-  // Abschnittsbibliothek duerfen ohne ihre jeweilige Rolle nicht im Menue erscheinen.
+  // Verwaltungsbereiche duerfen ohne ihre jeweilige Rolle nicht im Menue erscheinen.
   it('zeigt Zugelassenen nur die allgemein lesbaren Bereiche', () => {
     const keys = visibleNavItems(only('access')).map((item) => item.key);
 
@@ -23,11 +23,11 @@ describe('visibleNavItems', () => {
     expect(keys).not.toContain('ai-connections');
   });
 
-  // Testzweck: Die Abschnittsbibliothek ist ein Modellierungswerkzeug und erscheint
-  // ausschließlich mit der serverseitig abgebildeten Modelliererfaehigkeit.
-  it('zeigt die Abschnittsbibliothek nur Modellierenden', () => {
+  // Testzweck: Nach der Migration ist ein Formular selbst eine Komponente. Ein zweiter
+  // Navigationspunkt würde fälschlich zwei getrennte Bibliotheken suggerieren.
+  it('zeigt auch Modellierenden keine separate Abschnittsbibliothek', () => {
     expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key))
-      .toContain('form-sections');
+      .not.toContain('form-sections');
   });
 
   // Testzweck: Der Betrieb erscheint erst mit der zugehoerigen Rolle. Ein Eintrag, der
@@ -45,6 +45,15 @@ describe('visibleNavItems', () => {
       .toContain('ai-connections');
   });
 
+  // Testzweck: Eingehende Ausloeser sind Betriebssache — ihre Schluessel und Adressen
+  // gehoeren nicht in die Navigation von Personen ohne Betriebsrolle.
+  it('zeigt Ausloeser nur mit der Betriebsrolle', () => {
+    expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key))
+      .not.toContain('triggers');
+    expect(visibleNavItems(only('access', 'operator')).map((item) => item.key))
+      .toContain('triggers');
+  });
+
   // Testzweck: Die eigenen Aufgaben stehen im Menue. Sie waren frueher nur ueber das
   // Dashboard erreichbar — wer wusste, dass es sie gibt, fand sie; sonst nicht.
   it('fuehrt die eigenen Aufgaben im Menue', () => {
@@ -52,6 +61,22 @@ describe('visibleNavItems', () => {
 
     expect(eintrag?.path).toBe('/tasks');
     expect(eintrag?.requires, 'Aufgaben verlangen keine Rolle ausser dem Zugang.').toBeUndefined();
+  });
+
+  // Testzweck: Die Auswertungen lesen dieselbe Laufzeithistorie wie die Diagnose und
+  // verlangen deshalb dieselbe Rolle. Ohne sie lehnt die API ab — der Eintrag fuehrte
+  // dann nur zu einer Fehlerseite und gehoert deshalb nicht ins Menue.
+  it('zeigt die Auswertungen nur mit der Betriebsrolle', () => {
+    expect(visibleNavItems(only('access', 'modeler')).map((item) => item.key)).not.toContain('analytics');
+    expect(visibleNavItems(only('access', 'operator')).map((item) => item.key)).toContain('analytics');
+  });
+
+  // Testzweck: Die Detailseite eines Workflows liegt unter der Uebersicht. Der Menuepunkt
+  // muss auch dort aktiv bleiben und darf nicht zum Betrieb daneben springen.
+  it('haelt den Menuepunkt auch auf der Auswertungs-Detailseite aktiv', () => {
+    expect(activeNavKey('/analytics')).toBe('analytics');
+    expect(activeNavKey('/analytics/urlaubsantrag')).toBe('analytics');
+    expect(activeNavKey('/operations')).toBe('operations');
   });
 
   // Testzweck: Ohne jede Faehigkeit bleibt nichts uebrig, was eine Rolle verlangt.

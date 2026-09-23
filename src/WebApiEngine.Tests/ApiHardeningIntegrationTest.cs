@@ -67,6 +67,33 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Be("Storage is unavailable.");
     }
 
+    // Testzweck: Die Bereitschaftsprobe nennt zusaetzlich die konfigurierte Ablage, den
+    // Migrationsstand und den Ausdrucks-Handler; bei der Dateiablage gibt es keine Migrationen,
+    // und das steht auch so da. Der Handler steht dort, weil eine Installation ohne native
+    // V8-Bibliothek stillschweigend ohne FEEL weiterlaeuft - genau das war im Produktionsimage
+    // monatelang unbemerkt der Fall.
+    [Test]
+    public async Task ReadyHealth_ShouldDescribeStorageProviderAndMigrationState()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/health/ready");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<HealthStatusDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result!.Status.Should().Be("Healthy");
+        payload.Result.Details.Should().NotBeNull();
+        payload.Result.Details!.StorageProvider.Should().Be("Filesystem");
+        payload.Result.Details.MigrationState.Should().Be("NotApplicable");
+        payload.Result.Details.PendingMigrationCount.Should().BeNull();
+        payload.Result.Details.ExpressionEngine.Should().Be("Feel",
+            "ohne die native V8-Bibliothek rechnet die Installation kein FEEL mehr");
+    }
+
     // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Scheduler And Storage Snapshot“ ab.
     [Test]
     public async Task OperationsDiagnostics_ShouldReturnSchedulerAndStorageSnapshot()
@@ -177,6 +204,7 @@ public class ApiHardeningIntegrationTest
         payload.Result.Storage.ActiveInstances.Should().Be(1);
         payload.Result.Storage.CompletedInstances.Should().Be(1);
         payload.Result.Storage.FailedInstances.Should().Be(0);
+        payload.Result.Storage.CancelledInstances.Should().Be(0);
         payload.Result.Storage.PendingMessages.Should().Be(1);
         payload.Result.Storage.PendingTimers.Should().Be(1);
         payload.Result.Storage.OpenUserTasks.Should().Be(3);
@@ -192,9 +220,98 @@ public class ApiHardeningIntegrationTest
         payload.Result.Observability.OtlpEndpointHint.Should().BeNull();
         payload.Result.Observability.OtlpProtocol.Should().BeNull();
         payload.Result.Observability.OtlpHeadersHint.Should().BeNull();
+        payload.Result.Observability.PrometheusEnabled.Should().BeFalse();
+        payload.Result.Observability.PrometheusPath.Should().BeNull();
         payload.Result.Observability.ServiceName.Should().Be("Flowzer.WebApi");
         storage.GetAllActiveInstancesCallCount.Should().Be(0);
     }
+
+    // Testzweck: Das Betriebsbild muss jeden mitgelieferten Konnektor nennen, auch den
+    // abgeschalteten: „nicht aktiviert“ ist eine Aussage, „gar nicht aufgefuehrt“ waere keine.
+    // Ohne diese Zeile liesse sich nicht erkennen, ob ein Konnektor aus ist oder fehlt.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldListEveryBuiltInConnector_IncludingTheDisabledOnes()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        var connectors = payload!.Result!.Connectors;
+        connectors.Select(connector => connector.JobType)
+            .Should().BeEquivalentTo(["flowzer:http", "flowzer:email"]);
+        connectors.Should().OnlyContain(connector => !connector.Enabled);
+        connectors.Should().OnlyContain(connector =>
+            connector.ProcessedJobs == 0 && connector.FailedJobs == 0 && connector.LastErrorMessage == null);
+    }
+
+    // Testzweck: Ein Abbruch (Terminate-Endereignis oder Betriebsaktion „Instanz abbrechen“) ist ein
+    // regulaerer Ausgang und darf die Fehlerzahl im Betriebsbild nicht erhoehen; er bekommt einen
+    // eigenen Zaehler. Zusaetzlich wird geprueft, dass jede Instanz in genau einem Eimer landet.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldCountTerminatedInstancesAsCancelled_NotAsFailed()
+    {
+        var storage = new TestStorage();
+        storage.StoredDefinitions.Add(new BpmnDefinition
+        {
+            Id = Guid.NewGuid(),
+            DefinitionId = "definition-active",
+            Hash = "hash-active",
+            SavedByUser = Guid.NewGuid(),
+            SavedOn = DateTime.UtcNow,
+            Version = new Model.Version(1, 0),
+            IsActive = true
+        });
+        storage.Instances.AddRange(
+        [
+            CreateInstance(storage, ProcessInstanceState.Waiting),
+            CreateInstance(storage, ProcessInstanceState.Completed),
+            CreateInstance(storage, ProcessInstanceState.Compensated),
+            CreateInstance(storage, ProcessInstanceState.Failed),
+            CreateInstance(storage, ProcessInstanceState.Terminated),
+            CreateInstance(storage, ProcessInstanceState.Terminated)
+        ]);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result.Should().NotBeNull();
+
+        var snapshot = payload.Result!.Storage;
+        snapshot.TotalInstances.Should().Be(6);
+        snapshot.ActiveInstances.Should().Be(1);
+        snapshot.CompletedInstances.Should().Be(2);
+        snapshot.FailedInstances.Should().Be(1);
+        snapshot.CancelledInstances.Should().Be(2);
+        (snapshot.ActiveInstances + snapshot.CompletedInstances + snapshot.FailedInstances + snapshot.CancelledInstances)
+            .Should().Be(snapshot.TotalInstances);
+    }
+
+    private static ProcessInstanceInfo CreateInstance(TestStorage storage, ProcessInstanceState state) =>
+        new()
+        {
+            InstanceId = Guid.NewGuid(),
+            metaDefinitionId = "definition-active",
+            DefinitionId = storage.StoredDefinitions[0].Id,
+            ProcessId = "Process_Invoice",
+            Tokens = [],
+            IsFinished = state is not ProcessInstanceState.Waiting,
+            State = state,
+            MessageSubscriptionCount = 0,
+            SignalSubscriptionCount = 0,
+            UserTaskSubscriptionCount = 0,
+            ServiceSubscriptionCount = 0
+        };
 
     // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Service Unavailable When Storage Snapshot Fails“ ab.
     [Test]
@@ -339,6 +456,161 @@ public class ApiHardeningIntegrationTest
         act.Should()
             .Throw<ArgumentException>()
             .WithMessage("*Observability:OtlpEndpoint*absolute http(s) URI*");
+    }
+
+    // Testzweck: Der Scrape-Endpunkt liefert im Prometheus-Textformat und enthaelt die eigenen
+    // Instrumente der Engine, sobald ueber sie eine Anfrage gelaufen ist.
+    [Test]
+    public async Task PrometheusScrapeEndpoint_ShouldExposeFlowzerInstruments_WhenEnabled()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                HostSettings = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Enabled"] = "true"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        // Ohne vorherigen Aufruf hat der Zaehler keinen einzigen Messwert und taucht im
+        // Scrape-Ergebnis gar nicht erst auf.
+        (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var response = await client.GetAsync("/metrics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/plain");
+
+        var body = await response.Content.ReadAsStringAsync();
+        // Prometheus schreibt Punkte als Unterstriche und haengt an Zaehler `_total` an.
+        body.Should().Contain("flowzer_http_requests_total");
+        // Die bereits registrierte ASP.NET-Core-Instrumentierung gehoert mit in denselben Scrape.
+        body.Should().Contain("http_server");
+    }
+
+    // Testzweck: Ohne eigenen Schalter gibt es keinen Scrape-Endpunkt; der Pfad verhaelt sich wie
+    // jede unbekannte Adresse. Sonst haette jede Installation stillschweigend eine anonyme
+    // Metrikquelle.
+    [Test]
+    public async Task PrometheusScrapeEndpoint_ShouldNotExist_WhenDisabledByDefault()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/metrics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // Testzweck: Ein eigener Pfad wird uebernommen, und unter dem Standardpfad liegt dann nichts.
+    // Wer den Endpunkt bewusst verlegt, soll ihn nicht zusaetzlich unter /metrics offen lassen.
+    [Test]
+    public async Task PrometheusScrapeEndpoint_ShouldHonourConfiguredPath()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                HostSettings = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Enabled"] = "true",
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Path"] = "internal/metrics"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        var configured = await client.GetAsync("/internal/metrics");
+        configured.StatusCode.Should().Be(HttpStatusCode.OK);
+        configured.Content.Headers.ContentType!.MediaType.Should().Be("text/plain");
+
+        var defaultPath = await client.GetAsync("/metrics");
+        defaultPath.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // Testzweck: Die Diagnose meldet den Zustand des Scrape-Endpunkts samt Pfad. Der Betrieb
+    // erkennt sonst nicht, dass eine anonyme Metrikquelle offen ist.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldReportPrometheusState_WhenScrapeEndpointIsEnabled()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                HostSettings = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Enabled"] = "true",
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Path"] = "internal/metrics/"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result.Should().NotBeNull();
+        payload.Result!.Observability.PrometheusEnabled.Should().BeTrue();
+        payload.Result.Observability.PrometheusPath.Should().Be("/internal/metrics");
+        // Der Scrape-Endpunkt allein schaltet weder Traces noch die Push-Exporter ein.
+        payload.Result.Observability.Enabled.Should().BeFalse();
+        payload.Result.Observability.OtlpExporterEnabled.Should().BeFalse();
+    }
+
+    // Testzweck: Ohne eingeschalteten Scrape-Endpunkt meldet die Diagnose keinen Pfad. Ein Pfad
+    // im Snapshot wuerde eine offene Metrikquelle behaupten, die es nicht gibt.
+    [Test]
+    public async Task OperationsDiagnostics_ShouldReportPrometheusAsDisabled_WhenScrapeEndpointIsOff()
+    {
+        var storage = new TestStorage();
+
+        await using var factory = new TestWebApplicationFactory(
+            storage,
+            new TestFactoryOptions
+            {
+                HostSettings = new Dictionary<string, string?>
+                {
+                    [$"{FlowzerObservabilityOptions.SectionName}:Prometheus:Path"] = "internal/metrics"
+                }
+            });
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/operations/diagnostics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiStatusResult<OperationsDiagnosticsDto>>();
+        payload.Should().NotBeNull();
+        payload!.Result.Should().NotBeNull();
+        payload.Result!.Observability.PrometheusEnabled.Should().BeFalse();
+        payload.Result.Observability.PrometheusPath.Should().BeNull();
+    }
+
+    // Testzweck: Ein Pfad, der in Wahrheit eine Adresse ist, bricht den Start ab, statt den
+    // Endpunkt still an einer anderen Stelle zu oeffnen.
+    [Test]
+    public void PrometheusOptions_ShouldRejectPathThatIsNotAPlainPath()
+    {
+        var options = new FlowzerPrometheusOptions
+        {
+            Enabled = true,
+            Path = "http://0.0.0.0:9090/metrics"
+        };
+
+        var act = () => options.ResolvePath();
+
+        act.Should()
+            .Throw<ArgumentException>()
+            .WithMessage("*Observability:Prometheus:Path*plain path*");
     }
 
     // Testzweck: Deckt den Fall „Upload Definition Should Use Technical User Header When No Authentication Exists Yet“ ab.
@@ -745,6 +1017,15 @@ public class ApiHardeningIntegrationTest
             options ??= new TestFactoryOptions();
 
             builder.UseSetting(WebHostDefaults.EnvironmentKey, options.EnvironmentName);
+
+            // Was Program.cs schon bei der Diensteregistrierung aus builder.Configuration liest,
+            // muss als Host-Einstellung gesetzt werden. Werte aus ConfigureAppConfiguration sind zu
+            // diesem Zeitpunkt noch nicht sichtbar und kaemen zu spaet.
+            foreach (var entry in options.HostSettings)
+            {
+                builder.UseSetting(entry.Key, entry.Value);
+            }
+
             builder.ConfigureAppConfiguration((_, configBuilder) =>
             {
                 var configurationValues = new Dictionary<string, string?>
@@ -790,6 +1071,12 @@ public class ApiHardeningIntegrationTest
         public string EnvironmentName { get; init; } = "Development";
         public CurrentUserContext? CurrentUserContext { get; init; }
         public IReadOnlyDictionary<string, string?> AdditionalConfiguration { get; init; } =
+            new Dictionary<string, string?>();
+
+        /// <summary>
+        /// Einstellungen, die schon waehrend der Diensteregistrierung in Program.cs gelten muessen.
+        /// </summary>
+        public IReadOnlyDictionary<string, string?> HostSettings { get; init; } =
             new Dictionary<string, string?>();
     }
 

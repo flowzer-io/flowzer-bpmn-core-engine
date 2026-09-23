@@ -288,7 +288,7 @@ public class CoreEngine(FlowzerConfig? flowzerConfig = null) : ICore
             Type = CoreInteractionType.ServiceTask,
             NodeId = token.CurrentFlowNode!.Id,
             Name = token.CurrentFlowNode.Name ?? token.CurrentFlowNode.Id,
-            Implementation = ((ServiceTask)token.CurrentFlowNode).Implementation
+            Implementation = ((IFlowzerWorkerTask)token.CurrentFlowNode).Implementation
         }));
 
         return interactions;

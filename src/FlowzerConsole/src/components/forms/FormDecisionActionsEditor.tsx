@@ -24,6 +24,9 @@ function initialValue(kind: ReturnType<typeof valueKind>): FormDecisionActionVal
 
 /** Begrenzte Root-Konfiguration für Human-Task-Aktionen; Veröffentlichung prüft endgültig. */
 export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionActionsEditorProps) {
+  // Gelöschte Knöpfe dürfen beim erneuten Hinzufügen keine vorhandene ID duplizieren.
+  let nextNumber = 1;
+  while (actions.some(action => action.id === `action_${nextNumber}`)) nextNumber += 1;
   function updateAction(index: number, next: FormDecisionActionDraft) {
     onChange(actions.map((action, candidate) => candidate === index ? next : action));
   }
@@ -32,11 +35,11 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
     <section className="border-border bg-surface mt-4 rounded-[var(--r)] border p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold">Entscheidungsaktionen</h3>
+          <h3 className="text-sm font-semibold">Abschlussknöpfe</h3>
           <p className="text-muted mt-1 max-w-[720px] text-xs leading-normal">
-            Ersetzt „Aufgabe abschließen“ durch fachliche Aktionen. Die festen Werte werden
-            beim Abschluss aus der veröffentlichten Formularversion gesetzt, nicht aus dem Browser.
-            Jedes Zielfeld muss als beschreibbares Feld im Formular vorhanden sein.
+            Welche Knöpfe soll die bearbeitende Person am Ende der Aufgabe sehen?
+            Zum Beispiel „Genehmigen“ oder „Ablehnen“. Ein Klick schließt die Aufgabe ab –
+            diese Knöpfe sind nicht „Weiter“ oder „Zurück“ innerhalb des Formulars.
           </p>
         </div>
         <Button
@@ -45,10 +48,10 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
           icon="add"
           disabled={actions.length >= 20}
           onClick={() => onChange([...actions, {
-            id: `action_${actions.length + 1}`,
-            label: `Aktion ${actions.length + 1}`,
+            id: `action_${nextNumber}`,
+            label: `Aktion ${nextNumber}`,
             variant: 'secondary',
-            set: [{ field: 'decision', value: `value_${actions.length + 1}` }],
+            set: [{ field: 'decision', value: `value_${nextNumber}` }],
           }])}
         >
           Aktion hinzufügen
@@ -57,24 +60,22 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
 
       {actions.length === 0 && (
         <div className="border-border text-muted mt-3 rounded-[var(--r-sm)] border border-dashed px-3 py-4 text-center text-xs">
-          Ohne Aktionsdefinition bleibt der generische Abschlussknopf erhalten.
+          Ohne eigene Knöpfe erscheint „Aufgabe abschließen“. Für Startformulare bleibt „Workflow starten“ zuständig.
         </div>
       )}
 
+      {actions.length > 0 && <div className="mt-4 rounded-[var(--r-sm)] border border-dashed border-border p-3">
+        <p className="text-muted mb-2 text-xs">So sehen die Abschlussknöpfe aus (nur Vorschau, ohne Ausführung):</p>
+        <div className="flex flex-wrap gap-2">{actions.map((action, index) =>
+          <Button key={index} size="sm" variant={action.variant} type="button">{action.label || 'Ohne Beschriftung'}</Button>
+        )}</div>
+      </div>}
       <div className="mt-3 space-y-3">
         {actions.map((action, actionIndex) => (
           <div key={actionIndex} className="bg-surface-2 border-border rounded-[var(--r-sm)] border p-3">
-            <div className="grid gap-3 md:grid-cols-[1fr_1.4fr_180px_auto]">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3">
               <label>
-                <FieldLabel>Stabile ID</FieldLabel>
-                <TextInput
-                  value={action.id}
-                  maxLength={64}
-                  onChange={(event) => updateAction(actionIndex, { ...action, id: event.target.value })}
-                />
-              </label>
-              <label>
-                <FieldLabel>Beschriftung</FieldLabel>
+                <FieldLabel>Knopftext</FieldLabel>
                 <TextInput
                   value={action.label}
                   maxLength={100}
@@ -91,9 +92,9 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
                     variant: event.target.value as FormDecisionActionVariant,
                   })}
                 >
-                  <option value="primary">Primär</option>
-                  <option value="secondary">Sekundär</option>
-                  <option value="danger">Kritisch</option>
+                  <option value="primary">Hervorgehoben</option>
+                  <option value="secondary">Neutral</option>
+                  <option value="danger">Warnend (z. B. Ablehnen)</option>
                 </select>
               </label>
               <Button
@@ -107,6 +108,22 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
               </Button>
             </div>
 
+            <p className="text-muted mt-2 text-xs">Beim Klick: Aufgabe abschließen
+              {action.set.length > 0 ? ` und ${action.set.length} Ergebniswert${action.set.length > 1 ? 'e' : ''} setzen.` : '. Noch kein Ergebnis konfiguriert.'}
+            </p>
+            <details className="mt-3 rounded border border-border p-3">
+              <summary className="cursor-pointer text-sm font-semibold">Erweitert: Ergebnis und technische ID</summary>
+              <p className="text-muted my-2 text-xs">Hier legst du fest, welches vorhandene, beschreibbare Formularfeld
+                der Server beim Abschluss setzt. Beispiel: Feld „decision“, Wert „approved“.
+                Ein Workflow kann danach anhand dieses Ergebnisses verzweigen. Die technische ID bestehender Knöpfe nicht ohne Prüfung ändern.</p>
+              <label>
+                <FieldLabel>Technische ID</FieldLabel>
+                <TextInput
+                  value={action.id}
+                  maxLength={64}
+                  onChange={(event) => updateAction(actionIndex, { ...action, id: event.target.value })}
+                />
+              </label>
             <div className="mt-3 space-y-2">
               {action.set.map((assignment, assignmentIndex) => {
                 const kind = valueKind(assignment.value);
@@ -210,6 +227,7 @@ export function FormDecisionActionsEditor({ actions, onChange }: FormDecisionAct
                 Feldbelegung hinzufügen
               </Button>
             </div>
+            </details>
           </div>
         ))}
       </div>

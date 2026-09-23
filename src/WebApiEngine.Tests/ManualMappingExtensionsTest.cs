@@ -479,7 +479,9 @@ public class ManualMappingExtensionsTest
         public Task<BpmnDefinition[]> GetAllDefinitions() => throw new NotSupportedException();
         public Task StoreDefinition(BpmnDefinition definition) => throw new NotSupportedException();
         public Task<Model.Version?> GetMaxVersionId(string modelId) => throw new NotSupportedException();
-        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        // Die Ablage ist leer: Jede Definition fehlt, so wie beide echten Ablagen es melden.
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) =>
+            throw new StorageSystem.Exceptions.DefinitionStorageNotFoundException($"No definition found for definitionId {id}");
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => throw new NotSupportedException();
         public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(Array.Empty<ExtendedBpmnMetaDefinition>());

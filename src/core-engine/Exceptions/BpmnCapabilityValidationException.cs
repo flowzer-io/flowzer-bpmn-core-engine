@@ -12,8 +12,12 @@ public sealed class BpmnCapabilityValidationException(
     string contractVersion,
     string message) : ModelValidationException(message)
 {
+    public IReadOnlyList<BpmnCapabilityIssue> Issues { get; init; } = [new(code, elementId, propertyPath, message)];
     public string Code { get; } = code;
     public string? ElementId { get; } = elementId;
     public string? PropertyPath { get; } = propertyPath;
     public string ContractVersion { get; } = contractVersion;
 }
+
+/// <summary>Wertearmer Befund für eine gemeinsame Veröffentlichungsprüfung.</summary>
+public sealed record BpmnCapabilityIssue(string Code, string? ElementId, string? PropertyPath, string Message);

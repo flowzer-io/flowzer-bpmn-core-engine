@@ -382,7 +382,10 @@ public class ServiceTaskJobServiceTest
             public IDefinitionStorage DefinitionStorage => throw new NotSupportedException();
             public IFolderStorage FolderStorage => throw new NotSupportedException();
             public IMessageSubscriptionStorage SubscriptionStorage => throw new NotSupportedException();
-            public IInstanceStorage InstanceStorage => throw new NotSupportedException();
+
+            // Der Fehlschlagpfad nimmt die Instanzsperre, bevor er den Auftrag neu liest.
+            // Ohne echte Ablage bleibt sie wirkungslos, muss aber aufrufbar sein.
+            public IInstanceStorage InstanceStorage { get; } = new LockOnlyInstanceStorage();
             public IFormStorage FormStorage => throw new NotSupportedException();
             public IServiceTaskStorage ServiceTaskStorage { get; } = serviceTaskStorage;
 
@@ -397,6 +400,22 @@ public class ServiceTaskJobServiceTest
             public void Dispose()
             {
             }
+        }
+
+        /// <summary>Nur die Mutationssperre; alles andere braucht die Auftragsvergabe nicht.</summary>
+        private sealed class LockOnlyInstanceStorage : IInstanceStorage
+        {
+            public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId) =>
+                throw new NotSupportedException();
+
+            public Task AddOrUpdateInstance(ProcessInstanceInfo processInstanceInfo) =>
+                throw new NotSupportedException();
+
+            public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() =>
+                throw new NotSupportedException();
+
+            public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() =>
+                throw new NotSupportedException();
         }
     }
 }

@@ -295,10 +295,21 @@ public class OpenApiContractTest
         GetResponseSchema(capabilities, "200").Should()
             .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
 
-        var validation = GetOperation(paths, "/Definition/validate", "post");
-        GetResponseSchema(validation, "200").Should()
-            .Be("#/components/schemas/BpmnCapabilityContractApiStatusResult");
-        GetProblemResponse(validation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+        // Die Pruefung liefert den Vertrag und zusaetzlich ihre Hinweise; der Vertrag selbst
+        // bleibt an derselben Stelle, damit bestehende Clients unveraendert lesen koennen.
+        foreach (var validationPath in new[] { "/Definition/validate", "/Definition/validate/deployment" })
+        {
+            var validation = GetOperation(paths, validationPath, "post");
+            GetResponseSchema(validation, "200").Should()
+                .Be("#/components/schemas/BpmnValidationResultDtoApiStatusResult");
+            GetProblemResponse(validation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
+        }
+
+        var validationProperties = document.RootElement.GetProperty("components").GetProperty("schemas")
+            .GetProperty("BpmnValidationResultDto").GetProperty("properties");
+        validationProperties.TryGetProperty("contractVersion", out _).Should().BeTrue();
+        validationProperties.TryGetProperty("elements", out _).Should().BeTrue();
+        validationProperties.TryGetProperty("warnings", out _).Should().BeTrue();
 
         foreach (var path in new[] { "/Definition", "/Definition/deploy" })
         {
@@ -307,6 +318,12 @@ public class OpenApiContractTest
                 .Be("#/components/schemas/BpmnDefinitionDtoApiStatusResult");
             GetProblemResponse(mutation, "422").Should().Be("#/components/schemas/BpmnCapabilityProblemDetails");
         }
+
+        // Auch der Erfolgsfall traegt seine Hinweise: Speichern und Veroeffentlichen melden,
+        // was auffiel, ohne dass es die Aktion verhindert haette.
+        document.RootElement.GetProperty("components").GetProperty("schemas")
+            .GetProperty("BpmnDefinitionDto").GetProperty("properties")
+            .TryGetProperty("warnings", out _).Should().BeTrue();
 
         var problemProperties = document.RootElement.GetProperty("components").GetProperty("schemas")
             .GetProperty("BpmnCapabilityProblemDetails").GetProperty("properties");

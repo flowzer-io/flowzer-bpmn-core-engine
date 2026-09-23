@@ -7,6 +7,7 @@ using WebApiEngine.Forms;
 using WebApiEngine.Idempotency;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Ai;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Middleware;
 
@@ -216,15 +217,8 @@ public static class ApiExceptionHandlingExtensions
                         Instance = context.Request.Path,
                         CapabilityContractVersion = capabilityFailure.ContractVersion,
                         TraceId = context.TraceIdentifier,
-                        Issues =
-                        [
-                            new BpmnCapabilityIssueDto(
-                                capabilityFailure.Code,
-                                "error",
-                                capabilityFailure.ElementId,
-                                capabilityFailure.PropertyPath,
-                                capabilityFailure.Message)
-                        ]
+                        Issues = capabilityFailure.Issues.Select(issue => new BpmnCapabilityIssueDto(
+                            issue.Code, "error", issue.ElementId, issue.PropertyPath, issue.Message)).ToArray()
                     };
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
                     return;
@@ -242,13 +236,22 @@ public static class ApiExceptionHandlingExtensions
                         Type = "about:blank",
                         Instance = context.Request.Path
                     };
+                    if (exception is FormPublicationValidationException
+                        {
+                            InnerException: FormContractException contractException
+                        })
+                    {
+                        // Formularreferenzen werden serverseitig validiert. Der stabile,
+                        // wertefreie Code ist fuer UI/SDK belastbarer als der Detailtext.
+                        problem.Extensions["code"] = contractException.Code;
+                    }
                     problem.Extensions["traceId"] = context.TraceIdentifier;
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
                     return;
                 }
                 context.Response.ContentType = "application/json";
 
-                var errorMessage = context.Response.StatusCode >= StatusCodes.Status500InternalServerError
+                var errorMessage = exception is BffSessionUnavailableException ? exception.Message : context.Response.StatusCode >= StatusCodes.Status500InternalServerError
                     ? "An unexpected server error occurred."
                     : exception.Message;
 
@@ -274,7 +277,7 @@ public static class ApiExceptionHandlingExtensions
                 or AiConnectionConflictException
                 or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
-            UserTaskNotificationUnavailableException => StatusCodes.Status503ServiceUnavailable,
+            UserTaskNotificationUnavailableException or BffSessionUnavailableException => StatusCodes.Status503ServiceUnavailable,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,
             ArgumentException or FormatException or JsonException => StatusCodes.Status400BadRequest,
             UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
@@ -285,8 +288,13 @@ public static class ApiExceptionHandlingExtensions
             // and not default for Exclusive Gateway" muss die modellierende Person
             // lesen können — als 500 würde sie maskiert und wäre in der Oberfläche
             // nicht diagnostizierbar.
+            // Eine DMN-Datei, die sich nicht lesen laesst, und eine Tabelle, die ihrer eigenen
+            // Trefferregel widerspricht, sind fachliche Fehler im Modell — dieselbe Einordnung
+            // wie beim BPMN. Die Meldung des DMN-Kerns nennt die Decision und die Regeln und
+            // muss die modellierende Person erreichen, statt als 500 maskiert zu werden.
             FormSubmissionException or FormPublicationValidationException or FlowzerRuntimeException
-                or FlowzerModelParseException or ModelValidationException =>
+                or FlowzerModelParseException or ModelValidationException
+                or FlowzerDmn.Exceptions.DmnException =>
                 StatusCodes.Status422UnprocessableEntity,
 
             _ => StatusCodes.Status500InternalServerError

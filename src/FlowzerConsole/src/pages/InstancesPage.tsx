@@ -1,40 +1,36 @@
 import { useNavigate } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
+import { InstanceFilterBar } from '@/components/instances/InstanceFilterBar';
+import {
+  INSTANCE_GRID,
+  INSTANCE_SELECTION_CELL,
+  InstanceListRow,
+} from '@/components/instances/InstanceListRow';
+import { InstanceSelectionBar } from '@/components/instances/InstanceSelectionBar';
 import { Card, EmptyState } from '@/components/ui/Card';
-import { Chip } from '@/components/ui/Chip';
 import { SearchInput } from '@/components/ui/Field';
-import { Icon } from '@/components/ui/Icon';
 import { PageContainer, PageHeader } from '@/components/ui/PageHeader';
 import { Segmented } from '@/components/ui/Segmented';
 import { ErrorState, LoadingRows } from '@/components/ui/States';
 import { instanceBucket, type InstanceBucket } from '@/lib/api/normalize';
 import { useInstances } from '@/lib/api/queries';
-import { formatTimestamp, parseApiDate, shortId } from '@/lib/format';
+import { parseApiDate } from '@/lib/format';
 import { nodeLabel } from '@/lib/bpmnModel';
 import {
-  BUCKET_LABEL,
-  BUCKET_TONE,
-  currentToken,
-  STATE_LABEL,
-  useDefinitionModels,
-  waitingBadges,
-} from '@/lib/instanceView';
+  matchesInstanceFilter, normalizeInstanceFilter, NO_INSTANCE_FILTER, type InstanceFilter,
+} from '@/lib/instanceFilter';
+import { isMigrationCandidate } from '@/lib/instanceMigration';
+import { BUCKET_LABEL, currentToken, useDefinitionModels } from '@/lib/instanceView';
 
 type Filter = InstanceBucket | 'all';
-
-/**
- * Die Tabellenspalten gelten erst ab `md`. Auf einem Telefon blieben von fuenf festen
- * Spalten Streifen von wenigen Zentimetern uebrig — die Ueberschriften ueberlagerten
- * sich gegenseitig und vom Workflownamen war nichts mehr zu lesen. Dort wird aus der
- * Zeile eine Karte: Name und Schritt je eine eigene Zeile, der Rest laeuft darunter um.
- */
-const GRID = 'md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.5fr)_150px_104px_116px]';
 
 export function InstancesPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<Filter>('active');
   const [search, setSearch] = useState('');
+  const [chosenFilter, setChosenFilter] = useState<InstanceFilter>(NO_INSTANCE_FILTER);
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const instancesQuery = useInstances();
   const instances = useMemo(() => instancesQuery.data ?? [], [instancesQuery.data]);
@@ -46,30 +42,55 @@ export function InstancesPage() {
     [instances],
   ));
 
+  // Aus dem Bestand abgeleitet statt gespiegelt: Verschwindet ein Workflow oder eine Version
+  // beim Neuladen, greift die zugehörige Einschränkung nicht mehr.
+  const activeFilter = useMemo(() => normalizeInstanceFilter(chosenFilter, instances), [chosenFilter, instances]);
+
+  // Zählmarken und Liste teilen sich denselben Vorrat; nur so nennen die Zahlen an den
+  // Statusfiltern genau das, was darunter steht.
+  const matching = useMemo(
+    () => instances.filter((instance) => matchesInstanceFilter(instance, activeFilter, search)),
+    [instances, activeFilter, search],
+  );
+
   const counts = useMemo(() => {
-    const result = { all: instances.length, active: 0, done: 0, error: 0 };
-    for (const instance of instances) result[instanceBucket(instance.state)] += 1;
+    const result = { all: matching.length, active: 0, done: 0, error: 0 };
+    for (const instance of matching) result[instanceBucket(instance.state)] += 1;
     return result;
-  }, [instances]);
+  }, [matching]);
 
-  const visible = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    return instances
+  const visible = useMemo(
+    () => matching
       .filter((instance) => filter === 'all' || instanceBucket(instance.state) === filter)
-      .filter(
-        (instance) =>
-          term.length === 0 ||
-          instance.relatedDefinitionName.toLowerCase().includes(term) ||
-          instance.instanceId.toLowerCase().includes(term) ||
-          shortId(instance.instanceId).toLowerCase().includes(term),
-      )
       .sort((a, b) => {
         const aTime = parseApiDate(a.startedAt)?.getTime() ?? 0;
         const bTime = parseApiDate(b.startedAt)?.getTime() ?? 0;
         return bTime - aTime;
-      });
-  }, [instances, filter, search]);
+      }),
+    [matching, filter],
+  );
+
+  // Die Auswahlspalte erscheint nur, wenn überhaupt etwas auszuwählen ist — sonst stünde
+  // in jeder Zeile eine leere Spalte, die nichts erklärt.
+  const selectable = useMemo(
+    () => new Set(visible.filter(isMigrationCandidate).map((instance) => instance.instanceId)),
+    [visible],
+  );
+  // Aus dem aktuellen Bestand abgeleitet: Endet eine ausgewählte Instanz inzwischen, fällt sie
+  // aus der Auswahl, statt ohne Kästchen — und damit unabwählbar — mitgezählt zu werden.
+  const selected = useMemo(
+    () => instances.filter((instance) => selectedIds.has(instance.instanceId) && isMigrationCandidate(instance)),
+    [instances, selectedIds],
+  );
+
+  function toggleSelected(instanceId: string, on: boolean) {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (on) next.add(instanceId);
+      else next.delete(instanceId);
+      return next;
+    });
+  }
 
   const filterOptions = [
     { value: 'all' as const, label: 'Alle', count: counts.all },
@@ -101,15 +122,29 @@ export function InstancesPage() {
         />
       </div>
 
+      <InstanceFilterBar
+        instances={instances}
+        filter={activeFilter}
+        onChange={setChosenFilter}
+        resultCount={visible.length}
+      />
+
+      {selected.length > 0 && (
+        <InstanceSelectionBar selected={selected} onClear={() => setSelectedIds(new Set())} />
+      )}
+
       <Card>
-        <div
-          className={`bg-surface-2 text-muted grid max-md:hidden ${GRID} items-center gap-4 px-[18px] py-2.5 font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase`}
-        >
-          <div>Workflow</div>
-          <div>Aktueller Schritt</div>
-          <div>Warteobjekte</div>
-          <div>Status</div>
-          <div>Gestartet</div>
+        <div className="bg-surface-2 flex items-center max-md:hidden">
+          {selectable.size > 0 && <div className={INSTANCE_SELECTION_CELL} />}
+          <div
+            className={`text-muted grid flex-1 ${INSTANCE_GRID} items-center gap-4 px-[18px] py-2.5 font-mono text-[10.5px] font-semibold tracking-[0.1em] uppercase`}
+          >
+            <div>Workflow</div>
+            <div>Aktueller Schritt</div>
+            <div>Warteobjekte</div>
+            <div>Status</div>
+            <div>Gestartet</div>
+          </div>
         </div>
 
         {instancesQuery.isPending && <LoadingRows rows={5} />}
@@ -134,53 +169,29 @@ export function InstancesPage() {
         )}
 
         {visible.map((instance) => {
-          const bucket = instanceBucket(instance.state);
-          const tone = BUCKET_TONE[bucket];
           const model = models.get(instance.definitionId);
           const token = currentToken(instance);
-          const badges = waitingBadges(instance);
 
           const stepName = instance.canInspect === false ? 'Vorgangsübersicht' : model
             ? nodeLabel(model, token?.currentFlowNodeId)
             : (token?.currentFlowElement?.Name ?? token?.currentFlowNodeId ?? '—');
 
           return (
-            <button
+            <InstanceListRow
               key={instance.instanceId}
-              type="button"
-              onClick={() => void navigate({ to: `/instances/${instance.instanceId}` })}
-              className={`border-border hover:bg-inset text-text flex w-full flex-wrap items-center gap-x-3 gap-y-2 md:grid ${GRID} cursor-pointer md:items-center md:gap-4 border-t border-x-0 border-b-0 bg-transparent px-[18px] py-3.5 text-left`}
-            >
-              <div className="w-full min-w-0 md:w-auto">
-                <div className="truncate text-[14.5px] font-semibold">{instance.relatedDefinitionName}</div>
-                <div className="text-faint mt-0.5 font-mono text-xs">#{shortId(instance.instanceId)}</div>
-              </div>
-
-              <div className="w-full min-w-0 md:w-auto">
-                <div className="text-muted truncate text-[13px]">
-                  {bucket === 'done' ? 'Abgeschlossen' : stepName}
-                </div>
-              </div>
-
-              <div className="flex gap-1.5">
-                {badges.map((badge) => (
-                  <span
-                    key={badge.icon}
-                    title={`${badge.count} ${badge.title}`}
-                    className="bg-surface-2 text-muted inline-flex items-center gap-1 rounded-[7px] px-2 py-0.5 text-xs font-semibold"
-                  >
-                    <Icon name={badge.icon} size={15} />
-                    {badge.count}
-                  </span>
-                ))}
-              </div>
-
-              <div>
-                <Chip tone={tone}>{STATE_LABEL[instance.state]}</Chip>
-              </div>
-
-              <div className="text-muted font-mono text-xs">{formatTimestamp(instance.startedAt)}</div>
-            </button>
+              instance={instance}
+              stepName={stepName}
+              onOpen={() => void navigate({ to: `/instances/${instance.instanceId}` })}
+              selection={
+                selectable.size > 0
+                  ? {
+                      selectable: selectable.has(instance.instanceId),
+                      selected: selectedIds.has(instance.instanceId),
+                      onChange: (on) => toggleSelected(instance.instanceId, on),
+                    }
+                  : undefined
+              }
+            />
           );
         })}
       </Card>

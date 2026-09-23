@@ -19,6 +19,14 @@ public interface IDefinitionStorage
     Task<BpmnDefinition> GetLatestDefinition(string definitionId);
     Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId);
 
+    /// <summary>
+    /// Serialisiert Versionsvergabe und Deployment desselben Workflows innerhalb der aktuellen
+    /// Storage-Transaktion. Ohne diese Sperre lesen zwei API-Prozesse dieselbe hoechste
+    /// Version bzw. dieselbe deployte Version und schalten danach beide ihre eigene aktiv.
+    /// Ein Einzelprozess-Adapter darf sich auf seine Anwendungs-Sperre verlassen.
+    /// </summary>
+    Task LockForDefinitionChange(string definitionId) => Task.CompletedTask;
+
     #region "Meta"
 
     Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions();

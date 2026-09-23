@@ -8,6 +8,17 @@ import { useSession } from '@/stores/session';
  */
 export function SignInGate({ status }: { status: 'unknown' | 'anonymous' | 'signed-in' }) {
   const signIn = useSession((state) => state.signIn);
+  const sessionError = useSession((state) => state.sessionError);
+  const refresh = useSession((state) => state.refresh);
+
+  if (sessionError) {
+    return <div className="grid h-screen place-items-center px-6">
+      <div role="alert" className="text-center">
+        <p className="mb-4">{sessionError}</p>
+        <Button onClick={() => void refresh()}>Erneut prüfen</Button>
+      </div>
+    </div>;
+  }
 
   if (status === 'unknown') {
     return (

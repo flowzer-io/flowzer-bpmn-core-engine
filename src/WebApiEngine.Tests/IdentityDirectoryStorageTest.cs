@@ -26,6 +26,10 @@ public sealed class IdentityDirectoryStorageTest
         var initialFinanceId = initiallyPublished.Groups.Single().Id;
 
         var second = CreateSnapshot("anna", "finance", "Accounting", "/finance");
+        // Testzweck: Optionale Profilfelder kommen beim nächsten Vollabgleich hinzu und
+        // bleiben auch nach einer späteren Deaktivierung historisch darstellbar.
+        second.Users.Single().Email = "anna@example.test";
+        second.Users.Single().Username = "anna";
         await StartSync(context.Storage.IdentityDirectoryStorage, second);
         await context.Storage.IdentityDirectoryStorage.PublishSnapshot(second);
 
@@ -49,6 +53,8 @@ public sealed class IdentityDirectoryStorageTest
 
         var withHistory = (await context.Storage.IdentityDirectoryStorage.GetActiveSnapshot())!;
         withHistory.Users.Should().ContainSingle().Which.IsActive.Should().BeFalse();
+        withHistory.Users.Single().Email.Should().Be("anna@example.test");
+        withHistory.Users.Single().Username.Should().Be("anna");
         withHistory.Groups.Should().ContainSingle().Which.IsActive.Should().BeFalse();
         withHistory.Memberships.Should().BeEmpty();
         var status = (await context.Storage.IdentityDirectoryStorage.GetSyncStatus())!;

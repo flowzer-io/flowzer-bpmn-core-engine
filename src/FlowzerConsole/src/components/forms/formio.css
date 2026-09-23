@@ -320,7 +320,7 @@
 
 .formio-surface :where(input.form-control, textarea.form-control, select.form-control, .form-control),
 .formio-dialog :where(input.form-control, textarea.form-control, select.form-control, .form-control) {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   box-sizing: border-box;
@@ -336,6 +336,22 @@
   border-color: var(--accent);
   box-shadow: none;
   outline: none;
+}
+
+/*
+ * Gesperrte Felder. Form.io setzt `disabled` am Feld selbst, auch wenn das ganze Formular
+ * nur gelesen wird. Ohne diese Regel sah ein gesperrtes Feld exakt wie ein bedienbares aus.
+ * Nicht nur Farbe: Der Mauszeiger sagt dasselbe. `readonly` gehoert bewusst nicht dazu —
+ * flatpickr setzt es an bedienbaren Datumsfeldern, damit nur der Kalender schreibt.
+ */
+.formio-surface :where(input.form-control, textarea.form-control, select.form-control):disabled,
+.formio-dialog :where(input.form-control, textarea.form-control, select.form-control):disabled,
+/* Form.io faerbt gesperrte Datumsfelder dreistufig fest auf #eee — im dunklen Thema ein heller Block. */
+.formio-surface .formio-disabled-input .form-control.flatpickr-input,
+.formio-dialog .formio-disabled-input .form-control.flatpickr-input {
+  background: var(--field-disabled);
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 .formio-surface .form-control::placeholder,
@@ -543,6 +559,28 @@
 
 /* --------------------------------------------------------------- Flaechen des Editors */
 
+/* Nicht nach der Fensterbreite nur 2/12 Spalten zuweisen: Die App-Navigation
+ * verbraucht bereits Platz, deutsche Feldnamen brauchen eine lesbare Palette. */
+.formio-builder .formbuilder > .formcomponents {
+  flex: 0 0 210px;
+  width: 210px;
+  max-width: 100%;
+}
+
+.formio-builder .formbuilder > .formarea {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .formio-builder .formbuilder > .formcomponents,
+  .formio-builder .formbuilder > .formarea {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+}
+
 .formio-builder .builder-sidebar {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -572,6 +610,9 @@
 }
 
 .formio-builder .formcomponent {
+  /* Lange deutsche Bezeichnungen bleiben auch in schmalen Paletten lesbar. */
+  white-space: normal;
+  overflow-wrap: anywhere;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -615,6 +656,29 @@
   outline: 1px solid var(--border-strong);
 }
 
+/* Form.io versteckt Werkzeuge sonst ausschließlich hinter Hover. Auf schmalen
+ * Touch-Geräten müssen Bearbeiten/Entfernen ohne Maus erreichbar bleiben. */
+.formio-builder .builder-component:focus-within > .component-btn-group {
+  display: flex;
+}
+
+@media (hover: none), (max-width: 640px) {
+  .formio-builder .builder-component > .component-btn-group {
+    display: flex;
+    position: relative;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .formio-builder .component-btn-group .component-settings-button {
+    min-width: 36px;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 /* ------------------------------------------------------------------ Code-Editoren */
 
 /*
@@ -625,7 +689,7 @@
  */
 .formio-surface .ace_editor,
 .formio-dialog .ace_editor {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -682,7 +746,7 @@
  */
 .formio-surface .choices__inner,
 .formio-dialog .choices__inner {
-  background: var(--inset);
+  background: var(--field);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text);
@@ -748,8 +812,8 @@
 .formio-dialog .choices.is-disabled .choices__inner,
 .formio-surface .choices.is-disabled .choices__input,
 .formio-dialog .choices.is-disabled .choices__input {
-  background-color: var(--surface-2);
-  color: var(--faint);
+  background-color: var(--field-disabled);
+  color: var(--muted);
 }
 
 /* Das Dreieck der Einfachauswahl ist eine Rahmenfarbe, kein Zeichen. */

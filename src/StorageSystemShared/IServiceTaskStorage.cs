@@ -43,6 +43,28 @@ public interface IServiceTaskStorage
 
     Task RemoveJobsByInstanceId(Guid processInstanceId);
 
+    /// <summary>
+    /// Bindet alle Auftraege einer Instanz auf <paramref name="definitionId"/> um und liefert
+    /// deren Anzahl. Es darf sich ausschliesslich die Versionsbindung aendern — und fuer die in
+    /// <paramref name="movedTokens"/> genannten Tokens zusaetzlich der Knoten, auf dem sie nach
+    /// einer Zuordnung von Hand stehen. Vergabezustand, Versuche und Auftragstyp bleiben
+    /// unberuehrt; der Typ ist ohnehin Voraussetzung einer zulaessigen Zuordnung.
+    ///
+    /// Muss atomar sein und den Vergabezustand unter der Zeilensperre neu lesen: Vergabe,
+    /// Heartbeat und Fehlermeldung laufen ohne die Engine-Sperre. Ein Lese-Aendern-Schreiben
+    /// ueber den ganzen Auftrag ueberschriebe eine dazwischen erteilte Lease, und ein zweiter
+    /// Worker bekaeme denselben Auftrag mit Seiteneffekt ein zweites Mal. Genau deshalb gehoert
+    /// auch der Knotenwechsel hierher und nicht in die Geschaeftslogik.
+    ///
+    /// Bewusst ohne stillen Standard, wie beim Loeschen einer Instanz: Eine Ablage, die
+    /// Auftraege fuehrt, aber diesen Vertrag nicht kennt, liesse sie sonst an der Quellversion.
+    /// </summary>
+    Task<int> RebindJobsOfInstance(
+        Guid processInstanceId,
+        Guid definitionId,
+        IReadOnlyDictionary<Guid, ServiceTaskJobNode>? movedTokens = null) =>
+        throw new NotSupportedException($"{GetType().Name} unterstuetzt das Umbinden von Auftraegen nicht.");
+
     Task SaveWebhook(ServiceTaskWebhook webhook);
 
     Task<ServiceTaskWebhook?> GetWebhook(Guid webhookId);
@@ -51,3 +73,10 @@ public interface IServiceTaskStorage
 
     Task RemoveWebhook(Guid webhookId);
 }
+
+/// <summary>
+/// Der Knoten der Zielversion, auf dem ein Token nach einer Zuordnung von Hand steht. Ein
+/// Auftrag, der weiter Kennung und Namen des verlassenen Knotens truege, wiese Worker und
+/// Diagnose auf eine Stelle, an der die Instanz nicht mehr ist.
+/// </summary>
+public sealed record ServiceTaskJobNode(string FlowNodeId, string Name);

@@ -16,6 +16,27 @@ nachjustieren**, nicht zeichnen: Schritte untereinander, parallele Blöcke
 eingerückt, Tore als Verzweigung mit ihren Bedingungen, Formular, Zuweisung
 und Frist direkt am Schritt bearbeitbar.
 
+## Ansichtswechsel und ungespeicherte Änderungen
+
+Diagramm und Gliederung teilen während eines Editorbesuchs denselben Arbeitsstand.
+Der Wechsel übernimmt Änderungen **ohne Speichern und ohne neue Serverversion**;
+auch Browser-Zurück zwischen diesen beiden Ansichten übernimmt den Stand.
+Eine nur lesbare Gliederung reicht das ursprüngliche XML unverändert zurück.
+Kann eine bearbeitete Gliederung nicht verlustfrei übertragen werden, bleibt sie
+mit einer erklärenden Meldung geöffnet, statt Eingaben zu verwerfen.
+
+Beim Verlassen des Editors fragt die Konsole nach: Abbrechen erhält die Änderungen,
+bewusstes Verwerfen öffnet beim nächsten Besuch wieder den gespeicherten Stand.
+Beim Neuladen oder Schließen eines Tabs verwendet sie die native Browserwarnung.
+Deren Wortlaut bestimmt der Browser; insbesondere mobile Betriebssysteme können
+sie beim Beenden einer App unterdrücken. Das ist keine automatische Sicherung.
+Der Arbeitsstand bleibt ausschließlich im Arbeitsspeicher, nicht in Browser-Storage.
+
+Hintergrundabfragen ersetzen den geöffneten Stand nicht. Ein laufender
+Speichervorgang wird auch beim Ansichtswechsel zu Ende ausgewertet; nachträgliche
+Änderungen bleiben ungespeichert markiert. Erst ein bestätigtes Speichern desselben
+Standes entfernt die Verlustwarnung.
+
 ## Die harte Regel
 
 > Ein Modell, das die Gliederung nicht vollständig abbilden kann, darf sie
@@ -40,12 +61,15 @@ Das ist keine Absichtserklärung, sondern zweifach abgesichert:
 Ein Blocker führt zu einem von zwei Zuständen, die sich für den Nutzer
 grundverschieden anfühlen:
 
-- **Das Modell lässt sich nicht zerlegen.** Dann gibt es gar keine Gliederung:
-  Die Seite zeigt nur die Meldungen und den Weg ins Diagramm.
+- **Das Modell lässt sich nicht zerlegen.** Dann zeigt die Seite eine schreibgeschützte
+  Knoten-/Verbindungsübersicht mit Sprungzielen ins Diagramm. Sie behauptet keine
+  lineare Ausführungsreihenfolge und verändert das Originalmodell nicht.
 - **Die Gliederung steht, eine Angabe fehlt** — etwa ein Formular an einer
   Aufgabe oder eine Bedingung an einem Zweig. Dann ist die Liste sichtbar und
-  bearbeitbar, Speichern und Deployen sind gesperrt, bis die Lücke geschlossen
-  ist.
+  bearbeitbar und als Entwurf speicherbar. Nur Veröffentlichen ist gesperrt,
+  bis die Lücke geschlossen ist. Auch Start/Sequenz ohne Ende bleibt als Entwurf
+  speicherbar und wieder bearbeitbar. Verlustbehaftete Umwandlungen bleiben gesperrt;
+  das BPMN-Diagramm ist dafür weiterhin die vollständige Bearbeitungsansicht.
 
 Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 über die der Nutzer Bescheid wissen soll.
@@ -63,6 +87,10 @@ Eine Meldung der Stufe **Hinweis** sperrt nichts; sie sagt eine Nebenwirkung an,
 | `bpmn:sequenceFlow` | `name` und `conditionExpression` nur an den Ausgängen einer Verzweigung; an einem anderen Fluss werden sie gemeldet, weil die Gliederung sie nicht zeigt |
 | `bpmn:process/bpmn:extensionElements/zeebe:userTaskForm` | Formulare, die der Workflow selbst mitbringt. Sie werden unverändert weitergereicht und im Diagramm bearbeitet, nicht in der Gliederung — ein Verweis darauf ist eine Kennung, kein Name |
 | `bpmndi:BPMNDiagram` | wird gelesen, aber nicht ausgewertet (siehe „Anordnung") |
+
+Generische `bpmn:task` und `bpmn:manualTask` werden ebenfalls unverändert als
+Schritte erhalten. Ihre Darstellung ist keine Runtime-Freigabe; darüber entscheidet
+weiter die serverseitige Veröffentlichungskontrolle.
 
 ### Startformular
 

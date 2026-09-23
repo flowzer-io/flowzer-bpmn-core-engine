@@ -1,4 +1,5 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { forwardRef, useContext, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 // Alle Stilblätter in fester Reihenfolge; siehe formioStyles.ts.
 import './formioStyles';
@@ -9,6 +10,7 @@ import {
 } from './FlowzerSubjectComponent';
 import { FormDecisionActionsEditor } from './FormDecisionActionsEditor';
 import { registerFormSectionComponent } from './FormSectionComponent';
+import { registerFormLibraryComponent } from './FormLibraryComponent';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
@@ -24,9 +26,8 @@ export interface FormBuilderHandle {
 }
 
 interface FormBuilderProps {
+  formId?: string;
   schema: string | undefined;
-  /** Abschnittsentwuerfe besitzen bewusst keine eigenen Root-Entscheidungsaktionen. */
-  contractScope?: 'form' | 'section';
   onChange?: () => void;
   /**
    * Meldet, ob der Editor sein Schema herausgeben kann. Erst dann darf eine Oberflaeche
@@ -38,6 +39,7 @@ interface FormBuilderProps {
 
 interface BuilderInstance {
   form: unknown;
+  addNewComponent?: (element: HTMLElement) => void;
   schema: unknown;
   on: (event: string, callback: () => void) => void;
   destroy: () => void;
@@ -53,9 +55,10 @@ const EMPTY_SCHEMA = { display: 'form', components: [] };
  * verlustbehaftete Zwischenrepräsentation.
  */
 export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(function FormBuilder(
-  { schema, contractScope = 'form', onChange, onReadyChange, className },
+  { schema, formId, onChange, onReadyChange, className },
   ref,
 ) {
+  const queryClient = useContext(QueryClientContext);
   const containerRef = useRef<HTMLDivElement>(null);
   const builderRef = useRef<BuilderInstance | null>(null);
   const onChangeRef = useRef(onChange);
@@ -76,15 +79,13 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         if (!builder) throw new Error('Der Formular-Editor ist noch nicht bereit.');
         const current = builder.form ?? builder.schema ?? EMPTY_SCHEMA;
         return JSON.stringify(
-          ensureFlowzerSubjectContract(contractScope === 'form'
-            ? writeFormDecisionActions(current, actionsRef.current)
-            : current),
+          ensureFlowzerSubjectContract(writeFormDecisionActions(current, actionsRef.current)),
           null,
           2,
         );
       },
     }),
-    [contractScope],
+    [],
   );
 
   useEffect(() => {
@@ -116,12 +117,6 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       onReadyChangeRef.current?.(false);
       return;
     }
-    if (contractScope === 'section' && actionInspection.actions.length > 0) {
-      setStatus('error');
-      setError('Abschnittsentwürfe dürfen keine eigenen Entscheidungsaktionen enthalten.');
-      onReadyChangeRef.current?.(false);
-      return;
-    }
 
     async function create() {
       const container = containerRef.current;
@@ -133,11 +128,22 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       try {
         const { Formio } = await import('@formio/js');
         registerFlowzerSubjectComponent(Formio);
+        registerFormLibraryComponent(Formio);
         registerFormSectionComponent(Formio);
         if (disposed) return;
 
         const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
+          keyboardBuilder: true,
+          language: 'de',
+          i18n: { de: { searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
+            Basic: 'Felder', Advanced: 'Weitere Felder', Layout: 'Bereiche & Layout', Data: 'Daten', Premium: 'Weitere Komponenten',
+            'Text Field': 'Textfeld', 'Text Area': 'Mehrzeiliger Text', Number: 'Zahl', Password: 'Passwort', Checkbox: 'Ja / Nein',
+            'Select Boxes': 'Mehrfachauswahl', Select: 'Auswahlliste', Radio: 'Einfachauswahl', Button: 'Schaltfläche',
+            component: '– Einstellungen', help: 'Hilfe', save: 'Übernehmen', cancel: 'Abbrechen', remove: 'Entfernen',
+            preview: 'Vorschau', showPreview: 'Vorschau anzeigen', hidePreview: 'Vorschau ausblenden' } },
+          flowzerAuthoringFormId: formId,
+          flowzerQueryClient: queryClient,
         })) as unknown as { instance: BuilderInstance } & BuilderInstance;
 
         const instance = builder.instance ?? builder;
@@ -172,11 +178,15 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
       if (builderRef.current === ownedInstance) builderRef.current = null;
       host.remove();
     };
-  }, [contractScope, schema]);
+  }, [schema, formId, queryClient]);
 
   return (
     <div className={cn('formio-builder formio-surface relative', className)}>
-      <div ref={containerRef} />
+      <div ref={containerRef} onClick={(event) => {
+        // Derselbe Herstellerpfad wie bei Enter: auch per Klick/Touch ohne Drag-and-drop einfügen.
+        const paletteItem = (event.target as HTMLElement).closest<HTMLElement>('[ref="sidebar-component"]');
+        if (paletteItem && containerRef.current?.contains(paletteItem)) builderRef.current?.addNewComponent?.(paletteItem);
+      }} />
       {status === 'loading' && (
         <div className="py-8">
           <InlineSpinner label="Formular-Editor wird geladen …" />
@@ -187,7 +197,7 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
           {error}
         </div>
       )}
-      {status === 'ready' && contractScope === 'form' && (
+      {status === 'ready' && (
         <FormDecisionActionsEditor
           actions={actions}
           onChange={(next) => {

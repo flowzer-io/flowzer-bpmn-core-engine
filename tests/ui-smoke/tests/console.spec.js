@@ -155,8 +155,8 @@ async function seedFormTask(request) {
   </bpmn:process>
 </bpmn:definitions>`;
   await deployDefinition(request, { xml });
-  await startProcessInstance(request, { definitionId });
-  return { name, formularName };
+  const instance = await startProcessInstance(request, { definitionId });
+  return { name, formularName, definitionId, instance, taskId: `Task_${marke}` };
 }
 
 /**
@@ -451,7 +451,7 @@ function buildOutlineXml({ definitionId, marke, formularName }) {
 }
 
 /** Ein Ablauf mit einer Aufgabe, die die Gliederung nicht kennt: eine schlichte `bpmn:task`. */
-function buildUnsupportedXml({ definitionId, marke }) {
+function buildGenericTaskXml({ definitionId, marke }) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
                   id="${definitionId}" targetNamespace="http://bpmn.io/schema/bpmn">
@@ -492,7 +492,8 @@ test.describe('Konsole', () => {
     ['/workflows', 'Workflows', (page) => page.getByRole('heading', { name: 'Workflows', level: 1 })],
     ['/instances', 'Instanzen', (page) => page.getByRole('heading', { name: 'Instanzen', level: 1 })],
     ['/forms', 'Formulare', (page) => page.getByRole('heading', { name: 'Formulare', level: 1 })],
-    ['/form-sections', 'Formularabschnitte', (page) => page.getByRole('heading', { name: 'Formularabschnitte', level: 1 })],
+    // Das alte Lesezeichen bleibt kompatibel, zeigt aber bewusst denselben Formularkatalog.
+    ['/form-sections', 'Formulare über die frühere Abschnittsroute', (page) => page.getByRole('heading', { name: 'Formulare', level: 1 })],
     ['/tasks', 'Aufgaben', (page) => page.getByText('Zu erledigen', { exact: true })]
   ]) {
     // Testzweck: Jede Hauptseite zeichnet ihren Inhalt — eine Seite, die beim Laden
@@ -503,6 +504,18 @@ test.describe('Konsole', () => {
       await expect(locate(page)).toBeVisible();
     });
   }
+
+  // Testzweck: Echte API-/Runtime-Daten ohne BPMN-DI müssen die wartende Aufgabe
+  // samt Marker sichtbar machen; ein reiner Mock der Diagrammantwort verdeckt diesen Fehler.
+  test('Eine Instanz ohne Diagrammkoordinaten zeigt den aktiven Schritt', async ({ page, request }) => {
+    const { instance, taskId, definitionId } = await seedFormTask(request);
+    await page.goto(`/instances/${instance.instanceId}`);
+    await expect(shapeOf(page, taskId)).toBeVisible();
+    await expect(shapeOf(page, taskId)).toHaveClass(/flowzer-active/);
+    await expect(page.locator('.flowzer-token[title="1 aktive Ausführung"]')).toBeVisible();
+    await page.goto(`/workflows/${definitionId}`);
+    await expect(shapeOf(page, taskId)).toBeVisible();
+  });
 
   // Testzweck: Die Konsole spricht die API ueber denselben Ursprung an. Antwortete das
   // Gateway auf einen API-Pfad mit der Startseite, bliebe der Katalog leer statt zu
@@ -532,9 +545,42 @@ test.describe('Konsole', () => {
 
     // Die Palette wird erst gezeichnet, wenn bpmn-js vollstaendig hochgelaufen ist.
     await expect(page.locator('.djs-palette')).toBeVisible();
-    // Die eigene KI-Kachel bleibt ein Service-Task, muss aber als eigener Autorenweg
-    // auffindbar sein und darf nicht hinter dem generischen Worker versteckt bleiben.
-    await expect(page.locator('.djs-palette [data-action="create.flowzer-ai-task"]')).toBeVisible();
+    // KI wird über denselben Aufgabentyp-Dialog wie Human/Manual gewählt.
+    await expect(page.locator('.djs-palette [data-action="create.flowzer-ai-task"]')).toHaveCount(0);
+  });
+
+  // Testzweck: KI erscheint im normalen BPMN-Typmenü. Ein einziger Undo stellt die
+  // ursprüngliche menschliche Aufgabe inklusive Formular wieder her; kein Sonderreiter.
+  test('KI-Task lässt sich im Aufgabentypmenü auswählen und atomar zurücknehmen', async ({ page, request }) => {
+    const { definitionId, userTaskId } = await seedModelerWorkflow(request);
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await shapeOf(page, userTaskId).click();
+    await page.locator('.djs-context-pad [data-action="replace"]').click();
+    await page.getByText('KI-Task', { exact: true }).click();
+    await expect(page.getByText('KI-Aufgabe', { exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Ausführungsart des Service-Tasks' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Rückgängig', exact: true }).click();
+    await shapeOf(page, userTaskId).click();
+    await expect(page.getByText('Formular', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('KI-Aufgabe', { exact: true })).toHaveCount(0);
+  });
+
+  // Testzweck: Eine KI-Aufgabe ohne Verbindung und Datenzuordnung ist speicherbar;
+  // nur Veröffentlichung zeigt einen verständlichen Fehler mit direktem Sprungziel.
+  test('Unvollständige KI-Aufgabe lässt sich speichern, aber nicht veröffentlichen', async ({ page, request }) => {
+    const { definitionId, userTaskId } = await seedModelerWorkflow(request);
+    await page.goto(`/workflows/${encodeURIComponent(definitionId)}`);
+    await shapeOf(page, userTaskId).click();
+    await page.locator('.djs-context-pad [data-action="replace"]').click();
+    await page.getByText('KI-Task', { exact: true }).click();
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect(page.getByText(/Entwurf v.* gespeichert/)).toBeVisible();
+    await page.reload();
+    await shapeOf(page, userTaskId).click();
+    await expect(page.getByText('KI-Aufgabe', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Veröffentlichen', exact: true }).click();
+    await expect(page.getByRole('button', { name: `Befund an Element ${userTaskId} anwählen` })).toContainText('Verbindung');
+    await expect(page.getByRole('button', { name: 'Speichern', exact: true })).toBeEnabled();
   });
 
   // Testzweck: Das Panel des Modelers ist ein eigenes und zeigt Flowzers Begriffe statt des
@@ -622,9 +668,9 @@ test.describe('Konsole', () => {
     await schluessel.fill('=antragsnummer');
     await schluessel.press('Enter');
 
-    // Erst das Speichern beweist, dass die Engine das Ergebnis auch liest.
+    // Erst Speichern und erneutes Laden beweisen die verlustfreie Entwurfsablage.
     await page.getByRole('button', { name: 'Speichern' }).click();
-    await expect(page.getByText(/^Version v\d+\.\d+ gespeichert$/)).toBeVisible();
+    await expect(page.getByText(/^Entwurf v\d+\.\d+ gespeichert$/)).toBeVisible();
 
     // Und erst das erneute Laden beweist, dass die alte Zeitangabe wirklich weg ist: Stuenden
     // Dauer und Zyklus beide im XML, naehme die Engine die Dauer — und das Speichern waere
@@ -667,7 +713,7 @@ test.describe('Konsole', () => {
 
     await expect(page.getByText('Nur Ansicht')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Speichern' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Deployen' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Veröffentlichen' })).toHaveCount(0);
 
     // Keine Palette: Ohne Anbieter zeichnet diagram-js sie gar nicht erst.
     await expect(page.locator('.djs-palette')).toHaveCount(0);
@@ -958,6 +1004,132 @@ test.describe('Konsole', () => {
     await expect(page.getByText(name, { exact: true })).toHaveCount(0);
   });
 
+  // Testzweck: Nicht gespeicherte Namen wandern in beide Richtungen mit, ohne API-Schreibzugriff.
+  test('Ungespeicherter Ansichtswechsel erhält den gemeinsamen Arbeitsstand', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const definitionId = await createDefinitionMeta(request, { name: `Arbeitsstand ${marke}` });
+    await deployDefinition(request, { xml: buildGenericTaskXml({ definitionId, marke }) });
+    const writes = [];
+    page.on('request', req => { if (req.method() === 'POST' && /\/definition(?:\?|$)/.test(req.url())) writes.push(req.url()); });
+    await page.goto(`/workflows/${definitionId}`);
+    await shapeOf(page, `Task_${marke}`).click();
+    await page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true }).fill('Nicht gespeichert im Diagramm');
+    await page.getByRole('button', { name: 'Gliederung', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/workflows/${definitionId}/gliederung$`));
+    await expect(page.getByText('Nicht gespeichert im Diagramm', { exact: true })).toBeVisible();
+    await page.getByText('Nicht gespeichert im Diagramm', { exact: true }).click();
+    await page.getByPlaceholder('Nicht gespeichert im Diagramm', { exact: true }).fill('In der Gliederung geändert');
+    await page.getByRole('button', { name: 'Diagramm', exact: true }).click();
+    await shapeOf(page, `Task_${marke}`).click();
+    await expect(page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('In der Gliederung geändert');
+    await expect(page.getByText('Ungespeicherte Änderungen', { exact: true })).toBeVisible();
+    expect(writes).toHaveLength(0);
+    // Auch Browser-Zurück ist hier ein Ansichtswechsel, kein Verwerfen.
+    await page.goBack();
+    await expect(page.getByText('In der Gliederung geändert', { exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  // Testzweck: Die schreibgeschützte Gliederung darf unbekannte BPMN-Semantik
+  // beim Hin- und Zurückwechseln nicht neu serialisieren oder Änderungen verlieren.
+  test('Schreibgeschützte Gliederung erhält ungespeicherte BPMN-Eigenschaften', async ({ page, request }) => {
+    const { definitionId, userTaskId } = await seedModelerWorkflow(request);
+    await page.goto(`/workflows/${definitionId}`);
+    await shapeOf(page, userTaskId).click();
+    await page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true }).fill('Unverändert übernommen');
+    await page.getByRole('button', { name: 'Gliederung', exact: true }).click();
+    const overview = page.getByRole('region', { name: 'Schreibgeschützte Prozessübersicht' });
+    await expect(overview).toBeVisible();
+    await overview.getByRole('button', { name: 'Unverändert übernommen', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Unverändert übernommen');
+    await expect(page.getByText('Ungespeicherte Änderungen', { exact: true })).toBeVisible();
+  });
+
+  // Testzweck: Eine verspätete Speicherantwort überlebt den Ansichtswechsel,
+  // aktualisiert die Ausgangsversion, überschreibt aber keine neueren Eingaben.
+  test('Speicherantwort nach Ansichtswechsel erhält neuere Änderungen', async ({ page, request }) => {
+    const marke = randomUUID().slice(0, 8);
+    const definitionId = await createDefinitionMeta(request, { name: `Speicherantwort ${marke}` });
+    await deployDefinition(request, { xml: buildGenericTaskXml({ definitionId, marke }) });
+    let release;
+    let intercepted;
+    const hold = new Promise(resolve => { release = resolve; });
+    const arrived = new Promise(resolve => { intercepted = resolve; });
+    await page.route(/\/api\/definition\?previousGuid=/, async route => {
+      const response = await route.fetch();
+      intercepted();
+      await hold;
+      await route.fulfill({ response });
+    }, { times: 1 });
+    await page.goto(`/workflows/${definitionId}`);
+    await shapeOf(page, `Task_${marke}`).click();
+    const name = page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true });
+    await name.fill('Gesendeter Stand');
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await arrived;
+    await name.fill('Neuerer Stand');
+    await page.getByRole('button', { name: 'Gliederung', exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`/workflows/${definitionId}/gliederung$`));
+    await expect(page.getByRole('button', { name: 'Speichern', exact: true })).toBeDisabled();
+    release();
+    await expect(page.getByRole('button', { name: 'Speichern', exact: true })).toBeEnabled();
+    await expect(page.getByText('Neuerer Stand', { exact: true })).toBeVisible();
+    await expect(page.getByText('Ungespeicherte Änderungen', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect(page.getByText('Ungespeicherte Änderungen', { exact: true })).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByText('Neuerer Stand', { exact: true })).toBeVisible();
+  });
+
+  // Testzweck: Navigation und Browser-Zurück verlangen eine Entscheidung; Abbrechen
+  // erhält den Inhalt, bewusstes Verwerfen startet beim nächsten Öffnen vom Serverstand.
+  test('Editor verlassen warnt und Abbrechen erhält Änderungen', async ({ page, request }) => {
+    const { definitionId, name: workflowName } = await seedWorkflow(request);
+    await page.goto('/workflows');
+    await page.getByText(workflowName, { exact: true }).click();
+    const start = shapeOf(page, `StartEvent_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}`);
+    await start.click();
+    const name = page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true });
+    await name.fill('Ungespeichert');
+    await page.getByRole('button', { name: 'Zurück', exact: true }).click();
+    const warning = page.getByRole('dialog', { name: 'Ungespeicherte Änderungen' });
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Abbrechen' }).click();
+    await expect(name).toHaveValue('Ungespeichert');
+    // goBack wartet nicht auf eine vom Nutzer noch zu entscheidende Navigation.
+    await page.evaluate(() => history.back());
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: 'Änderungen verwerfen' }).click();
+    await expect(page.getByRole('heading', { name: 'Workflows', exact: true })).toBeVisible();
+    await page.goto(`/workflows/${definitionId}`);
+    await start.click();
+    await expect(page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true })).not.toHaveValue('Ungespeichert');
+    await page.getByRole('button', { name: 'Zurück', exact: true }).click();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  // Testzweck: Auch noch fokussierte Eigenschaftenfelder lösen die native Tab-Warnung
+  // aus; nach bestätigtem Speichern darf Neuladen nicht mehr warnen.
+  test('Native Verlassenswarnung schützt fokussierte Eingaben und endet nach Speichern', async ({ page, request }) => {
+    const { definitionId } = await seedWorkflow(request);
+    await page.goto(`/workflows/${definitionId}`);
+    await shapeOf(page, `StartEvent_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}`).click();
+    await page.getByRole('region', { name: 'Allgemein' }).getByRole('textbox', { name: 'Name', exact: true }).fill('Tabwarnung');
+    const dialogPromise = page.waitForEvent('dialog');
+    const reload = page.reload({ timeout: 5000 }).catch(() => {});
+    const dialog = await dialogPromise;
+    expect(dialog.type()).toBe('beforeunload');
+    await dialog.dismiss();
+    await reload;
+    await page.getByRole('button', { name: 'Speichern', exact: true }).click();
+    await expect(page.getByText(/Entwurf v.* gespeichert/)).toBeVisible();
+    let unexpectedDialog = false;
+    page.on('dialog', async dialog => { unexpectedDialog = true; await dialog.dismiss(); });
+    await page.reload();
+    await expect(shapeOf(page, `StartEvent_${definitionId.replace(/[^A-Za-z0-9_]/g, '_')}`)).toBeVisible();
+    expect(unexpectedDialog).toBe(false);
+  });
+
   // Testzweck: Die Gliederung zeigt denselben Workflow als Liste statt als Diagramm —
   // Schritt mit Formular, Tor mit Bedingung. Sie ist die zweite Oberflaeche neben dem
   // Modeler und muss ohne bpmn-js zeichnen.
@@ -980,15 +1152,14 @@ test.describe('Konsole', () => {
   // Testzweck: Der wichtigste Punkt der Gliederung. Ein Modell, das sie nicht vollstaendig
   // abbildet, muss sichtbar gemeldet werden und darf nicht gespeichert werden koennen —
   // sonst gingen die nicht dargestellten Teile beim Speichern still verloren.
-  test('Ein nicht abbildbarer Workflow sperrt das Speichern in der Gliederung', async ({ page, request }) => {
+  test('Ein allgemeiner BPMN-Task bleibt in der Gliederung bearbeitbar', async ({ page, request }) => {
     const marke = randomUUID().slice(0, 8);
     const definitionId = await createDefinitionMeta(request, { name: `Unbekannt ${marke}` });
-    await deployDefinition(request, { xml: buildUnsupportedXml({ definitionId, marke }) });
+    await deployDefinition(request, { xml: buildGenericTaskXml({ definitionId, marke }) });
 
     await page.goto(`/workflows/${encodeURIComponent(definitionId)}/gliederung`);
 
-    await expect(page.getByText('Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden')).toBeVisible();
-    await expect(page.getByText('bpmn:task', { exact: false })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Speichern' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Speichern' })).toBeEnabled();
+    await expect(page.getByText('Dieser Workflow lässt sich in der Gliederung nicht vollständig abbilden')).toHaveCount(0);
   });
 });

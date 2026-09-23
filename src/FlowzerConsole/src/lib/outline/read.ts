@@ -107,7 +107,7 @@ function stepFrom(node: GraphNode): OutlineStep {
     kind: 'step',
     id: node.id,
     name: node.name ?? '',
-    task: node.type === 'userTask' ? 'user' : 'service',
+    task: node.type === 'userTask' ? 'user' : node.type === 'manualTask' ? 'manual' : node.type === 'task' ? 'task' : 'service',
     formKey: task?.formKey,
     formId: task?.formId,
     assignee: task?.assignee,
@@ -238,14 +238,14 @@ function parseSequence(structure: Structure, start: string, stop: ReadonlySet<st
       break;
     }
 
-    if (node.type === 'userTask' || node.type === 'serviceTask') {
+    if (['userTask', 'serviceTask', 'manualTask', 'task'].includes(node.type)) {
       const only = outgoing.length === 1 ? outgoing[0] : undefined;
-      if (!only) {
+      if (outgoing.length > 1) {
         fail(structure, `„${node.name ?? node.id}" hat ${outgoing.length} Ausgänge statt genau einem.`, node.id);
         break;
       }
       blocks.push(stepFrom(node));
-      current = only.target;
+      current = only?.target;
       continue;
     }
 
@@ -367,12 +367,12 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
   }
 
   const firstFlow = (structure.outgoing.get(start.id) ?? [])[0];
-  if (!firstFlow || (structure.outgoing.get(start.id) ?? []).length !== 1) {
+  if ((structure.outgoing.get(start.id) ?? []).length > 1) {
     structure.issues.push({ level: 'blocker', elementId: start.id, message: 'Das Start-Ereignis hat nicht genau einen Ausgang.' });
     return { issues: structure.issues };
   }
 
-  const blocks = parseSequence(structure, firstFlow.target, new Set());
+  const blocks = firstFlow ? parseSequence(structure, firstFlow.target, new Set()) : [];
   describeUnreached(structure, graph);
   describeLostFlowLabels(structure, graph);
 
@@ -402,8 +402,9 @@ export function readOutline(xml: string | undefined | null): OutlineReadResult {
     return { issues: structure.issues };
   }
 
-  const roundTrip = buildGraph(document);
-  structure.issues.push(...roundTrip.issues);
+  const roundTrip = buildGraph(document, true);
+  // Fehlende Fortsetzung ist ein reparierbarer Entwurf, kein verlustbehafteter Import.
+  structure.issues.push(...roundTrip.issues.map(issue => ({ ...issue, level: roundTrip.graph ? 'hinweis' as const : issue.level })));
   if (roundTrip.graph && graphSignature(roundTrip.graph) !== signature) {
     structure.issues.push({
       level: 'blocker',

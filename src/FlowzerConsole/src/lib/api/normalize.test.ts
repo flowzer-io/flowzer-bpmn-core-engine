@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   instanceBucket,
+  isCancelledInstance,
   isFailedToken,
   isLiveToken,
   toFlowNodeState,
@@ -68,13 +69,36 @@ describe('Enum-Zuordnung', () => {
 });
 
 describe('Zustands-Eimer', () => {
+  // Testzweck: Die Eimer steuern Filter, Zählmarken und Betriebsaktionen. Verrutscht
+  // einer, landet laufende Arbeit unter „Fertig“ oder umgekehrt.
   it('ordnet laufende, fertige und fehlerhafte Zustände korrekt zu', () => {
     expect(instanceBucket('Running')).toBe('active');
     expect(instanceBucket('Waiting')).toBe('active');
     expect(instanceBucket('Completed')).toBe('done');
     expect(instanceBucket('Compensated')).toBe('done');
     expect(instanceBucket('Failed')).toBe('error');
-    expect(instanceBucket('Terminated')).toBe('error');
+    expect(instanceBucket('Failing')).toBe('error');
+  });
+
+  // Testzweck: Ein Abbruch ist eine Betriebsentscheidung oder ein Terminate-Endereignis
+  // (z. B. der abgelehnte Urlaubsantrag) — ein regulärer Ausgang. Landet er unter
+  // „Fehler“, suchen Betrieb und Fachbereich nach einer Störung, die es nie gab.
+  it('zählt abgebrochene Instanzen zu den fertigen und nicht zu den fehlerhaften', () => {
+    expect(instanceBucket('Terminated')).toBe('done');
+    expect(instanceBucket('Terminating')).toBe('done');
+  });
+});
+
+describe('Abbrucherkennung', () => {
+  // Testzweck: Abbruch und Abschluss liegen im selben Eimer, lesen sich aber
+  // verschieden. Nur diese Unterscheidung hält „abgebrochen“ von „abgeschlossen“
+  // getrennt — und sperrt Abbruch und Migration für eine bereits abbrechende Instanz.
+  it('erkennt genau die Abbruchzustände', () => {
+    expect(isCancelledInstance('Terminated')).toBe(true);
+    expect(isCancelledInstance('Terminating')).toBe(true);
+    expect(isCancelledInstance('Completed')).toBe(false);
+    expect(isCancelledInstance('Failed')).toBe(false);
+    expect(isCancelledInstance('Waiting')).toBe(false);
   });
 });
 

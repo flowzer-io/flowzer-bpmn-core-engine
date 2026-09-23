@@ -14,6 +14,24 @@
   background: transparent;
 }
 
+/*
+ * Die Zeichenflaeche traegt `tabindex="0"`, weil man in ihr mit den Pfeiltasten navigieren
+ * kann. Schon ein Mausklick auf ein Element gibt ihr den Fokus — und der Browser rahmte sie
+ * daraufhin ueber ihre volle Groesse ein (unter macOS in Systemblau). Der Rahmen blieb
+ * stehen, bis der Fokus zufaellig weiterwanderte, und sagte bei Mausbedienung nichts aus.
+ *
+ * Sichtbar bleibt der Fokus deshalb nur bei Tastaturbedienung, in der Akzentfarbe und nach
+ * innen gezogen: Ein aeusserer Rahmen laege ausserhalb der Flaeche und waere angeschnitten.
+ */
+.bpmn-surface .djs-container svg:focus {
+  outline: none;
+}
+
+.bpmn-surface .djs-container svg:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* --- Grundfarben: Formen, Kanten, Beschriftungen --------------------------- */
 
 .bpmn-surface .djs-visual > :where(rect, circle, polygon, path, polyline) {
@@ -41,9 +59,19 @@
 
 /* --- Zustandsmarkierungen einer Instanz ----------------------------------- */
 
+/*
+ * Die Zustandsstaerke gehoert nur an die Grundform. bpmn-js zeichnet sie als erstes Kind;
+ * danach folgen Beschriftung und das kleine Typsymbol (Person, Zahnrad, Umschlag). Eine
+ * 2,5-px-Kontur auf einem 17x20 grossen Symbol laesst es zu einem Fleck verschmieren.
+ * Die Farbe traegt dagegen die ganze Zeichnung, damit das Element als Einheit wirkt.
+ */
+
 /* Bereits durchlaufene Elemente. */
 .bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--accent) !important;
+}
+
+.bpmn-surface .flowzer-completed .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2px !important;
 }
 
@@ -54,6 +82,9 @@
 /* Das Element, auf dem die Instanz gerade steht. */
 .bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--accent) !important;
+}
+
+.bpmn-surface .flowzer-active .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2.5px !important;
 }
 
@@ -68,6 +99,9 @@
 /* Abgebrochene oder zurückgezogene Ausführungspfade: gestrichelt und nicht nur farblich. */
 .bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--muted) !important;
+}
+
+.bpmn-surface .flowzer-cancelled .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2px !important;
   stroke-dasharray: 5 3 !important;
 }
@@ -79,6 +113,9 @@
 /* Fehlgeschlagene Elemente. */
 .bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;
+}
+
+.bpmn-surface .flowzer-failed .djs-visual > :where(rect, circle, polygon, path, polyline):first-child {
   stroke-width: 2.5px !important;
 }
 
@@ -90,6 +127,19 @@
   filter: drop-shadow(0 0 10px color-mix(in oklab, var(--fail) 45%, transparent));
 }
 
+/*
+ * Rahmen um das vom Betrachter gewählte Element (`selectionFrame.ts`). Gestrichelt und mit
+ * Abstand, damit er sich auch ohne Farbsehen vom Laufzeitzustand der Form abhebt.
+ * Ohne Mausereignisse: Er liegt über der Form, und ein Klick soll die Form treffen.
+ */
+.flowzer-selection-frame {
+  background: color-mix(in oklab, var(--accent) 6%, transparent);
+  border: 2.5px dashed var(--accent);
+  border-radius: 10px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 /* Elementbezogene Modellfehler bleiben auch neben der Diagnoseliste sichtbar. */
 .bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon, path, polyline) {
   stroke: var(--fail) !important;
@@ -98,6 +148,16 @@
 
 .bpmn-surface .flowzer-validation-error .djs-visual > :where(rect, circle, polygon) {
   fill: color-mix(in oklab, var(--fail) 14%, var(--surface)) !important;
+}
+
+/* Hinweise, die nichts verhindern — etwa eine menschliche Aufgabe ohne Formular. */
+.bpmn-surface .flowzer-validation-warning .djs-visual > :where(rect, circle, polygon, path, polyline) {
+  stroke: var(--wait) !important;
+  stroke-width: 2.5px !important;
+}
+
+.bpmn-surface .flowzer-validation-warning .djs-visual > :where(rect, circle, polygon) {
+  fill: color-mix(in oklab, var(--wait) 14%, var(--surface)) !important;
 }
 
 /* Der pulsierende Token-Zähler am aktiven Element. */

@@ -43,6 +43,12 @@ jobs:
         with:
           global-json-file: global.json
 
+      # Kein zusaetzlicher apt-get-Schritt fuer ClearScript/V8 noetig: Microsoft.ClearScript.
+      # V8.Native.linux-x64 (siehe src/WebApiEngine.Tests, src/core-engine-tests) verlangt laut
+      # readelf -d nur libc.so.6, libdl.so.2, libm.so.6, libpthread.so.0, librt.so.1 und
+      # ld-linux-x86-64.so.2 — alles Teil des glibc-Basissystems, das auf ubuntu-latest bereits
+      # vorhanden ist. Weder libicu (ICU-Daten liefert Microsoft.ClearScript.V8.ICUData als
+      # verwaltetes Paket mit) noch libatomic werden dynamisch nachgeladen.
       - name: Abhängigkeiten wiederherstellen
         run: dotnet restore core-engine.sln
 
@@ -69,6 +75,15 @@ jobs:
             --no-build \
             --configuration Release \
             --logger "trx;LogFileName=webapi-tests.trx" \
+            --results-directory ./TestResults/ci
+
+      - name: DMN-Tests ausführen
+        run: |
+          dotnet test src/FlowzerDmn.Tests/FlowzerDmn.Tests.csproj \
+            --no-restore \
+            --no-build \
+            --configuration Release \
+            --logger "trx;LogFileName=dmn-tests.trx" \
             --results-directory ./TestResults/ci
 
       - name: Coverage-Kennzahlen extrahieren
@@ -101,13 +116,31 @@ jobs:
           path: TestResults/ci
           if-no-files-found: error
 
+      # CycloneDX.dotnet liest die bereits per `dotnet restore` aufgeloesten Pakete aus den
+      # project.assets.json (--disable-package-restore); kein erneuter Netzwerkzugriff noetig.
+      - name: CycloneDX-SBOM fuer die .NET-Solution erzeugen
+        run: |
+          dotnet tool install --global CycloneDX --version 6.2.0
+          dotnet CycloneDX core-engine.sln \
+            --disable-package-restore \
+            --output ./sbom \
+            --filename sbom-flowzer-dotnet.cdx.json \
+            --output-format Json
+
+      - name: .NET-SBOM hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-dotnet
+          path: sbom/sbom-flowzer-dotnet.cdx.json
+          if-no-files-found: error
+
       - name: CI-Zusammenfassung schreiben
         run: |
           cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
           ## .NET-Validierung
 
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
-          - Zusätzlich laufen die Web-API-Tests im selben Job mit.
+          - Zusätzlich laufen die Web-API-Tests und die DMN-Tests im selben Job mit.
           - Die Core-Engine-Tests laufen jetzt wieder vollständig ohne Quarantänefilter im CI-Pfad.
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`
@@ -160,9 +193,25 @@ jobs:
       - name: Weiterleitungsliste des Gateways pruefen
         run: ./tests/ui-smoke/check-gateway-routes.sh
 
+      # Ohne Cache-Anweisung auf index.html sahen Anwender nach einem Release weiter die alte
+      # Oberflaeche. Die Pruefung startet den Entrypoint im echten nginx-Basisimage.
+      - name: Cache- und Sicherheitskopfzeilen der Konsole pruefen
+        run: ./tests/ui-smoke/check-console-headers.sh
+
       - name: Bekannte Schwachstellen der Abhaengigkeiten pruefen
         working-directory: src/FlowzerConsole
         run: npm audit --audit-level=high
+
+      - name: CycloneDX-SBOM fuer die Konsole erzeugen
+        working-directory: src/FlowzerConsole
+        run: npx --yes @cyclonedx/cyclonedx-npm@6.0.1 --output-format JSON --output-file sbom-flowzer-console.cdx.json
+
+      - name: Konsolen-SBOM hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-console
+          path: src/FlowzerConsole/sbom-flowzer-console.cdx.json
+          if-no-files-found: error
 
   typescript_sdk:
     name: Headless SDK und React-Bausteine
@@ -315,3 +364,48 @@ jobs:
           - Web-API und Konsole werden im Testjob reproduzierbar lokal gestartet.
           - Der Modeler wird mit geöffnetem Diagramm geprüft — eine leere Zeichenfläche fällt damit auf.
           EOF
+
+  third_party_notices:
+    name: Abhängigkeits-/Lizenzhinweise auf Drift pruefen
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET-SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            src/FlowzerConsole/package-lock.json
+            packages/flowzer-sdk/package-lock.json
+            packages/flowzer-react/package-lock.json
+
+      # generate-third-party-notices.py liest Lizenzen aus dem lokalen NuGet-Cache und aus
+      # node_modules; beides muss vorher aufgeloest sein.
+      - name: .NET-Abhängigkeiten wiederherstellen
+        run: dotnet restore core-engine.sln
+
+      - name: Konsolen-Abhaengigkeiten installieren
+        working-directory: src/FlowzerConsole
+        run: npm ci
+
+      - name: SDK-Abhaengigkeiten installieren
+        working-directory: packages/flowzer-sdk
+        run: npm ci
+
+      - name: React-Bausteine-Abhaengigkeiten installieren
+        working-directory: packages/flowzer-react
+        run: npm ci
+
+      - name: THIRD-PARTY-NOTICES.md neu erzeugen und Drift ausschließen
+        run: |
+          python3 scripts/ci/generate-third-party-notices.py
+          git diff --exit-code -- THIRD-PARTY-NOTICES.md

@@ -45,8 +45,18 @@ public sealed class RuntimeDiagramService(
             events = [];
         }
 
+        // Eine migrierte Instanz ist unter mehreren Versionen gelaufen. Wuerde nur die aktuelle
+        // gelten, verschwaende das Diagramm alles, was vor dem Umzug geschah. Beim Umzug werden
+        // die gerade sichtbaren Tokenzustaende unter der neuen Version erneut festgehalten;
+        // dieselbe Tatsache erscheint dadurch doppelt und wird hier auf eine zusammengezogen.
+        var visibleDefinitionIds = instance.Migrations
+            .Select(migration => migration.SourceDefinitionId)
+            .Append(instance.DefinitionId)
+            .ToHashSet();
         var orderedEvents = events
-            .Where(item => item.DefinitionId == instance.DefinitionId)
+            .Where(item => visibleDefinitionIds.Contains(item.DefinitionId))
+            .GroupBy(item => new { item.TokenId, item.FlowNodeId, item.State, item.OccurredAtUtc })
+            .Select(group => group.OrderBy(item => item.Id).First())
             .OrderBy(item => item.OccurredAtUtc)
             .ThenBy(item => item.TokenId)
             .ThenBy(item => item.Id)
@@ -60,7 +70,7 @@ public sealed class RuntimeDiagramService(
             State = (ProcessInstanceStateDto)instance.State,
             SnapshotAtUtc = timeProvider.GetUtcNow(),
             DiagramXml = diagramXml,
-            Nodes = AggregateNodes(orderedEvents),
+            Nodes = AggregateNodes(orderedEvents, instance.Tokens),
             Events = orderedEvents.Select(item => new RuntimeNodeEventDto
             {
                 Id = item.Id,
@@ -71,25 +81,61 @@ public sealed class RuntimeDiagramService(
         };
     }
 
-    private static RuntimeNodeSummaryDto[] AggregateNodes(IEnumerable<RuntimeNodeEvent> events)
+    private static RuntimeNodeSummaryDto[] AggregateNodes(IEnumerable<RuntimeNodeEvent> events, IEnumerable<Token> tokens)
     {
         // Pro Token und Knoten zählt nur der jüngste persistierte Zustand. Derselbe Token
         // kann über einen Loop denselben Knoten erneut erreichen, ohne dass alte Fakten
         // überschrieben werden.
-        return events
+        // Bestandsinstanzen besitzen eventuell noch keine Ereignisspur. Ihr persistierter
+        // Tokenzustand ist trotzdem verbindlich und hat für die aktuelle Position Vorrang.
+        // Diese Momentaufnahmen sind keine historischen Ereignisse und werden nicht gespeichert.
+        var current = tokens.Where(token => token.CurrentFlowNode is not null)
+            .Select(token => new RuntimeNodeEvent
+            {
+                Id = Guid.Empty, CorrelationId = Guid.Empty, TokenId = token.Id, FlowNodeId = token.CurrentFlowNode!.Id,
+                ProcessInstanceId = token.ProcessInstanceId, DefinitionId = Guid.Empty,
+                State = token.State, OccurredAtUtc = new DateTimeOffset(DateTime.SpecifyKind(token.LastStateChangeTime, DateTimeKind.Utc))
+            }).ToArray();
+        var keys = current.Select(item => (item.TokenId, item.FlowNodeId)).ToHashSet();
+        var latest = events.Where(item => !keys.Contains((item.TokenId, item.FlowNodeId))).Concat(current)
             .GroupBy(item => new { item.TokenId, item.FlowNodeId })
             .Select(group => group
                 .OrderByDescending(item => item.OccurredAtUtc)
                 .ThenByDescending(item => item.Id)
                 .First())
+            .ToArray();
+
+        // Wo ein Token steht, sagt der persistierte Tokenstand — nicht der juengste Zeitstempel:
+        // Ein Umzug auf einen von Hand zugeordneten Knoten behaelt die Wartezeit des Tokens bei,
+        // beide Eintraege sind dann gleich alt. Frueher besuchte Knoten desselben Tokens sind
+        // durchlaufen, auch ohne festgehaltenen Abschluss; sonst bliebe der alte Knoten als
+        // zweiter aktiver Schritt stehen. Nur „aktiv" ist eine Aussage ueber die Gegenwart —
+        // ein festgehaltener Fehler oder Abbruch bleibt, was er war.
+        var currentNodeOfToken = current.ToDictionary(item => item.TokenId, item => item.FlowNodeId);
+
+        return latest
+            .Select(item => new
+            {
+                item.TokenId,
+                item.FlowNodeId,
+                item.OccurredAtUtc,
+                Status = ToStatus(item.State) == RuntimeNodeStatusDto.Active
+                    && currentNodeOfToken.TryGetValue(item.TokenId, out var standort)
+                    && !string.Equals(standort, item.FlowNodeId, StringComparison.Ordinal)
+                        ? RuntimeNodeStatusDto.Completed
+                        : ToStatus(item.State)
+            })
             .GroupBy(item => item.FlowNodeId, StringComparer.Ordinal)
             .Select(group => new RuntimeNodeSummaryDto
             {
                 FlowNodeId = group.Key,
-                Status = group.Select(item => ToStatus(item.State))
+                Status = group.Select(item => item.Status)
                     .OrderByDescending(StatusPrecedence)
                     .First(),
-                TokenCount = group.Select(item => item.TokenId).Distinct().Count(),
+                TokenCount = !group.Any(item => item.Status == RuntimeNodeStatusDto.Failed)
+                    && group.Any(item => item.Status == RuntimeNodeStatusDto.Active)
+                    ? group.Where(item => item.Status == RuntimeNodeStatusDto.Active).Select(item => item.TokenId).Distinct().Count()
+                    : group.Select(item => item.TokenId).Distinct().Count(),
                 LastChangedAtUtc = group.Max(item => item.OccurredAtUtc)
             })
             .OrderBy(item => item.LastChangedAtUtc)

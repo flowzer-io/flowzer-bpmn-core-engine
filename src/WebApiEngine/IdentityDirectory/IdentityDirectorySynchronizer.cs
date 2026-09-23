@@ -201,6 +201,8 @@ public sealed class IdentityDirectorySynchronizer(
                 Issuer = issuer,
                 Subject = user.Subject,
                 DisplayName = BuildDisplayName(user),
+                Email = user.Email?.Trim(), Username = user.Username?.Trim(),
+                FirstName = user.FirstName?.Trim(), LastName = user.LastName?.Trim(),
                 IsActive = user.Enabled
             };
             if (!usersBySubject.TryAdd(user.Subject, mappedUser))

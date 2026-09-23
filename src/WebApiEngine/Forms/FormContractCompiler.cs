@@ -22,7 +22,7 @@ public static class FormContractCompiler
         if (schema.Length > 1048576) Fail("schema.size_limit");
         try
         {
-            using var document = JsonDocument.Parse(schema, new JsonDocumentOptions { MaxDepth = 32 });
+            using var document = JsonDocument.Parse(LegacyFormSchemaUpgrade.Normalize(schema), new JsonDocumentOptions { MaxDepth = 32 });
             var root = document.RootElement.Clone();
             if (root.ValueKind != JsonValueKind.Object) Fail("schema.object");
             if (Scripts.Any(key => Active(Get(root, key)))) Fail("schema.script");

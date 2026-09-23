@@ -107,17 +107,17 @@ public class DefinitionControllerIntegrationTest
         storage.DefinitionStorageSeed.Definitions.Should().ContainSingle(definition => !definition.IsActive);
     }
 
-    // Testzweck: Auch die Autorenprüfung bindet die stabile Verbindungs-ID serverseitig;
-    // manipuliertes XML mit einer unbekannten ID darf keine Definition anlegen.
+    // Testzweck: Die Veröffentlichungsprüfung bindet die stabile Verbindungs-ID serverseitig;
+    // ein unbekannter Verweis darf nie zur ausführbaren Definition werden.
     [Test]
-    public async Task UploadAiTask_ShouldRejectUnknownConnection()
+    public async Task PublishValidationAiTask_ShouldRejectUnknownConnection()
     {
         var storage = TestStorage.Create();
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
 
         using var response = await client.PostAsync(
-            "/definition",
+            "/definition/validate/deployment",
             new StringContent(CreateAiTaskXml("workflow-ai-unknown"), Encoding.UTF8, "application/xml"));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -229,15 +229,15 @@ public class DefinitionControllerIntegrationTest
         storage.DefinitionStorageSeed.Binaries.Should().BeEmpty();
     }
 
-    // Testzweck: Ein nicht ausführbarer, aber parsebarer BPMN-Task wird schon beim Speichern mit dem gemeinsamen Problem-Details-Vertrag abgelehnt.
+    // Testzweck: Ein nicht ausführbarer, aber parsebarer BPMN-Task wird beim Veröffentlichen mit dem gemeinsamen Problem-Details-Vertrag abgelehnt.
     [Test]
-    public async Task UploadDefinition_ShouldReturnCapabilityIssue_WhenModelContainsNonExecutableElement()
+    public async Task PublishValidationDefinition_ShouldReturnCapabilityIssue_WhenModelContainsNonExecutableElement()
     {
         var storage = TestStorage.Create();
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsync("/definition",
+        using var response = await client.PostAsync("/definition/validate/deployment",
             new StringContent(CreateUnsupportedScriptTaskXml("workflow-invalid-upload"), Encoding.UTF8, "application/xml"));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -254,13 +254,13 @@ public class DefinitionControllerIntegrationTest
 
     // Testzweck: Der HTTP-Fehler verweist bei fehlender Service-Implementierung direkt auf die betroffene Modelleigenschaft.
     [Test]
-    public async Task UploadDefinition_ShouldExposePropertyPath_ForIncompleteFlowzerConfiguration()
+    public async Task PublishValidationDefinition_ShouldExposePropertyPath_ForIncompleteFlowzerConfiguration()
     {
         var storage = TestStorage.Create();
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsync("/definition",
+        using var response = await client.PostAsync("/definition/validate/deployment",
             new StringContent(CreateServiceTaskWithoutTypeXml("workflow-invalid-service"), Encoding.UTF8, "application/xml"));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -315,7 +315,7 @@ public class DefinitionControllerIntegrationTest
         storage.DefinitionStorageSeed.Definitions.Should().BeEmpty();
     }
 
-    // Testzweck: Die Vorabprüfung meldet dieselbe Knoten-ID wie Save und Deploy, ohne eine Definitionsversion anzulegen.
+    // Testzweck: Die Vorabprüfung meldet dieselbe Knoten-ID wie Deploy, ohne eine Definitionsversion anzulegen.
     [Test]
     public async Task ValidateDefinition_ShouldReturnCapabilityIssueWithoutPersistingVersion()
     {
@@ -323,7 +323,7 @@ public class DefinitionControllerIntegrationTest
         await using var factory = new TestWebApplicationFactory(storage);
         using var client = factory.CreateClient();
 
-        using var response = await client.PostAsync("/definition/validate",
+        using var response = await client.PostAsync("/definition/validate/deployment",
             new StringContent(CreateUnsupportedScriptTaskXml("workflow-invalid-validate"), Encoding.UTF8, "application/xml"));
 
         response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -344,11 +344,75 @@ public class DefinitionControllerIntegrationTest
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using var payload = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("3");
+        payload.RootElement.GetProperty("result").GetProperty("contractVersion").GetString().Should().Be("9");
         payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
             .Should().Contain(element => element.GetProperty("elementType").GetString() == "manualTask"
-                && !element.GetProperty("executable").GetBoolean());
+                && element.GetProperty("executable").GetBoolean());
+        // Seit Vertrag 7 sagt der Katalog die lokale Aufruf-Aktivität als ausführbar zu.
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "callActivity"
+                && element.GetProperty("executable").GetBoolean());
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "boundaryEvent.errorEventDefinition"
+                && element.GetProperty("executable").GetBoolean());
+        payload.RootElement.GetProperty("result").GetProperty("elements").EnumerateArray()
+            .Should().Contain(element => element.GetProperty("elementType").GetString() == "sendTask"
+                && element.GetProperty("executable").GetBoolean());
     }
+
+    // Testzweck: Der Veröffentlichungsvertrag der Aufruf-Aktivität gilt auch am API-Rand: Die
+    // Prozesskennung ist Pflicht und muss ein Literal sein; beide Fälle melden ihren stabilen Code.
+    [TestCase("", "bpmn.call_activity.process_id_required")]
+    [TestCase("=zielProzess", "bpmn.call_activity.process_id_literal_required")]
+    public async Task ValidateDefinition_ShouldRejectCallActivityWithoutLiteralProcessId(
+        string processId, string expectedCode)
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/validate/deployment",
+            new StringContent(CreateCallActivityXml("workflow-call-activity", processId), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        problem.RootElement.GetProperty("code").GetString().Should().Be("bpmn.model.invalid");
+        var issue = problem.RootElement.GetProperty("issues")[0];
+        issue.GetProperty("code").GetString().Should().Be(expectedCode);
+        issue.GetProperty("elementId").GetString().Should().Be("Call_1");
+    }
+
+    // Testzweck: Eine vollständig konfigurierte Aufruf-Aktivität ist seit Vertrag 7 veröffentlichbar.
+    [Test]
+    public async Task ValidateDefinition_ShouldAcceptCallActivityWithLiteralProcessId()
+    {
+        var storage = TestStorage.Create();
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsync("/definition/validate/deployment",
+            new StringContent(CreateCallActivityXml("workflow-call-activity", "Process_Called"), Encoding.UTF8, "application/xml"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private static string CreateCallActivityXml(string definitionId, string processId) => $"""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="{definitionId}">
+                  <bpmn:process id="Process_{definitionId}" isExecutable="true">
+                    <bpmn:startEvent id="Start_1" />
+                    <bpmn:callActivity id="Call_1">
+                      <bpmn:extensionElements>
+                        <zeebe:calledElement processId="{processId}" propagateAllParentVariables="false" />
+                      </bpmn:extensionElements>
+                    </bpmn:callActivity>
+                    <bpmn:endEvent id="End_1" />
+                    <bpmn:sequenceFlow id="Flow_1" sourceRef="Start_1" targetRef="Call_1" />
+                    <bpmn:sequenceFlow id="Flow_2" sourceRef="Call_1" targetRef="End_1" />
+                  </bpmn:process>
+                </bpmn:definitions>
+                """;
 
     // Testzweck: Prüft, dass ein fehlgeschlagener Deploy-Versuch keine halb persistierte Definitionsversion zurücklässt.
     [Test]

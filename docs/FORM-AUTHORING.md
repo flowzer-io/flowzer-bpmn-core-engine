@@ -79,11 +79,13 @@ Veröffentlichung.
 - Builder und Vorschau besitzen je asynchroner Aufbau-Generation einen eigenen
   DOM-Host. Ein verspätet fertiggestellter alter Aufbau darf nur seinen alten Host
   zerstören, nicht das inzwischen geöffnete Formular.
-- Die allgemeine Autorenvorschau ist kein freigegebener Verzeichnis-Suchkontext.
-  Benutzer-/Gruppenfelder zeigen dort einen Hinweis. Im gebundenen Startformular
-  wird der bestehende QueryClient in den separaten React-Root weitergereicht;
-  Aufgaben verwenden weiterhin den gebundenen Directory-Adapter. Es entsteht kein
-  eigener Cache und keine zusätzliche Verzeichnisberechtigung.
+- Seit #303 können Modellierende Benutzer-/Gruppenfelder im Bibliothekseditor und
+  in der Vorschau interaktiv ausprobieren, auch ohne Prozessinstanz. Ein eigener
+  rollen- und formulargebundener Autoren-Adapter prüft den lokalen Formularvertrag;
+  Testeingaben werden nicht gespeichert. Ohne Autoren- oder Laufzeitkontext bleibt
+  die Verzeichnissuche deaktiviert. Im gebundenen Startformular wird der bestehende
+  QueryClient in den separaten React-Root weitergereicht; Aufgaben behalten ihren
+  gebundenen Directory-Adapter. Details: [Benutzer-/Gruppenauswahl](FORM-DIRECTORY-FIELD.md).
 - Form.io-Zahlen-/Währungsfelder enthalten standardmäßig `validate.step="any"`.
   Der Server akzeptiert exakt diesen neutralen Default; konkrete Schrittweiten,
   Integerregeln und unbekannte aktive Validierungen bleiben ohne implementierten
@@ -92,6 +94,51 @@ Veröffentlichung.
 Der Produktions-Smoke in `tests/ui-smoke/production-tests/form-builder.spec.js`
 verwendet den tatsächlichen ausgelieferten Form.io-Builder mit synthetischen
 API-Antworten. Er ersetzt keine Abnahme einer realen Verzeichnissynchronisierung.
-Die geplante Zusammenführung von Formularen, Ordnern und Abschnittsbibliothek ist
-als getrenntes Migrationspaket [#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291)
-erfasst; die bestehende Abschnittsablage wird durch diesen Hotfix nicht migriert.
+Formulare, Katalogordner und die frühere Abschnittsbibliothek sind durch
+[#291](https://github.com/flowzer-io/flowzer-bpmn-core-engine/issues/291) in einer
+gemeinsamen Formularbibliothek zusammengeführt. Die Vorwärtsmigration und der kompatible
+`/form-section`-Adapter sind in [FORM-SECTIONS.md](FORM-SECTIONS.md) beschrieben.
+
+## Vereinfachte Bedienung (#306)
+
+Ein geöffnetes Formular zeigt zunächst die interaktive Vorschau. **Bearbeiten**
+öffnet den Editor in voller Breite; **Vorschau ansehen** übernimmt auch ungespeicherte
+Änderungen, ohne sie zu veröffentlichen.
+
+**Subformular** steht neben den anderen Feldern in der Palette. Einfügen geht per
+Ziehen, Klick oder Enter; im Dialog werden Formular und konkrete veröffentlichte
+Version ausgewählt. Die Referenz bleibt beim erneuten Bearbeiten erhalten.
+
+**Abschlussknöpfe** zeigen zuerst Beschriftung, Darstellung und eine wirkungslose
+Knopfvorschau. Ergebniszuweisungen und technische IDs stehen unter „Erweitert“.
+Sie beenden eine Aufgabe, sind also keine Weiter-/Zurück-Navigation.
+
+Das [UX-Zielbild und die Abgrenzung dynamischer Seiten](FORM-AUTHORING-UX.md)
+beschreiben den anschließenden Ausbau; mehrseitige Verzweigungen sind damit noch
+nicht als vollständiger Flowzer-Vertrag freigegeben.
+
+## JSON-Testdaten in der Vorschau (#311)
+
+Unter **JSON-Eingabe** lassen sich Feldwerte als Objekt ohne `data`-Hülle einsetzen:
+
+```json
+{ "reason": "Urlaub", "address": { "city": "Bocholt" } }
+```
+
+Erst **Eingabe übernehmen** ersetzt die Testwerte. Nicht angegebene Felder verwenden
+ihre Standardwerte; **Testdaten zurücksetzen** stellt diese wieder her. Ungültiges
+JSON verändert die bereits ausgefüllte Vorschau nicht. Objekte dürfen höchstens
+100.000 Zeichen und 64 Verschachtelungsebenen enthalten; gefährliche Merge-Schlüssel
+und nicht endliche Zahlen werden zurückgewiesen.
+
+**JSON-Ausgabe** zeigt live die tatsächlichen Formularwerte einschließlich
+Standardwerten und verschachtelten Feldern; **JSON kopieren** kopiert diesen Stand.
+Dies ist kein serverseitig validiertes Prozessergebnis: Ausgabezuordnungen,
+geschützte Variablen, ausgeblendete Felder und Abschlussaktionen werden beim echten
+Abschluss gesondert geprüft.
+
+Testdaten bleiben ausschließlich im Arbeitsspeicher der geöffneten Vorschau.
+Wechsel zu einem anderen Formular, zum Bearbeiten oder Verlassen der Seite verwirft
+sie. Sie werden weder gespeichert noch an einen Prozessstart oder Aufgabenabschluss
+gesendet. Die Schema- und Verzeichnisvorschau verwendet weiterhin ihre bestehenden,
+berechtigungsgeprüften API-Endpunkte.

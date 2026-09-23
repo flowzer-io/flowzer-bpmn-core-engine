@@ -18,6 +18,8 @@
 
 import {
   calledProcessOf,
+  errorHolder,
+  escalationHolder,
   messageHolder,
   multiInstanceOf,
   readElementProperties,
@@ -25,6 +27,8 @@ import {
   timerOf,
   type Assignment,
   type AssignmentMode,
+  type BusinessRuleMode,
+  type CalledDecision,
   type DirectoryAssignment,
   type EmbeddedForm,
   type CalledProcess,
@@ -62,6 +66,32 @@ export * from './elementProperties';
 
 interface ModelerLike {
   get: <T>(name: string) => T;
+}
+
+/**
+ * Wert der Auswahlliste fuer „neuen Fehler anlegen". Ein echter `bpmn:Error` kann so nicht
+ * heissen: Eine BPMN-Kennung darf kein `_` am Anfang und kein `#` enthalten.
+ */
+export const NEW_ERROR = '#neu';
+
+/** Teiländerung am Fehlerbezug: Auswahl, Neuanlage oder Loesen. */
+export interface ErrorReferencePatch {
+  errorId: string | null;
+  name: string;
+  code: string;
+}
+
+/**
+ * Wert der Auswahlliste fuer „neue Eskalation anlegen". Wie {@link NEW_ERROR} kann eine echte
+ * BPMN-Kennung so nicht heissen: Sie darf kein `#` enthalten.
+ */
+export const NEW_ESCALATION = '#neu-eskalation';
+
+/** Teiländerung am Eskalationsbezug: Auswahl, Neuanlage oder Loesen. */
+export interface EscalationReferencePatch {
+  escalationId: string | null;
+  name: string;
+  code: string;
 }
 
 /** Ein Prozess samt dem Diagrammelement, über das bpmn-js die Änderung verbucht. */
@@ -199,9 +229,9 @@ export function createBpmnEditor(modeler: ModelerLike) {
   function createRootReference(
     element: DiagramElement,
     holder: ModdleElement,
-    referenceProperty: 'messageRef' | 'signalRef',
+    referenceProperty: 'messageRef' | 'signalRef' | 'errorRef' | 'escalationRef',
     type: string,
-    name: string,
+    properties: Record<string, unknown>,
   ): ModdleElement | null {
     const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
     if (!definitions) return null;
@@ -209,7 +239,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
     const rootElements = (definitions.rootElements as ModdleElement[] | undefined) ?? [];
     // Die Kennung vergibt die Factory: Sie zieht sie aus dem Kennungsregister des Dokuments
     // und belegt sie dort. Eine selbst gewuerfelte koennte mit einer anderen kollidieren.
-    const created = factory().create(type, { name });
+    const created = factory().create(type, properties);
     created.$parent = definitions;
 
     modeling().updateModdleProperties(element, definitions, { rootElements: [...rootElements, created] });
@@ -584,12 +614,99 @@ export function createBpmnEditor(modeler: ModelerLike) {
       if (message) {
         modeling().updateModdleProperties(element, message, { name });
       } else {
-        message = createRootReference(element, holder, 'messageRef', 'bpmn:Message', name) ?? undefined;
+        message = createRootReference(element, holder, 'messageRef', 'bpmn:Message', { name }) ?? undefined;
         if (!message) return;
       }
 
       const key = merge(patch.correlationKey, text(extension(message, 'zeebe:Subscription'), 'correlationKey'));
       writeExtension(element, message, 'zeebe:Subscription', key === undefined ? null : { correlationKey: key });
+    },
+
+    /**
+     * Setzt den Fehlerbezug eines Error-Ereignisses.
+     *
+     * `errorId: NEW_ERROR` legt einen neuen `bpmn:Error` an, `errorId: null` loest den Bezug
+     * wieder, eine vorhandene Kennung waehlt den zugehoerigen Fehler aus. Name und Code ohne
+     * `errorId` aendern den gerade referenzierten Fehler — und legen ihn an, wenn noch keiner
+     * da ist. Alles laeuft ueber `modeling`, damit jeder Schritt rueckgaengig bleibt.
+     */
+    setErrorReference(elementId: string, patch: Partial<ErrorReferencePatch>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const holder = errorHolder(element.businessObject);
+      if (!holder) return;
+
+      if (patch.errorId === null) {
+        modeling().updateModdleProperties(element, holder, { errorRef: undefined });
+        return;
+      }
+
+      if (typeof patch.errorId === 'string' && patch.errorId !== NEW_ERROR) {
+        const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
+        const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+        const selected = rootElements.find(
+          (rootElement) => rootElement.$type === 'bpmn:Error' && text(rootElement, 'id') === patch.errorId,
+        );
+        if (!selected) return;
+        modeling().updateModdleProperties(element, holder, { errorRef: selected });
+        return;
+      }
+
+      const current = patch.errorId === NEW_ERROR ? undefined : (holder.errorRef as ModdleElement | undefined);
+      const name = (patch.name ?? text(current, 'name')).trim();
+      const errorCode = (patch.code ?? text(current, 'errorCode')).trim();
+
+      if (current) {
+        modeling().updateModdleProperties(element, current, { name, errorCode });
+        return;
+      }
+
+      createRootReference(element, holder, 'errorRef', 'bpmn:Error', { name, errorCode });
+    },
+
+    /**
+     * Setzt den Eskalationsbezug eines Eskalationsereignisses.
+     *
+     * Dieselben Regeln wie beim Fehler: `escalationId: NEW_ESCALATION` legt eine neue
+     * `bpmn:Escalation` an, `escalationId: null` loest den Bezug, eine vorhandene Kennung
+     * waehlt die zugehoerige Eskalation aus. Name und Code ohne `escalationId` aendern die
+     * gerade referenzierte — und legen sie an, wenn noch keine da ist.
+     */
+    setEscalationReference(elementId: string, patch: Partial<EscalationReferencePatch>): void {
+      const element = registry().get(elementId);
+      if (!element) return;
+
+      const holder = escalationHolder(element.businessObject);
+      if (!holder) return;
+
+      if (patch.escalationId === null) {
+        modeling().updateModdleProperties(element, holder, { escalationRef: undefined });
+        return;
+      }
+
+      if (typeof patch.escalationId === 'string' && patch.escalationId !== NEW_ESCALATION) {
+        const definitions = enclosing(element.businessObject, 'bpmn:Definitions');
+        const rootElements = (definitions?.rootElements as ModdleElement[] | undefined) ?? [];
+        const selected = rootElements.find(
+          (rootElement) => rootElement.$type === 'bpmn:Escalation' && text(rootElement, 'id') === patch.escalationId,
+        );
+        if (!selected) return;
+        modeling().updateModdleProperties(element, holder, { escalationRef: selected });
+        return;
+      }
+
+      const current =
+        patch.escalationId === NEW_ESCALATION ? undefined : (holder.escalationRef as ModdleElement | undefined);
+      const name = (patch.name ?? text(current, 'name')).trim();
+      const escalationCode = (patch.code ?? text(current, 'escalationCode')).trim();
+
+      if (current) {
+        modeling().updateModdleProperties(element, current, { name, escalationCode });
+        return;
+      }
+
+      createRootReference(element, holder, 'escalationRef', 'bpmn:Escalation', { name, escalationCode });
     },
 
     /** Setzt den Namen des Signals. Auch das Signal ist ein Wurzelelement des Dokuments. */
@@ -608,7 +725,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
         return;
       }
 
-      createRootReference(element, definition, 'signalRef', 'bpmn:Signal', trimmedName);
+      createRootReference(element, definition, 'signalRef', 'bpmn:Signal', { name: trimmedName });
     },
 
     setCalledProcess(elementId: string, patch: Partial<CalledProcess>): void {
@@ -632,6 +749,49 @@ export function createBpmnEditor(modeler: ModelerLike) {
           patch.propagateAllChildVariables ?? current?.propagateAllChildVariables ?? true,
         propagateAllParentVariables:
           patch.propagateAllParentVariables ?? current?.propagateAllParentVariables ?? true,
+      });
+    },
+
+    /**
+     * Legt fest, ob ein Business-Rule-Task die Entscheidung selbst rechnet oder als Auftrag an
+     * einen Worker geht.
+     *
+     * Beim Umschalten verschwindet die jeweils andere Erweiterung. Bliebe sie stehen, hinge am
+     * Element eine Konfiguration, die das Panel nicht mehr zeigt — und die Engine nähme beim
+     * Veröffentlichen den Auftragstyp, obwohl im Panel eine Entscheidung steht.
+     */
+    setBusinessRuleMode(elementId: string, mode: BusinessRuleMode): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:BusinessRuleTask') return;
+
+      if (mode === 'decision') {
+        writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
+        if (!extension(element.businessObject, 'zeebe:CalledDecision')) {
+          writeExtension(element, element.businessObject, 'zeebe:CalledDecision', {});
+        }
+        return;
+      }
+
+      writeExtension(element, element.businessObject, 'zeebe:CalledDecision', null);
+    },
+
+    /**
+     * Schreibt Teiländerungen der aufgerufenen Entscheidung.
+     *
+     * Die Erweiterung bleibt auch leer stehen: Sie ist der Umschalterzustand „Entscheidung".
+     * Würde sie beim Leeren des Feldes verschwinden, spränge das Panel beim Tippen zurück
+     * auf „Als Auftrag".
+     */
+    setCalledDecision(elementId: string, patch: Partial<CalledDecision>): void {
+      const element = registry().get(elementId);
+      if (!element || element.businessObject.$type !== 'bpmn:BusinessRuleTask') return;
+
+      const current = extension(element.businessObject, 'zeebe:CalledDecision');
+      // Eine Entscheidung und ein Auftragstyp zugleich hiesse in der Engine: Auftragstyp.
+      writeExtension(element, element.businessObject, 'zeebe:TaskDefinition', null);
+      writeExtension(element, element.businessObject, 'zeebe:CalledDecision', {
+        decisionId: merge(patch.decisionId, text(current, 'decisionId')),
+        resultVariable: merge(patch.resultVariable, text(current, 'resultVariable')),
       });
     },
 

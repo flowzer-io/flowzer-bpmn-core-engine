@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EscalationUncaught" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:escalation id="Escalation_Nachfrage" name="Nachfrage noetig" escalationCode="NACHFRAGE" />
+  <bpmn:process id="Process_EscalationUncaught" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToThrow</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:intermediateThrowEvent id="Throw_Escalation">
+      <bpmn:incoming>Flow_ToThrow</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAfter</bpmn:outgoing>
+      <bpmn:escalationEventDefinition id="ESD_Throw" escalationRef="Escalation_Nachfrage" />
+    </bpmn:intermediateThrowEvent>
+    <bpmn:serviceTask id="ServiceTask_After" name="ServiceTask_After">
+      <bpmn:extensionElements><zeebe:taskDefinition type="after" /></bpmn:extensionElements>
+      <bpmn:incoming>Flow_ToAfter</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToThrow" sourceRef="StartEvent_1" targetRef="Throw_Escalation" />
+    <bpmn:sequenceFlow id="Flow_ToAfter" sourceRef="Throw_Escalation" targetRef="ServiceTask_After" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="ServiceTask_After" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

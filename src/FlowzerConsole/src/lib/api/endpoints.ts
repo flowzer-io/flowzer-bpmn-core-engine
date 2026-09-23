@@ -1,11 +1,22 @@
-import { request, requestOptionalStatusResult, requestStatus, requestStatusResult } from './client';
-import { normalizeInstance } from './normalize';
+import {
+  request,
+  requestFile,
+  requestOptionalStatusResult,
+  requestStatus,
+  requestStatusResult,
+  requestUpload,
+} from './client';
+import type { DownloadedFile } from './client';
+import { normalizeInstance, toProcessInstanceState } from './normalize';
 import { createAiConnectionBody, normalizeAiConnection, updateAiConnectionBody } from './aiConnections';
 import { normalizeAiTool } from './aiTools';
 import type {
+  AnalyticsRangeQuery,
   BpmnDefinitionDto,
   BpmnCapabilityContract,
+  BpmnValidationResultDto,
   BpmnMetaDefinitionDto,
+  CalledInstanceDto,
   ExtendedBpmnMetaDefinitionDto,
   FormDto,
   FormAuthoringDraftDto,
@@ -13,17 +24,28 @@ import type {
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
+  FormFolderDto,
+  FormFolderRequestDto,
+  FormVersionSummaryDto,
   HealthStatusDto,
+  InstanceMigrationPreviewDto,
+  InstanceMigrationResultDto,
+  InstanceModificationPreviewDto,
+  InstanceModificationRequestDto,
+  InstanceModificationResultDto,
   MessageDto,
   MessageSubscriptionDto,
   NotificationDto,
   OperationsDiagnosticsDto,
+  OperationsIncidentDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   SignalSubscriptionDto,
   TimerSubscriptionDto,
   TokenDto,
   VersionDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   FolderAssignmentDto,
@@ -40,9 +62,48 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  DecisionDefinition,
+  DecisionDefinitionDetail,
+  DecisionDefinitionVersion,
+  DecisionEvaluationResult,
+  InboundTriggerDto,
+  InboundTriggerSecretDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
+  ProcessPackageMappingDto,
+  ProcessPackagePreviewDto,
+  ProcessPackageImportResultDto,
 } from './types';
 
 /** Alle Aufrufe gegen die Flowzer-API, gruppiert nach Controller. */
+
+/**
+ * Prozesspakete: ein Workflow samt Formularen als eine Datei.
+ *
+ * Ein Paket enthält nie Secrets, Instanzen oder Personenkennungen; was nur in der
+ * Quellinstallation gilt, steht als Platzhalter im Modell und wird beim Import zugeordnet.
+ */
+export const processPackagesApi = {
+  /** `GET /definition/meta/{id}/package` — Download; dieselbe Rolle wie Workflow lesen. */
+  export: (definitionId: string, signal?: AbortSignal): Promise<DownloadedFile> =>
+    requestFile(`/definition/meta/${encodeURIComponent(definitionId)}/package`, { signal }),
+
+  /** `POST /definition/package/preview` — liest das Paket, ohne etwas anzulegen. */
+  preview: (file: File) =>
+    requestUpload<ProcessPackagePreviewDto>('/definition/package/preview', {
+      field: 'package',
+      value: file,
+      fileName: file.name,
+    }),
+
+  /** `POST /definition/package/import` — legt Workflow und Formulare an, deployt aber nicht. */
+  import: (file: File, mapping: ProcessPackageMappingDto) =>
+    requestUpload<ProcessPackageImportResultDto>(
+      '/definition/package/import',
+      { field: 'package', value: file, fileName: file.name },
+      { mapping: JSON.stringify(mapping) },
+    ),
+};
 
 export const definitionsApi = {
   /** `GET /definition/capabilities` — versionierter, hostneutraler BPMN-Vertrag. */
@@ -51,7 +112,7 @@ export const definitionsApi = {
 
   /** Getrennte feste Pfade verhindern, dass ein Requestparameter die Prüfart abschwächt. */
   validate: (xml: string, deployment: boolean) =>
-    requestStatusResult<BpmnCapabilityContract>(
+    requestStatusResult<BpmnValidationResultDto>(
       deployment ? '/definition/validate/deployment' : '/definition/validate',
       {
         method: 'POST',
@@ -263,6 +324,38 @@ export const foldersApi = {
     }),
 };
 
+/**
+ * Eine leere Zuordnung ist keine Zuordnung: Sie bleibt aus dem Rumpf heraus, damit die API
+ * dieselbe Anfrage sieht wie vor der ersten Wahl.
+ */
+function mappingOrUndefined(
+  flowNodeMapping: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  return flowNodeMapping && Object.keys(flowNodeMapping).length > 0 ? flowNodeMapping : undefined;
+}
+
+/**
+ * Der Rumpf einer Eingriffsanfrage ohne leere Abschnitte.
+ *
+ * Aus demselben Grund wie bei der Zuordnung: Ein leeres `moves` oder ein `variables` ohne
+ * Inhalt ist keine Änderung. Bliebe es im Rumpf stehen, sähe die API eine andere Anfrage
+ * als die, die der Dialog meint — und antwortete auf den Trockenlauf einer leeren Anfrage
+ * mit `NothingToDo` statt mit den wartenden Schritten.
+ */
+function modificationBody(request: InstanceModificationRequestDto): InstanceModificationRequestDto {
+  const set = request.variables?.set;
+  const remove = request.variables?.remove;
+  const variables = {
+    set: set && Object.keys(set).length > 0 ? set : undefined,
+    remove: remove && remove.length > 0 ? remove : undefined,
+  };
+
+  return {
+    moves: request.moves && request.moves.length > 0 ? request.moves : undefined,
+    variables: variables.set || variables.remove ? variables : undefined,
+  };
+}
+
 // Alle Instanz-Endpunkte antworten in `ApiStatusResult<T>`.
 export const instancesApi = {
   /** `GET /instance` */
@@ -275,6 +368,100 @@ export const instancesApi = {
   get: async (instanceId: string, signal?: AbortSignal) => {
     const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}`, { signal });
     return normalizeInstance(instance);
+  },
+
+  /**
+   * `GET /instance/{id}/children` — die von Call Activities dieser Instanz gestarteten
+   * Kindinstanzen. Dieselbe Rechteprüfung wie die Instanzansicht; ohne das Recht 404.
+   *
+   * Der Zustand kommt wie bei den Instanzen als Zahl und wird hier in das sprechende
+   * Literal übersetzt — sonst stünde in der Liste ein „4" statt „Abgeschlossen".
+   */
+  children: async (instanceId: string, signal?: AbortSignal) => {
+    const children = await requestStatusResult<CalledInstanceDto[]>(`/instance/${instanceId}/children`, { signal });
+    return (children ?? []).map((child) => ({ ...child, state: toProcessInstanceState(child.state) }));
+  },
+
+  /** `POST /instance/{id}/cancel` — verlangt das Betriebsrecht; beendete Instanzen antworten mit 409. */
+  cancel: async (instanceId: string) => {
+    const instance = await requestStatusResult<ProcessInstanceInfoDto>(`/instance/${instanceId}/cancel`, {
+      method: 'POST',
+    });
+    return normalizeInstance(instance);
+  },
+
+  /**
+   * `DELETE /instance/{id}` — löscht eine beendete Instanz samt allem, was an ihr hängt.
+   * Verlangt das Betriebsrecht; laufende Instanzen antworten mit 409, unbekannte mit 404.
+   */
+  remove: (instanceId: string) =>
+    request<void>(`/instance/${instanceId}`, { method: 'DELETE' }),
+
+  /**
+   * `POST /instance/migration/preview` — prüft folgenlos, welche Instanzen deckungsgleich
+   * zur aktuell deployten Version sind. Verlangt das Betriebsrecht; 400/422, wenn die
+   * Auswahl verschiedene Workflows oder Quellversionen mischt.
+   *
+   * `flowNodeMapping` ordnet wartenden Quellknoten ein Ziel zu und gilt für alle Instanzen
+   * der Anfrage — sie laufen auf derselben Quellversion und teilen deshalb ihre Knoten.
+   */
+  migrationPreview: (
+    instanceIds: string[],
+    flowNodeMapping?: Record<string, string>,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<InstanceMigrationPreviewDto>('/instance/migration/preview', {
+      method: 'POST',
+      body: { instanceIds, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
+      signal,
+    }),
+
+  /**
+   * `POST /instance/migration` — hängt die Instanzen auf `targetDefinitionId` um.
+   * Wurde inzwischen eine andere Version deployt, antwortet die API mit 409; dann muss
+   * die Vorschau wiederholt werden. Teilerfolge sind möglich. `flowNodeMapping` trägt
+   * dieselbe Zuordnung wie der Trockenlauf; ohne sie bleiben die betroffenen Instanzen zurück.
+   */
+  migrate: (
+    instanceIds: string[],
+    targetDefinitionId: string,
+    flowNodeMapping?: Record<string, string>,
+  ) =>
+    requestStatusResult<InstanceMigrationResultDto>('/instance/migration', {
+      method: 'POST',
+      body: { instanceIds, targetDefinitionId, flowNodeMapping: mappingOrUndefined(flowNodeMapping) },
+    }),
+
+  /**
+   * `POST /instance/{id}/modification/preview` — prüft folgenlos, ob sich der Eingriff so
+   * ausführen ließe. Verlangt das Betriebsrecht; 404 für eine unbekannte, 409 für eine nicht
+   * mehr laufende Instanz, 422 für eine Anfrage, die so nicht zulässig ist.
+   *
+   * Eine leere Anfrage ist hier erlaubt und beantwortet nur, welche Schritte warten und
+   * welche Knoten als Ziel in Frage kommen.
+   */
+  modificationPreview: (
+    instanceId: string,
+    request: InstanceModificationRequestDto,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<InstanceModificationPreviewDto>(`/instance/${instanceId}/modification/preview`, {
+      method: 'POST',
+      body: modificationBody(request),
+      signal,
+    }),
+
+  /**
+   * `POST /instance/{id}/modification` — verschiebt wartende Schritte und korrigiert
+   * Variablen. Die API antwortet mit der Instanz nach dem Eingriff; sie wird hier wie bei
+   * jedem anderen Instanzendpunkt normalisiert, damit Zustände als Literale ankommen.
+   */
+  modify: async (instanceId: string, request: InstanceModificationRequestDto) => {
+    const result = await requestStatusResult<InstanceModificationResultDto>(
+      `/instance/${instanceId}/modification`,
+      { method: 'POST', body: modificationBody(request) },
+    );
+    return { ...result, instance: normalizeInstance(result.instance) };
   },
 
   /** `GET /instance/{id}/subscription/messages` */
@@ -315,8 +502,22 @@ export const formsApi = {
     requestStatusResult<FormMetaDataDto>(`/form/meta/${formId}`, { signal }),
 
   /** `POST /form/meta/{formId}` — legt Metadaten an oder aktualisiert sie. */
-  saveMeta: (formId: string, name: string) =>
-    requestStatus(`/form/meta/${formId}`, { method: 'POST', body: { formId, name } }),
+  saveMeta: (formId: string, name: string, folderId?: string | null) =>
+    requestStatus(`/form/meta/${formId}`, { method: 'POST', body: { formId, name, folderId } }),
+
+  /** Reine Katalogordner; sie sind kein Teil der veröffentlichten Formularverträge. */
+  listFolders: (signal?: AbortSignal) =>
+    requestStatusResult<FormFolderDto[]>('/form/folders', { signal }),
+  createFolder: (folder: FormFolderRequestDto) =>
+    requestStatusResult<FormFolderDto>('/form/folders', { method: 'POST', body: folder }),
+  updateFolder: (id: string, folder: FormFolderRequestDto) =>
+    requestStatusResult<FormFolderDto>(`/form/folders/${encodeURIComponent(id)}`, { method: 'PUT', body: folder }),
+  deleteFolder: (id: string) =>
+    requestStatusResult<FormFolderDto>(`/form/folders/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  moveToFolder: (formId: string, folderId: string | null) =>
+    requestStatusResult<FormMetaDataDto>(`/form/meta/${encodeURIComponent(formId)}/folder`, {
+      method: 'PUT', body: { folderId },
+    }),
 
   /** `DELETE /form/meta/{formId}` — loescht das Formular samt allen Versionen. */
   deleteMeta: (formId: string) =>
@@ -329,6 +530,10 @@ export const formsApi = {
   /** `GET /form/{formId}/{major}.{minor}` — konkrete Version. */
   getVersion: (formId: string, version: VersionDto, signal?: AbortSignal) =>
     requestStatusResult<FormDto>(`/form/${formId}/${version.major}.${version.minor}`, { signal }),
+
+  /** Versionsliste für die Auswahl eines Formulars als Komponente. */
+  listVersions: (formId: string, signal?: AbortSignal) =>
+    requestStatusResult<FormVersionSummaryDto[]>(`/form/${encodeURIComponent(formId)}/versions`, { signal }),
 
   /** `POST /form` — speichert eine neue Formularversion. */
   save: (form: { formId: string; formData: string; version?: VersionDto }) =>
@@ -445,6 +650,40 @@ export const aiConnectionsApi = {
   ),
 };
 
+/**
+ * Verwaltung der eingehenden Webhook-Ausloeser. Alle Endpunkte verlangen die
+ * Betriebsrolle; das Geheimnis kommt nur aus `create` und `rotateSecret` zurueck.
+ */
+export const inboundTriggersApi = {
+  /** `GET /inbound-trigger` — Liste ohne jedes Geheimnis. */
+  list: (signal?: AbortSignal) =>
+    requestStatusResult<InboundTriggerDto[]>('/inbound-trigger', { signal }),
+
+  /** `POST /inbound-trigger` — legt an und liefert das Geheimnis genau einmal. */
+  create: (input: CreateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerSecretDto>('/inbound-trigger', { method: 'POST', body: input }),
+
+  /** `PUT /inbound-trigger/{id}` — die Art wird serverseitig ignoriert und hier nicht gesendet. */
+  update: (triggerId: string, input: UpdateInboundTriggerInput) =>
+    requestStatusResult<InboundTriggerDto>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `POST /inbound-trigger/{id}/rotate-secret` — ersetzt das Geheimnis, ohne Body. */
+  rotateSecret: (triggerId: string) =>
+    requestStatusResult<InboundTriggerSecretDto>(
+      `/inbound-trigger/${encodeURIComponent(triggerId)}/rotate-secret`,
+      { method: 'POST' },
+    ),
+
+  /** `DELETE /inbound-trigger/{id}` — danach ist die Adresse nicht mehr erreichbar. */
+  remove: (triggerId: string) =>
+    requestStatusResult<string>(`/inbound-trigger/${encodeURIComponent(triggerId)}`, {
+      method: 'DELETE',
+    }),
+};
+
 /** Ausschliesslich installierte, typisierte Werkzeugvertraege ohne Handlerdetails. */
 export const aiToolsApi = {
   list: async (signal?: AbortSignal) => {
@@ -453,6 +692,59 @@ export const aiToolsApi = {
     }>>('/ai/tool', { signal });
     return items.map(normalizeAiTool);
   },
+};
+
+/**
+ * Der Entscheidungskatalog (DMN). Eine Entscheidungsdefinition ist eine ganze DMN-Datei; die
+ * `decisionId`, die ein Business-Rule-Task aufruft, steht darin als einzelne Entscheidung.
+ * Speichern legt immer eine neue Version an — deployte Workflows behalten die ihre.
+ */
+export const decisionsApi = {
+  /** `GET /decision` — Katalog, je Eintrag die jüngste Version. */
+  list: (signal?: AbortSignal) => requestStatusResult<DecisionDefinition[]>('/decision', { signal }),
+
+  /** `POST /decision` — legt eine Entscheidungsdefinition aus DMN-XML an. */
+  create: (input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>('/decision', { method: 'POST', body: input }),
+
+  /** `PUT /decision/{id}` — speichert das XML als neue Version. */
+  update: (decisionDefinitionId: string, input: { name?: string; xml: string }) =>
+    requestStatusResult<DecisionDefinition>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, {
+      method: 'PUT',
+      body: input,
+    }),
+
+  /** `GET /decision/{id}` — jüngste Version samt XML. */
+  get: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { signal }),
+
+  /** `GET /decision/{id}/versions` */
+  listVersions: (decisionDefinitionId: string, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionVersion[]>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions`,
+      { signal },
+    ),
+
+  /** `GET /decision/{id}/versions/{version}` */
+  getVersion: (decisionDefinitionId: string, version: number, signal?: AbortSignal) =>
+    requestStatusResult<DecisionDefinitionDetail>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/versions/${version}`,
+      { signal },
+    ),
+
+  /** `DELETE /decision/{id}` — antwortet mit 409, wenn ein deployter Workflow die Entscheidung benutzt. */
+  remove: (decisionDefinitionId: string) =>
+    requestStatus(`/decision/${encodeURIComponent(decisionDefinitionId)}`, { method: 'DELETE' }),
+
+  /** `POST /decision/{id}/evaluate` — Trockenlauf ohne Instanz und ohne Seiteneffekt. */
+  evaluate: (
+    decisionDefinitionId: string,
+    input: { decisionId: string; variables: Record<string, unknown> },
+  ) =>
+    requestStatusResult<DecisionEvaluationResult>(
+      `/decision/${encodeURIComponent(decisionDefinitionId)}/evaluate`,
+      { method: 'POST', body: input },
+    ),
 };
 
 export const messagesApi = {
@@ -474,6 +766,13 @@ export const operationsApi = {
   diagnostics: (signal?: AbortSignal) =>
     requestStatusResult<OperationsDiagnosticsDto>('/operations/diagnostics', { signal }),
 
+  /**
+   * `GET /operations/incidents` — alles, was ohne Eingriff liegen bleibt, neueste Störung
+   * zuerst. Verlangt das Betriebsrecht.
+   */
+  incidents: (signal?: AbortSignal) =>
+    requestStatusResult<OperationsIncidentDto[]>('/operations/incidents', { signal }),
+
   /** `GET /timer` — alle offenen Timer der Engine. */
   timers: (signal?: AbortSignal) => requestStatusResult<TimerSubscriptionDto[]>('/timer', { signal }),
 
@@ -482,6 +781,45 @@ export const operationsApi = {
 
   /** `GET /health/ready` */
   readiness: (signal?: AbortSignal) => requestStatusResult<HealthStatusDto>('/health/ready', { signal }),
+
+  /**
+   * `GET /operations/analytics/workflows` — Auswertung aller Workflows im Zeitraum.
+   * Ohne `from`/`to` entscheidet der Server (letzte 30 Tage).
+   */
+  analyticsOverview: (range: AnalyticsRangeQuery, signal?: AbortSignal) =>
+    requestStatusResult<WorkflowAnalyticsOverviewDto>('/operations/analytics/workflows', {
+      query: { from: range.from, to: range.to },
+      signal,
+    }),
+
+  /**
+   * `GET /operations/analytics/workflows/{metaDefinitionId}` — Schritte und Zeitreihe
+   * eines Workflows. Ohne `definitionId` zählen alle Versionen.
+   */
+  analyticsDetail: (
+    metaDefinitionId: string,
+    range: AnalyticsRangeQuery,
+    definitionId?: string | null,
+    signal?: AbortSignal,
+  ) =>
+    requestStatusResult<WorkflowAnalyticsDetailDto>(
+      `/operations/analytics/workflows/${encodeURIComponent(metaDefinitionId)}`,
+      { query: { from: range.from, to: range.to, definitionId: definitionId ?? undefined }, signal },
+    ),
+};
+
+/** Aufträge an externe Worker; die Konsole benutzt davon nur den Betriebseingriff. */
+export const jobsApi = {
+  /**
+   * `POST /job/{id}/retry` — gibt einen liegen gebliebenen Auftrag wieder frei. `variables`
+   * werden in die vorhandenen Eingaben hineingemischt; ungenannte Schlüssel bleiben stehen.
+   * Verlangt das Betriebsrecht; ein Auftrag, der gar nicht liegt, antwortet mit 409.
+   */
+  retry: (jobId: string, retries: number, variables?: ProcessVariables) =>
+    requestStatus(`/job/${jobId}/retry`, {
+      method: 'POST',
+      body: { retries, variables },
+    }),
 };
 
 export type { ProcessVariables };

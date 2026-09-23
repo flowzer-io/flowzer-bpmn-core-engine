@@ -273,6 +273,131 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   return parsed as T;
 }
 
+/** Eine heruntergeladene Datei samt dem Namen, unter dem die API sie anbietet. */
+export interface DownloadedFile {
+  blob: Blob;
+  fileName: string;
+}
+
+/**
+ * Lädt eine Datei statt JSON — etwa ein Prozesspaket.
+ *
+ * Bewusst ein eigener Weg und kein `<a download>` auf die API-URL: Der Download muss
+ * dieselben Anmeldedaten mitschicken wie jeder andere Aufruf, und ein Fehler soll als
+ * `ApiError` ankommen und nicht als leere Datei im Downloadordner landen.
+ */
+export async function requestFile(path: string, options: RequestOptions = {}): Promise<DownloadedFile> {
+  const headers: Record<string, string> = { Accept: 'application/zip, application/octet-stream' };
+  if (import.meta.env.DEV && !getRuntimeConfig().bffEnabled) {
+    headers[DEVELOPMENT_USER_HEADER] = DEVELOPMENT_USER_ID;
+  }
+
+  const url = buildUrl(path, options.query);
+  let response: Response;
+  try {
+    response = await fetch(url, { method: 'GET', headers, signal: options.signal, credentials: 'same-origin' });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+    throw new ApiError('Die Flowzer-API ist nicht erreichbar.', { status: 0, url, body: cause });
+  }
+
+  if (response.status === 401 && getRuntimeConfig().bffEnabled) reportUnauthorized();
+  if (response.status === 403) {
+    accessDeniedHandler(response.headers.get(ACCESS_DENIED_HEADER) !== 'capability');
+  } else if (response.ok) {
+    accessDeniedHandler(false);
+  }
+
+  if (!response.ok) {
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(await response.text()) as unknown;
+    } catch {
+      // Ein Fehler ohne JSON-Körper bleibt bei der Statuszeile.
+    }
+    throw new ApiError(extractErrorMessage(parsed, `${response.status} ${response.statusText}`), {
+      status: response.status,
+      url,
+      body: parsed,
+    });
+  }
+
+  return { blob: await response.blob(), fileName: fileNameFrom(response, path) };
+}
+
+/**
+ * Der Dateiname aus `Content-Disposition`. Bevorzugt wird `filename*` (RFC 5987), weil nur
+ * dort Umlaute verlustfrei stehen; ohne beides bleibt der letzte Pfadabschnitt.
+ */
+function fileNameFrom(response: Response, path: string): string {
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+
+  const encoded = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(disposition)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim().replace(/^"|"$/g, ''));
+    } catch {
+      // Ein kaputter Header darf den Download nicht verhindern.
+    }
+  }
+
+  const plain = /filename="?([^";]+)"?/i.exec(disposition)?.[1];
+  if (plain) return plain.trim();
+
+  return path.split('/').pop() || 'download';
+}
+
+/**
+ * Schickt eine Datei und optionale Formularfelder als `multipart/form-data`.
+ *
+ * `Content-Type` wird absichtlich nicht gesetzt: Den Grenzwert der Teile kennt nur der
+ * Browser, und ein selbst gesetzter Header ohne ihn macht den Rumpf unlesbar.
+ */
+export async function requestUpload<T>(
+  path: string,
+  file: { field: string; value: File | Blob; fileName: string },
+  fields: Record<string, string> = {},
+): Promise<T> {
+  const form = new FormData();
+  form.append(file.field, file.value, file.fileName);
+  for (const [name, value] of Object.entries(fields)) form.append(name, value);
+
+  const headers: Record<string, string> = { Accept: 'application/json, text/plain' };
+  if (import.meta.env.DEV && !getRuntimeConfig().bffEnabled) {
+    headers[DEVELOPMENT_USER_HEADER] = DEVELOPMENT_USER_ID;
+  }
+  if (getRuntimeConfig().bffEnabled) {
+    const csrfToken = await getCsrfToken();
+    headers[csrfToken.headerName] = csrfToken.requestToken;
+  }
+
+  const url = buildUrl(path);
+  let response: Response;
+  try {
+    response = await fetch(url, { method: 'POST', headers, body: form, credentials: 'same-origin' });
+  } catch (cause) {
+    throw new ApiError('Die Flowzer-API ist nicht erreichbar.', { status: 0, url, body: cause });
+  }
+
+  const parsed = await readBody(response, false);
+  if (response.status === 401 && getRuntimeConfig().bffEnabled) reportUnauthorized();
+  if (response.status === 403) {
+    accessDeniedHandler(response.headers.get(ACCESS_DENIED_HEADER) !== 'capability');
+  } else if (response.ok) {
+    accessDeniedHandler(false);
+  }
+
+  if (!response.ok) {
+    throw new ApiError(extractErrorMessage(parsed, `${response.status} ${response.statusText}`), {
+      status: response.status,
+      url,
+      body: parsed,
+    });
+  }
+
+  return unwrapStatusResult(parsed as ApiStatusResult<T>, path);
+}
+
 /**
  * Ruft einen Endpunkt auf, der in `ApiStatusResult<T>` verpackt antwortet, und
  * entpackt das Ergebnis. Ein `successful: false` wird wie ein HTTP-Fehler behandelt.

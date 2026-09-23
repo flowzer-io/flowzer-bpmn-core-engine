@@ -12,6 +12,88 @@ namespace WebApiEngine.Tests;
 [NonParallelizable]
 public class TimerRuntimeIntegrationTest
 {
+    // Testzweck: Ein nach Neustart überfälliger Einmaltimer durchläuft generische/manuelle
+    // Tasks genau einmal, ohne Human Task und ohne Neuveröffentlichung der Definition.
+    [TestCase("task")]
+    [TestCase("manualTask")]
+    public async Task HandleTime_ShouldPassThroughTask_AndRecoverOnce(string taskType)
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateTimerStartXml()
+            .Replace("targetRef=\"EndEvent_1\"", "targetRef=\"PassThrough\"")
+            .Replace("</bpmn:process>", $"<bpmn:{taskType} id=\"PassThrough\" />"
+                + "<bpmn:sequenceFlow id=\"Flow_2\" sourceRef=\"PassThrough\" targetRef=\"EndEvent_1\" /></bpmn:process>");
+        var publisher = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await publisher.DeployDefinition(definition);
+        var due = storage.TimerSubscriptions.Single().DueAt.AddDays(9);
+
+        var restarted = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        (await restarted.HandleTime(due)).Should().Be(1);
+        (await restarted.HandleTime(due.AddMinutes(1))).Should().Be(0);
+        storage.TimerSubscriptions.Should().BeEmpty();
+        storage.Instances.Should().ContainSingle();
+        storage.Instances.Values.Single().IsFinished.Should().BeTrue();
+        storage.Instances.Values.Single().Tokens.Should().Contain(token =>
+            token.CurrentBaseElement.Id == "PassThrough" && token.State == FlowNodeState.Completed);
+    }
+
+    // Testzweck: Ein beschädigter Altbestand bleibt fällig und muss den Scheduler-Tick
+    // als fehlgeschlagen melden, statt durch abgefangene Einzelfehler Healthy vorzutäuschen.
+    [Test]
+    public async Task HandleTime_ShouldReportFailedStartTimer_WithoutLosingSubscription()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateTimerStartXml().Replace("PT2S", "PT0S");
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await businessLogic.DeployDefinition(definition);
+        storage.Binaries.Remove(definition.Id);
+
+        // Eine einzelne defekte Definition darf die Diagnose-Oberfläche nicht mit stoppen.
+        var recover = () => businessLogic.LoadAsync();
+        await recover.Should().NotThrowAsync();
+        var action = () => businessLogic.HandleTime(DateTime.UtcNow.AddSeconds(5));
+        await action.Should().ThrowAsync<AggregateException>();
+        storage.TimerSubscriptions.Should().ContainSingle();
+        storage.Instances.Should().BeEmpty();
+    }
+
+    // Testzweck: Die echte Hintergrundschleife meldet den kaputten Start als Faulted,
+    // statt einen abgefangenen Einzelfehler als erfolgreichen Tick zu zählen.
+    [Test]
+    public async Task Scheduler_ShouldExposeFailedTimerInDiagnostics()
+    {
+        var definition = CreateDefinition();
+        var storage = new TimerRuntimeTestStorage();
+        storage.Definitions[definition.Id] = definition;
+        storage.Binaries[definition.Id] = CreateTimerStartXml().Replace("PT2S", "PT0S");
+        var businessLogic = new BpmnBusinessLogic(new TestTransactionalStorageProvider(storage));
+        await businessLogic.DeployDefinition(definition);
+        storage.Binaries.Remove(definition.Id);
+        var diagnostics = new WebApiEngine.Diagnostics.TimerSchedulerDiagnosticsState();
+        using var scheduler = new WebApiEngine.Background.TimerSchedulerBackgroundService(
+            businessLogic,
+            Microsoft.Extensions.Options.Options.Create(new WebApiEngine.Background.TimerSchedulerOptions
+                { Enabled = true, PollIntervalSeconds = 60 }),
+            diagnostics,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebApiEngine.Background.TimerSchedulerBackgroundService>.Instance);
+        await scheduler.StartAsync(CancellationToken.None);
+        try
+        {
+            Assert.That(() => diagnostics.GetSnapshot().Status, Is.EqualTo("Faulted").After(3000, 25));
+            diagnostics.GetSnapshot().FailedTickCount.Should().Be(1);
+            diagnostics.GetSnapshot().SuccessfulTickCount.Should().Be(0);
+            storage.TimerSubscriptions.Should().ContainSingle();
+        }
+        finally
+        {
+            await scheduler.StopAsync(CancellationToken.None);
+        }
+    }
+
     // Testzweck: Deckt den Fall „Deploy Definition Should Persist Process Start Timer Subscription“ ab.
     [Test]
     public async Task DeployDefinition_ShouldPersistProcessStartTimerSubscription()

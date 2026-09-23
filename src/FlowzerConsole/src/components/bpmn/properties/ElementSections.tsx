@@ -11,16 +11,20 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Icon } from '@/components/ui/Icon';
 import { Segmented } from '@/components/ui/Segmented';
-import type { AiConnectionDto, AiToolDto } from '@/lib/api/types';
+import type { AiConnectionDto, AiToolDto, DecisionSummary } from '@/lib/api/types';
 import { embeddedFormKey, newEmbeddedFormId, parseFormKey, storedFormKey } from '@/lib/formKey';
 
-import type {
-  BpmnEditor,
-  CalledProcess,
-  ElementProperties,
-  MessageReference,
-  ScriptDefinition,
-  TimerKind,
+import {
+  NEW_ERROR,
+  NEW_ESCALATION,
+  type BpmnEditor,
+  type CalledProcess,
+  type ElementProperties,
+  type ErrorReference,
+  type EscalationReference,
+  type MessageReference,
+  type ScriptDefinition,
+  type TimerKind,
 } from '../bpmnEditor';
 import { CheckRow, IoMappingEditor, Notice, SelectRow, Section, TextAreaRow, TextRow } from './PropertyFields';
 
@@ -36,6 +40,12 @@ const FORM_SOURCE_OPTIONS = [
 ];
 
 const NEW_EMBEDDED_FORM = '__neu__';
+
+/** Der Business-Rule-Task rechnet selbst oder vergibt einen Auftrag — nie beides. */
+const BUSINESS_RULE_MODE_OPTIONS = [
+  { value: 'decision' as const, label: 'Entscheidung' },
+  { value: 'job' as const, label: 'Als Auftrag' },
+];
 
 const SCRIPT_MODE_OPTIONS = [
   { value: 'script' as const, label: 'Als Skript' },
@@ -273,29 +283,35 @@ export function ScheduleSection({ properties, editor, readOnly }: SectionProps) 
   );
 }
 
-/** Der Auftrag an einen externen Worker — an Service-Tasks und an sendenden Ereignissen. */
+/** Der Auftrag an einen externen Worker — an Service-Tasks und an sendenden Elementen. */
 export function JobSection({ properties, editor, readOnly }: SectionProps) {
   return (
     <Section
       icon="api"
-      title="Auftrag"
+      title={properties.jobTypeOptional ? 'Auftrag (optional)' : 'Auftrag'}
       hint={
-        properties.kind === 'serviceTask'
-          ? 'Der Auftragstyp verbindet den Schritt mit dem Worker, der ihn ausführt.'
-          : 'Diesen Schritt führt ein Worker aus — bei einem sendenden Ereignis verschickt er die Nachricht.'
+        properties.jobTypeOptional
+          ? 'Mit einem Auftragstyp verschickt ein Worker die Nachricht — etwa als E-Mail. Ohne ihn stellt Flowzer sie selbst an den wartenden Prozess zu.'
+          : 'Der Auftragstyp verbindet den Schritt mit dem Worker, der ihn ausführt.'
       }
     >
       <TextRow
         label="Auftragstyp"
         value={properties.jobType}
         disabled={readOnly}
-        placeholder="rechnung-pruefen"
+        placeholder={properties.jobTypeOptional ? 'mail-versenden' : 'rechnung-pruefen'}
         monospace
         onCommit={(value) => editor?.setJob(properties.id, { type: value })}
       />
-      {properties.jobType.trim().length === 0 && (
+      {properties.jobType.trim().length === 0 && !properties.jobTypeOptional && (
         <Notice tone="warn">
           Ohne Auftragstyp findet kein Worker diesen Schritt — die Instanz bliebe hier stehen.
+        </Notice>
+      )}
+      {properties.jobType.trim().length > 0 && properties.jobTypeOptional && (
+        <Notice>
+          Der Auftragstyp ersetzt die interne Zustellung: Die Nachricht geht an den Worker, nicht an
+          einen wartenden Prozess.
         </Notice>
       )}
       {/* Wiederholungen liest die Engine nur am Service-Task. An einem sendenden Ereignis oder
@@ -315,24 +331,86 @@ export function JobSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
-/** Ein Service-Task bleibt BPMN-seitig derselbe Knoten; hier wird seine Ausführungsart gewählt. */
-export function ServiceTaskModeSection({ properties, editor, readOnly }: SectionProps) {
+/**
+ * Die Entscheidung, die ein Business-Rule-Task aufruft — oder der Auftrag an einen Worker.
+ *
+ * Beides zugleich gibt es nicht: Die Engine nimmt den Auftragstyp, sobald einer da ist. Der
+ * Umschalter räumt die jeweils andere Erweiterung deshalb ab, sonst hinge am Element eine
+ * Konfiguration, die hier niemand mehr sieht.
+ */
+export function DecisionSection({
+  properties,
+  editor,
+  readOnly,
+  decisions,
+  decisionsUnavailable,
+}: SectionProps & {
+  decisions: readonly DecisionSummary[];
+  decisionsUnavailable: boolean;
+}) {
+  const current = properties.calledDecision ?? { decisionId: '', resultVariable: '' };
+  const isDecision = properties.businessRuleMode === 'decision';
+
+  const options = [
+    { value: '', label: '— keine Entscheidung —' },
+    ...decisions.map((decision) => ({
+      value: decision.decisionId,
+      label: decision.name ? `${decision.name} · ${decision.decisionId}` : decision.decisionId,
+    })),
+  ];
+  // Eine Entscheidung, die der Katalog gerade nicht kennt, darf nicht still aus der Auswahl
+  // fallen — der Schritt sähe sonst unbelegt aus und würde beim nächsten Klick überschrieben.
+  if (current.decisionId && !decisions.some((decision) => decision.decisionId === current.decisionId)) {
+    options.push({ value: current.decisionId, label: `Nicht im Katalog · ${current.decisionId}` });
+  }
+
   return (
     <Section
-      icon="settings_suggest"
-      title="Ausführungsart"
-      hint="Ein freier Worker-Typ bleibt möglich. KI verwendet den versionierten Flowzer-Vertrag."
+      icon="rule"
+      title="Entscheidung"
+      hint="Die Engine rechnet die Entscheidungstabelle selbst — oder ein Worker übernimmt den Schritt."
     >
       <Segmented
-        options={[
-          { value: 'worker' as const, label: 'Worker' },
-          { value: 'ai' as const, label: 'KI' },
-        ]}
-        value={properties.serviceTaskMode}
-        aria-label="Ausführungsart des Service-Tasks"
+        options={BUSINESS_RULE_MODE_OPTIONS}
+        value={properties.businessRuleMode}
         disabled={readOnly}
-        onChange={(mode) => editor?.setServiceTaskMode(properties.id, mode)}
+        onChange={(mode) => editor?.setBusinessRuleMode(properties.id, mode)}
+        aria-label="Wie der Schritt ausgeführt wird"
       />
+
+      {isDecision && (
+        <>
+          <SelectRow
+            label="Aufgerufene Entscheidung"
+            value={current.decisionId}
+            options={options}
+            disabled={readOnly || decisionsUnavailable}
+            onChange={(decisionId) => editor?.setCalledDecision(properties.id, { decisionId })}
+          />
+          {decisionsUnavailable && (
+            <Notice tone="warn">Der Entscheidungskatalog konnte nicht geladen werden.</Notice>
+          )}
+          {current.decisionId.trim().length === 0 && !decisionsUnavailable && (
+            <Notice tone="warn">
+              Ohne Entscheidung lässt sich der Workflow nicht veröffentlichen.
+            </Notice>
+          )}
+          <TextRow
+            label="Ergebnisvariable"
+            value={current.resultVariable}
+            disabled={readOnly}
+            placeholder="rabattstufe"
+            monospace
+            hint="Unter diesem Namen steht das Ergebnis der Entscheidung danach im Prozess."
+            onCommit={(resultVariable) => editor?.setCalledDecision(properties.id, { resultVariable })}
+          />
+          {current.resultVariable.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Ergebnisvariable läuft die Tabelle zwar, aber niemand könnte ihr Ergebnis lesen.
+            </Notice>
+          )}
+        </>
+      )}
     </Section>
   );
 }
@@ -587,7 +665,11 @@ export function MappingsSection({ properties, editor, readOnly }: SectionProps) 
     <Section
       icon="data_object"
       title="Zuordnungen"
-      hint="Eingang bringt Prozessdaten in den Schritt, Ausgang schreibt sein Ergebnis zurück."
+      hint={
+        properties.sendsMessage
+          ? 'Der Eingang bestimmt, welche Werte mit der Nachricht mitgehen. Ohne Zuordnung geht nichts mit.'
+          : 'Eingang bringt Prozessdaten in den Schritt, Ausgang schreibt sein Ergebnis zurück.'
+      }
     >
       {properties.supportsInputMappings && (
         <IoMappingEditor
@@ -599,14 +681,18 @@ export function MappingsSection({ properties, editor, readOnly }: SectionProps) 
           onChange={(inputs) => editor?.setIoMappings(properties.id, inputs, properties.outputs)}
         />
       )}
-      <IoMappingEditor
-        label="Ausgang"
-        sourceLabel="=entscheidung"
-        targetLabel="antrag.status"
-        value={properties.outputs}
-        disabled={readOnly}
-        onChange={(outputs) => editor?.setIoMappings(properties.id, properties.inputs, outputs)}
-      />
+      {/* Ein sendendes Element hat kein Ergebnis zurückzuschreiben; das Feld wäre dort
+          eine Angabe ohne Wirkung. */}
+      {properties.supportsOutputMappings && (
+        <IoMappingEditor
+          label="Ausgang"
+          sourceLabel="=entscheidung"
+          targetLabel="antrag.status"
+          value={properties.outputs}
+          disabled={readOnly}
+          onChange={(outputs) => editor?.setIoMappings(properties.id, properties.inputs, outputs)}
+        />
+      )}
     </Section>
   );
 }
@@ -732,11 +818,25 @@ export function TimerSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
+/**
+ * Die Nachricht eines Elements — dieselben zwei Felder für beide Seiten: Der Name führt Werfen
+ * und Fangen zusammen, der Schlüssel entscheidet, welcher laufende Vorgang gemeint ist.
+ */
 export function MessageSection({ properties, editor, readOnly }: SectionProps) {
   const current: MessageReference = properties.message ?? { name: '', correlationKey: '' };
+  const sends = properties.sendsMessage;
+  const replacedByJob = sends && properties.jobType.trim().length > 0;
 
   return (
-    <Section icon="mail" title="Nachricht" hint="Die Instanz wartet, bis eine Nachricht dieses Namens eintrifft.">
+    <Section
+      icon="mail"
+      title="Nachricht"
+      hint={
+        sends
+          ? 'Dieser Schritt sendet die Nachricht und läuft sofort weiter — er wartet nicht auf eine Antwort.'
+          : 'Die Instanz wartet, bis eine Nachricht dieses Namens eintrifft.'
+      }
+    >
       <TextRow
         label="Name"
         value={current.name}
@@ -744,7 +844,7 @@ export function MessageSection({ properties, editor, readOnly }: SectionProps) {
         placeholder="Antrag eingegangen"
         onCommit={(name) => editor?.setMessage(properties.id, { name })}
       />
-      {current.name.trim().length === 0 && (
+      {current.name.trim().length === 0 && !replacedByJob && (
         <Notice tone="warn">
           Ohne Namen lässt sich der Workflow nicht speichern — die Nachricht wäre nicht zuzuordnen.
         </Notice>
@@ -755,9 +855,19 @@ export function MessageSection({ properties, editor, readOnly }: SectionProps) {
         disabled={readOnly}
         placeholder="=antragsnummer"
         monospace
-        hint="Bestimmt, welche laufende Instanz die Nachricht bekommt. Leer heißt: Sie startet eine neue."
+        hint={
+          sends
+            ? 'Bestimmt, welche wartende Instanz die Nachricht bekommt. Wartet keine, startet sie eine neue — und sonst verfällt sie.'
+            : 'Bestimmt, welche laufende Instanz die Nachricht bekommt. Leer heißt: Sie startet eine neue.'
+        }
         onCommit={(correlationKey) => editor?.setMessage(properties.id, { correlationKey })}
       />
+      {sends && (
+        <Notice>
+          Mitgegeben werden nur die Eingabewerte aus „Zuordnungen" — ohne Zuordnung geht nichts
+          mit. Der übrige Prozesskontext bleibt hier.
+        </Notice>
+      )}
     </Section>
   );
 }
@@ -781,12 +891,185 @@ export function SignalSection({ properties, editor, readOnly }: SectionProps) {
   );
 }
 
+/**
+ * Der Fehlerbezug eines Error-Ende- oder Error-Boundary-Ereignisses.
+ *
+ * Ein `bpmn:Error` gehoert zum ganzen Dokument, nicht zum Ereignis: Werfen und Fangen finden
+ * ueber denselben Fehler zueinander. Deshalb waehlt dieser Abschnitt einen vorhandenen aus,
+ * statt jedes Mal einen neuen anzulegen.
+ */
+export function ErrorSection({ properties, editor, readOnly }: SectionProps) {
+  const current: ErrorReference = properties.error ?? { errorId: '', name: '', code: '', available: [] };
+  const isBoundary = properties.type === 'bpmn:BoundaryEvent';
+  const hasReference = current.errorId.length > 0;
+
+  const options = [
+    { value: '', label: isBoundary ? 'Jeder Fehler' : 'Ohne Fehlercode' },
+    ...current.available.map((option) => ({
+      value: option.id,
+      label: option.code.trim().length > 0 ? `${option.name || option.id} (${option.code})` : option.name || option.id,
+    })),
+    { value: NEW_ERROR, label: 'Neuen Fehler anlegen …' },
+  ];
+
+  return (
+    <Section
+      icon="report"
+      title="Fehler"
+      hint={
+        isBoundary
+          ? 'Das Ereignis fängt diesen Fehler und unterbricht dabei die Aufgabe.'
+          : 'Das Ereignis löst diesen Fehler aus; gefangen wird er an einem Error-Boundary.'
+      }
+    >
+      <SelectRow
+        label="Fehler"
+        value={hasReference ? current.errorId : ''}
+        options={options}
+        disabled={readOnly}
+        onChange={(value) =>
+          editor?.setErrorReference(properties.id, value === NEW_ERROR ? { errorId: NEW_ERROR } : { errorId: value || null })
+        }
+      />
+      {hasReference && (
+        <>
+          <TextRow
+            label="Name"
+            value={current.name}
+            disabled={readOnly}
+            placeholder="Antrag unvollständig"
+            onCommit={(name) => editor?.setErrorReference(properties.id, { name })}
+          />
+          <TextRow
+            label="Fehlercode"
+            value={current.code}
+            disabled={readOnly}
+            placeholder="ANTRAG_UNVOLLSTAENDIG"
+            monospace
+            hint="Über diesen Code finden werfendes und fangendes Ereignis zueinander."
+            onCommit={(code) => editor?.setErrorReference(properties.id, { code })}
+          />
+          {current.code.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Fehlercode fängt nur ein Boundary ohne eigenen Fehler diesen Fall.
+            </Notice>
+          )}
+        </>
+      )}
+      {!hasReference && isBoundary && (
+        <Notice>Ohne ausgewählten Fehler fängt dieses Ereignis jeden Fehler seines Bereichs.</Notice>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Der Eskalationsbezug eines Eskalationsereignisses.
+ *
+ * Wie beim Fehler gehoert eine `bpmn:Escalation` zum ganzen Dokument: Melden und Fangen finden
+ * ueber dieselbe Eskalation zueinander. Deshalb waehlt dieser Abschnitt eine vorhandene aus,
+ * statt jedes Mal eine neue anzulegen.
+ */
+export function EscalationSection({ properties, editor, readOnly }: SectionProps) {
+  const current: EscalationReference = properties.escalation ?? {
+    escalationId: '',
+    name: '',
+    code: '',
+    available: [],
+  };
+  // Boundary und Start fangen die Eskalation; das Zwischen- und das Ende-Ereignis melden sie.
+  const catches = properties.type === 'bpmn:BoundaryEvent' || properties.type === 'bpmn:StartEvent';
+  const hasReference = current.escalationId.length > 0;
+
+  const options = [
+    { value: '', label: catches ? 'Jede Eskalation' : 'Ohne Eskalationscode' },
+    ...current.available.map((option) => ({
+      value: option.id,
+      label: option.code.trim().length > 0 ? `${option.name || option.id} (${option.code})` : option.name || option.id,
+    })),
+    { value: NEW_ESCALATION, label: 'Neue Eskalation anlegen …' },
+  ];
+
+  return (
+    <Section
+      icon="notifications_active"
+      title="Eskalation"
+      hint={
+        catches
+          ? 'Das Ereignis fängt diese Eskalation und übernimmt die Entscheidung.'
+          : 'Eine Eskalation meldet nach außen, dass jemand auf höherer Ebene entscheiden muss.'
+      }
+    >
+      <SelectRow
+        label="Eskalation"
+        value={hasReference ? current.escalationId : ''}
+        options={options}
+        disabled={readOnly}
+        onChange={(value) =>
+          editor?.setEscalationReference(
+            properties.id,
+            value === NEW_ESCALATION ? { escalationId: NEW_ESCALATION } : { escalationId: value || null },
+          )
+        }
+      />
+      {hasReference && (
+        <>
+          <TextRow
+            label="Name"
+            value={current.name}
+            disabled={readOnly}
+            placeholder="Freigabe durch die Leitung"
+            onCommit={(name) => editor?.setEscalationReference(properties.id, { name })}
+          />
+          <TextRow
+            label="Eskalationscode"
+            value={current.code}
+            disabled={readOnly}
+            placeholder="FREIGABE_LEITUNG"
+            monospace
+            hint="Über diesen Code finden meldendes und fangendes Ereignis zueinander."
+            onCommit={(code) => editor?.setEscalationReference(properties.id, { code })}
+          />
+          {current.code.trim().length === 0 && (
+            <Notice tone="warn">
+              Ohne Eskalationscode fängt nur ein Ereignis ohne eigene Eskalation diesen Fall.
+            </Notice>
+          )}
+        </>
+      )}
+      {!hasReference && catches && (
+        <Notice>Ohne ausgewählte Eskalation fängt dieses Ereignis jede Eskalation seines Bereichs.</Notice>
+      )}
+      {!catches && (
+        <Notice>
+          Anders als ein Fehler bricht eine Eskalation den laufenden Weg nicht ab — er läuft weiter.
+          Fängt sie niemand, verfällt sie.
+        </Notice>
+      )}
+    </Section>
+  );
+}
+
+/**
+ * Keine Vorschlagsliste deployter Prozesskennungen: Dafür gibt es keinen passenden Haken.
+ * `useDefinitions()` liefert den Katalog der Workflows — `definitionId` ist dort die Kennung des
+ * `bpmn:definitions`-Elements samt Anzeigename und Version, nicht die Kennung des `bpmn:process`,
+ * die eine Call Activity aufruft (beim Anlegen vergibt die API beide getrennt). Die Prozesskennung
+ * steht nur im BPMN-XML jeder deployten Version; sie einzusammeln hieße, im Panel für jeden
+ * Workflow ein XML nachzuladen. Deshalb bleibt es Freitext — was ohnehin nötig ist, solange der
+ * Zielprozess noch gar nicht deployt sein muss.
+ */
 export function CallActivitySection({ properties, editor, readOnly }: SectionProps) {
   const current: CalledProcess = properties.calledProcess ?? {
     processId: '',
     propagateAllChildVariables: true,
     propagateAllParentVariables: true,
   };
+  const processId = current.processId.trim();
+  // Die Engine schlägt die Kennung in dieser Stufe wörtlich nach. Ein führendes `=` ist die
+  // Schreibweise eines FEEL-Ausdrucks — hier keine dynamische Auswahl, sondern ein Wert, den
+  // das Veröffentlichen zurückweist.
+  const looksLikeExpression = processId.startsWith('=');
 
   return (
     <Section
@@ -800,17 +1083,24 @@ export function CallActivitySection({ properties, editor, readOnly }: SectionPro
         disabled={readOnly}
         placeholder="Process_Urlaubsantrag"
         monospace
+        hint="Eine feste Kennung des Zielprozesses; ein Ausdruck ist hier nicht möglich."
         onCommit={(processId) => editor?.setCalledProcess(properties.id, { processId })}
       />
-      {current.processId.trim().length === 0 && (
+      {processId.length === 0 && (
         <Notice tone="warn">Ohne Prozesskennung lässt sich der Workflow nicht speichern.</Notice>
+      )}
+      {looksLikeExpression && (
+        <Notice tone="warn">
+          Die Prozesskennung muss ein Literal sein. Ein FEEL-Ausdruck — alles ab „=" — wird beim
+          Veröffentlichen abgelehnt.
+        </Notice>
       )}
       {/* Ohne Prozesskennung gibt es nichts weiterzugeben — und die Erweiterung, an der die
           Schalter haengen, steht dann bewusst gar nicht im Diagramm. */}
       <CheckRow
         label="Daten in den aufgerufenen Prozess geben"
         checked={current.propagateAllParentVariables}
-        disabled={readOnly || current.processId.trim().length === 0}
+        disabled={readOnly || processId.length === 0}
         onChange={(propagateAllParentVariables) =>
           editor?.setCalledProcess(properties.id, { propagateAllParentVariables })
         }
@@ -818,7 +1108,7 @@ export function CallActivitySection({ properties, editor, readOnly }: SectionPro
       <CheckRow
         label="Ergebnis zurück in diesen Prozess übernehmen"
         checked={current.propagateAllChildVariables}
-        disabled={readOnly || current.processId.trim().length === 0}
+        disabled={readOnly || processId.length === 0}
         onChange={(propagateAllChildVariables) =>
           editor?.setCalledProcess(properties.id, { propagateAllChildVariables })
         }

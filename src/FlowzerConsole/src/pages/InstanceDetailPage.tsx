@@ -5,7 +5,13 @@ import type { ProcessHistoryAction, ProcessHistoryEntry } from '@flowzer/sdk';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { DeleteInstanceAction } from '@/components/instances/DeleteInstanceAction';
+import { CancelInstanceAction } from '@/components/instances/CancelInstanceAction';
+import { RetryJobAction } from '@/components/operations/RetryJobAction';
+import { CalledInstancesSection, ParentInstanceLink } from '@/components/instances/InstanceCallHierarchy';
 import { InstanceOverview } from '@/components/instances/InstanceOverview';
+import { MigrateInstanceAction } from '@/components/instances/MigrateInstanceAction';
+import { ModifyInstanceAction } from '@/components/instances/ModifyInstanceAction';
 import { ProcessVariablesPanel, RuntimeNodeDataPanel } from '@/components/instances/InstanceDataPanels';
 import { RuntimeDiagram } from '@/components/instances/RuntimeDiagram';
 import { RuntimeTimeline } from '@/components/instances/RuntimeTimeline';
@@ -15,13 +21,14 @@ import { Chip, Dot, toneColor, toneSurface, type Tone } from '@/components/ui/Ch
 import { Icon } from '@/components/ui/Icon';
 import { ErrorState, InlineSpinner } from '@/components/ui/States';
 import { instanceBucket } from '@/lib/api/normalize';
-import { useInstance, useInstanceSubscriptions } from '@/lib/api/queries';
+import { useIncidents, useInstance, useInstanceChildren, useInstanceSubscriptions } from '@/lib/api/queries';
 import type { TokenDto } from '@/lib/api/types';
 import { nodeLabel, nodeTypeIcon, nodeTypeLabel, parseBpmn } from '@/lib/bpmnModel';
 import { cn } from '@/lib/cn';
-import { formatDueIn, formatTimestamp, parseApiDate, shortId } from '@/lib/format';
-import { BUCKET_TONE, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
+import { formatDueIn, formatTimestamp, formatVersion, parseApiDate, shortId } from '@/lib/format';
+import { instanceTone, processScopeVariables, STATE_LABEL } from '@/lib/instanceView';
 import { useBreadcrumbs } from '@/stores/breadcrumbs';
+import { useCan } from '@/stores/session';
 
 interface InstanceDetailPageProps {
   instanceId: string;
@@ -52,13 +59,32 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   });
   const historyQuery = useInstanceHistory(instanceId, { enabled: canInspect });
   const subscriptionsQuery = useInstanceSubscriptions(canInspect ? instanceId : undefined);
+  // Dieselbe Rechteprüfung wie die Instanzansicht: Ohne Diagnoserecht antwortet der Endpunkt
+  // mit 404, also wird er gar nicht erst gefragt.
+  const childrenQuery = useInstanceChildren(canInspect ? instanceId : undefined);
+
+  // Die Störungsliste gehört der Betriebsrolle. Ohne sie gar nicht erst zu fragen ist
+  // ehrlicher als eine Detailseite, die im Hintergrund an einer 403 scheitert.
+  const mayOperate = useCan()('operator');
+  const incidentsQuery = useIncidents({ enabled: mayOperate });
+  const stalledJob = useMemo(
+    () =>
+      (incidentsQuery.data ?? []).find(
+        (incident) => incident.kind === 'jobExhausted' && incident.instanceId === instanceId,
+      ),
+    [incidentsQuery.data, instanceId],
+  );
 
   const model = useMemo(() => parseBpmn(runtimeQuery.data?.diagramXml), [runtimeQuery.data?.diagramXml]);
   const selectedFlowNodeId = useMemo(() => {
     const nodes = (runtimeQuery.data?.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
-    if (selectedNodeId && nodes.some((node) => node.flowNodeId === selectedNodeId)) return selectedNodeId;
+    // Auch ein noch nicht erreichter Schritt lässt sich wählen — sonst spränge die
+    // Markierung beim Klick darauf kommentarlos zum aktiven Knoten zurück.
+    const isKnown = (flowNodeId: string) =>
+      nodes.some((node) => node.flowNodeId === flowNodeId) || model.nodeById.has(flowNodeId);
+    if (selectedNodeId && isKnown(selectedNodeId)) return selectedNodeId;
     return nodes.find((node) => node.status === 0)?.flowNodeId ?? nodes[0]?.flowNodeId ?? undefined;
-  }, [runtimeQuery.data?.nodes, selectedNodeId]);
+  }, [runtimeQuery.data?.nodes, model, selectedNodeId]);
 
   useBreadcrumbs([
     { label: 'Instanzen', to: '/instances' },
@@ -82,13 +108,17 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
   }
 
   if (!canInspect) {
+    // Bewusst ohne Eltern- und Kindbezug: Die datensparsame Übersicht zeigt den eigenen
+    // Vorgang. Ob jemand die aufrufende oder die aufgerufene Instanz sehen darf, entscheidet
+    // die API für jede Instanz einzeln — ein Verweis darauf führte hier regelmäßig in ein 404,
+    // und die Kindliste verlangt ohnehin dasselbe Diagnoserecht wie diese Ansicht.
     return <InstanceOverview instance={instance}
       onBack={() => void navigate({ to: '/instances' })}
       onTasks={() => void navigate({ to: '/tasks' })} />;
   }
 
   const bucket = instanceBucket(instance.state);
-  const tone = BUCKET_TONE[bucket];
+  const tone = instanceTone(instance.state);
   // Der Master-Token ist der persistierte Prozessscope. Fachknoten enthalten
   // dagegen ihre eigenen gebundenen Eingaben und dürfen ihn nicht ersetzen.
   const variables = processScopeVariables(instance);
@@ -113,12 +143,27 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
               {instance.relatedDefinitionName}
             </span>
             <Chip tone={tone}>{STATE_LABEL[instance.state]}</Chip>
+            <span
+              className="bg-surface-2 text-muted rounded-[7px] px-2 py-0.5 font-mono text-xs font-semibold"
+              title={instance.definitionVersion
+                ? 'Workflow-Version, an die diese Instanz gebunden ist'
+                : 'Die Workflow-Version dieser Instanz liegt nicht mehr vor'}
+            >
+              {formatVersion(instance.definitionVersion)}
+            </span>
           </div>
           <div className="text-faint mt-0.5 font-mono text-xs">
             #{shortId(instance.instanceId)} · gestartet {formatTimestamp(instance.startedAt)}
             {instance.finishedAt && <> · beendet {formatTimestamp(instance.finishedAt)}</>}
           </div>
         </div>
+
+        {instance.parentInstanceId && (
+          <ParentInstanceLink
+            parentInstanceId={instance.parentInstanceId}
+            onOpen={(parentId) => void navigate({ to: `/instances/${parentId}` })}
+          />
+        )}
 
         <span className="flex-1" />
 
@@ -133,6 +178,18 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           </Button>
         )}
 
+        {stalledJob && <RetryJobAction incident={stalledJob} />}
+
+        {bucket === 'active' && <ModifyInstanceAction instance={instance} />}
+
+        {bucket === 'active' && <MigrateInstanceAction instance={instance} />}
+
+        {bucket === 'active' && <CancelInstanceAction instance={instance} />}
+
+        {/* Loeschen gibt es erst, wenn nichts mehr laeuft: Eine laufende Instanz wird
+            abgebrochen, nicht entfernt — und genau so antwortet auch die API. */}
+        {bucket !== 'active' && <DeleteInstanceAction instance={instance} />}
+
         <Button
           size="sm"
           icon="content_copy"
@@ -145,6 +202,18 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           ID kopieren
         </Button>
       </div>
+
+      {instance.failureReason && (
+        <div
+          className="text-fail border-border flex flex-none items-start gap-2.5 border-b px-6 py-2.5 text-[13px]"
+          style={{ background: 'color-mix(in oklab, var(--fail) 8%, transparent)' }}
+        >
+          <Icon name="error" size={18} className="mt-px flex-none" />
+          <span className="min-w-0 break-words">
+            <span className="font-semibold">Gescheitert:</span> {instance.failureReason}
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-none flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
         <div className="canvas-grid relative min-w-0 flex-none lg:min-h-0 lg:flex-1">
@@ -167,8 +236,13 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
           {runtimeQuery.data && (
             <RuntimeDiagram
               runtime={runtimeQuery.data}
-              onNodeSelect={(flowNodeId) => {
-                setSelectedNodeId(flowNodeId);
+              selectedNodeId={selectedFlowNodeId}
+              onNodeSelect={(elementId) => {
+                // Das Diagramm meldet jeden Klick, auch auf Kanten, Beschriftungen und die
+                // Zeichenfläche. Nur ein Prozessschritt ändert die Auswahl.
+                if (!model.nodeById.has(elementId)
+                  && !runtimeQuery.data.nodes?.some((node) => node.flowNodeId === elementId)) return;
+                setSelectedNodeId(elementId);
                 setTab('nodeData');
               }}
             />
@@ -234,6 +308,14 @@ export function InstanceDetailPage({ instanceId }: InstanceDetailPageProps) {
               )}
 
               {subscriptionsQuery.data && <Subscriptions data={subscriptionsQuery.data} model={model} />}
+
+              {/* Der Abschnitt erscheint nur mit Kindinstanzen — bis dahin auch kein Ladezustand
+                  und keine Fehlermeldung, denn eine Instanz ohne Call Activity hat hier nichts
+                  zu erwarten und soll darüber auch nicht unterrichtet werden. */}
+              <CalledInstancesSection
+                instances={childrenQuery.data ?? []}
+                onOpen={(childId) => void navigate({ to: `/instances/${childId}` })}
+              />
             </Tabs.Content>
           </div>
         </Tabs.Root>

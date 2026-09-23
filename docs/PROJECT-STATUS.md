@@ -1,9 +1,35 @@
 # Projektstatus: Flowzer BPMN Core Engine
 
-**Stand:** 10. September 2026; Basis `212705a`. Die Implementierung liegt in den
-sechs noch ungemergten Checkpoints #189 → #201 → #217 → #227 → #237 → #255.
-Einzelne unten genannte Slice-PRs sind historische Nachweise, keine zusätzlichen
-Integrationsaufträge.
+**Aktualisierung: 16. September 2026 – Stabilisierung #297.**
+Die früheren Checkpoint-Ketten sind inzwischen in `main` integriert; der unten
+stehende September-Reviewtext bleibt als historische Einordnung erhalten.
+Aktuelle Basis dieser Korrekturen ist `a995dbb`, nicht der ältere Checkpointstand.
+
+## Stabilisierung der zentralen Bedienwege
+
+- BPMN-Entwürfe werden ohne Ausführbarkeitsprüfung gespeichert. Erst die
+  Veröffentlichung prüft Fähigkeiten, Formulare und KI-Konfiguration. Fehler sind
+  gesammelt, deutsch erläutert und mit Sprungziel im Diagramm verfügbar.
+- Bekannte ältere Urlaubsformularregeln werden automatisch in den unterstützten
+  Vertrag übersetzt; veröffentlichte Originalversionen bleiben erhalten.
+  Eindeutige fehlende Formularbindungen ergänzt der PostgreSQL-Updateschritt atomar.
+  Mehrdeutige Zuordnungen stoppen die technische Vorprüfung statt Daten umzudeuten.
+- KI-Task steht im normalen BPMN-Typmenü, Einstellungen rechts, mit atomarem Undo.
+- Generische/manuelle Tasks sind in der Gliederung lesbar; nicht verlustfrei
+  bearbeitbare Modelle erhalten eine schreibgeschützte Übersicht.
+- Die aktuelle Instanzposition kann auch aus vorhandenen Tokens ermittelt werden;
+  fehlende Koordinaten kleiner Einzelprozesse werden ausschließlich zur Darstellung ergänzt.
+- BFF-Tokens werden serverseitig erneuert und Rollen neu geprüft. Temporäre
+  Verbindungsfehler verwerfen keine Arbeitsdaten. Absolute Sitzungsgrenze acht Stunden;
+  Prozessneustarts erfordern weiterhin eine neue SSO-Anmeldung (prozesslokaler Store).
+
+Lokale Regression: **180 Engine- und 941 API-/Storage-Tests, keine Skips**,
+einschließlich echtem PostgreSQL und Update-Rollback; **363 Frontend-Tests**,
+Typecheck und Produktionsbuild erfolgreich. ESLint: keine Fehler, sieben bestehende
+Fast-Refresh-Warnungen. Auch 36 lokale Browser-Smokes und fünf Tests am Produktionsbundle sind erfolgreich.
+Der Rolloutnachweis wird im PR zu #297 festgehalten. Teststand ist keine Behauptung vollständiger BPMN-Unterstützung.
+
+## Historische Einordnung vom 10. September 2026
 
 ## Einordnung
 
@@ -80,7 +106,9 @@ aber noch nicht nach `main` gemergt oder integriert abgenommen. Ohne `Idempotenc
 liefert ein wiederholter Abschluss aus Kompatibilitätsgründen weiterhin `404`; mit dem
 in PR #187 ergänzten Schlüssel greift die persistente Erfolgswiederholung.
 Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eines
-API-Prozesses. Mehrprozessbetrieb ist dadurch nicht freigegeben.
+API-Prozesses, und sie bleibt deshalb auf einen API-Prozess begrenzt. Für PostgreSQL ist
+der Mehrprozessbetrieb inzwischen mit Konkurrenztests belegt und freigegeben:
+[Betrieb](OPERATIONS.md#mehrprozessbetrieb).
 
 ## Formularbindung – PR #181 (aufbauend auf #179)
 
@@ -139,15 +167,17 @@ Builder bindet seine sichtbaren Anzahlgrenzen an die Flowzer-Policy, die Konsole
 Zeile und Feldlabel. Profil-3-Hilfetexte sind begrenzter Plaintext. Details:
 [Wiederholbare Formulargruppen](FORM-REPEAT-GROUPS.md).
 
-## Wiederverwendbare Formularabschnitte – #230 / PR #231 (noch nicht gemergt)
+## Gemeinsame Formularbibliothek – #230 und #291
 
-Eine hostneutrale Bibliothek trennt Katalogmetadaten, revisionsgeschützte Entwürfe und
-append-only Abschnittsversionen. Formulare referenzieren nur konkrete Fassungen; beim
-Publish expandiert und validiert der Server sie, verwirft behauptete Browserbindungen
-und speichert einen eigenständigen Formularsnapshot mit nachvollziehbarem Inhalts-Hash.
-Neue Abschnittsversionen ändern keine veröffentlichten Formulare oder laufenden Instanzen.
-PostgreSQL publiziert Fassung und Draft-Löschung atomar, die Dateiablage bleibt
-Einzelprozess-Entwicklung. Details: [Formularabschnitte](FORM-SECTIONS.md).
+Die zunächst getrennte Abschnittsbibliothek ist in den Formularkatalog überführt: Jedes
+Formular ist selbst eine wiederverwendbare, konkret versionierte Komponente. Hierarchische
+Ordner strukturieren nur den Katalog. Beim Publish expandiert und validiert der Server die
+gewählten Fassungen, verwirft behauptete Browserbindungen und speichert einen eigenständigen
+Snapshot mit Inhalts-Hash. Root-Entscheidungsaktionen eines Komponentenformulars werden nicht
+geerbt; `latest`, fehlende Versionen, Schlüsselkonflikte und Referenzzyklen werden abgelehnt.
+PostgreSQL und die Dateiablage migrieren den Altbestand IDs-erhaltend; `/form-section` bleibt
+für bestehende Clients ein kompatibler Alias, in der Konsole existiert aber nur noch
+„Formulare“. Details: [Formularbibliothek](FORM-SECTIONS.md).
 
 ## Entscheidungsaktionen – #216 / PR #217 (noch nicht gemergt)
 

@@ -1,88 +1,70 @@
-# Versionierte wiederverwendbare Formularabschnitte
+# Gemeinsame Formularbibliothek
 
-M2-Teilpaket Issue #230 / PR #231. Flowzer verwaltet eine eigene, hostneutrale Bibliothek
-deklarativer Form.io-Abschnitte. Eine konsumierende Anwendung kann diese API und die
-öffentlichen Pakete verwenden; Flowzer enthält weder Abhängigkeiten noch Fachwissen über
-eine konkrete Host-Anwendung.
+Issue #291 führt die frühere Abschnittsbibliothek in den normalen Formularkatalog zurück:
+**Ein Formular ist selbst eine Komponente.** Flowzer braucht daher weder einen zweiten
+Objekttyp noch einen eigenen Navigationspunkt „Abschnitte“. Die Verträge bleiben
+hostneutral; Flowzer enthält kein Wissen über eine konkrete konsumierende Anwendung.
 
-## Daten- und Versionsmodell
+## Katalog und Ordner
 
-Ein Abschnitt besteht aus drei getrennten Zuständen:
+`FormMetadata` ist der stabile Katalogeintrag. `FormAuthoringDraft` hält den per
+Compare-and-swap geschützten Arbeitsstand, `Form` eine unveränderliche veröffentlichte
+Version. Ein optionaler `FolderId` ordnet das Formular einem hierarchischen `FormFolder`
+zu. Ordner sind reine Organisation: Sie werden nicht in Form.io-Schemata, Deployments oder
+Prozessinstanzen übernommen.
 
-- `FormSectionMetadata` ist der stabile Katalogeintrag mit serverseitig erzeugter ID
-  und einem änderbaren Namen.
-- `FormSectionAuthoringDraft` ist der gemeinsame, per Compare-and-swap-Revision
-  geschützte Autorenentwurf.
-- `FormSectionVersion` ist eine unveränderliche, append-only veröffentlichte Fassung.
+Die API ergänzt:
 
-Die Dateiablage serialisiert Änderungen innerhalb eines API-Prozesses und bleibt ein
-Entwicklungsadapter. PostgreSQL-Migration `011_form_sections.sql` legt getrennte Tabellen
-für Metadaten, Entwürfe und Versionen an. Dort werden Folgeversion, Insert und
-Entwurfsentfernung in derselben Transaktion ausgeführt. Veröffentlichte Fassungen besitzen
-bewusst keinen Update- oder Delete-Weg.
+- `GET/POST /form/folders` – Ordner lesen beziehungsweise anlegen,
+- `PUT/DELETE /form/folders/{folderId}` – umbenennen/verschieben beziehungsweise einen
+  leeren Ordner löschen,
+- `PUT /form/meta/{formId}/folder` – ein Formular verschieben,
+- `GET /form/{formId}/versions` – datensparsame Liste konkreter Fassungen.
 
-## Öffentliche Modellierungs-API
+Der Server verhindert fehlende Eltern, Zyklen, doppelte Geschwisternamen sowie das Löschen
+nicht leerer Ordner. Dieselben Wege stehen im hostneutralen TypeScript-SDK zur Verfügung.
 
-Alle Routen unter `/form-section` verlangen die Modellierer-Policy:
+## Formular als Komponente
 
-- `GET/POST /form-section` – Katalog lesen beziehungsweise Eintrag anlegen
-- `GET/PUT /form-section/{sectionId}` – Metadaten lesen beziehungsweise umbenennen
-- `GET /form-section/{sectionId}/versions` – verfügbare konkrete Versionen
-- `GET /form-section/{sectionId}/versions/{major.minor}` – unveränderliche Fassung
-- `GET/PUT/DELETE /form-section/{sectionId}/draft` – Entwurf mit Revision
-- `POST /form-section/{sectionId}/publish` – erwarteten Entwurf veröffentlichen
-
-Revisionskonflikte antworten mit `409` und dem stabilen Code
-`form_section_draft.revision_conflict`. Der Vertrag enthält nur erwartete und aktuelle
-Revision, niemals den konkurrierenden Inhalt. Unsichere oder nicht unterstützte
-Abschnitte enden beim Publish mit `422`.
-
-## Bewusst begrenzter Abschnittsvertrag
-
-`FormSectionCompiler` verwendet dieselbe serverseitige Feld-, Pflicht-, Bereichs-,
-Bedingungs-, Directory- und Plaintext-Prüfung wie ein vollständiges Formular. Im ersten
-Profil sind zusätzlich gesperrt:
-
-- beliebiges JavaScript und dynamische Datenquellen,
-- verschachtelte `flowzerSection`-Referenzen,
-- Wiederholgruppen innerhalb eines Abschnitts,
-- Root-Regeln und Entscheidungsaktionen,
-- aktive Buttons, HTML- oder Content-Komponenten.
-
-Damit bleiben Auflösung, Vorschau und resultierender Variablenscope endlich und
-nachvollziehbar. Diese Grenzen werden nicht durch clientseitige Filter ersetzt.
-
-## Bindung an ein Formular
-
-Der Formularentwurf speichert eine ausschließlich konkrete Referenz:
+Der Editor speichert ausschließlich eine konkret ausgewählte Referenz:
 
 ```json
 {
-  "type": "flowzerSection",
+  "type": "flowzerForm",
   "key": "applicant",
-  "sectionId": "7d62bc50-2769-4b6f-aad5-f38366074784",
+  "formId": "7d62bc50-2769-4b6f-aad5-f38366074784",
   "version": "0.1"
 }
 ```
 
-`latest`, fehlende Versionen und frei eingegebene IDs sind in der Konsole nicht
-auswählbar und werden serverseitig abgelehnt. Beim Formular-Publish:
+Beim Vorschau- oder Publish-Aufruf:
 
-1. lädt der Server exakt `sectionId` plus `version`,
-2. prüft die gespeicherte Fassung erneut,
-3. ersetzt die Referenz durch geklonte Abschnittskomponenten,
-4. prüft das vollständige Formular einschließlich Key-Kollisionen,
-5. schreibt `flowzer.boundSections` mit Referenzschlüssel, Abschnitts-/Versions-ID,
-   Version und SHA-256 des tatsächlich gebundenen Inhalts,
-6. speichert den vollständig expandierten Snapshot atomar als Formularversion.
+1. lädt der Server exakt `formId` plus `version`,
+2. ersetzt die Referenz durch geklonte Komponenten,
+3. übernimmt bewusst keine Root-Entscheidungsaktionen des Komponentenformulars,
+4. expandiert importierte verschachtelte Referenzen mit Zyklusschutz,
+5. prüft den vollständigen Formularvertrag einschließlich globaler Key-Kollisionen,
+6. schreibt `flowzer.boundForms` mit Referenzschlüssel, Formular-/Versions-ID, Version und
+   SHA-256 des tatsächlich gebundenen Inhalts,
+7. speichert den vollständig expandierten Snapshot als unveränderliche Formularversion.
 
-Vom Browser behauptete Bindungsmetadaten werden verworfen. Laufzeit, Aufgaben und externe
-Clients benötigen die Abschnittsbibliothek nicht: Sie arbeiten ausschließlich mit dem
-vollständigen veröffentlichten Formularsnapshot. Eine neue Abschnittsversion ändert daher
-weder alte Formularversionen noch laufende Instanzen.
+`latest`, Selbst-/Zyklusreferenzen, fehlende Fassungen und Marker mit eigenem Verhalten,
+Datenquellen oder Kindern werden mit stabilen, wertefreien Fehlercodes abgelehnt. Vom
+Browser behauptete Bindungsmetadaten werden verworfen. Laufzeit, Aufgaben und externe
+Clients benötigen die Bibliothek nach der Veröffentlichung nicht mehr.
 
-## Noch nicht enthalten
+## Migration und Abwärtskompatibilität
 
-Verschachtelte Abschnitte, Abschnitts-Datagrids, automatische Aktualisierung vorhandener
-Formulare, Dateianhänge und administrativ freigegebene dynamische Datenquellen bleiben
-eigene Ausbaupakete. Es gibt keinen Script- oder `latest`-Fallback.
+PostgreSQL-Migration `016_form_library.sql` kopiert bestehende Metadaten, Entwürfe und
+Versionen der früheren Abschnittsbibliothek IDs- und versionserhaltend in den Formularkatalog.
+Die Dateiablage führt denselben idempotenten Schritt beim Öffnen aus. Die alten Datensätze
+bleiben lesbar, damit bereits gespeicherte `flowzerSection`-Referenzen weiterhin exakt ihre
+ursprüngliche Fassung expandieren können.
+
+`/form-section` bleibt für bestehende Integrationen erhalten, arbeitet nach dem Upgrade aber
+als Adapter auf denselben Formularbestand. Bestehende Lesezeichen auf `/form-sections`
+öffnen den gemeinsamen Formularbereich. Neue Schemas und neue SDK-Integrationen verwenden
+ausschließlich `flowzerForm` und die `/form`-API.
+
+Dateianhänge, administrativ freigegebene dynamische Datenquellen und atomare Pakete aus BPMN
+und Formularen bleiben eigenständige Ausbaupakete.

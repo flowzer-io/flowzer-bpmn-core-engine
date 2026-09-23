@@ -12,7 +12,8 @@ public sealed record KeycloakDirectoryUser(
     string? Username,
     string? FirstName,
     string? LastName,
-    IReadOnlyList<string> Groups);
+    IReadOnlyList<string> Groups,
+    string? Email = null);
 
 /// <summary>Minimaler Gruppenstand aus dem Keycloak-Admin-API.</summary>
 public sealed record KeycloakDirectoryGroup(string Id, string? Name, string? Path, string? ParentId);

@@ -94,5 +94,27 @@ for (const viewport of [{ width: 1440, height: 960 }, { width: 390, height: 844 
     await expect(page.getByText(/\d+ von \d+ Elementen/)).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`runtime-${viewport.width}.png`), fullPage: true });
+
+    // Testzweck: Der Zustand faerbt das ganze Element, aber die Kontur des aktiven Schrittes
+    // darf nicht auch das kleine Typsymbol uebermalen — mit 2,5 px auf 17x20 Pixeln verschmiert
+    // die Person-, Zahnrad- oder Umschlagzeichnung zu einem Fleck. Und der Tokenzaehler sitzt
+    // rechts, weil er links genau auf diesem Symbol laege.
+    const zeichnung = await page.evaluate(() => {
+      const element = document.querySelector('.bpmn-surface .flowzer-active');
+      const visual = element.querySelector('.djs-visual');
+      const kinder = [...visual.children].filter(kind => kind.tagName !== 'text');
+      const badge = document.querySelector('.flowzer-token').getBoundingClientRect();
+      const rahmen = element.getBoundingClientRect();
+      return {
+        grundform: getComputedStyle(kinder[0]).strokeWidth,
+        symbole: kinder.slice(1).map(kind => getComputedStyle(kind).strokeWidth),
+        badgeRechts: badge.x + badge.width / 2 > rahmen.x + rahmen.width / 2,
+      };
+    });
+
+    expect(zeichnung.grundform).toBe('2.5px');
+    expect(zeichnung.symbole.length).toBeGreaterThan(0);
+    expect(zeichnung.symbole.every(breite => parseFloat(breite) < 2.5)).toBe(true);
+    expect(zeichnung.badgeRechts).toBe(true);
   });
 }

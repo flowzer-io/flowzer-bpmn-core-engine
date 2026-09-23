@@ -147,6 +147,49 @@ public class InstanceControllerIntegrationTest
         payload.Result[0].RelatedDefinitionName.Should().Be("orphan-process");
     }
 
+    // Testzweck: Die Instanz nennt die Workflow-Version, an die sie gebunden ist — ohne sie
+    // lässt sich weder ein Abbruch noch eine spätere Migration je Version bewusst entscheiden.
+    [Test]
+    public async Task GetInstances_ShouldExposeTheBoundDefinitionVersion()
+    {
+        var instanceId = Guid.NewGuid();
+        var storage = TestStorage.CreateWithInstance(instanceId);
+        storage.DefinitionStorageSeed.Definitions.Add(new BpmnDefinition
+        {
+            Id = storage.DefinitionId,
+            DefinitionId = "invoice-process",
+            Hash = "hash",
+            SavedByUser = Guid.NewGuid(),
+            Version = new Model.Version(2, 3),
+            IsActive = false
+        });
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var single = await client.GetFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>($"/instance/{instanceId}");
+        var list = await client.GetFromJsonAsync<ApiStatusResult<List<ProcessInstanceInfoDto>>>("/instance");
+
+        single!.Result!.DefinitionVersion.Should().Be(new VersionDto(2, 3));
+        list!.Result.Should().ContainSingle().Which.DefinitionVersion.Should().Be(new VersionDto(2, 3));
+    }
+
+    // Testzweck: Fehlt die gebundene Definition (Altbestand, gelöschte Version), bleibt die
+    // Instanz lesbar; die Version ist dann ehrlich unbekannt statt geraten.
+    [Test]
+    public async Task GetInstances_ShouldLeaveTheVersionEmpty_WhenTheBoundDefinitionIsUnknown()
+    {
+        var instanceId = Guid.NewGuid();
+        var storage = TestStorage.CreateWithInstance(instanceId);
+
+        await using var factory = new TestWebApplicationFactory(storage);
+        using var client = factory.CreateClient();
+
+        var single = await client.GetFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>($"/instance/{instanceId}");
+
+        single!.Result!.DefinitionVersion.Should().BeNull();
+    }
+
     /// <summary>
     /// Kleine Test-Factory, die die produktiven Storage-Services durch einen in-memory Test-Store ersetzt.
     /// Damit werden die echten Controller, das Routing und die Serialisierung gegen einen realen Testserver geprüft.
@@ -371,11 +414,16 @@ public class InstanceControllerIntegrationTest
     {
         public Task<string> GetBinary(Guid guid) => throw new NotSupportedException();
         public Task<Guid[]> GetAllBinaryDefinitions() => Task.FromResult(Array.Empty<Guid>());
-        public Task<BpmnDefinition[]> GetAllDefinitions() => Task.FromResult(Array.Empty<BpmnDefinition>());
+        public List<BpmnDefinition> Definitions { get; } = [];
+
+        public Task<BpmnDefinition[]> GetAllDefinitions() => Task.FromResult(Definitions.ToArray());
         public Task StoreDefinition(BpmnDefinition definition) => Task.CompletedTask;
         public Task StoreBinary(Guid guid, string data) => Task.CompletedTask;
         public Task<Model.Version?> GetMaxVersionId(string modelId) => Task.FromResult<Model.Version?>(null);
-        public Task<BpmnDefinition> GetDefinitionById(Guid id) => throw new NotSupportedException();
+        public Task<BpmnDefinition> GetDefinitionById(Guid id) =>
+            Definitions.SingleOrDefault(definition => definition.Id == id) is { } definition
+                ? Task.FromResult(definition)
+                : throw new StorageSystem.Exceptions.DefinitionStorageNotFoundException($"No definition found for definitionId {id}");
         public Task<BpmnDefinition> GetLatestDefinition(string definitionId) => throw new NotSupportedException();
         public Task<BpmnDefinition?> GetDeployedDefinition(string definitionDefinitionId) => Task.FromResult<BpmnDefinition?>(null);
         public Task<ExtendedBpmnMetaDefinition[]> GetAllMetaDefinitions() => Task.FromResult(new[]

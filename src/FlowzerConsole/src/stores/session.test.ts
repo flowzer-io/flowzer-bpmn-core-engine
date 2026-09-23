@@ -13,6 +13,19 @@ describe('BFF-Sitzungsverwaltung', () => {
     useSession.setState({ status: 'anonymous', user: null, sessionScope: null, accessDenied: false });
   });
 
+  // Testzweck: Ein kurzfristiger BFF-/Netzwerkausfall ist kein bestätigter Logout.
+  // Bereits erfasste Formulare und der Sitzungsscope bleiben beim Wiederholen erhalten.
+  it('behält die Sitzung bei vorübergehend fehlgeschlagener Prüfung', async () => {
+    vi.mocked(fetchSession).mockResolvedValue({ id: 'subject', name: 'Ada', capabilities: ['access'] });
+    await useSession.getState().refresh();
+    const scope = useSession.getState().sessionScope;
+    vi.mocked(fetchSession).mockRejectedValue(new Error('unavailable'));
+    await useSession.getState().refresh();
+    expect(useSession.getState().status).toBe('signed-in');
+    expect(useSession.getState().sessionScope).toBe(scope);
+    expect(useSession.getState().sessionError).toBeTruthy();
+  });
+
   // Testzweck: Fehlende Freischaltung darf keine Login-Schleife ausloesen; das Konto bleibt
   // fuer die Anzeige und Abmeldung angemeldet, aber ohne Fachfaehigkeiten.
   it('unterscheidet Anmeldung von Freischaltung', async () => {

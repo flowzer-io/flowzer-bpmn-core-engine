@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -58,7 +59,16 @@ public sealed class BffAccessTokenClaimsValidator(FlowzerAuthenticationOptions o
 
         context.Properties ??= new Microsoft.AspNetCore.Authentication.AuthenticationProperties();
         context.Properties.IssuedUtc = now;
-        context.Properties.ExpiresUtc = tokenExpiresAt < now.AddHours(8) ? tokenExpiresAt : now.AddHours(8);
+        var refreshToken = context.TokenEndpointResponse?.RefreshToken;
+        context.Properties.ExpiresUtc = string.IsNullOrWhiteSpace(refreshToken)
+            ? (tokenExpiresAt < now.AddHours(8) ? tokenExpiresAt : now.AddHours(8))
+            : now.AddHours(8);
+        if (!string.IsNullOrWhiteSpace(refreshToken))
+        {
+            context.Properties.Items[BffSessionStore.AccessTokenExpiry] = tokenExpiresAt.ToString("O");
+            // ITicketStore hält dieses Token nur serverseitig. SaveTokens bleibt false.
+            context.Properties.StoreTokens([new AuthenticationToken { Name = "refresh_token", Value = refreshToken }]);
+        }
         context.Properties.AllowRefresh = false;
         return principal;
     }

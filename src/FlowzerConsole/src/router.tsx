@@ -8,12 +8,15 @@ import {
   useSearch,
 } from '@tanstack/react-router';
 
+import { WorkflowEditorSession } from '@/components/workflow-editor/WorkflowEditorSession';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/Card';
+import { AnalyticsDetailPage } from '@/pages/AnalyticsDetailPage';
+import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { DecisionsPage } from '@/pages/DecisionsPage';
 import { FormsPage } from '@/pages/FormsPage';
-import { FormSectionsPage } from '@/pages/FormSectionsPage';
 import { InstanceDetailPage } from '@/pages/InstanceDetailPage';
 import { InstancesPage } from '@/pages/InstancesPage';
 import { ModelerPage } from '@/pages/ModelerPage';
@@ -21,7 +24,9 @@ import { OperationsPage } from '@/pages/OperationsPage';
 import { OutlinePage } from '@/pages/OutlinePage';
 import { TasksPage } from '@/pages/TasksPage';
 import { WorkflowsPage } from '@/pages/WorkflowsPage';
+import type { AnalyticsSearch } from '@/lib/analytics';
 import { AiConnectionsPage } from '@/pages/AiConnectionsPage';
+import { TriggersPage } from '@/pages/TriggersPage';
 
 const rootRoute = createRootRoute({
   notFoundComponent: NotFound,
@@ -52,9 +57,21 @@ const workflowsIndexRoute = createRoute({
   component: WorkflowsPage,
 });
 
-const workflowDetailRoute = createRoute({
+const workflowEditorRoute = createRoute({
   getParentRoute: () => workflowsRoute,
   path: '$definitionId',
+  component: WorkflowEditorRoute,
+});
+
+function WorkflowEditorRoute() {
+  const { definitionId } = useParams({ from: workflowEditorRoute.id });
+  const id = decodeURIComponent(definitionId);
+  return <WorkflowEditorSession key={id} definitionId={id}><Outlet /></WorkflowEditorSession>;
+}
+
+const workflowDetailRoute = createRoute({
+  getParentRoute: () => workflowEditorRoute,
+  path: '/',
   validateSearch: (search: Record<string, unknown>): WorkflowDetailSearch => ({
     element: typeof search.element === 'string' ? search.element : undefined,
   }),
@@ -73,11 +90,11 @@ function WorkflowDetailRoute() {
 
 /**
  * Die Gliederung ist eine eigene Adresse neben dem Diagramm, keine Umschaltung
- * darin: Beide Ansichten laden dasselbe Modell, arbeiten aber unterschiedlich.
+ * darin: Beide Ansichten teilen einen ungespeicherten, routegebundenen Arbeitsstand.
  */
 const workflowOutlineRoute = createRoute({
-  getParentRoute: () => workflowsRoute,
-  path: '$definitionId/gliederung',
+  getParentRoute: () => workflowEditorRoute,
+  path: 'gliederung',
   component: WorkflowOutlineRoute,
 });
 
@@ -118,7 +135,14 @@ const formsRoute = createRoute({
 const formSectionsRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/form-sections',
-  component: FormSectionsPage,
+  // Bestehende Lesezeichen bleiben nutzbar, zeigen aber keine zweite Bibliothek mehr.
+  component: FormsPage,
+});
+
+const decisionsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/decisions',
+  component: DecisionsPage,
 });
 
 const operationsRoute = createRoute({
@@ -126,6 +150,59 @@ const operationsRoute = createRoute({
   path: '/operations',
   component: OperationsPage,
 });
+
+const triggersRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/triggers',
+  component: TriggersPage,
+});
+
+/**
+ * Die Auswertungen liegen wie die Instanzen unter einer gemeinsamen Adresse: Die
+ * Uebersicht ist die Indexroute, die Detailseite ein Kind davon. So bleibt der gewaehlte
+ * Zeitraum beim Wechsel in eine Zeile in der Adresse stehen.
+ */
+const analyticsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/analytics',
+  component: Outlet,
+});
+
+/** `days` ist die Voreinstellung in Tagen, `from`/`to` der eigene Zeitraum. */
+function validateAnalyticsSearch(search: Record<string, unknown>): AnalyticsSearch {
+  const days = Number(search.days);
+
+  return {
+    from: typeof search.from === 'string' ? search.from : undefined,
+    to: typeof search.to === 'string' ? search.to : undefined,
+    days: Number.isFinite(days) && days > 0 ? days : undefined,
+  };
+}
+
+const analyticsIndexRoute = createRoute({
+  getParentRoute: () => analyticsRoute,
+  path: '/',
+  validateSearch: validateAnalyticsSearch,
+  component: AnalyticsRoute,
+});
+
+function AnalyticsRoute() {
+  const search = useSearch({ from: analyticsIndexRoute.id });
+  return <AnalyticsPage search={search} />;
+}
+
+const analyticsDetailRoute = createRoute({
+  getParentRoute: () => analyticsRoute,
+  path: '$metaDefinitionId',
+  validateSearch: validateAnalyticsSearch,
+  component: AnalyticsDetailRoute,
+});
+
+function AnalyticsDetailRoute() {
+  const { metaDefinitionId } = useParams({ from: analyticsDetailRoute.id });
+  const search = useSearch({ from: analyticsDetailRoute.id });
+  return <AnalyticsDetailPage metaDefinitionId={decodeURIComponent(metaDefinitionId)} search={search} />;
+}
 
 const aiConnectionsRoute = createRoute({
   getParentRoute: () => shellRoute,
@@ -182,12 +259,15 @@ function NotFound() {
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     dashboardRoute,
-    workflowsRoute.addChildren([workflowsIndexRoute, workflowOutlineRoute, workflowDetailRoute]),
+    workflowsRoute.addChildren([workflowsIndexRoute, workflowEditorRoute.addChildren([workflowOutlineRoute, workflowDetailRoute])]),
     instancesRoute.addChildren([instancesIndexRoute, instanceDetailRoute]),
     formsRoute,
     formSectionsRoute,
+    decisionsRoute,
     aiConnectionsRoute,
+    triggersRoute,
     operationsRoute,
+    analyticsRoute.addChildren([analyticsIndexRoute, analyticsDetailRoute]),
     tasksRoute,
   ]),
 ]);

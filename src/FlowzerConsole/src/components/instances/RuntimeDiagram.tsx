@@ -1,5 +1,5 @@
 import type { RuntimeDiagram as RuntimeDiagramDto } from '@flowzer/sdk';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { BpmnViewer } from '@/components/bpmn/BpmnViewer';
 import { Icon } from '@/components/ui/Icon';
@@ -12,27 +12,23 @@ import {
   runtimeNodeStatus,
 } from '@/lib/runtimeView';
 
+/**
+ * Laufzeitdiagramm samt zugaenglicher Knotenliste. Die Auswahl haelt die Seite, weil auch
+ * die Schrittdaten daneben an ihr haengen; hier wird sie nur gezeigt — in der Liste und
+ * im Schaubild gleichermassen.
+ */
 export function RuntimeDiagram({
   runtime,
+  selectedNodeId,
   onNodeSelect,
 }: {
   runtime: RuntimeDiagramDto;
+  selectedNodeId?: string;
   onNodeSelect?: (flowNodeId: string) => void;
 }) {
   const model = useMemo(() => parseBpmn(runtime.diagramXml ?? undefined), [runtime.diagramXml]);
-  const { markers, activeNodeIds, activeTokenCounts } = useMemo(() => runtimeMarkers(runtime), [runtime]);
-  const [selectedId, setSelectedId] = useState<string | undefined>(activeNodeIds[0]);
+  const { markers, activeTokenCounts } = useMemo(() => runtimeMarkers(runtime), [runtime]);
   const nodes = (runtime.nodes ?? []).filter((node) => Boolean(node.flowNodeId));
-
-  const selectNode = (flowNodeId: string) => {
-    setSelectedId(flowNodeId);
-    onNodeSelect?.(flowNodeId);
-  };
-
-  useEffect(() => {
-    if (selectedId && nodes.some((node) => node.flowNodeId === selectedId)) return;
-    setSelectedId(activeNodeIds[0] ?? nodes[0]?.flowNodeId ?? undefined);
-  }, [activeNodeIds, nodes, selectedId]);
 
   return (
     <section aria-labelledby="runtime-diagram-heading" className="flex min-h-0 flex-col lg:h-full">
@@ -42,7 +38,8 @@ export function RuntimeDiagram({
           xml={runtime.diagramXml ?? undefined}
           markers={markers}
           tokenCounts={activeTokenCounts}
-          onElementClick={selectNode}
+          selectedElementId={selectedNodeId}
+          onElementClick={onNodeSelect}
           className="h-full w-full"
           ariaLabel="BPMN-Laufzeitdiagramm"
         />
@@ -64,11 +61,11 @@ export function RuntimeDiagram({
               <li key={flowNodeId}>
                 <button
                   type="button"
-                  aria-current={selectedId === flowNodeId ? 'step' : undefined}
-                  onClick={() => selectNode(flowNodeId)}
+                  aria-current={selectedNodeId === flowNodeId ? 'step' : undefined}
+                  onClick={() => onNodeSelect?.(flowNodeId)}
                   className={cn(
                     'border-border bg-surface-2 inline-flex min-h-11 items-center gap-2 rounded-[var(--r-sm)] border px-3 py-2 text-left text-xs',
-                    selectedId === flowNodeId && 'border-accent text-accent',
+                    selectedNodeId === flowNodeId && 'border-accent text-accent',
                   )}
                 >
                   <Icon name={RUNTIME_STATUS_ICON[status]} size={16} />

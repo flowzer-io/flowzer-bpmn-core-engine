@@ -49,7 +49,7 @@ public sealed class KeycloakAdminClientTest
                 ("POST", "/realms/flowzer/protocol/openid-connect/token") => Json(HttpStatusCode.OK, new { access_token = "sensitive-token", expires_in = 300 }),
                 ("GET", "/admin/realms/flowzer/users?first=0&max=2&briefRepresentation=true") => Json(HttpStatusCode.OK, new object[]
                 {
-                    new { id = "user-a", enabled = true, username = "anna", firstName = "Anna", lastName = "Muster", email = "must-not-be-read@example.invalid" },
+                    new { id = "user-a", enabled = true, username = "anna", firstName = "Anna", lastName = "Muster", email = "anna@example.test" },
                     new { id = "user-b", enabled = false, username = "bert", firstName = "Bert", lastName = "Beispiel" }
                 }),
                 ("GET", "/admin/realms/flowzer/users?first=2&max=2&briefRepresentation=true") => Json(HttpStatusCode.OK, new[]
@@ -97,6 +97,8 @@ public sealed class KeycloakAdminClientTest
         var snapshot = await client.GetSnapshotAsync(CancellationToken.None);
 
         snapshot.Users.Select(user => user.Subject).Should().Equal("user-a", "user-b", "user-c");
+        // Testzweck: E-Mail stammt aus derselben begrenzten Standardprojektion, ohne Zusatzabfrage.
+        snapshot.Users.Single(user => user.Subject == "user-a").Email.Should().Be("anna@example.test");
         snapshot.Users.Single(user => user.Subject == "user-a").Groups.Should().Equal("group-a", "group-extra");
         snapshot.Users.Single(user => user.Subject == "user-b").Enabled.Should().BeFalse();
         snapshot.Groups.Select(group => group.Id).Should().Equal("group-a", "group-b", "group-c", "group-child-a", "group-child-b", "group-extra");

@@ -77,6 +77,7 @@ export function TextAreaRow({
       <textarea
         id={fieldId}
         value={draft}
+        data-editor-pending={draft !== value}
         disabled={disabled}
         placeholder={placeholder}
         rows={rows}
@@ -119,6 +120,7 @@ export function TextRow({ label, value, onCommit, placeholder, hint, disabled, m
       <TextInput
         id={fieldId}
         value={draft}
+        data-editor-pending={draft !== value}
         disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => setDraft(event.target.value)}

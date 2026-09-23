@@ -13,12 +13,17 @@ import {
   formSectionsApi,
   identityDirectoryApi,
   instancesApi,
+  jobsApi,
   operationsApi,
   notificationsApi,
   aiConnectionsApi,
   aiToolsApi,
+  decisionsApi,
+  inboundTriggersApi,
+  processPackagesApi,
 } from './endpoints';
 import type {
+  AnalyticsRangeQuery,
   BpmnMetaDefinitionDto,
   BpmnCapabilityContract,
   DirectorySubjectSearchResultDto,
@@ -27,13 +32,18 @@ import type {
   WorkflowFolderDto,
   WorkflowFolderRequestDto,
   ExtendedBpmnMetaDefinitionDto,
+  InstanceModificationRequestDto,
   FormDto,
   FormAuthoringDraftDto,
   FormAuthoringPreviewDto,
   FormCompatibilityItemDto,
   SaveFormAuthoringDraftRequestDto,
   FormMetaDataDto,
+  FormFolderDto,
+  FormFolderRequestDto,
+  FormVersionSummaryDto,
   OperationsDiagnosticsDto,
+  OperationsIncidentDto,
   ProcessInstanceInfoDto,
   ProcessVariables,
   TimerSubscriptionDto,
@@ -50,6 +60,13 @@ import type {
   AiToolDto,
   CreateAiConnectionInput,
   UpdateAiConnectionInput,
+  DecisionDefinition,
+  InboundTriggerDto,
+  CreateInboundTriggerInput,
+  UpdateInboundTriggerInput,
+  ProcessPackageMappingDto,
+  WorkflowAnalyticsDetailDto,
+  WorkflowAnalyticsOverviewDto,
 } from './types';
 
 /** Zentrale Query-Keys — verhindert Tippfehler beim Invalidieren. */
@@ -79,6 +96,36 @@ export const queryKeys = {
   instance: (instanceId: string) => [...queryKeys.instances, 'detail', instanceId] as const,
   instanceSubscriptions: (instanceId: string) =>
     [...queryKeys.instances, 'subscriptions', instanceId] as const,
+  instanceChildren: (instanceId: string) =>
+    [...queryKeys.instances, 'children', instanceId] as const,
+  /**
+   * Kennungen und Zuordnung stehen sortiert im Schlüssel: dieselbe Auswahl mit derselben
+   * Zuordnung ist dieselbe Prüfung — und eine geänderte Zuordnung ist eine andere, die
+   * nicht aus dem Cache der alten beantwortet werden darf.
+   *
+   * Bewusst nicht unter `instances`: Die Migration verwirft die Instanzansichten, die
+   * Vorschau aber ist die Grundlage genau dieser Entscheidung und bleibt dabei stehen.
+   */
+  instanceMigrationPreview: (
+    instanceIds: readonly string[],
+    flowNodeMapping?: Readonly<Record<string, string>>,
+  ) =>
+    [
+      'instance-migration-preview',
+      [...instanceIds].sort(),
+      Object.entries(flowNodeMapping ?? {}).sort(([left], [right]) => left.localeCompare(right)),
+    ] as const,
+  /**
+   * Die Anfrage steht im Schlüssel: Dieselbe Anfrage ist derselbe Trockenlauf, eine
+   * geänderte ist eine andere und darf nicht aus dem Cache der alten beantwortet werden.
+   *
+   * Bewusst nicht unter `instances`: Der Eingriff verwirft die Instanzansichten, der
+   * Trockenlauf aber ist die Grundlage genau dieser Entscheidung und bleibt dabei stehen.
+   */
+  instanceModificationPreview: (
+    instanceId: string,
+    request: Readonly<InstanceModificationRequestDto>,
+  ) => ['instance-modification-preview', instanceId, request] as const,
 
   forms: ['forms'] as const,
   formList: () => [...queryKeys.forms, 'list'] as const,
@@ -88,21 +135,50 @@ export const queryKeys = {
     [...queryKeys.forms, 'preview', formId, formData] as const,
   formCompatibility: (needsMigration?: boolean) =>
     [...queryKeys.forms, 'compatibility', needsMigration ?? null] as const,
+  formFolders: () => [...queryKeys.forms, 'folders'] as const,
+  formVersions: (formId: string) => [...queryKeys.forms, 'versions', formId] as const,
 
   formSections: ['formSections'] as const,
   formSectionList: () => [...queryKeys.formSections, 'list'] as const,
   formSectionVersions: (sectionId: string) => [...queryKeys.formSections, 'versions', sectionId] as const,
   formSectionDraft: (sectionId: string) => [...queryKeys.formSections, 'draft', sectionId] as const,
 
+  decisions: ['decisions'] as const,
+  decisionList: () => [...queryKeys.decisions, 'list'] as const,
+  decision: (decisionDefinitionId: string) => [...queryKeys.decisions, 'detail', decisionDefinitionId] as const,
+  decisionVersions: (decisionDefinitionId: string) =>
+    [...queryKeys.decisions, 'versions', decisionDefinitionId] as const,
+
   aiConnections: ['aiConnections'] as const,
   aiConnectionList: () => [...queryKeys.aiConnections, 'list'] as const,
   aiTools: ['aiTools'] as const,
   aiToolList: () => [...queryKeys.aiTools, 'list'] as const,
 
+  inboundTriggers: ['inboundTriggers'] as const,
+  inboundTriggerList: () => [...queryKeys.inboundTriggers, 'list'] as const,
+
   operations: ['operations'] as const,
   diagnostics: () => [...queryKeys.operations, 'diagnostics'] as const,
+  incidents: () => [...queryKeys.operations, 'incidents'] as const,
   timers: () => [...queryKeys.operations, 'timers'] as const,
   health: () => [...queryKeys.operations, 'health'] as const,
+  analytics: () => [...queryKeys.operations, 'analytics'] as const,
+  analyticsOverview: (from?: string, to?: string) =>
+    [...queryKeys.analytics(), 'overview', from ?? null, to ?? null] as const,
+  analyticsDetail: (
+    metaDefinitionId: string,
+    from?: string,
+    to?: string,
+    definitionId?: string | null,
+  ) =>
+    [
+      ...queryKeys.analytics(),
+      'detail',
+      metaDefinitionId,
+      from ?? null,
+      to ?? null,
+      definitionId ?? null,
+    ] as const,
   notifications: ['notifications'] as const,
   notificationList: () => [...queryKeys.notifications, 'list'] as const,
 } as const;
@@ -201,6 +277,37 @@ export function useCreateDefinition() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
       // Der Ordner zaehlt seine Workflows mit; ohne das bliebe die Zahl im Baum stehen.
       void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+    },
+  });
+}
+
+/** Lädt einen Workflow als Prozesspaket herunter. */
+export function useExportPackage() {
+  return useMutation({
+    mutationFn: (definitionId: string) => processPackagesApi.export(definitionId),
+  });
+}
+
+/** Liest ein hochgeladenes Paket, ohne etwas anzulegen. */
+export function usePreviewPackage() {
+  return useMutation({
+    mutationFn: (file: File) => processPackagesApi.preview(file),
+  });
+}
+
+/**
+ * Importiert ein Paket. Der Katalog und die Ordnerzählung ändern sich dabei, das
+ * Deployment nicht — veröffentlicht wird erst im Modellierer.
+ */
+export function useImportPackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ file, mapping }: { file: File; mapping: ProcessPackageMappingDto }) =>
+      processPackagesApi.import(file, mapping),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.definitionMeta() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.folders });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.forms });
     },
   });
 }
@@ -451,6 +558,181 @@ export function useInstance(instanceId: string | undefined) {
   });
 }
 
+/**
+ * Verwirft alles, was von einem Eingriff in eine laufende Instanz abhängt.
+ *
+ * Abbruch und Migration greifen an derselben Stelle an, deshalb steht die Liste hier
+ * einmal: Instanzliste, Detail, Warteobjekte und Laufzeitdiagramm, die Aufgabenliste
+ * (offene Aufgaben entfallen bzw. hängen danach an einem anderen Formular) — und die
+ * Betriebssicht, denn deren Timer- und Diagnoselisten zählen genau diese Warteobjekte.
+ */
+function invalidateInstanceViews(
+  queryClient: ReturnType<typeof useQueryClient>,
+  cacheNamespace: string,
+  sessionScope: string,
+): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.instances });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.operations });
+  void queryClient.invalidateQueries({
+    queryKey: flowzerQueryKeys.instances(cacheNamespace, sessionScope),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: flowzerQueryKeys.userTasks(cacheNamespace, sessionScope),
+  });
+}
+
+/**
+ * Bricht eine laufende Instanz ab.
+ *
+ * Die API antwortet mit der bereits beendeten Instanz. Sie wird sofort in den Cache
+ * geschrieben, damit das Detail nicht bis zum nächsten Abruf weiter „Wartet“ anzeigt und
+ * den Abbruch ein zweites Mal anbietet.
+ */
+export function useCancelInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: (instanceId: string) => instancesApi.cancel(instanceId),
+    onSuccess: (instance) => {
+      queryClient.setQueryData(queryKeys.instance(instance.instanceId), instance);
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
+  });
+}
+
+/**
+ * Löscht eine beendete Instanz samt allem, was an ihr hängt.
+ *
+ * Anders als beim Abbruch kommt keine Instanz zurück, die man in den Cache schreiben könnte
+ * — es gibt sie nicht mehr. Ihr Detaileintrag wird deshalb aus dem Cache entfernt, statt ihn
+ * nur als veraltet zu markieren: Ein Nachladen liefe sonst in einen 404.
+ */
+export function useDeleteInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: (instanceId: string) => instancesApi.remove(instanceId),
+    onSuccess: (_result, instanceId) => {
+      queryClient.removeQueries({ queryKey: queryKeys.instance(instanceId) });
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
+  });
+}
+
+/**
+ * Prüft folgenlos, welche der ausgewählten Instanzen sich auf die aktuell deployte
+ * Version heben lassen.
+ *
+ * Bewusst ohne Nachladeintervall und ohne Frischezeit: Das Ergebnis wird zur
+ * Betriebsentscheidung gelesen, nicht überwacht — und ein zwischenzeitliches Deployment
+ * darf nie als noch gültige Vorschau aus dem Cache kommen.
+ */
+export function useInstanceMigrationPreview(
+  instanceIds: string[] | undefined,
+  flowNodeMapping?: Record<string, string>,
+) {
+  const ids = [...(instanceIds ?? [])].sort();
+  return useQuery({
+    queryKey: queryKeys.instanceMigrationPreview(ids, flowNodeMapping),
+    queryFn: ({ signal }) => instancesApi.migrationPreview(ids, flowNodeMapping, signal),
+    enabled: ids.length > 0,
+    // Eine geänderte Zuordnung prüft dieselbe Auswahl erneut. Der bisherige Stand bleibt
+    // solange stehen, damit der Zuordnungsblock unter der Hand des Bedienenden nicht
+    // verschwindet — für eine andere Auswahl gilt er dagegen nie.
+    placeholderData: (previous, previousQuery) =>
+      isSameSelection(previousQuery?.queryKey, ids) ? previous : undefined,
+    staleTime: 0,
+    refetchInterval: false,
+    // Die Grundlage einer Entscheidung wechselt nicht still unter dem Lesenden. Ob sie noch
+    // gilt, prüft die API beim Migrieren (409), nicht ein Fokuswechsel des Fensters.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+}
+
+/**
+ * Ob der Schlüssel einer früheren Vorschau dieselben Instanzen meint.
+ *
+ * Nur dann darf ihr Ergebnis beim Wechsel der Zuordnung stehen bleiben; die Vorschau einer
+ * anderen Auswahl nennt andere Versionen und wäre eine falsche Auskunft.
+ */
+function isSameSelection(queryKey: unknown, ids: readonly string[]): boolean {
+  if (!Array.isArray(queryKey)) return false;
+
+  const previousIds: unknown[] = Array.isArray(queryKey[1]) ? queryKey[1] : [];
+  return previousIds.length === ids.length && previousIds.every((id, index) => id === ids[index]);
+}
+
+export interface MigrateInstancesInput {
+  instanceIds: string[];
+  targetDefinitionId: string;
+  /** Zuordnung wartender Quellknoten auf Knoten der Zielversion; gilt für alle Instanzen. */
+  flowNodeMapping?: Record<string, string>;
+}
+
+/** Hebt die Instanzen auf die Zielversion; danach veraltet dasselbe wie nach einem Abbruch. */
+export function useMigrateInstances() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ instanceIds, targetDefinitionId, flowNodeMapping }: MigrateInstancesInput) =>
+      instancesApi.migrate(instanceIds, targetDefinitionId, flowNodeMapping),
+    onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
+  });
+}
+
+/**
+ * Prüft folgenlos, ob sich ein Eingriff an dieser Instanz ausführen ließe.
+ *
+ * Ohne `instanceId` läuft nichts: Der Dialog fragt erst beim Öffnen, und die Bestätigung
+ * fragt erst, wenn jemand „Weiter“ gedrückt hat. Wie bei der Migration bewusst ohne
+ * Frischezeit und ohne Nachladen — das Ergebnis wird zur Betriebsentscheidung gelesen,
+ * nicht überwacht.
+ */
+export function useInstanceModificationPreview(
+  instanceId: string | undefined,
+  request: InstanceModificationRequestDto,
+) {
+  return useQuery({
+    queryKey: queryKeys.instanceModificationPreview(instanceId ?? '', request),
+    queryFn: ({ signal }) => instancesApi.modificationPreview(instanceId!, request, signal),
+    enabled: Boolean(instanceId),
+    staleTime: 0,
+    refetchInterval: false,
+    // Die Grundlage einer Entscheidung wechselt nicht still unter dem Lesenden. Ob sie noch
+    // gilt, prüft die API beim Eingriff (409), nicht ein Fokuswechsel des Fensters.
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+}
+
+export interface ModifyInstanceInput {
+  instanceId: string;
+  request: InstanceModificationRequestDto;
+}
+
+/**
+ * Führt den Eingriff aus.
+ *
+ * Die API antwortet mit der Instanz nach dem Eingriff. Sie wird sofort in den Cache
+ * geschrieben — wie beim Abbruch —, damit das Detail nicht bis zum nächsten Abruf den
+ * alten Schritt zeigt. Danach veraltet dasselbe wie nach einem Abbruch oder einer Migration.
+ */
+export function useModifyInstance() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ instanceId, request }: ModifyInstanceInput) =>
+      instancesApi.modify(instanceId, request),
+    onSuccess: (result) => {
+      queryClient.setQueryData(queryKeys.instance(result.instance.instanceId), result.instance);
+      invalidateInstanceViews(queryClient, cacheNamespace, sessionScope);
+    },
+  });
+}
+
 /** Bündelt alle vier Subscription-Listen einer Instanz in einem Hook. */
 export function useInstanceSubscriptions(instanceId: string | undefined) {
   return useQuery({
@@ -474,6 +756,23 @@ export function useInstanceSubscriptions(instanceId: string | undefined) {
         userTasks: userTasks ?? [],
       };
     },
+  });
+}
+
+/**
+ * Die von Call Activities dieser Instanz gestarteten Kindinstanzen.
+ *
+ * Gleiche Machart wie {@link useInstance} und {@link useInstanceSubscriptions}: Die Anfrage
+ * läuft erst mit einer Kennung, und der Zustand der Kinder ändert sich im selben Takt wie
+ * der der Instanz selbst — eine fertig gewordene Kindinstanz soll die Elternansicht nicht
+ * länger als andere Laufzeitdaten falsch zeigen.
+ */
+export function useInstanceChildren(instanceId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.instanceChildren(instanceId ?? ''),
+    queryFn: ({ signal }) => instancesApi.children(instanceId!, signal),
+    enabled: Boolean(instanceId),
+    refetchInterval: LIVE_REFETCH_MS,
   });
 }
 
@@ -505,6 +804,61 @@ export function useForms(search?: string, options?: QueryTuning<FormMetaDataDto[
     queryFn: ({ signal }) => formsApi.listMeta(search, signal),
     staleTime: 30_000,
     ...options,
+  });
+}
+
+export function useFormFolders(options?: QueryTuning<FormFolderDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.formFolders(),
+    queryFn: ({ signal }) => formsApi.listFolders(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+export function useFormVersions(formId: string | undefined) {
+  return useQuery<FormVersionSummaryDto[]>({
+    queryKey: queryKeys.formVersions(formId ?? ''),
+    queryFn: ({ signal }) => formsApi.listVersions(formId!, signal),
+    enabled: Boolean(formId),
+  });
+}
+
+export function useCreateFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (folder: FormFolderRequestDto) => formsApi.createFolder(folder),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useUpdateFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, folder }: { id: string; folder: FormFolderRequestDto }) =>
+      formsApi.updateFolder(id, folder),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useDeleteFormFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => formsApi.deleteFolder(id),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.formFolders() }),
+  });
+}
+
+export function useMoveFormToFolder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ formId, folderId }: { formId: string; folderId: string | null }) =>
+      formsApi.moveToFolder(formId, folderId),
+    onSuccess: (form) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.formList() });
+      queryClient.setQueryData([...queryKeys.formList(), null], (current: FormMetaDataDto[] | undefined) =>
+        current?.map((item) => item.formId === form.formId ? form : item));
+    },
   });
 }
 
@@ -601,6 +955,7 @@ export function usePublishFormAuthoringDraft() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.formDraft(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.form(variables.formId) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.formVersions(variables.formId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.formList() }),
         queryClient.invalidateQueries({ queryKey: [...queryKeys.forms, 'compatibility'] }),
       ]);
@@ -611,7 +966,8 @@ export function usePublishFormAuthoringDraft() {
 export function useSaveFormMeta() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ formId, name }: { formId: string; name: string }) => formsApi.saveMeta(formId, name),
+    mutationFn: ({ formId, name, folderId }: { formId: string; name: string; folderId?: string | null }) =>
+      formsApi.saveMeta(formId, name, folderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.formList() });
     },
@@ -770,6 +1126,135 @@ export function useSetAiConnectionEnabled() {
   });
 }
 
+/* ---------------------------------------------------------------- Entscheidungen */
+
+export function useDecisions(options?: QueryTuning<DecisionDefinition[]>) {
+  return useQuery({
+    queryKey: queryKeys.decisionList(),
+    queryFn: ({ signal }) => decisionsApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+/* ------------------------------------------------------- Eingehende Ausloeser */
+
+export function useInboundTriggers(options?: QueryTuning<InboundTriggerDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.inboundTriggerList(),
+    queryFn: ({ signal }) => inboundTriggersApi.list(signal),
+    staleTime: 30_000,
+    ...options,
+  });
+}
+
+/** Die jüngste Version samt DMN-XML. Ohne Kennung bleibt die Abfrage aus. */
+export function useDecision(decisionDefinitionId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.decision(decisionDefinitionId ?? ''),
+    queryFn: ({ signal }) => decisionsApi.get(decisionDefinitionId!, signal),
+    enabled: Boolean(decisionDefinitionId),
+  });
+}
+
+export function useDecisionVersions(decisionDefinitionId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.decisionVersions(decisionDefinitionId ?? ''),
+    queryFn: ({ signal }) => decisionsApi.listVersions(decisionDefinitionId!, signal),
+    enabled: Boolean(decisionDefinitionId),
+  });
+}
+
+export function useCreateDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name?: string; xml: string }) => decisionsApi.create(input),
+    onSuccess: (created) => {
+      // Die neue Entscheidung gehoert sofort in die Liste. Die Seite waehlt sie direkt nach
+      // dem Anlegen aus; stuende sie bis zum Nachladen nicht in der Liste, hielte die Seite
+      // sie fuer weggefiltert und spraenge auf den ersten Eintrag zurueck.
+      queryClient.setQueryData<DecisionDefinition[]>(queryKeys.decisionList(), (current) =>
+        current && !current.some((entry) => entry.decisionDefinitionId === created.decisionDefinitionId)
+          ? [...current, created]
+          : current);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.decisions });
+    },
+  });
+}
+
+/** Speichern ist immer eine neue Version; der Cache der alten wird deshalb verworfen. */
+export function useUpdateDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ decisionDefinitionId, input }: {
+      decisionDefinitionId: string;
+      input: { name?: string; xml: string };
+    }) => decisionsApi.update(decisionDefinitionId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+  });
+}
+
+export function useDeleteDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (decisionDefinitionId: string) => decisionsApi.remove(decisionDefinitionId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.decisions }),
+  });
+}
+
+/**
+ * Der Trockenlauf wertet nur aus und ändert nichts — deshalb eine Mutation ohne
+ * Invalidierung: Er soll genau dann laufen, wenn jemand ihn auslöst.
+ */
+export function useEvaluateDecision() {
+  return useMutation({
+    mutationFn: ({ decisionDefinitionId, decisionId, variables }: {
+      decisionDefinitionId: string;
+      decisionId: string;
+      variables: Record<string, unknown>;
+    }) => decisionsApi.evaluate(decisionDefinitionId, { decisionId, variables }),
+  });
+}
+
+/**
+ * Legt einen Ausloeser an. Das Ergebnis enthaelt das Geheimnis genau einmal — es wird
+ * bewusst nur an den Aufrufer zurueckgegeben und nie in den Cache der Liste geschrieben;
+ * die Invalidierung laedt die Liste stattdessen ohne Geheimnis neu.
+ */
+export function useCreateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateInboundTriggerInput) => inboundTriggersApi.create(input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useUpdateInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ triggerId, input }: { triggerId: string; input: UpdateInboundTriggerInput }) =>
+      inboundTriggersApi.update(triggerId, input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+/** Wie das Anlegen: Das neue Geheimnis geht nur an den Aufrufer, nicht in den Cache. */
+export function useRotateInboundTriggerSecret() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.rotateSecret(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
+export function useDeleteInboundTrigger() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (triggerId: string) => inboundTriggersApi.remove(triggerId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.inboundTriggers }),
+  });
+}
+
 /* --------------------------------------------------------------------- Betrieb */
 
 export function useDiagnostics(options?: QueryTuning<OperationsDiagnosticsDto>) {
@@ -779,6 +1264,43 @@ export function useDiagnostics(options?: QueryTuning<OperationsDiagnosticsDto>) 
     refetchInterval: LIVE_REFETCH_MS,
     ...options,
   });
+}
+
+/**
+ * Alles, was ohne Eingriff liegen bleibt. Wie die uebrigen Betriebslisten mit Nachladeintervall:
+ * Eine Stoerung soll in der Betriebssicht erscheinen, ohne dass jemand die Seite neu laedt.
+ */
+export function useIncidents(options?: QueryTuning<OperationsIncidentDto[]>) {
+  return useQuery({
+    queryKey: queryKeys.incidents(),
+    queryFn: ({ signal }) => operationsApi.incidents(signal),
+    refetchInterval: LIVE_REFETCH_MS,
+    ...options,
+  });
+}
+
+/**
+ * Gibt einen liegen gebliebenen Auftrag wieder frei.
+ *
+ * Danach haengt alles an der Instanz: Die Stoerung verschwindet aus der Liste, der Auftrag
+ * wartet wieder auf einen Worker, und die Zaehler der Diagnose stimmen nicht mehr. Deshalb
+ * dieselbe Verwerfung wie bei Abbruch und Migration.
+ */
+export function useRetryJob() {
+  const queryClient = useQueryClient();
+  const { cacheNamespace, sessionScope } = useFlowzer();
+  return useMutation({
+    mutationFn: ({ jobId, retries, variables }: RetryJobInput) =>
+      jobsApi.retry(jobId, retries, variables),
+    onSuccess: () => invalidateInstanceViews(queryClient, cacheNamespace, sessionScope),
+  });
+}
+
+export interface RetryJobInput {
+  jobId: string;
+  retries: number;
+  /** Korrigierte Eingaben; sie werden in die vorhandenen hineingemischt. */
+  variables?: ProcessVariables;
 }
 
 export function useTimers(options?: QueryTuning<TimerSubscriptionDto[]>) {
@@ -795,5 +1317,37 @@ export function useHealth() {
     queryKey: queryKeys.health(),
     queryFn: ({ signal }) => operationsApi.health(signal),
     refetchInterval: 30_000,
+  });
+}
+
+/**
+ * Auswertung der Laufzeithistorie. Bewusst ohne `refetchInterval`: Eine Auswertung ist
+ * ein Bericht über einen abgeschlossenen Zeitraum, kein Live-Bild — ein Balken, der
+ * sich unter dem Mauszeiger bewegt, wäre hier nur irritierend.
+ */
+export function useAnalyticsOverview(
+  range: AnalyticsRangeQuery,
+  options?: QueryTuning<WorkflowAnalyticsOverviewDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsOverview(range.from, range.to),
+    queryFn: ({ signal }) => operationsApi.analyticsOverview(range, signal),
+    staleTime: 60_000,
+    ...options,
+  });
+}
+
+/** Schritte und Zeitreihe eines Workflows; ohne `definitionId` über alle Versionen. */
+export function useAnalyticsDetail(
+  metaDefinitionId: string,
+  range: AnalyticsRangeQuery,
+  definitionId?: string | null,
+  options?: QueryTuning<WorkflowAnalyticsDetailDto>,
+) {
+  return useQuery({
+    queryKey: queryKeys.analyticsDetail(metaDefinitionId, range.from, range.to, definitionId),
+    queryFn: ({ signal }) => operationsApi.analyticsDetail(metaDefinitionId, range, definitionId, signal),
+    staleTime: 60_000,
+    ...options,
   });
 }

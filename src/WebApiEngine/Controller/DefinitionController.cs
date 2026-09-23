@@ -57,7 +57,20 @@ public class DefinitionController(
         }
 
         var definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid);
-        return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
+        return Ok(new ApiStatusResult<BpmnDefinitionDto>(WithWarnings(definition.ToDto(), rawContent)));
+    }
+
+    /// <summary>
+    /// Haengt die Hinweise der Modellpruefung an die Antwort. Ein Entwurf darf unvollstaendig
+    /// sein: Schlaegt die Pruefung fehl, bleibt die Liste leer — den Fehler meldet der Pfad,
+    /// der ihn auch verhindert, nicht diese Zugabe.
+    /// </summary>
+    private static BpmnDefinitionDto WithWarnings(BpmnDefinitionDto dto, string rawContent)
+    {
+        try { dto.Warnings = WebApiEngine.Middleware.BpmnCapabilityWarningMapper.ToWarningDtos(
+            BpmnCapabilityMatrix.ValidateForDeployment(rawContent)); }
+        catch (Exception) { dto.Warnings = []; }
+        return dto;
     }
     
     [HttpPost("deploy")]
@@ -83,7 +96,7 @@ public class DefinitionController(
 
             definition = await definitionBusinessLogic.StoreDefinition(rawContent, previousGuid, true);
             await bpmnBusinessLogic.DeployDefinition(definition);
-            return Ok(new ApiStatusResult<BpmnDefinitionDto>(definition.ToDto()));
+            return Ok(new ApiStatusResult<BpmnDefinitionDto>(WithWarnings(definition.ToDto(), rawContent)));
         }
         catch (UnauthorizedAccessException)
         {
@@ -116,44 +129,55 @@ public class DefinitionController(
     /// Problem-Details-Vertrag wie Upload und Deployment.
     /// </summary>
     [HttpPost("validate")]
-    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition() =>
-        ValidateDefinition(BpmnCapabilityMatrix.ValidateForAuthoring);
+    public Task<ActionResult<ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>>> ValidateDefinition() =>
+        ValidateDefinition(deployment: false);
 
     /// <summary>
     /// Prueft dieselbe Eingabe gegen die strengere ausfuehrbare Teilmenge. Ein eigener Pfad
     /// verhindert, dass ein Requestparameter eine sicherheitsrelevante Pruefung abschwaecht.
     /// </summary>
     [HttpPost("validate/deployment")]
-    [ProducesResponseType<ApiStatusResult<BpmnCapabilityContract>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<WebApiEngine.Middleware.BpmnCapabilityProblemDetails>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
-    public Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDeployment() =>
-        ValidateDefinition(BpmnCapabilityMatrix.ValidateForDeployment);
+    public Task<ActionResult<ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>>> ValidateDeployment() =>
+        ValidateDefinition(deployment: true);
 
-    private async Task<ActionResult<ApiStatusResult<BpmnCapabilityContract>>> ValidateDefinition(
-        Action<string> validateCapabilities)
+    private async Task<ActionResult<ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>>> ValidateDefinition(
+        bool deployment)
     {
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!permissions.MayEditAnywhere)
         {
-            return ForbiddenCapability<BpmnCapabilityContract>(MissingRootPermission);
+            return ForbiddenCapability<WebApiEngine.Middleware.BpmnValidationResultDto>(MissingRootPermission);
         }
 
         var rawContent = await GetRawContent();
-        if (await DenyIfFolderIsForbidden<BpmnCapabilityContract>(rawContent, permissions) is { } denied)
+        if (await DenyIfFolderIsForbidden<WebApiEngine.Middleware.BpmnValidationResultDto>(rawContent, permissions) is { } denied)
         {
             return denied;
         }
 
-        validateCapabilities(rawContent);
-        var model = ModelParser.ParseModel(rawContent);
-        await AiTaskDeploymentValidator.ValidateAsync(
-            model,
-            storageSystem.AiConnectionStorage,
-            aiSecretStore,
-            aiToolRegistry);
-        return Ok(new ApiStatusResult<BpmnCapabilityContract>(BpmnCapabilityMatrix.Contract));
+        _ = DefinitionDraftValidator.ReadDefinitionId(rawContent);
+        IReadOnlyList<core_engine.Exceptions.BpmnCapabilityIssue> warnings = [];
+        if (deployment)
+        {
+            warnings = BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+            var model = ModelParser.ParseModel(rawContent);
+            await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore, aiToolRegistry);
+        }
+        else
+        {
+            // Der Entwurfspfad darf einen unvollstaendigen Stand nicht ablehnen. Er meldet
+            // deshalb nur, was ohnehin nicht blockiert — und schweigt, wo die Pruefung
+            // gar nicht so weit kommt.
+            try { warnings = BpmnCapabilityMatrix.ValidateForDeployment(rawContent); }
+            catch (Exception) { warnings = []; }
+        }
+
+        return Ok(new ApiStatusResult<WebApiEngine.Middleware.BpmnValidationResultDto>(
+            WebApiEngine.Middleware.BpmnValidationResultDto.From(BpmnCapabilityMatrix.Contract, warnings)));
     }
 
     /// <summary>
@@ -378,6 +402,13 @@ public class DefinitionController(
                 DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
         }
 
+        // Eine negative Frist hat keine Bedeutung; 0 heisst ausdruecklich „nie loeschen".
+        if (dto.RetentionDays is < 0)
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                "Die Aufbewahrungsfrist muss 0 (nie loeschen) oder groesser sein."));
+        }
+
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);
         if (!FolderBusinessLogic.IsKnownTarget(dto.FolderId, permissions.Folders))
         {
@@ -413,6 +444,13 @@ public class DefinitionController(
         {
             return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
                 DefinitionIdRules.BuildErrorMessage(dto.DefinitionId)));
+        }
+
+        // Eine negative Frist hat keine Bedeutung; 0 heisst ausdruecklich „nie loeschen".
+        if (dto.RetentionDays is < 0)
+        {
+            return BadRequest(new ApiStatusResult<BpmnMetaDefinitionDto>(
+                "Die Aufbewahrungsfrist muss 0 (nie loeschen) oder groesser sein."));
         }
 
         var permissions = await folderBusinessLogic.LoadPermissionsAsync(User);

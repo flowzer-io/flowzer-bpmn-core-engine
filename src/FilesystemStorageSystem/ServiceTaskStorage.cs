@@ -129,6 +129,40 @@ public class ServiceTaskStorage : IServiceTaskStorage
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// Laeuft unter derselben Sperre wie die Vergabe und liest die Auftraege erst darin: Ein
+    /// Anspruch oder Heartbeat zwischen einem frueheren Lesen und dem Schreiben wuerde sonst mit
+    /// dem alten Sperrstand ueberschrieben.
+    /// </summary>
+    public async Task<int> RebindJobsOfInstance(
+        Guid processInstanceId,
+        Guid definitionId,
+        IReadOnlyDictionary<Guid, ServiceTaskJobNode>? movedTokens = null)
+    {
+        await LeaseLock.WaitAsync();
+        try
+        {
+            var jobs = ReadAll().Where(job => job.ProcessInstanceId == processInstanceId).ToList();
+            foreach (var job in jobs)
+            {
+                job.DefinitionId = definitionId;
+                if (movedTokens?.TryGetValue(job.TokenId, out var movedNode) == true)
+                {
+                    job.FlowNodeId = movedNode.FlowNodeId;
+                    job.Name = movedNode.Name;
+                }
+
+                await SaveJob(job);
+            }
+
+            return jobs.Count;
+        }
+        finally
+        {
+            LeaseLock.Release();
+        }
+    }
+
     public Task SaveWebhook(ServiceTaskWebhook webhook)
     {
         var path = Path.Combine(_basePath, $"{WebhookPrefix}{webhook.Id}.json");

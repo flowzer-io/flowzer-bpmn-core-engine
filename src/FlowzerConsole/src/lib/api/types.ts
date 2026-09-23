@@ -99,6 +99,8 @@ export interface ProcessInstanceInfoDto {
   canInspect?: boolean;
   instanceId: string;
   definitionId: string;
+  /** Version des Workflows, an die die Instanz gebunden ist; null, wenn die Definition fehlt. */
+  definitionVersion?: VersionDto | null;
   relatedDefinitionId: string;
   relatedDefinitionName: string;
   messageSubscriptionCount: number;
@@ -107,10 +109,188 @@ export interface ProcessInstanceInfoDto {
   serviceSubscriptionCount: number;
   state: ProcessInstanceState;
   tokens: TokenDto[];
+  /**
+   * Warum die Instanz gescheitert ist, etwa „Unhandled BPMN error 'CODE' at 'Node'". Null bei
+   * jeder anderen Instanz und ohne Diagnoseberechtigung.
+   */
+  failureReason?: string | null;
   /** Ergänzt durch die Console-API: Startzeitpunkt der Instanz (UTC). */
   startedAt?: string | null;
   /** Ergänzt durch die Console-API: Endzeitpunkt der Instanz (UTC). */
   finishedAt?: string | null;
+  /** Elterninstanz, wenn diese Instanz von einer Call Activity gestartet wurde. */
+  parentInstanceId?: string | null;
+  /** Das an der Call Activity wartende Token der Elterninstanz. */
+  parentTokenId?: string | null;
+}
+
+/**
+ * Entspricht `CalledInstanceDto` — eine von einer Call Activity gestartete Kindinstanz.
+ *
+ * Antwort von `GET /instance/{instanceId}/children`. Die Rechteprüfung ist dieselbe wie bei
+ * der Instanzansicht; ohne das Recht antwortet die API mit 404.
+ */
+export interface CalledInstanceDto {
+  instanceId: string;
+  relatedDefinitionId: string;
+  relatedDefinitionName: string;
+  definitionVersion?: VersionDto | null;
+  state: ProcessInstanceState;
+  /** Knoten-Id der Call Activity im Elternprozess; fehlt bei historischen Ständen. */
+  callActivityFlowNodeId?: string | null;
+}
+
+/**
+ * Entspricht `InstanceMigrationFindingDto`.
+ *
+ * `code` ist bewusst offen typisiert: Die Engine darf Gründe ergänzen, ohne dass die
+ * Konsole bricht. Unbekannte Codes zeigt die Oberfläche als `message` an.
+ */
+export interface InstanceMigrationFindingDto {
+  code: string;
+  flowNodeId?: string | null;
+  /** Technische Begründung der API auf Englisch — nur der Rückfall für neue Codes. */
+  message: string;
+}
+
+/** Entspricht `InstanceMigrationPreviewItemDto`. */
+export interface InstanceMigrationPreviewItemDto {
+  instanceId: string;
+  migratable: boolean;
+  /** Nicht leer genau dann, wenn `migratable` falsch ist. */
+  problems: InstanceMigrationFindingDto[];
+  /** Folgen, die der Betrieb vor der Migration kennen muss, z. B. ein verworfener Entwurf. */
+  notices: InstanceMigrationFindingDto[];
+}
+
+/**
+ * Entspricht `MigrationFlowNodeDto` — ein Knoten als Quelle oder Ziel einer Zuordnung.
+ *
+ * `type` ist die BPMN-Elementart als schlichter Name, z. B. `UserTask` oder
+ * `ExclusiveGateway`. Quelle und Ziel müssen dieselbe tragen.
+ */
+export interface MigrationFlowNodeDto {
+  id: string;
+  /** Fehlt ganz, wenn der Knoten im Modell unbenannt ist — die API laesst leere Felder weg. */
+  name?: string | null;
+  type: string;
+}
+
+/** Entspricht dem `mapping` der Vorschau: was von Hand zuzuordnen ist und wohin. */
+export interface InstanceMigrationMappingDto {
+  /** Wartende Quellknoten, die es in der Zielversion nicht gibt und die noch kein Ziel haben. */
+  required: MigrationFlowNodeDto[];
+  /** Die Knoten der Zielversion, aus denen gewählt werden kann. */
+  targets: MigrationFlowNodeDto[];
+}
+
+/** Entspricht `InstanceMigrationPreviewDto` — die folgenlose Prüfung vor der Migration. */
+export interface InstanceMigrationPreviewDto {
+  relatedDefinitionId: string;
+  relatedDefinitionName: string;
+  /** Versions-Guid, an die die geprüften Instanzen gebunden sind. */
+  sourceDefinitionId: string;
+  sourceVersion: VersionDto | null;
+  /** Versions-Guid der aktuell deployten Fassung; einziges zulässiges Ziel. */
+  targetDefinitionId: string;
+  targetVersion: VersionDto;
+  /** Grundlage der Zuordnung von Hand; die Zuordnung selbst gehört zur Anfrage. */
+  mapping: InstanceMigrationMappingDto;
+  instances: InstanceMigrationPreviewItemDto[];
+}
+
+/** Entspricht `InstanceMigrationResultItemDto`. */
+export interface InstanceMigrationResultItemDto {
+  instanceId: string;
+  migrated: boolean;
+  problems: InstanceMigrationFindingDto[];
+}
+
+/** Entspricht `InstanceMigrationResultDto`; Teilerfolge sind möglich. */
+export interface InstanceMigrationResultDto {
+  targetDefinitionId: string;
+  targetVersion: VersionDto;
+  instances: InstanceMigrationResultItemDto[];
+}
+
+/**
+ * Entspricht `InstanceModificationFindingDto` — ein Hindernis oder ein Hinweis zum Eingriff.
+ *
+ * `code` ist wie bei der Migration offen typisiert: Die Engine darf Gründe ergänzen, ohne
+ * dass die Konsole bricht. Unbekannte Codes zeigt die Oberfläche als `message` an.
+ */
+export interface InstanceModificationFindingDto {
+  code: string;
+  /** Der betroffene Schritt, sofern der Befund an einem einzelnen Token hängt. */
+  tokenId?: string | null;
+  flowNodeId?: string | null;
+  /** Technische Begründung der API auf Englisch — nur der Rückfall für neue Codes. */
+  message: string;
+}
+
+/** Entspricht `InstanceModificationStepDto` — ein wartender Schritt der Instanz. */
+export interface InstanceModificationStepDto {
+  tokenId: string;
+  flowNodeId: string;
+  /** Null, wenn der Knoten im Modell keinen Namen trägt. */
+  name?: string | null;
+  /** Die BPMN-Elementart als schlichter Name, z. B. `UserTask`. */
+  type: string;
+}
+
+/** Entspricht `ModificationFlowNodeDto` — ein Knoten, der als Ziel zur Wahl steht. */
+export interface ModificationFlowNodeDto {
+  id: string;
+  name?: string | null;
+  type: string;
+}
+
+/** Eine einzelne Verschiebung: welcher wartende Schritt auf welchen Knoten geht. */
+export interface InstanceModificationMoveDto {
+  tokenId: string;
+  targetFlowNodeId: string;
+}
+
+/** Die Variablenkorrektur einer Eingriffsanfrage; beide Teile sind freiwillig. */
+export interface InstanceModificationVariablesDto {
+  /** Genannte Variablen werden überschrieben oder neu angelegt, ungenannte bleiben stehen. */
+  set?: ProcessVariables;
+  /** Variablen, die von der Prozessebene verschwinden. */
+  remove?: string[];
+}
+
+/**
+ * Entspricht `InstanceModificationRequestDto`. Eine leere Anfrage ist nur im Trockenlauf
+ * zulässig und beantwortet dort die Frage „welche Schritte warten, und wohin dürfen sie?“.
+ */
+export interface InstanceModificationRequestDto {
+  moves?: InstanceModificationMoveDto[];
+  variables?: InstanceModificationVariablesDto;
+}
+
+/** Entspricht `InstanceModificationPreviewDto` — die folgenlose Prüfung vor dem Eingriff. */
+export interface InstanceModificationPreviewDto {
+  instanceId: string;
+  /** Ob die Anfrage so ausgeführt werden könnte. */
+  applicable: boolean;
+  /** Gründe, aus denen der Eingriff nicht ausgeführt wird. */
+  problems: InstanceModificationFindingDto[];
+  /** Was der Eingriff mitnimmt, ohne ihn zu verhindern. */
+  notices: InstanceModificationFindingDto[];
+  /** Die wartenden Schritte der obersten Ebene. */
+  steps: InstanceModificationStepDto[];
+  /** Die erlaubten Zielknoten der obersten Ebene. */
+  targets: ModificationFlowNodeDto[];
+}
+
+/** Entspricht `InstanceModificationResultDto` — das Ergebnis des Eingriffs. */
+export interface InstanceModificationResultDto {
+  instanceId: string;
+  modified: boolean;
+  /** Was der Eingriff mitgenommen hat; dieselben Codes wie im Trockenlauf. */
+  notices: InstanceModificationFindingDto[];
+  /** Die Instanz nach dem Eingriff, damit die Oberfläche sofort den neuen Stand zeigt. */
+  instance: ProcessInstanceInfoDto;
 }
 
 /** Entspricht `BpmnDefinitionDto`. */
@@ -124,12 +304,31 @@ export interface BpmnDefinitionDto {
   deployedByUser?: string | null;
   deployedOn?: string | null;
   version: VersionDto;
+  /** Hinweise der Modellprüfung, die das Speichern oder Veröffentlichen nicht verhindert haben. */
+  warnings?: BpmnCapabilityIssueDto[];
+}
+
+/** Elementbezogener Modellbefund; `severity` trennt Blocker von Hinweis. */
+export interface BpmnCapabilityIssueDto {
+  code: string;
+  severity: string;
+  elementId?: string | null;
+  propertyPath?: string | null;
+  message: string;
 }
 
 /** Versionierter, hostneutraler Vertrag für unterstützte BPMN-Elementarten. */
 export interface BpmnCapabilityContract {
   contractVersion: string;
   elements: BpmnElementCapability[];
+}
+
+/**
+ * Entspricht `BpmnValidationResultDto`: der Fähigkeitsvertrag plus die Hinweise dieser
+ * Prüfung. Additiv — `contractVersion` und `elements` stehen wie bisher.
+ */
+export interface BpmnValidationResultDto extends BpmnCapabilityContract {
+  warnings?: BpmnCapabilityIssueDto[];
 }
 
 export interface BpmnElementCapability {
@@ -150,6 +349,12 @@ export interface BpmnMetaDefinitionDto {
    * `PUT /definition/meta/{id}/folder`.
    */
   folderId?: string | null;
+  /**
+   * Aufbewahrungsfrist beendeter Instanzen dieses Workflows in Tagen. `null` übernimmt den
+   * installationsweiten Wert, `0` heißt ausdrücklich „nie löschen". Wird beim Anlegen und
+   * beim Ändern der Metadaten ausgewertet.
+   */
+  retentionDays?: number | null;
 }
 
 /** Art einer Ordnerzuweisung. Entspricht den Zeichenketten aus `FolderMappingExtensions`. */
@@ -220,6 +425,26 @@ export interface ExtendedBpmnMetaDefinitionDto extends BpmnMetaDefinitionDto {
 export interface FormMetaDataDto {
   formId: string;
   name: string;
+  folderId?: string | null;
+}
+
+/** Hierarchischer Ordner der gemeinsamen Formularbibliothek. */
+export interface FormFolderDto {
+  id: string;
+  parentId?: string | null;
+  name: string;
+}
+
+export interface FormFolderRequestDto {
+  parentId?: string | null;
+  name: string;
+}
+
+/** Datensparsame Auswahl einer unveränderlichen Formularversion. */
+export interface FormVersionSummaryDto {
+  id: string;
+  formId: string;
+  version: VersionDto;
 }
 
 /** Entspricht `FormDto`. `formData` enthält das Form.io-Schema als JSON-String. */
@@ -315,6 +540,10 @@ export interface SubjectRefDto {
 
 /** Aktive Verzeichnisidentität mit eindeutiger Anzeigeprojektion. */
 export interface DirectorySubjectDto {
+  email?: string | null;
+  username?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   subject: SubjectRefDto;
   displayName: string;
   detail: string;
@@ -421,6 +650,8 @@ export interface OperationsStorageSnapshotDto {
   activeInstances: number;
   completedInstances: number;
   failedInstances: number;
+  /** Abbrüche zählen getrennt von den Fehlern; sie sind ein regulärer Ausgang. */
+  cancelledInstances: number;
   pendingMessages: number;
   pendingTimers: number;
   openUserTasks: number;
@@ -446,6 +677,30 @@ export interface TimerSchedulerDiagnosticsDto {
   lastErrorMessage?: string | null;
 }
 
+/**
+ * Entspricht `InstanceRetentionDiagnosticsDto`. Enthält bewusst keine Instanzkennungen:
+ * Der Betrieb sieht, dass und wie viel gelöscht wurde, nicht wessen Vorgang.
+ */
+export interface InstanceRetentionDiagnosticsDto {
+  enabled: boolean;
+  /** Installationsweite Frist in Tagen; `null`, solange keine gesetzt ist. */
+  days?: number | null;
+  pollIntervalMinutes: number;
+  batchSize: number;
+  status: string;
+  serviceStartedAtUtc?: string | null;
+  lastRunStartedAtUtc?: string | null;
+  lastRunCompletedAtUtc?: string | null;
+  lastSuccessfulRunAtUtc?: string | null;
+  lastFailedRunAtUtc?: string | null;
+  lastRunDurationMs?: number | null;
+  lastDeletedInstances: number;
+  successfulRunCount: number;
+  failedRunCount: number;
+  totalDeletedInstances: number;
+  lastErrorMessage?: string | null;
+}
+
 /** Entspricht `OperationsInstrumentationDto`. */
 export interface OperationsInstrumentationDto {
   meterName: string;
@@ -461,8 +716,63 @@ export interface OperationsObservabilityDto {
   otlpEndpointHint?: string | null;
   otlpProtocol?: string | null;
   otlpHeadersHint?: string | null;
+  /** Der Scrape-Endpunkt ist anonym und darf nur im Containernetz erreichbar sein. */
+  prometheusEnabled: boolean;
+  prometheusPath?: string | null;
   serviceName: string;
   serviceVersion: string;
+}
+
+/** Entspricht `OperationsConnectorDto`. */
+export interface OperationsConnectorDto {
+  name: string;
+  jobType: string;
+  enabled: boolean;
+  lastRunAtUtc?: string | null;
+  processedJobs: number;
+  failedJobs: number;
+  /** Die Meldung des Konnektors, niemals ein aufgelöstes Secret. */
+  lastErrorMessage?: string | null;
+}
+
+/** Entspricht `OperationsIncidentCountersDto`. */
+export interface OperationsIncidentCountersDto {
+  /** Aufträge ohne verbleibende Versuche; sie warten auf einen Eingriff. */
+  jobExhausted: number;
+  /** Instanzen im Zustand `Failed`. */
+  instanceFailed: number;
+}
+
+/** Die beiden abgeleiteten Störungsarten; entspricht `OperationsIncidentKinds`. */
+export const OPERATIONS_INCIDENT_KINDS = ['jobExhausted', 'instanceFailed'] as const;
+export type OperationsIncidentKind = (typeof OPERATIONS_INCIDENT_KINDS)[number];
+
+/** Entspricht `OperationsIncidentDto`. */
+export interface OperationsIncidentDto {
+  kind: OperationsIncidentKind;
+  instanceId: string;
+  metaDefinitionId: string;
+  definitionId: string;
+  definitionName: string;
+  flowNodeId?: string | null;
+  flowNodeName?: string | null;
+  /** Nur bei `jobExhausted`. */
+  jobId?: string | null;
+  jobType?: string | null;
+  message?: string | null;
+  /** Seit wann es hängt (UTC). */
+  since: string;
+  /** Wie oft der Auftrag schon von Hand freigegeben wurde; nur bei `jobExhausted`. */
+  manualRetries?: number | null;
+  /** Aktuelle Eingaben des Auftrags, damit die Korrektur sie vorbelegen kann. */
+  variables?: ProcessVariables | null;
+}
+
+/** Entspricht `RetryJobRequestDto`. */
+export interface RetryJobRequestDto {
+  retries: number;
+  /** Wird in die vorhandenen Eingaben hineingemischt; ungenannte Schlüssel bleiben. */
+  variables?: ProcessVariables;
 }
 
 /** Entspricht `OperationsDiagnosticsDto`. */
@@ -470,9 +780,82 @@ export interface OperationsDiagnosticsDto {
   checkedAtUtc: string;
   environment: string;
   storage: OperationsStorageSnapshotDto;
+  incidents: OperationsIncidentCountersDto;
   timerScheduler: TimerSchedulerDiagnosticsDto;
+  retention: InstanceRetentionDiagnosticsDto;
   instrumentation: OperationsInstrumentationDto;
   observability: OperationsObservabilityDto;
+  /**
+   * Auch abgeschaltete Konnektoren stehen hier: „nicht aktiviert“ ist eine Aussage fürs
+   * Betriebsbild, ein gar nicht aufgeführter Konnektor wäre keine.
+   */
+  connectors: OperationsConnectorDto[];
+}
+
+/** Zeitraumgrenzen einer Auswertung; beide Angaben sind freiwillig (Server-Standard: 30 Tage). */
+export interface AnalyticsRangeQuery {
+  from?: string;
+  to?: string;
+}
+
+/** Streuungsmaße einer gemessenen Dauer — alle Werte in Sekunden. */
+export interface DurationStatisticsDto {
+  sampleCount: number;
+  medianSeconds: number;
+  p90Seconds: number;
+  meanSeconds: number;
+  maxSeconds: number;
+}
+
+/** Ein Workflow des Zeitraums, aufgeschlüsselt nach Ausgang der Instanzen. */
+export interface WorkflowAnalyticsSummaryDto {
+  metaDefinitionId: string;
+  name: string;
+  totalCount: number;
+  runningCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  failedCount: number;
+  /** null, solange keine Instanz des Zeitraums abgeschlossen ist. */
+  cycleTime: DurationStatisticsDto | null;
+}
+
+/** Antwort von `GET /operations/analytics/workflows`. */
+export interface WorkflowAnalyticsOverviewDto {
+  fromUtc: string;
+  toUtc: string;
+  workflows: WorkflowAnalyticsSummaryDto[];
+}
+
+/** Ein Schritt der Definition mit seiner Wartezeit und den aktuell wartenden Token. */
+export interface FlowNodeAnalyticsDto {
+  flowNodeId: string;
+  name: string | null;
+  executionCount: number;
+  waitingTokenCount: number;
+  /** null, wenn im Zeitraum kein Durchlauf vollständig beobachtet wurde. */
+  waitTime: DurationStatisticsDto | null;
+}
+
+/** Ein Tag der Zeitreihe; `day` ist ein reines Datum („2026-09-19“, C# `DateOnly`). */
+export interface AnalyticsDayPointDto {
+  day: string;
+  startedCount: number;
+  finishedCount: number;
+}
+
+/** Antwort von `GET /operations/analytics/workflows/{metaDefinitionId}`. */
+export interface WorkflowAnalyticsDetailDto {
+  fromUtc: string;
+  toUtc: string;
+  summary: WorkflowAnalyticsSummaryDto;
+  /** null = alle Versionen. */
+  definitionId: string | null;
+  /** Version, aus der die Knotennamen stammen; null, wenn keine lesbar war. */
+  namingDefinitionId: string | null;
+  /** Bereits serverseitig nach Median-Wartezeit absteigend sortiert. */
+  nodes: FlowNodeAnalyticsDto[];
+  timeline: AnalyticsDayPointDto[];
 }
 
 /** Stabile Providerfamilien des oeffentlichen KI-Verbindungsvertrags. */
@@ -534,4 +917,236 @@ export interface UpdateAiConnectionInput extends Omit<CreateAiConnectionInput, '
   expectedRevision: number;
   /** Leer behaelt die vorhandene Referenz; sie wird nie aus einer Antwort vorbefuellt. */
   secretReference?: string;
+}
+
+/** Eine einzelne Entscheidung innerhalb einer DMN-Datei; `decisionId` ist die DMN-Kennung. */
+export interface DecisionSummary {
+  decisionId: string;
+  name: string;
+}
+
+/** Ein Katalogeintrag: eine deployte DMN-Datei in ihrer jüngsten Version. */
+export interface DecisionDefinition {
+  decisionDefinitionId: string;
+  name: string;
+  version: number;
+  deployedAt: string;
+  deployedBy: string | null;
+  decisions: DecisionSummary[];
+}
+
+/** Wie {@link DecisionDefinition}, zusätzlich mit dem DMN-XML für den Editor. */
+export interface DecisionDefinitionDetail extends DecisionDefinition {
+  xml: string;
+}
+
+/** Ein Eintrag der Versionsliste; das XML holt erst der gezielte Versionsabruf. */
+export interface DecisionDefinitionVersion {
+  version: number;
+  deployedAt: string;
+  deployedBy: string | null;
+  decisions: DecisionSummary[];
+}
+
+/**
+ * Das Ergebnis eines Trockenlaufs. `requiredResults` enthält die Zwischenergebnisse der
+ * Entscheidungen, von denen die ausgewertete Entscheidung abhängt — je Eintrag dieselbe
+ * Auskunft wie für die Hauptentscheidung.
+ */
+export interface DecisionEvaluationResult {
+  decisionId: string;
+  value: unknown;
+  matchedRules: string[];
+  requiredResults: Record<string, { decisionId: string; value: unknown; matchedRules: string[] }>;
+}
+
+/* ------------------------------------------------------- Eingehende Ausloeser */
+
+/**
+ * Art eines eingehenden Ausloesers: Er startet entweder einen Workflow oder stellt
+ * eine Nachricht an eine laufende Instanz zu.
+ *
+ * Anders als bei den KI-Verbindungen kommen diese Aufzaehlungen als Zeichenketten
+ * aus der API; eine Normalisierung von Zahlen ist deshalb nicht noetig.
+ */
+export type InboundTriggerKind = 'start' | 'message';
+
+/** Woher die Prozessvariablen kommen: aus einzelnen Feldern oder aus dem ganzen Body. */
+export type InboundTriggerVariablesMode = 'fields' | 'body';
+
+export interface InboundTriggerDto {
+  id: string;
+  /** Oeffentlicher Teil der Aufrufadresse `POST /trigger/{key}`. */
+  key: string;
+  name: string;
+  kind: InboundTriggerKind;
+  /** Nur bei `kind === 'start'` gesetzt. */
+  definitionId?: string | null;
+  /** Nur bei `kind === 'message'` gesetzt. */
+  messageName?: string | null;
+  /** Nur bei `kind === 'message'`: Pfad zum Korrelationswert im Body, z. B. `order.id`. */
+  correlationKeyPath?: string | null;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields: string[];
+  enabled: boolean;
+  createdAt: string;
+  lastUsedAt?: string | null;
+  useCount: number;
+  lastFailureAt?: string | null;
+  /**
+   * Kurzer fester Grund der letzten Ablehnung: `disabled`, `timestamp`, `signature`,
+   * `payload`, `correlation-key` oder `not-deployed`. Enthaelt nie Daten des Aufrufers.
+   */
+  lastFailureReason?: string | null;
+}
+
+/**
+ * Antwort auf Anlegen und Rotieren. Das Geheimnis wird genau einmal uebertragen und
+ * darf deshalb weder in den Query-Cache der Liste noch in eine andere Ansicht gelangen.
+ */
+export interface InboundTriggerSecretDto {
+  trigger: InboundTriggerDto;
+  secret: string;
+}
+
+export interface CreateInboundTriggerInput {
+  name: string;
+  kind: InboundTriggerKind;
+  definitionId?: string;
+  messageName?: string;
+  correlationKeyPath?: string;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields?: string[];
+}
+
+/** Die Art bleibt fest: `PUT` ignoriert sie, deshalb steht sie hier gar nicht erst. */
+export interface UpdateInboundTriggerInput {
+  name: string;
+  enabled: boolean;
+  definitionId?: string;
+  messageName?: string;
+  correlationKeyPath?: string;
+  variablesMode: InboundTriggerVariablesMode;
+  allowedFields?: string[];
+}
+
+/* ------------------------------------------------------------------ Prozesspakete */
+
+/**
+ * Die Arten installationsgebundener Bezüge eines Pakets. `directoryUser`, `directoryGroup`
+ * und `aiConnection` müssen beim Import zugeordnet werden; die übrigen sind Hinweise
+ * darauf, was die Zielinstallation bereitstellen muss.
+ */
+export type ProcessPackageReferenceKind =
+  | 'directoryUser'
+  | 'directoryGroup'
+  | 'aiConnection'
+  | 'jobType'
+  | 'secret'
+  | 'calledProcess'
+  | 'calledDecision';
+
+export interface ProcessPackageWorkflowDto {
+  definitionId: string;
+  name: string;
+  description?: string | null;
+  version: string;
+  processIds: string[];
+  /** `deployed` oder `draft` — ein Entwurf hat keine unveränderlichen Formularbindungen. */
+  source: 'deployed' | 'draft';
+}
+
+export interface ProcessPackageFormDto {
+  formId?: string | null;
+  name: string;
+  revision?: string | null;
+  formKey: string;
+  file: string;
+  /** Ein Formular aus dem Diagramm; es reist im BPMN mit. */
+  embedded: boolean;
+}
+
+export interface ProcessPackageReferenceDto {
+  id: string;
+  kind: ProcessPackageReferenceKind;
+  elementId: string;
+  elementName?: string | null;
+  /** Anzeigename oder technischer Name — niemals eine Personenkennung, nie ein Secret-Wert. */
+  label: string;
+  requiresMapping: boolean;
+}
+
+export interface ProcessPackageManifestDto {
+  format: string;
+  formatVersion: number;
+  exportedAt: string;
+  flowzerVersion: string;
+  bpmnCapabilitiesContract: number;
+  formsContract: string;
+  workflow: ProcessPackageWorkflowDto;
+  forms: ProcessPackageFormDto[];
+  references: ProcessPackageReferenceDto[];
+}
+
+export interface ProcessPackageCandidateDto {
+  id: string;
+  label: string;
+  hint?: string | null;
+}
+
+export interface ProcessPackageReferenceOptionsDto {
+  reference: ProcessPackageReferenceDto;
+  candidates: ProcessPackageCandidateDto[];
+  /** Ein gleichnamiger Eintrag dieser Installation; vorbelegt, aber nie still angewandt. */
+  suggestedId?: string | null;
+}
+
+export interface ProcessPackageFindingDto {
+  code: string;
+  message: string;
+  elementId?: string | null;
+}
+
+export interface ProcessPackageConflictDto {
+  definitionId: string;
+  name: string;
+  latestVersion?: string | null;
+  mayCreateNewVersion: boolean;
+}
+
+export interface ProcessPackagePreviewDto {
+  manifest: ProcessPackageManifestDto;
+  deployableHere: boolean;
+  formsContractSupported: boolean;
+  problems: ProcessPackageFindingDto[];
+  notices: ProcessPackageFindingDto[];
+  references: ProcessPackageReferenceOptionsDto[];
+  conflict?: ProcessPackageConflictDto | null;
+}
+
+/** Zielentscheidung und Zuordnungen, mit denen importiert wird. */
+export interface ProcessPackageMappingDto {
+  mode: 'new' | 'newVersionOf';
+  definitionId?: string | null;
+  folderId?: string | null;
+  name?: string | null;
+  references?: Record<string, string>;
+}
+
+export interface ProcessPackageImportedFormDto {
+  formKey: string;
+  name: string;
+  formId?: string | null;
+  revision?: string | null;
+  outcome: 'created' | 'reused' | 'revised' | 'embedded';
+}
+
+export interface ProcessPackageImportResultDto {
+  definitionId: string;
+  name: string;
+  versionId: string;
+  version: VersionDto;
+  forms: ProcessPackageImportedFormDto[];
+  appliedReferences: ProcessPackageReferenceDto[];
+  notices: ProcessPackageFindingDto[];
 }

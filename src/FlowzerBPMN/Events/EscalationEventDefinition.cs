@@ -2,5 +2,5 @@ namespace BPMN.Events;
 
 public record EscalationEventDefinition
 {
-    public Escalation? EscalationRed { get; init; }
+    public Escalation? EscalationRef { get; init; }
 }

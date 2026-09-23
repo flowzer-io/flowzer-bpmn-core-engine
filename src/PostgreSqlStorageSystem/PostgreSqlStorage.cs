@@ -31,6 +31,8 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
+        DecisionStorage = new PostgreSqlDecisionStorage(_session);
+        InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -50,6 +52,8 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
+    public IDecisionStorage DecisionStorage { get; }
+    public IInboundTriggerStorage InboundTriggerStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -82,6 +86,8 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         RuntimeNodeEventStorage = new PostgreSqlRuntimeNodeEventStorage(_session);
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
+        DecisionStorage = new PostgreSqlDecisionStorage(_session);
+        InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
     public IDefinitionStorage DefinitionStorage { get; }
@@ -101,6 +107,19 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IRuntimeNodeEventStorage RuntimeNodeEventStorage { get; }
     public IAiConnectionStorage AiConnectionStorage { get; }
     public IAiRunStorage AiRunStorage { get; }
+    public IDecisionStorage DecisionStorage { get; }
+    public IInboundTriggerStorage InboundTriggerStorage { get; }
+
+    /// <summary>
+    /// Kurze exklusive Schreibphase für die Formular-Bestandsübernahme beim Deployment.
+    /// Andere Updater und Publikationen warten; normale Leser bleiben zugelassen.
+    /// </summary>
+    public Task LockForFormCompatibilityUpgradeAsync() => _session.RunAsync(async (connection, transaction) =>
+    {
+        await using var command = _session.CreateCommand(connection, transaction,
+            "LOCK TABLE {schema}.definitions, {schema}.definition_binaries, {schema}.forms, {schema}.form_metadata IN SHARE ROW EXCLUSIVE MODE");
+        await command.ExecuteNonQueryAsync();
+    });
 
     public void CommitChanges() => _session.Commit();
 

@@ -123,7 +123,7 @@ public static class InteractionMappingExtensions
             Id = form.Id,
             FormId = form.FormId,
             Version = form.Version.ToDto(),
-            FormData = form.FormData
+            FormData = WebApiEngine.Forms.LegacyFormSchemaUpgrade.Normalize(form.FormData)
         };
     }
 
@@ -153,7 +153,8 @@ public static class InteractionMappingExtensions
         return new FormMetaDataDto
         {
             FormId = formMetadata.FormId,
-            Name = formMetadata.Name
+            Name = formMetadata.Name,
+            FolderId = formMetadata.FolderId
         };
     }
 
@@ -164,7 +165,8 @@ public static class InteractionMappingExtensions
         return new FormMetadata
         {
             FormId = formMetadataDto.FormId,
-            Name = formMetadataDto.Name
+            Name = formMetadataDto.Name,
+            FolderId = formMetadataDto.FolderId
         };
     }
 

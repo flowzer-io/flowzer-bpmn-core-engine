@@ -20,43 +20,37 @@ public class DefinitionBusinessLogic(
     {
         // Definition und XML gehoeren zusammen: eine Transaktion, ein Commit.
         using var storageSystem = storageProvider.GetTransactionalStorage();
-        // Der Parser liest aus Kompatibilitaetsgruenden auch historische, nicht ausführbare
-        // Typen. Neue Uploads duerfen sie jedoch nicht als startbare Workflow-Version ablegen.
-        if (deploy) BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
-        else BpmnCapabilityMatrix.ValidateForAuthoring(rawContent);
-        var model = ModelParser.ParseModel(rawContent);
-
-        // Die Kennung stammt aus dem hochgeladenen XML (definitions/@id) und wird in der
-        // Dateiablage zum Dateinamen. Vor jedem Schreiben pruefen, sonst legt schon der Upload
-        // eine Version unter einem Pfad ausserhalb der Ablage an. Die ArgumentException wird
-        // von der Fehlerbehandlung der API zu einer 400 im gewohnten Umschlag.
-        DefinitionIdRules.EnsureValid(model.Id, "definitions/@id");
+        // Nur der XML-Umschlag und die sichere Katalogkennung sind beim Speichern
+        // verpflichtend. Unvollständige Fachkonfiguration ist ein zulässiger Entwurf.
+        var definitionId = DefinitionDraftValidator.ReadDefinitionId(rawContent);
 
         // Auth zuerst: Ohne aufgelösten Benutzer bleibt die Antwort 401,
         // unabhängig davon, ob die Meta-Definition existiert.
         var currentUser = currentUserContextAccessor.GetCurrentUser();
         var resolvedUserId = currentUser.RequireResolvedUserId("definition changes");
 
-        await AiTaskDeploymentValidator.ValidateAsync(
-            model,
-            storageSystem.AiConnectionStorage,
-            aiSecretStore,
-            aiToolRegistry);
+        // Die Versionsnummer entsteht aus der bisher hoechsten. Ein zweiter API-Prozess, der
+        // denselben Workflow gleichzeitig speichert, muss warten — sonst vergeben beide
+        // dieselbe Nummer und einer scheitert am Unique-Index statt mit der naechsten Version.
+        await storageSystem.DefinitionStorage.LockForDefinitionChange(definitionId);
 
         if (deploy)
         {
+            BpmnCapabilityMatrix.ValidateForDeployment(rawContent);
+            var model = ModelParser.ParseModel(rawContent);
+            await AiTaskDeploymentValidator.ValidateAsync(model, storageSystem.AiConnectionStorage, aiSecretStore, aiToolRegistry);
             // Ein Deploy ohne Meta-Definition hinterlässt Instanzen, deren Katalog-
             // Eintrag fehlt, und macht damit die komplette Instanzliste unbrauchbar.
             var metaDefinitions = await storageSystem.DefinitionStorage.GetAllMetaDefinitions();
-            if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != model.Id))
+            if (metaDefinitions.All(metaDefinition => metaDefinition.DefinitionId != definitionId))
             {
                 throw new InvalidOperationException(
-                    $"No meta definition found for definitionId {model.Id}. " +
+                    $"No meta definition found for definitionId {definitionId}. " +
                     "Create the workflow in the catalog first, then deploy it.");
             }
         }
 
-        var highestVersion = await storageSystem.DefinitionStorage.GetMaxVersionId(model.Id);
+        var highestVersion = await storageSystem.DefinitionStorage.GetMaxVersionId(definitionId);
         
         if (highestVersion == null)
             highestVersion = new Version(1, 0);
@@ -75,7 +69,7 @@ public class DefinitionBusinessLogic(
         var definition = new BpmnDefinition()
         {
             Id = Guid.NewGuid(),
-            DefinitionId = model.Id,
+            DefinitionId = definitionId,
             PreviousGuid = previousGuid,
             Hash = ComputeStableHash(rawContent),
             SavedByUser = resolvedUserId,
@@ -102,7 +96,7 @@ public class DefinitionBusinessLogic(
     {
         try
         {
-            return ModelParser.ParseModel(rawContent).Id;
+            return DefinitionDraftValidator.ReadDefinitionId(rawContent);
         }
         catch
         {

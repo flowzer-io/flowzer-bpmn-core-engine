@@ -9,8 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v3.json"
-                      Link="Contracts\bpmn-capabilities\v3.json" />
+    <EmbeddedResource Include="..\..\contracts\bpmn-capabilities\v9.json"
+                      Link="Contracts\bpmn-capabilities\v9.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,11 +27,33 @@
     <ProjectReference Include="..\Model\Model.csproj" />
     <ProjectReference Include="..\Flowzer.Shared\Flowzer.Shared.csproj" />
     <ProjectReference Include="..\FlowzerBPMN\FlowzerBPMN.csproj" />
+    <!-- Der DMN-Kern haengt selbst an nichts. Die Engine bringt ihm ueber core_engine.Dmn
+         nur den FEEL-Handler mit; ausgewertet wird spaeter in der Geschaeftslogik. -->
+    <ProjectReference Include="..\FlowzerDmn\FlowzerDmn.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.ClearScript.V8" Version="7.5.0" />
-    <PackageReference Include="Microsoft.ClearScript.V8.Native.osx-arm64" Version="7.5.0" />
+    <!--
+      Ohne die native V8-Bibliothek der Zielplattform faellt FlowzerConfig still auf den
+      einfachen Ausdrucks-Handler zurueck: Der Prozess laeuft, rechnet FEEL aber nicht mehr.
+      Genau das ist im Container passiert, weil hier lange nur die Entwicklungsmaschine stand.
+
+      Ein Container braucht nur seine eigene Architektur; jedes weitere Native waere totes
+      Gewicht im Image. Deshalb waehlt `FlowzerV8Native` beim Veroeffentlichen genau eine
+      Kennung aus (siehe Dockerfile.api). Ohne die Eigenschaft - also beim lokalen Bauen und
+      Testen - kommen die Natives der ueblichen Entwicklungsplattformen mit.
+    -->
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-x64" Version="7.5.0"
+                      Condition="'$(FlowzerV8Native)' == 'linux-x64' or '$(FlowzerV8Native)' == ''" />
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.linux-arm64" Version="7.5.0"
+                      Condition="'$(FlowzerV8Native)' == 'linux-arm64' or '$(FlowzerV8Native)' == ''" />
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.osx-arm64" Version="7.5.0"
+                      Condition="'$(FlowzerV8Native)' == ''" />
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.osx-x64" Version="7.5.0"
+                      Condition="'$(FlowzerV8Native)' == ''" />
+    <PackageReference Include="Microsoft.ClearScript.V8.Native.win-x64" Version="7.5.0"
+                      Condition="'$(FlowzerV8Native)' == ''" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
   </ItemGroup>
 

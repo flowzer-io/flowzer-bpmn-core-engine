@@ -1,3 +1,4 @@
+import { SessionConnectionNotice } from './SessionConnectionNotice';
 import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
@@ -56,6 +57,7 @@ export function AppShell() {
     // nur eine leere Aufgabenliste mit einer technischen Fehlermeldung.
     return (
       <WorkerShell onOpenUserMenu={() => setUserMenuOpen(true)}>
+        <SessionConnectionNotice />
         <AccessDeniedNotice />
         <UserMenu open={userMenuOpen} onOpenChange={setUserMenuOpen} />
       </WorkerShell>
@@ -83,6 +85,7 @@ export function AppShell() {
           */}
         {/* Unten Platz fuer die Reiterleiste, damit sie nichts verdeckt. */}
         <main className="flex min-h-0 flex-1 flex-col overflow-auto pb-[calc(58px+env(safe-area-inset-bottom))] md:pb-0">
+          <SessionConnectionNotice />
           <AccessDeniedNotice />
           <Outlet />
         </main>

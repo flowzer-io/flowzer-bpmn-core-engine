@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_EventSubProcessInSubProcess" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:message id="Message_InnerAbbruch" name="InnerAbbruch" />
+  <bpmn:process id="Process_EventSubProcessInSubProcess" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_ToSub</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:subProcess id="SubProcess_1">
+      <bpmn:incoming>Flow_ToSub</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+      <bpmn:startEvent id="SubStart_1"><bpmn:outgoing>SubFlow_ToInner</bpmn:outgoing></bpmn:startEvent>
+      <bpmn:serviceTask id="ServiceTask_Inner" name="ServiceTask_Inner">
+        <bpmn:extensionElements><zeebe:taskDefinition type="inner" /></bpmn:extensionElements>
+        <bpmn:incoming>SubFlow_ToInner</bpmn:incoming>
+        <bpmn:outgoing>SubFlow_ToEnd</bpmn:outgoing>
+      </bpmn:serviceTask>
+      <bpmn:endEvent id="SubEnd_1"><bpmn:incoming>SubFlow_ToEnd</bpmn:incoming></bpmn:endEvent>
+      <bpmn:sequenceFlow id="SubFlow_ToInner" sourceRef="SubStart_1" targetRef="ServiceTask_Inner" />
+      <bpmn:sequenceFlow id="SubFlow_ToEnd" sourceRef="ServiceTask_Inner" targetRef="SubEnd_1" />
+      <bpmn:subProcess id="InnerEventSub" triggeredByEvent="true">
+        <bpmn:startEvent id="InnerEventSub_Start">
+          <bpmn:outgoing>InnerEventSub_Flow_ToTask</bpmn:outgoing>
+          <bpmn:messageEventDefinition id="MED_InnerAbbruch" messageRef="Message_InnerAbbruch" />
+        </bpmn:startEvent>
+        <bpmn:serviceTask id="ServiceTask_InnerHandle" name="ServiceTask_InnerHandle">
+          <bpmn:extensionElements><zeebe:taskDefinition type="innerHandle" /></bpmn:extensionElements>
+          <bpmn:incoming>InnerEventSub_Flow_ToTask</bpmn:incoming>
+          <bpmn:outgoing>InnerEventSub_Flow_ToEnd</bpmn:outgoing>
+        </bpmn:serviceTask>
+        <bpmn:endEvent id="InnerEventSub_End"><bpmn:incoming>InnerEventSub_Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+        <bpmn:sequenceFlow id="InnerEventSub_Flow_ToTask" sourceRef="InnerEventSub_Start" targetRef="ServiceTask_InnerHandle" />
+        <bpmn:sequenceFlow id="InnerEventSub_Flow_ToEnd" sourceRef="ServiceTask_InnerHandle" targetRef="InnerEventSub_End" />
+      </bpmn:subProcess>
+    </bpmn:subProcess>
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_ToEnd</bpmn:incoming></bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_ToSub" sourceRef="StartEvent_1" targetRef="SubProcess_1" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="SubProcess_1" targetRef="EndEvent_1" />
+  </bpmn:process>
+</bpmn:definitions>

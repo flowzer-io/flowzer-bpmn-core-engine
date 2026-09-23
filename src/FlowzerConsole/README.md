@@ -60,7 +60,7 @@ BFF-Sitzung projiziert und bestimmen, was die Oberfläche anbietet:
 | --- | --- |
 | `access` | Zugang überhaupt; ohne sie antwortet die API auf jeden Fachaufruf mit 403 |
 | `modeler` | Veröffentlichen von Definitionen und Formularen |
-| `operator` | Diagnose, Instanzabbruch, Sicht auf alle Aufgaben |
+| `operator` | Diagnose, Instanzabbruch, Instanzmigration, Sicht auf alle Aufgaben |
 | `worker` | Aufträge für Service-Tasks abholen |
 
 Die vollständige Konsole steht jedem Zugelassenen offen: Definitionen, Instanzen und Formulare darf die API jeder zugelassenen Person zeigen. Erst was schreibt oder den Betrieb betrifft, verlangt eine Rolle — dann bietet die Oberfläche es gar nicht erst an, statt es anzubieten und ablehnen zu lassen:

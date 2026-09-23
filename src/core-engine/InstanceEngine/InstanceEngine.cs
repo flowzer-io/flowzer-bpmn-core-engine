@@ -44,6 +44,10 @@ public partial class InstanceEngine
                          not BPMN.Process.Process and 
                          not SubProcess))
         {
+            // Ein zuvor in diesem Schritt gefangener BPMN-Fehler kann diesen Token bereits
+            // zurueckgezogen haben. Ohne diese Pruefung wuerde ihn sein Handler wiederbeleben.
+            if (token.State != FlowNodeState.Active) continue;
+
             if (!FlowNodeHandlers.TryGetValue(token.CurrentBaseElement.GetType(), out var handler))
                 throw new InvalidOperationException($"No handler found for {token.CurrentBaseElement.GetType()}");
 
@@ -62,6 +66,7 @@ public partial class InstanceEngine
         //Complete all Completing Tokens
         foreach (var token in Tokens.Where(token => token.State is FlowNodeState.Completing).ToArray())
         {
+            WithdrawEventGroupSiblings(token);
             token.State = FlowNodeState.Completed;
             PrepareOutputData(token);
             
@@ -84,6 +89,7 @@ public partial class InstanceEngine
         foreach (var token in activeTokens.Where(t => t.CurrentBaseElement is Activity {
                      LoopCharacteristics: MultiInstanceLoopCharacteristics } ))
         {
+            if (token.State != FlowNodeState.Active) continue;
             new MultiInstanceHandler().Execute(this, token);
         }
         
@@ -91,6 +97,7 @@ public partial class InstanceEngine
         // zuerst ausgewertet werden und die Ausführungsreihenfolge unter aktuellen .NET-Laufzeiten deterministisch bleibt.
         foreach (var token in activeTokens.AsEnumerable().Reverse().Where(t => t.CurrentBaseElement is BPMN.Process.Process or SubProcess))
         {
+            if (token.State != FlowNodeState.Active) continue;
             new ProcessFlowNodeHandler().Execute(this, token);
             new DefaultFlowNodeHandler().GenerateOutgoingTokens(FlowzerConfig, this, token);
         }
@@ -99,6 +106,24 @@ public partial class InstanceEngine
         {
             // ToDo: Hier kann man noch Nachrichtenflüsse einbauen etc.
             token.State = FlowNodeState.Terminated;
+        }
+    }
+
+    /// <summary>
+    /// Ein ereignisbasiertes Gateway stellt mehrere Ereignisse gleichzeitig scharf; genau eines
+    /// gewinnt. Sobald ein Mitglied der Gruppe abschliesst, werden die uebrigen zurueckgezogen —
+    /// damit verschwinden auch ihre Message-, Signal- und Timer-Subscriptions.
+    /// </summary>
+    private void WithdrawEventGroupSiblings(Token token)
+    {
+        if (token.EventGroupId is not { } eventGroupId) return;
+
+        foreach (var sibling in Tokens.Where(candidate =>
+                     candidate.EventGroupId == eventGroupId
+                     && candidate.Id != token.Id
+                     && candidate.State is FlowNodeState.Ready or FlowNodeState.Active))
+        {
+            sibling.State = FlowNodeState.Withdrawn;
         }
     }
 
@@ -245,18 +270,44 @@ public partial class InstanceEngine
         { typeof(FlowzerMessageStartEvent), new DefaultFlowNodeHandler() },
         { typeof(EndEvent), new DefaultFlowNodeHandler() },
         { typeof(BPMN.Activities.Task), new DefaultFlowNodeHandler() },
+        // Manuelle Arbeit findet außerhalb der Engine statt. Wie ein generischer
+        // Task durchlaufen, aber niemals unbekannte Spezialtypen pauschal überspringen.
+        { typeof(ManualTask), new DefaultFlowNodeHandler() },
         { typeof(ExclusiveGateway), new ExclusiveGatewayHandler() },
         { typeof(ParallelGateway), new ParallelGatewayHandler() },
         { typeof(ServiceTask), new DoNothingFlowNodeHandler() },
-        { typeof(InclusiveGateway), new DefaultFlowNodeHandler() },
+        { typeof(InclusiveGateway), new InclusiveGatewayHandler() },
+        // Stellt alle Folgeereignisse gleichzeitig scharf; das erste, das eintrifft, gewinnt.
+        { typeof(EventBasedGateway), new EventBasedGatewayHandler() },
         { typeof(FlowzerTerminateEvent), new TerminateEndEventHandler() },
+        { typeof(FlowzerErrorEndEvent), new ErrorEndEventHandler() },
         { typeof(UserTask), new DoNothingFlowNodeHandler() },
         { typeof(ReceiveTask), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateMessageCatchEvent), new DoNothingFlowNodeHandler() },
+        // Sendende Elemente: intern korrelieren oder — mit Auftragstyp — auf den Worker warten.
+        { typeof(FlowzerIntermediateMessageThrowEvent), new MessageThrowHandler() },
+        { typeof(FlowzerMessageEndEvent), new MessageThrowHandler() },
+        { typeof(SendTask), new MessageThrowHandler() },
+        // Ein Throw-Event ohne Ereignisdefinition ist ein Meilenstein: Es laeuft durch und
+        // macht den erreichten Punkt im Laufzeitverlauf sichtbar.
+        { typeof(IntermediateThrowEvent), new DefaultFlowNodeHandler() },
         { typeof(FlowzerIntermediateSignalCatchEvent), new DoNothingFlowNodeHandler() },
         { typeof(FlowzerIntermediateTimerCatchEvent), new DoNothingFlowNodeHandler() },
+        // Eskalation meldet nach aussen und laeuft weiter; nur ein unterbrechender Faenger stoppt den Pfad.
+        { typeof(FlowzerIntermediateEscalationThrowEvent), new EscalationThrowHandler() },
+        { typeof(FlowzerEscalationEndEvent), new EscalationThrowHandler() },
+        // Die Startereignisse eines Event-Subprozesses laufen durch: Ihr Ereignis ist bereits
+        // eingetroffen, als die Engine den Event-Subprozess angelegt hat.
+        { typeof(FlowzerTimerStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerSignalStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerErrorStartEvent), new DefaultFlowNodeHandler() },
+        { typeof(FlowzerEscalationStartEvent), new DefaultFlowNodeHandler() },
         { typeof(Process), new DoNothingFlowNodeHandler() },
         { typeof(SubProcess), new ProcessFlowNodeHandler() },
+        // Wartet wie ein Service-Task, aber auf eine Kindinstanz statt auf einen Worker.
+        { typeof(CallActivity), new CallActivityHandler() },
+        // Wartet auf eine Entscheidung — oder, mit Auftragstyp, wie ein Service-Task auf den Worker.
+        { typeof(BusinessRuleTask), new BusinessRuleTaskHandler() },
         // {typeof(EventBasedGateway), new EventBasedGatewayHandler()},
         // {typeof(IntermediateCatchEvent), new IntermediateCatchEventHandler()},
         // {typeof(IntermediateThrowEvent), new IntermediateThrowEventHandler()},

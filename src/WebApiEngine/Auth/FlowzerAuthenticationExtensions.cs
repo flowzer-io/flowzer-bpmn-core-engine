@@ -45,7 +45,11 @@ public static class FlowzerAuthenticationExtensions
             services.AddDataProtection()
                 .SetApplicationName("Flowzer.WebApi")
                 .PersistKeysToFileSystem(new DirectoryInfo(options.Bff.DataProtectionKeysPath));
-            services.AddScoped<BffAccessTokenClaimsValidator>();
+            services.AddSingleton<BffAccessTokenClaimsValidator>();
+            services.AddSingleton<IBffSessionRefresher, BffSessionRefresher>();
+            services.AddSingleton<BffSessionStore>();
+            services.AddOptions<CookieAuthenticationOptions>(FlowzerAuthenticationSchemes.Cookie)
+                .Configure<BffSessionStore>((cookie, store) => cookie.SessionStore = store);
 
             services.AddAuthentication(authentication =>
                 {
@@ -68,8 +72,8 @@ public static class FlowzerAuthenticationExtensions
                     cookie.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                     cookie.Cookie.SameSite = SameSiteMode.Lax;
                     cookie.Cookie.Path = "/";
-                    // Rechte werden nur beim OIDC-Login neu geprueft; deshalb keine gleitende
-                    // Cookie-Laufzeit. Der Validator begrenzt sie weiter auf das Access-Token-Ende.
+                    // Absolute Sitzungsgrenze; der serverseitige Store erneuert Tokens und Rechte
+                    // vor deren Ablauf. Keine Tokens im Browser und keine eingefrorenen Rollen.
                     cookie.ExpireTimeSpan = TimeSpan.FromHours(8);
                     cookie.SlidingExpiration = false;
                     cookie.Events = new CookieAuthenticationEvents

@@ -1,10 +1,9 @@
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Chip } from '@/components/ui/Chip';
-import { instanceBucket } from '@/lib/api/normalize';
 import type { ProcessInstanceInfoDto } from '@/lib/api/types';
 import { formatTimestamp, shortId } from '@/lib/format';
-import { BUCKET_TONE, STATE_LABEL } from '@/lib/instanceView';
+import { instanceTone, STATE_LABEL } from '@/lib/instanceView';
 
 /** Bewusst keine Tokens/Variablen: Die API hat ausschließlich eine Übersicht freigegeben. */
 export function InstanceOverview({ instance, onBack, onTasks }: {
@@ -21,7 +20,7 @@ export function InstanceOverview({ instance, onBack, onTasks }: {
           <div className="space-y-5 p-5 sm:p-7">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-display min-w-0 break-words text-xl font-semibold">{instance.relatedDefinitionName}</h1>
-              <Chip tone={BUCKET_TONE[instanceBucket(instance.state)]}>{STATE_LABEL[instance.state]}</Chip>
+              <Chip tone={instanceTone(instance.state)}>{STATE_LABEL[instance.state]}</Chip>
             </div>
             <p className="text-muted text-sm">
               Hier sehen Sie den Status Ihres Vorgangs. Prozessvariablen, interne Abläufe und

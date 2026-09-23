@@ -134,10 +134,25 @@
     background: color-mix(in oklab, var(--accent) 26%, transparent);
   }
 
-  :where(button, input, textarea, select, a, [tabindex]):focus-visible {
+  /* Der Tastatur-Fokusrahmen gehoert an alles, was man mit der Tastatur anspringen kann. */
+  :where(button, input, textarea, select, a, [tabindex]:not([tabindex='-1'])):focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 7px;
+  }
+
+  /*
+   * `tabindex="-1"` tragen Container, die Bibliotheken wie Form.io und bpmn-js selbst
+   * fokussieren, um Tastenereignisse zu empfangen; anspringen kann man sie nicht. Ein
+   * Tastaturhinweis ist dort immer falsch — und ohne diese Regel zeichnet ihn der Browser
+   * selbst (unter macOS in Systemblau). Im Formular-Editor legte er sich als breiter Rahmen
+   * ueber den angeklickten Baustein und blieb stehen, bis der Fokus zufaellig weiterwanderte.
+   *
+   * `:where` haelt die Spezifitaet bei null: Ein Sprungziel mit eigenem Hinweis — etwa die
+   * Fehlerliste eines Formulars — ueberschreibt das mit einer gewoehnlichen Regel.
+   */
+  :where([tabindex='-1']):focus-visible {
+    outline: none;
   }
 
   input::placeholder,

@@ -59,7 +59,9 @@ public sealed class FormCompatibilityService(ITransactionalStorageProvider stora
         try
         {
             var expanded = await FormSectionBindingExpander.ExpandAsync(
+                storage.FormStorage,
                 storage.FormSectionStorage,
+                metadata.FormId,
                 draft.FormData);
             return Assess(
                 formData: expanded,

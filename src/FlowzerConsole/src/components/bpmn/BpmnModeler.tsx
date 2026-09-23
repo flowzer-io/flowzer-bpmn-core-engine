@@ -13,8 +13,10 @@ import type { BpmnDiagnostic } from '@/lib/modeling/diagnostics';
 
 import { createBpmnEditor, type BpmnEditor } from './bpmnEditor';
 import { focusBpmnElement } from '@/lib/modeling/bpmnFocus';
+import { fitViewport as centerDiagram, type Box } from './fitViewport';
+import { ensureDiagram } from './ensureDiagram';
 import { FLOWZER_MODDLE } from './flowzerModdle';
-import { FLOWZER_PALETTE_MODULE } from './flowzerPalette';
+import { FLOWZER_TASK_TYPES_MODULE } from './flowzerTaskTypes';
 import { BpmnProperties } from './properties/BpmnProperties';
 import { READ_ONLY_MODULE } from './readOnly';
 
@@ -61,7 +63,7 @@ interface ModelerLike {
 
 interface CanvasLike {
   zoom: (mode?: string | number, center?: unknown) => number;
-  viewbox: () => { outer: { width: number; height: number } };
+  viewbox: (box?: Box) => { inner: Box; outer: { width: number; height: number } };
   addMarker: (elementId: string, marker: string) => void;
   removeMarker: (elementId: string, marker: string) => void;
   scrollToElement?: (element: unknown) => void;
@@ -121,6 +123,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
   const canvasRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<ModelerLike | null>(null);
   const pendingFitRef = useRef(false);
+  const importingRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const onZoomChangeRef = useRef(onZoomChange);
   const focusElementIdRef = useRef(focusElementId);
@@ -141,6 +144,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       getXml: async () => {
         const modeler = modelerRef.current;
         if (!modeler) throw new Error('Der Modeler ist noch nicht bereit.');
+        modeler.get<{ complete: () => void }>('directEditing').complete();
         const { xml: result } = await modeler.saveXML({ format: true });
         if (!result) throw new Error('Das Diagramm konnte nicht serialisiert werden.');
         return result;
@@ -150,7 +154,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       zoomReset: () => {
         const canvas = modelerRef.current?.get<CanvasLike>('canvas');
         if (!canvas) return;
-        canvas.zoom('fit-viewport');
+        centerDiagram(canvas, 120);
         onZoomChangeRef.current?.(Math.round(canvas.zoom() * 100));
       },
       undo: () => modelerRef.current?.get<CommandStackLike>('commandStack').undo(),
@@ -179,13 +183,14 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       const ModelerCtor = Modeler as unknown as new (options: Record<string, unknown>) => ModelerLike;
       const modeler = new ModelerCtor({
         container,
-        additionalModules: readOnly ? [READ_ONLY_MODULE] : [FLOWZER_PALETTE_MODULE],
+        additionalModules: readOnly ? [READ_ONLY_MODULE] : [FLOWZER_TASK_TYPES_MODULE],
         moddleExtensions: { zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE },
       });
 
       modelerRef.current = modeler;
 
       modeler.on('commandStack.changed', () => {
+        if (importingRef.current) return;
         onChangeRef.current?.();
         setRevision((current) => current + 1);
       });
@@ -246,7 +251,8 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
 
     async function load() {
       try {
-        await modeler!.importXML(xml!);
+        importingRef.current = true;
+        await modeler!.importXML(await ensureDiagram(xml!));
         if (cancelled) return;
         setError(null);
         setSelectedId(null);
@@ -261,6 +267,8 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       } catch (cause) {
         if (cancelled) return;
         setError(cause instanceof Error ? cause.message : 'Das Diagramm konnte nicht geladen werden.');
+      } finally {
+        importingRef.current = false;
       }
     }
 
@@ -285,12 +293,16 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
     if (!ready || !modeler) return;
 
     const canvas = modeler.get<CanvasLike>('canvas');
+    // Ein Hinweis darf nicht aussehen wie ein Blocker: Die Warnung bekommt eine eigene
+    // Markierung, damit das Diagramm Fehler und Hinweis unterscheidbar zeigt.
+    const markerOf = (diagnostic: BpmnDiagnostic) =>
+      diagnostic.severity === 'error' ? 'flowzer-validation-error' : 'flowzer-validation-warning';
     for (const diagnostic of diagnostics) {
       if (!diagnostic.elementId) continue;
       try {
         const element = modeler.get<ElementRegistryLike>('elementRegistry').get(diagnostic.elementId);
         if (!element) continue;
-        canvas.addMarker(diagnostic.elementId, 'flowzer-validation-error');
+        canvas.addMarker(diagnostic.elementId, markerOf(diagnostic));
       } catch {
         // Ein veraltetes Element darf die übrigen Diagnosen nicht ausblenden.
       }
@@ -300,7 +312,7 @@ export const BpmnModeler = forwardRef<BpmnModelerHandle, BpmnModelerProps>(funct
       for (const diagnostic of diagnostics) {
         if (!diagnostic.elementId) continue;
         try {
-          canvas.removeMarker(diagnostic.elementId, 'flowzer-validation-error');
+          canvas.removeMarker(diagnostic.elementId, markerOf(diagnostic));
         } catch {
           // siehe oben
         }
@@ -383,7 +395,9 @@ function fitViewport(modeler: ModelerLike, notify: ((zoom: number) => void) | un
 
   if (!outer || outer.width <= 0 || outer.height <= 0) return false;
 
-  canvas.zoom('fit-viewport');
+  // Links liegt die BPMN-Palette über der Fläche. Auch automatisch angeordnete
+  // Modelle brauchen Abstand, sonst wären ihre Knoten nicht anklickbar.
+  centerDiagram(canvas, 120);
   notify?.(Math.round(canvas.zoom() * 100));
   return true;
 }

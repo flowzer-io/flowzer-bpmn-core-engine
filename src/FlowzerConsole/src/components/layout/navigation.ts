@@ -20,10 +20,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'tasks', label: 'Meine Aufgaben', icon: 'inbox', path: '/tasks' },
   { key: 'workflows', label: 'Workflows', icon: 'schema', path: '/workflows', matches: ['/modeler'] },
   { key: 'instances', label: 'Instanzen', icon: 'play_circle', path: '/instances' },
-  { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms' },
-  { key: 'form-sections', label: 'Abschnitte', icon: 'view_agenda', path: '/form-sections', requires: 'modeler' },
+  { key: 'forms', label: 'Formulare', icon: 'description', path: '/forms', matches: ['/form-sections'] },
+  { key: 'decisions', label: 'Entscheidungen', icon: 'rule', path: '/decisions' },
   { key: 'ai-connections', label: 'KI-Verbindungen', icon: 'smart_toy', path: '/ai-connections', requires: 'aiConnectionManage' },
+  { key: 'triggers', label: 'Auslöser', icon: 'bolt', path: '/triggers', requires: 'operator' },
   { key: 'operations', label: 'Betrieb', icon: 'monitoring', path: '/operations', requires: 'operator' },
+  { key: 'analytics', label: 'Auswertungen', icon: 'timeline', path: '/analytics', requires: 'operator' },
 ] as const;
 
 export function activeNavKey(pathname: string): string {
@@ -44,9 +46,11 @@ export const PAGE_TITLES: Record<string, string> = {
   workflows: 'Workflows',
   instances: 'Instanzen',
   forms: 'Formulare',
-  'form-sections': 'Formularabschnitte',
+  decisions: 'Entscheidungen',
   'ai-connections': 'KI-Verbindungen',
+  triggers: 'Auslöser',
   operations: 'Betrieb & Diagnose',
+  analytics: 'Auswertungen',
   tasks: 'Meine Aufgaben',
 };
 

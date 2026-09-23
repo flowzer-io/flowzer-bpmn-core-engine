@@ -45,6 +45,17 @@ public partial class InstanceEngine
                     }));
             }
 
+            // Die Startereignisse scharfer Event-Subprozesse haengen am laufenden Scope, nicht an
+            // einem wartenden Token — genau wie Boundary-Events.
+            messageDefinitions.AddRange(GetArmedEventSubProcessStarts()
+                .Select(entry => entry.StartEvent)
+                .OfType<FlowzerMessageStartEvent>()
+                .Select(startEvent => new MessageDefinition
+                {
+                    Name = startEvent.MessageDefinition.Name,
+                    FlowzerCorrelationKey = startEvent.MessageDefinition.FlowzerCorrelationKey
+                }));
+
             if (Tokens.Count == 0)
             {
                 messageDefinitions.AddRange(
@@ -120,6 +131,14 @@ public partial class InstanceEngine
                 ParentTokenId = activeToken.ParentTokenId,
                 ProcessInstanceId = activeToken.ProcessInstanceId,
             });
+            Run();
+            return;
+        }
+
+        // Zuletzt die Event-Subprozesse des Prozesses und seiner laufenden Subprozesse: Sie
+        // fangen, was kein wartender Schritt und kein Boundary-Event genommen hat.
+        if (TryStartEventSubProcessByMessage(message, data))
+        {
             Run();
             return;
         }
