@@ -409,3 +409,54 @@ jobs:
         run: |
           python3 scripts/ci/generate-third-party-notices.py
           git diff --exit-code -- THIRD-PARTY-NOTICES.md
+
+  # Installations- und Auth-Abnahme gegen einen isolierten Keycloak (R1b, Issue #256). Baut API
+  # und Konsole aus dem Repository, startet sie mit eigener Test-CA und prueft Golden Path und
+  # Negativfaelle. Nicht als Pflicht-Check in der Branch-Protection eingetragen; ein roter Lauf
+  # faerbt aber den Workflow rot. Bei Fehler, Abbruch oder Timeout liegen Logs und Report als
+  # Artefakt bereit.
+  installation_auth:
+    name: Installations- und Auth-Abnahme (isolierter Keycloak)
+    runs-on: ubuntu-latest
+    needs:
+      - dotnet
+    timeout-minutes: 30
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tests/installation-auth/package-lock.json
+
+      - name: Playwright-Abhaengigkeiten installieren
+        working-directory: tests/installation-auth
+        run: npm ci
+
+      - name: Chromium fuer Playwright installieren
+        working-directory: tests/installation-auth
+        timeout-minutes: 10
+        run: npx playwright install --with-deps chromium
+
+      # Eigenes Schritt-Timeout unter dem Job-Timeout: So erreicht der Abbruch run.sh noch
+      # rechtzeitig, dessen EXIT-Falle Logs sammelt und den Stack abraeumt. `exec`, weil der
+      # Runner bei Abbruch oder Timeout nur seinem direkten Kindprozess das Signal schickt.
+      - name: Abnahme ausfuehren
+        timeout-minutes: 25
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_INSTALL: '1'
+        run: exec tests/installation-auth/run.sh
+
+      - name: Logs und Playwright-Report hochladen
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: installation-auth-report
+          path: |
+            tests/installation-auth/logs
+            tests/installation-auth/playwright-report
+            tests/installation-auth/test-results
+          if-no-files-found: ignore

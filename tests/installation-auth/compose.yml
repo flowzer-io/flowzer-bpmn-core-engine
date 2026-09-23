@@ -1,0 +1,200 @@
+# Isolierter Abnahme-Stack für Installation und Anmeldung (R1b, Issue #256).
+#
+# Ausschließlich für lokale Läufe und die CI: eigene Test-CA, eigenes Keycloak mit
+# synthetischem Realm, offensichtliche Testpasswörter. Nichts davon ist ein Produktionspfad,
+# und kein Wert hier darf in eine echte Installation übernommen werden.
+#
+# Aufruf über ./run.sh; manuell immer mit festem Projektnamen:
+#   docker compose -p flowzer-installation-auth -f tests/installation-auth/compose.yml up -d --build --wait
+name: flowzer-installation-auth
+
+x-api-build: &api-build
+  context: ../..
+  dockerfile: Dockerfile.api
+
+services:
+  # Einmaliger Init-Container: eigene CA und ein Serverzertifikat für flowzer.test und
+  # auth.flowzer.test. Der CA-Schlüssel wird nicht gespeichert; die API sieht nur das
+  # öffentliche CA-Zertifikat, den Serverschlüssel bekommt ausschließlich der TLS-Proxy.
+  certs:
+    image: alpine/openssl:3.5.8
+    entrypoint: ["/bin/sh", "/usr/local/bin/generate-test-certs.sh"]
+    restart: "no"
+    volumes:
+      - ./certs/generate.sh:/usr/local/bin/generate-test-certs.sh:ro
+      - ca-public:/out/ca
+      - tls-material:/out/tls
+
+  # TLS-Terminierung wie in einer echten Installation: Browser, API und Keycloak sprechen
+  # sich ausschließlich über die externen HTTPS-Namen an. Die Netzwerk-Aliase sorgen dafür,
+  # dass auch die Container diese Namen über den Proxy erreichen.
+  tls:
+    image: caddy:2
+    depends_on:
+      certs:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8443:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - tls-material:/certs:ro
+    networks:
+      default:
+        aliases:
+          - flowzer.test
+          - auth.flowzer.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4
+    command: ["start-dev", "--import-realm"]
+    environment:
+      # Nur lokal: Bootstrap-Administrator für die Admin-API der Tests.
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: https://auth.flowzer.test:8443
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./keycloak/flowzer-test-realm.json:/opt/keycloak/data/import/flowzer-test-realm.json:ro
+    healthcheck:
+      # Das Image enthält weder curl noch wget; bash kann den Management-Port direkt abfragen.
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '\"UP\"' <&3"
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  # Datenbank und Rollen entstehen mit dem ausgelieferten Installationsskript
+  # deploy/postgresql/01-datenbank-und-rollen.sql: getrennte Migrations- und Laufzeitrolle.
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres-test-superuser-password
+      FLOWZER_TEST_DATABASE: flowzer
+      FLOWZER_TEST_SCHEMA: flowzer
+      FLOWZER_TEST_MIGRATION_ROLE: flowzer_migration
+      FLOWZER_TEST_MIGRATION_PASSWORD: flowzer-test-migration-password
+      FLOWZER_TEST_RUNTIME_ROLE: flowzer_runtime
+      FLOWZER_TEST_RUNTIME_PASSWORD: flowzer-test-runtime-password
+    volumes:
+      - ../../deploy/postgresql/01-datenbank-und-rollen.sql:/flowzer-sql/01-datenbank-und-rollen.sql:ro
+      - ./postgres/10-flowzer-init.sh:/docker-entrypoint-initdb.d/10-flowzer-init.sh:ro
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # Über TCP prüfen: Während der Initialisierung lauscht der temporäre Server nur lokal.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d flowzer || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Getrennter Migrationsschritt mit der Migrationsrolle, wie im Runbook beschrieben.
+  migrate:
+    build: *api-build
+    image: flowzer-installation-auth/api:local
+    command: ["--migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./env/migrate.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__Schema: flowzer
+
+  api:
+    build: *api-build
+    image: flowzer-installation-auth/api:local
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+      tls:
+        condition: service_healthy
+      certs:
+        condition: service_completed_successfully
+    # Nur die API erhält Laufzeit-Datenbankzugang, BFF- und Verzeichnis-Secret (Testwerte).
+    env_file:
+      - ./env/api.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__Schema: flowzer
+      Authentication__Scheme: Bff
+      Authentication__JwtBearer__Authority: https://auth.flowzer.test:8443/realms/flowzer-test
+      Authentication__JwtBearer__Audience: flowzer-api
+      Authentication__JwtBearer__RequireHttpsMetadata: "true"
+      Authentication__JwtBearer__RequiredRole: access
+      Authentication__JwtBearer__Roles__Modeler: modeler
+      Authentication__JwtBearer__Roles__Operator: operator
+      Authentication__JwtBearer__Roles__Worker: worker
+      Authentication__Bff__ClientId: flowzer-bff
+      Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # Caddy und Konsolen-nginx liegen im festen Netz unten; nur von dort gelten
+      # Schema und Clientadresse aus den Forwarded-Headern.
+      ForwardedHeaders__KnownNetworks__0: 172.16.0.0/12
+      ForwardedHeaders__ForwardLimit: "3"
+      IdentityDirectory__Enabled: "true"
+      IdentityDirectory__ServerUrl: https://auth.flowzer.test:8443
+      IdentityDirectory__Issuer: https://auth.flowzer.test:8443/realms/flowzer-test
+      IdentityDirectory__Realm: flowzer-test
+      IdentityDirectory__ClientId: flowzer-directory
+      IdentityDirectory__SyncIntervalSeconds: "300"
+      # Ohne freigegebenes Ziel meldet --check-config sonst eine Warnung (Exit 2).
+      ServiceTaskWebhooks__Enabled: "false"
+      # .NET liest unter Linux die OpenSSL-Variable SSL_CERT_FILE als Vertrauensanker.
+      # So akzeptiert die API die Test-CA, ohne dass RequireHttpsMetadata gelockert wird.
+      SSL_CERT_FILE: /etc/flowzer-test-ca/ca.crt
+    volumes:
+      - keyring:/var/lib/flowzer/data-protection
+      - ca-public:/etc/flowzer-test-ca:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 20s
+
+  console:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.console
+    image: flowzer-installation-auth/console:local
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      FLOWZER_API_UPSTREAM: api:8080
+      FLOWZER_API_BASE_URL: /
+      FLOWZER_BFF_ENABLED: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/config.json >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+networks:
+  default:
+    # Festes Netz innerhalb von 172.16.0.0/12, damit die Proxy-Vertrauensgrenze der API
+    # unabhängig vom Adresspool des Docker-Hosts stimmt.
+    ipam:
+      config:
+        - subnet: ${FLOWZER_INSTALLATION_AUTH_SUBNET:-172.30.231.0/24}
+
+volumes:
+  ca-public:
+  tls-material:
+  db-data:
+  keyring:

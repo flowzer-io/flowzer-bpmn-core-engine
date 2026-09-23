@@ -218,6 +218,12 @@ API-Prozesse und laesst nach Ablauf einen Neustart zu. Die Keycloak-Offset-Pagin
 allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraenderte Realms
 bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
 
+Eine Deaktivierung in Keycloak entfernt die Person nach dem nächsten erfolgreichen Lauf aus
+Auswahl und Suche, entzieht aber keinen Zugang: Ein bereits ausgestelltes Access-Token bleibt
+bis zu seinem Ablauf gültig, bei Bearer-Aufrufen zusätzlich um die Uhrentoleranz der
+JWT-Prüfung (Bibliotheksstandard fünf Minuten, nicht angepasst). Die Grenze ist durch die
+Abnahme in [docs/acceptance/auth.md](acceptance/auth.md) belegt.
+
 Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
 `POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,
 Generations-IDs, Zaehler und klassifizierte Fehler, aber keine Subjects, Gruppen,

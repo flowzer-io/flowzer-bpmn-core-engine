@@ -17,6 +17,7 @@ CS_TEST_DIRECTORIES = [
 ]
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',
+    ROOT / 'tests' / 'installation-auth' / 'specs',
     ROOT / 'src' / 'FlowzerConsole' / 'scripts',
     ROOT / 'packages' / 'flowzer-sdk' / 'src',
     ROOT / 'packages' / 'flowzer-react' / 'src',
