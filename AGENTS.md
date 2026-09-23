@@ -84,3 +84,4 @@ Wenn du an diesem Repository arbeitest, sollte dein Ergebnis nach Möglichkeit:
 - keine Reife behaupten, die der Code nicht trägt
 - Build/Test/Tooling verbessern oder zumindest nicht verschlechtern
 - die Roadmap nicht verwässern, sondern vereinfachen
+
