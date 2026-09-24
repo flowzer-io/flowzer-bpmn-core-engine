@@ -84,6 +84,10 @@ Einzelprozesspfad.
    setzen. Ohne Eintrag zeigt Keycloak bei der Abmeldung eine Fehlerseite; ohne den
    Schalter bleibt die Abmeldung lokal und die SSO-Sitzung bestehen (Details in
    [OPERATIONS.md](OPERATIONS.md#abmeldung-und-provider-logout)).
+5. Die Access-Token-Laufzeit (Realm oder Client, „Access Token Lifespan“) höchstens auf
+   5 Minuten stellen, wie im Keycloak-Standard: Ein Rollenentzug wirkt in laufenden
+   Sitzungen erst mit der nächsten Token-Erneuerung (siehe `docs/OPERATIONS.md`,
+   „Sitzungsdauer und Erneuerung“).
 
 Keine SPA-Registrierung, keine Browser-Client-ID, keine `FLOWZER_OIDC_*`-Variablen
 und keine stille Browser-Token-Erneuerung konfigurieren.

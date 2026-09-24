@@ -162,6 +162,10 @@ bei einem Abbruch nicht; die Compose-Logs liegen trotzdem vor.
    60 s abläuft. Bei 30 s Laufzeit erneuert er deshalb bei **jeder** Anfrage (Rollenentzug
    sofort sichtbar, dafür ein Token-Aufruf pro Anfrage). Bei einer üblichen Laufzeit von
    5 Minuten wird ein Rollenentzug in einer bestehenden Sitzung erst nach bis zu 4 Minuten wirksam.
+   Seit R1d fragt die Konsole `/bff/session` zusätzlich alle 5 Minuten und bei Rückkehr ins
+   Fenster ab und zeigt einen solchen Entzug damit ohne Reload an. Das Serververhalten ist
+   unverändert, ein erneuter Abnahmelauf ist deshalb nicht nötig; die Konsolenseite sichern
+   die Vitest-Tests in `src/FlowzerConsole/src/lib/auth/useSessionWatch.test.ts`.
 5. **Beobachtung – Bearer nach `exp`:** Die JWT-Bearer-Prüfung setzt keine eigene
    Uhrentoleranz, also gilt vermutlich der Standard von 5 Minuten. Beobachtet (nicht
    zugesichert): Der Bearer der deaktivierten Person wurde 2 s nach `exp` noch mit 200
