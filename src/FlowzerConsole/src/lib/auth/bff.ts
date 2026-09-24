@@ -55,16 +55,30 @@ export async function fetchSession(): Promise<BffSession | null> {
   return value;
 }
 
-export async function logout(): Promise<void> {
+/**
+ * Beendet die BFF-Sitzung per CSRF-geschütztem POST. Ist beim Server der Provider-Logout
+ * eingeschaltet, antwortet er mit 200 und der Abmeldeadresse des Identity Providers; die
+ * Funktion gibt sie ungeprüft zurück (Prüfung und Navigation liegen beim Aufrufer). Bei 204
+ * oder einer bereits beendeten Sitzung (401) gibt es kein Ziel.
+ */
+export async function logout(): Promise<string | undefined> {
   try {
-    await request<void>('/bff/logout', { method: 'POST' });
+    const response = await request<unknown>('/bff/logout', { method: 'POST' });
+    return readRedirectTo(response);
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) {
       throw error;
     }
+    return undefined;
   } finally {
     clearCsrfToken();
   }
+}
+
+function readRedirectTo(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const redirectTo = (value as Record<string, unknown>).redirectTo;
+  return typeof redirectTo === 'string' && redirectTo.length > 0 ? redirectTo : undefined;
 }
 
 function isSession(value: unknown): value is BffSession {

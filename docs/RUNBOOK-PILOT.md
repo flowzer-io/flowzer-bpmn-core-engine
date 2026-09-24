@@ -53,13 +53,20 @@ Ablage bleibt ein lokaler Einzelprozesspfad.
    `access_as_user` einrichten. Die API-Audience muss mit
    `FLOWZER_AUTH_AUDIENCE` übereinstimmen.
 2. Einen **Web-/vertraulichen Client** für den BFF registrieren. Ausschließlich die
-   Redirect-URI `https://<flowzer-host>/bff/signin-oidc` hinterlegen. Ein Client-
+   Redirect-URI `https://<flowzer-host>/bff/signin-oidc` hinterlegen (Ausnahme nur für
+   den Provider-Logout, siehe Schritt 5). Ein Client-
    Secret im Secret-Store speichern, nicht in der Konsole.
 3. Dem vertraulichen Client die delegierte API-Berechtigung `access_as_user` geben
    und erforderlichen Admin-Consent erteilen.
 4. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Flowzer benötigt
    eine GUID aus `nameidentifier`, `sub` oder `oid`; für Entra ist üblicherweise
    `oid` die passende GUID.
+5. Nur wenn die Abmeldung auch die Entra-Sitzung beenden soll
+   (`FLOWZER_BFF_PROVIDER_LOGOUT=true`): `https://<flowzer-host>/` zusätzlich als
+   Redirect-URI der Plattform Web eintragen; Entra akzeptiert nur registrierte
+   Adressen als `post_logout_redirect_uri`. Die API-Audience muss eine eigene
+   API-Registrierung (Schritt 1) sein, nicht die Client-ID des BFF; sonst startet die API
+   mit dem Schalter nicht. Dieser Weg ist nicht durch die Abnahme belegt.
 
 ### Keycloak
 
@@ -72,6 +79,12 @@ Ablage bleibt ein lokaler Einzelprozesspfad.
    `resource_access.flowzer-api.roles` ausgeben.
 3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-ID muss als
    GUID im `sub`-Claim vorliegen.
+4. Soll die Abmeldung auch die Keycloak-Sitzung beenden, am BFF-Client unter
+   *Valid post logout redirect URIs* (Attribut `post.logout.redirect.uris`) genau
+   `https://<flowzer-host>/` eintragen und danach `FLOWZER_BFF_PROVIDER_LOGOUT=true`
+   setzen. Ohne Eintrag zeigt Keycloak bei der Abmeldung eine Fehlerseite; ohne den
+   Schalter bleibt die Abmeldung lokal und die SSO-Sitzung bestehen (Details in
+   [OPERATIONS.md](OPERATIONS.md#abmeldung-und-provider-logout)).
 
 Keine SPA-Registrierung, keine Browser-Client-ID, keine `FLOWZER_OIDC_*`-Variablen
 und keine stille Browser-Token-Erneuerung konfigurieren.
@@ -94,6 +107,8 @@ cp .env.example .env
 | `FLOWZER_AUTH_AUDIENCE` | erwartete Audience im Access-Token |
 | `FLOWZER_BFF_CLIENT_ID` | Client-ID des vertraulichen BFF-Clients |
 | `FLOWZER_BFF_SCOPE_0` bis `_2` | zusätzliche Scopes, bei Entra typischerweise der API-Scope |
+| `FLOWZER_BFF_PROVIDER_LOGOUT` | Default `false`; `true` beendet bei der Abmeldung auch die SSO-Sitzung beim Identity Provider, setzt die registrierte Post-Logout-Redirect-URI voraus |
+| `FLOWZER_BFF_POST_LOGOUT_PATH` | Default `/`; lokaler Pfad, auf den der Identity Provider nach der Abmeldung zurückleitet |
 | `FLOWZER_TRUSTED_PROXY_NETWORK` | privates CIDR, aus dem die API Forwarded-Header akzeptiert; muss zum tatsächlichen Container-Netz passen |
 | `FLOWZER_FORWARDED_HEADER_LIMIT` | Zahl der vertrauenswürdigen Proxy-Stufen; Default `3` für TLS-Proxy, Gateway und Konsolen-nginx |
 | `FLOWZER_ACCENT` | globale Akzentfarbe der Konsole |

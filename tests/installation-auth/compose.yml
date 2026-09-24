@@ -144,6 +144,9 @@ services:
       Authentication__JwtBearer__Roles__Worker: worker
       Authentication__Bff__ClientId: flowzer-bff
       Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # RP-initiated Logout (R1c): Der Realm erlaubt exakt https://flowzer.test:8443/ als
+      # Post-Logout-Redirect-URI des BFF-Clients, wie es OPERATIONS.md für Installationen vorgibt.
+      Authentication__Bff__ProviderLogout: "true"
       # Caddy und Konsolen-nginx liegen im festen Netz unten; nur von dort gelten
       # Schema und Clientadresse aus den Forwarded-Headern.
       ForwardedHeaders__KnownNetworks__0: 172.16.0.0/12

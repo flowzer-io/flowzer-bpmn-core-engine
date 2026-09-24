@@ -1,6 +1,7 @@
-# Abnahme: Installation und Anmeldung (R1b)
+# Abnahme: Installation und Anmeldung (R1b, R1c)
 
-Protokoll der reproduzierbaren Installations- und Auth-Abnahme aus Issue #256 (zu #94/#95).
+Protokoll der reproduzierbaren Installations- und Auth-Abnahme aus Issue #256 (zu #94/#95),
+seit R1c einschließlich der Abmeldung beim Identity Provider (RP-initiated Logout).
 Aufbau, Voraussetzungen und Aufruf beschreibt
 [tests/installation-auth/README.md](../../tests/installation-auth/README.md); der Lauf selbst ist
 `tests/installation-auth/run.sh`. Die Abnahme belegt das Zusammenspiel der mitgelieferten
@@ -12,7 +13,7 @@ tatsächlichen Identity Provider einer Zielumgebung.
 | Angabe | Wert |
 |---|---|
 | Datum | 2026-09-24 |
-| Code-Stand | `main` (c1a65bb, einschließlich #353) zuzüglich dieses Pakets |
+| Code-Stand | R1b: `main` (c1a65bb, einschließlich #353) zuzüglich des Pakets; R1c (Läufe ab 12): `main` (174259a, einschließlich #354) zuzüglich Provider-Logout; Läufe ab 15 zusätzlich mit der Nacharbeit aus dem Review zu #357 |
 | Host | macOS, arm64, Docker Desktop (Engine 29.8.0, Compose v5.5.1) |
 | Identity Provider | Keycloak **26.7.4** (`start-dev --import-realm`, Realm `flowzer-test`) |
 | Weitere Images | PostgreSQL 17-alpine, Caddy 2, alpine/openssl 3.5.8, API/Konsole aus `Dockerfile.api`/`Dockerfile.console` |
@@ -33,6 +34,14 @@ tatsächlichen Identity Provider einer Zielumgebung.
 | 9 | 2026-09-24 01:28 | 115 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` |
 | 10 | 2026-09-24 01:38 | 126 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (endgültiger Stand mit unterbrechbarem `run.sh`) |
 | 11 | 2026-09-24 01:40 | 164 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (Start 76 s statt 37 s bei vollständigem Build-Cache; Specs unverändert 85 s) |
+| 12 | 2026-09-24 02:06 | 167 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c: Provider-Logout; Start 76 s mit Neubau von API und Konsole, Specs 90 s) |
+| 13 | 2026-09-24 02:09 | 143 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c, unmittelbar danach) |
+| 14 | 2026-09-24 02:12 | 122 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c, mit `--keep`; danach die manuelle Nachprüfung unten) |
+| 15 | 2026-09-24 02:35 | 159 s | 15 bestanden, **1 fehlgeschlagen** (R1c-Nacharbeit, erster Stand der Abmeldung über das Benutzermenü: Der Test las den Antwortkörper von `POST /bff/logout` erst nach der Navigation der Konsole, Chromium hielt ihn nicht mehr vor) |
+| 16 | 2026-09-24 02:38 | 123 s | 15 bestanden, **1 fehlgeschlagen** (Testhilfe rief `/bff/session` auf, bevor das Dokument nach dem Rücksprung geladen war; die Abmeldung selbst war erfolgt) |
+| 17 | 2026-09-24 02:40 | 123 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit: exakte Post-Logout-URI im Realm, Abmeldung über das Benutzermenü, Warten auf das neue Dokument; mit `--keep`, danach Golden Path 5-mal wiederholt: 25/25) |
+| 18 | 2026-09-24 02:43 | 115 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit, vom leeren Zustand) |
+| 19 | 2026-09-24 02:45 | 116 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit, unmittelbar danach) |
 
 Die Läufe liefen paarweise unmittelbar nacheinander, jeweils vom leeren Zustand (`down -v`)
 bis zum Aufräumen; vor Lauf 5 wurden nur ein Kommentar und ein Import umgestellt, vor Lauf 10
@@ -55,9 +64,11 @@ Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
 | Sitzungscookie | `__Host-Flowzer-Session`: HttpOnly, Secure, SameSite=Lax, `Path=/`, ohne Domain; kein JWT in Cookies | erfüllt |
 | Antiforgery-Cookie | `__Host-Flowzer-Csrf`: HttpOnly, Secure, SameSite=Strict | erfüllt |
 | `POST /bff/logout` ohne `X-Flowzer-CSRF` | 400 `application/problem+json`, Sitzung bleibt | erfüllt |
-| `POST /bff/logout` mit Token aus `/bff/csrf` | Erfolg | erfüllt mit **204** (Vertrag des Controllers; die Vorgabe nannte 200) |
-| `GET /bff/session` nach Abmeldung | 401 | erfüllt |
-| `POST /bff/logout` mit gültigem CSRF-Token und Cookies, aber `Origin: https://evil.example` bzw. ohne `Origin` (Aufruf außerhalb des Browsers) | 400 „Invalid request origin.“, Sitzung bleibt; derselbe Token aus der Seite meldet danach ab (204) | erfüllt |
+| Abmelden über das Benutzermenü der Konsole (Stack mit `Authentication__Bff__ProviderLogout=true`) | Konsole holt den CSRF-Token, `POST /bff/logout` antwortet 200 (JSON), Konsole navigiert zur Abmeldeadresse: Origin `https://auth.flowzer.test:8443`, Pfad `…/protocol/openid-connect/logout`, `post_logout_redirect_uri=https://flowzer.test:8443/`, `client_id=flowzer-bff`, `id_token_hint` (JWT) | erfüllt (R1c; ohne Schalter bleibt es bei 204). Der Antwortkörper selbst ist im Test „fremder Origin“ und in den Integrationstests geprüft |
+| Rücksprung vom Provider | Keycloak meldet ohne Rückfrage ab und leitet auf `https://flowzer.test:8443/` zurück; der Realm erlaubt genau diese Adresse (`post.logout.redirect.uris` ohne Platzhalter) | erfüllt (R1c) |
+| `GET /bff/session` nach Abmeldung | 401, Sitzungscookie entfernt | erfüllt |
+| erneutes `GET /bff/login` nach Abmeldung | Keycloak verlangt das Anmeldeformular wieder (SSO-Sitzung beendet) | erfüllt (R1c; in R1b kam der Login ohne Formular zurück) |
+| `POST /bff/logout` mit gültigem CSRF-Token und Cookies, aber `Origin: https://evil.example` bzw. ohne `Origin` (Aufruf außerhalb des Browsers) | 400 „Invalid request origin.“, Sitzung bleibt; derselbe Token aus der Seite meldet danach ab (200 mit `redirectTo`, danach 401) | erfüllt |
 | Bearer mit kaputter Signatur bei bestehender Cookie-Sitzung | 401, kein Rückfall auf das Cookie; Cookie allein weiterhin 200 | erfüllt |
 
 ## Negativfälle
@@ -88,6 +99,18 @@ Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
 Zusätzlich protokolliert der Test ohne Zusicherung, wie die API daves alten Bearer 2 s nach
 `exp` beantwortet; in allen Läufen war das 200 (siehe Beobachtung 5).
 
+## Provider-Logout: manuelle Nachprüfung (R1c)
+
+Einmalig nach Lauf 14 gegen den stehenden Stack per Browser-Skript geprüft, nicht Teil der
+automatisierten Specs. Der Realm erlaubte damals noch `https://flowzer.test:8443/*`; seit
+Lauf 17 steht dort exakt `https://flowzer.test:8443/`, den Rücksprung dorthin belegt der Golden
+Path.
+
+| Fall | Erwartung | Ergebnis |
+|---|---|---|
+| Keycloak-Logout mit `client_id=flowzer-bff` und nicht registrierter `post_logout_redirect_uri=https://evil.example/` | Keycloak lehnt ab | erfüllt: 400, Fehlerseite „Invalid redirect uri“ |
+| Keycloak-Logout ohne `id_token_hint`, nur mit `client_id` und `post_logout_redirect_uri=https://flowzer.test:8443/` (Fall „Sitzung ohne ID-Token“) | Bestätigungsseite, danach Abmeldung und Rücksprung | erfüllt: „Do you want to log out?“, nach Bestätigung `https://flowzer.test:8443/`, erneuter Login mit Formular |
+
 ## Neustart
 
 | Fall | Erwartung | Ergebnis |
@@ -95,7 +118,7 @@ Zusätzlich protokolliert der Test ohne Zusicherung, wie die API daves alten Bea
 | `docker compose restart api` mit bestehender Cookie-Sitzung | alte Sitzung 401, nicht 500 | erfüllt |
 | `/health/ready` nach Neustart | wieder `Healthy` | erfüllt (wenige Sekunden) |
 | Keyring-Volume | dieselben `key-*.xml` wie vor dem Neustart | erfüllt |
-| erneute Anmeldung | gelingt; wegen bestehender Keycloak-SSO-Sitzung ohne Formular | erfüllt |
+| erneute Anmeldung | gelingt; wegen bestehender Keycloak-SSO-Sitzung ohne Formular (vor dem Neustart gab es keine Abmeldung) | erfüllt |
 
 ## Zusätzlicher Negativlauf: Proxy-Netz außerhalb der Vertrauensgrenze
 
@@ -128,7 +151,9 @@ bei einem Abbruch nicht; die Compose-Logs liegen trotzdem vor.
    Keycloak den Endpunkt anbietet. `response_type`, `redirect_uri` und die PKCE-Challenge
    stehen deshalb nicht in der Browser-URL; der Test prüft dann `request_uri` und wertet den
    erfolgreichen Rücksprung als Beleg, weil Keycloak S256 und die exakte Redirect-URI erzwingt.
-2. **Logout-Status:** `POST /bff/logout` antwortet 204, nicht 200.
+2. **Logout-Status:** Ohne Provider-Logout antwortet `POST /bff/logout` mit 204. Der
+   Abnahme-Stack setzt seit R1c `Authentication__Bff__ProviderLogout=true`; dann antwortet der
+   BFF mit 200 und `redirectTo`. Den 204-Fall ohne Schalter belegen die Integrationstests.
 3. **`--check-config` und Webhooks:** Seit #353 (R1a) prüft `--check-config` Rollen, Schlüsselring
    und das Discovery-Dokument selbst; die Specs belegen Issuer und S256 zusätzlich gegen den
    echten Provider. `ServiceTaskWebhooks__Enabled=false` ist im Teststack nötig, sonst endet die
@@ -160,8 +185,15 @@ Keiner dieser Punkte ließ einen Testfall scheitern; es gibt keine `test.fixme`-
   nächsten Refresh.
 - **Bearer gelten bis zum Ablauf**, beobachtet auch kurz darüber hinaus (Uhrentoleranz, siehe
   Beobachtung 5). Introspection oder Backchannel-Widerruf gibt es nicht.
-- **Logout ist lokal.** `POST /bff/logout` beendet nur die Flowzer-Sitzung; die SSO-Sitzung bei
-  Keycloak bleibt, ein erneuter Login kommt ohne Formular zurück. IdP-Logout ist offen (R1c).
+- **Logout nur mit Schalter beim Identity Provider.** Mit
+  `Authentication__Bff__ProviderLogout=true` beendet die Abmeldung auch die Keycloak-SSO-Sitzung
+  (belegt). Ohne den Schalter – dem Default – beendet `POST /bff/logout` weiterhin nur die
+  Flowzer-Sitzung, ein erneuter Login kommt ohne Formular zurück. Eine Abmeldung in einer
+  anderen Anwendung beendet eine Flowzer-Sitzung nicht (kein Back-/Front-Channel-Logout).
+- **Provider-Logout ohne ID-Token nur manuell geprüft.** Sitzungen von vor dem Einschalten
+  erhalten eine Abmeldeadresse ohne `id_token_hint`; Keycloak zeigt dann eine
+  Bestätigungsseite. Den BFF-Teil belegen Integrationstests, das Keycloak-Verhalten nur die
+  einmalige manuelle Nachprüfung oben.
 - **Sitzungen sind prozesslokal.** Ein API-Neustart beendet alle Browser-Sitzungen (401);
   mehrere Replikate brauchen Sitzungsaffinität.
 - Geprüft wird ein Minimal-Realm mit Caddy als TLS-Proxy, nicht Entra ID, Coolify, echte

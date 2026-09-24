@@ -67,6 +67,8 @@ vorgesehen und kein Produktionspfad.
 | `Authentication__Bff__ClientSecret` | ausschließlich beim API-Start aus dem Secret-Store injiziert; nie in JSON, `.env`, Logs, Browser oder Konsolen-Container |
 | `Authentication__Bff__Scopes__0` bis `__2` | zusätzliche OIDC-Scopes neben `openid profile email`; etwa der API-Scope bei Entra. Ein Keycloak-Audience-Mapper kann ohne zusätzlichen Scope auskommen |
 | `Authentication__Bff__DataProtectionKeysPath` | persistenter, ausschließlich für den API-Container beschreibbarer Keyring; Pflicht im BFF-Modus |
+| `Authentication__Bff__ProviderLogout` | Default `false`. `true` beendet bei der Abmeldung auch die Sitzung beim Identity Provider (RP-initiated Logout); setzt die dort registrierte Post-Logout-Redirect-URI und eine von der BFF-Client-ID verschiedene API-Audience voraus, siehe [Abmeldung und Provider-Logout](#abmeldung-und-provider-logout). Compose-Alias `FLOWZER_BFF_PROVIDER_LOGOUT` |
+| `Authentication__Bff__PostLogoutPath` | Default `/`. Lokaler absoluter Pfad, auf den der Identity Provider nach der Abmeldung zurückleitet; ein Schema, ein Host oder `//` verhindern den Start. Compose-Alias `FLOWZER_BFF_POST_LOGOUT_PATH` |
 | `ForwardedHeaders__KnownNetworks__0` | Netz des Reverse Proxy in CIDR-Schreibweise, z. B. `10.0.0.0/8`. Ohne Angabe werden Weiterleitungsheader ignoriert und alle anonymen Aufrufer teilen sich hinter dem Proxy ein Kontingent |
 | `ForwardedHeaders__KnownProxies__0` | einzelne Proxy-Adresse, alternativ zum Netz |
 | `ForwardedHeaders__ForwardLimit` | Zahl der vollständig vertrauenswürdigen Proxy-Stufen; Default `1`, im mitgelieferten Containerpfad `3` für TLS-Proxy, Gateway und Konsolen-nginx |
@@ -126,10 +128,77 @@ HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTP
 einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
 kein funktionaler BFF-Testpfad.
 
+### Abmeldung und Provider-Logout
+
+`POST /bff/logout` ist CSRF-geschützt und beendet immer die Flowzer-Sitzung: Das Cookie
+wird gelöscht, das serverseitige Ticket entfernt. Was danach mit der SSO-Sitzung beim
+Identity Provider geschieht, entscheidet `Authentication__Bff__ProviderLogout`:
+
+- **`false` (Default):** Antwort `204`. Die SSO-Sitzung beim Identity Provider bleibt
+  bestehen; eine erneute Anmeldung kommt ohne Anmeldeformular zurück.
+- **`true`:** Antwort `200` mit der Abmeldeadresse des Providers, die Parameter
+  URL-kodiert, etwa für Keycloak mit dem Default-Pfad `/`:
+  `{ "redirectTo": "https://<keycloak-host>/realms/<realm>/protocol/openid-connect/logout?id_token_hint=eyJ…&post_logout_redirect_uri=https%3A%2F%2F<flowzer-host>%2F&client_id=<ClientId>" }`
+  (RP-initiated Logout nach OpenID Connect RP-Initiated Logout 1.0). Die Konsole beendet
+  ihre lokale Sitzung und navigiert den Browser zu dieser Adresse; der Provider beendet
+  die SSO-Sitzung und leitet auf `https://<flowzer-host><PostLogoutPath>` zurück. Die
+  Konsole folgt nur einer absoluten HTTPS-Adresse, sonst bleibt es bei der lokalen
+  Abmeldung.
+
+Für `id_token_hint` hält der BFF bei aktivem Schalter das ID-Token der Anmeldung
+serverseitig im Ticket neben dem Refresh-Token (nur im Arbeitsspeicher, nie im Cookie und
+nie in den Protokollen von Flowzer). Liefert ein Refresh ein neues ID-Token für dieselbe
+Anmeldung (gleiche `iss`, `aud` und `sub`), ersetzt es das alte; ein abweichendes wird
+verworfen. Das ID-Token verlässt Flowzer nur in der Abmeldeadresse. Weil diese Adresse eine
+Browsernavigation ist, landet es dort im Browserverlauf und in den Zugriffsprotokollen des
+Identity Providers (und eines vorgeschalteten Proxys); „nie in Logs“ gilt nur für Flowzer
+selbst.
+
+Das ID-Token ist für den BFF-Client ausgestellt. Die Bearer-Prüfung der API unterscheidet
+ID- und Access-Token nicht, sie lehnt ein ID-Token nur wegen der fremden Audience ab. Mit
+`ProviderLogout=true` startet die API deshalb nicht, wenn
+`Authentication__JwtBearer__Audience` gleich `Authentication__Bff__ClientId` oder gleich
+`api://<ClientId>` ist (etwa bei einer gemeinsamen Entra-App-Registrierung für API und
+BFF); `--check-config` meldet das als Fehler im Bereich Authentifizierung. Abhilfe ist eine
+eigene API-Audience oder der Verzicht auf den Provider-Logout.
+
+Der Provider-Logout ist Best Effort, die lokale Abmeldung gilt in jedem Fall:
+
+- Nennt die Discovery keinen `end_session_endpoint`, antwortet der BFF `204`.
+- Sind die OIDC-Metadaten nicht ladbar, antwortet er ebenfalls `204` und protokolliert
+  eine Warnung mit dem Ausnahmetyp, ohne Providerantwort und ohne Tokenwerte.
+- Hat eine Sitzung kein ID-Token (angemeldet vor dem Einschalten oder vor dem Update),
+  fehlt `id_token_hint`. `client_id` und `post_logout_redirect_uri` genügen; Keycloak
+  fragt dann auf einer Bestätigungsseite nach, bevor es abmeldet und zurückleitet.
+
+Origin und Schema der Post-Logout-URI stammen wie die Callback-URI aus der Anfrage und
+stimmen hinter dem TLS-Proxy nur mit korrekt ausgewerteten Forwarded-Headern.
+
+**Voraussetzung im Identity Provider**, bevor der Schalter gesetzt wird:
+
+- **Keycloak:** Am BFF-Client unter *Valid post logout redirect URIs* (Client-Attribut
+  `post.logout.redirect.uris`) die Adresse `https://<flowzer-host>/` eintragen, bei
+  abweichendem `PostLogoutPath` entsprechend `https://<flowzer-host><PostLogoutPath>`.
+  Der Platzhalter `+` genügt nicht, weil er die Redirect-URIs übernimmt und
+  `/bff/signin-oidc` nicht auf `/` passt. *Front channel logout* ist dafür nicht nötig.
+  Fehlt der Eintrag, zeigt Keycloak statt der Abmeldung eine Fehlerseite
+  („Invalid redirect uri“); die Flowzer-Sitzung ist dann trotzdem beendet.
+- **Entra ID:** Entra akzeptiert als `post_logout_redirect_uri` nur eine registrierte
+  Redirect-URI. `https://<flowzer-host>/` muss deshalb zusätzlich als Redirect-URI der
+  Plattform *Web* in der App-Registrierung des BFF stehen. Damit ist diese Adresse zugleich
+  als Ziel für den Autorisierungscode zugelassen; beim vertraulichen Client mit PKCE ist das
+  Risiko gering, weil ein abgefangener Code ohne Client-Secret und Code-Verifier nicht
+  einlösbar ist. Die *Front-channel logout URL*
+  der App-Registrierung betrifft den umgekehrten Weg (Abmeldung anderswo beendet Flowzer)
+  und wird von Flowzer nicht ausgewertet. Dieser Weg ist nicht durch die Abnahme belegt.
+
+Eine Abmeldung in einer anderen Anwendung desselben Identity Providers beendet eine
+bestehende Flowzer-Sitzung weiterhin nicht (kein Back- oder Front-Channel-Logout).
+
 ### Sitzungsdauer und Erneuerung
 
 Das Browser-Cookie enthält nur einen zufälligen Sitzungsschlüssel. Das Refresh-Token
-bleibt im API-Prozess. Vor Ablauf des Access-Tokens erneuert der BFF die Anmeldung
+(bei aktivem Provider-Logout zusätzlich das ID-Token) bleibt im API-Prozess. Vor Ablauf des Access-Tokens erneuert der BFF die Anmeldung
 serverseitig und prüft Signatur, Issuer, API-Audience und Subject erneut; Rollen und
 Gruppen werden durch den aktuellen Providerstand ersetzt. Parallele Anfragen teilen
 einen Refresh. Ein widerrufener Grant beendet die Sitzung, ein vorübergehender
@@ -140,7 +209,8 @@ bleibt acht Stunden; ohne Refresh-Token gilt weiterhin die Access-Token-Laufzeit
 Ein API-Neustart verlangt einmalig eine neue SSO-Anmeldung. Mehrere API-Replikate
 benötigen Sitzungsaffinität; ein verteilter, verschlüsselter Sitzungsspeicher ist
 noch nicht implementiert. Weder Refresh-Token noch Access-Token stehen im Browser,
-im BPMN oder in der allgemeinen Prozessablage.
+im BPMN oder in der allgemeinen Prozessablage; das ID-Token nur bei aktivem
+Provider-Logout einmalig in der Abmeldeadresse.
 
 ### Update-Kompatibilität von Formularen und Workflows
 
@@ -266,8 +336,10 @@ verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
 Die Sitzung besitzt eine absolute Grenze von acht Stunden. Vor dem Access-Token-Ablauf
 prüft der serverseitige Refresh Rollen und Gruppen erneut. Ohne Refresh-Token endet
 sie weiterhin mit dem Zugriffstoken. Unmittelbarer Provider-Widerruf vor Tokenablauf
-(Backchannel-Logout/Introspection) ist noch nicht implementiert. Logout beendet die
-lokale Flowzer-Sitzung, nicht die zentrale SSO-Sitzung beim Identity Provider.
+(Backchannel-Logout/Introspection) ist noch nicht implementiert. Ohne
+`Authentication__Bff__ProviderLogout` beendet der Logout nur die lokale Flowzer-Sitzung,
+nicht die zentrale SSO-Sitzung beim Identity Provider; mit dem Schalter beendet er beide
+(siehe [Abmeldung und Provider-Logout](#abmeldung-und-provider-logout)).
 
 `GET /bff/session` liefert nur die minimale Benutzerprojektion samt serverseitig
 ermittelten Fähigkeiten. Auch ein angemeldetes Konto ohne Freischaltung darf seine
@@ -310,14 +382,15 @@ erst an. Die Entscheidung trifft in jedem Fall die API — die Oberfläche erspa
 zu einer Ablehnung. Ihr Aufbau ist in `src/FlowzerConsole/README.md` beschrieben.
 
 Der produktive OIDC-Client ist vertraulich und besitzt als einzige Browser-Callback-URI
-`https://<flowzer-host>/bff/signin-oidc`. SPA-Redirect-URIs, stille Token-Erneuerung und
+`https://<flowzer-host>/bff/signin-oidc`; mit Provider-Logout kommt die
+Post-Logout-Redirect-URI `https://<flowzer-host>/` hinzu. SPA-Redirect-URIs, stille Token-Erneuerung und
 Browser-OIDC-Variablen gehören nicht mehr zum Flowzer-Deployment. Die konkrete
 Identity-Provider-Konfiguration ist installationsspezifisch und wird vor dem Einsatz gegen
 die tatsächliche Zielumgebung geprüft.
 
 ### API-Vertrag
 
-Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, und die Health-Endpunkte mit ihrem schlanken Probe-Vertrag.
+Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, die Health-Endpunkte mit ihrem schlanken Probe-Vertrag und die Browser-Fassade unter `/bff` (Sitzung, CSRF, Abmeldung) mit ihren eigenen DTOs.
 
 Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von einem Test gegen die erzeugte Beschreibung verglichen. Eine gewollte Änderung wird mit `scripts/ci/update-openapi-snapshot.sh` neu festgeschrieben und mit eingecheckt; eine ungewollte fällt in der CI auf, statt beim Client.
 

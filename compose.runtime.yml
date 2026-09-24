@@ -58,6 +58,11 @@ services:
       Authentication__Bff__Scopes__1: ${FLOWZER_BFF_SCOPE_1:-}
       Authentication__Bff__Scopes__2: ${FLOWZER_BFF_SCOPE_2:-}
       Authentication__Bff__DataProtectionKeysPath: /var/lib/flowzer/data-protection
+      # Opt-in: Die Abmeldung beendet auch die Sitzung beim Identity Provider. Erst einschalten,
+      # wenn der BFF-Client dort https://<flowzer-host> plus PostLogoutPath als
+      # Post-Logout-Redirect-URI erlaubt (docs/OPERATIONS.md, BFF-Vertrag).
+      Authentication__Bff__ProviderLogout: ${FLOWZER_BFF_PROVIDER_LOGOUT:-false}
+      Authentication__Bff__PostLogoutPath: ${FLOWZER_BFF_POST_LOGOUT_PATH:-/}
       # Optionaler, ausschliesslich lesender Keycloak-Verzeichnisabgleich. Beide Secrets
       # werden nur dem API-Prozess aus dem Laufzeit-Secret-Store uebergeben.
       IdentityDirectory__Enabled: ${FLOWZER_DIRECTORY_ENABLED:-false}
