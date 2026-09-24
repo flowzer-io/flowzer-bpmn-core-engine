@@ -190,6 +190,7 @@ public class ServiceTask : Task
 
 - **Jeder Test bekommt direkt oberhalb von `[Test]` einen kurzen Kommentar im Format `// Testzweck: ...`, der den Zweck des Tests erklärt.**
 - Vor PRs nach `main` sollte lokal zusätzlich `python3 scripts/ci/check_test_purpose_comments.py` laufen; derselbe Guard läuft auch im GitHub-CI-Pfad.
+- **Kein stilles Überspringen in der CI.** Die PostgreSQL-Tests (`PostgreSqlStorageIntegrationTest`, `MultiProcessConcurrencyTest`) starten einen Container über Testcontainers. Lokal ohne Docker enden sie als übersprungen; in der CI ist `FLOWZER_TESTS_REQUIRE_POSTGRESQL=1` gesetzt, dann werden sie rot (siehe `src/WebApiEngine.Tests/TestEnvironmentRequirements.cs`). Zusätzlich wertet `python3 scripts/ci/check_skipped_tests.py TestResults/ci` die trx-Ergebnisse aus und schlägt bei jedem übersprungenen Test fehl, also auch bei fehlender V8-Bibliothek oder fehlendem freien Port. Wer lokal dasselbe Verhalten will, setzt die Variable und ruft das Skript auf dem eigenen Ergebnisverzeichnis auf.
 
 ```csharp
 [TestFixture]

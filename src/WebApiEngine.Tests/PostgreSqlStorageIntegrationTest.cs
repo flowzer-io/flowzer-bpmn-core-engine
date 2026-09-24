@@ -15,7 +15,9 @@ namespace WebApiEngine.Tests;
 
 /// <summary>
 /// Prueft die PostgreSQL-Ablage gegen einen echten PostgreSQL-Container (Testcontainers).
-/// Ohne erreichbaren Docker-Daemon werden die Tests uebersprungen, nicht rot.
+/// Ohne erreichbaren Docker-Daemon werden die Tests uebersprungen, nicht rot; mit
+/// <c>FLOWZER_TESTS_REQUIRE_POSTGRESQL=1</c> (CI) werden sie stattdessen rot, siehe
+/// <see cref="TestEnvironmentRequirements"/>.
 /// </summary>
 [NonParallelizable]
 public partial class PostgreSqlStorageIntegrationTest
@@ -35,7 +37,7 @@ public partial class PostgreSqlStorageIntegrationTest
         }
         catch (Exception exception)
         {
-            Assert.Ignore($"PostgreSQL-Container nicht verfuegbar (Docker fehlt?): {exception.Message}");
+            TestEnvironmentRequirements.PostgreSqlUnavailable(exception);
             return;
         }
 
