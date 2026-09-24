@@ -46,7 +46,7 @@ npx playwright test specs/negative.spec.js --project=flows --no-deps
 | `certs` | Init-Container: Test-CA und Serverzertifikat (SAN `flowzer.test`, `auth.flowzer.test`) in Volumes; der CA-Schlüssel wird verworfen |
 | `tls` | Caddy als TLS-Proxy auf `127.0.0.1:8443`; Netzwerk-Aliase, damit auch Container die externen Namen über den Proxy erreichen |
 | `keycloak` | Keycloak 26.7.4 (`start-dev --import-realm`) mit dem synthetischen Realm `keycloak/flowzer-test-realm.json` |
-| `db` | PostgreSQL 17; Datenbank und getrennte Migrations-/Laufzeitrolle über `deploy/postgresql/01-datenbank-und-rollen.sql` |
+| `db` | PostgreSQL 17; Datenbank und getrennte Migrations-/Laufzeitrolle über `deploy/postgresql/01-datenbank-und-rollen.sql` (bindet `02-laufzeitrechte.sql` ein; deshalb ist das ganze Verzeichnis eingehängt) |
 | `migrate` | `--migrate` mit der Migrationsrolle |
 | `api` | Web-API im BFF-Modus, Rollen `access`/`modeler`/`operator`/`worker`, Verzeichnisabgleich aktiv; vertraut der Test-CA über `SSL_CERT_FILE`, `RequireHttpsMetadata` bleibt `true` |
 | `console` | React-Konsole mit nginx, leitet API-Pfade an `api:8080` |

@@ -76,6 +76,8 @@ services:
 
   # Datenbank und Rollen entstehen mit dem ausgelieferten Installationsskript
   # deploy/postgresql/01-datenbank-und-rollen.sql: getrennte Migrations- und Laufzeitrolle.
+  # Das ganze Verzeichnis wird eingehaengt, weil 01 die Laufzeitrechte aus
+  # 02-laufzeitrechte.sql per \ir nachlaedt.
   db:
     image: postgres:17-alpine
     environment:
@@ -87,7 +89,7 @@ services:
       FLOWZER_TEST_RUNTIME_ROLE: flowzer_runtime
       FLOWZER_TEST_RUNTIME_PASSWORD: flowzer-test-runtime-password
     volumes:
-      - ../../deploy/postgresql/01-datenbank-und-rollen.sql:/flowzer-sql/01-datenbank-und-rollen.sql:ro
+      - ../../deploy/postgresql:/flowzer-sql:ro
       - ./postgres/10-flowzer-init.sh:/docker-entrypoint-initdb.d/10-flowzer-init.sh:ro
       - db-data:/var/lib/postgresql/data
     healthcheck:
