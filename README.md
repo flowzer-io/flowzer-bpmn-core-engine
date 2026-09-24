@@ -136,7 +136,10 @@ Konfiguration, Secrets oder Tokens.
 hinterlegt, sondern beim API-Start aus dem Secret-Store injiziert. Der
 Data-Protection-Keyring benötigt ein ausschließlich für den API-Container
 beschreibbares persistentes Volume, weil Session-, OIDC-Korrelations- und
-Antiforgery-Cookies Redeploys überleben müssen.
+Antiforgery-Cookies Redeploys überleben müssen. Mit
+`Authentication:Bff:ProviderLogout=true` beendet die Abmeldung auch die SSO-Sitzung
+beim Identity Provider (RP-initiated Logout); dafür muss der BFF-Client dort
+`https://<flowzer-host>/` als Post-Logout-Redirect-URI erlauben.
 
 Direkte/externe API-Clients dürfen unverändert Bearer-Tokens senden. `JwtBearer`
 bleibt dafür als explizite Konfiguration vorhanden, `None` nur für lokale
