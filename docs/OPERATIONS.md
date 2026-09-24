@@ -1478,6 +1478,17 @@ alles vor. Belegt ist das durch `MigrateArgument_ShouldBeIdempotentWhenRunTwice`
 `ConcurrentMigrationRuns_ShouldBeSerializedByTheAdvisoryLock`
 (`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`).
 
+Nach den SQL-Migrationen führt `--migrate` (`FlowzerStorageExtensions.RunMigrationsAsync`) in
+einer eigenen Transaktion das Formularbindungs-Upgrade aus (siehe „Update-Kompatibilität von
+Formularen und Workflows“). Genau diesen Weg deckt der In-Process-Upgrade-Test
+`Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations` mit wartender Aufgabe, wartendem
+Auftrag und wartendem Timer ab – von Schemastand 012 (mit Deployments ohne Formularbindung) und
+019 (Sprung der letzten produktiven Aktualisierung) –, und
+`SchemaDrift_UpgradedSchemaShouldMatchFreshlyMigratedSchema`
+(`PostgreSqlStorageIntegrationTest.SchemaDrift.cs`) belegt, dass ein von 012 aktualisiertes
+Schema dieselben Tabellen, Spalten, Indizes, Constraints, Sequenzen, Typen, Routinen, Trigger,
+Rechte, Kommentare und `schema_migrations`-Einträge hat wie ein frisch angelegtes.
+
 ## Konfigurationsprüfung: `--check-config`
 
 ```bash
