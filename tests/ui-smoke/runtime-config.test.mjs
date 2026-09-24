@@ -103,6 +103,20 @@ for (const file of ['compose.runtime.yml', 'compose.coolify.yaml']) {
     assert.equal(enabled.Authentication__JwtBearer__Roles__AiConnectionManager, 'ai-manage');
   });
 
+  // Testzweck: Der Provider-Logout setzt eine Registrierung beim Identity Provider voraus und
+  // bleibt deshalb standardmäßig aus; eine ausdrückliche Angabe samt Pfad wird weitergereicht.
+  test(`${file}: Provider-Logout bleibt aus und lässt sich ausdrücklich aktivieren`, () => {
+    const disabled = configuration(file).api.environment;
+    assert.equal(disabled.Authentication__Bff__ProviderLogout, 'false');
+    assert.equal(disabled.Authentication__Bff__PostLogoutPath, '/');
+    const enabled = configuration(file, {
+      FLOWZER_BFF_PROVIDER_LOGOUT: 'true',
+      FLOWZER_BFF_POST_LOGOUT_PATH: '/abgemeldet',
+    }).api.environment;
+    assert.equal(enabled.Authentication__Bff__ProviderLogout, 'true');
+    assert.equal(enabled.Authentication__Bff__PostLogoutPath, '/abgemeldet');
+  });
+
   // Testzweck: Die mitgelieferten Konnektoren sind eingebaute Worker mit Aussenwirkung —
   // HTTP-Aufrufe und E-Mail-Versand. Im Compose-Stack müssen sie standardmäßig aus sein und
   // ohne Freigabeliste bleiben; erst eine ausdrückliche Angabe schaltet sie ein.

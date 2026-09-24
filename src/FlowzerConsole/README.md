@@ -41,7 +41,9 @@ Sitzungsprojektion von `GET /bff/session`.
 Für jede schreibende Cookie-Anfrage holt die Konsole bei `GET /bff/csrf` einen
 nur im JavaScript-Speicher gehaltenen Request-Token und sendet ihn im Header
 `X-Flowzer-CSRF`. Die API verlangt zusätzlich einen gleichen Origin. Logout ist
-ebenfalls ein CSRF-geschütztes `POST /bff/logout`. Direkte API-Konsumenten dürfen
+ebenfalls ein CSRF-geschütztes `POST /bff/logout`. Liefert es mit aktivem
+Provider-Logout eine Abmeldeadresse des Identity Providers (`redirectTo`, nur absolute
+HTTPS-Adressen), navigiert die Konsole nach der lokalen Abmeldung dorthin. Direkte API-Konsumenten dürfen
 weiterhin `Authorization: Bearer …` verwenden; dieser Vertrag ist nicht
 CSRF-pflichtig und ein fehlerhafter Bearer fällt nicht auf ein vorhandenes Cookie
 zurück.

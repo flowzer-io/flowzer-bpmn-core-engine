@@ -67,7 +67,7 @@
       "webOrigins": [],
       "attributes": {
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://flowzer.test:8443/*"
+        "post.logout.redirect.uris": "https://flowzer.test:8443/"
       },
       "protocolMappers": [
         {

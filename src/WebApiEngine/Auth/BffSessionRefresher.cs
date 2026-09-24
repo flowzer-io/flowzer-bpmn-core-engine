@@ -52,7 +52,22 @@ public sealed class BffSessionRefresher(
             var nextRefresh = body.RootElement.TryGetProperty("refresh_token", out var rotation)
                 ? rotation.GetString() : refreshToken;
             if (string.IsNullOrWhiteSpace(nextRefresh)) return null;
-            ticket.Properties.StoreTokens([new AuthenticationToken { Name = "refresh_token", Value = nextRefresh }]);
+            var serverSideTokens = new List<AuthenticationToken> { new() { Name = "refresh_token", Value = nextRefresh } };
+            if (options.Bff.ProviderLogout)
+            {
+                // StoreTokens ersetzt alle Tokens des Tickets. Ein neues ID-Token aus der
+                // Antwort gilt nur dann als aktueller id_token_hint, wenn es dieselbe Anmeldung
+                // beschreibt; sonst bleibt das bisherige erhalten.
+                var previousIdToken = ticket.Properties.GetTokenValue(BffSessionStore.IdToken);
+                var renewedIdToken = body.RootElement.TryGetProperty("id_token", out var renewed)
+                                     && renewed.ValueKind == JsonValueKind.String
+                    ? renewed.GetString()
+                    : null;
+                var idToken = IsSameIdentity(previousIdToken, renewedIdToken) ? renewedIdToken : previousIdToken;
+                if (!string.IsNullOrWhiteSpace(idToken))
+                    serverSideTokens.Add(new AuthenticationToken { Name = BffSessionStore.IdToken, Value = idToken });
+            }
+            ticket.Properties.StoreTokens(serverSideTokens);
             return new AuthenticationTicket(principal, ticket.Properties, ticket.AuthenticationScheme);
         }
         catch (SecurityTokenException) { return null; }
@@ -60,6 +75,30 @@ public sealed class BffSessionRefresher(
         {
             // Keine Providerantwort oder Tokenwerte als Exception-Detail/InnerException loggen.
             throw new BffSessionUnavailableException();
+        }
+    }
+
+    /// <summary>
+    /// Vergleicht iss, aud und sub zweier ID-Tokens ohne Signaturpruefung: Das neue Token kam
+    /// ueber den vertraulichen Token-Endpunkt und dient nur als id_token_hint. Ohne bisheriges
+    /// Token gibt es keinen Vergleich und damit keine Uebernahme. Ein unlesbares Token gilt als
+    /// abweichend und darf die Erneuerung selbst nicht scheitern lassen.
+    /// </summary>
+    private static bool IsSameIdentity(string? previousIdToken, string? renewedIdToken)
+    {
+        if (string.IsNullOrWhiteSpace(previousIdToken) || string.IsNullOrWhiteSpace(renewedIdToken)) return false;
+        try
+        {
+            var previous = new JsonWebToken(previousIdToken);
+            var renewed = new JsonWebToken(renewedIdToken);
+            return !string.IsNullOrEmpty(renewed.Subject)
+                   && string.Equals(previous.Issuer, renewed.Issuer, StringComparison.Ordinal)
+                   && string.Equals(previous.Subject, renewed.Subject, StringComparison.Ordinal)
+                   && previous.Audiences.ToHashSet(StringComparer.Ordinal).SetEquals(renewed.Audiences);
+        }
+        catch (Exception exception) when (exception is ArgumentException or SecurityTokenException or JsonException)
+        {
+            return false;
         }
     }
 }

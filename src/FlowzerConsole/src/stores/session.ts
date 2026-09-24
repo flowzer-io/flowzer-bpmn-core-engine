@@ -122,8 +122,13 @@ export const useSession = create<SessionState>()((set, get) => ({
   signOut: async () => {
     // Erst ein bestaetigter Server-Logout (oder 401) beendet die lokale Sitzung.
     // Bei Netzwerk-/CSRF-Fehlern bleibt sie sichtbar und die Abmeldung wiederholbar.
-    await logout();
+    const redirectTo = await logout();
     set(anonymousState(get()));
+    // Mit Provider-Logout folgt eine Top-Level-Navigation zum Identity Provider, der danach
+    // auf die Konsole zurückleitet. Ein unerwartetes Ziel wird ignoriert: Dann bleibt es bei
+    // der bereits vollzogenen lokalen Abmeldung.
+    const target = providerLogoutTarget(redirectTo);
+    if (target) window.location.assign(target);
   },
 
   endSessionForUnauthorized: () => {
@@ -134,6 +139,26 @@ export const useSession = create<SessionState>()((set, get) => ({
     if (get().accessDenied !== denied) set({ accessDenied: denied });
   },
 }));
+
+/**
+ * Akzeptiert als Ziel des Provider-Logouts nur eine absolute HTTPS-Adresse; HTTP nur, wenn
+ * die Konsole selbst über HTTP läuft (lokale Entwicklung). Relative Pfade, `javascript:` und
+ * andere Schemata werden verworfen.
+ */
+function providerLogoutTarget(redirectTo: string | undefined): string | undefined {
+  if (!redirectTo) return undefined;
+
+  let url: URL;
+  try {
+    url = new URL(redirectTo);
+  } catch {
+    return undefined;
+  }
+
+  const allowHttp = window.location.protocol === 'http:';
+  if (url.protocol === 'https:' || (allowHttp && url.protocol === 'http:')) return url.href;
+  return undefined;
+}
 
 /**
  * Beendet die lokale Sicht auf eine BFF-Sitzung und entfernt vorher nur deren
