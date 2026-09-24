@@ -71,11 +71,56 @@ export function placeCalendar(
   return { top, left, above };
 }
 
-/** Der Ausschnitt einer flatpickr-Instanz, den die Positionierung braucht. */
+/** Der Ausschnitt einer flatpickr-Instanz, den das Widget braucht. */
 interface FlatpickrInstance {
   isOpen: boolean;
   calendarContainer?: HTMLElement;
   _positionElement?: HTMLElement;
+  _positionCalendar?: () => void;
+  close?: () => void;
+  config?: { onOpen?: Array<() => void>; onClose?: Array<() => void> };
+}
+
+/** Das Element, an dem der Kalender ausgerichtet wird: die Eingabegruppe mit dem Kalendersymbol. */
+function fieldOf(anchor: HTMLElement): Element {
+  return anchor.closest('.input-group') ?? anchor;
+}
+
+function viewportSize() {
+  return {
+    width: document.documentElement.clientWidth || window.innerWidth,
+    height: window.innerHeight,
+  };
+}
+
+/** Überlaufwerte, mit denen ein Element seinen Inhalt beschneidet. */
+const CLIPPING_OVERFLOW = /^(auto|scroll|hidden|clip)$/;
+
+/**
+ * Der Teil des Fensters, in dem ein Element überhaupt zu sehen ist: das Fenster, beschnitten um
+ * jede Bildlauffläche zwischen dem Element und `root` — im Startdialog der Inhaltsbereich
+ * zwischen Kopf und Fuß.
+ */
+export function visibleArea(element: Element, root: Element): ViewportRect {
+  const viewport = viewportSize();
+  const area: ViewportRect = { top: 0, left: 0, right: viewport.width, bottom: viewport.height };
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (CLIPPING_OVERFLOW.test(style.overflowX) || CLIPPING_OVERFLOW.test(style.overflowY)) {
+      const rect = node.getBoundingClientRect();
+      area.top = Math.max(area.top, rect.top);
+      area.left = Math.max(area.left, rect.left);
+      area.right = Math.min(area.right, rect.right);
+      area.bottom = Math.min(area.bottom, rect.bottom);
+    }
+    if (node === root) break;
+  }
+  return area;
+}
+
+/** Liegt das Feld ganz außerhalb des sichtbaren Bereichs? Ein angeschnittenes Feld zählt als sichtbar. */
+export function isOutside(field: ViewportRect, area: ViewportRect): boolean {
+  return field.bottom <= area.top || field.top >= area.bottom || field.right <= area.left || field.left >= area.right;
 }
 
 /**
@@ -95,17 +140,11 @@ function positionInViewport(instance: FlatpickrInstance, customElement?: HTMLEle
   const anchor = customElement ?? instance._positionElement;
   if (!instance.isOpen || !calendar || !layer || !dialog || !anchor) return;
 
-  // Das Eingabefeld steht mit dem Kalendersymbol in einer Gruppe; bündig wird mit der Gruppe.
-  const field = (anchor.closest('.input-group') ?? anchor).getBoundingClientRect();
-  const viewport = {
-    width: document.documentElement.clientWidth || window.innerWidth,
-    height: window.innerHeight,
-  };
   const placement = placeCalendar(
-    field,
+    fieldOf(anchor).getBoundingClientRect(),
     { width: calendar.offsetWidth, height: calendar.offsetHeight },
     dialog.getBoundingClientRect(),
-    viewport,
+    viewportSize(),
   );
 
   const origin = layer.getBoundingClientRect();
@@ -117,16 +156,20 @@ function positionInViewport(instance: FlatpickrInstance, customElement?: HTMLEle
 function createCalendarLayer(dialog: Element): HTMLElement {
   const layer = dialog.ownerDocument.createElement('div');
   layer.className = CALENDAR_LAYER_CLASS;
-  // Nimmt im Dialog keinen Platz ein — auch nicht als Flex-Element — und ist Bezugsrahmen
-  // für den absolut gesetzten Kalender.
-  layer.style.cssText = 'position:absolute;top:0;left:0;width:0;height:0;';
+  // Deckt den Dialog ab, ohne Platz einzunehmen — auch nicht als Flex-Element — und ohne Klicks
+  // abzufangen; nur der Kalender selbst nimmt sie an. Der z-index hebt ihn über Kopf und Fuß des
+  // Dialogs, auch wenn dort einmal etwas positioniert steht.
+  layer.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10;';
   dialog.appendChild(layer);
   return layer;
 }
 
+/** Das eigene Modal (`components/ui/Modal.tsx`) trägt dieses Attribut am Dialogelement. */
+const FLOWZER_MODAL = '[data-flowzer-modal]';
+
 /**
- * Sorgt dafür, dass der Kalender eines Datumsfeldes in einem Dialog bedienbar ist und ganz im
- * Bild steht.
+ * Sorgt dafür, dass der Kalender eines Datumsfeldes im Dialog der Konsole bedienbar ist und ganz
+ * im Bild steht.
  *
  * Form.io baut Datumsfelder mit flatpickr, und flatpickr hängt seinen Kalender ohne weitere
  * Angabe an `document.body` — also außerhalb eines geöffneten Dialogs. Ein modaler Dialog
@@ -146,9 +189,14 @@ function createCalendarLayer(dialog: Element): HTMLElement {
  * der Bildlauffläche. Er liegt damit weiter innerhalb von `role="dialog"` — Zeigereingaben und
  * Fokusfalle lassen ihn zu —, verbreitert aber nichts mehr. Wo genau er steht, bestimmt
  * `positionInViewport`: unter oder über dem Feld, im Dialog, wo er hineinpasst, und immer im
- * Fenster. Rollt der Dialoginhalt, während der Kalender offen ist, zieht er mit.
+ * Fenster. Solange er offen ist, folgt er dem Feld, wenn der Dialoginhalt rollt oder seine Größe
+ * ändert (Prüfmeldungen, bedingte Felder). Rollt das Feld ganz aus dem sichtbaren Inhalt, klappt
+ * der Kalender zu, statt ohne Bezug über Kopf oder Fuß zu stehen.
  *
- * Außerhalb eines Dialogs — auf der Aufgabenseite etwa — bleibt alles unverändert.
+ * Das gilt nur im eigenen Modal (`data-flowzer-modal`). Form.ios Einstellungsdialog trägt zwar
+ * auch `role="dialog"`, sperrt aber weder Zeiger noch Fokus und ist selbst eine Bildlauffläche —
+ * dort, wie außerhalb von Dialogen (Aufgabenseite, Editorfläche), bleibt flatpickr bei seinem
+ * Standard am <body>; dessen z-index liegt über Form.ios Dialog.
  *
  * Die Registrierung tauscht den Eintrag in Form.ios Widget-Registry. `Input.createWidget`
  * liest den Konstruktor bei jedem Aufbau eines Feldes aus genau diesem Objekt.
@@ -162,16 +210,22 @@ export function registerDialogCalendarWidget(widgets: WidgetRegistry): void {
 
     private calendarLayer: HTMLElement | null = null;
     private stopFollowing: (() => void) | null = null;
+    private destroyed = false;
 
     attach(input: HTMLElement) {
-      this.removeCalendarLayer();
-      const dialog = input?.closest?.('[role="dialog"]');
+      this.releaseLayer();
+      const dialog = input?.closest?.(FLOWZER_MODAL);
       if (dialog) this.calendarLayer = createCalendarLayer(dialog);
 
       return super.attach(input);
     }
 
     initFlatpickr(Flatpickr: unknown): void {
+      // Form.io lädt flatpickr nach und ruft dies auch dann noch auf, wenn das Feld inzwischen
+      // abgebaut ist. Ohne diese Sperre entstünde ein verwaister Kalender am <body> samt
+      // Zuhörern am Dokument, die niemand mehr entfernt.
+      if (this.destroyed) return;
+
       const layer = this.calendarLayer;
       if (layer) {
         // Form.io setzt `position` in attach() auf 'auto center'; erst hier gilt der Wert.
@@ -181,27 +235,58 @@ export function registerDialogCalendarWidget(widgets: WidgetRegistry): void {
 
       super.initFlatpickr(Flatpickr);
 
-      const calendar = this.calendar;
-      if (!layer || !calendar) return;
+      const calendar = this.calendar as FlatpickrInstance | undefined;
+      const dialog = layer?.parentElement;
+      if (!layer || !dialog || !calendar?.calendarContainer) return;
+
+      // Die Ebene lässt Klicks durch; der Kalender selbst muss sie annehmen.
+      calendar.calendarContainer.style.pointerEvents = 'auto';
 
       // flatpickr folgt von sich aus nur einer Größenänderung des Fensters. Scroll-Ereignisse
       // steigen nicht auf; die Bildlauffläche des Dialogs erreicht nur ein Zuhörer in der
-      // Capture-Phase.
-      const follow = () => calendar._positionCalendar?.();
-      const stop = () => document.removeEventListener('scroll', follow, true);
-      calendar.config?.onOpen?.push(() => document.addEventListener('scroll', follow, true));
+      // Capture-Phase. Verschiebt sich das Feld ohne Rollen, meldet das der ResizeObserver.
+      const follow = () => {
+        const anchor = calendar._positionElement;
+        if (!calendar.isOpen || !anchor) return;
+        const field = fieldOf(anchor);
+        if (isOutside(field.getBoundingClientRect(), visibleArea(field, dialog))) {
+          calendar.close?.();
+          return;
+        }
+        calendar._positionCalendar?.();
+      };
+
+      let observer: ResizeObserver | null = null;
+      const start = () => {
+        document.addEventListener('scroll', follow, true);
+        if (typeof ResizeObserver === 'undefined') return;
+        observer?.disconnect();
+        observer = new ResizeObserver(follow);
+        observer.observe(dialog);
+        const form = calendar._positionElement?.closest('.formio-form');
+        if (form) observer.observe(form);
+      };
+      const stop = () => {
+        document.removeEventListener('scroll', follow, true);
+        observer?.disconnect();
+        observer = null;
+      };
+
+      calendar.config?.onOpen?.push(start);
       calendar.config?.onClose?.push(stop);
       this.stopFollowing = stop;
     }
 
     destroy(all?: boolean) {
-      this.stopFollowing?.();
-      this.stopFollowing = null;
+      this.destroyed = true;
       super.destroy(all);
-      this.removeCalendarLayer();
+      this.releaseLayer();
     }
 
-    private removeCalendarLayer() {
+    /** Beendet das Mitlaufen und entfernt die Ebene — beim Abbau und vor einem neuen attach(). */
+    private releaseLayer() {
+      this.stopFollowing?.();
+      this.stopFollowing = null;
       this.calendarLayer?.remove();
       this.calendarLayer = null;
     }

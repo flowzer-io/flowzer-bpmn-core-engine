@@ -15,7 +15,6 @@ import { registerFormLibraryComponent } from './FormLibraryComponent';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
-import { browserFormLanguage } from '@/lib/locale';
 import {
   inspectFormDecisionActions,
   writeFormDecisionActions,
@@ -137,8 +136,9 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
           keyboardBuilder: true,
-          // Wie im Renderer: Sprache nach dem Browser, die Vorschau spricht dieselbe wie das Formular.
-          language: browserFormLanguage(),
+          // Der Editor bleibt fest deutsch, wie die übrige Konsole — anders als der Renderer, der
+          // der Browsersprache folgt (formioLanguage.ts). Die eigenen Editortexte gibt es nur deutsch.
+          language: 'de',
           i18n: { de: { ...FORM_RENDERER_TEXTS_DE, searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
             Basic: 'Felder', Advanced: 'Weitere Felder', Layout: 'Bereiche & Layout', Data: 'Daten', Premium: 'Weitere Komponenten',
             'Text Field': 'Textfeld', 'Text Area': 'Mehrzeiliger Text', Number: 'Zahl', Password: 'Passwort', Checkbox: 'Ja / Nein',

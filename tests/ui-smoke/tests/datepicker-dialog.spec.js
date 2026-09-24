@@ -43,8 +43,9 @@ function datumsfeld(key, label, { mitUhrzeit = false } = {}) {
  * Das Formular aus dem Befund: zwei Datumsfelder nebeneinander, darunter der Grund.
  *
  * Nebeneinander ist der Kern — erst in der rechten Spalte ragte der Kalender auf dem Desktop
- * über den Dialog hinaus. Auf Telefonbreite stehen die Spalten untereinander; dort ist schon
- * die volle Feldbreite schmaler als der Kalender.
+ * über den Dialog hinaus. Auf Telefonbreite bleiben die Spalten im Startdialog nebeneinander
+ * (die Umbruchregel in formio.css gilt nur für Form.ios eigenen Dialog); schon der ganze
+ * Inhaltsbereich ist dort schmaler als der Kalender.
  */
 function urlaubsformular({ mitUhrzeit = false, grundPflicht = false } = {}) {
   return {
@@ -121,6 +122,19 @@ async function oeffneStartdialog(page, definitionId) {
 }
 
 /**
+ * Wartet, bis alle endlichen Animationen im Dialog durchgelaufen sind — die Einblendung des
+ * Dialogs und die des Kalenders (flatpickr schiebt ihn 300 ms lang von oben herein). Vorher
+ * stimmen die gemessenen Lagen nicht. Endlose Animationen (Ladekreisel) zählen nicht.
+ */
+async function warteAufAnimationen(page) {
+  await page.locator('[role="dialog"]').evaluate((dialog) => Promise.all(
+    dialog.getAnimations({ subtree: true })
+      .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+      .map((animation) => animation.finished.catch(() => undefined))
+  ));
+}
+
+/**
  * Klappt den Kalender des Feldes auf und wartet, bis er steht.
  *
  * Wiederholt, weil Form.io flatpickr nachlädt und die Entwicklungsfassung das Formular wegen
@@ -135,13 +149,19 @@ async function oeffneKalender(page, feld) {
       await feld.click({ timeout: 2000 });
     }
     await expect(kalender, 'Der Kalender klappt nicht auf.').toBeVisible({ timeout: 2000 });
-    // Einen Augenblick stehen lassen: So fällt ein Neuaufbau noch hier auf und nicht erst in
-    // der Messung, und ein nachträgliches Rollen des Dialogs ist abgeschlossen.
-    await page.waitForTimeout(400);
+    await warteAufAnimationen(page);
     await expect(kalender).toHaveCount(1, { timeout: 500 });
   }).toPass({ timeout: 25_000 });
 
   return kalender;
+}
+
+/** Schließt den Startdialog und prüft, dass weder Kalender noch Kalenderebene zurückbleiben. */
+async function schliesseUndPruefeAufraeumen(page, dialog) {
+  await dialog.getByRole('button', { name: 'Abbrechen', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.flowzer-calendar-layer'), 'Die Kalenderebene bleibt nach dem Dialog stehen.').toHaveCount(0);
+  await expect(page.locator('.flatpickr-calendar'), 'Ein Kalender bleibt nach dem Dialog stehen.').toHaveCount(0);
 }
 
 /** Misst Dialog, Bildlaufflächen und Kalender in einem Zug. */
@@ -240,6 +260,8 @@ for (const viewport of [
       .click();
     await expect(feld, 'Der angeklickte Tag steht nicht im Eingabefeld.').toHaveValue(/^10\.\d{2}\.\d{4}$/);
     await expect(dialog, 'Der Klick in den Kalender hat den Startdialog geschlossen.').toBeVisible();
+
+    await schliesseUndPruefeAufraeumen(page, dialog);
   });
 }
 
@@ -266,6 +288,38 @@ test('Uhrzeit im Datepicker des Startdialogs ist per Tastatur einstellbar', asyn
 
   await expect(feld, 'Die eingegebene Stunde kommt nicht im Feld an.').toHaveValue(/^10\.\d{2}\.\d{4} 14:\d{2}$/);
   await expect(dialog, 'Die Eingabe im Kalender hat den Startdialog geschlossen.').toBeVisible();
+
+  // Mit Uhrzeit bleibt der Kalender nach der Eingabe offen und liegt über dem Dialogfuß.
+  // Escape aus der Uhrzeit heraus schließt nur ihn; Wert und Dialog bleiben.
+  await page.keyboard.press('Escape');
+  await expect(kalender, 'Escape aus der Uhrzeit schließt den Kalender nicht.').toHaveCount(0);
+  await expect(feld).toHaveValue(/^10\.\d{2}\.\d{4} 14:\d{2}$/);
+
+  await schliesseUndPruefeAufraeumen(page, dialog);
+});
+
+// Testzweck: Escape bei offenem Kalender schließt nur den Kalender; Dialog und Eingaben bleiben.
+// Erst das zweite Escape schließt den Startdialog (Issue #370). Radix wertet Escape schon in der
+// Capture-Phase aus und schloss sonst den ganzen Dialog samt getipptem Grund.
+test('Escape schließt erst den Kalender, dann den Startdialog', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const { definitionId } = await seedUrlaubsantrag(request);
+
+  const dialog = await oeffneStartdialog(page, definitionId);
+  const grund = dialog.getByRole('textbox', { name: GRUND });
+  await grund.fill('Familienbesuch');
+  const feld = dialog.getByRole('textbox', { name: LETZTER_TAG });
+  const kalender = await oeffneKalender(page, feld);
+
+  await page.keyboard.press('Escape');
+
+  await expect(kalender, 'Escape hat den Kalender nicht geschlossen.').toHaveCount(0);
+  await expect(dialog, 'Escape hat mit dem Kalender den ganzen Startdialog geschlossen.').toBeVisible();
+  await expect(grund, 'Die Eingabe im Startdialog ging verloren.').toHaveValue('Familienbesuch');
+
+  await page.keyboard.press('Escape');
+
+  await expect(dialog, 'Das zweite Escape schließt den Startdialog nicht.').toHaveCount(0);
 });
 
 // Testzweck: Die Prüfmeldungen des Formulars erscheinen in einem deutschen Browser auf Deutsch.

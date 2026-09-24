@@ -23,7 +23,10 @@ export const FORM_RENDERER_TEXTS_DE: Readonly<Record<string, string>> = {
 };
 
 /**
- * Sprachoptionen für `Formio.createForm`.
+ * Sprachoptionen für `Formio.createForm`, also für den Renderer (Aufgaben, Startdialog, Vorschau).
+ *
+ * Nur der Renderer folgt der Browsersprache. Der Formular-Editor (`FormBuilder.tsx`) bleibt fest
+ * deutsch wie die übrige Konsole; er mischt nur `FORM_RENDERER_TEXTS_DE` in seine eigenen Texte.
  *
  * `language` steuert zweierlei: die Texte des Renderers und die Sprache des Kalenders. Form.io
  * reicht sie als `locale` an flatpickr weiter und lädt die passende Übersetzung von demselben

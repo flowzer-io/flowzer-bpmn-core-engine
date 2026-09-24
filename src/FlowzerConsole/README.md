@@ -189,24 +189,43 @@ aber die Zeigereingaben (`pointer-events: none` am Body) und hält den Tastaturf
 Der Klick auf einen Tag traf das Overlay, galt flatpickr als Klick nach außen und klappte
 den Kalender wieder zu. Von Hand tippen ging, auswählen nicht. Der Renderer tauscht deshalb
 einmalig das Kalender-Widget in Form.ios Registry gegen eine Unterklasse, die den Kalender
-innerhalb eines Dialogs an eine eigene Ebene im Dialogelement hängt (flatpickrs `appendTo`)
+im Dialog der Konsole an eine eigene Ebene im Dialogelement hängt (flatpickrs `appendTo`)
 — also weiter innerhalb von `role="dialog"`, aber außerhalb seiner Bildlauffläche — und ihn
 selbst positioniert: unter oder über dem Feld, im Dialog, wo er hineinpasst, und immer im
-Fenster. Rollt der Dialoginhalt, zieht der Kalender mit. Außerhalb eines Dialogs — auf der
-Aufgabenseite — bleibt alles unverändert.
+Fenster. Solange er offen ist, folgt er dem Feld, wenn der Dialoginhalt rollt oder seine Größe
+ändert; rollt das Feld ganz aus dem sichtbaren Inhalt, klappt er zu. Escape schließt zuerst
+den offenen Kalender und erst beim nächsten Druck den Dialog (`components/ui/Modal.tsx`).
+
+Erkannt wird der Dialog am Attribut `data-flowzer-modal`, das nur `ui/Modal` setzt. Form.ios
+eigener Einstellungsdialog im Editor trägt zwar auch `role="dialog"`, sperrt aber weder Zeiger
+noch Fokus und ist selbst eine Bildlauffläche — dort, auf der Aufgabenseite und überall sonst
+außerhalb des Modals bleibt flatpickr bei seinem Standard am `<body>`.
 
 Die frühere Lösung über flatpickrs `static` stellte den gut 300 px breiten Kalender als Block
 in die Bildlauffläche. In einer halben Dialogspalte oder auf dem Telefon war er breiter als
 der Platz; der Dialog rollte seitlich und schnitt Beschriftungen ab (Issue #368).
 
-Die Sprache der Formulare folgt dem Browser (`lib/locale.ts`): Deutsch oder Englisch, alles
-andere fällt auf Deutsch zurück. Renderer und Editor geben sie als `language` an Form.io. Form.io
-bringt deutsche Prüfmeldungen selbst mit (`ist erforderlich`, Mindest-/Höchstlänge, Muster,
-E-Mail, Datum, Mindest-/Höchstwert …) und reicht die Sprache an flatpickr weiter, das die
-passende Übersetzung vom selben CDN lädt wie sich selbst: deutsche Wochentage und Monate,
-Wochenbeginn Montag, das Datumsformat bestimmt weiter das Feld. Einige häufige Renderer-Texte,
-die Form.io nicht übersetzt, ergänzt `components/forms/formioLanguage.ts`; weitere Meldungen —
+Die Sprache des Renderers — Aufgabenformulare, Startdialog, Vorschau — folgt dem Browser
+(`lib/locale.ts`): Deutsch oder Englisch, alles andere fällt auf Deutsch zurück. Der
+Renderer gibt sie als `language` an Form.io (`components/forms/formioLanguage.ts`). Der
+Formular-Editor bleibt dagegen fest deutsch wie die übrige Konsole; seine eigenen Texte
+(„Übernehmen“, Palettengruppen) gibt es nur auf Deutsch.
+
+Form.io bringt deutsche Prüfmeldungen selbst mit (`ist erforderlich`, Mindest-/Höchstlänge,
+Muster, E-Mail, Datum, Mindest-/Höchstwert …) und reicht die Sprache an flatpickr weiter, das
+die passende Übersetzung vom selben CDN lädt wie sich selbst: deutsche Wochentage und Monate,
+Wochenbeginn Montag, das Datumsformat bestimmt weiter das Feld. Die Übersetzung holt Form.io
+wie flatpickr selbst per Nachladen mit Abfrage ohne Zeitlimit (`Formio.requireLibrary`) — ein
+vorbestehendes Muster; schlägt das Laden fehl, bleibt der Kalender englisch. Einige häufige
+Renderer-Texte, die Form.io nicht übersetzt, ergänzt `formioLanguage.ts`; weitere Meldungen —
 etwa rund um Datei-Upload oder Unterschrift — bleiben englisch.
+
+Bewusst in Kauf genommen: `language` steuert in Form.io mehr als Texte. Zahlen- und
+Währungsfelder formatieren danach Dezimal- und Tausendertrennzeichen, das Tagesfeld (`day`)
+ordnet danach Tag, Monat und Jahr. Vorher galt für Zahlen die Browsersprache selbst; jetzt
+bekommt etwa ein Browser mit `de-CH` das deutsche Dezimalkomma statt der Schweizer Trennzeichen,
+und nicht unterstützte Sprachen wie Französisch bekommen deutsche Formatierung — passend zur
+deutschen Oberfläche.
 
 ## Fremde Oberflächen im Bündel
 
