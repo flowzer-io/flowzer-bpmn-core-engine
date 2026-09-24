@@ -102,9 +102,10 @@ Befund auf allen vier Skripten; `actionlint` ohne Befund auf `ci.yml`.
   Datenbankbetrieb der Installation.
 - **Keine Aufbewahrung, kein Zeitplan, kein zweiter Ort.** Die Skripte löschen nichts,
   planen nichts und kopieren nichts weg (#325).
-- **Ein Paketstand.** Sicherung und Restore laufen im Test mit demselben Paket. Der volle
-  Nachweis über Paketstände hinweg (älteres Release sichern, zurückspielen, neues Paket
-  migrieren, laufende Instanzen fortsetzen) folgt als **R2b** mit eigenem Upgrade-/Restore-Rig.
+- **Ein Paketstand.** Sicherung und Restore laufen im Test mit demselben Paket. Den Nachweis
+  über Paketstände hinweg (älteren Stand sichern, zurückspielen, neues Paket migrieren,
+  laufende Instanzen fortsetzen) liefert **R2b** mit dem Upgrade-/Restore-Rig
+  ([upgrade-restore.md](upgrade-restore.md)).
 - **Herkunftsprüfung textuell.** „Ziel = Quelle“ vergleicht Host und Datenbanknamen aus der
   `.meta` mit der Zielverbindung. Wer dieselbe Datenbank über einen anderen Hostnamen, eine
   IP-Adresse oder einen Pooler anspricht, wird nicht erkannt.
