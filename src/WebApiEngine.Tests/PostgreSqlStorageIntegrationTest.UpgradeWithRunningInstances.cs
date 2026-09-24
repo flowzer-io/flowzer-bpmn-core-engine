@@ -16,30 +16,55 @@ namespace WebApiEngine.Tests;
 
 /// <summary>
 /// Belegt den Betriebsfall "Update mit laufenden Instanzen": eine Installation auf einem aelteren
-/// Schemastand, gefuellt mit wartenden Vorgaengen, wird auf den aktuellen Stand gehoben und laeuft
-/// danach weiter. Dazu die beiden Eigenschaften, auf die sich ein Deployment verlaesst:
-/// der Migrationsschritt ist wiederholbar und vertraegt einen zweiten Lauf daneben.
+/// Schemastand, gefuellt mit wartenden Vorgaengen, wird ueber denselben Weg wie `--migrate`
+/// (<see cref="FlowzerStorageExtensions.RunMigrationsAsync"/>) auf den aktuellen Stand gehoben
+/// und laeuft danach weiter. Dazu die beiden Eigenschaften, auf die sich ein Deployment
+/// verlaesst: der Migrationsschritt ist wiederholbar und vertraegt einen zweiten Lauf daneben.
 /// </summary>
 public partial class PostgreSqlStorageIntegrationTest
 {
     // Version 013 ist die erste Migration nach dem Stand, auf dem alle drei Wartezustaende
     // (Aufgabe, Auftrag, Timer) schon gespeichert werden koennen: Instanzen und Subscriptions
-    // stammen aus 001, Auftraege aus 002, die Knotenhistorie aus 012.
-    private const int UpgradeBaselineExclusiveMaxVersion = 13;
+    // stammen aus 001, Auftraege aus 002, die Knotenhistorie aus 012. Das ist die aelteste
+    // Ausgangslage, von der aus ein Update mit laufenden Instanzen geprueft wird.
+    private const int OldestUpgradeBaselineExclusiveMaxVersion = 13;
 
-    // Testzweck: Instanzen, die auf einem aelteren Schemastand (bis 012) mit wartender Aufgabe,
-    // wartendem Auftrag und wartendem Timer gespeichert wurden, ueberstehen alle folgenden
-    // Migrationen und lassen sich danach unveraendert weiterfuehren.
-    [Test]
-    public async Task Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations()
+    // Ausgangslage der letzten produktiven Aktualisierung: 001 bis 019 waren angewendet, das
+    // Update brachte nur 020 (DMN-Entscheidungen) hinzu.
+    private const int LastProductiveUpgradeBaselineExclusiveMaxVersion = 20;
+
+    private const string UpgradeApprovalFormName = "UpgradeApproval";
+
+    // Testzweck: Instanzen, die auf einem aelteren Schemastand mit wartender Aufgabe, wartendem
+    // Auftrag und wartendem Timer gespeichert wurden, ueberstehen den produktiven Update-Schritt
+    // `--migrate` (alle fehlenden Migrationen, danach das Formularbindungs-Upgrade) und lassen
+    // sich danach unveraendert weiterfuehren. Baseline 13 (Stand bis 012) traegt zusaetzlich
+    // Deployments aus der Zeit vor den Formularbindungen, die erst das Upgrade wieder
+    // abschliessbar macht; Baseline 20 ist der Sprung der letzten produktiven Aktualisierung
+    // (nur 020) mit bereits gebundenen Deployments, die das Upgrade nicht anfassen darf.
+    [TestCase(OldestUpgradeBaselineExclusiveMaxVersion, true)]
+    [TestCase(LastProductiveUpgradeBaselineExclusiveMaxVersion, false)]
+    public async Task Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations(
+        int baselineExclusiveMaxVersion,
+        bool deployedWithoutFormBindings)
     {
         var schema = $"flowzer_upgrade_{Guid.NewGuid():N}";
         var worker = Guid.NewGuid();
+        var expectedVersions = PostgreSqlMigrator.AvailableVersions
+            .Where(version => version >= baselineExclusiveMaxVersion)
+            .ToArray();
+        // Ohne ausstehende Migration waere der Fall kein Update mehr und bewiese nichts.
+        expectedVersions.Should().NotBeEmpty();
 
         try
         {
-            await ApplyMigrationsBelow(schema, UpgradeBaselineExclusiveMaxVersion);
+            await ApplyMigrationsBelow(schema, baselineExclusiveMaxVersion);
+            (await PostgreSqlMigrator.GetStatusAsync(_connectionString, schema)).Pending
+                .Should().Equal(expectedVersions);
 
+            // Beide Ausgangslagen speichern Seed-Definitionen und alle drei Wartezustaende mit dem
+            // heutigen Speicherpfad gleich; er braucht keine Tabelle ab 013. Die Faelle
+            // unterscheiden sich allein im Stand der Formularbindungen der Deployments.
             var oldProvider = new PostgreSqlTransactionalStorageProvider(_dataSource!, schema);
             var oldEngine = new BpmnBusinessLogic(oldProvider);
             await SeedUpgradeDefinitionsAsync(oldProvider);
@@ -47,6 +72,11 @@ public partial class PostgreSqlStorageIntegrationTest
             await oldEngine.DeployDefinition(await LatestDefinitionAsync(oldProvider, "Upgrade_Review"));
             await oldEngine.DeployDefinition(await LatestDefinitionAsync(oldProvider, "Upgrade_Service"));
             await oldEngine.DeployDefinition(await LatestDefinitionAsync(oldProvider, "Upgrade_Timer"));
+
+            if (deployedWithoutFormBindings)
+            {
+                await RemoveFormBindingsAsync(oldProvider);
+            }
 
             var waitingUserTask = await oldEngine.StartProcessInstance("Upgrade_Review");
             var waitingJob = await oldEngine.StartProcessInstance("Upgrade_Service");
@@ -61,14 +91,26 @@ public partial class PostgreSqlStorageIntegrationTest
                     .Which.ProcessInstanceId.Should().Be(waitingJob.InstanceId);
                 timerDueAt = (await storage.SubscriptionStorage.GetAllTimerSubscriptions())
                     .Single(subscription => subscription.ProcessInstanceId == waitingTimer.InstanceId).DueAt;
+                (await storage.DefinitionStorage.GetAllDefinitions())
+                    .Should().HaveCount(3)
+                    .And.OnlyContain(definition => (definition.FormBindings == null) == deployedWithoutFormBindings);
             }
 
-            // Das eigentliche Update: alle noch fehlenden Migrationen in einem Lauf.
-            var applied = await PostgreSqlMigrator.ApplyAsync(_connectionString, schema);
-            applied.Should().NotBeEmpty();
-            applied.Should().BeEquivalentTo(
-                PostgreSqlMigrator.AvailableVersions.Where(version => version >= UpgradeBaselineExclusiveMaxVersion));
-            (await PostgreSqlMigrator.GetStatusAsync(_connectionString, schema)).IsUpToDate.Should().BeTrue();
+            // Das eigentliche Update, genau wie `--migrate` es ausfuehrt: alle noch fehlenden
+            // Migrationen in einem Lauf, danach das Formularbindungs-Upgrade unter Tabellensperre.
+            var logger = new CapturingLogger<PostgreSqlStorageIntegrationTest>();
+            (await FlowzerStorageExtensions.RunMigrationsAsync(MigrationConfiguration(schema), logger))
+                .Should().Be(0);
+
+            // Genau die Versionen ab der Baseline wurden angewendet: Die Historie kennt danach
+            // jede verfuegbare Version genau einmal, und die Meldung nennt nur die neuen.
+            var status = await PostgreSqlMigrator.GetStatusAsync(_connectionString, schema);
+            status.IsUpToDate.Should().BeTrue();
+            status.Applied.Should().OnlyHaveUniqueItems();
+            status.Applied.Should().Equal(PostgreSqlMigrator.AvailableVersions);
+            logger.Entries.Select(entry => entry.Message).Should().Equal(
+                $"Applied {expectedVersions.Length} PostgreSQL migration(s) to schema {schema}: {string.Join(", ", expectedVersions)}",
+                $"Automatisch ergänzte historische Formularbindungen: {(deployedWithoutFormBindings ? 3 : 0)}");
 
             // Bewusst frische Objekte: was jetzt noch geht, kommt aus der Ablage und nicht aus
             // einem im Speicher gehaltenen Rest des alten Laufs.
@@ -81,9 +123,24 @@ public partial class PostgreSqlStorageIntegrationTest
                 instances.Should().OnlyContain(instance => instance.State == ProcessInstanceState.Waiting);
                 (await storage.ServiceTaskStorage.GetJobs()).Should().ContainSingle();
                 (await storage.SubscriptionStorage.GetAllTimerSubscriptions()).Should().ContainSingle();
+
+                // Nach dem Update ist jede deployte Version gebunden, und zwar an die einzige
+                // vorhandene Fassung des Formulars. Bei Baseline 20 ist das die Bindung aus dem
+                // Deployment, bei Baseline 13 die des Upgrades.
+                var approvalFormId = (await storage.FormStorage.GetFormMetadatas())
+                    .Single(form => form.Name == UpgradeApprovalFormName).FormId;
+                var approvalVersion = (await storage.FormStorage.GetForms(approvalFormId)).Should().ContainSingle().Which;
+                var definitions = await storage.DefinitionStorage.GetAllDefinitions();
+                definitions.Should().OnlyContain(definition => definition.FormBindings != null);
+                var reviewBindings = definitions.Single(definition => definition.DefinitionId == "Upgrade_Review").FormBindings!;
+                reviewBindings.Keys.Should().Equal(UpgradeApprovalFormName);
+                reviewBindings[UpgradeApprovalFormName].Id.Should().Be(approvalVersion.Id);
+                definitions.Where(definition => definition.DefinitionId != "Upgrade_Review")
+                    .Should().OnlyContain(definition => definition.FormBindings!.Count == 0);
             }
 
-            // 1. Die wartende Aufgabe laesst sich abschliessen.
+            // 1. Die wartende Aufgabe laesst sich abschliessen; ohne Bindung schluege schon die
+            //    Formularpruefung fehl (form.binding_missing).
             UserTaskSubscription subscription;
             using (var storage = newProvider.GetTransactionalStorage())
             {
@@ -214,10 +271,25 @@ public partial class PostgreSqlStorageIntegrationTest
     private static async Task SeedUpgradeDefinitionsAsync(ITransactionalStorageProvider provider)
     {
         using var storage = provider.GetTransactionalStorage();
-        await FormTestSeed.StoreAsync(storage, "UpgradeApproval");
+        await FormTestSeed.StoreAsync(storage, UpgradeApprovalFormName);
         await StoreAsync(storage, "Upgrade_Review", "Freigabe", UpgradeUserTaskXml);
         await StoreAsync(storage, "Upgrade_Service", "Zahlung", UpgradeServiceTaskXml);
         await StoreAsync(storage, "Upgrade_Timer", "Frist", UpgradeTimerXml);
+        storage.CommitChanges();
+    }
+
+    // Stellt den Stand eines Deployments aus der Zeit vor den Formularbindungen her: Die Definition
+    // traegt keine FormBindings. Das heutige Deployment bindet immer, deshalb wird die Bindung
+    // nachtraeglich entfernt, bevor Instanzen gestartet werden.
+    private static async Task RemoveFormBindingsAsync(ITransactionalStorageProvider provider)
+    {
+        using var storage = provider.GetTransactionalStorage();
+        foreach (var definition in await storage.DefinitionStorage.GetAllDefinitions())
+        {
+            definition.FormBindings = null;
+            await storage.DefinitionStorage.StoreDefinition(definition);
+        }
+
         storage.CommitChanges();
     }
 
