@@ -252,7 +252,8 @@ describe('Sitzungsüberwachung der Konsole', () => {
   // Abmelden oder nach einem 401 an, darf es die Person nicht wieder anmelden.
   it.each([
     ['nach dem Abmelden', async () => {
-      vi.mocked(logout).mockResolvedValue();
+      // Seit dem Provider-Logout liefert logout() ein optionales Ziel; hier: kein Ziel.
+      vi.mocked(logout).mockResolvedValue(undefined);
       await act(async () => { await useSession.getState().signOut(); });
     }],
     ['nach Unmount und 401', async (view: { unmount: () => void }) => {
