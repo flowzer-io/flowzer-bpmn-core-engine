@@ -428,6 +428,7 @@ FodyWeavers.xsd
 
 package-lock.json
 !tests/ui-smoke/package-lock.json
+!tests/installation-auth/package-lock.json
 !packages/flowzer-sdk/package-lock.json
 !packages/flowzer-react/package-lock.json
 !examples/react-host-embedding/package-lock.json

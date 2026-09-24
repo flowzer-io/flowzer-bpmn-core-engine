@@ -56,8 +56,9 @@ Weitere Feldtypen benötigen einen ausdrücklichen Datenvertrag.
 
 ## Grenzen
 
-- Leere konfigurierte Fähigkeitsrollen bleiben gemäß bestehendem Vertrag permissiv.
-  `Roles:Operator` deshalb in produktiven Installationen ausdrücklich konfigurieren.
+- Leere Fähigkeitsrollen sind nur noch mit `Authentication:JwtBearer:LegacyPermissiveRoles=true`
+  zulässig und dann permissiv; ohne den Schalter startet die API nicht. `Roles:Operator` deshalb
+  in produktiven Installationen ausdrücklich konfigurieren.
 - Verzeichnisabgleich, Claims/Delegation und gemeinsame Formularverträge folgen separat.
 - PR #181 bindet externe Formulare beim Deployment als feste Snapshots. Neue
   Formularfassungen erweitern den Kontext laufender Aufgaben nicht nachträglich.

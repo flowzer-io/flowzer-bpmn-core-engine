@@ -51,7 +51,7 @@ export function newDecisionXml(name: string, decisionId = defaultDecisionId(name
   <dmndi:DMNDI>
     <dmndi:DMNDiagram id="DMNDiagram_1">
       <dmndi:DMNShape id="DMNShape_${safeDecisionId}" dmnElementRef="${safeDecisionId}">
-        <dc:Bounds height="80" width="180" x="160" y="100" />
+        <dc:Bounds height="80" width="180" x="220" y="180" />
       </dmndi:DMNShape>
     </dmndi:DMNDiagram>
   </dmndi:DMNDI>

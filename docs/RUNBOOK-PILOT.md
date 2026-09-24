@@ -52,13 +52,20 @@ Einzelprozesspfad.
    `access_as_user` einrichten. Die API-Audience muss mit
    `FLOWZER_AUTH_AUDIENCE` übereinstimmen.
 2. Einen **Web-/vertraulichen Client** für den BFF registrieren. Ausschließlich die
-   Redirect-URI `https://<flowzer-host>/bff/signin-oidc` hinterlegen. Ein Client-
+   Redirect-URI `https://<flowzer-host>/bff/signin-oidc` hinterlegen (Ausnahme nur für
+   den Provider-Logout, siehe Schritt 5). Ein Client-
    Secret im Secret-Store speichern, nicht in der Konsole.
 3. Dem vertraulichen Client die delegierte API-Berechtigung `access_as_user` geben
    und erforderlichen Admin-Consent erteilen.
 4. Authority: `https://login.microsoftonline.com/<tenant-id>/v2.0`. Flowzer benötigt
    eine GUID aus `nameidentifier`, `sub` oder `oid`; für Entra ist üblicherweise
    `oid` die passende GUID.
+5. Nur wenn die Abmeldung auch die Entra-Sitzung beenden soll
+   (`FLOWZER_BFF_PROVIDER_LOGOUT=true`): `https://<flowzer-host>/` zusätzlich als
+   Redirect-URI der Plattform Web eintragen; Entra akzeptiert nur registrierte
+   Adressen als `post_logout_redirect_uri`. Die API-Audience muss eine eigene
+   API-Registrierung (Schritt 1) sein, nicht die Client-ID des BFF; sonst startet die API
+   mit dem Schalter nicht. Dieser Weg ist nicht durch die Abnahme belegt.
 
 ### Keycloak
 
@@ -71,6 +78,16 @@ Einzelprozesspfad.
    `resource_access.flowzer-api.roles` ausgeben.
 3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-ID muss als
    GUID im `sub`-Claim vorliegen.
+4. Soll die Abmeldung auch die Keycloak-Sitzung beenden, am BFF-Client unter
+   *Valid post logout redirect URIs* (Attribut `post.logout.redirect.uris`) genau
+   `https://<flowzer-host>/` eintragen und danach `FLOWZER_BFF_PROVIDER_LOGOUT=true`
+   setzen. Ohne Eintrag zeigt Keycloak bei der Abmeldung eine Fehlerseite; ohne den
+   Schalter bleibt die Abmeldung lokal und die SSO-Sitzung bestehen (Details in
+   [OPERATIONS.md](OPERATIONS.md#abmeldung-und-provider-logout)).
+5. Die Access-Token-Laufzeit (Realm oder Client, „Access Token Lifespan“) höchstens auf
+   5 Minuten stellen, wie im Keycloak-Standard: Ein Rollenentzug wirkt in laufenden
+   Sitzungen erst mit der nächsten Token-Erneuerung (siehe `docs/OPERATIONS.md`,
+   „Sitzungsdauer und Erneuerung“).
 
 Keine SPA-Registrierung, keine Browser-Client-ID, keine `FLOWZER_OIDC_*`-Variablen
 und keine stille Browser-Token-Erneuerung konfigurieren.
@@ -93,6 +110,8 @@ cp .env.example .env
 | `FLOWZER_AUTH_AUDIENCE` | erwartete Audience im Access-Token |
 | `FLOWZER_BFF_CLIENT_ID` | Client-ID des vertraulichen BFF-Clients |
 | `FLOWZER_BFF_SCOPE_0` bis `_2` | zusätzliche Scopes, bei Entra typischerweise der API-Scope |
+| `FLOWZER_BFF_PROVIDER_LOGOUT` | Default `false`; `true` beendet bei der Abmeldung auch die SSO-Sitzung beim Identity Provider, setzt die registrierte Post-Logout-Redirect-URI voraus |
+| `FLOWZER_BFF_POST_LOGOUT_PATH` | Default `/`; lokaler Pfad, auf den der Identity Provider nach der Abmeldung zurückleitet |
 | `FLOWZER_TRUSTED_PROXY_NETWORK` | privates CIDR, aus dem die API Forwarded-Header akzeptiert; muss zum tatsächlichen Container-Netz passen |
 | `FLOWZER_FORWARDED_HEADER_LIMIT` | Zahl der vertrauenswürdigen Proxy-Stufen; Default `3` für TLS-Proxy, Gateway und Konsolen-nginx |
 | `FLOWZER_ACCENT` | globale Akzentfarbe der Konsole |
@@ -160,6 +179,15 @@ docker compose -f compose.runtime.yml up -d --wait
    Der Bearer-Aufruf bleibt ohne CSRF-Header gültig. Einen absichtlich ungültigen
    Bearer bei bestehender Browser-Sitzung als 401 prüfen; er darf nicht auf Cookie
    zurückfallen.
+
+Diese Prüfungen sind für einen Keycloak-Aufbau als reproduzierbare Abnahme automatisiert:
+`tests/installation-auth/run.sh` baut API und Konsole aus dem Repository, startet sie mit
+eigener Test-CA und isoliertem Keycloak (synthetischer Realm, ohne Produktionszugang) und
+prüft `--check-config`, Anmeldung über den BFF, Cookie- und CSRF-Vertrag, Rollen- und
+Audience-Ablehnungen, den Verzeichnisabgleich sowie einen API-Neustart. Ergebnis, Grenzen und
+beobachtete Abweichungen des letzten Laufs stehen in
+[docs/acceptance/auth.md](acceptance/auth.md); die Abnahme ersetzt nicht die Prüfung gegen
+den tatsächlichen Identity Provider der Zielumgebung.
 
 ## 6. Betrieb
 
@@ -278,10 +306,11 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 
 ## 7. Bekannte Grenzen des Piloten
 
-- Der BFF-Slice ist noch nicht nach `main` gemergt und kein vollständiger
-  M0-/Produktionsabschluss.
-- Rollen müssen produktiv explizit gesetzt werden; leere Fähigkeitsrollen bleiben
-  im bestehenden Vertrag permissiv.
+- Zugangs-, Modeler-, Operator- und Worker-Rolle müssen bei `JwtBearer`/`Bff` gesetzt
+  sein; fehlt ein Name, startet die API nicht (fail-closed). Nur Bestandsinstallationen
+  dürfen mit `Authentication__JwtBearer__LegacyPermissiveRoles=true` ausdrücklich beim
+  alten Verhalten bleiben – dann erhält jede angemeldete Person die Fähigkeit des
+  fehlenden Namens, und `--check-config` warnt in der Zeile `Rollen`.
 - Mehrprozessbetrieb ist ausschließlich mit PostgreSQL und unter den Bedingungen in
   [Betrieb](OPERATIONS.md#mehrprozessbetrieb) freigegeben; die Dateiablage bleibt
   Einzelprozess.
@@ -293,9 +322,12 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 - `backup.sh`/`restore.sh` werden **nicht** von Coolify aufgerufen. Im Produktivbetrieb
   ist der Aufruf zu planen (Cron/Systemd-Timer) und das Zielverzeichnis vom Host
   wegzusichern; die Skripte selbst kopieren nichts an einen zweiten Ort.
-- `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Ein DNS-/HEAD-Treffer auf die
-  OIDC-Discovery belegt nicht, dass Client-Secret, Scopes und Audience zusammenpassen. Ein
-  nicht erreichbarer Identity Provider ist deshalb eine Warnung, kein Fehler.
+- `--check-config` prüft Erreichbarkeit, nicht Berechtigung: Aus der OIDC-Discovery liest
+  es nur `issuer` und `token_endpoint`; fehlt eines, warnt es. Ein Issuer, der von der
+  Authority abweicht, ist nur ein Hinweis (Entra `common`/`organizations`, Proxy), weil zur
+  Laufzeit der Issuer aus den Metadaten gilt. Das belegt nicht, dass Client-Secret, Scopes und
+  Audience zusammenpassen. Ein nicht erreichbarer Identity Provider ist deshalb eine
+  Warnung, kein Fehler.
 - Ein Rückwärts-Update (älteres Paket auf neueres Schema) ist nicht vorgesehen; es gibt
   keine Abwärtsmigrationen. Der Rückweg ist der Restore einer Sicherung.
 

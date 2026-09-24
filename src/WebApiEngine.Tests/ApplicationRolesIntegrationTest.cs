@@ -226,7 +226,8 @@ public class ApplicationRolesIntegrationTest
     }
 
     // Testzweck: Die neuen administrativen Verzeichnisendpunkte fallen bei vergessener
-    // Operatorrollen-Konfiguration geschlossen aus statt fuer jeden angemeldeten Nutzer offen.
+    // Operatorrollen-Konfiguration geschlossen aus statt fuer jeden angemeldeten Nutzer offen -
+    // auch dann, wenn die Installation den Legacy-Schalter fuer leere Rollen gewaehlt hat.
     [Test]
     public async Task IdentityDirectoryEndpoints_ShouldFailClosedWithoutConfiguredOperatorRole()
     {
@@ -241,8 +242,9 @@ public class ApplicationRolesIntegrationTest
         synchronization.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    // Testzweck: Ohne konfigurierte Rollennamen bleibt alles wie bisher offen; bestehende
-    // Installationen duerfen durch das Update nicht ausgesperrt werden.
+    // Testzweck: Ohne konfigurierte Rollennamen bleibt alles wie bisher offen, aber nur mit
+    // ausdruecklich gesetztem LegacyPermissiveRoles (setzt die Factory bei fehlenden Namen).
+    // Bestandsinstallationen koennen so bewusst beim alten Verhalten bleiben.
     [Test]
     public async Task Endpoints_ShouldStayOpen_WhenNoApplicationRolesAreConfigured()
     {
@@ -346,6 +348,16 @@ public class ApplicationRolesIntegrationTest
             builder.UseSetting("Authentication:Scheme", "JwtBearer");
             builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
             builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+            builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
+
+            // Die meisten Faelle pruefen genau eine Faehigkeitsrolle und lassen die uebrigen
+            // Namen, vor allem die Zugangsrolle, bewusst leer, damit die Tokens nur die
+            // gepruefte Rolle tragen. Das ist nur mit ausdruecklicher Legacy-Wahl zulaessig;
+            // sind alle Namen gesetzt, laeuft der Fall ohne Schalter.
+            if (_requiredRole is null || _modelerRole is null || _operatorRole is null)
+            {
+                builder.UseSetting("Authentication:JwtBearer:LegacyPermissiveRoles", "true");
+            }
 
             if (_requiredRole is not null)
             {

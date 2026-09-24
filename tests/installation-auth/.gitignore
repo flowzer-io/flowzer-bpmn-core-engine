@@ -1,0 +1,8 @@
+# Laufzeitartefakte der Abnahme; Zertifikate und Schlüssel entstehen nur in Docker-Volumes.
+node_modules/
+playwright-report/
+test-results/
+logs/
+
+# Die Wurzel-.gitignore schließt package-lock.json aus; npm ci und der CI-Cache brauchen sie.
+!package-lock.json

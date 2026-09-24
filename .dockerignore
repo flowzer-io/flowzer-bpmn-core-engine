@@ -13,3 +13,6 @@
 tests/ui-smoke/node_modules
 tests/ui-smoke/playwright-report
 tests/ui-smoke/test-results
+tests/installation-auth/playwright-report
+tests/installation-auth/test-results
+tests/installation-auth/logs

@@ -517,6 +517,26 @@
           "Bff"
         ],
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              }
+            }
+          },
           "204": {
             "description": "No Content"
           },
@@ -8939,6 +8959,19 @@
         },
         "additionalProperties": false
       },
+      "BffLogoutResponseDto": {
+        "required": [
+          "redirectTo"
+        ],
+        "type": "object",
+        "properties": {
+          "redirectTo": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "BffSessionDto": {
         "type": "object",
         "properties": {
@@ -10903,6 +10936,7 @@
       },
       "HealthReadinessDetailsDto": {
         "required": [
+          "expressionEngine",
           "migrationState",
           "storageProvider"
         ],
@@ -10924,6 +10958,10 @@
           "expectedMigrationVersion": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "expressionEngine": {
+            "type": "string",
             "nullable": true
           }
         },

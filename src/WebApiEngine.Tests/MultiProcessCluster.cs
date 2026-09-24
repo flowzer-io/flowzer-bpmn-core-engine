@@ -54,9 +54,11 @@ internal sealed class MultiProcessCluster : IAsyncDisposable
 
     /// <summary>
     /// Startet Container, Migration und beide Hosts. Ohne erreichbaren Docker-Daemon wird
-    /// <c>null</c> geliefert; der Aufrufer ueberspringt die Tests dann, statt rot zu werden.
+    /// <c>null</c> geliefert und die Ursache in <paramref name="startError"/> abgelegt; der
+    /// Aufrufer entscheidet ueber <see cref="TestEnvironmentRequirements"/>, ob die Tests
+    /// uebersprungen werden oder rot enden.
     /// </summary>
-    internal static async Task<MultiProcessCluster?> TryStartAsync()
+    internal static async Task<MultiProcessCluster?> TryStartAsync(Action<Exception> startError)
     {
         PostgreSqlContainer container;
         try
@@ -64,8 +66,9 @@ internal sealed class MultiProcessCluster : IAsyncDisposable
             container = new PostgreSqlBuilder("postgres:17-alpine").Build();
             await container.StartAsync();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            startError(exception);
             return null;
         }
 
@@ -186,6 +189,7 @@ internal sealed class MultiProcessApiHost : WebApplicationFactory<Program>
         builder.UseSetting("Authentication:Scheme", "JwtBearer");
         builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
         builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+        builder.UseSetting("Authentication:JwtBearer:RequiredRole", "access");
         builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
         builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
         builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
@@ -210,6 +214,7 @@ internal sealed class MultiProcessApiHost : WebApplicationFactory<Program>
             Subject = new ClaimsIdentity([
                 new Claim("sub", userId.ToString()),
                 new Claim("preferred_username", "multi-process"),
+                new Claim("roles", "access"),
                 new Claim("roles", "operator"),
                 new Claim("roles", "modeler"),
                 new Claim("roles", "worker")

@@ -20,7 +20,8 @@ zuordnen oder bestehende Rollennamen konfigurieren. Personen benötigen die Zuga
 und nur ihre fachlich erforderlichen Zusatzrollen; technische Worker erhalten keine
 Modeler-/Operatorrechte. Leere Umgebungswerte schalten diese Compose-Grenzen nicht ab.
 Die historische rollenlose API-Konfiguration außerhalb dieser Vorlagen bleibt ein
-Kompatibilitätspfad, keine Produktionsfreigabe. `Authentication=None` ist weiterhin
+Kompatibilitätspfad, keine Produktionsfreigabe: Sie verlangt ausdrücklich
+`Authentication__JwtBearer__LegacyPermissiveRoles=true`, sonst startet die API nicht. `Authentication=None` ist weiterhin
 nur für ausdrücklich lokalen Entwicklungsbetrieb gedacht.
 
 KI-Datenfluss und Ausführung besitzen getrennte Opt-ins in beiden Vorlagen:
@@ -66,18 +67,21 @@ vorgesehen und kein Produktionspfad.
 | `Authentication__Bff__ClientSecret` | ausschließlich beim API-Start aus dem Secret-Store injiziert; nie in JSON, `.env`, Logs, Browser oder Konsolen-Container |
 | `Authentication__Bff__Scopes__0` bis `__2` | zusätzliche OIDC-Scopes neben `openid profile email`; etwa der API-Scope bei Entra. Ein Keycloak-Audience-Mapper kann ohne zusätzlichen Scope auskommen |
 | `Authentication__Bff__DataProtectionKeysPath` | persistenter, ausschließlich für den API-Container beschreibbarer Keyring; Pflicht im BFF-Modus |
+| `Authentication__Bff__ProviderLogout` | Default `false`. `true` beendet bei der Abmeldung auch die Sitzung beim Identity Provider (RP-initiated Logout); setzt die dort registrierte Post-Logout-Redirect-URI und eine von der BFF-Client-ID verschiedene API-Audience voraus, siehe [Abmeldung und Provider-Logout](#abmeldung-und-provider-logout). Compose-Alias `FLOWZER_BFF_PROVIDER_LOGOUT` |
+| `Authentication__Bff__PostLogoutPath` | Default `/`. Lokaler absoluter Pfad, auf den der Identity Provider nach der Abmeldung zurückleitet; ein Schema, ein Host oder `//` verhindern den Start. Compose-Alias `FLOWZER_BFF_POST_LOGOUT_PATH` |
 | `ForwardedHeaders__KnownNetworks__0` | Netz des Reverse Proxy in CIDR-Schreibweise, z. B. `10.0.0.0/8`. Ohne Angabe werden Weiterleitungsheader ignoriert und alle anonymen Aufrufer teilen sich hinter dem Proxy ein Kontingent |
 | `ForwardedHeaders__KnownProxies__0` | einzelne Proxy-Adresse, alternativ zum Netz |
 | `ForwardedHeaders__ForwardLimit` | Zahl der vollständig vertrauenswürdigen Proxy-Stufen; Default `1`, im mitgelieferten Containerpfad `3` für TLS-Proxy, Gateway und Konsolen-nginx |
 | `RateLimiting__Enabled` | Default `true`; Kontingent je Aufrufer. Health-Endpunkte sind ausgenommen |
 | `RateLimiting__PermitLimit` / `RateLimiting__WindowSeconds` | Default 300 Anfragen je 60 Sekunden. Gezählt wird je angemeldeter Person; ohne Anmeldung je Adresse, die nur mit gesetztem `ForwardedHeaders` hinter einem Proxy stimmt |
 | `Limits__MaxUploadBytes` | Default 8 MiB, abgestimmt auf `client_max_body_size` des mitgelieferten Gateways; darüber antwortet die API 413 |
-| `Authentication__JwtBearer__Roles__Modeler` | optional; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer heißt: für alle Zugelassenen offen |
-| `Authentication__JwtBearer__Roles__Worker` | optional; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer heißt: für alle Zugelassenen offen |
-| `Authentication__JwtBearer__Roles__Operator` | optional; Rolle für Diagnose, Instanzabbruch, Instanzmigration und die Sicht auf alle Aufgaben. Leer heißt: für alle Zugelassenen offen |
+| `Authentication__JwtBearer__Roles__Modeler` | Pflicht bei `JwtBearer`/`Bff`; Rolle für das Anlegen, Ändern und Veröffentlichen von Definitionen und Formularen. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
+| `Authentication__JwtBearer__Roles__Worker` | Pflicht bei `JwtBearer`/`Bff`; Rolle für die Endpunkte unter `/job`, mit denen externe Worker Service-Tasks abholen. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
+| `Authentication__JwtBearer__Roles__Operator` | Pflicht bei `JwtBearer`/`Bff`; Rolle für Diagnose, Instanzabbruch, Instanzmigration und die Sicht auf alle Aufgaben. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann für alle Zugelassenen offen), sonst startet die API nicht |
 | `Authentication__JwtBearer__Roles__AiConnectionUser` | Rolle zum Lesen/Verwenden sicherer KI-Verbindungsmetadaten; bei leerem Wert fuer diese neue Faehigkeit fail-closed |
 | `Authentication__JwtBearer__Roles__AiConnectionManager` | getrennte Rolle zur Administration von Ziel und Secret-Referenz; bei leerem Wert fail-closed |
-| `Authentication__JwtBearer__RequiredRole` | optional; Pflichtrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403 |
+| `Authentication__JwtBearer__RequiredRole` | Pflicht bei `JwtBearer`/`Bff`; Zugangsrolle für jeden Fachendpunkt. Erfüllt durch eine Keycloak-Clientrolle unter `resource_access.<Audience>.roles` oder eine Entra-App-Rolle im Claim `roles`; ohne die Rolle antwortet die API 403. Leer nur mit `LegacyPermissiveRoles=true` zulässig (dann genügt jede Anmeldung), sonst startet die API nicht |
+| `Authentication__JwtBearer__LegacyPermissiveRoles` | Default `false`. Nur für Bestandsinstallationen: `true` erlaubt leere Werte bei `RequiredRole`, `Roles__Modeler`, `Roles__Operator` und `Roles__Worker`; jede angemeldete Person erhält dann die jeweilige Fähigkeit. Ohne den Schalter bricht der Start mit einer Meldung ab, die alle fehlenden Schlüssel nennt. Die KI-Rollen bleiben davon unberührt fail-closed |
 
 ### Dienstgrenzen bei Coolify-Compose
 
@@ -124,21 +128,103 @@ HttpOnly und Secure, mit SameSite=Strict. Beide `__Host-`-Cookies verlangen HTTP
 einen Host ohne `Domain`-Attribut und `Path=/`; eine reine HTTP-URL ist folglich
 kein funktionaler BFF-Testpfad.
 
+### Abmeldung und Provider-Logout
+
+`POST /bff/logout` ist CSRF-geschützt und beendet immer die Flowzer-Sitzung: Das Cookie
+wird gelöscht, das serverseitige Ticket entfernt. Was danach mit der SSO-Sitzung beim
+Identity Provider geschieht, entscheidet `Authentication__Bff__ProviderLogout`:
+
+- **`false` (Default):** Antwort `204`. Die SSO-Sitzung beim Identity Provider bleibt
+  bestehen; eine erneute Anmeldung kommt ohne Anmeldeformular zurück.
+- **`true`:** Antwort `200` mit der Abmeldeadresse des Providers, die Parameter
+  URL-kodiert, etwa für Keycloak mit dem Default-Pfad `/`:
+  `{ "redirectTo": "https://<keycloak-host>/realms/<realm>/protocol/openid-connect/logout?id_token_hint=eyJ…&post_logout_redirect_uri=https%3A%2F%2F<flowzer-host>%2F&client_id=<ClientId>" }`
+  (RP-initiated Logout nach OpenID Connect RP-Initiated Logout 1.0). Die Konsole beendet
+  ihre lokale Sitzung und navigiert den Browser zu dieser Adresse; der Provider beendet
+  die SSO-Sitzung und leitet auf `https://<flowzer-host><PostLogoutPath>` zurück. Die
+  Konsole folgt nur einer absoluten HTTPS-Adresse, sonst bleibt es bei der lokalen
+  Abmeldung.
+
+Für `id_token_hint` hält der BFF bei aktivem Schalter das ID-Token der Anmeldung
+serverseitig im Ticket neben dem Refresh-Token (nur im Arbeitsspeicher, nie im Cookie und
+nie in den Protokollen von Flowzer). Liefert ein Refresh ein neues ID-Token für dieselbe
+Anmeldung (gleiche `iss`, `aud` und `sub`), ersetzt es das alte; ein abweichendes wird
+verworfen. Das ID-Token verlässt Flowzer nur in der Abmeldeadresse. Weil diese Adresse eine
+Browsernavigation ist, landet es dort im Browserverlauf und in den Zugriffsprotokollen des
+Identity Providers (und eines vorgeschalteten Proxys); „nie in Logs“ gilt nur für Flowzer
+selbst.
+
+Das ID-Token ist für den BFF-Client ausgestellt. Die Bearer-Prüfung der API unterscheidet
+ID- und Access-Token nicht, sie lehnt ein ID-Token nur wegen der fremden Audience ab. Mit
+`ProviderLogout=true` startet die API deshalb nicht, wenn
+`Authentication__JwtBearer__Audience` gleich `Authentication__Bff__ClientId` oder gleich
+`api://<ClientId>` ist (etwa bei einer gemeinsamen Entra-App-Registrierung für API und
+BFF); `--check-config` meldet das als Fehler im Bereich Authentifizierung. Abhilfe ist eine
+eigene API-Audience oder der Verzicht auf den Provider-Logout.
+
+Der Provider-Logout ist Best Effort, die lokale Abmeldung gilt in jedem Fall:
+
+- Nennt die Discovery keinen `end_session_endpoint`, antwortet der BFF `204`.
+- Sind die OIDC-Metadaten nicht ladbar, antwortet er ebenfalls `204` und protokolliert
+  eine Warnung mit dem Ausnahmetyp, ohne Providerantwort und ohne Tokenwerte.
+- Hat eine Sitzung kein ID-Token (angemeldet vor dem Einschalten oder vor dem Update),
+  fehlt `id_token_hint`. `client_id` und `post_logout_redirect_uri` genügen; Keycloak
+  fragt dann auf einer Bestätigungsseite nach, bevor es abmeldet und zurückleitet.
+
+Origin und Schema der Post-Logout-URI stammen wie die Callback-URI aus der Anfrage und
+stimmen hinter dem TLS-Proxy nur mit korrekt ausgewerteten Forwarded-Headern.
+
+**Voraussetzung im Identity Provider**, bevor der Schalter gesetzt wird:
+
+- **Keycloak:** Am BFF-Client unter *Valid post logout redirect URIs* (Client-Attribut
+  `post.logout.redirect.uris`) die Adresse `https://<flowzer-host>/` eintragen, bei
+  abweichendem `PostLogoutPath` entsprechend `https://<flowzer-host><PostLogoutPath>`.
+  Der Platzhalter `+` genügt nicht, weil er die Redirect-URIs übernimmt und
+  `/bff/signin-oidc` nicht auf `/` passt. *Front channel logout* ist dafür nicht nötig.
+  Fehlt der Eintrag, zeigt Keycloak statt der Abmeldung eine Fehlerseite
+  („Invalid redirect uri“); die Flowzer-Sitzung ist dann trotzdem beendet.
+- **Entra ID:** Entra akzeptiert als `post_logout_redirect_uri` nur eine registrierte
+  Redirect-URI. `https://<flowzer-host>/` muss deshalb zusätzlich als Redirect-URI der
+  Plattform *Web* in der App-Registrierung des BFF stehen. Damit ist diese Adresse zugleich
+  als Ziel für den Autorisierungscode zugelassen; beim vertraulichen Client mit PKCE ist das
+  Risiko gering, weil ein abgefangener Code ohne Client-Secret und Code-Verifier nicht
+  einlösbar ist. Die *Front-channel logout URL*
+  der App-Registrierung betrifft den umgekehrten Weg (Abmeldung anderswo beendet Flowzer)
+  und wird von Flowzer nicht ausgewertet. Dieser Weg ist nicht durch die Abnahme belegt.
+
+Eine Abmeldung in einer anderen Anwendung desselben Identity Providers beendet eine
+bestehende Flowzer-Sitzung weiterhin nicht (kein Back- oder Front-Channel-Logout).
+
 ### Sitzungsdauer und Erneuerung
 
 Das Browser-Cookie enthält nur einen zufälligen Sitzungsschlüssel. Das Refresh-Token
-bleibt im API-Prozess. Vor Ablauf des Access-Tokens erneuert der BFF die Anmeldung
+(bei aktivem Provider-Logout zusätzlich das ID-Token) bleibt im API-Prozess. Vor Ablauf des Access-Tokens erneuert der BFF die Anmeldung
 serverseitig und prüft Signatur, Issuer, API-Audience und Subject erneut; Rollen und
 Gruppen werden durch den aktuellen Providerstand ersetzt. Parallele Anfragen teilen
 einen Refresh. Ein widerrufener Grant beendet die Sitzung, ein vorübergehender
 Provider-Ausfall ergibt 503 statt einer irreführenden Abmeldung. Die absolute Grenze
 bleibt acht Stunden; ohne Refresh-Token gilt weiterhin die Access-Token-Laufzeit.
 
+**Rollenentzug in laufenden Sitzungen:** Eine im Identity Provider entzogene Rolle wirkt
+serverseitig bei der nächsten Token-Erneuerung; der BFF führt sie bei der ersten Anfrage
+aus, die eintrifft, wenn das Access-Token in weniger als 60 s abläuft. Auch `GET /bff/session`
+stößt diese Erneuerung selbst an. Die Konsole fragt die Sitzung ab deren erstem Laden
+fest alle 5 Minuten ab, solange das Fenster sichtbar ist, und zusätzlich bei Rückkehr ins
+Fenster; eine solche Zusatzabfrage verschiebt den festen Takt nicht. Ist die Konsole sonst untätig, löst die
+regelmäßige Abfrage die Erneuerung aus, und API und Anzeige kippen mit derselben Abfrage. Hat
+zuvor ein anderer Aufruf erneuert, folgt die Anzeige bei sichtbarem Fenster spätestens eine
+Intervalllänge (5 Minuten) nach der serverseitigen Wirkung; bis dahin lehnt die API die
+entzogenen Aktionen bereits mit 403 ab. **Empfehlung:** Die Access-Token-Laufzeit im
+Identity Provider auf höchstens 5 Minuten setzen. Dann wirkt ein Entzug in einer laufenden
+Sitzung serverseitig spätestens nach dieser Zeit, bei der ersten Anfrage danach; längere
+Laufzeiten verschieben das entsprechend.
+
 **Betriebsgrenze:** Dieser Sitzungsspeicher ist prozesslokal (höchstens 10.000 Sitzungen).
 Ein API-Neustart verlangt einmalig eine neue SSO-Anmeldung. Mehrere API-Replikate
 benötigen Sitzungsaffinität; ein verteilter, verschlüsselter Sitzungsspeicher ist
 noch nicht implementiert. Weder Refresh-Token noch Access-Token stehen im Browser,
-im BPMN oder in der allgemeinen Prozessablage.
+im BPMN oder in der allgemeinen Prozessablage; das ID-Token nur bei aktivem
+Provider-Logout einmalig in der Abmeldeadresse.
 
 ### Update-Kompatibilität von Formularen und Workflows
 
@@ -216,6 +302,12 @@ API-Prozesse und laesst nach Ablauf einen Neustart zu. Die Keycloak-Offset-Pagin
 allerdings keine transaktionale Remote-Momentaufnahme; fuer sehr stark veraenderte Realms
 bleibt ein spaeterer Event-/Delta-Abgleich sinnvoll.
 
+Eine Deaktivierung in Keycloak entfernt die Person nach dem nächsten erfolgreichen Lauf aus
+Auswahl und Suche, entzieht aber keinen Zugang: Ein bereits ausgestelltes Access-Token bleibt
+bis zu seinem Ablauf gültig, bei Bearer-Aufrufen zusätzlich um die Uhrentoleranz der
+JWT-Prüfung (Bibliotheksstandard fünf Minuten, nicht angepasst). Die Grenze ist durch die
+Abnahme in [docs/acceptance/auth.md](acceptance/auth.md) belegt.
+
 Nur Operatoren sehen `GET /identity-directory/status` und starten bei Bedarf
 `POST /identity-directory/sync`. Der Status enthaelt ausschließlich Zeitpunkte,
 Generations-IDs, Zaehler und klassifizierte Fehler, aber keine Subjects, Gruppen,
@@ -258,8 +350,10 @@ verwenden (siehe [Rollen und Zuweisungen](#rollen-und-zuweisungen)).
 Die Sitzung besitzt eine absolute Grenze von acht Stunden. Vor dem Access-Token-Ablauf
 prüft der serverseitige Refresh Rollen und Gruppen erneut. Ohne Refresh-Token endet
 sie weiterhin mit dem Zugriffstoken. Unmittelbarer Provider-Widerruf vor Tokenablauf
-(Backchannel-Logout/Introspection) ist noch nicht implementiert. Logout beendet die
-lokale Flowzer-Sitzung, nicht die zentrale SSO-Sitzung beim Identity Provider.
+(Backchannel-Logout/Introspection) ist noch nicht implementiert. Ohne
+`Authentication__Bff__ProviderLogout` beendet der Logout nur die lokale Flowzer-Sitzung,
+nicht die zentrale SSO-Sitzung beim Identity Provider; mit dem Schalter beendet er beide
+(siehe [Abmeldung und Provider-Logout](#abmeldung-und-provider-logout)).
 
 `GET /bff/session` liefert nur die minimale Benutzerprojektion samt serverseitig
 ermittelten Fähigkeiten. Auch ein angemeldetes Konto ohne Freischaltung darf seine
@@ -302,14 +396,15 @@ erst an. Die Entscheidung trifft in jedem Fall die API — die Oberfläche erspa
 zu einer Ablehnung. Ihr Aufbau ist in `src/FlowzerConsole/README.md` beschrieben.
 
 Der produktive OIDC-Client ist vertraulich und besitzt als einzige Browser-Callback-URI
-`https://<flowzer-host>/bff/signin-oidc`. SPA-Redirect-URIs, stille Token-Erneuerung und
+`https://<flowzer-host>/bff/signin-oidc`; mit Provider-Logout kommt die
+Post-Logout-Redirect-URI `https://<flowzer-host>/` hinzu. SPA-Redirect-URIs, stille Token-Erneuerung und
 Browser-OIDC-Variablen gehören nicht mehr zum Flowzer-Deployment. Die konkrete
 Identity-Provider-Konfiguration ist installationsspezifisch und wird vor dem Einsatz gegen
 die tatsächliche Zielumgebung geprüft.
 
 ### API-Vertrag
 
-Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, und die Health-Endpunkte mit ihrem schlanken Probe-Vertrag.
+Alle JSON-Antworten tragen denselben Umschlag: `{ "successful": true, "result": …, "errorMessage": null }`. Ein Client liest Erfolg und Fehler damit an derselben Stelle, unabhängig vom Endpunkt. Ausgenommen sind bewusst nur `GET /definition/xml/{guid}`, das ein XML-Dokument liefert, die Health-Endpunkte mit ihrem schlanken Probe-Vertrag und die Browser-Fassade unter `/bff` (Sitzung, CSRF, Abmeldung) mit ihren eigenen DTOs.
 
 Die Außenansicht liegt als Schnappschuss in `docs/openapi.json` und wird von einem Test gegen die erzeugte Beschreibung verglichen. Eine gewollte Änderung wird mit `scripts/ci/update-openapi-snapshot.sh` neu festgeschrieben und mit eingecheckt; eine ungewollte fällt in der CI auf, statt beim Client.
 
@@ -524,7 +619,7 @@ Regeln, die im Betrieb zählen:
 
 - **Vererbung nach unten.** Eine Zuweisung gilt für ihren Ordner und für alle Unterordner. Nach unten kann sie nur stärker werden, nie schwächer — sonst ließe sich ein geerbtes Recht durch einen Unterordner aushebeln.
 - **Die oberste Ebene bleibt der Rolle fürs Modellieren vorbehalten.** Sie gehört niemandem im Besonderen; wer nur einen Ordner verantwortet, soll nicht nebenbei neue Wurzeln anlegen können.
-- **Die Rolle `Roles:Modeler` gilt weiterhin überall.** Ist kein Rollenname konfiguriert, ist sie für alle Zugelassenen erfüllt — dann ändert sich gegenüber der bisherigen Installation nichts, und alle Ordner stehen allen offen.
+- **Die Rolle `Roles:Modeler` gilt weiterhin überall.** Ist kein Rollenname konfiguriert (nur mit `LegacyPermissiveRoles=true` zulässig), ist sie für alle Zugelassenen erfüllt — dann ändert sich gegenüber der bisherigen Installation nichts, und alle Ordner stehen allen offen.
 - **Lesen und Starten bleiben offen.** Ordner schränken die Sicht auf den Katalog nicht ein und verhindern auch keinen Instanzstart; sie regeln ausschließlich das Ändern.
 - **Verschieben braucht beide Enden.** Ein Workflow lässt sich nur bewegen, wenn die Berechtigung sowohl im Herkunfts- als auch im Zielordner besteht.
 - **Löschen nur, wenn leer.** Ein Ordner mit Unterordnern oder Workflows antwortet mit 409 und nennt die Anzahl.
@@ -928,14 +1023,43 @@ Die Web-API stellt aktuell folgende Endpunkte bereit:
 | `details.migrationState` | `UpToDate`, `Pending`, `NotApplicable` (Dateiablage) oder `Unknown` |
 | `details.pendingMigrationCount` | Zahl der noch nicht angewendeten Migrationen; `null` bei `Unknown` |
 | `details.expectedMigrationVersion` | höchste in diesem Paket eingebettete Migrationsversion |
+| `details.expressionEngine` | `Feel` (libfeelin in V8) oder `Simple` — siehe unten |
 
 Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_migrations`
 gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
 Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja geantwortet.
+Die Laufzeitrolle braucht dafür `SELECT` auf `schema_migrations`; das Rollenskript
+`deploy/postgresql/01-datenbank-und-rollen.sql` vergibt es. Installationen, deren Rollen
+vor diesem Paket angelegt wurden, meldeten dauerhaft `Unknown` und holen das Recht einmalig
+nach (als Superuser bzw. Migrationsrolle):
+
+```sql
+GRANT SELECT ON TABLE flowzer.schema_migrations TO <laufzeitrolle>;
+```
 `Pending` ist ebenfalls kein 503: Ein Replikat, das vor dem Migrationsschritt hochkommt,
 soll sichtbar sein, nicht unsichtbar. Für ein Deployment-Gate ist deshalb `details`
 auszuwerten, nicht der Statuscode. Die Antwort enthält keine Verbindungszeichenfolge und
 keine Anmeldedaten.
+
+### Ausdrücke: FEEL oder einfacher Handler
+
+Bedingungen, Zuweisungen und Entscheidungstabellen rechnet Flowzer mit FEEL über libfeelin in
+ClearScript V8. Fehlt die **native V8-Bibliothek der Plattform**, baut die Engine
+stillschweigend den einfachen Ausdrucks-Handler: Die Installation startet, Prozesse laufen,
+aber Bedingungen werden nach einer stark vereinfachten Regel ausgewertet — ein Zweig kann
+damit anders entscheiden als im Modell gemeint, ohne dass irgendetwas fehlschlägt.
+
+Sichtbar ist das an zwei Stellen: `GET /health/ready` meldet `details.expressionEngine`, und
+`dotnet WebApiEngine.dll --check-config` führt den Bereich `Ausdruecke` und wertet `Simple`
+als **Fehler**. Die mitgelieferten Images tragen die passende Bibliothek für ihre
+Architektur; wer selbst baut, gibt beim Veröffentlichen `/p:FlowzerV8Native=<RID>` an
+(`linux-x64` oder `linux-arm64`), sonst kommen alle Entwicklungsplattformen mit ins Paket.
+
+### Architekturen
+
+Die Images `flowzer-api` und `flowzer-console` erscheinen unter einem Tag als Manifest für
+`linux/amd64` und `linux/arm64`; jeder Server zieht damit sein passendes Image. Gebaut wird
+je Architektur auf einem eigenen Läufer, nicht emuliert.
 
 Typische URLs lokal:
 
@@ -1370,7 +1494,9 @@ Geprüft wird je eine Zeile pro Bereich:
 | Konfiguration | Bindung und Validierung aller Optionsabschnitte (Storage, Authentication, Ai, AiExecution, UserTaskDeadlines, IdentityDirectory) |
 | Ablage | PostgreSQL: Verbindung mit der Laufzeitkennung und Existenz des Schemas. Dateiablage: Wurzelverzeichnis anlegbar und tatsächlich beschreibbar (Schreibprobe, kein Existenztest) |
 | Migrationen | nur PostgreSQL: Migrationsstand über die **Migrationskennung**, gemeldet als „aktuell“ oder „n ausstehend“ samt Versionsnummern |
-| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP HEAD** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten und ohne den Antwortinhalt zu lesen |
+| Authentifizierung | gewähltes Schema; bei `JwtBearer`/`Bff` Namensauflösung des Authority-Hosts und ein **HTTP GET** auf `<authority>/.well-known/openid-configuration` – ohne Anmeldedaten. Aus dem Dokument werden nur `issuer` und `token_endpoint` gelesen und nicht protokolliert: Fehlt `issuer` oder `token_endpoint`, warnt die Zeile. Ein Issuer, der von der Authority abweicht, wird nur als Hinweis in der OK-Zeile genannt, weil zur Laufzeit der Issuer aus den Metadaten gilt (Entra `common`/`organizations`, Proxy). `RequireHttpsMetadata=false` erscheint als Zusatz im Hinweis, ohne den Zustand zu verschlechtern |
+| Rollen | nur bei `JwtBearer`/`Bff`: `OK` mit den Namen von Zugangs-, Modeler-, Operator- und Worker-Rolle; `Warnung`, wenn `LegacyPermissiveRoles=true` gesetzt ist und Namen fehlen – die Zeile nennt die fehlenden Schlüssel, deren Fähigkeit dann jede angemeldete Person hat. Fehlen Namen ohne den Schalter, bricht schon die Optionsvalidierung mit einer benannten Fehlerzeile ab |
+| Schluesselring | nur bei `Bff`: `Authentication:Bff:DataProtectionKeysPath` muss als Verzeichnis existieren (im Container das eingehängte Volume; die Prüfung legt nichts an, damit ein fehlendes Volume nicht verdeckt wird) und beschreibbar sein: eine zufällig benannte Probedatei `.flowzer-check-config-…` wird geschrieben und wieder gelöscht. Vorhandene Schlüssel werden weder gelesen noch ausgegeben. Den Check mit demselben Benutzer ausführen wie die API, sonst täuscht ein Lauf als root Schreibrechte vor |
 | Webhook-Ziele | `ServiceTaskWebhooks`: aktiviert/abgeschaltet und die **Anzahl** freigegebener Ziele (keine Adressen) |
 | KI-Datenfluss | `Ai`/`AiExecution`: Cloud-, Lokal- und Ausführungs-Opt-ins als Zusammenfassung |
 
@@ -1394,11 +1520,16 @@ dieselbe Registrierung deshalb vorab gegen eine Wegwerf-Sammlung aus und meldet 
 fehlerhaften Abschnitt als benannte Zeile statt als rohe Ausnahme.
 
 Als Warnung gelten unter anderem: ausstehende Migrationen, ein noch fehlendes Schema,
-`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider und aktivierte
-Webhooks ohne freigegebenes Ziel. Als Fehler gelten eine unbrauchbare oder nicht erreichbare
-Ablage, eine nicht lesbare Migrationshistorie und jede fehlgeschlagene Optionsvalidierung.
-`--check-config` prüft Erreichbarkeit, nicht Berechtigung: dass Client-Secret, Scopes und
-Audience zusammenpassen, zeigt erst eine echte Anmeldung.
+`Authentication:Scheme=None`, ein nicht erreichbarer Identity Provider, ein Discovery-Dokument
+ohne `issuer` oder `token_endpoint` (ein abweichender Issuer ist nur ein Hinweis in der
+OK-Zeile, etwa bei Entra `common` oder hinter einem Proxy), leere Rollennamen mit
+`LegacyPermissiveRoles=true` und aktivierte Webhooks ohne freigegebenes Ziel. Als Fehler
+gelten eine unbrauchbare oder nicht erreichbare Ablage, eine nicht lesbare
+Migrationshistorie, ein nicht beschreibbarer BFF-Schlüsselring und jede fehlgeschlagene
+Optionsvalidierung – dazu gehören leere privilegierte Rollennamen ohne den Legacy-Schalter.
+`--check-config` prüft Erreichbarkeit und das Discovery-Dokument, nicht
+Berechtigung: dass Client-Secret, Scopes und Audience zusammenpassen, zeigt erst eine echte
+Anmeldung.
 
 Beispiel:
 
@@ -1408,7 +1539,9 @@ Bereich            Zustand  Hinweis
 Konfiguration      OK       Alle Optionsabschnitte gebunden und validiert.
 Ablage             OK       PostgreSQL erreichbar (db:5432/flowzer), Schema flowzer vorhanden.
 Migrationen        OK       aktuell (16 angewendet, hoechste Version 16).
-Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery.
+Authentifizierung  OK       Schema Bff, Authority login.example.com antwortet auf die OIDC-Discovery; token_endpoint vorhanden, Issuer passt.
+Rollen             OK       Zugang flowzer-access, Modeler flowzer-modeler, Operator flowzer-operator, Worker flowzer-worker.
+Schluesselring     OK       Schluesselring beschreibbar: /var/lib/flowzer/data-protection
 Webhook-Ziele      OK       aktiviert mit 1 freigegebenen Ziel(en), HTTP gesperrt.
 KI-Datenfluss      OK       Cloud gesperrt, lokale Endpunkte gesperrt, Ausfuehrung aus.
 ```
@@ -1548,7 +1681,8 @@ tar -xzf flowzer-storage-backup.tgz -C .data
 ### Instanzdaten und Rollen
 
 `Roles:Operator` muss für produktive Installationen explizit auf eine eng vergebene
-Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist im bestehenden Vertrag permissiv.
+Rolle gesetzt werden: Eine leere Fähigkeitsrolle ist nur mit
+`LegacyPermissiveRoles=true` zulässig und dann permissiv.
 Die neuen Instanzansichten in PR #179 liefern ohne diese Rolle nur eine Übersicht
 für den authentifizierten Initiator oder einen aktuell berechtigten Bearbeiter.
 Technische Subscription-Routen und Tokenscopes bleiben der Diagnose vorbehalten.

@@ -33,6 +33,11 @@ jobs:
   dotnet:
     name: Restore, Build und Tests (.NET)
     runs-on: ubuntu-latest
+    env:
+      # Die PostgreSQL-Tests (Testcontainers) duerfen in der CI nicht still uebersprungen
+      # werden: Fehlt Docker auf dem Runner, werden sie rot statt gruen-mit-Luecke
+      # (siehe src/WebApiEngine.Tests/TestEnvironmentRequirements.cs).
+      FLOWZER_TESTS_REQUIRE_POSTGRESQL: '1'
 
     steps:
       - name: Repository auschecken
@@ -56,6 +61,7 @@ jobs:
         run: python3 scripts/ci/check_test_purpose_comments.py
 
       - name: Solution bauen
+        id: build
         run: dotnet build core-engine.sln --no-restore --configuration Release
 
       - name: Tests mit Coverage ausführen
@@ -116,6 +122,14 @@ jobs:
           path: TestResults/ci
           if-no-files-found: error
 
+      # Jedes Assert.Ignore (fehlendes Docker, fehlende V8-Bibliothek, kein freier Port)
+      # wuerde die Pruefung leise ausduennen. In der CI muss deshalb 0 uebersprungen gelten.
+      # Laeuft auch nach roten Tests (die trx liegen dann vor), aber nicht nach einem
+      # gescheiterten Build oder einem abgebrochenen Lauf; das Artefakt ist vorher hochgeladen.
+      - name: Uebersprungene Tests auswerten
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/ci/check_skipped_tests.py TestResults/ci
+
       # CycloneDX.dotnet liest die bereits per `dotnet restore` aufgeloesten Pakete aus den
       # project.assets.json (--disable-package-restore); kein erneuter Netzwerkzugriff noetig.
       - name: CycloneDX-SBOM fuer die .NET-Solution erzeugen
@@ -142,6 +156,7 @@ jobs:
           - Restore und Build laufen auf GitHub Actions reproduzierbar.
           - Zusätzlich laufen die Web-API-Tests und die DMN-Tests im selben Job mit.
           - Die Core-Engine-Tests laufen jetzt wieder vollständig ohne Quarantänefilter im CI-Pfad.
+          - Übersprungene Tests (Assert.Ignore) lassen den Job rot werden; PostgreSQL-Tests sind über `FLOWZER_TESTS_REQUIRE_POSTGRESQL=1` verpflichtend.
           - Coverage (Cobertura): **${{ steps.coverage.outputs.line_rate }} %** Line Rate / **${{ steps.coverage.outputs.branch_rate }} %** Branch Rate
           - Coverage-Report: `${{ steps.coverage.outputs.report }}`
           EOF
@@ -307,6 +322,7 @@ jobs:
         run: dotnet restore core-engine.sln
 
       - name: Solution bauen
+        id: build
         run: dotnet build core-engine.sln --no-restore --configuration Release
 
       - name: Abhaengigkeiten der Konsole installieren
@@ -409,3 +425,54 @@ jobs:
         run: |
           python3 scripts/ci/generate-third-party-notices.py
           git diff --exit-code -- THIRD-PARTY-NOTICES.md
+
+  # Installations- und Auth-Abnahme gegen einen isolierten Keycloak (R1b, Issue #256). Baut API
+  # und Konsole aus dem Repository, startet sie mit eigener Test-CA und prueft Golden Path und
+  # Negativfaelle. Nicht als Pflicht-Check in der Branch-Protection eingetragen; ein roter Lauf
+  # faerbt aber den Workflow rot. Bei Fehler, Abbruch oder Timeout liegen Logs und Report als
+  # Artefakt bereit.
+  installation_auth:
+    name: Installations- und Auth-Abnahme (isolierter Keycloak)
+    runs-on: ubuntu-latest
+    needs:
+      - dotnet
+    timeout-minutes: 30
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: tests/installation-auth/package-lock.json
+
+      - name: Playwright-Abhaengigkeiten installieren
+        working-directory: tests/installation-auth
+        run: npm ci
+
+      - name: Chromium fuer Playwright installieren
+        working-directory: tests/installation-auth
+        timeout-minutes: 10
+        run: npx playwright install --with-deps chromium
+
+      # Eigenes Schritt-Timeout unter dem Job-Timeout: So erreicht der Abbruch run.sh noch
+      # rechtzeitig, dessen EXIT-Falle Logs sammelt und den Stack abraeumt. `exec`, weil der
+      # Runner bei Abbruch oder Timeout nur seinem direkten Kindprozess das Signal schickt.
+      - name: Abnahme ausfuehren
+        timeout-minutes: 25
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_INSTALL: '1'
+        run: exec tests/installation-auth/run.sh
+
+      - name: Logs und Playwright-Report hochladen
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: installation-auth-report
+          path: |
+            tests/installation-auth/logs
+            tests/installation-auth/playwright-report
+            tests/installation-auth/test-results
+          if-no-files-found: ignore

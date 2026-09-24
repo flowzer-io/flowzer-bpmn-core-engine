@@ -541,7 +541,7 @@ Vertrag. Die tatsächliche Ausführung ist damit nicht vorgetäuscht und folgt a
 1. **M0:** BFF-PR mergen und mit HTTPS-/Secret-Store-/Keyring-Restore-Übung
    abnehmen. Idempotenz externer Worker-/Connector-Effekte bleibt in den jeweiligen
    späteren Paketen. Rollen ausdrücklich konfigurieren; leere Fähigkeitsrollen
-   bleiben im vorhandenen Vertrag permissiv.
+   sind nur mit dem ausdrücklichen Schalter `LegacyPermissiveRoles` zulässig (R1a, #256).
 2. **M1/M2:** Verzeichnissync und workflowgebundene stabile Identitätsreferenzen liegen
    gestapelt vor; Backend-Vertrag und Modelerauswahl für den expliziten
    Task-Zuweisungsmodus liegen in #194/#196.

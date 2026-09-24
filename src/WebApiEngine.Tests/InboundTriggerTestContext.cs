@@ -51,8 +51,10 @@ internal sealed class InboundTriggerTestContext : IDisposable
             builder.UseSetting("Authentication:Scheme", "JwtBearer");
             builder.UseSetting("Authentication:JwtBearer:Authority", Issuer);
             builder.UseSetting("Authentication:JwtBearer:Audience", Audience);
+            builder.UseSetting("Authentication:JwtBearer:RequiredRole", "access");
             builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
             builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
+            builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
             foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
             {
                 builder.UseSetting(key, value);
@@ -84,7 +86,7 @@ internal sealed class InboundTriggerTestContext : IDisposable
     {
         var claims = new List<Claim>
         {
-            new("sub", Guid.NewGuid().ToString()), new("preferred_username", "bert")
+            new("sub", Guid.NewGuid().ToString()), new("preferred_username", "bert"), new("roles", "access")
         };
         if (isOperator) claims.Add(new Claim("roles", "operator"));
         var jwt = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor

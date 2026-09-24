@@ -20,11 +20,17 @@ COPY . .
 # Zweiter Restore nach dem vollstaendigen Quell-Copy: faengt Projektreferenzen ab, die in der
 # obigen Layer-Liste fehlen, statt spaeter mit --no-restore hart zu scheitern.
 RUN dotnet restore src/WebApiEngine/WebApiEngine.csproj
-RUN dotnet publish src/WebApiEngine/WebApiEngine.csproj \
-    --configuration Release \
-    --no-restore \
-    --output /app/publish \
-    /p:UseAppHost=false
+# BuildKit setzt TARGETARCH auf die Zielplattform (amd64 oder arm64). Daraus wird die
+# .NET-Kennung, damit genau die passende native V8-Bibliothek ins Image kommt: ohne sie
+# faellt die Engine still auf den einfachen Ausdrucks-Handler zurueck und rechnet kein FEEL.
+ARG TARGETARCH
+RUN rid="linux-x64"; [ "$TARGETARCH" = "arm64" ] && rid="linux-arm64"; \
+    dotnet publish src/WebApiEngine/WebApiEngine.csproj \
+      --configuration Release \
+      --output /app/publish \
+      /p:UseAppHost=false \
+      /p:FlowzerV8Native="$rid" \
+    && test -f "/app/publish/runtimes/$rid/native/ClearScriptV8.$rid.so"
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app

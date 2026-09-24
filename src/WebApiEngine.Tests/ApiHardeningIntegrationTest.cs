@@ -67,8 +67,11 @@ public class ApiHardeningIntegrationTest
         payload.ErrorMessage.Should().Be("Storage is unavailable.");
     }
 
-    // Testzweck: Die Bereitschaftsprobe nennt zusaetzlich die konfigurierte Ablage und den
-    // Migrationsstand; bei der Dateiablage gibt es keine Migrationen, und das steht auch so da.
+    // Testzweck: Die Bereitschaftsprobe nennt zusaetzlich die konfigurierte Ablage, den
+    // Migrationsstand und den Ausdrucks-Handler; bei der Dateiablage gibt es keine Migrationen,
+    // und das steht auch so da. Der Handler steht dort, weil eine Installation ohne native
+    // V8-Bibliothek stillschweigend ohne FEEL weiterlaeuft - genau das war im Produktionsimage
+    // monatelang unbemerkt der Fall.
     [Test]
     public async Task ReadyHealth_ShouldDescribeStorageProviderAndMigrationState()
     {
@@ -87,6 +90,8 @@ public class ApiHardeningIntegrationTest
         payload.Result.Details!.StorageProvider.Should().Be("Filesystem");
         payload.Result.Details.MigrationState.Should().Be("NotApplicable");
         payload.Result.Details.PendingMigrationCount.Should().BeNull();
+        payload.Result.Details.ExpressionEngine.Should().Be("Feel",
+            "ohne die native V8-Bibliothek rechnet die Installation kein FEEL mehr");
     }
 
     // Testzweck: Deckt den Fall „Operations Diagnostics Should Return Scheduler And Storage Snapshot“ ab.

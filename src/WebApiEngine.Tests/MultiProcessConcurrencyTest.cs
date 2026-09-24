@@ -35,10 +35,11 @@ public sealed partial class MultiProcessConcurrencyTest
     [OneTimeSetUp]
     public async Task StartCluster()
     {
-        _cluster = await MultiProcessCluster.TryStartAsync();
+        Exception? startError = null;
+        _cluster = await MultiProcessCluster.TryStartAsync(exception => startError = exception);
         if (_cluster is null)
         {
-            Assert.Ignore("PostgreSQL-Container nicht verfuegbar (Docker fehlt?).");
+            TestEnvironmentRequirements.PostgreSqlUnavailable(startError);
             return;
         }
 

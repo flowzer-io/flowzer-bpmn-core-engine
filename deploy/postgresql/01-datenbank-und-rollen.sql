@@ -65,12 +65,15 @@ SELECT format(
 SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
 SELECT format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
 
--- Die Migrationshistorie wird hier angelegt (Migrator: CREATE TABLE IF NOT EXISTS wird zum No-op)
--- und der Laufzeit ausdruecklich entzogen. Die Default-Privileges oben gelten nur fuer Tabellen,
--- die spaeter entstehen; auf eine bereits vorhandene Tabelle wirkt der REVOKE dauerhaft.
+-- Die Migrationshistorie wird hier angelegt (Migrator: CREATE TABLE IF NOT EXISTS wird zum No-op).
+-- Schreiben darf sie nur die Migrationsrolle; die Laufzeit darf sie lesen, denn
+-- GET /health/ready meldet den Migrationsstand mit der Laufzeitverbindung (sonst dauerhaft
+-- "Unknown"). Die Default-Privileges oben gelten nur fuer Tabellen, die spaeter entstehen;
+-- auf eine bereits vorhandene Tabelle wirken REVOKE und GRANT dauerhaft.
 SELECT format('CREATE TABLE IF NOT EXISTS %I.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())', :'schema') \gexec
 SELECT format('ALTER TABLE %I.schema_migrations OWNER TO %I', :'schema', :'migrationsrolle') \gexec
 SELECT format('REVOKE ALL ON TABLE %I.schema_migrations FROM %I', :'schema', :'laufzeitrolle') \gexec
+SELECT format('GRANT SELECT ON TABLE %I.schema_migrations TO %I', :'schema', :'laufzeitrolle') \gexec
 
 -- 4. Nachweis ----------------------------------------------------------------
 

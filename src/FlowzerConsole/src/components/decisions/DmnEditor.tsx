@@ -14,8 +14,12 @@ import 'dmn-js/dist/assets/dmn-js-literal-expression.css';
 import 'dmn-js/dist/assets/dmn-js-boxed-expression.css';
 import 'dmn-js/dist/assets/dmn-js-boxed-expression-controls.css';
 
+import '@/components/bpmn/bpmn.css';
+import './dmn.css';
+
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
+import { germanDmnTranslateModule } from '@/lib/decisions/dmnTranslate';
 
 export interface DmnEditorHandle {
   /** Liefert den aktuellen Stand als formatiertes DMN-XML. */
@@ -39,6 +43,18 @@ interface DmnView {
   id: string;
   type: 'drd' | 'decisionTable' | 'literalExpression' | 'boxedExpression';
   element: { id?: string; name?: string };
+}
+
+interface DmnViewOptions {
+  additionalModules: unknown[];
+}
+
+interface DmnManagerOptions {
+  container: HTMLElement;
+  drd: DmnViewOptions;
+  decisionTable: DmnViewOptions;
+  literalExpression: DmnViewOptions;
+  boxedExpression: DmnViewOptions;
 }
 
 interface DmnViewerLike {
@@ -95,8 +111,17 @@ export const DmnEditor = forwardRef<DmnEditorHandle, DmnEditorProps>(function Dm
         : await import('dmn-js/lib/Modeler');
       if (disposed) return;
 
-      const Constructor = module.default as new (options: { container: HTMLElement }) => DmnManagerLike;
-      manager = new Constructor({ container });
+      const Constructor = module.default as new (options: DmnManagerOptions) => DmnManagerLike;
+      // Die Uebersetzung muss je Ansicht mitgegeben werden: dmn-js ueberschreibt die
+      // `additionalModules` aus `common` mit denen der einzelnen Ansicht.
+      const viewOptions = { additionalModules: [germanDmnTranslateModule] };
+      manager = new Constructor({
+        container,
+        drd: viewOptions,
+        decisionTable: viewOptions,
+        literalExpression: viewOptions,
+        boxedExpression: viewOptions,
+      });
       managerRef.current = manager;
 
       manager.on('views.changed', () => {
@@ -105,10 +130,11 @@ export const DmnEditor = forwardRef<DmnEditorHandle, DmnEditorProps>(function Dm
         setActiveViewId(manager.getActiveView()?.id ?? null);
       });
 
-      // Jede Ansicht hat ihren eigenen Befehlsstapel. Waehrend des Imports laufen ebenfalls
-      // Aenderungen durch — die zaehlen nicht als Bearbeitung.
+      // Jede Ansicht hat ihren eigenen Befehlsstapel. Gezaehlt wird nur, was dort als Befehl
+      // landet: `elements.changed` feuerte auch beim ersten Oeffnen einer Ansicht, und schon
+      // der Wechsel in die Tabelle meldete dann "ungespeicherte Aenderungen".
       manager.on('viewer.created', ({ viewer }: { viewer: DmnViewerLike }) => {
-        viewer.on('elements.changed', () => {
+        viewer.on('commandStack.changed', () => {
           if (importingRef.current) return;
           onChangeRef.current?.();
         });
@@ -192,11 +218,19 @@ export const DmnEditor = forwardRef<DmnEditorHandle, DmnEditorProps>(function Dm
         </div>
       )}
 
-      <div
-        ref={containerRef}
-        data-testid="dmn-container"
-        className="min-h-[480px] flex-1 overflow-auto"
-      />
+      {/*
+        dmn-js legt seine Flaeche mit `height: 100%` an. Prozentwerte loesen nur gegen eine
+        feste Hoehe auf, nicht gegen eine Mindesthoehe - ohne den absolut positionierten
+        Rahmen fiel die Zeichenflaeche auf die SVG-Standardhoehe von 150 px zurueck und die
+        Uebersicht war abgeschnitten.
+      */}
+      <div className="relative min-h-[560px] flex-1">
+        <div
+          ref={containerRef}
+          data-testid="dmn-container"
+          className="dmn-surface bpmn-surface absolute inset-0 overflow-auto"
+        />
+      </div>
     </div>
   );
 });

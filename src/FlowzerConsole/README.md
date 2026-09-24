@@ -41,7 +41,9 @@ Sitzungsprojektion von `GET /bff/session`.
 Für jede schreibende Cookie-Anfrage holt die Konsole bei `GET /bff/csrf` einen
 nur im JavaScript-Speicher gehaltenen Request-Token und sendet ihn im Header
 `X-Flowzer-CSRF`. Die API verlangt zusätzlich einen gleichen Origin. Logout ist
-ebenfalls ein CSRF-geschütztes `POST /bff/logout`. Direkte API-Konsumenten dürfen
+ebenfalls ein CSRF-geschütztes `POST /bff/logout`. Liefert es mit aktivem
+Provider-Logout eine Abmeldeadresse des Identity Providers (`redirectTo`, nur absolute
+HTTPS-Adressen), navigiert die Konsole nach der lokalen Abmeldung dorthin. Direkte API-Konsumenten dürfen
 weiterhin `Authorization: Bearer …` verwenden; dieser Vertrag ist nicht
 CSRF-pflichtig und ein fehlerhafter Bearer fällt nicht auf ein vorhandenes Cookie
 zurück.
@@ -75,6 +77,8 @@ Wer die Zugangsrolle nicht hat, bekommt die reduzierte Aufgabenansicht — die v
 Der Modellierer wird ohne `modeler` zur Ansicht: Das Diagramm lässt sich betrachten, zoomen und auswählen, aber nicht ändern — keine Palette, kein Kontextpad, kein Verschieben oder Löschen. Das Eigenschaften-Panel zeigt weiterhin alle Werte, nimmt aber keine an. Sonst entstünden Änderungen, die niemand speichern kann, und die Seite warnte beim Verlassen davor.
 
 Die Anzeige richtet sich nach den serverseitig projizierten Fähigkeiten, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
+
+Damit geänderte Rollen ohne Reload ankommen, fragt die Konsole `GET /bff/session` nicht nur beim Start ab: Bei angemeldeter BFF-Sitzung wiederholt sie die Abfrage alle fünf Minuten, solange das Fenster sichtbar ist, und sofort bei Rückkehr ins Fenster (Fokus oder Sichtbarkeitswechsel) — höchstens einmal je 30 Sekunden und nie parallel (`src/lib/auth/useSessionWatch.ts`). Der BFF ersetzt die Rollen bei der serverseitigen Token-Erneuerung; ein Entzug im Identity Provider nimmt der Oberfläche die betreffenden Aktionen so spätestens mit der nächsten Sitzungsabfrage und ohne Reload. Bis dahin kann die API eine entzogene Aktion bereits mit 403 ablehnen; maßgeblich bleibt sie bei jedem Aufruf. Schlägt eine solche Abfrage vorübergehend fehl, erscheint nur der Verbindungshinweis, niemand wird abgemeldet. Kommt ihre Antwort erst nach dem Abmelden oder nach einem 401 an, verwirft die Konsole sie, statt die Sitzung wieder als angemeldet zu zeigen.
 
 ## Konfiguration zur Laufzeit
 
