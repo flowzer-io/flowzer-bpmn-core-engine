@@ -138,14 +138,17 @@ bleibt acht Stunden; ohne Refresh-Token gilt weiterhin die Access-Token-Laufzeit
 
 **Rollenentzug in laufenden Sitzungen:** Eine im Identity Provider entzogene Rolle wirkt
 serverseitig bei der nächsten Token-Erneuerung; der BFF führt sie bei der ersten Anfrage
-aus, sobald das Access-Token in weniger als 60 s abläuft. Die Konsole fragt `GET /bff/session`
-alle 5 Minuten (solange das Fenster sichtbar ist) und bei Rückkehr ins Fenster erneut ab;
-diese Abfrage löst die Erneuerung bei Bedarf selbst aus und passt die angebotenen Aktionen
-ohne Reload an. **Empfehlung:** Die Access-Token-Laufzeit im Identity Provider auf höchstens
-5 Minuten setzen. Dann setzt die API einen Entzug in einer laufenden Sitzung spätestens nach
-dieser Zeit durch; die Konsole zeigt ihn mit ihrer nächsten Sitzungsabfrage danach an, im
-ungünstigsten Fall also nach rund neun Minuten (Token-Laufzeit abzüglich 60 s plus
-Abfrageabstand). Längere Token-Laufzeiten verlängern beides entsprechend.
+aus, die eintrifft, wenn das Access-Token in weniger als 60 s abläuft. Auch `GET /bff/session`
+stößt diese Erneuerung selbst an. Die Konsole fragt die Sitzung ab deren erstem Laden
+fest alle 5 Minuten ab, solange das Fenster sichtbar ist, und zusätzlich bei Rückkehr ins
+Fenster; eine solche Zusatzabfrage verschiebt den festen Takt nicht. Ist die Konsole sonst untätig, löst die
+regelmäßige Abfrage die Erneuerung aus, und API und Anzeige kippen mit derselben Abfrage. Hat
+zuvor ein anderer Aufruf erneuert, folgt die Anzeige bei sichtbarem Fenster spätestens eine
+Intervalllänge (5 Minuten) nach der serverseitigen Wirkung; bis dahin lehnt die API die
+entzogenen Aktionen bereits mit 403 ab. **Empfehlung:** Die Access-Token-Laufzeit im
+Identity Provider auf höchstens 5 Minuten setzen. Dann wirkt ein Entzug in einer laufenden
+Sitzung serverseitig spätestens nach dieser Zeit, bei der ersten Anfrage danach; längere
+Laufzeiten verschieben das entsprechend.
 
 **Betriebsgrenze:** Dieser Sitzungsspeicher ist prozesslokal (höchstens 10.000 Sitzungen).
 Ein API-Neustart verlangt einmalig eine neue SSO-Anmeldung. Mehrere API-Replikate

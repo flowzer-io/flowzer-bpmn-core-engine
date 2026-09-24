@@ -1,7 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchSession } from '@/lib/auth/bff';
+import type { BffSession } from '@/lib/auth/bff';
+import { fetchSession, logout } from '@/lib/auth/bff';
 import { useSession } from '@/stores/session';
 
 import { SESSION_WATCH_INTERVAL_MS, SESSION_WATCH_MIN_GAP_MS, useSessionWatch } from './useSessionWatch';
@@ -35,6 +36,17 @@ function setVisibility(state: DocumentVisibilityState) {
   act(() => {
     document.dispatchEvent(new Event('visibilitychange'));
   });
+}
+
+const ADA: BffSession = { id: 'subject', name: 'Ada', capabilities: ['access'] };
+
+/** Lässt `fetchSession` hängen, bis der Test die Antwort freigibt. */
+function holdSessionResponse() {
+  let respond: (session: BffSession | null) => void = () => {};
+  vi.mocked(fetchSession).mockImplementationOnce(
+    () => new Promise<BffSession | null>((resolve) => { respond = resolve; }),
+  );
+  return (session: BffSession | null) => act(async () => { respond(session); });
 }
 
 /** Lässt Zeit vergehen und arbeitet dabei auch abgeschlossene Abfragen ab. */
@@ -199,5 +211,83 @@ describe('Sitzungsüberwachung der Konsole', () => {
     expect(useSession.getState().user?.capabilities.has('modeler')).toBe(false);
     expect(useSession.getState().user?.capabilities.has('access')).toBe(true);
     expect(useSession.getState().sessionScope).toBe('scope');
+  });
+
+  // Testzweck: Liefert der BFF 401, meldet der echte Store ab; danach fragt die
+  // Überwachung nicht mehr nach, die Anmeldeseite übernimmt.
+  it('stoppt nach einer 401-Antwort der Sitzungsabfrage', async () => {
+    useSession.setState({ refresh: originalRefresh });
+    vi.mocked(fetchSession).mockResolvedValue(null);
+    renderHook(() => useSessionWatch());
+
+    await elapse(SESSION_WATCH_INTERVAL_MS);
+    expect(useSession.getState().status).toBe('anonymous');
+
+    await elapse(2 * SESSION_WATCH_INTERVAL_MS);
+    focusWindow();
+    setVisibility('visible');
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+  });
+
+  // Testzweck: Ein Netz- oder Serverfehler ist kein Sitzungsende. Der echte Store bleibt
+  // angemeldet und zeigt den Verbindungshinweis; die nächste erfolgreiche Abfrage räumt ihn.
+  it('behält die Sitzung bei einem Verbindungsfehler und versucht es erneut', async () => {
+    useSession.setState({ refresh: originalRefresh });
+    vi.mocked(fetchSession)
+      .mockRejectedValueOnce(new Error('503 Service Unavailable'))
+      .mockResolvedValue(ADA);
+    renderHook(() => useSessionWatch());
+
+    await elapse(SESSION_WATCH_INTERVAL_MS);
+    expect(useSession.getState().status).toBe('signed-in');
+    expect(useSession.getState().sessionError).toBeTruthy();
+
+    await elapse(SESSION_WATCH_INTERVAL_MS);
+    expect(fetchSession).toHaveBeenCalledTimes(2);
+    expect(useSession.getState().status).toBe('signed-in');
+    expect(useSession.getState().sessionError).toBeNull();
+  });
+
+  // Testzweck: Kommt das 200 einer vor dem Sitzungsende gestellten Abfrage erst nach dem
+  // Abmelden oder nach einem 401 an, darf es die Person nicht wieder anmelden.
+  it.each([
+    ['nach dem Abmelden', async () => {
+      vi.mocked(logout).mockResolvedValue();
+      await act(async () => { await useSession.getState().signOut(); });
+    }],
+    ['nach Unmount und 401', async (view: { unmount: () => void }) => {
+      view.unmount();
+      act(() => { useSession.getState().endSessionForUnauthorized(); });
+    }],
+  ])('verwirft eine späte Antwort %s', async (_label, endSession) => {
+    useSession.setState({ refresh: originalRefresh });
+    const respond = holdSessionResponse();
+    const view = renderHook(() => useSessionWatch());
+
+    await elapse(SESSION_WATCH_INTERVAL_MS);
+    expect(fetchSession).toHaveBeenCalledTimes(1);
+
+    await endSession(view);
+    expect(useSession.getState().status).toBe('anonymous');
+
+    await respond(ADA);
+    expect(useSession.getState().status).toBe('anonymous');
+    expect(useSession.getState().user).toBeNull();
+    expect(useSession.getState().sessionScope).toBeNull();
+  });
+
+  // Testzweck: Ein bloßes Aushängen der Anwendungshülle während einer Abfrage beendet
+  // keine Sitzung; deren Antwort darf niemanden abmelden.
+  it('meldet nach bloßem Unmount niemanden ab', async () => {
+    useSession.setState({ refresh: originalRefresh });
+    const respond = holdSessionResponse();
+    const view = renderHook(() => useSessionWatch());
+
+    await elapse(SESSION_WATCH_INTERVAL_MS);
+    view.unmount();
+    await respond(ADA);
+
+    expect(useSession.getState().status).toBe('signed-in');
+    expect(useSession.getState().user?.id).toBe('subject');
   });
 });

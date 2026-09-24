@@ -12,9 +12,11 @@ import { useSession } from '@/stores/session';
  * wirkte deshalb in der API längst, während die Oberfläche die entzogenen Aktionen bis
  * zum nächsten Reload, 401 oder 403 weiter anbot. Diese Überwachung fragt die Sitzung
  * deshalb regelmäßig und bei Rückkehr ins Fenster erneut ab; geänderte Fähigkeiten
- * (`access`, `modeler`, `operator`, `worker`) wirken so ohne Reload.
+ * (`access`, `modeler`, `operator`, `worker`) wirken so spätestens mit der nächsten
+ * Abfrage und ohne Reload.
  *
  * Die Anzeige bleibt eine Anzeige: Maßgeblich ist weiterhin die API bei jedem Aufruf.
+ * Bis zur nächsten Abfrage kann sie eine entzogene Aktion also bereits mit 403 ablehnen.
  */
 
 /** Abstand der regelmäßigen Abfrage, solange das Fenster sichtbar ist. */
@@ -49,13 +51,33 @@ export function useSessionWatch(): void {
     lastCheck.current = Date.now();
 
     const runRefresh = async () => {
+      // Merkt sich, ob die Sitzung endet, während die Abfrage unterwegs ist (Abmelden,
+      // 401 eines anderen Aufrufs). Beobachtet wird der Store selbst und nicht der
+      // Lebenszyklus dieses Hooks: Ein bloßes Aushängen der Anwendungshülle beendet
+      // keine Sitzung und darf deshalb auch niemanden abmelden.
+      let sessionEnded = false;
+      const unsubscribe = useSession.subscribe((state) => {
+        if (state.status !== 'signed-in') sessionEnded = true;
+      });
+
       try {
         await useSession.getState().refresh();
       } catch {
         // Der Store meldet Verbindungsfehler selbst über `sessionError`. Die Überwachung
         // darf daraus keinen unbehandelten Fehler machen und versucht es später erneut.
       } finally {
+        unsubscribe();
         inFlight.current = false;
+      }
+
+      // Eine vor dem Abmelden gestellte Abfrage kann ihr 200 erst danach liefern; der
+      // Store setzte dann wieder „angemeldet“. Das Ergebnis einer Abfrage aus einer
+      // beendeten Sitzung darf die Abmeldung nicht rückgängig machen. Eine echte
+      // Neuanmeldung läuft über eine Vollnavigation zum BFF und kann nicht in diesem
+      // Fenster liegen; wer jetzt wieder als angemeldet gilt, verdankt das nur dieser
+      // verspäteten Antwort. Die API prüft ohnehin jeden Aufruf selbst.
+      if (sessionEnded && useSession.getState().status === 'signed-in') {
+        useSession.getState().endSessionForUnauthorized();
       }
     };
 
