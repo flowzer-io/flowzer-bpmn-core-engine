@@ -9,11 +9,13 @@ import {
   registerFlowzerSubjectComponent,
 } from './FlowzerSubjectComponent';
 import { FormDecisionActionsEditor } from './FormDecisionActionsEditor';
+import { FORM_RENDERER_TEXTS_DE } from './formioLanguage';
 import { registerFormSectionComponent } from './FormSectionComponent';
 import { registerFormLibraryComponent } from './FormLibraryComponent';
 
 import { InlineSpinner } from '@/components/ui/States';
 import { cn } from '@/lib/cn';
+import { browserFormLanguage } from '@/lib/locale';
 import {
   inspectFormDecisionActions,
   writeFormDecisionActions,
@@ -135,8 +137,9 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
           keyboardBuilder: true,
-          language: 'de',
-          i18n: { de: { searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
+          // Wie im Renderer: Sprache nach dem Browser, die Vorschau spricht dieselbe wie das Formular.
+          language: browserFormLanguage(),
+          i18n: { de: { ...FORM_RENDERER_TEXTS_DE, searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
             Basic: 'Felder', Advanced: 'Weitere Felder', Layout: 'Bereiche & Layout', Data: 'Daten', Premium: 'Weitere Komponenten',
             'Text Field': 'Textfeld', 'Text Area': 'Mehrzeiliger Text', Number: 'Zahl', Password: 'Passwort', Checkbox: 'Ja / Nein',
             'Select Boxes': 'Mehrfachauswahl', Select: 'Auswahlliste', Radio: 'Einfachauswahl', Button: 'Schaltfläche',

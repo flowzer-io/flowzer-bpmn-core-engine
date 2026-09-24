@@ -189,9 +189,24 @@ aber die Zeigereingaben (`pointer-events: none` am Body) und hält den Tastaturf
 Der Klick auf einen Tag traf das Overlay, galt flatpickr als Klick nach außen und klappte
 den Kalender wieder zu. Von Hand tippen ging, auswählen nicht. Der Renderer tauscht deshalb
 einmalig das Kalender-Widget in Form.ios Registry gegen eine Unterklasse, die den Kalender
-innerhalb eines Dialogs neben sein Eingabefeld hängt (flatpickrs `static`) und ihn beim
-Aufklappen in die Bildlauffläche des Dialogs scrollt. Außerhalb eines Dialogs — auf der
+innerhalb eines Dialogs an eine eigene Ebene im Dialogelement hängt (flatpickrs `appendTo`)
+— also weiter innerhalb von `role="dialog"`, aber außerhalb seiner Bildlauffläche — und ihn
+selbst positioniert: unter oder über dem Feld, im Dialog, wo er hineinpasst, und immer im
+Fenster. Rollt der Dialoginhalt, zieht der Kalender mit. Außerhalb eines Dialogs — auf der
 Aufgabenseite — bleibt alles unverändert.
+
+Die frühere Lösung über flatpickrs `static` stellte den gut 300 px breiten Kalender als Block
+in die Bildlauffläche. In einer halben Dialogspalte oder auf dem Telefon war er breiter als
+der Platz; der Dialog rollte seitlich und schnitt Beschriftungen ab (Issue #368).
+
+Die Sprache der Formulare folgt dem Browser (`lib/locale.ts`): Deutsch oder Englisch, alles
+andere fällt auf Deutsch zurück. Renderer und Editor geben sie als `language` an Form.io. Form.io
+bringt deutsche Prüfmeldungen selbst mit (`ist erforderlich`, Mindest-/Höchstlänge, Muster,
+E-Mail, Datum, Mindest-/Höchstwert …) und reicht die Sprache an flatpickr weiter, das die
+passende Übersetzung vom selben CDN lädt wie sich selbst: deutsche Wochentage und Monate,
+Wochenbeginn Montag, das Datumsformat bestimmt weiter das Feld. Einige häufige Renderer-Texte,
+die Form.io nicht übersetzt, ergänzt `components/forms/formioLanguage.ts`; weitere Meldungen —
+etwa rund um Datei-Upload oder Unterschrift — bleiben englisch.
 
 ## Fremde Oberflächen im Bündel
 

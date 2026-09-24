@@ -26,3 +26,19 @@ it('isoliert asynchrone Builder-Generationen', async () => {
   await act(async () => completeOld?.());
   expect(view.getByText('Neuer Editor')).toBeVisible();
 });
+
+// Testzweck: Auch der Editor und seine Vorschau folgen der Browsersprache statt fest Deutsch;
+// die eigenen deutschen Editortexte bleiben für deutsche Browser erhalten.
+it('übergibt die Browsersprache an den Form.io-Editor', async () => {
+  builder.mockResolvedValue({ on: vi.fn(), destroy: vi.fn() });
+  const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-GB']);
+
+  render(<FormBuilder schema='{"components":[]}' />);
+
+  await waitFor(() => expect(builder).toHaveBeenCalledOnce());
+  expect(builder.mock.calls[0]?.[2]).toMatchObject({
+    language: 'en',
+    i18n: { de: { searchFields: 'Komponenten suchen', addAnother: 'Weiteren Eintrag hinzufügen' } },
+  });
+  languages.mockRestore();
+});
