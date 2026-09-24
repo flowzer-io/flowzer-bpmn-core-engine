@@ -52,7 +52,7 @@ describe('BFF-Authentifizierung', () => {
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    await logout();
+    await expect(logout()).resolves.toBeUndefined();
 
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/bff/logout', {
       method: 'POST',
@@ -61,6 +61,42 @@ describe('BFF-Authentifizierung', () => {
       signal: undefined,
       credentials: 'same-origin',
     });
+  });
+
+  // Testzweck: Mit Provider-Logout antwortet der BFF mit 200 und der Abmeldeadresse des
+  // Identity Providers; logout() reicht sie an den Aufrufer weiter.
+  it('liefert die Abmeldeadresse des Identity Providers', async () => {
+    const redirectTo =
+      'https://idp.example/realms/r/protocol/openid-connect/logout?id_token_hint=x&post_logout_redirect_uri=https%3A%2F%2Fflowzer.example%2F&client_id=c';
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ requestToken: 'csrf-logout', headerName: 'X-Flowzer-CSRF' }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ redirectTo }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+
+    await expect(logout()).resolves.toBe(redirectTo);
+  });
+
+  // Testzweck: Eine bereits beendete Sitzung (401) gilt als abgemeldet und liefert kein
+  // Navigationsziel; eine 200-Antwort ohne verwertbares Ziel ebenfalls nicht.
+  it('liefert ohne verwertbare Abmeldeadresse kein Ziel', async () => {
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ requestToken: 'csrf-logout', headerName: 'X-Flowzer-CSRF' }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ requestToken: 'csrf-logout', headerName: 'X-Flowzer-CSRF' }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify({ redirectTo: 42 }), { status: 200 }));
+
+    await expect(logout()).resolves.toBeUndefined();
+    await expect(logout()).resolves.toBeUndefined();
   });
 
   // Testzweck: Die Return-To-Hilfe akzeptiert weder absolute noch protokollrelative

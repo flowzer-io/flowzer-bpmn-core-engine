@@ -52,10 +52,12 @@ public class OpenApiContractTest
         using var document = JsonDocument.Parse(await FetchDocument());
 
         // Ausnahmen mit Begruendung: XML liefert ein Dokument, Health ist ein Probe-Endpunkt
-        // fuer Orchestratoren mit eigenem, schlankem Vertrag.
+        // fuer Orchestratoren mit eigenem, schlankem Vertrag. Die BFF-Endpunkte sind der eigene
+        // Browservertrag (siehe BffEndpoints_ShouldExposeTheDocumentedResponses).
         string[] exceptions = [
             "/bff/session",
             "/bff/csrf",
+            "/bff/logout",
             "/definition/xml/{guid}",
             "/health",
             "/health/ready"
@@ -117,6 +119,7 @@ public class OpenApiContractTest
         GetResponse(csrf, "404").Should().NotBeNull();
 
         var logout = GetOperation(paths, "/bff/logout", "post");
+        GetResponseSchema(logout, "200").Should().Be("#/components/schemas/BffLogoutResponseDto");
         GetResponse(logout, "204").Should().NotBeNull();
         GetProblemResponse(logout, "400").Should().Be("#/components/schemas/ProblemDetails");
         GetResponse(logout, "401").Should().NotBeNull();

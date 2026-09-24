@@ -63,11 +63,26 @@ public sealed class BffAccessTokenClaimsValidator(FlowzerAuthenticationOptions o
         context.Properties.ExpiresUtc = string.IsNullOrWhiteSpace(refreshToken)
             ? (tokenExpiresAt < now.AddHours(8) ? tokenExpiresAt : now.AddHours(8))
             : now.AddHours(8);
+        var serverSideTokens = new List<AuthenticationToken>();
         if (!string.IsNullOrWhiteSpace(refreshToken))
         {
             context.Properties.Items[BffSessionStore.AccessTokenExpiry] = tokenExpiresAt.ToString("O");
             // ITicketStore hält dieses Token nur serverseitig. SaveTokens bleibt false.
-            context.Properties.StoreTokens([new AuthenticationToken { Name = "refresh_token", Value = refreshToken }]);
+            serverSideTokens.Add(new AuthenticationToken { Name = "refresh_token", Value = refreshToken });
+        }
+
+        // Im Code-Flow steht das ID-Token in der Antwort des Token-Endpunkts, nicht in der
+        // Autorisierungsantwort. Es wird nur als id_token_hint fuer den Provider-Logout
+        // gebraucht und liegt wie das Refresh-Token ausschliesslich im serverseitigen Ticket.
+        var idToken = context.TokenEndpointResponse?.IdToken;
+        if (options.Bff.ProviderLogout && !string.IsNullOrWhiteSpace(idToken))
+        {
+            serverSideTokens.Add(new AuthenticationToken { Name = BffSessionStore.IdToken, Value = idToken });
+        }
+
+        if (serverSideTokens.Count > 0)
+        {
+            context.Properties.StoreTokens(serverSideTokens);
         }
         context.Properties.AllowRefresh = false;
         return principal;

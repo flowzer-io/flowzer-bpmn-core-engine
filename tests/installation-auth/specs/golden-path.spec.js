@@ -1,9 +1,9 @@
 // Golden Path: frisch installierter Stack, Anmeldung über den BFF, Sitzung, CSRF und Abmeldung.
 const { test, expect } = require('@playwright/test');
 const { apiRequest } = require('../support/http');
-const { cookieHeaderFor, fetchInPage, loginWithBrowser, readSession } = require('../support/bff');
+const { cookieHeaderFor, fetchInPage, loginWithBrowser, logoutWithBrowser, readSession } = require('../support/bff');
 const { ensureBaseline, findUser, getUserToken } = require('../support/keycloak');
-const { BASE_URL, ISSUER, USERS } = require('../support/constants');
+const { AUTH_URL, BASE_URL, ISSUER, USERS } = require('../support/constants');
 
 test.describe('Golden Path', () => {
   test.beforeAll(async () => {
@@ -31,7 +31,8 @@ test.describe('Golden Path', () => {
   });
 
   // Testzweck: Vollstaendige BFF-Anmeldung gegen Keycloak (vertraulicher Code-Flow mit PKCE),
-  // Rollen in der Sitzung, Cookie-Attribute, CSRF-Schutz des Logouts und Sitzungsende.
+  // Rollen in der Sitzung, Cookie-Attribute, CSRF-Schutz des Logouts, Sitzungsende und
+  // RP-initiated Logout, der auch die SSO-Sitzung bei Keycloak beendet.
   test('Anmeldung, Sitzung, Cookies, CSRF und Abmeldung', async ({ page, context }) => {
     const { authorizationRequest, formShown } = await loginWithBrowser(page, USERS.alice);
     expect(formShown, 'Keycloak-Anmeldeformular ausgefuellt').toBe(true);
@@ -103,28 +104,31 @@ test.describe('Golden Path', () => {
       expect(csrfCookie.secure).toBe(true);
       expect(csrfCookie.sameSite).toBe('Strict');
 
-      const logout = await fetchInPage(page, '/bff/logout', {
-        method: 'POST',
-        headers: { [csrf.headerName]: csrf.requestToken }
-      });
-      // Vertrag des BffControllers: 204 No Content.
-      expect(logout.status).toBe(204);
+      // Mit Authentication:Bff:ProviderLogout=true: 200 und die Abmeldeadresse bei Keycloak.
+      const logout = await logoutWithBrowser(page);
+      expect(logout.status).toBe(200);
+      const endSession = new URL(logout.redirectTo);
+      expect(endSession.origin).toBe(AUTH_URL);
+      expect(endSession.pathname).toBe(`${new URL(ISSUER).pathname}/protocol/openid-connect/logout`);
+      expect(endSession.searchParams.get('post_logout_redirect_uri')).toBe(`${BASE_URL}/`);
+      expect(endSession.searchParams.get('client_id')).toBe('flowzer-bff');
+      expect(endSession.searchParams.get('id_token_hint')).toMatch(/^eyJ[\w-]+\.eyJ[\w-]+\.[\w-]+$/);
+      // Keycloak beendet die SSO-Sitzung ohne Rueckfrage und leitet auf die Konsole zurueck.
+      expect(logout.finalUrl).toBe(`${BASE_URL}/`);
     });
 
     await test.step('Nach der Abmeldung ist die Sitzung beendet', async () => {
       expect((await readSession(page)).status).toBe(401);
       expect((await fetchInPage(page, '/definition/meta')).status).toBe(401);
+      const cookies = await context.cookies(BASE_URL);
+      expect(cookies.find(cookie => cookie.name === '__Host-Flowzer-Session'), 'Sitzungscookie entfernt').toBeUndefined();
     });
 
-    await test.step('Grenze: Abmeldung ist lokal, die SSO-Sitzung bei Keycloak besteht weiter', async () => {
-      // Kein IdP-Logout (offen fuer R1c): Ein erneuter Login kommt ohne Formular zurueck.
+    await test.step('Abmeldung beendet auch die SSO-Sitzung bei Keycloak', async () => {
+      // Ohne SSO-Sitzung verlangt Keycloak beim naechsten Login wieder das Formular.
       const relogin = await loginWithBrowser(page, USERS.alice);
-      expect(relogin.formShown).toBe(false);
+      expect(relogin.formShown).toBe(true);
       expect((await readSession(page)).status).toBe(200);
-      test.info().annotations.push({
-        type: 'Grenze',
-        description: 'POST /bff/logout beendet nur die Flowzer-Sitzung; die Keycloak-SSO-Sitzung bleibt bestehen.'
-      });
     });
   });
 
@@ -145,13 +149,17 @@ test.describe('Golden Path', () => {
       expect(response.json().detail).toBe('Invalid request origin.');
     }
 
-    // Kontrollfall: Derselbe Token aus der Seite (gleiche Origin) beendet die Sitzung.
+    // Kontrollfall: Derselbe Token aus der Seite (gleiche Origin) beendet die Sitzung. Mit
+    // Provider-Logout antwortet der BFF mit 200 und der Abmeldeadresse bei Keycloak.
     expect((await readSession(page)).status, 'Sitzung besteht nach den Ablehnungen').toBe(200);
     const logout = await fetchInPage(page, '/bff/logout', {
       method: 'POST',
       headers: { [csrf.headerName]: csrf.requestToken }
     });
-    expect(logout.status).toBe(204);
+    expect(logout.status).toBe(200);
+    const redirectTo = JSON.parse(logout.text).redirectTo;
+    expect(redirectTo.startsWith(`${ISSUER}/protocol/openid-connect/logout?`), 'Abmeldeadresse bei Keycloak').toBe(true);
+    expect((await readSession(page)).status, 'Sitzung nach der Abmeldung').toBe(401);
   });
 
   // Testzweck: Ein ungueltiger Bearer (kaputte Signatur) fuehrt bei bestehender Cookie-Sitzung zu

@@ -131,7 +131,35 @@ public sealed class FlowzerAuthenticationOptions
 
         /// <summary>Persistentes, nur fuer die API beschreibbares Verzeichnis der Data-Protection-Schluessel.</summary>
         public string DataProtectionKeysPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Wenn <c>true</c>, beendet die Abmeldung auch die Sitzung beim Identity Provider
+        /// (RP-initiated Logout): <c>POST /bff/logout</c> liefert dann die Abmeldeadresse des
+        /// Providers, zu der die Konsole den Browser schickt. Default <c>false</c>, weil der
+        /// Identity Provider dafuer die Post-Logout-Redirect-URI dieser Installation
+        /// (<c>https://&lt;flowzer-host&gt;</c> plus <see cref="PostLogoutPath"/>) registriert haben
+        /// muss; ohne diese Registrierung zeigt er nach der Abmeldung nur eine Fehlerseite.
+        /// </summary>
+        public bool ProviderLogout { get; set; } = false;
+
+        /// <summary>
+        /// Lokaler absoluter Pfad, auf den der Identity Provider nach der Abmeldung
+        /// zuruecklenkt. Es gelten dieselben Regeln wie fuer <c>returnTo</c> beim Login.
+        /// </summary>
+        public string PostLogoutPath { get; set; } = "/";
     }
+
+    /// <summary>
+    /// Nur lokale absolute Pfade wie <c>/tasks?x=1</c>: kein Schema, kein Host, kein
+    /// protokollrelatives <c>//</c>, kein Backslash und keine Steuerzeichen. Grundlage fuer
+    /// <c>returnTo</c> beim Login und fuer <see cref="BffSettings.PostLogoutPath"/>.
+    /// </summary>
+    public static bool IsLocalAbsolutePath(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.StartsWith('/')
+        && !value.StartsWith("//", StringComparison.Ordinal)
+        && !value.Contains('\\')
+        && !value.Any(char.IsControl);
 
     public void Validate()
     {
@@ -190,6 +218,14 @@ public sealed class FlowzerAuthenticationOptions
         {
             throw new InvalidOperationException(
                 "Authentication:Bff:DataProtectionKeysPath must be set when Authentication:Scheme is 'Bff'.");
+        }
+
+        // Der Pfad wird an den Origin der Anfrage gehaengt und dem Identity Provider als
+        // Ruecksprungziel genannt. Ein Host oder Schema darin wuerde daraus ein offenes Ziel machen.
+        if (!IsLocalAbsolutePath(Bff.PostLogoutPath))
+        {
+            throw new InvalidOperationException(
+                "Authentication:Bff:PostLogoutPath must be a local absolute path such as '/'.");
         }
     }
 }

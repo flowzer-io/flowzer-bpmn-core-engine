@@ -39,6 +39,39 @@ public sealed class BffSessionRefresherTest
         result.Properties.GetTokenValue("refresh_token").Should().Be("rotated-test-token");
     }
 
+    // Testzweck: Mit ProviderLogout ersetzt ein neues ID-Token aus der Refresh-Antwort den
+    // gespeicherten id_token_hint; fehlt es in der Antwort, bleibt das bisherige erhalten.
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task Refresh_ShouldKeepCurrentIdToken_WhenProviderLogoutIsEnabled(bool responseContainsIdToken)
+    {
+        var ticket = Ticket(idToken: "initial-id-token");
+        using var client = Client(HttpStatusCode.OK, responseContainsIdToken
+            ? JsonSerializer.Serialize(new { access_token = Token("api", "person"), id_token = "renewed-id-token" })
+            : JsonSerializer.Serialize(new { access_token = Token("api", "person") }));
+
+        var result = await Refresher(client, providerLogout: true).RefreshAsync(ticket);
+
+        result.Should().NotBeNull();
+        result!.Properties.GetTokenValue("id_token").Should().Be(responseContainsIdToken ? "renewed-id-token" : "initial-id-token");
+        result.Properties.GetTokenValue("refresh_token").Should().Be("initial-test-token");
+    }
+
+    // Testzweck: Ohne ProviderLogout legt auch der Refresh kein ID-Token im Ticket ab.
+    [Test]
+    public async Task Refresh_ShouldNotStoreIdToken_WhenProviderLogoutIsDisabled()
+    {
+        using var client = Client(HttpStatusCode.OK, JsonSerializer.Serialize(new
+        {
+            access_token = Token("api", "person"), id_token = "renewed-id-token"
+        }));
+
+        var result = await Refresher(client).RefreshAsync(Ticket());
+
+        result.Should().NotBeNull();
+        result!.Properties.GetTokenValue("id_token").Should().BeNull();
+    }
+
     // Testzweck: Ein widerrufener Grant und Tokens für eine andere API/Person dürfen die
     // Sitzung niemals verlängern; Fehler des Providers bleiben dagegen wiederholbar.
     [TestCase("revoked")]
@@ -67,10 +100,12 @@ public sealed class BffSessionRefresherTest
         await refresh.Should().ThrowAsync<BffSessionUnavailableException>();
     }
 
-    private static AuthenticationTicket Ticket()
+    private static AuthenticationTicket Ticket(string? idToken = null)
     {
         var properties = new AuthenticationProperties { ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) };
-        properties.StoreTokens([new AuthenticationToken { Name = "refresh_token", Value = "initial-test-token" }]);
+        var tokens = new List<AuthenticationToken> { new() { Name = "refresh_token", Value = "initial-test-token" } };
+        if (idToken is not null) tokens.Add(new AuthenticationToken { Name = "id_token", Value = idToken });
+        properties.StoreTokens(tokens);
         return new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([
             new Claim("sub", "person"), new Claim(ClaimTypes.Role, "operator")], "test")), properties, FlowzerAuthenticationSchemes.Cookie);
     }
@@ -82,12 +117,12 @@ public sealed class BffSessionRefresherTest
         SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256)
     });
 
-    private static BffSessionRefresher Refresher(HttpClient client)
+    private static BffSessionRefresher Refresher(HttpClient client, bool providerLogout = false)
     {
         var options = new FlowzerAuthenticationOptions
         {
             JwtBearer = new() { Authority = Issuer, Audience = "api", RequiredRole = "access" },
-            Bff = new() { ClientId = "test-client", ClientSecret = "test-only-secret" }
+            Bff = new() { ClientId = "test-client", ClientSecret = "test-only-secret", ProviderLogout = providerLogout }
         };
         var oidc = new OpenIdConnectOptions
         {

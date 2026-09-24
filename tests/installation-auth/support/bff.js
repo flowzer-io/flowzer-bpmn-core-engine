@@ -80,6 +80,33 @@ async function cookieHeaderFor(context, url) {
   return cookies.map(cookie => `${cookie.name}=${cookie.value}`).join('; ');
 }
 
+/**
+ * Meldet ab wie die Konsole: CSRF-Token aus /bff/csrf, POST /bff/logout und – wenn der BFF
+ * eine Abmeldeadresse des Identity Providers liefert – Top-Level-Navigation dorthin. Der
+ * Provider beendet die SSO-Sitzung und leitet auf die Post-Logout-URI zurück.
+ * Liefert Status, redirectTo und die Adresse nach dem Rücksprung (ohne redirectTo undefined).
+ */
+async function logoutWithBrowser(page) {
+  const csrfResponse = await fetchInPage(page, '/bff/csrf');
+  expect(csrfResponse.status, 'GET /bff/csrf').toBe(200);
+  const csrf = JSON.parse(csrfResponse.text);
+
+  const response = await fetchInPage(page, '/bff/logout', {
+    method: 'POST',
+    headers: { [csrf.headerName]: csrf.requestToken }
+  });
+  const redirectTo = response.status === 200 ? JSON.parse(response.text).redirectTo : undefined;
+
+  let finalUrl;
+  if (redirectTo) {
+    // goto folgt den Weiterleitungen; die Antwort gehört zum letzten Dokument der Kette.
+    const navigation = await page.goto(redirectTo);
+    finalUrl = navigation ? navigation.url() : page.url();
+  }
+
+  return { status: response.status, redirectTo, finalUrl };
+}
+
 async function readSession(page) {
   const response = await fetchInPage(page, '/bff/session');
   return { status: response.status, body: response.status === 200 ? JSON.parse(response.text) : null };
@@ -95,4 +122,4 @@ async function expectCapabilities(page, expected) {
   return session.body;
 }
 
-module.exports = { cookieHeaderFor, expectCapabilities, fetchInPage, loginWithBrowser, readSession };
+module.exports = { cookieHeaderFor, expectCapabilities, fetchInPage, loginWithBrowser, logoutWithBrowser, readSession };

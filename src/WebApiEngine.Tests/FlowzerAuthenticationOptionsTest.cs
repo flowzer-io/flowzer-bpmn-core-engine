@@ -81,6 +81,40 @@ public class FlowzerAuthenticationOptionsTest
         options.JwtBearer.MissingPrivilegedRoleKeys().Should().BeEmpty();
     }
 
+    // Testzweck: Der Ruecksprungpfad nach dem Provider-Logout wird an den Origin gehaengt und
+    // muss deshalb wie returnTo ein lokaler absoluter Pfad sein; alles andere verhindert den Start.
+    [TestCase("")]
+    [TestCase("abgemeldet")]
+    [TestCase("https://evil.example/")]
+    [TestCase("//evil.example")]
+    [TestCase("/\\evil.example")]
+    [TestCase("/ok\r\nSet-Cookie: x=y")]
+    public void Validate_ShouldRejectNonLocalPostLogoutPath(string postLogoutPath)
+    {
+        var options = CreateOptions(FlowzerAuthenticationOptions.SchemeBff);
+        options.Bff.PostLogoutPath = postLogoutPath;
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*Authentication:Bff:PostLogoutPath*");
+    }
+
+    // Testzweck: Standardwert und lokale Pfade mit Query sind als Ruecksprungziel zulaessig;
+    // der Provider-Logout selbst bleibt ohne ausdrueckliche Wahl abgeschaltet.
+    [TestCase("/")]
+    [TestCase("/abgemeldet?grund=logout")]
+    public void Validate_ShouldAcceptLocalPostLogoutPath(string postLogoutPath)
+    {
+        var options = CreateOptions(FlowzerAuthenticationOptions.SchemeBff);
+        options.Bff.PostLogoutPath = postLogoutPath;
+
+        var act = () => options.Validate();
+
+        act.Should().NotThrow();
+        new FlowzerAuthenticationOptions.BffSettings().ProviderLogout.Should().BeFalse();
+        new FlowzerAuthenticationOptions.BffSettings().PostLogoutPath.Should().Be("/");
+    }
+
     private static FlowzerAuthenticationOptions CreateOptions(string scheme) => new()
     {
         Scheme = scheme,

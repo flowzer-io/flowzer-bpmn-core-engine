@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fetchSession, logout } from '@/lib/auth/bff';
 import { registerPublicPackageScopeCleanup } from '@/lib/flowzer/sessionScope';
@@ -12,6 +12,22 @@ describe('BFF-Sitzungsverwaltung', () => {
     vi.resetAllMocks();
     useSession.setState({ status: 'anonymous', user: null, sessionScope: null, accessDenied: false });
   });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** jsdom navigiert nicht; der Test ersetzt deshalb nur die benötigten Teile von location. */
+  function stubLocation(protocol: 'https:' | 'http:') {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { protocol, origin: `${protocol}//flowzer.example`, assign });
+    return assign;
+  }
+
+  async function signedIn() {
+    vi.mocked(fetchSession).mockResolvedValue({ id: 'subject', name: 'Ada', capabilities: ['access'] });
+    await useSession.getState().refresh();
+  }
 
   // Testzweck: Ein kurzfristiger BFF-/Netzwerkausfall ist kein bestätigter Logout.
   // Bereits erfasste Formulare und der Sitzungsscope bleiben beim Wiederholen erhalten.
@@ -54,7 +70,7 @@ describe('BFF-Sitzungsverwaltung', () => {
     const unregister = registerPublicPackageScopeCleanup(cleanup);
     vi.spyOn(crypto, 'randomUUID').mockReturnValue('00000000-0000-4000-8000-000000000001');
     vi.mocked(fetchSession).mockResolvedValue({ id: 'subject', name: 'Ada', capabilities: ['access'] });
-    vi.mocked(logout).mockResolvedValue();
+    vi.mocked(logout).mockResolvedValue(undefined);
 
     await useSession.getState().refresh();
     expect(useSession.getState().sessionScope).toBe('00000000-0000-4000-8000-000000000001');
@@ -120,5 +136,65 @@ describe('BFF-Sitzungsverwaltung', () => {
     expect(useSession.getState().sessionScope).toBe('00000000-0000-4000-8000-000000000002');
     expect(useSession.getState().sessionScope).not.toContain('subject-new');
     unregister();
+  });
+  // Testzweck: Mit Provider-Logout endet zuerst die lokale Sitzung, danach navigiert die
+  // Konsole zum Identity Provider, der auf die Konsole zurückleitet.
+  it('navigiert nach der Abmeldung zum Provider-Logout', async () => {
+    const assign = stubLocation('https:');
+    const redirectTo =
+      'https://idp.example/realms/r/protocol/openid-connect/logout?post_logout_redirect_uri=https%3A%2F%2Fflowzer.example%2F&client_id=c';
+    await signedIn();
+    vi.mocked(logout).mockImplementation(async () => {
+      expect(assign).not.toHaveBeenCalled();
+      return redirectTo;
+    });
+
+    await useSession.getState().signOut();
+
+    expect(useSession.getState().status).toBe('anonymous');
+    expect(assign).toHaveBeenCalledExactlyOnceWith(redirectTo);
+  });
+
+  // Testzweck: Ohne Abmeldeadresse (204) bleibt es bei der lokalen Abmeldung ohne Navigation.
+  it('meldet ohne Abmeldeadresse nur lokal ab', async () => {
+    const assign = stubLocation('https:');
+    await signedIn();
+    vi.mocked(logout).mockResolvedValue(undefined);
+
+    await useSession.getState().signOut();
+
+    expect(useSession.getState().status).toBe('anonymous');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Unerwartete Ziele (relativ, fremdes Schema, HTTP unter HTTPS) werden ignoriert;
+  // die lokale Abmeldung gilt trotzdem.
+  it.each([
+    '/bff/login',
+    'javascript:alert(1)',
+    'data:text/html,logout',
+    'http://idp.example/logout',
+    'kein-url',
+  ])('ignoriert das unsichere Abmeldeziel %s', async (redirectTo) => {
+    const assign = stubLocation('https:');
+    await signedIn();
+    vi.mocked(logout).mockResolvedValue(redirectTo);
+
+    await useSession.getState().signOut();
+
+    expect(useSession.getState().status).toBe('anonymous');
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  // Testzweck: Läuft die Konsole selbst über HTTP (lokale Entwicklung), ist ein HTTP-Ziel des
+  // Providers zulässig.
+  it('erlaubt ein HTTP-Abmeldeziel nur bei einer HTTP-Konsole', async () => {
+    const assign = stubLocation('http:');
+    await signedIn();
+    vi.mocked(logout).mockResolvedValue('http://localhost:8080/realms/r/protocol/openid-connect/logout');
+
+    await useSession.getState().signOut();
+
+    expect(assign).toHaveBeenCalledExactlyOnceWith('http://localhost:8080/realms/r/protocol/openid-connect/logout');
   });
 });

@@ -14,6 +14,13 @@ namespace WebApiEngine.Auth;
 public sealed class BffSessionStore(IBffSessionRefresher refresher, TimeProvider clock) : ITicketStore, IDisposable
 {
     internal const string AccessTokenExpiry = ".flowzer.access-token-expires";
+
+    /// <summary>
+    /// Name des rohen ID-Tokens im serverseitigen Ticket. Es dient ausschliesslich als
+    /// <c>id_token_hint</c> fuer den Provider-Logout und liegt nur bei aktivem
+    /// <c>Authentication:Bff:ProviderLogout</c> vor.
+    /// </summary>
+    internal const string IdToken = "id_token";
     private readonly MemoryCache _sessions = new(new MemoryCacheOptions { SizeLimit = 10_000 });
 
     public Task<string> StoreAsync(AuthenticationTicket ticket)

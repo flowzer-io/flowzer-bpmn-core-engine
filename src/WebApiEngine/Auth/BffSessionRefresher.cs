@@ -52,7 +52,20 @@ public sealed class BffSessionRefresher(
             var nextRefresh = body.RootElement.TryGetProperty("refresh_token", out var rotation)
                 ? rotation.GetString() : refreshToken;
             if (string.IsNullOrWhiteSpace(nextRefresh)) return null;
-            ticket.Properties.StoreTokens([new AuthenticationToken { Name = "refresh_token", Value = nextRefresh }]);
+            var serverSideTokens = new List<AuthenticationToken> { new() { Name = "refresh_token", Value = nextRefresh } };
+            if (options.Bff.ProviderLogout)
+            {
+                // StoreTokens ersetzt alle Tokens des Tickets. Ein neues ID-Token aus der
+                // Antwort gilt als aktueller id_token_hint, sonst bleibt das bisherige erhalten.
+                var idToken = body.RootElement.TryGetProperty("id_token", out var renewedIdToken)
+                              && renewedIdToken.ValueKind == JsonValueKind.String
+                              && !string.IsNullOrWhiteSpace(renewedIdToken.GetString())
+                    ? renewedIdToken.GetString()
+                    : ticket.Properties.GetTokenValue(BffSessionStore.IdToken);
+                if (!string.IsNullOrWhiteSpace(idToken))
+                    serverSideTokens.Add(new AuthenticationToken { Name = BffSessionStore.IdToken, Value = idToken });
+            }
+            ticket.Properties.StoreTokens(serverSideTokens);
             return new AuthenticationTicket(principal, ticket.Properties, ticket.AuthenticationScheme);
         }
         catch (SecurityTokenException) { return null; }

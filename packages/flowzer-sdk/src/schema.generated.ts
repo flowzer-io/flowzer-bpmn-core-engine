@@ -482,6 +482,17 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["BffLogoutResponseDto"];
+                        "application/json": components["schemas"]["BffLogoutResponseDto"];
+                        "text/json": components["schemas"]["BffLogoutResponseDto"];
+                    };
+                };
                 /** @description No Content */
                 204: {
                     headers: {
@@ -7156,6 +7167,9 @@ export interface components {
         BffCsrfDto: {
             requestToken?: string | null;
             headerName?: string | null;
+        };
+        BffLogoutResponseDto: {
+            redirectTo?: string | null;
         };
         BffSessionDto: {
             id?: string | null;

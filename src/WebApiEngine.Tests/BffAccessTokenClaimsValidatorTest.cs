@@ -102,6 +102,41 @@ public sealed class BffAccessTokenClaimsValidatorTest
         context.Properties.GetTokens().Should().BeEmpty();
     }
 
+    // Testzweck: Das rohe ID-Token aus der Token-Antwort landet nur mit ProviderLogout im
+    // serverseitigen Ticket (als id_token_hint fuer die Abmeldung), sonst bleibt es wie bisher draussen.
+    [TestCase(true)]
+    [TestCase(false)]
+    public async Task CreateCookiePrincipal_ShouldKeepIdTokenOnlyForProviderLogout(bool providerLogout)
+    {
+        var subject = Guid.NewGuid().ToString();
+        var context = CreateContext(CreateToken(Audience, new Claim("sub", subject)), subject);
+        context.TokenEndpointResponse!.IdToken = "raw-id-token-for-logout-hint";
+        context.TokenEndpointResponse.RefreshToken = "server-side-refresh-token";
+
+        await CreateValidator(providerLogout).CreateCookiePrincipalAsync(context);
+
+        var properties = context.Properties!;
+        properties.GetTokenValue("refresh_token").Should().Be("server-side-refresh-token");
+        properties.GetTokenValue("id_token").Should().Be(providerLogout ? "raw-id-token-for-logout-hint" : null);
+    }
+
+    // Testzweck: Auch ohne Refresh-Token bleibt das ID-Token fuer den Provider-Logout erhalten,
+    // ohne die an das Access-Token gebundene Sitzungsdauer zu veraendern.
+    [Test]
+    public async Task CreateCookiePrincipal_ShouldKeepIdTokenWithoutRefreshToken()
+    {
+        var subject = Guid.NewGuid().ToString();
+        var token = CreateToken(Audience, new Claim("sub", subject));
+        var context = CreateContext(token, subject);
+        context.TokenEndpointResponse!.IdToken = "raw-id-token-for-logout-hint";
+
+        await CreateValidator(providerLogout: true).CreateCookiePrincipalAsync(context);
+
+        var properties = context.Properties!;
+        properties.GetTokens().Should().ContainSingle().Which.Name.Should().Be("id_token");
+        properties.ExpiresUtc.Should().Be(new DateTimeOffset(new JsonWebToken(token).ValidTo));
+    }
+
     // Testzweck: Auch ein Provider mit sehr langer Access-Token-Laufzeit darf keine unbeschraenkte
     // Flowzer-Sitzung erzeugen; spaetestens nach acht Stunden ist eine erneute Anmeldung noetig.
     [Test]
@@ -155,7 +190,7 @@ public sealed class BffAccessTokenClaimsValidatorTest
         TokenEndpointResponse = new OpenIdConnectMessage { AccessToken = accessToken }
     };
 
-    private static BffAccessTokenClaimsValidator CreateValidator() => new(new FlowzerAuthenticationOptions
+    private static BffAccessTokenClaimsValidator CreateValidator(bool providerLogout = false) => new(new FlowzerAuthenticationOptions
     {
         Scheme = FlowzerAuthenticationOptions.SchemeBff,
         JwtBearer = new FlowzerAuthenticationOptions.JwtBearerSettings
@@ -168,7 +203,8 @@ public sealed class BffAccessTokenClaimsValidatorTest
         {
             ClientId = "flowzer-console",
             ClientSecret = "not-used-in-this-unit-test",
-            DataProtectionKeysPath = Path.GetTempPath()
+            DataProtectionKeysPath = Path.GetTempPath(),
+            ProviderLogout = providerLogout
         }
     });
 

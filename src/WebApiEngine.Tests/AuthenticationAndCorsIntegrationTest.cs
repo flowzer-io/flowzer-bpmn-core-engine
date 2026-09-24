@@ -5,14 +5,18 @@ using System.Security.Claims;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
@@ -20,6 +24,7 @@ using Microsoft.IdentityModel.Tokens;
 using Model;
 using StorageSystem;
 using WebApiEngine.Auth;
+using WebApiEngine.Controller;
 using WebApiEngine.Shared;
 using WebApiEngine.Ai;
 
@@ -452,6 +457,160 @@ public class AuthenticationAndCorsIntegrationTest
         (await client.GetAsync("/bff/session")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    // Testzweck: Ohne den Schalter ProviderLogout bleibt die Abmeldung lokal: Der echte
+    // Code-Flow legt kein ID-Token im serverseitigen Ticket ab und POST /bff/logout antwortet 204.
+    [Test]
+    public async Task BffLogout_ShouldStayLocal_WhenProviderLogoutIsDisabled()
+    {
+        var tokenEndpoint = new OidcTokenEndpointStub();
+        await using var factory = CreateBffFactory(
+            new TestStorage(),
+            configureTestServices: services => UseOidcBackchannel(services, tokenEndpoint));
+        using var client = CreateSecureCookieClient(factory);
+
+        var signIn = await SignInThroughOidcAsync(client, tokenEndpoint, Guid.NewGuid());
+        var storedTicket = await RetrieveStoredTicketAsync(factory, signIn.SessionCookie);
+        var logout = await LogoutWithCsrfAsync(client);
+
+        storedTicket.Properties.GetTokenValue("refresh_token").Should().Be(OidcTokenEndpointStub.RefreshToken);
+        storedTicket.Properties.GetTokenValue("id_token").Should().BeNull();
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await logout.Content.ReadAsStringAsync()).Should().BeEmpty();
+        (await client.GetAsync("/bff/session")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Testzweck: Mit ProviderLogout legt der echte Code-Flow das ID-Token nur im serverseitigen
+    // Ticket ab (nicht im Cookie, in keiner Antwort) und POST /bff/logout liefert 200 mit der
+    // korrekt kodierten Abmeldeadresse des Providers samt id_token_hint und client_id.
+    [Test]
+    public async Task BffLogout_ShouldReturnProviderLogoutUrl_AndKeepIdTokenServerSide()
+    {
+        var tokenEndpoint = new OidcTokenEndpointStub();
+        await using var factory = CreateBffFactory(
+            new TestStorage(),
+            providerLogout: true,
+            configureTestServices: services => UseOidcBackchannel(services, tokenEndpoint));
+        using var client = CreateSecureCookieClient(factory);
+
+        var signIn = await SignInThroughOidcAsync(client, tokenEndpoint, Guid.NewGuid());
+        var storedTicket = await RetrieveStoredTicketAsync(factory, signIn.SessionCookie);
+        var session = await client.GetAsync("/bff/session");
+        var csrf = await client.GetAsync("/bff/csrf");
+        var logout = await LogoutWithCsrfAsync(client);
+        var sessionAfterLogout = await client.GetAsync("/bff/session");
+
+        // Serverseitig: das ID-Token liegt neben dem Refresh-Token im Ticket.
+        storedTicket.Properties.GetTokenValue("id_token").Should().Be(signIn.IdToken);
+        storedTicket.Properties.GetTokenValue("refresh_token").Should().Be(OidcTokenEndpointStub.RefreshToken);
+
+        // Browserseitig: das Cookie traegt nur den Sitzungsschluessel, keine Tokens.
+        var cookieTicket = UnprotectSessionCookie(factory, signIn.SessionCookie);
+        cookieTicket.Properties.GetTokens().Should().BeEmpty();
+        cookieTicket.Principal.Claims.Should().ContainSingle();
+        signIn.SessionCookie.Should().NotContain(signIn.IdToken);
+        foreach (var response in new[] { signIn.Callback, session, csrf, logout, sessionAfterLogout })
+        {
+            var setCookies = response.Headers.TryGetValues("Set-Cookie", out var values) ? values : [];
+            setCookies.Should().NotContain(value => value.Contains(signIn.IdToken, StringComparison.Ordinal));
+        }
+
+        foreach (var response in new[] { signIn.Callback, session, csrf, sessionAfterLogout })
+        {
+            (await response.Content.ReadAsStringAsync()).Should().NotContain(signIn.IdToken);
+        }
+
+        session.StatusCode.Should().Be(HttpStatusCode.OK);
+        logout.StatusCode.Should().Be(HttpStatusCode.OK);
+        logout.Headers.CacheControl!.NoStore.Should().BeTrue();
+        var body = await logout.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        body.EnumerateObject().Select(property => property.Name).Should().Equal("redirectTo");
+        var redirectTo = body.GetProperty("redirectTo").GetString()!;
+        var endSession = new Uri(redirectTo);
+        endSession.GetLeftPart(UriPartial.Path).Should().Be($"{Issuer}/protocol/openid-connect/logout");
+        var parameters = QueryHelpers.ParseQuery(endSession.Query);
+        parameters.Keys.Should().BeEquivalentTo("id_token_hint", "post_logout_redirect_uri", "client_id");
+        parameters["id_token_hint"].ToString().Should().Be(signIn.IdToken);
+        parameters["post_logout_redirect_uri"].ToString().Should().Be("https://localhost/");
+        parameters["client_id"].ToString().Should().Be("flowzer-console");
+        redirectTo.Should().Contain("post_logout_redirect_uri=https%3A%2F%2Flocalhost%2F");
+        sessionAfterLogout.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Testzweck: Eine Sitzung ohne gespeichertes ID-Token (etwa von vor dem Update) erhaelt mit
+    // ProviderLogout trotzdem die Abmeldeadresse, dann ohne id_token_hint, aber mit client_id und
+    // dem konfigurierten Ruecksprungpfad.
+    [Test]
+    public async Task BffLogout_ShouldOmitIdTokenHint_WhenTheSessionHasNoIdToken()
+    {
+        await using var factory = CreateBffFactory(
+            new TestStorage(),
+            providerLogout: true,
+            postLogoutPath: "/abgemeldet?grund=logout");
+        using var client = CreateSecureCookieClient(factory);
+        await client.GetAsync($"/__tests/bff/signin?userId={Guid.NewGuid()}");
+
+        var logout = await LogoutWithCsrfAsync(client);
+
+        logout.StatusCode.Should().Be(HttpStatusCode.OK);
+        var redirectTo = (await logout.Content.ReadFromJsonAsync<BffLogoutResponseDto>())!.RedirectTo!;
+        var parameters = QueryHelpers.ParseQuery(new Uri(redirectTo).Query);
+        parameters.Keys.Should().BeEquivalentTo("post_logout_redirect_uri", "client_id");
+        parameters["post_logout_redirect_uri"].ToString().Should().Be("https://localhost/abgemeldet?grund=logout");
+        parameters["client_id"].ToString().Should().Be("flowzer-console");
+        (await client.GetAsync("/bff/session")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Testzweck: Nennt die Discovery keinen end_session_endpoint, bleibt es trotz Schalter bei
+    // der lokalen Abmeldung mit 204.
+    [Test]
+    public async Task BffLogout_ShouldReturnNoContent_WhenDiscoveryHasNoEndSessionEndpoint()
+    {
+        await using var factory = CreateBffFactory(
+            new TestStorage(),
+            providerLogout: true,
+            configureTestServices: services => UseOidcConfiguration(services, new StaticConfigurationManager<OpenIdConnectConfiguration>(
+                new OpenIdConnectConfiguration
+                {
+                    Issuer = Issuer,
+                    AuthorizationEndpoint = $"{Issuer}/protocol/openid-connect/auth",
+                    TokenEndpoint = $"{Issuer}/protocol/openid-connect/token",
+                    SigningKeys = { SigningKey }
+                })));
+        using var client = CreateSecureCookieClient(factory);
+        await client.GetAsync($"/__tests/bff/signin?userId={Guid.NewGuid()}");
+
+        var logout = await LogoutWithCsrfAsync(client);
+
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await client.GetAsync("/bff/session")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    // Testzweck: Sind die OIDC-Metadaten nicht ladbar, ist die lokale Sitzung trotzdem beendet
+    // (204); die Warnung nennt nur den Ausnahmetyp, keine Meldung der Metadatenabfrage.
+    [Test]
+    public async Task BffLogout_ShouldEndLocalSession_WhenDiscoveryIsUnavailable()
+    {
+        var logger = new CapturingLogger<BffController>();
+        await using var factory = CreateBffFactory(
+            new TestStorage(),
+            providerLogout: true,
+            configureTestServices: services =>
+            {
+                UseOidcConfiguration(services, new UnavailableConfigurationManager());
+                services.AddSingleton<ILogger<BffController>>(logger);
+            });
+        using var client = CreateSecureCookieClient(factory);
+        await client.GetAsync($"/__tests/bff/signin?userId={Guid.NewGuid()}");
+
+        var logout = await LogoutWithCsrfAsync(client);
+
+        logout.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await client.GetAsync("/bff/session")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        logger.Entries.Should().ContainSingle(entry => entry.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain(nameof(InvalidOperationException))
+            .And.NotContain(UnavailableConfigurationManager.Detail);
+    }
+
     // Testzweck: Ohne BFF muss der explizit anonyme Login-Endpunkt 404 statt eines DI-Fehlers
     // liefern; die optionale Antiforgery-Registrierung darf den Bearer-Betrieb nicht brechen.
     [Test]
@@ -588,7 +747,12 @@ public class AuthenticationAndCorsIntegrationTest
         return new TestWebApplicationFactory(storage, environmentName, settings, useStaticSigningKey: true);
     }
 
-    private static TestWebApplicationFactory CreateBffFactory(TestStorage storage, string? bffClientSecret = "test-client-secret")
+    private static TestWebApplicationFactory CreateBffFactory(
+        TestStorage storage,
+        string? bffClientSecret = "test-client-secret",
+        bool providerLogout = false,
+        string? postLogoutPath = null,
+        Action<IServiceCollection>? configureTestServices = null)
     {
         var dataProtectionPath = Path.Combine(Path.GetTempPath(), $"flowzer-bff-keys-{Guid.NewGuid():N}");
         var settings = new Dictionary<string, string?>
@@ -606,6 +770,15 @@ public class AuthenticationAndCorsIntegrationTest
             ["Authentication:Bff:ClientSecret"] = bffClientSecret,
             ["Authentication:Bff:DataProtectionKeysPath"] = dataProtectionPath
         };
+        if (providerLogout)
+        {
+            settings["Authentication:Bff:ProviderLogout"] = "true";
+        }
+
+        if (postLogoutPath is not null)
+        {
+            settings["Authentication:Bff:PostLogoutPath"] = postLogoutPath;
+        }
 
         return new TestWebApplicationFactory(
             storage,
@@ -613,7 +786,137 @@ public class AuthenticationAndCorsIntegrationTest
             settings,
             useStaticSigningKey: true,
             enableBffTestEndpoints: true,
-            temporaryDataProtectionPath: dataProtectionPath);
+            temporaryDataProtectionPath: dataProtectionPath,
+            configureTestServices: configureTestServices);
+    }
+
+    /// <summary>
+    /// Fuehrt den echten Code-Flow des OIDC-Handlers aus: Challenge, Rueckruf per form_post,
+    /// Code-Tausch, ID-Token- und Nonce-Pruefung, Access-Token-Pruefung und Cookie-Anmeldung.
+    /// Ersetzt sind nur die Anmeldeseite des Providers (der Test liest state und nonce aus der
+    /// Weiterleitung) und sein Token-Endpunkt (Backchannel-Stub).
+    /// </summary>
+    private static async Task<OidcSignIn> SignInThroughOidcAsync(HttpClient client, OidcTokenEndpointStub tokenEndpoint, Guid userId)
+    {
+        var challenge = await client.GetAsync("/bff/login?returnTo=%2F");
+        challenge.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var authorization = QueryHelpers.ParseQuery(challenge.Headers.Location!.Query);
+
+        var idToken = CreateToken(
+            [
+                new Claim("sub", userId.ToString()),
+                new Claim("nonce", authorization["nonce"].ToString()),
+                new Claim("name", "Ada Lovelace")
+            ],
+            audience: "flowzer-console");
+        var accessToken = CreateToken(
+        [
+            new Claim("sub", userId.ToString()),
+            new Claim("resource_access", """{"flowzer-api":{"roles":["access"]}}""", JsonClaimValueTypes.Json)
+        ]);
+        tokenEndpoint.Respond(accessToken, idToken);
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["code"] = "test-authorization-code",
+            ["state"] = authorization["state"].ToString()
+        });
+        var callback = await client.PostAsync("/bff/signin-oidc", form);
+        callback.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        callback.Headers.Location!.ToString().Should().Be("/");
+        tokenEndpoint.Requests.Should().Be(1);
+
+        var sessionCookie = callback.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("__Host-Flowzer-Session=", StringComparison.Ordinal));
+        var cookieValue = sessionCookie["__Host-Flowzer-Session=".Length..].Split(';')[0];
+        return new OidcSignIn(idToken, cookieValue, callback);
+    }
+
+    private static AuthenticationTicket UnprotectSessionCookie(TestWebApplicationFactory factory, string cookieValue)
+    {
+        var cookieOptions = factory.Services
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(FlowzerAuthenticationSchemes.Cookie);
+        var ticket = cookieOptions.TicketDataFormat.Unprotect(cookieValue);
+        ticket.Should().NotBeNull("das Sitzungscookie muss mit dem Schluesselring der API lesbar sein");
+        return ticket!;
+    }
+
+    private static async Task<AuthenticationTicket> RetrieveStoredTicketAsync(TestWebApplicationFactory factory, string cookieValue)
+    {
+        var sessionKey = UnprotectSessionCookie(factory, cookieValue).Principal.Claims.Single().Value;
+        var ticket = await factory.Services.GetRequiredService<BffSessionStore>().RetrieveAsync(sessionKey);
+        ticket.Should().NotBeNull("der Sitzungsschluessel verweist auf das serverseitige Ticket");
+        return ticket!;
+    }
+
+    private static async Task<HttpResponseMessage> LogoutWithCsrfAsync(HttpClient client)
+    {
+        using var csrfResponse = await client.GetAsync("/bff/csrf");
+        csrfResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var csrf = await csrfResponse.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        using var logoutRequest = new HttpRequestMessage(HttpMethod.Post, "/bff/logout");
+        logoutRequest.Headers.Add(csrf.GetProperty("headerName").GetString()!, csrf.GetProperty("requestToken").GetString()!);
+        logoutRequest.Headers.Add("Origin", "https://localhost");
+        return await client.SendAsync(logoutRequest);
+    }
+
+    private static void UseOidcBackchannel(IServiceCollection services, OidcTokenEndpointStub tokenEndpoint) =>
+        services.PostConfigure<OpenIdConnectOptions>(
+            FlowzerAuthenticationSchemes.OpenIdConnect,
+            options => options.Backchannel = new HttpClient(tokenEndpoint));
+
+    private static void UseOidcConfiguration(
+        IServiceCollection services,
+        IConfigurationManager<OpenIdConnectConfiguration> configurationManager) =>
+        services.PostConfigure<OpenIdConnectOptions>(
+            FlowzerAuthenticationSchemes.OpenIdConnect,
+            options => options.ConfigurationManager = configurationManager);
+
+    private sealed record OidcSignIn(string IdToken, string SessionCookie, HttpResponseMessage Callback);
+
+    /// <summary>Token-Endpunkt des Providers im Test: beantwortet ausschliesslich den Code-Tausch.</summary>
+    private sealed class OidcTokenEndpointStub : HttpMessageHandler
+    {
+        public const string RefreshToken = "test-refresh-token";
+        private string? _response;
+
+        public int Requests { get; private set; }
+
+        public void Respond(string accessToken, string idToken) =>
+            _response = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                access_token = accessToken,
+                id_token = idToken,
+                refresh_token = RefreshToken,
+                token_type = "Bearer",
+                expires_in = 300
+            });
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            request.Method.Should().Be(HttpMethod.Post);
+            request.RequestUri!.AbsoluteUri.Should().Be($"{Issuer}/protocol/openid-connect/token");
+            (await request.Content!.ReadAsStringAsync(cancellationToken)).Should().Contain("grant_type=authorization_code");
+            Requests++;
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(_response ?? throw new InvalidOperationException("No token response prepared."), Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
+    /// <summary>Discovery nicht erreichbar; die Meldung darf nicht im Log landen.</summary>
+    private sealed class UnavailableConfigurationManager : IConfigurationManager<OpenIdConnectConfiguration>
+    {
+        public const string Detail = "metadata-detail-that-must-not-be-logged";
+
+        public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancel) =>
+            Task.FromException<OpenIdConnectConfiguration>(new InvalidOperationException(Detail));
+
+        public void RequestRefresh()
+        {
+        }
     }
 
     private static HttpClient CreateSecureCookieClient(TestWebApplicationFactory factory) =>
@@ -648,7 +951,8 @@ public class AuthenticationAndCorsIntegrationTest
         IReadOnlyDictionary<string, string?>? configuration = null,
         bool useStaticSigningKey = false,
         bool enableBffTestEndpoints = false,
-        string? temporaryDataProtectionPath = null) : WebApplicationFactory<Program>
+        string? temporaryDataProtectionPath = null,
+        Action<IServiceCollection>? configureTestServices = null) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
@@ -706,6 +1010,9 @@ public class AuthenticationAndCorsIntegrationTest
                         });
                     }
                 }
+
+                // Einzelne Tests ersetzen danach gezielt Discovery, Backchannel oder Logger.
+                configureTestServices?.Invoke(services);
             });
         }
 

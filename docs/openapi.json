@@ -517,6 +517,26 @@
           "Bff"
         ],
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BffLogoutResponseDto"
+                }
+              }
+            }
+          },
           "204": {
             "description": "No Content"
           },
@@ -8933,6 +8953,16 @@
             "nullable": true
           },
           "headerName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BffLogoutResponseDto": {
+        "type": "object",
+        "properties": {
+          "redirectTo": {
             "type": "string",
             "nullable": true
           }
