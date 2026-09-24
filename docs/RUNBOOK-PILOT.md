@@ -63,7 +63,9 @@ Einzelprozesspfad.
 5. Nur wenn die Abmeldung auch die Entra-Sitzung beenden soll
    (`FLOWZER_BFF_PROVIDER_LOGOUT=true`): `https://<flowzer-host>/` zusätzlich als
    Redirect-URI der Plattform Web eintragen; Entra akzeptiert nur registrierte
-   Adressen als `post_logout_redirect_uri`. Dieser Weg ist nicht durch die Abnahme belegt.
+   Adressen als `post_logout_redirect_uri`. Die API-Audience muss eine eigene
+   API-Registrierung (Schritt 1) sein, nicht die Client-ID des BFF; sonst startet die API
+   mit dem Schalter nicht. Dieser Weg ist nicht durch die Abnahme belegt.
 
 ### Keycloak
 

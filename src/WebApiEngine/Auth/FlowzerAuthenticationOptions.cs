@@ -227,5 +227,27 @@ public sealed class FlowzerAuthenticationOptions
             throw new InvalidOperationException(
                 "Authentication:Bff:PostLogoutPath must be a local absolute path such as '/'.");
         }
+
+        // Mit Provider-Logout gelangt das ID-Token in den Browser. Die Bearer-Pruefung
+        // unterscheidet ID- und Access-Token nicht; sie lehnt ein ID-Token nur ab, weil seine
+        // Audience (die BFF-Client-ID) nicht die API-Audience ist. Faellt beides zusammen, etwa
+        // bei einer gemeinsamen Entra-App-Registrierung, waere das ID-Token samt Rollen bis zu
+        // seinem Ablauf ein gueltiger Bearer. Diese Kombination darf deshalb nicht starten.
+        if (Bff.ProviderLogout && AudienceMatchesBffClient(JwtBearer.Audience, Bff.ClientId))
+        {
+            throw new InvalidOperationException(
+                "Authentication:Bff:ProviderLogout requires Authentication:JwtBearer:Audience to differ from "
+                + "Authentication:Bff:ClientId (also as 'api://<ClientId>'). Otherwise the ID token handed to the "
+                + "browser for the provider logout would be accepted as a bearer token. Use a separate API audience "
+                + "or disable ProviderLogout.");
+        }
+    }
+
+    private static bool AudienceMatchesBffClient(string audience, string clientId)
+    {
+        var normalizedAudience = audience.Trim();
+        var normalizedClientId = clientId.Trim();
+        return string.Equals(normalizedAudience, normalizedClientId, StringComparison.OrdinalIgnoreCase)
+               || string.Equals(normalizedAudience, $"api://{normalizedClientId}", StringComparison.OrdinalIgnoreCase);
     }
 }

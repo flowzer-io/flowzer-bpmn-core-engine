@@ -51,9 +51,10 @@ npx playwright test specs/negative.spec.js --project=flows --no-deps
 | `api` | Web-API im BFF-Modus, Rollen `access`/`modeler`/`operator`/`worker`, Provider-Logout (`Authentication__Bff__ProviderLogout=true`) und Verzeichnisabgleich aktiv; vertraut der Test-CA über `SSL_CERT_FILE`, `RequireHttpsMetadata` bleibt `true` |
 | `console` | React-Konsole mit nginx, leitet API-Pfade an `api:8080` |
 
-Der BFF-Client `flowzer-bff` erlaubt `https://flowzer.test:8443/*` als Post-Logout-Redirect-URI
-(Client-Attribut `post.logout.redirect.uris`); ohne diese Freigabe würde Keycloak den
-Provider-Logout mit einer Fehlerseite ablehnen.
+Der BFF-Client `flowzer-bff` erlaubt exakt `https://flowzer.test:8443/` als
+Post-Logout-Redirect-URI (Client-Attribut `post.logout.redirect.uris`, ohne Platzhalter wie in
+einer Installation); ohne diese Freigabe würde Keycloak den Provider-Logout mit einer
+Fehlerseite ablehnen.
 
 Testkonten (Passwort jeweils `<name>-test-password`): `alice` alle vier Rollen und Gruppe
 `/team/review`, `bob` nur `access`, `carol` ohne Rolle, `dave` `access` und `/team/review`.
@@ -66,7 +67,7 @@ offensichtliche Testwerte und gehören in keine echte Installation.
 | Datei | Inhalt |
 |---|---|
 | `specs/check-config.spec.js` | `--check-config` im API-Container endet mit 0; Discovery-Issuer entspricht der Authority |
-| `specs/golden-path.spec.js` | Readiness, anonym 401, BFF-Anmeldung über Keycloak, Fähigkeiten, Cookie-Attribute, CSRF, fremder Origin, ungültiger Bearer neben Cookie, Abmeldung samt RP-initiated Logout bei Keycloak (danach verlangt Keycloak das Formular wieder) |
+| `specs/golden-path.spec.js` | Readiness, anonym 401, BFF-Anmeldung über Keycloak, Fähigkeiten, Cookie-Attribute, CSRF, fremder Origin, ungültiger Bearer neben Cookie, Abmeldung über das Benutzermenü der Konsole samt RP-initiated Logout bei Keycloak (danach verlangt Keycloak das Formular wieder) |
 | `specs/negative.spec.js` | fremde Audience 401, ohne Zugangsrolle 403 `application`, ohne Modeler 403 `capability`, Rollenentzug für Bearer und BFF-Sitzung |
 | `specs/directory.spec.js` | Servicekonto nur mit explizit zugeordneten Leserechten, manueller Abgleich, workflowgebundene Suche, Deaktivierung (inklusive dokumentierter Grenze) |
 | `specs/restart.spec.js` | `docker compose restart api`: alte Sitzung 401, Health wieder gesund, Keyring unverändert, erneute Anmeldung |

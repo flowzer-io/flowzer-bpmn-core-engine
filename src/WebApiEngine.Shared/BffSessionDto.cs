@@ -14,4 +14,4 @@ public sealed record BffCsrfDto(string RequestToken, string HeaderName);
 /// Antwort auf eine Abmeldung, die auch die Sitzung beim Identity Provider beenden soll:
 /// Adresse des Provider-Logouts, zu der die Konsole den Browser schickt.
 /// </summary>
-public sealed record BffLogoutResponseDto(string? RedirectTo);
+public sealed record BffLogoutResponseDto([property: System.ComponentModel.DataAnnotations.Required] string RedirectTo);

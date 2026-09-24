@@ -552,7 +552,7 @@ public class AuthenticationAndCorsIntegrationTest
         var logout = await LogoutWithCsrfAsync(client);
 
         logout.StatusCode.Should().Be(HttpStatusCode.OK);
-        var redirectTo = (await logout.Content.ReadFromJsonAsync<BffLogoutResponseDto>())!.RedirectTo!;
+        var redirectTo = (await logout.Content.ReadFromJsonAsync<BffLogoutResponseDto>())!.RedirectTo;
         var parameters = QueryHelpers.ParseQuery(new Uri(redirectTo).Query);
         parameters.Keys.Should().BeEquivalentTo("post_logout_redirect_uri", "client_id");
         parameters["post_logout_redirect_uri"].ToString().Should().Be("https://localhost/abgemeldet?grund=logout");

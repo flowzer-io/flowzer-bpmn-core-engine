@@ -8960,11 +8960,14 @@
         "additionalProperties": false
       },
       "BffLogoutResponseDto": {
+        "required": [
+          "redirectTo"
+        ],
         "type": "object",
         "properties": {
           "redirectTo": {
-            "type": "string",
-            "nullable": true
+            "minLength": 1,
+            "type": "string"
           }
         },
         "additionalProperties": false

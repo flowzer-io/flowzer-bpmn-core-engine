@@ -39,22 +39,51 @@ public sealed class BffSessionRefresherTest
         result.Properties.GetTokenValue("refresh_token").Should().Be("rotated-test-token");
     }
 
-    // Testzweck: Mit ProviderLogout ersetzt ein neues ID-Token aus der Refresh-Antwort den
-    // gespeicherten id_token_hint; fehlt es in der Antwort, bleibt das bisherige erhalten.
+    // Testzweck: Mit ProviderLogout ersetzt ein neues ID-Token derselben Anmeldung (iss, aud, sub)
+    // den gespeicherten id_token_hint; fehlt es in der Antwort, bleibt das bisherige erhalten.
     [TestCase(true)]
     [TestCase(false)]
     public async Task Refresh_ShouldKeepCurrentIdToken_WhenProviderLogoutIsEnabled(bool responseContainsIdToken)
     {
-        var ticket = Ticket(idToken: "initial-id-token");
+        var initialIdToken = IdToken("person");
+        var renewedIdToken = IdToken("person", name: "renewed");
+        var ticket = Ticket(idToken: initialIdToken);
         using var client = Client(HttpStatusCode.OK, responseContainsIdToken
-            ? JsonSerializer.Serialize(new { access_token = Token("api", "person"), id_token = "renewed-id-token" })
+            ? JsonSerializer.Serialize(new { access_token = Token("api", "person"), id_token = renewedIdToken })
             : JsonSerializer.Serialize(new { access_token = Token("api", "person") }));
 
         var result = await Refresher(client, providerLogout: true).RefreshAsync(ticket);
 
         result.Should().NotBeNull();
-        result!.Properties.GetTokenValue("id_token").Should().Be(responseContainsIdToken ? "renewed-id-token" : "initial-id-token");
+        result!.Properties.GetTokenValue("id_token").Should().Be(responseContainsIdToken ? renewedIdToken : initialIdToken);
         result.Properties.GetTokenValue("refresh_token").Should().Be("initial-test-token");
+    }
+
+    // Testzweck: Ein neues ID-Token mit abweichendem sub, aud oder iss oder ein unlesbarer Wert
+    // wird verworfen; das bisherige bleibt, und die Erneuerung selbst gelingt trotzdem.
+    [TestCase("subject")]
+    [TestCase("audience")]
+    [TestCase("issuer")]
+    [TestCase("malformed")]
+    public async Task Refresh_ShouldDiscardRenewedIdToken_WhenItDescribesAnotherLogin(string deviation)
+    {
+        var initialIdToken = IdToken("person");
+        var renewedIdToken = deviation switch
+        {
+            "subject" => IdToken("other-person"),
+            "audience" => IdToken("person", audience: "other-client"),
+            "issuer" => IdToken("person", issuer: "https://other-issuer.test"),
+            _ => "not-a-jwt"
+        };
+        using var client = Client(HttpStatusCode.OK, JsonSerializer.Serialize(new
+        {
+            access_token = Token("api", "person"), id_token = renewedIdToken
+        }));
+
+        var result = await Refresher(client, providerLogout: true).RefreshAsync(Ticket(idToken: initialIdToken));
+
+        result.Should().NotBeNull();
+        result!.Properties.GetTokenValue("id_token").Should().Be(initialIdToken);
     }
 
     // Testzweck: Ohne ProviderLogout legt auch der Refresh kein ID-Token im Ticket ab.
@@ -63,7 +92,7 @@ public sealed class BffSessionRefresherTest
     {
         using var client = Client(HttpStatusCode.OK, JsonSerializer.Serialize(new
         {
-            access_token = Token("api", "person"), id_token = "renewed-id-token"
+            access_token = Token("api", "person"), id_token = IdToken("person")
         }));
 
         var result = await Refresher(client).RefreshAsync(Ticket());
@@ -116,6 +145,14 @@ public sealed class BffSessionRefresherTest
         Subject = new ClaimsIdentity([new Claim("sub", subject)]),
         SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256)
     });
+
+    private static string IdToken(string subject, string audience = "test-client", string issuer = Issuer, string name = "initial") =>
+        new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = issuer, Audience = audience, Expires = DateTime.UtcNow.AddMinutes(5),
+            Subject = new ClaimsIdentity([new Claim("sub", subject), new Claim("name", name)]),
+            SigningCredentials = new SigningCredentials(Key, SecurityAlgorithms.HmacSha256)
+        });
 
     private static BffSessionRefresher Refresher(HttpClient client, bool providerLogout = false)
     {

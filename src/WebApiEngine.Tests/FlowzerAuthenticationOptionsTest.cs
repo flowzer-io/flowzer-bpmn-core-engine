@@ -115,6 +115,42 @@ public class FlowzerAuthenticationOptionsTest
         new FlowzerAuthenticationOptions.BffSettings().PostLogoutPath.Should().Be("/");
     }
 
+    // Testzweck: Mit Provider-Logout gelangt das ID-Token in den Browser. Stimmt die API-Audience
+    // mit der BFF-Client-ID ueberein (auch als api://<ClientId>), waere es ein gueltiger Bearer;
+    // der Start muss dann scheitern.
+    [TestCase("flowzer-console")]
+    [TestCase(" FLOWZER-CONSOLE ")]
+    [TestCase("api://flowzer-console")]
+    [TestCase("API://Flowzer-Console")]
+    public void Validate_ShouldRejectProviderLogout_WhenAudienceIsTheBffClient(string audience)
+    {
+        var options = CreateOptions(FlowzerAuthenticationOptions.SchemeBff);
+        options.Bff.ProviderLogout = true;
+        options.JwtBearer.Audience = audience;
+
+        var act = () => options.Validate();
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*Authentication:Bff:ProviderLogout*")
+            .WithMessage("*Authentication:JwtBearer:Audience*");
+    }
+
+    // Testzweck: Eine eigene API-Audience erlaubt den Provider-Logout; ohne den Schalter bleibt
+    // auch eine gemeinsame Audience wie bisher zulaessig.
+    [TestCase(true, "flowzer-api")]
+    [TestCase(true, "api://flowzer-api")]
+    [TestCase(false, "flowzer-console")]
+    public void Validate_ShouldAllowProviderLogout_WhenAudienceDiffersOrSwitchIsOff(bool providerLogout, string audience)
+    {
+        var options = CreateOptions(FlowzerAuthenticationOptions.SchemeBff);
+        options.Bff.ProviderLogout = providerLogout;
+        options.JwtBearer.Audience = audience;
+
+        var act = () => options.Validate();
+
+        act.Should().NotThrow();
+    }
+
     private static FlowzerAuthenticationOptions CreateOptions(string scheme) => new()
     {
         Scheme = scheme,

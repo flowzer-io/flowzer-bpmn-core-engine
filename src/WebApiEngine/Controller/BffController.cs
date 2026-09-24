@@ -26,8 +26,9 @@ public sealed class BffController(
     IOptionsMonitor<OpenIdConnectOptions> oidcOptions,
     ILogger<BffController> logger) : ControllerBase
 {
-    // Obergrenze fuer das Laden der OIDC-Metadaten beim Provider-Logout. Die Metadaten sind
-    // nach der Anmeldung normalerweise zwischengespeichert; die Abmeldung soll nie haengen.
+    // Begrenzt, wie lange die Abmeldung auf die OIDC-Metadaten wartet. Die Metadaten liegen nach
+    // der Anmeldung praktisch immer im Cache des ConfigurationManager; muss er sie doch erst
+    // abrufen, bestimmt den Abruf selbst der Backchannel-Timeout des OIDC-Handlers.
     private static readonly TimeSpan ProviderMetadataTimeout = TimeSpan.FromSeconds(10);
 
     [AllowAnonymous]

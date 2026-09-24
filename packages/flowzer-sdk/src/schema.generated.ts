@@ -7169,7 +7169,7 @@ export interface components {
             headerName?: string | null;
         };
         BffLogoutResponseDto: {
-            redirectTo?: string | null;
+            redirectTo: string;
         };
         BffSessionDto: {
             id?: string | null;

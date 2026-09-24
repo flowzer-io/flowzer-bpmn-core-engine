@@ -91,7 +91,7 @@ test.describe('Golden Path', () => {
       expect((await readSession(page)).status, 'Sitzung besteht weiter').toBe(200);
     });
 
-    await test.step('CSRF: mit Token aus /bff/csrf gelingt die Abmeldung', async () => {
+    await test.step('CSRF: /bff/csrf liefert den Token und setzt den Antiforgery-Cookie', async () => {
       const csrfResponse = await fetchInPage(page, '/bff/csrf');
       expect(csrfResponse.status).toBe(200);
       const csrf = JSON.parse(csrfResponse.text);
@@ -103,18 +103,27 @@ test.describe('Golden Path', () => {
       expect(csrfCookie.httpOnly).toBe(true);
       expect(csrfCookie.secure).toBe(true);
       expect(csrfCookie.sameSite).toBe('Strict');
+    });
 
-      // Mit Authentication:Bff:ProviderLogout=true: 200 und die Abmeldeadresse bei Keycloak.
-      const logout = await logoutWithBrowser(page);
+    await test.step('Abmelden ueber das Benutzermenue der Konsole beendet auch die Keycloak-Sitzung', async () => {
+      // Mit Authentication:Bff:ProviderLogout=true: 200 und die Abmeldeadresse bei Keycloak;
+      // die Konsole prueft sie und navigiert den Browser dorthin.
+      const logout = await logoutWithBrowser(page, {
+        endSessionEndpoint: `${ISSUER}/protocol/openid-connect/logout`,
+        postLogoutRedirectUri: `${BASE_URL}/`
+      });
       expect(logout.status).toBe(200);
-      const endSession = new URL(logout.redirectTo);
+      expect(logout.contentType).toContain('application/json');
+      // Die Konsole navigiert zu redirectTo aus der Antwort; geprueft wird die angesteuerte Adresse.
+      const endSession = new URL(logout.endSessionUrl);
       expect(endSession.origin).toBe(AUTH_URL);
       expect(endSession.pathname).toBe(`${new URL(ISSUER).pathname}/protocol/openid-connect/logout`);
       expect(endSession.searchParams.get('post_logout_redirect_uri')).toBe(`${BASE_URL}/`);
       expect(endSession.searchParams.get('client_id')).toBe('flowzer-bff');
       expect(endSession.searchParams.get('id_token_hint')).toMatch(/^eyJ[\w-]+\.eyJ[\w-]+\.[\w-]+$/);
       // Keycloak beendet die SSO-Sitzung ohne Rueckfrage und leitet auf die Konsole zurueck.
-      expect(logout.finalUrl).toBe(`${BASE_URL}/`);
+      expect(logout.returnUrl).toBe(`${BASE_URL}/`);
+      expect(logout.returnStatus).toBe(200);
     });
 
     await test.step('Nach der Abmeldung ist die Sitzung beendet', async () => {

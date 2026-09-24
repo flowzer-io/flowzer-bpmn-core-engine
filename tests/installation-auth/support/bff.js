@@ -81,30 +81,56 @@ async function cookieHeaderFor(context, url) {
 }
 
 /**
- * Meldet ab wie die Konsole: CSRF-Token aus /bff/csrf, POST /bff/logout und – wenn der BFF
- * eine Abmeldeadresse des Identity Providers liefert – Top-Level-Navigation dorthin. Der
- * Provider beendet die SSO-Sitzung und leitet auf die Post-Logout-URI zurück.
- * Liefert Status, redirectTo und die Adresse nach dem Rücksprung (ohne redirectTo undefined).
+ * Meldet über das Benutzermenü der Konsole ab (Kopfzeile → „Abmelden“). Die Konsole holt
+ * dafür selbst den CSRF-Token, sendet POST /bff/logout und navigiert – wenn der BFF eine
+ * Abmeldeadresse des Identity Providers liefert und die Konsole sie als sicher akzeptiert –
+ * den Browser dorthin; der Provider beendet die SSO-Sitzung und leitet auf die
+ * Post-Logout-URI zurück. Voraussetzung: Die Seite zeigt die angemeldete Konsole.
+ * Liefert Status und Content-Type der Logout-Antwort, die von der Konsole tatsächlich
+ * angesteuerte Abmeldeadresse und das Ziel der Weiterleitung des Providers samt Status.
+ * Den Antwortkörper liest der Test nicht: Nach der Navigation hält Chromium ihn nicht mehr
+ * vor. Die angesteuerte Adresse stammt aber ausschließlich aus diesem `redirectTo`.
  */
-async function logoutWithBrowser(page) {
-  const csrfResponse = await fetchInPage(page, '/bff/csrf');
-  expect(csrfResponse.status, 'GET /bff/csrf').toBe(200);
-  const csrf = JSON.parse(csrfResponse.text);
-
-  const response = await fetchInPage(page, '/bff/logout', {
-    method: 'POST',
-    headers: { [csrf.headerName]: csrf.requestToken }
+async function logoutWithBrowser(page, { endSessionEndpoint, postLogoutRedirectUri }) {
+  const logoutResponse = page.waitForResponse(
+    response => new URL(response.url()).pathname === '/bff/logout' && response.request().method() === 'POST',
+    { timeout: LOGIN_STEP_TIMEOUT_MS }
+  );
+  const endSessionNavigation = page.waitForRequest(
+    request => request.isNavigationRequest() && request.url().startsWith(`${endSessionEndpoint}?`),
+    { timeout: LOGIN_STEP_TIMEOUT_MS }
+  );
+  // Die Weiterleitung des Providers erkennt man an der Anfrage, die aus der Abmeldeadresse
+  // umgeleitet wurde; so bleibt der Test unabhängig vom späteren Routing der Konsole.
+  const returnNavigation = page.waitForRequest(
+    request => request.url() === postLogoutRedirectUri
+      && request.redirectedFrom()?.url().startsWith(`${endSessionEndpoint}?`) === true,
+    { timeout: LOGIN_STEP_TIMEOUT_MS }
+  );
+  // Weitere Seitenaufrufe erst im neuen Dokument: Keycloak antwortet direkt mit einer
+  // Weiterleitung, das nächste Commit des Hauptframes ist also die Rückkehr zur Konsole.
+  const returnedDocument = page.waitForEvent('framenavigated', {
+    predicate: frame => frame === page.mainFrame() && frame.url() === postLogoutRedirectUri,
+    timeout: LOGIN_STEP_TIMEOUT_MS
   });
-  const redirectTo = response.status === 200 ? JSON.parse(response.text).redirectTo : undefined;
 
-  let finalUrl;
-  if (redirectTo) {
-    // goto folgt den Weiterleitungen; die Antwort gehört zum letzten Dokument der Kette.
-    const navigation = await page.goto(redirectTo);
-    finalUrl = navigation ? navigation.url() : page.url();
-  }
+  await page.getByTitle('Benutzermenü').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Abmelden' }).click();
 
-  return { status: response.status, redirectTo, finalUrl };
+  const response = await logoutResponse;
+  const endSession = await endSessionNavigation;
+  const returned = await returnNavigation;
+  const returnedResponse = await returned.response();
+  await returnedDocument;
+  await page.waitForLoadState('load');
+
+  return {
+    status: response.status(),
+    contentType: response.headers()['content-type'],
+    endSessionUrl: endSession.url(),
+    returnUrl: returned.url(),
+    returnStatus: returnedResponse ? returnedResponse.status() : undefined
+  };
 }
 
 async function readSession(page) {

@@ -13,7 +13,7 @@ tatsächlichen Identity Provider einer Zielumgebung.
 | Angabe | Wert |
 |---|---|
 | Datum | 2026-09-24 |
-| Code-Stand | R1b: `main` (c1a65bb, einschließlich #353) zuzüglich des Pakets; R1c (Läufe ab 12): `main` (174259a, einschließlich #354) zuzüglich Provider-Logout |
+| Code-Stand | R1b: `main` (c1a65bb, einschließlich #353) zuzüglich des Pakets; R1c (Läufe ab 12): `main` (174259a, einschließlich #354) zuzüglich Provider-Logout; Läufe ab 15 zusätzlich mit der Nacharbeit aus dem Review zu #357 |
 | Host | macOS, arm64, Docker Desktop (Engine 29.8.0, Compose v5.5.1) |
 | Identity Provider | Keycloak **26.7.4** (`start-dev --import-realm`, Realm `flowzer-test`) |
 | Weitere Images | PostgreSQL 17-alpine, Caddy 2, alpine/openssl 3.5.8, API/Konsole aus `Dockerfile.api`/`Dockerfile.console` |
@@ -37,6 +37,11 @@ tatsächlichen Identity Provider einer Zielumgebung.
 | 12 | 2026-09-24 02:06 | 167 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c: Provider-Logout; Start 76 s mit Neubau von API und Konsole, Specs 90 s) |
 | 13 | 2026-09-24 02:09 | 143 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c, unmittelbar danach) |
 | 14 | 2026-09-24 02:12 | 122 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c, mit `--keep`; danach die manuelle Nachprüfung unten) |
+| 15 | 2026-09-24 02:35 | 159 s | 15 bestanden, **1 fehlgeschlagen** (R1c-Nacharbeit, erster Stand der Abmeldung über das Benutzermenü: Der Test las den Antwortkörper von `POST /bff/logout` erst nach der Navigation der Konsole, Chromium hielt ihn nicht mehr vor) |
+| 16 | 2026-09-24 02:38 | 123 s | 15 bestanden, **1 fehlgeschlagen** (Testhilfe rief `/bff/session` auf, bevor das Dokument nach dem Rücksprung geladen war; die Abmeldung selbst war erfolgt) |
+| 17 | 2026-09-24 02:40 | 123 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit: exakte Post-Logout-URI im Realm, Abmeldung über das Benutzermenü, Warten auf das neue Dokument; mit `--keep`, danach Golden Path 5-mal wiederholt: 25/25) |
+| 18 | 2026-09-24 02:43 | 115 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit, vom leeren Zustand) |
+| 19 | 2026-09-24 02:45 | 116 s | 16 bestanden, 0 fehlgeschlagen, 0 `fixme` (R1c-Nacharbeit, unmittelbar danach) |
 
 Die Läufe liefen paarweise unmittelbar nacheinander, jeweils vom leeren Zustand (`down -v`)
 bis zum Aufräumen; vor Lauf 5 wurden nur ein Kommentar und ein Import umgestellt, vor Lauf 10
@@ -59,8 +64,8 @@ Build-Cache dauerte lokal rund 50 s (Basis-Images bereits vorhanden).
 | Sitzungscookie | `__Host-Flowzer-Session`: HttpOnly, Secure, SameSite=Lax, `Path=/`, ohne Domain; kein JWT in Cookies | erfüllt |
 | Antiforgery-Cookie | `__Host-Flowzer-Csrf`: HttpOnly, Secure, SameSite=Strict | erfüllt |
 | `POST /bff/logout` ohne `X-Flowzer-CSRF` | 400 `application/problem+json`, Sitzung bleibt | erfüllt |
-| `POST /bff/logout` mit Token aus `/bff/csrf` (Stack mit `Authentication__Bff__ProviderLogout=true`) | 200 mit `redirectTo`: Origin `https://auth.flowzer.test:8443`, Pfad `…/protocol/openid-connect/logout`, `post_logout_redirect_uri=https://flowzer.test:8443/`, `client_id=flowzer-bff`, `id_token_hint` (JWT) | erfüllt (R1c; ohne Schalter bleibt es bei 204) |
-| Browser folgt `redirectTo` | Keycloak meldet ohne Rückfrage ab und leitet auf `https://flowzer.test:8443/` zurück | erfüllt (R1c) |
+| Abmelden über das Benutzermenü der Konsole (Stack mit `Authentication__Bff__ProviderLogout=true`) | Konsole holt den CSRF-Token, `POST /bff/logout` antwortet 200 (JSON), Konsole navigiert zur Abmeldeadresse: Origin `https://auth.flowzer.test:8443`, Pfad `…/protocol/openid-connect/logout`, `post_logout_redirect_uri=https://flowzer.test:8443/`, `client_id=flowzer-bff`, `id_token_hint` (JWT) | erfüllt (R1c; ohne Schalter bleibt es bei 204). Der Antwortkörper selbst ist im Test „fremder Origin“ und in den Integrationstests geprüft |
+| Rücksprung vom Provider | Keycloak meldet ohne Rückfrage ab und leitet auf `https://flowzer.test:8443/` zurück; der Realm erlaubt genau diese Adresse (`post.logout.redirect.uris` ohne Platzhalter) | erfüllt (R1c) |
 | `GET /bff/session` nach Abmeldung | 401, Sitzungscookie entfernt | erfüllt |
 | erneutes `GET /bff/login` nach Abmeldung | Keycloak verlangt das Anmeldeformular wieder (SSO-Sitzung beendet) | erfüllt (R1c; in R1b kam der Login ohne Formular zurück) |
 | `POST /bff/logout` mit gültigem CSRF-Token und Cookies, aber `Origin: https://evil.example` bzw. ohne `Origin` (Aufruf außerhalb des Browsers) | 400 „Invalid request origin.“, Sitzung bleibt; derselbe Token aus der Seite meldet danach ab (200 mit `redirectTo`, danach 401) | erfüllt |
@@ -97,7 +102,9 @@ Zusätzlich protokolliert der Test ohne Zusicherung, wie die API daves alten Bea
 ## Provider-Logout: manuelle Nachprüfung (R1c)
 
 Einmalig nach Lauf 14 gegen den stehenden Stack per Browser-Skript geprüft, nicht Teil der
-automatisierten Specs:
+automatisierten Specs. Der Realm erlaubte damals noch `https://flowzer.test:8443/*`; seit
+Lauf 17 steht dort exakt `https://flowzer.test:8443/`, den Rücksprung dorthin belegt der Golden
+Path.
 
 | Fall | Erwartung | Ergebnis |
 |---|---|---|
