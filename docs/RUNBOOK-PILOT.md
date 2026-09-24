@@ -346,8 +346,9 @@ Laufende Instanzen überstehen ein Update: Schema-Migrationen sind Vorwärtsmigr
 lassen wartende Aufgaben, Aufträge und Timer stehen. Belegt ist das durch
 `Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations`
 (`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`):
-Instanzen, die auf dem Schemastand 012 mit allen drei Wartezuständen gespeichert wurden,
-laufen nach allen folgenden Migrationen unverändert weiter.
+Instanzen, die auf dem Schemastand 012 oder 019 mit allen drei Wartezuständen gespeichert
+wurden, laufen nach dem vollständigen `--migrate`-Schritt (Migrationen und
+Formularbindungs-Upgrade) unverändert weiter.
 
 Reihenfolge – **erst Migration, dann Replikate**:
 
