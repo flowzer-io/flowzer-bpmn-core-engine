@@ -3,6 +3,7 @@ import { Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
 import { seesFullConsole, useSession } from '@/stores/session';
+import { useSessionWatch } from '@/lib/auth/useSessionWatch';
 import { useCompactLayout } from '@/lib/useCompactLayout';
 
 import { AccessDeniedNotice } from './AccessDeniedNotice';
@@ -27,6 +28,7 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const compact = useCompactLayout();
+  useSessionWatch();
 
   // Wer keinen Zugang hat, bekommt die reduzierte Ansicht: Die vollständige Konsole
   // zeigte dann nur eine Reihe abgelehnter Aufrufe.

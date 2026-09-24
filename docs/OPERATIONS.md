@@ -136,6 +136,17 @@ einen Refresh. Ein widerrufener Grant beendet die Sitzung, ein vorübergehender
 Provider-Ausfall ergibt 503 statt einer irreführenden Abmeldung. Die absolute Grenze
 bleibt acht Stunden; ohne Refresh-Token gilt weiterhin die Access-Token-Laufzeit.
 
+**Rollenentzug in laufenden Sitzungen:** Eine im Identity Provider entzogene Rolle wirkt
+serverseitig bei der nächsten Token-Erneuerung; der BFF führt sie bei der ersten Anfrage
+aus, sobald das Access-Token in weniger als 60 s abläuft. Die Konsole fragt `GET /bff/session`
+alle 5 Minuten (solange das Fenster sichtbar ist) und bei Rückkehr ins Fenster erneut ab;
+diese Abfrage löst die Erneuerung bei Bedarf selbst aus und passt die angebotenen Aktionen
+ohne Reload an. **Empfehlung:** Die Access-Token-Laufzeit im Identity Provider auf höchstens
+5 Minuten setzen. Dann setzt die API einen Entzug in einer laufenden Sitzung spätestens nach
+dieser Zeit durch; die Konsole zeigt ihn mit ihrer nächsten Sitzungsabfrage danach an, im
+ungünstigsten Fall also nach rund neun Minuten (Token-Laufzeit abzüglich 60 s plus
+Abfrageabstand). Längere Token-Laufzeiten verlängern beides entsprechend.
+
 **Betriebsgrenze:** Dieser Sitzungsspeicher ist prozesslokal (höchstens 10.000 Sitzungen).
 Ein API-Neustart verlangt einmalig eine neue SSO-Anmeldung. Mehrere API-Replikate
 benötigen Sitzungsaffinität; ein verteilter, verschlüsselter Sitzungsspeicher ist

@@ -71,6 +71,10 @@ Einzelprozesspfad.
    `resource_access.flowzer-api.roles` ausgeben.
 3. Authority: `https://<keycloak-host>/realms/<realm>`. Die Benutzer-ID muss als
    GUID im `sub`-Claim vorliegen.
+4. Die Access-Token-Laufzeit (Realm oder Client, „Access Token Lifespan“) höchstens auf
+   5 Minuten stellen, wie im Keycloak-Standard: Ein Rollenentzug wirkt in laufenden
+   Sitzungen erst mit der nächsten Token-Erneuerung (siehe `docs/OPERATIONS.md`,
+   „Sitzungsdauer und Erneuerung“).
 
 Keine SPA-Registrierung, keine Browser-Client-ID, keine `FLOWZER_OIDC_*`-Variablen
 und keine stille Browser-Token-Erneuerung konfigurieren.

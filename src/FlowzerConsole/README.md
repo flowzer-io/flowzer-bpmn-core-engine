@@ -76,6 +76,8 @@ Der Modellierer wird ohne `modeler` zur Ansicht: Das Diagramm lässt sich betrac
 
 Die Anzeige richtet sich nach den serverseitig projizierten Fähigkeiten, die Entscheidung trifft weiterhin die API bei jedem Aufruf.
 
+Damit geänderte Rollen ohne Reload ankommen, fragt die Konsole `GET /bff/session` nicht nur beim Start ab: Bei angemeldeter BFF-Sitzung wiederholt sie die Abfrage alle fünf Minuten, solange das Fenster sichtbar ist, und sofort bei Rückkehr ins Fenster (Fokus oder Sichtbarkeitswechsel) — höchstens einmal je 30 Sekunden und nie parallel (`src/lib/auth/useSessionWatch.ts`). Der BFF ersetzt die Rollen bei der serverseitigen Token-Erneuerung; ein Entzug im Identity Provider nimmt der Oberfläche die betreffenden Aktionen so ohne 401 oder 403. Schlägt eine solche Abfrage vorübergehend fehl, erscheint nur der Verbindungshinweis, niemand wird abgemeldet.
+
 ## Konfiguration zur Laufzeit
 
 Ein gebautes Bündel ist unveränderlich; der Container schreibt nur unkritische
