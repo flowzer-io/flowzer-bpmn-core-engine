@@ -176,7 +176,7 @@ run_script() {
 # Rechte der Laufzeitrolle im Ziel als eine Zeile: USAGE/CREATE auf dem Schema, Zahl der Tabellen
 # ohne volle Datenrechte, Rechte auf schema_migrations (S/I/U/D) und Zahl der Default-Privileges.
 runtime_rights() {
-  sql "$TARGET_DB" "SELECT has_schema_privilege('${RUNTIME_ROLE}', '${SCHEMA}', 'USAGE')
+  sql "${1:-$TARGET_DB}" "SELECT has_schema_privilege('${RUNTIME_ROLE}', '${SCHEMA}', 'USAGE')
     || '/' || has_schema_privilege('${RUNTIME_ROLE}', '${SCHEMA}', 'CREATE')
     || '/' || (SELECT count(*) FROM pg_class c WHERE c.relnamespace = '${SCHEMA}'::regnamespace
                AND c.relkind = 'r' AND c.relname <> 'schema_migrations'
@@ -468,6 +468,28 @@ if grep -Eq '^[[:alpha:]-]+ +Fehler ' "${LOG_DIR}/check-config.log"; then
   fail "--check-config enthaelt eine Fehlerzeile"
 fi
 pass "keine Fehlerzeile"
+
+# Testzweck: Der dokumentierte Rueckweg (Restore in die Datenbank, aus der die Sicherung stammt,
+# mit --allow-same-database --force --runtime-role --files --overwrite-files) laeuft durch: Die
+# Quelle wird als solche erkannt und gewarnt, das belegte Schema neu angelegt, Bestand und Rechte
+# stimmen, die Laufzeitrolle liest, und die Dateien liegen wieder an ihren .meta-Pfaden.
+begin_case "Rueckweg in die Quelle mit allen Schaltern"
+source_before="$(database_state "$SOURCE_DB")"
+echo 'vor dem Rueckweg geaendert' >"${SOURCE_FILES}/schluesselring/key-aaaaaaaa.xml"
+run_script restore-quelle-rueckweg "$SOURCE_DB" env FLOWZER_RUNTIME_PASSWORD="$RUNTIME_PASSWORD" \
+  "${REPO_ROOT}/scripts/runtime/restore.sh" "$DUMP" --allow-same-database --force \
+  --runtime-role "$RUNTIME_ROLE" --files "$FILES_ARCHIVE" --overwrite-files \
+  || fail "Rueckweg in die Quelle scheiterte"
+assert_contains "${LOG_DIR}/restore-quelle-rueckweg.log" "Ziel ist die Quelle der Sicherung (--allow-same-database)" "Quelle erkannt und gewarnt"
+assert_contains "${LOG_DIR}/restore-quelle-rueckweg.log" "Lesen als ${RUNTIME_ROLE} ueber eigene Verbindung bestaetigt" "Laufzeitrolle liest nach dem Rueckweg"
+source_after="$(database_state "$SOURCE_DB")"
+[[ "${source_after%%/*}" != "${source_before%%/*}" ]] || fail "Quellschema wurde nicht neu angelegt"
+pass "Quellschema neu angelegt (OID ${source_before%%/*} -> ${source_after%%/*})"
+assert_eq "${SOURCE_STATE#*/}" "${source_after#*/}" "Bestand in der Quelle wie vor dem Rueckweg"
+assert_eq "$EXPECTED_RIGHTS" "$(runtime_rights "$SOURCE_DB")" "Laufzeitrechte in der Quelle"
+assert_eq "2" "$(sql_as "$RUNTIME_ROLE" "$RUNTIME_PASSWORD" "$SOURCE_DB" "SELECT count(*) FROM ${SCHEMA}.definitions")" "Laufzeitrolle liest die Definitionen der Quelle"
+diff -r "${WORK_DIR}/quelle-original" "$SOURCE_FILES" >/dev/null || fail "Dateien nach dem Rueckweg weichen ab"
+pass "Dateiablage und Keyring nach dem Rueckweg an den .meta-Pfaden identisch"
 
 # Testzweck: Keine Skriptausgabe dieses Laufs enthaelt ein Datenbankpasswort.
 begin_case "Keine Passwoerter in den Ausgaben"

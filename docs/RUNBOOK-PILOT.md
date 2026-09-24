@@ -227,14 +227,27 @@ OIDC-Korrelationen und Antiforgery-Token ihre Gültigkeit. Wer nur die Dateiabla
 ruft `--files-only` auf; wer nur die Datenbank sichert, `--no-files`. Die Sicherung ist nur
 vollständig, wenn Dump, `.sha256` und `.meta` zusammen weggesichert werden.
 
-**Zurückspielen** – Stack gestoppt, Ziel ist eine mit
-`deploy/postgresql/01-datenbank-und-rollen.sql` angelegte (oder eine leere) Datenbank:
+**Zurückspielen in eine andere Datenbank** (Klon, Test, Umzug) – Stack gestoppt, Ziel ist
+eine mit `deploy/postgresql/01-datenbank-und-rollen.sql` angelegte (oder eine leere) Datenbank.
+Auf demselben Host liegen die Dateien der Quellinstallation noch an ihren Pfaden; deshalb
+gehört `--files-root` dazu, sonst bricht das Skript am Dateikonflikt ab (Prüfung 3):
 
 ```bash
 export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Database=<ziel>;Username=<migrationsrolle>;Password=…'
 ./scripts/runtime/restore.sh backups/20260919T043206Z.dump --schema flowzer \
   --runtime-role <laufzeitrolle> \
-  --files backups/20260919T043206Z-files.tgz
+  --files backups/20260919T043206Z-files.tgz --files-root /srv/flowzer-restore
+```
+
+**Zurückspielen in die Originaldatenbank** (Rückweg nach Datenverlust oder gescheitertem
+Update) – Stack gestoppt; das Schema ist belegt und die Dateien liegen an ihren Pfaden, also
+sind alle drei Schalter nötig, und die Rechte-Neuvergabe läuft über `--runtime-role` gleich mit:
+
+```bash
+export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Database=<original>;Username=<migrationsrolle>;Password=…'
+./scripts/runtime/restore.sh backups/20260919T043206Z.dump --schema flowzer \
+  --allow-same-database --force --runtime-role <laufzeitrolle> \
+  --files backups/20260919T043206Z-files.tgz --overwrite-files
 ```
 
 Das Skript arbeitet in dieser Reihenfolge. Die Prüfungen 1 bis 4 laufen vollständig, bevor
@@ -256,9 +269,12 @@ es das Ziel verändert; jeder Befund dort ist ein Abbruch ohne Änderung:
 4. **Leeres Ziel.** Als leer gilt auch ein Schema, in dem nur die vom Rollenskript vorab
    angelegte, leere `schema_migrations` liegt; sie wird vor dem Restore entfernt. Enthält das
    Schema Daten, bricht das Skript ab; `--force` verwirft es vorher per
-   `DROP SCHEMA … CASCADE`.
+   `DROP SCHEMA … CASCADE`. Dieses Verwerfen ist eine eigene Transaktion **vor** dem
+   Einspielen: Scheitert Schritt 5 danach, ist der alte Zielbestand bereits weg und nur ein
+   leeres Schema übrig. Der Lauf lässt sich dann wiederholen; der alte Bestand kommt nur aus
+   einer Sicherung zurück. `--force` ist also bewusst zerstörend.
 5. **Einspielen** mit `pg_restore --single-transaction --exit-on-error`: Scheitert ein
-   Objekt, bleibt nichts halb eingespielt.
+   Objekt, bleibt vom Dump nichts halb eingespielt (das Schema ist dann leer, siehe 4).
 6. **Rechte der Laufzeitrolle neu vergeben** – siehe unten.
 7. **Abschlussprüfung.** Migrationsstand des Ziels = Stand in der `.meta`; die
    Laufzeitrolle hat `USAGE` auf dem Schema, `SELECT/INSERT/UPDATE/DELETE` auf allen Tabellen
@@ -277,9 +293,13 @@ Schritt **vor dem Start der API** von Hand nachholen, verbunden mit der Zieldate
 Migrationsrolle oder Superuser:
 
 ```bash
-psql -v migrationsrolle=<migrationsrolle> -v laufzeitrolle=<laufzeitrolle> -v schema=flowzer \
+psql -h <host> -p 5432 -U <migrationsrolle> -d <zieldatenbank> \
+  -v migrationsrolle=<migrationsrolle> -v laufzeitrolle=<laufzeitrolle> -v schema=flowzer \
   -f deploy/postgresql/02-laufzeitrechte.sql
 ```
+
+Ohne `-d` trifft `psql` die Voreinstellung des Aufrufers (meist die Datenbank `postgres`),
+nicht das Restore-Ziel; das Skript gibt den Befehl deshalb mit Verbindungsangaben aus.
 
 Das Skript ist idempotent; `01-datenbank-und-rollen.sql` bindet es beim Einrichten selbst ein.
 
@@ -353,9 +373,12 @@ Quere, und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt d
 `migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`).
 
 Scheitert das Update, ist der Rückweg der Restore der Sicherung aus Schritt 1 **mit dem
-bisherigen Paket** (Abschnitt „Backup und Restore“, einschließlich der Rechte-Neuvergabe
-über `02-laufzeitrechte.sql`). In die laufende Produktionsdatenbank zurückzuspielen verlangt
-`--allow-same-database` und – weil das Schema dann belegt ist – `--force`.
+bisherigen Paket** (Abschnitt „Backup und Restore“, Beispiel „Zurückspielen in die
+Originaldatenbank“). In die Produktionsdatenbank zurückzuspielen verlangt bei gestopptem Stack
+`--allow-same-database` und – weil das Schema belegt ist – `--force`; dazu `--runtime-role`,
+damit die Rechte der Laufzeitrolle gleich neu vergeben werden (sonst nur eine Warnung mit dem
+Nachholbefehl), und bei Dateien `--files … --overwrite-files`, weil Ablage und Keyring an
+ihren Pfaden liegen. Genau diesen Aufruf prüft der Skripttest (Fall „Rückweg in die Quelle“).
 
 Vor einem Update Storage und Keyring sichern. Das Keyring-Volume behalten, damit ein
 Redeploy nicht alle Sitzungen und OIDC-Korrelationen ungültig macht.

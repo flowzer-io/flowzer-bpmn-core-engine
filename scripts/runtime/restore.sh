@@ -302,7 +302,9 @@ flowzer_pg_run pg_restore --dbname "$PGDATABASE" --no-owner --no-privileges \
 # Laufzeitrolle; der Befehl zum Nachholen nennt sie dann schon.
 suggested_role='<laufzeitrolle>'
 [[ -z "$usage_before" || "$usage_before" == *,* ]] || suggested_role="$usage_before"
-manual_rights="psql -v migrationsrolle=${migration_role} -v laufzeitrolle=${suggested_role} -v schema=${schema} -f deploy/postgresql/02-laufzeitrechte.sql"
+# Mit Verbindungsangaben, damit der kopierte Befehl das Restore-Ziel trifft und nicht die
+# Voreinstellung des Aufrufers (haeufig die Datenbank "postgres").
+manual_rights="psql -h ${PGHOST} -p ${PGPORT} -U ${migration_role} -d ${PGDATABASE} -v migrationsrolle=${migration_role} -v laufzeitrolle=${suggested_role} -v schema=${schema} -f deploy/postgresql/02-laufzeitrechte.sql"
 if [[ -n "$runtime_role" ]]; then
   echo "Setze Rechte der Laufzeitrolle ${runtime_role} (02-laufzeitrechte.sql) ..."
   flowzer_pg_run psql --quiet --no-psqlrc --set=ON_ERROR_STOP=1 \

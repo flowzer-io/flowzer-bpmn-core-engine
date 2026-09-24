@@ -61,6 +61,7 @@ per `trap`; `--keep` lässt Container und Arbeitsverzeichnis stehen.
 | 7 Fehlende `.meta` | `--force` ohne `--allow-same-database` verweigert; Ziel unverändert |
 | 8 Dateikonflikt | `--files` an die `.meta`-Pfade (= Quelldateien) ohne `--overwrite-files` verweigert, auch mit `--force`; Quelldatei und Ziel unverändert |
 | 9 `--force` ins Ziel | Schema neu angelegt (neue OID), Bestand wie Quelle, Rechte samt Default-Privileges wieder da (per `has_*_privilege`, ohne Passwort); mit `--overwrite-files` Dateien an den absoluten `.meta`-Pfaden – fehlende angelegt, geänderte ersetzt |
+| 9b Rückweg in die Quelle | `--allow-same-database --force --runtime-role --files --overwrite-files` gegen die Quelldatenbank: Warnung „Ziel ist die Quelle“, Schema neu angelegt, Bestand wie vor dem Restore, Rechte vollständig, Lesen als Laufzeitrolle, Dateien an den `.meta`-Pfaden identisch |
 | 10 `--force` ohne Laufzeitrolle | Warnung mit Befehl, der die frühere USAGE-Rolle bereits nennt; ohne 02 kein USAGE; 02 von Hand ausgeführt stellt die Rechte her, ein zweiter Lauf ändert nichts |
 | 11 `--check-config` | gegen das Ziel mit Laufzeit- und Migrationskennung: „Migrationen OK aktuell“, „Ablage OK“, keine Fehlerzeile (Exit 2 nur wegen `Authentication:Scheme=None` im Test) |
 | 12 Keine Passwörter | keine der Testpasswörter in einer Skriptausgabe |
