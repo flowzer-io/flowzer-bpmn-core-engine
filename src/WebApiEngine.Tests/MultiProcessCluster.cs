@@ -54,9 +54,11 @@ internal sealed class MultiProcessCluster : IAsyncDisposable
 
     /// <summary>
     /// Startet Container, Migration und beide Hosts. Ohne erreichbaren Docker-Daemon wird
-    /// <c>null</c> geliefert; der Aufrufer ueberspringt die Tests dann, statt rot zu werden.
+    /// <c>null</c> geliefert und die Ursache in <paramref name="startError"/> abgelegt; der
+    /// Aufrufer entscheidet ueber <see cref="TestEnvironmentRequirements"/>, ob die Tests
+    /// uebersprungen werden oder rot enden.
     /// </summary>
-    internal static async Task<MultiProcessCluster?> TryStartAsync()
+    internal static async Task<MultiProcessCluster?> TryStartAsync(Action<Exception> startError)
     {
         PostgreSqlContainer container;
         try
@@ -64,8 +66,9 @@ internal sealed class MultiProcessCluster : IAsyncDisposable
             container = new PostgreSqlBuilder("postgres:17-alpine").Build();
             await container.StartAsync();
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            startError(exception);
             return null;
         }
 

@@ -229,6 +229,12 @@ public class CoreEngineTests
 }
 ```
 
+### Kein stilles Überspringen in der CI
+
+- Die PostgreSQL-Tests (`PostgreSqlStorageIntegrationTest`, `MultiProcessConcurrencyTest`) starten einen Container über Testcontainers. Lokal ohne Docker enden sie als übersprungen; in der CI ist `FLOWZER_TESTS_REQUIRE_POSTGRESQL=1` gesetzt, dann werden sie rot mit Klartext (siehe `src/WebApiEngine.Tests/TestEnvironmentRequirements.cs`).
+- Zusätzlich wertet `scripts/ci/check_skipped_tests.py` die trx-Ergebnisse aus: Jeder übersprungene Test (auch `Assert.Ignore` wegen fehlender V8-Bibliothek oder fehlendem freien Port, ebenso NUnit-Warnungen) und jede Ergebnisdatei ohne einen einzigen Test lässt den .NET-Job rot werden. Tests mit `[Explicit]` (der Generatorlauf der MIWG-Erwartungen) werden aus den Quellen unter `src/` erkannt und toleriert; die Erkennung greift nur für ein Attribut direkt vor der Methode, nicht auf Klassenebene.
+- Lokal dasselbe Verhalten: Variable setzen, Tests mit `--logger trx --results-directory <verzeichnis>` laufen lassen und `python3 scripts/ci/check_skipped_tests.py <verzeichnis>` aufrufen.
+
 ## Error Handling
 
 ### BPMN-Fehler
