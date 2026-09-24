@@ -61,6 +61,7 @@ jobs:
         run: python3 scripts/ci/check_test_purpose_comments.py
 
       - name: Solution bauen
+        id: build
         run: dotnet build core-engine.sln --no-restore --configuration Release
 
       - name: Tests mit Coverage ausführen
@@ -91,12 +92,6 @@ jobs:
             --logger "trx;LogFileName=dmn-tests.trx" \
             --results-directory ./TestResults/ci
 
-      # Jedes Assert.Ignore (fehlendes Docker, fehlende V8-Bibliothek, kein freier Port)
-      # wuerde die Pruefung leise ausduennen. In der CI muss deshalb 0 uebersprungen gelten.
-      - name: Uebersprungene Tests auswerten
-        if: ${{ always() }}
-        run: python3 scripts/ci/check_skipped_tests.py TestResults/ci
-
       - name: Coverage-Kennzahlen extrahieren
         id: coverage
         run: |
@@ -126,6 +121,14 @@ jobs:
           name: dotnet-testresults
           path: TestResults/ci
           if-no-files-found: error
+
+      # Jedes Assert.Ignore (fehlendes Docker, fehlende V8-Bibliothek, kein freier Port)
+      # wuerde die Pruefung leise ausduennen. In der CI muss deshalb 0 uebersprungen gelten.
+      # Laeuft auch nach roten Tests (die trx liegen dann vor), aber nicht nach einem
+      # gescheiterten Build oder einem abgebrochenen Lauf; das Artefakt ist vorher hochgeladen.
+      - name: Uebersprungene Tests auswerten
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: python3 scripts/ci/check_skipped_tests.py TestResults/ci
 
       # CycloneDX.dotnet liest die bereits per `dotnet restore` aufgeloesten Pakete aus den
       # project.assets.json (--disable-package-restore); kein erneuter Netzwerkzugriff noetig.
@@ -319,6 +322,7 @@ jobs:
         run: dotnet restore core-engine.sln
 
       - name: Solution bauen
+        id: build
         run: dotnet build core-engine.sln --no-restore --configuration Release
 
       - name: Abhaengigkeiten der Konsole installieren

@@ -12,6 +12,17 @@ Laufs und werden deshalb toleriert. Welche Tests das sind, liest das Skript aus 
 Testquellen unter src/ (Attribut [Explicit ...] vor einer Testmethode), damit keine
 Liste im Skript gepflegt werden muss.
 
+Eine trx-Datei ganz ohne Ergebnisse gilt ebenfalls als Fehler: Findet der Adapter in einem
+Testprojekt keinen einzigen Test, bliebe der Lauf sonst gruen (VSTest-Standard
+TreatNoTestsAsError=false). NUnit-Warnungen (Assert.Warn) meldet der Adapter standardmaessig
+als uebersprungen und damit hier als Fehler; das ist gewollt, Warnungen sollen in der CI
+auffallen.
+
+Grenzen der [Explicit]-Erkennung: Sie sucht das Attribut vor der naechsten Methodendeklaration
+in derselben Datei. Ein [Explicit] auf Klassenebene, in einem Kommentar oder mit einer
+Klammer in der Begruendung wird nicht sauber erkannt; im Zweifel wird ein Test dann als
+uebersprungen gemeldet (rot, also auffaellig), nie still toleriert.
+
 Aufruf: python3 scripts/ci/check_skipped_tests.py [--source <Quellverzeichnis>] <Verzeichnis-oder-trx-Datei> [...]
 """
 
@@ -38,7 +49,7 @@ def explicit_tests(source: pathlib.Path) -> set[str]:
     """Namen aller Testmethoden mit [Explicit]-Attribut unterhalb von source."""
     names: set[str] = set()
     if not source.is_dir():
-        return names
+        raise SystemExit(f"Quellverzeichnis fuer die [Explicit]-Erkennung fehlt: {source}")
     for path in source.rglob("*.cs"):
         if "node_modules" in path.parts or "bin" in path.parts or "obj" in path.parts:
             continue
@@ -110,6 +121,10 @@ def main(arguments: list[str]) -> int:
     failures = 0
     for trx in files:
         total, skipped, explicit = skipped_results(trx, tolerated)
+        if total == 0:
+            print(f"FEHLER: {trx} - keine Ergebnisse; das Testprojekt hat keinen einzigen Test geliefert")
+            failures += 1
+            continue
         state = "OK" if not skipped else "FEHLER"
         print(f"{state}: {trx} - {total} Ergebnisse, {len(skipped)} uebersprungen")
         for name in explicit:
@@ -120,8 +135,8 @@ def main(arguments: list[str]) -> int:
 
     if failures:
         print(
-            f"\n{failures} Test(s) wurden uebersprungen. In der CI darf kein Test still "
-            "ausfallen; Ursache auf dem Runner beheben (Docker, V8-Bibliothek, Ports)."
+            f"\n{failures} Befund(e): uebersprungene Tests oder leere Ergebnisdateien. In der CI "
+            "darf kein Test still ausfallen; Ursache auf dem Runner beheben (Docker, V8-Bibliothek, Ports)."
         )
         return 1
 

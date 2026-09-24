@@ -38,8 +38,15 @@ internal static class TestEnvironmentRequirements
             return reason;
         }
 
-        var message = cause.Message.Trim().TrimEnd('.');
-        return $"{reason}: {cause.GetType().Name}: {message}";
+        // Testcontainers verpackt die eigentliche Ursache oft in einer aeusseren Ausnahme;
+        // die Kette bis zur innersten Meldung gehoert deshalb mit ins Protokoll.
+        var chain = new List<string>();
+        for (var current = cause; current is not null; current = current.InnerException)
+        {
+            chain.Add($"{current.GetType().Name}: {current.Message.Trim().TrimEnd('.')}");
+        }
+
+        return $"{reason}: {string.Join(" <- ", chain)}";
     }
 
     /// <summary>Hinweis, der im Fehlerfall an die Begruendung angehaengt wird.</summary>

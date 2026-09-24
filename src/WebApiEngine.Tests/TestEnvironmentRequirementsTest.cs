@@ -38,6 +38,19 @@ public class TestEnvironmentRequirementsTest
             .Should().Be("PostgreSQL-Container nicht verfuegbar (Docker fehlt?)");
     }
 
+    // Testzweck: Verpackte Ursachen (Testcontainers wirft oft eine aeussere Ausnahme um die
+    // eigentliche) erscheinen als Kette bis zur innersten Meldung.
+    [Test]
+    public void DescribeUnavailable_ShouldIncludeInnerExceptions()
+    {
+        var cause = new InvalidOperationException("Container start failed.",
+            new TimeoutException("Docker socket not reachable"));
+
+        TestEnvironmentRequirements.DescribeUnavailable(cause).Should().Be(
+            "PostgreSQL-Container nicht verfuegbar (Docker fehlt?): InvalidOperationException: "
+            + "Container start failed <- TimeoutException: Docker socket not reachable");
+    }
+
     // Testzweck: Der Hinweis im Fehlerfall nennt die Variable beim Namen, damit der Leser des
     // roten Laufs weiss, welcher Schalter das Ueberspringen verbietet.
     [Test]
