@@ -1029,9 +1029,11 @@ Der Migrationsstand wird mit der **Laufzeitverbindung** aus `<schema>.schema_mig
 gelesen und ist bewusst fehlertolerant: Ist die Historie gerade nicht lesbar, meldet die
 Probe `Unknown` und der Knoten bleibt bereit – die Ablage selbst hat oben ja geantwortet.
 Die Laufzeitrolle braucht dafür `SELECT` auf `schema_migrations`; das Rollenskript
-`deploy/postgresql/01-datenbank-und-rollen.sql` vergibt es. Installationen, deren Rollen
+`deploy/postgresql/01-datenbank-und-rollen.sql` vergibt es über
+`deploy/postgresql/02-laufzeitrechte.sql`, das auch nach jedem Restore läuft (siehe
+„Sicherung und Wiederherstellung von PostgreSQL“). Installationen, deren Rollen
 vor diesem Paket angelegt wurden, meldeten dauerhaft `Unknown` und holen das Recht einmalig
-nach (als Superuser bzw. Migrationsrolle):
+nach (als Superuser bzw. Migrationsrolle; alternativ `02-laufzeitrechte.sql` ausführen):
 
 ```sql
 GRANT SELECT ON TABLE flowzer.schema_migrations TO <laufzeitrolle>;
@@ -1468,15 +1470,23 @@ Migrationen liegen eingebettet in `src/PostgreSqlStorageSystem/Migrations/NNN_na
 dotnet WebApiEngine.dll --migrate
 ```
 
-genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt).
+genau einmal angewendet (Historie in `<schema>.schema_migrations`). Im Compose-Stack übernimmt das der Dienst `migrate` vor dem Start der API. Datenbank und Rollen legt `deploy/postgresql/01-datenbank-und-rollen.sql` einmalig an (Migrations- und Laufzeitrolle getrennt); die Rechte der Laufzeitrolle im Schema stehen in `deploy/postgresql/02-laufzeitrechte.sql`, das 01 einbindet (`\ir`, beide Dateien im selben Verzeichnis) und das nach einem Restore erneut läuft.
 
-Der Migrationslauf ist **wiederholbar und nebenläufigkeitsfest**: Er nimmt vor jedem Schritt
-einen PostgreSQL-Advisory-Lock in derselben Transaktion, überspringt bereits eingetragene
-Versionen und schreibt je Migration genau einen Historieneintrag. Zwei gleichzeitige
-`--migrate`-Läufe werden dadurch serialisiert; genau einer wendet an, der andere findet
-alles vor. Belegt ist das durch `MigrateArgument_ShouldBeIdempotentWhenRunTwice` und
+Der Migrationslauf ist **wiederholbar und nebenläufigkeitsfest**: `PostgreSqlMigrator.ApplyAsync`
+öffnet **eine** Transaktion, nimmt darin zu Beginn **einen** transaktionsgebundenen
+Advisory-Lock (`pg_advisory_xact_lock`) und wendet alle ausstehenden Migrationen in genau
+dieser Transaktion an – je Migration ein Historieneintrag, bereits eingetragene Versionen
+werden übersprungen. Der Lock gilt also je Lauf, nicht je Migrationsschritt, und endet erst
+mit Commit oder Rollback; scheitert eine Migration, wird der ganze Lauf zurückgerollt und
+das Schema bleibt auf dem vorherigen Stand. Zwei gleichzeitige `--migrate`-Läufe werden
+dadurch serialisiert; genau einer wendet an, der andere findet alles vor. Belegt ist das
+durch `MigrateArgument_ShouldBeIdempotentWhenRunTwice` und
 `ConcurrentMigrationRuns_ShouldBeSerializedByTheAdvisoryLock`
 (`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`).
+Nach dem Commit ergänzt `--migrate` in einer **zweiten, eigenen** Transaktion historische
+Formularbindungen; diese nimmt keinen Advisory-Lock, sondern sperrt `definitions`,
+`definition_binaries`, `forms` und `form_metadata` kurz im Modus `SHARE ROW EXCLUSIVE`
+(Leser bleiben zugelassen, andere Schreiber warten).
 
 Nach den SQL-Migrationen führt `--migrate` (`FlowzerStorageExtensions.RunMigrationsAsync`) in
 einer eigenen Transaktion das Formularbindungs-Upgrade aus (siehe „Update-Kompatibilität von
@@ -1559,13 +1569,28 @@ KI-Datenfluss      OK       Cloud gesperrt, lokale Endpunkte gesperrt, Ausfuehru
 
 ## Sicherung und Wiederherstellung von PostgreSQL
 
-`scripts/runtime/backup.sh` und `scripts/runtime/restore.sh` decken den Compose-Stack ab:
-`pg_dump -Fc` des Flowzer-Schemas nach `backups/<zeitstempel>.dump`, optional die
-Dateiablage samt Data-Protection-Keyring als `backups/<zeitstempel>-files.tgz`, und ein
-Restore ausschließlich in eine leere Datenbank mit anschließender Prüfung des
-Migrationsstands. Zugangsdaten reisen nur über die Umgebung (`PGPASSWORD`/`~/.pgpass`),
-nie über die Kommandozeile. Ablauf, Optionen und die Aufbewahrungsfrage stehen im
-[Runbook](RUNBOOK-PILOT.md) unter „Backup und Restore“.
+`scripts/runtime/backup.sh` und `scripts/runtime/restore.sh` decken den Compose-Stack ab.
+Zugangsdaten reisen nur über die Umgebung (`PGPASSWORD`/`~/.pgpass`), nie über die
+Kommandozeile. Ablauf, Optionen und die Aufbewahrungsfrage stehen im
+[Runbook](RUNBOOK-PILOT.md) unter „Backup und Restore“; hier die Zusicherungen im Überblick:
+
+| Schritt | Zusicherung |
+|---|---|
+| Sicherung | `pg_dump -Fc` nur des Flowzer-Schemas, atomar über `<ts>.dump.tmp` und Umbenennen; vorher mit `pg_restore --list` geprüft; `<ts>.dump.sha256`; Dateiablage und Keyring als `<ts>-files.tgz` (mit Prüfsumme, absolute Quellverzeichnisse erlaubt); `<ts>.meta` mit Host, Datenbank, Schema, Server-, `pg_dump`- und App-Version, Migrationsstand und Quellpfaden. Ein gescheiterter Lauf hinterlässt keine halbe Datei, und die `.meta` entsteht nur, wenn alle Teile gelungen sind; eine nicht lesbare Migrationshistorie ist ein Fehler, kein leerer Wert |
+| Vor dem Restore | Prüfsumme passt (fehlt sie: Warnung, mit `--require-checksum` Abbruch); Ziel ist nicht die Quelle laut `.meta` (sonst nur mit `--allow-same-database`, auch nicht mit `--force`); keine vorhandene Datei würde durch `--files` ersetzt (sonst nur mit `--overwrite-files`); Zielschema leer – eine vom Rollenskript vorab angelegte, leere `schema_migrations` zählt als leer |
+| Restore | `pg_restore --single-transaction --exit-on-error --schema=<schema>`; das Schema selbst legt das Skript an bzw. behält das vom Rollenskript angelegte; `--force` verwirft es vorher per `DROP SCHEMA … CASCADE` |
+| Nach dem Restore | `deploy/postgresql/02-laufzeitrechte.sql` mit der Migrationsverbindung (`--runtime-role`/`FLOWZER_RUNTIME_ROLE`), sonst Warnung mit Befehl; Abschlussprüfung: Migrationsstand = `.meta`, Laufzeitrolle mit `USAGE`, Datenrechten auf allen Tabellen und nur `SELECT` auf `schema_migrations` (optional echtes Lesen mit `FLOWZER_RUNTIME_PASSWORD`) |
+
+Warum 02 nach jedem Restore: Schema-Rechte und Default-Privileges hängen am Schema-Objekt.
+Praktisch geprüft (PostgreSQL 17): In eine mit 01 vorbereitete Datenbank verweigerte das
+frühere `restore.sh` den Restore wegen der vorab angelegten `schema_migrations` („1 Tabelle“),
+ein direktes `pg_restore` scheitert am vorhandenen Schema (`CREATE SCHEMA` im Dump);
+`DROP SCHEMA … CASCADE` nimmt `USAGE` und die
+Default-Privileges mit (danach „permission denied for schema“ für die Laufzeit); ein Restore
+ins vorbereitete Schema gibt über die Default-Privileges auch `schema_migrations`
+`INSERT/UPDATE/DELETE`. Belegt ist der Ablauf durch den Skripttest
+`scripts/runtime/tests/backup-restore.test.sh` (CI-Job `backup_restore_scripts`, kein
+Pflicht-Check); Ergebnis und Grenzen in [docs/acceptance/restore.md](acceptance/restore.md).
 
 ## Mehrprozessbetrieb
 
@@ -1707,7 +1732,9 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - strukturierte Produktions-Logformate über die Standard-Konsole hinaus
 - vollständige Dashboard-/Collector-Landschaft rund um die jetzt vorhandenen OTLP-Hooks
 - vollständige produktionsnahe Reverse-Proxy-/TLS- und Secret-Store-Automatisierung
-- Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring
+- Wiederanlauf-, Rotation- und Restore-Übungen für den persistenten BFF-Keyring: Dass
+  `restore.sh` die Keyring-Dateien unverändert zurückspielt, belegt der Skripttest; dass
+  bestehende Sitzungen danach gültig bleiben, ist nicht geübt
 - eine Störungshistorie, die das Ende eines Auftrags überdauert: `retryHistory` verschwindet
   mit dem abgeschlossenen Auftrag, dauerhaft bleibt nur der Logeintrag. Dafür braucht es einen
   eigenen, instanzgebundenen Ereignistyp mit eigener Aufbewahrungsregel
@@ -1716,6 +1743,9 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
   Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
   aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).
+- ein vollständiger Upgrade- und Restore-Nachweis über Paketstände hinweg (Sicherung eines
+  älteren Releases, Restore, `--migrate` des neuen Pakets, laufende Instanzen): folgt als R2b;
+  R2a belegt die Skripte auf einem einzigen Paketstand
 
 ## Sinnvolle nächste Ausbauschritte
 

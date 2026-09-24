@@ -476,3 +476,45 @@ jobs:
             tests/installation-auth/playwright-report
             tests/installation-auth/test-results
           if-no-files-found: ignore
+
+  # Skripttest fuer Sicherung und Wiederherstellung (R2a): backup.sh und restore.sh gegen einen
+  # Wegwerf-PostgreSQL-17-Container, Quelle und Ziel ueber das ausgelieferte Rollenskript, Quelle
+  # mit `--migrate` der gebauten API. Die PostgreSQL-Werkzeuge laufen im Container, weil die
+  # Clients des Runners aelter als der Server sind. Nicht als Pflicht-Check eingetragen; bei Fehler,
+  # Abbruch oder Timeout liegen die Skriptausgaben als Artefakt bereit (ohne Dumps).
+  backup_restore_scripts:
+    name: Sicherung und Wiederherstellung (Skripttest)
+    runs-on: ubuntu-latest
+    needs:
+      - dotnet
+    timeout-minutes: 20
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET-SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Skripte mit shellcheck pruefen
+        run: |
+          shellcheck --version
+          shellcheck -x scripts/runtime/pg-common.sh scripts/runtime/backup.sh \
+            scripts/runtime/restore.sh scripts/runtime/tests/backup-restore.test.sh
+
+      # `exec`, damit ein Abbruch des Runners den Test direkt erreicht und dessen EXIT-Falle
+      # Container und Netz abraeumt.
+      - name: Skripttest ausfuehren
+        timeout-minutes: 15
+        env:
+          FLOWZER_BACKUP_RESTORE_TEST_LOG_DIR: ${{ runner.temp }}/backup-restore-test
+        run: exec scripts/runtime/tests/backup-restore.test.sh
+
+      - name: Skriptausgaben hochladen
+        if: ${{ !success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-restore-test-logs
+          path: ${{ runner.temp }}/backup-restore-test
+          if-no-files-found: ignore

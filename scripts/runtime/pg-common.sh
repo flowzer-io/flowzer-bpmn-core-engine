@@ -105,13 +105,27 @@ flowzer_export_connection() {
 
 # Fuehrt ein libpq-Werkzeug aus: bevorzugt lokal, sonst in einem Wegwerf-Container. Alle
 # Zugangsdaten reist ueber die Umgebung; `-e PGPASSWORD` gibt nur den Namen weiter, nie den Wert.
+#
+# FLOWZER_PG_CLIENT waehlt den Weg ausdruecklich:
+#   auto    (Standard) lokales Werkzeug, falls vorhanden, sonst Container
+#   local   nur das lokale Werkzeug
+#   docker  immer der Container (FLOWZER_PG_IMAGE). Noetig, wenn die lokalen Clientwerkzeuge
+#           aelter sind als der Server: pg_dump verweigert einen neueren Server.
 flowzer_pg_run() {
   local tool="$1"
   shift
-  if command -v "$tool" >/dev/null 2>&1; then
+  local client="${FLOWZER_PG_CLIENT:-auto}"
+  case "$client" in
+    auto|local|docker) ;;
+    *) flowzer_die "FLOWZER_PG_CLIENT muss auto, local oder docker sein (ist: ${client})." ;;
+  esac
+
+  if [[ "$client" != "docker" ]] && command -v "$tool" >/dev/null 2>&1; then
     "$tool" "$@"
     return $?
   fi
+  [[ "$client" != "local" ]] \
+    || flowzer_die "${tool} ist lokal nicht verfuegbar (FLOWZER_PG_CLIENT=local)."
 
   command -v docker >/dev/null 2>&1 \
     || flowzer_die "Weder ${tool} noch docker sind verfuegbar. PostgreSQL-Clientwerkzeuge installieren oder FLOWZER_PG_IMAGE nutzbar machen."
@@ -121,15 +135,99 @@ flowzer_pg_run() {
   [[ -n "${FLOWZER_PG_DOCKER_NETWORK:-}" ]] && network_args=(--network "${FLOWZER_PG_DOCKER_NETWORK}")
 
   docker run --rm --interactive \
-    "${network_args[@]}" \
+    ${network_args[@]+"${network_args[@]}"} \
     --env PGHOST --env PGPORT --env PGDATABASE --env PGUSER --env PGPASSWORD --env PGCONNECT_TIMEOUT \
+    --env PGOPTIONS \
     "$image" "$tool" "$@"
 }
 
-# Einzelwert aus der Datenbank lesen; leere Ausgabe, wenn die Abfrage scheitert.
+# Einzelwert aus der Datenbank lesen. Scheitert die Abfrage, erscheint die Meldung von psql auf
+# stderr und die Funktion endet mit einem Fehlercode - ein leerer Wert ist nie ein stiller
+# Ersatz fuer einen Fehler. Entfernt werden nur fuehrende und abschliessende Leerzeichen.
 flowzer_pg_scalar() {
   local statement="$1"
-  flowzer_pg_run psql --no-align --tuples-only --quiet --no-psqlrc --command "$statement" 2>/dev/null | tr -d '[:space:]'
+  local output
+  if ! output="$(flowzer_pg_run psql --no-align --tuples-only --quiet --no-psqlrc \
+      --set=ON_ERROR_STOP=1 --command "$statement")"; then
+    echo "Fehler: Datenbankabfrage gescheitert: ${statement}" >&2
+    return 1
+  fi
+  output="${output#"${output%%[![:space:]]*}"}"
+  output="${output%"${output##*[![:space:]]}"}"
+  printf '%s' "$output"
+}
+
+# Schemanamen wie die API pruefen (PostgreSqlStorageOptions.Validate): Kleinbuchstaben, Ziffern
+# und Unterstrich, Beginn mit Buchstabe oder Unterstrich, hoechstens 63 Zeichen, kein pg_-Praefix.
+# Die Skripte setzen den Namen in SQL ein; die Pruefung schliesst Quoting-Fehler aus.
+flowzer_validate_schema() {
+  local name="$1"
+  # Zeichen ausdruecklich aufgezaehlt: Bereiche wie [a-z] haengen in manchen Locales an der
+  # Sortierfolge und passen dann auch auf Grossbuchstaben.
+  local pattern='^[abcdefghijklmnopqrstuvwxyz_][abcdefghijklmnopqrstuvwxyz0123456789_]{0,62}$'
+  [[ "$name" =~ $pattern && "$name" != pg_* ]] \
+    || flowzer_die "Ungueltiger Schemaname '${name}': erlaubt sind Kleinbuchstaben, Ziffern und Unterstrich (Beginn mit Buchstabe oder Unterstrich, hoechstens 63 Zeichen, kein pg_-Praefix)."
+}
+
+# SHA-256 einer Datei als Hex-Zeichenkette; sha256sum (Linux) oder shasum (macOS).
+flowzer_sha256() {
+  local file="$1"
+  local line
+  if command -v sha256sum >/dev/null 2>&1; then
+    line="$(sha256sum "$file")"
+  elif command -v shasum >/dev/null 2>&1; then
+    line="$(shasum -a 256 "$file")"
+  else
+    flowzer_die "Weder sha256sum noch shasum sind verfuegbar."
+  fi
+  printf '%s' "${line%% *}"
+}
+
+# Schreibt <datei>.sha256 im Format von `sha256sum` (Hash, zwei Leerzeichen, Dateiname ohne
+# Pfad). So laesst sich die Pruefsumme im Sicherungsverzeichnis auch von Hand mit
+# `sha256sum -c` beziehungsweise `shasum -a 256 -c` nachrechnen.
+flowzer_write_checksum() {
+  local file="$1"
+  local digest
+  digest="$(flowzer_sha256 "$file")"
+  printf '%s  %s\n' "$digest" "${file##*/}" >"${file}.sha256"
+}
+
+# Prueft <datei> gegen <datei>.sha256. Rueckgabe: 0 passt, 1 weicht ab, 2 keine Pruefsummendatei.
+flowzer_verify_checksum() {
+  local file="$1"
+  local checksum_file="${file}.sha256"
+  [[ -f "$checksum_file" ]] || return 2
+  local expected actual
+  expected="$(head -n 1 "$checksum_file")"
+  expected="${expected%% *}"
+  actual="$(flowzer_sha256 "$file")"
+  [[ -n "$expected" && "$expected" == "$actual" ]]
+}
+
+# Liest einen Wert aus einer .meta-Datei (Zeilen `schluessel=wert`). Die Datei wird bewusst nicht
+# mit `source` eingelesen: Sie ist Datenbestand, kein Programmcode. Fehlt der Schluessel, ist die
+# Ausgabe leer.
+flowzer_meta_get() {
+  local file="$1"
+  local key="$2"
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == "${key}="* ]]; then
+      printf '%s' "${line#*=}"
+      return 0
+    fi
+  done <"$file"
+  return 0
+}
+
+# Absoluter Pfad eines Verzeichnisses. Relative Angaben gelten wie bisher relativ zur
+# Repository-Wurzel (dort liegt .data/ des Runtime-Stacks), nicht relativ zum Aufrufort.
+flowzer_absolute_dir() {
+  local dir="$1"
+  local base="$2"
+  [[ "$dir" == /* ]] || dir="${base}/${dir}"
+  (CDPATH='' cd "$dir" && pwd)
 }
 
 flowzer_describe_target() {

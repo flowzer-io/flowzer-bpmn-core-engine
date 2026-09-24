@@ -13,6 +13,10 @@
 -- Passwoerter werden hier NICHT gesetzt. Sie werden getrennt vergeben (ALTER ROLE ... PASSWORD)
 -- und liegen ausschliesslich im Secret-Store bzw. in den Deployment-Secrets.
 --
+-- Die Rechte der Laufzeitrolle im Schema stehen in 02-laufzeitrechte.sql. Dieses Skript bindet
+-- die Datei mit \ir ein (Pfad relativ zu diesem Skript); beide Dateien muessen deshalb im selben
+-- Verzeichnis liegen. Nach einem Restore laeuft 02 allein erneut (scripts/runtime/restore.sh).
+--
 -- Aufruf:
 --   psql -v datenbank=flowzer_maass_it \
 --        -v migrationsrolle=flowzer_maass_it_migration \
@@ -50,30 +54,16 @@ SELECT format('GRANT CONNECT ON DATABASE %I TO %I', :'datenbank', :'laufzeitroll
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 
 SELECT format('CREATE SCHEMA IF NOT EXISTS %I AUTHORIZATION %I', :'schema', :'migrationsrolle') \gexec
-SELECT format('GRANT USAGE ON SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
-SELECT format('REVOKE CREATE ON SCHEMA %I FROM %I', :'schema', :'laufzeitrolle') \gexec
-
--- Rechte fuer kuenftige Tabellen der Migrationsrolle ...
-SELECT format(
-  'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO %I',
-  :'migrationsrolle', :'schema', :'laufzeitrolle') \gexec
-SELECT format(
-  'ALTER DEFAULT PRIVILEGES FOR ROLE %I IN SCHEMA %I GRANT USAGE, SELECT ON SEQUENCES TO %I',
-  :'migrationsrolle', :'schema', :'laufzeitrolle') \gexec
-
--- ... und fuer bereits vorhandene, falls das Skript nach einer Migration erneut laeuft.
-SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
-SELECT format('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %I TO %I', :'schema', :'laufzeitrolle') \gexec
-
--- Die Migrationshistorie wird hier angelegt (Migrator: CREATE TABLE IF NOT EXISTS wird zum No-op).
--- Schreiben darf sie nur die Migrationsrolle; die Laufzeit darf sie lesen, denn
--- GET /health/ready meldet den Migrationsstand mit der Laufzeitverbindung (sonst dauerhaft
--- "Unknown"). Die Default-Privileges oben gelten nur fuer Tabellen, die spaeter entstehen;
--- auf eine bereits vorhandene Tabelle wirken REVOKE und GRANT dauerhaft.
+-- Die Migrationshistorie wird hier angelegt (Migrator: CREATE TABLE IF NOT EXISTS wird zum No-op),
+-- damit 02 ihr schon vor der ersten Migration das eingeschraenkte Recht geben kann: Schreiben
+-- darf sie nur die Migrationsrolle; die Laufzeit darf sie lesen, denn GET /health/ready meldet
+-- den Migrationsstand mit der Laufzeitverbindung (sonst dauerhaft "Unknown").
 SELECT format('CREATE TABLE IF NOT EXISTS %I.schema_migrations (version integer PRIMARY KEY, name text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())', :'schema') \gexec
 SELECT format('ALTER TABLE %I.schema_migrations OWNER TO %I', :'schema', :'migrationsrolle') \gexec
-SELECT format('REVOKE ALL ON TABLE %I.schema_migrations FROM %I', :'schema', :'laufzeitrolle') \gexec
-SELECT format('GRANT SELECT ON TABLE %I.schema_migrations TO %I', :'schema', :'laufzeitrolle') \gexec
+
+-- Schema-USAGE, kein CREATE, Default-Privileges, Rechte auf vorhandene Tabellen und Sequenzen,
+-- schema_migrations nur lesend.
+\ir 02-laufzeitrechte.sql
 
 -- 4. Nachweis ----------------------------------------------------------------
 
