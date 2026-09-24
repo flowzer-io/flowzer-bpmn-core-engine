@@ -28,14 +28,14 @@ public partial class PostgreSqlStorageIntegrationTest
 
         try
         {
-            await ApplyMigrationsBelow(schema, UpgradeBaselineExclusiveMaxVersion);
+            await ApplyMigrationsBelow(schema, OldestUpgradeBaselineExclusiveMaxVersion);
 
             var controller = CreateHealthController(schema);
             var pending = await ReadinessDetailsAsync(controller);
             pending.StorageProvider.Should().Be($"PostgreSQL (schema {schema})");
             pending.MigrationState.Should().Be("Pending");
             pending.PendingMigrationCount.Should().Be(
-                PostgreSqlMigrator.AvailableVersions.Count(version => version >= UpgradeBaselineExclusiveMaxVersion));
+                PostgreSqlMigrator.AvailableVersions.Count(version => version >= OldestUpgradeBaselineExclusiveMaxVersion));
             pending.ExpectedMigrationVersion.Should().Be(PostgreSqlMigrator.AvailableVersions.Last());
 
             await PostgreSqlMigrator.ApplyAsync(_connectionString, schema);

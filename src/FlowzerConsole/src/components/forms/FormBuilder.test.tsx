@@ -26,3 +26,20 @@ it('isoliert asynchrone Builder-Generationen', async () => {
   await act(async () => completeOld?.());
   expect(view.getByText('Neuer Editor')).toBeVisible();
 });
+
+// Testzweck: Der Formular-Editor bleibt auch in einem englischen Browser deutsch — wie die
+// übrige Konsole und die eigenen Editortexte („Übernehmen“, Palettengruppen). Nur der Renderer
+// folgt der Browsersprache.
+it('hält den Form.io-Editor unabhängig von der Browsersprache deutsch', async () => {
+  builder.mockResolvedValue({ on: vi.fn(), destroy: vi.fn() });
+  const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['en-GB']);
+
+  render(<FormBuilder schema='{"components":[]}' />);
+
+  await waitFor(() => expect(builder).toHaveBeenCalledOnce());
+  expect(builder.mock.calls[0]?.[2]).toMatchObject({
+    language: 'de',
+    i18n: { de: { save: 'Übernehmen', searchFields: 'Komponenten suchen', addAnother: 'Weiteren Eintrag hinzufügen' } },
+  });
+  languages.mockRestore();
+});

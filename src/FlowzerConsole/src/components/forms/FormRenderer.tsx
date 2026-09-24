@@ -6,6 +6,7 @@ import './formioStyles';
 
 import { registerDialogCalendarWidget } from './dialogCalendarWidget';
 import { registerFlowzerSubjectComponent } from './FlowzerSubjectComponent';
+import { formioLanguageOptions } from './formioLanguage';
 import { registerFormSectionComponent } from './FormSectionComponent';
 
 import type { BoundDirectorySubjectAdapter } from '@/components/bpmn/properties/DirectorySubjectPicker';
@@ -144,6 +145,8 @@ export const FormRenderer = forwardRef<FormRendererHandle, FormRendererProps>(fu
         const form = (await Formio.createForm(host, parsed.value, {
           readOnly,
           noAlerts: true,
+          // Sprache der Meldungen und des Kalenders nach der Browsersprache; siehe formioLanguage.ts.
+          ...formioLanguageOptions(),
           // Der eingebaute Submit-Button würde mit den Prozessaktionen konkurrieren.
           buttonSettings: { showCancel: false, showSubmit: false },
           flowzerDirectoryContext: directoryContext,

@@ -29,9 +29,10 @@ Die Aufteilung zwischen Oberfläche und API macht der Konsolen-Container selbst
 deshalb ist HTTPS bis zum Browser zwingend. Der Reverse Proxy muss den originalen
 Host und das HTTPS-Schema weitergeben, damit Origin-Prüfung und Callback-URL stimmen.
 
-Ein API-Prozess, eine Ablage. Mehrere API-Instanzen auf derselben Ablage sind nicht
-unterstützt. Coolify nutzt PostgreSQL; die dateibasierte Ablage bleibt ein lokaler
-Einzelprozesspfad.
+Das Zielbild zeigt einen API-Prozess. Mehrere API-Prozesse auf demselben PostgreSQL-Schema
+sind unter den Bedingungen in [Betrieb – Mehrprozessbetrieb](OPERATIONS.md#mehrprozessbetrieb)
+freigegeben; maßgeblich ist jener Abschnitt. Coolify nutzt PostgreSQL; die dateibasierte
+Ablage bleibt ein lokaler Einzelprozesspfad.
 
 ## 1. Voraussetzungen
 
@@ -200,43 +201,131 @@ oder `--connection`. In der Prozessliste des Hosts steht dadurch nie ein Passwor
 werden `PGPASSWORD`/`PGHOST`/`PGUSER` gesetzt, alternativ greift `~/.pgpass`. Fehlen
 `pg_dump`/`pg_restore`/`psql` lokal, laufen sie in einem Wegwerf-Container
 (`FLOWZER_PG_IMAGE`, Standard `postgres:17-alpine`; bei einer Datenbank im Compose-Netz
-zusätzlich `FLOWZER_PG_DOCKER_NETWORK`).
+zusätzlich `FLOWZER_PG_DOCKER_NETWORK`). Sind die lokalen Clientwerkzeuge **älter** als der
+Server, verweigert `pg_dump` die Arbeit; dann `FLOWZER_PG_CLIENT=docker` setzen (erzwingt den
+Container, `local` erzwingt die lokalen Werkzeuge).
 
 **Sichern** – Stack vorher stoppen oder zumindest ohne Schreiblast fahren:
 
 ```bash
 ./scripts/runtime/stop-runtime-stack.sh
 export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Port=5432;Database=…;Username=…;Password=…'
+export FLOWZER_APP_VERSION="$FLOWZER_IMAGE_TAG"   # optional, landet in der .meta
 ./scripts/runtime/backup.sh --schema flowzer
 ```
 
-Das erzeugt `backups/<zeitstempel>.dump` (`pg_dump -Fc`, nur das Flowzer-Schema, ohne
-Eigentümer- und Rechtezuweisungen), eine `<zeitstempel>.meta` mit Host, Schema und
-Migrationsstand und – sofern vorhanden – `backups/<zeitstempel>-files.tgz` mit
-`.data/runtime-storage` **und** `.data/runtime-data-protection`. Der Keyring gehört
-zwingend in dieselbe Sicherung: Ohne ihn verlieren nach einem Restore alle BFF-Sitzungen,
-OIDC-Korrelationen und Antiforgery-Token ihre Gültigkeit. Wer nur die Dateiablage
-betreibt, ruft `--files-only` auf; wer nur die Datenbank sichert, `--no-files`.
+Ergebnis je Lauf (`<ts>` = UTC-Zeitstempel):
 
-**Zurückspielen** – ausschließlich in eine leere Datenbank:
+| Datei | Inhalt |
+|---|---|
+| `<ts>.dump` | `pg_dump -Fc`, nur das Flowzer-Schema, ohne Eigentümer- und Rechtezuweisungen. Wird erst in `<ts>.dump.tmp` geschrieben, mit `pg_restore --list` geprüft (lesbar, enthält `schema_migrations` samt Daten) und dann umbenannt; bei einem Abbruch bleibt nichts liegen |
+| `<ts>.dump.sha256` | SHA-256 im Format von `sha256sum`; von Hand prüfbar mit `sha256sum -c` bzw. `shasum -a 256 -c` im Sicherungsverzeichnis |
+| `<ts>-files.tgz` und `.sha256` | Dateiablage **und** Data-Protection-Keyring, sofern vorhanden, jeweils unter ihrem Verzeichnisnamen |
+| `<ts>.meta` | Herkunft und Stand: `host`, `port`, `database`, `schema`, `postgres_server_version`, `pg_dump_version`, `app_version` (`FLOWZER_APP_VERSION`, ersatzweise `FLOWZER_IMAGE_TAG`, sonst `unknown`), `schema_migrations_count`/`_max` sowie die absoluten Quellpfade `files_storage_dir`/`files_keyring_dir`. Wird zuletzt geschrieben |
+
+`FLOWZER_STORAGE_DIR` und `FLOWZER_KEYRING_DIR` dürfen absolut sein (etwa der Pfad eines
+Volumes); relative Angaben gelten relativ zur Repository-Wurzel, Standard
+`.data/runtime-storage` und `.data/runtime-data-protection`. Der Keyring gehört zwingend in
+dieselbe Sicherung: Ohne ihn verlieren nach einem Restore alle BFF-Sitzungen,
+OIDC-Korrelationen und Antiforgery-Token ihre Gültigkeit. Wer nur die Dateiablage betreibt,
+ruft `--files-only` auf; wer nur die Datenbank sichert, `--no-files`. Die Sicherung ist nur
+vollständig, wenn Dump, `.sha256` und `.meta` zusammen weggesichert werden.
+
+**Zurückspielen in eine andere Datenbank** (Klon, Test, Umzug) – Stack gestoppt, Ziel ist
+eine mit `deploy/postgresql/01-datenbank-und-rollen.sql` angelegte (oder eine leere) Datenbank.
+Auf demselben Host liegen die Dateien der Quellinstallation noch an ihren Pfaden; deshalb
+gehört `--files-root` dazu, sonst bricht das Skript am Dateikonflikt ab (Prüfung 3):
 
 ```bash
+export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Database=<ziel>;Username=<migrationsrolle>;Password=…'
 ./scripts/runtime/restore.sh backups/20260919T043206Z.dump --schema flowzer \
-  --files backups/20260919T043206Z-files.tgz
+  --runtime-role <laufzeitrolle> \
+  --files backups/20260919T043206Z-files.tgz --files-root /srv/flowzer-restore
 ```
 
-Das Skript bricht ab, wenn das Zielschema bereits Tabellen enthält; `--force` verwirft es
-vorher bewusst per `DROP SCHEMA … CASCADE`. Nach dem Einspielen meldet es die Zahl der
-wiederhergestellten Tabellen und den Migrationsstand aus `<schema>.schema_migrations`.
-Stammt die Sicherung von einem älteren Stand, fehlen Migrationen; sie werden dann mit
-`dotnet WebApiEngine.dll --migrate` nachgezogen und mit `--check-config` bestätigt.
+**Zurückspielen in die Originaldatenbank** (Rückweg nach Datenverlust oder gescheitertem
+Update) – Stack gestoppt; das Schema ist belegt und die Dateien liegen an ihren Pfaden, also
+sind alle drei Schalter nötig, und die Rechte-Neuvergabe läuft über `--runtime-role` gleich mit:
+
+```bash
+export STORAGE_MIGRATION_CONNECTION_STRING='Host=…;Database=<original>;Username=<migrationsrolle>;Password=…'
+./scripts/runtime/restore.sh backups/20260919T043206Z.dump --schema flowzer \
+  --allow-same-database --force --runtime-role <laufzeitrolle> \
+  --files backups/20260919T043206Z-files.tgz --overwrite-files
+```
+
+Das Skript arbeitet in dieser Reihenfolge. Die Prüfungen 1 bis 4 laufen vollständig, bevor
+es das Ziel verändert; jeder Befund dort ist ein Abbruch ohne Änderung:
+
+1. **Prüfsumme.** `<dump>.sha256` (und `<archiv>.sha256`) müssen passen. Fehlt die Datei,
+   gibt es eine Warnung; mit `--require-checksum` ist das ein Abbruch.
+2. **Ziel ≠ Quelle.** Nennt die `.meta` denselben Host und Datenbanknamen wie das Ziel,
+   verweigert das Skript den Restore – auch mit `--force`. Nur `--allow-same-database` lässt
+   das bewusst zu, etwa beim Zurückspielen in die Originaldatenbank nach einem Datenverlust.
+   Der Vergleich ist rein textuell: Wer dieselbe Datenbank über einen anderen Namen oder eine
+   IP-Adresse anspricht, wird nicht erkannt. Fehlt die `.meta`, verlangt `--force`
+   zusätzlich `--allow-same-database`.
+3. **Dateien.** `--files` spielt Dateiablage und Keyring an die absoluten Pfade aus der
+   `.meta` zurück – auf demselben Host sind das die Pfade der Quellinstallation. Würde dabei
+   eine vorhandene Datei ersetzt, bricht das Skript ab; `--files-root <verzeichnis>`
+   (Ziel `<verzeichnis>/<name>`) wählt einen anderen Ort, `--overwrite-files` erlaubt das
+   Ersetzen bewusst. Zusätzliche Dateien im Ziel bleiben liegen.
+4. **Leeres Ziel.** Als leer gilt auch ein Schema, in dem nur die vom Rollenskript vorab
+   angelegte, leere `schema_migrations` liegt; sie wird vor dem Restore entfernt. Enthält das
+   Schema Daten, bricht das Skript ab; `--force` verwirft es vorher per
+   `DROP SCHEMA … CASCADE`. Dieses Verwerfen ist eine eigene Transaktion **vor** dem
+   Einspielen: Scheitert Schritt 5 danach, ist der alte Zielbestand bereits weg und nur ein
+   leeres Schema übrig. Der Lauf lässt sich dann wiederholen; der alte Bestand kommt nur aus
+   einer Sicherung zurück. `--force` ist also bewusst zerstörend.
+5. **Einspielen** mit `pg_restore --single-transaction --exit-on-error`: Scheitert ein
+   Objekt, bleibt vom Dump nichts halb eingespielt (das Schema ist dann leer, siehe 4).
+6. **Rechte der Laufzeitrolle neu vergeben** – siehe unten.
+7. **Abschlussprüfung.** Migrationsstand des Ziels = Stand in der `.meta`; die
+   Laufzeitrolle hat `USAGE` auf dem Schema, `SELECT/INSERT/UPDATE/DELETE` auf allen Tabellen
+   und auf `schema_migrations` nur `SELECT`. Ist `FLOWZER_RUNTIME_PASSWORD` gesetzt, liest das
+   Skript zusätzlich über eine eigene Verbindung als Laufzeitrolle. Jede Abweichung endet mit
+   Exit 1.
+
+**Rechte nach dem Restore neu vergeben – Pflichtschritt.** Schema-Rechte und
+Default-Privileges hängen am Schema selbst. `--force` wirft sie mit dem Schema weg (danach
+meldet die API `permission denied for schema`), und ein Restore in ein vom Rollenskript
+vorbereitetes Schema gibt `schema_migrations` über die Default-Privileges mehr als `SELECT`.
+`restore.sh` führt deshalb nach dem Einspielen `deploy/postgresql/02-laufzeitrechte.sql` mit
+der Migrationsverbindung aus, wenn die Laufzeitrolle bekannt ist (`--runtime-role` oder
+`FLOWZER_RUNTIME_ROLE`). Ohne sie warnt das Skript deutlich und nennt den Befehl; dann den
+Schritt **vor dem Start der API** von Hand nachholen, verbunden mit der Zieldatenbank als
+Migrationsrolle oder Superuser:
+
+```bash
+psql -h <host> -p 5432 -U <migrationsrolle> -d <zieldatenbank> \
+  -v migrationsrolle=<migrationsrolle> -v laufzeitrolle=<laufzeitrolle> -v schema=flowzer \
+  -f deploy/postgresql/02-laufzeitrechte.sql
+```
+
+Ohne `-d` trifft `psql` die Voreinstellung des Aufrufers (meist die Datenbank `postgres`),
+nicht das Restore-Ziel; das Skript gibt den Befehl deshalb mit Verbindungsangaben aus.
+
+Das Skript ist idempotent; `01-datenbank-und-rollen.sql` bindet es beim Einrichten selbst ein.
+
+Danach:
+
+```bash
+dotnet WebApiEngine.dll --migrate        # nur wenn das Paket neuer ist als die Sicherung
+dotnet WebApiEngine.dll --check-config   # „Migrationen OK aktuell“, Ablage mit der Laufzeitkennung OK
+./scripts/runtime/start-runtime-stack.sh # danach /health/ready prüfen
+```
+
+Der Ablauf ist als Skripttest automatisiert (`scripts/runtime/tests/backup-restore.test.sh`,
+CI-Job `backup_restore_scripts`); Ergebnis und Grenzen stehen in
+[docs/acceptance/restore.md](acceptance/restore.md).
 
 **Aufbewahrung.** Die Skripte legen nur ab und löschen nichts. Wie lange Sicherungen liegen
 bleiben, entscheidet die Aufbewahrungsregel der Installation (#325). Wichtig dabei: Eine
 Sicherung, die **vor** Ablauf einer Aufbewahrungsfrist entstanden ist, enthält die
 inzwischen gelöschten Vorgänge weiterhin. Sicherungen unterliegen deshalb derselben Frist
 wie der Produktivbestand und sind am Ende der Frist zu vernichten; `backups/` ist aus
-demselben Grund über `.gitignore` ausgeschlossen und wird mit `chmod 700` angelegt.
+demselben Grund über `.gitignore` ausgeschlossen und wird mit `chmod 700` angelegt, die
+Dateien darin mit `umask 077`.
 
 ### Logs und Diagnose
 
@@ -257,14 +346,15 @@ Laufende Instanzen überstehen ein Update: Schema-Migrationen sind Vorwärtsmigr
 lassen wartende Aufgaben, Aufträge und Timer stehen. Belegt ist das durch
 `Upgrade_ShouldKeepRunningInstancesUsableAcrossAllMigrations`
 (`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`):
-Instanzen, die auf dem Schemastand 012 mit allen drei Wartezuständen gespeichert wurden,
-laufen nach allen folgenden Migrationen unverändert weiter.
+Instanzen, die auf dem Schemastand 012 oder 019 mit allen drei Wartezuständen gespeichert
+wurden, laufen nach dem vollständigen `--migrate`-Schritt (Migrationen und
+Formularbindungs-Upgrade) unverändert weiter.
 
 Reihenfolge – **erst Migration, dann Replikate**:
 
 ```bash
-# 1. Sichern (siehe „Backup und Restore“)
-./scripts/runtime/backup.sh --schema flowzer
+# 1. Sichern (siehe „Backup und Restore“); Exit 0 heißt: Dump geprüft, .sha256 und .meta liegen
+FLOWZER_APP_VERSION="<bisheriger Image-Tag>" ./scripts/runtime/backup.sh --schema flowzer
 
 # 2. Neues Paket bauen
 git pull
@@ -282,9 +372,18 @@ docker compose -f compose.runtime.yml up -d --wait
 
 `--check-config` meldet vor Schritt 4 „n ausstehend“ und nach Schritt 4 „aktuell“; nach
 Schritt 5 zeigt `GET /health/ready` denselben Stand unter `details.migrationState`. Der
-Migrationsschritt nimmt einen Advisory-Lock, zwei gleichzeitige Läufe kommen sich also
-nicht in die Quere und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt
-das der Dienst `migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`).
+Migrationsschritt nimmt für den ganzen Lauf einen Advisory-Lock und wendet alle ausstehenden
+Migrationen in einer Transaktion an; zwei gleichzeitige Läufe kommen sich also nicht in die
+Quere, und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt das der Dienst
+`migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`).
+
+Scheitert das Update, ist der Rückweg der Restore der Sicherung aus Schritt 1 **mit dem
+bisherigen Paket** (Abschnitt „Backup und Restore“, Beispiel „Zurückspielen in die
+Originaldatenbank“). In die Produktionsdatenbank zurückzuspielen verlangt bei gestopptem Stack
+`--allow-same-database` und – weil das Schema belegt ist – `--force`; dazu `--runtime-role`,
+damit die Rechte der Laufzeitrolle gleich neu vergeben werden (sonst nur eine Warnung mit dem
+Nachholbefehl), und bei Dateien `--files … --overwrite-files`, weil Ablage und Keyring an
+ihren Pfaden liegen. Genau diesen Aufruf prüft der Skripttest (Fall „Rückweg in die Quelle“).
 
 Vor einem Update Storage und Keyring sichern. Das Keyring-Volume behalten, damit ein
 Redeploy nicht alle Sitzungen und OIDC-Korrelationen ungültig macht.
@@ -318,7 +417,8 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
   Secret-Store-/TLS-Automatisierung bleiben weitere Pakete.
 - Sicherung und Wiederherstellung sind Momentaufnahmen: Es gibt **kein**
   Point-in-Time-Recovery und keine automatische Aufbewahrungs- oder Löschregel. Beides
-  entscheidet der Datenbankbetrieb der Installation.
+  entscheidet der Datenbankbetrieb der Installation. Die Skripte sind per Skripttest gegen
+  einen Wegwerf-Container belegt, nicht durch eine Übung gegen die Produktionsumgebung.
 - `backup.sh`/`restore.sh` werden **nicht** von Coolify aufgerufen. Im Produktivbetrieb
   ist der Aufruf zu planen (Cron/Systemd-Timer) und das Zielverzeichnis vom Host
   wegzusichern; die Skripte selbst kopieren nichts an einen zweiten Ort.
@@ -341,3 +441,7 @@ keine `FLOWZER_OIDC_*`- oder Konsolen-Secret-Variablen.
 | Externer Client erhält 401 | Bearer trägt nicht die erwartete Audience oder ist ungültig | Audience/Issuer/Claims prüfen; der BFF ersetzt den externen Bearer-Vertrag nicht |
 | Nach Redeploy sind alle Sitzungen ungültig | Data-Protection-Keyring wurde nicht persistent übernommen | getrenntes Keyring-Volume wiederherstellen und künftig sichern |
 | `docker compose build` scheitert am SDK | Falsches Feature-Band | Images nutzen `sdk:10.0.103`; `global.json` verlangt 10.0.1xx |
+| API meldet nach einem Restore `permission denied for schema` bzw. `/health/ready` zeigt `migrationState` `Unknown` | Rechte der Laufzeitrolle nicht neu vergeben (Restore ohne `--runtime-role`, v. a. nach `--force`) | `deploy/postgresql/02-laufzeitrechte.sql` mit der Migrationsrolle ausführen (Abschnitt „Backup und Restore“) |
+| `restore.sh`: „ist die Quelle dieser Sicherung“ | Zielverbindung zeigt auf die gesicherte Datenbank | Zielverbindung prüfen; nur für einen bewussten Restore in die Originaldatenbank `--allow-same-database` |
+| `restore.sh`: Prüfsumme „weicht ab“ | Dump beim Kopieren beschädigt oder verändert | Sicherung erneut vom Sicherungsziel holen; nie mit einer beschädigten Datei weiterarbeiten |
+| `backup.sh`: `server version mismatch` | lokale PostgreSQL-Clients älter als der Server | `FLOWZER_PG_CLIENT=docker` setzen |
