@@ -339,6 +339,11 @@ fi
 # --- Fall 4 --------------------------------------------------------------------------------
 
 if case_selected 4; then
+  # Die Sicherungsskripte sollen nur sehen, was der Rig ihnen gibt (wie im Skripttest von R2a):
+  # ambiente Verbindungs-, Pfad- und PG*-Variablen des Hosts werden vorher entfernt.
+  unset STORAGE_CONNECTION_STRING STORAGE_MIGRATION_CONNECTION_STRING STORAGE_SCHEMA \
+    FLOWZER_RUNTIME_ROLE FLOWZER_RUNTIME_PASSWORD FLOWZER_STORAGE_DIR FLOWZER_KEYRING_DIR \
+    FLOWZER_BACKUP_DIR FLOWZER_APP_VERSION PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD PGOPTIONS PGSERVICE
   # Testzweck: Klon auf eine zweite Datenbank mit echten Images. backup.sh sichert den Bestand
   # aus Fall 1 (drei abgeschlossene und drei neu wartende Instanzen) bei gestoppter API,
   # restore.sh spielt ihn samt Dateien (--files-root) in eine mit 01 vorbereitete zweite

@@ -532,9 +532,21 @@ jobs:
     needs:
       - dotnet
     timeout-minutes: 45
+    # packages: read fuer den Pull des Vorgaengerimages aus GHCR mit Anmeldung (wie images.yml);
+    # das Paket ist oeffentlich, die Anmeldung schuetzt vor dem anonymen Rate-Limit.
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
+
+      - name: Bei GHCR anmelden
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Skripte mit shellcheck pruefen
         run: |

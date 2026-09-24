@@ -404,10 +404,10 @@ ur_migration_versions() {
   ur_sql "$1" "SELECT coalesce(string_agg(version::text, ',' ORDER BY version), '') FROM ${UR_SCHEMA}.schema_migrations"
 }
 
-# Laufzeitzustand der Engine als sortierte Zeilen: Instanzen, Aufgaben, Auftraege (samt Sperre
-# und Versuchen) und Timer sowie Deployments (samt gebundener Formulare im Datensatz) und
-# Formulare, jeweils mit Pruefsumme des gespeicherten Datensatzes. Unveraendert heisst:
-# dieselben Zeilen.
+# Laufzeitzustand der Engine als sortierte Zeilen: Instanzen, Aufgaben (samt Fristen), Auftraege
+# (samt Sperre und Versuchen), Timer und Knotenereignisse (Historie) sowie Deployments (samt
+# gebundener Formulare im Datensatz) und Formulare, jeweils mit Pruefsumme des gespeicherten
+# Datensatzes. Unveraendert heisst: dieselben Zeilen.
 ur_runtime_fingerprint() {
   ur_sql "$1" "
     SELECT 'instance ' || instance_id || ' ' || meta_definition_id || ' finished=' || is_finished || ' body=' || md5(body) FROM ${UR_SCHEMA}.instances
@@ -416,6 +416,8 @@ ur_runtime_fingerprint() {
     UNION ALL SELECT 'timer ' || id || ' instance=' || coalesce(process_instance_id::text, '-') || ' due=' || to_char(due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') || ' body=' || md5(body) FROM ${UR_SCHEMA}.timer_subscriptions
     UNION ALL SELECT 'definition ' || id || ' ' || definition_id || ' active=' || is_active || ' body=' || md5(body) FROM ${UR_SCHEMA}.definitions
     UNION ALL SELECT 'form ' || id || ' form=' || form_id || ' body=' || md5(body) FROM ${UR_SCHEMA}.forms
+    UNION ALL SELECT 'deadline ' || user_task_id || ' revision=' || revision || ' next=' || coalesce(to_char(next_check_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US'), '-') || ' body=' || md5(body) FROM ${UR_SCHEMA}.user_task_deadlines
+    UNION ALL SELECT 'event ' || id || ' instance=' || process_instance_id || ' node=' || flow_node_id || ' at=' || to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US') || ' body=' || md5(body) FROM ${UR_SCHEMA}.runtime_node_events
     ORDER BY 1"
 }
 
