@@ -15,9 +15,10 @@ namespace WebApiEngine.Tests;
 public partial class PostgreSqlStorageIntegrationTest
 {
     // Testzweck: Ein Schema, das von der aeltesten Baseline (bis 012) ueber den `--migrate`-Weg
-    // auf den aktuellen Stand gehoben wurde, hat dieselben Tabellen, Spalten, Indizes,
-    // Constraints, Routinen und Trigger wie ein frisch mit allen Migrationen angelegtes Schema,
-    // und beide Historien fuehren dieselben Versionen. Abweichungen werden einzeln benannt.
+    // auf den aktuellen Stand gehoben wurde, hat dieselben Tabellen, Spalten (Typ, Nullability,
+    // Default, Identity, Generated, Collation), Indizes, Constraints, Sequenzen, eigenen Typen,
+    // Routinen, Trigger, Rechte und Kommentare wie ein frisch mit allen Migrationen angelegtes
+    // Schema, und beide Historien fuehren dieselben Versionen. Abweichungen werden einzeln benannt.
     [Test]
     public async Task SchemaDrift_UpgradedSchemaShouldMatchFreshlyMigratedSchema()
     {
@@ -37,7 +38,7 @@ public partial class PostgreSqlStorageIntegrationTest
 
             // Gegenprobe, dass der Katalog ueberhaupt gelesen wurde: Ein leerer Vergleich
             // waere immer gruen.
-            fresh.Columns.Should().Contain("definitions.body | text | not null | ");
+            fresh.Columns.Should().Contain(column => column.StartsWith("definitions.body | text | not null | ", StringComparison.Ordinal));
             fresh.Indexes.Should().NotBeEmpty();
             fresh.Constraints.Should().NotBeEmpty();
 
@@ -47,8 +48,12 @@ public partial class PostgreSqlStorageIntegrationTest
                 ShouldMatch("Spalten", upgraded.Columns, fresh.Columns);
                 ShouldMatch("Indizes", upgraded.Indexes, fresh.Indexes);
                 ShouldMatch("Constraints", upgraded.Constraints, fresh.Constraints);
+                ShouldMatch("Sequenzen", upgraded.Sequences, fresh.Sequences);
+                ShouldMatch("Typen", upgraded.Types, fresh.Types);
                 ShouldMatch("Routinen", upgraded.Routines, fresh.Routines);
                 ShouldMatch("Trigger", upgraded.Triggers, fresh.Triggers);
+                ShouldMatch("Rechte", upgraded.Grants, fresh.Grants);
+                ShouldMatch("Kommentare", upgraded.Comments, fresh.Comments);
                 ShouldMatch("Historieneintraege (schema_migrations)", upgraded.History, fresh.History);
             }
 
@@ -111,7 +116,9 @@ public partial class PostgreSqlStorageIntegrationTest
                 SELECT c.relname || '.' || a.attname,
                        format_type(a.atttypid, a.atttypmod),
                        CASE WHEN a.attnotnull THEN 'not null' ELSE 'null' END,
-                       pg_get_expr(d.adbin, d.adrelid)
+                       pg_get_expr(d.adbin, d.adrelid),
+                       a.attidentity::text, a.attgenerated::text,
+                       CASE WHEN a.attcollation = 0 THEN '' ELSE a.attcollation::regcollation::text END
                 FROM pg_attribute a
                 JOIN pg_class c ON c.oid = a.attrelid
                 JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -129,6 +136,18 @@ public partial class PostgreSqlStorageIntegrationTest
                 LEFT JOIN pg_class c ON c.oid = con.conrelid
                 WHERE n.nspname = @schema
                 """),
+            Sequences: await ReadAsync("""
+                SELECT sequencename, data_type::text, start_value, increment_by, min_value, max_value, cycle
+                FROM pg_sequences WHERE schemaname = @schema
+                """),
+            Types: await ReadAsync("""
+                SELECT t.typname, t.typtype::text,
+                       coalesce((SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) FROM pg_enum e WHERE e.enumtypid = t.oid), ''),
+                       CASE WHEN t.typtype = 'd' THEN format_type(t.typbasetype, t.typtypmod) ELSE '' END
+                FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                WHERE n.nspname = @schema AND t.typtype IN ('e', 'd', 'r', 'c')
+                  AND NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.reltype = t.oid)
+                """),
             Routines: await ReadAsync("""
                 SELECT p.proname, pg_get_function_identity_arguments(p.oid),
                        md5(replace(pg_get_functiondef(p.oid), @schema, '<schema>'))
@@ -142,6 +161,20 @@ public partial class PostgreSqlStorageIntegrationTest
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE n.nspname = @schema AND NOT t.tgisinternal
                 """),
+            Grants: await ReadAsync("""
+                SELECT c.relname, a.grantee::regrole::text, a.privilege_type, a.is_grantable::text
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace,
+                     aclexplode(c.relacl) a
+                WHERE n.nspname = @schema AND c.relacl IS NOT NULL
+                """),
+            Comments: await ReadAsync("""
+                SELECT c.relname, coalesce(a.attname, ''), d.description
+                FROM pg_description d
+                JOIN pg_class c ON c.oid = d.objoid
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                LEFT JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = d.objsubid AND d.objsubid > 0
+                WHERE n.nspname = @schema
+                """),
             // Dreistellig, damit die Textsortierung der Versionsreihenfolge entspricht.
             History: await ReadAsync($"""
                 SELECT to_char(version, 'FM000'), name FROM {Quote(schema)}.schema_migrations
@@ -153,7 +186,11 @@ public partial class PostgreSqlStorageIntegrationTest
         IReadOnlyList<string> Columns,
         IReadOnlyList<string> Indexes,
         IReadOnlyList<string> Constraints,
+        IReadOnlyList<string> Sequences,
+        IReadOnlyList<string> Types,
         IReadOnlyList<string> Routines,
         IReadOnlyList<string> Triggers,
+        IReadOnlyList<string> Grants,
+        IReadOnlyList<string> Comments,
         IReadOnlyList<string> History);
 }

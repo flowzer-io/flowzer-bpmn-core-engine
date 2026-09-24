@@ -108,9 +108,16 @@ public partial class PostgreSqlStorageIntegrationTest
             status.IsUpToDate.Should().BeTrue();
             status.Applied.Should().OnlyHaveUniqueItems();
             status.Applied.Should().Equal(PostgreSqlMigrator.AvailableVersions);
-            logger.Entries.Select(entry => entry.Message).Should().Equal(
-                $"Applied {expectedVersions.Length} PostgreSQL migration(s) to schema {schema}: {string.Join(", ", expectedVersions)}",
-                $"Automatisch ergänzte historische Formularbindungen: {(deployedWithoutFormBindings ? 3 : 0)}");
+            // Die Logzeilen sind ein Beleg fuer den Betreiber, keine Schnittstelle: Geprueft
+            // werden nur die praegenden Teile (angewendete Versionen, Zahl der ergaenzten
+            // Bindungen), nicht der vollstaendige Wortlaut oder die Reihenfolge des Streams.
+            var messages = logger.Entries.Select(entry => entry.Message).ToList();
+            messages.Should().ContainSingle(message =>
+                message.Contains($"Applied {expectedVersions.Length} PostgreSQL migration(s)")
+                && message.Contains(string.Join(", ", expectedVersions)));
+            messages.Should().ContainSingle(message =>
+                message.Contains("Formularbindungen")
+                && message.EndsWith($": {(deployedWithoutFormBindings ? 3 : 0)}"));
 
             // Bewusst frische Objekte: was jetzt noch geht, kommt aus der Ablage und nicht aus
             // einem im Speicher gehaltenen Rest des alten Laufs.

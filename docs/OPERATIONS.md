@@ -1486,8 +1486,8 @@ Auftrag und wartendem Timer ab – von Schemastand 012 (mit Deployments ohne For
 019 (Sprung der letzten produktiven Aktualisierung) –, und
 `SchemaDrift_UpgradedSchemaShouldMatchFreshlyMigratedSchema`
 (`PostgreSqlStorageIntegrationTest.SchemaDrift.cs`) belegt, dass ein von 012 aktualisiertes
-Schema dieselben Tabellen, Spalten, Indizes, Constraints und `schema_migrations`-Einträge hat
-wie ein frisch angelegtes.
+Schema dieselben Tabellen, Spalten, Indizes, Constraints, Sequenzen, Typen, Routinen, Trigger,
+Rechte, Kommentare und `schema_migrations`-Einträge hat wie ein frisch angelegtes.
 
 ## Konfigurationsprüfung: `--check-config`
 
