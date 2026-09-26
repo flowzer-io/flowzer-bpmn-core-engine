@@ -104,6 +104,8 @@ services:
     build: *api-build
     image: flowzer-installation-auth/api:local
     command: ["--migrate"]
+    # Wie in compose.coolify.yaml: tini als PID 1 (Signale, Zombies, Exit-Code; #366).
+    init: true
     restart: "no"
     depends_on:
       db:
@@ -118,6 +120,7 @@ services:
   api:
     build: *api-build
     image: flowzer-installation-auth/api:local
+    init: true
     depends_on:
       migrate:
         condition: service_completed_successfully

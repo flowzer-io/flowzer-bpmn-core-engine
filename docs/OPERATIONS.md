@@ -1506,6 +1506,20 @@ Formularbindungen; diese nimmt keinen Advisory-Lock, sondern sperrt `definitions
 `definition_binaries`, `forms` und `form_metadata` kurz im Modus `SHARE ROW EXCLUSIVE`
 (Leser bleiben zugelassen, andere Schreiber warten).
 
+**Scheitert `--migrate`**, endet der Prozess mit **Exit 1** und einer Fehlerzeile
+(`fail: Migrations`) statt mit einer unbehandelten Ausnahme. Bei einer SQL-Migration nennt sie
+Migration und Version, Ausnahmetyp und SQLSTATE, etwa `PostgreSQL migration
+019_inbound_triggers (version 19) failed; … Npgsql.PostgresException (SqlState 42703): …`; der
+Lauf ist dann zurückgerollt, `api` startet nicht (`service_completed_successfully`), und der
+Rückweg ist das bisherige Image. Andere Fehler (Konfiguration, Verbindung,
+Formularbindungs-Upgrade) meldet `Migration step failed: …`; was davor gelang, steht in den
+Zeilen davor. Ein **Abbruch** ist kein Fehler: SIGTERM (etwa `docker stop`) oder SIGINT während
+des Laufs bricht den Migrator ab, seine Transaktion wird verworfen, und `--migrate` endet mit
+**Exit 130** und der Warnung `Migration run cancelled; the transaction was rolled back.`
+Kurz: Exit 0 = Erfolg, 1 = Fehler, 130 = Abbruch. Das Formularbindungs-Upgrade nach dem Commit
+der Migrationen beachtet den Abbruch nicht und läuft zu Ende. Belegt durch
+`PostgreSqlStorageIntegrationTest.MigrationFailure.cs` und `MigrationCommandTest.cs`.
+
 Nach den SQL-Migrationen führt `--migrate` (`FlowzerStorageExtensions.RunMigrationsAsync`) in
 einer eigenen Transaktion das Formularbindungs-Upgrade aus (siehe „Update-Kompatibilität von
 Formularen und Workflows“). Genau diesen Weg deckt der In-Process-Upgrade-Test
@@ -1524,9 +1538,12 @@ Weg: Image-Wechsel von Release #344 auf den aktuellen Stand (0 Migrationen, wart
 Auftrag und Timer laufen weiter), Schemasprung 016 → aktuell über einen Klartext-Fixture
 (Migrationen 17 bis 20, Laufzeitzustand unverändert) und eine an einer Kollision scheiternde
 Migration: Historie, Schema und Instanzen bleiben unverändert, `api` startet nicht, und das
-bisherige Image läuft ohne Restore weiter. Dabei aufgefallen: Auf arm64-Hosts endet ein
-scheiternder `--migrate`-Prozess als PID 1 im Container nicht von selbst (auf amd64 Exit 139);
-`init: true` für den Dienst wäre die Abhilfe. Ergebnis und Befunde in
+bisherige Image läuft ohne Restore weiter; `migrate` endet dabei von selbst mit Exit 1.
+`migrate` und `api` laufen in `compose.coolify.yaml` mit `init: true`, ebenso `api` in
+`compose.runtime.yml` (dort ohne `migrate`-Dienst): Ein Init-Prozess ist PID 1, leitet Signale
+weiter und räumt Zombies ab. Bis #366 endete ein scheiterndes
+`--migrate` als PID 1 mit einer unbehandelten Ausnahme, auf amd64 mit Exit 139, auf arm64 gar
+nicht. Ergebnis und Befunde in
 [docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 ## Konfigurationsprüfung: `--check-config`
@@ -1786,9 +1803,6 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
   Instanzen) liefert seit R2b der Rig in `tests/upgrade-restore/`
   ([Abnahme](acceptance/upgrade-restore.md)); Verzeichnisse, Idempotenzeinträge und KI-Läufe
   enthält sein Datenbestand nicht
-- ein `--migrate`-Container, der bei einer unbehandelten Ausnahme auch als PID 1 auf arm64
-  endet (`init: true` in `compose.coolify.yaml` oder Fehlercode statt Absturz im
-  Migrationspfad); Befund aus R2b
 
 ## Sinnvolle nächste Ausbauschritte
 

@@ -261,10 +261,11 @@ fi
 
 if case_selected 3; then
   # Testzweck: Eine Migration, die an einer vorab angelegten Tabelle mit abweichender Struktur
-  # scheitert, laesst die Datenbank unveraendert (eine Transaktion je Lauf): migrate endet nicht
-  # erfolgreich, schema_migrations und alle Relationen bleiben wie vorher, die API des neuen
-  # Images startet nicht (service_completed_successfully), und das Image des bisherigen Stands
-  # laeuft danach ohne Restore weiter und schliesst die wartenden Instanzen ab.
+  # scheitert, laesst die Datenbank unveraendert (eine Transaktion je Lauf): migrate endet von
+  # selbst mit Exit 1 und nennt Ausnahmetyp, SQLSTATE und Migration (#366), schema_migrations
+  # und alle Relationen bleiben wie vorher, die API des neuen Images startet nicht
+  # (service_completed_successfully), und das Image des bisherigen Stands laeuft danach ohne
+  # Restore weiter und schliesst die wartenden Instanzen ab.
   ur_begin_case "Fall 3: Negative Migration und Rueckweg ohne Restore"
   ur_prepare_database flowzer_kollision
   ur_load_fixture flowzer_kollision "$UR_FIXTURE_016"
@@ -291,12 +292,19 @@ if case_selected 3; then
   fi
   ur_pass "docker compose up endet mit Fehler (Exit ${UR_COMPOSE_STATUS})"
   migrate_log="$(ur_migrate_log_file fall3-aktuell)"
-  [[ "$UR_MIGRATE_EXIT" != 0 && "$UR_MIGRATE_EXIT" != '?' ]] || ur_fail "migrate endete mit Exit '${UR_MIGRATE_EXIT}'"
-  if [[ "$UR_MIGRATE_HUNG" -eq 1 ]]; then
-    ur_finding "migrate endete nach der unbehandelten Ausnahme nicht von selbst (PID 1 im Container, $(uname -m)); der Rig beendete den Prozess nach 30 s (Exit ${UR_MIGRATE_EXIT}). Siehe docs/acceptance/upgrade-restore.md."
-  else
-    ur_pass "migrate endet von selbst mit Exit ${UR_MIGRATE_EXIT} (nicht 0)"
+  # Rueckfall zu #366: migrate haengt nach dem Fehler (der Watchdog beendete es) oder endet
+  # mit einem anderen Code als 1, etwa 134 (abort unter init) oder 139 (abort als PID 1).
+  [[ "$UR_MIGRATE_HUNG" -eq 0 ]] \
+    || ur_fail "migrate endete nach dem Fehlschlag nicht von selbst ($(uname -m)); der Rig beendete den Prozess nach 30 s (Exit ${UR_MIGRATE_EXIT}). Rueckfall zu #366, siehe docs/acceptance/upgrade-restore.md."
+  ur_assert_eq 1 "$UR_MIGRATE_EXIT" "migrate endet von selbst mit Exit"
+  if grep -q 'Unhandled exception' "$migrate_log"; then
+    ur_fail "migrate meldet eine unbehandelte Ausnahme statt einer Fehlerzeile (Rueckfall zu #366)"
   fi
+  ur_pass "migrate meldet keine unbehandelte Ausnahme"
+  ur_assert_file_contains "$migrate_log" 'PostgreSQL migration 019_inbound_triggers \(version 19\) failed' \
+    "migrate nennt die gescheiterte Migration (019_inbound_triggers)"
+  ur_assert_file_contains "$migrate_log" 'Npgsql\.PostgresException \(SqlState 42703\)' \
+    "migrate nennt Ausnahmetyp und SQLSTATE (Npgsql.PostgresException, 42703)"
   ur_assert_file_contains "$migrate_log" '42703: column "trigger_key" does not exist' "migrate nennt den Fehler (42703, trigger_key)"
   if grep -q 'Applied [0-9]* PostgreSQL migration' "$migrate_log"; then
     ur_fail "migrate meldet trotz Fehler angewendete Migrationen"

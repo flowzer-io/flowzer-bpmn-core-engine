@@ -37,7 +37,8 @@ Testprozess, Ausgangslagen 012 und 019) und der Skripttest der Sicherungsskripte
 
 `tests/upgrade-restore/compose.yml` enthält `db` (PostgreSQL), `migrate` (`--migrate` mit der
 Migrationsrolle) und `api` (Laufzeitrolle, `depends_on: migrate: service_completed_successfully`
-wie in `compose.coolify.yaml`); ohne Konsole, Caddy und Keycloak. Jede Ausgangslage bekommt
+wie in `compose.coolify.yaml`); ohne Konsole, Caddy und Keycloak. `migrate` und `api` laufen
+seit #366 wie in `compose.coolify.yaml` mit `init: true` (Init-Prozess als PID 1). Jede Ausgangslage bekommt
 eine eigene Datenbank, angelegt mit `deploy/postgresql/01-datenbank-und-rollen.sql`
 (Migrations- und Laufzeitrolle getrennt). Das Skript wählt vor jedem Schritt über
 `FLOWZER_UPGRADE_DATABASE` und `FLOWZER_UPGRADE_API_IMAGE` Datenbank und Image; ein Wechsel lässt
@@ -46,7 +47,7 @@ Compose `migrate` und `api` neu erzeugen, genau wie ein Image-Wechsel in der Ins
 | Rolle | Image |
 |---|---|
 | Vorgänger (Fall 1) | `ghcr.io/flowzer-io/flowzer-api:sha-5a2d9b38eec4` (Release #344, Schema 020; nur `linux/amd64`, auf arm64 emuliert) |
-| Aktuell | `ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}`; mit `--build-current` aus diesem Stand gebaut (so in der CI) |
+| Aktuell | `ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}`; mit `--build-current` aus diesem Stand gebaut (so in der CI). Ohne `--build-current` prüft der Rig das `latest` aus GHCR: Bis ein Release #366 enthält, scheitert Fall 3 dann erwartungsgemäß (kein Exit 1) |
 | Stand 016 (Fall 3) | aus Commit `92d8557` (Release #320) gebaut: `git archive` in ein Temp-Verzeichnis, `docker build` mit dessen `Dockerfile.api` |
 | PostgreSQL | `FLOWZER_TEST_PG_IMAGE`, Standard `postgres:17-alpine` |
 
@@ -80,7 +81,7 @@ blieb zurück); `--keep` lässt alles stehen.
 |---|---|---|
 | 1 Image-Wechsel ohne Migration | `migrate`/`api` mit dem Vorgänger, drei Instanzen über die API anlegen, `api` stoppen, `migrate`/`api` mit dem aktuellen Image | Vorgänger: 20 Migrationen, `/health/ready` Healthy/UpToDate. Aktuell: `migrate` Exit 0, meldet **0** angewendete Migrationen (allgemein: genau die Differenz der Historie), Formularbindungs-Upgrade läuft (0 ergänzt), `/health/ready` Healthy/Ready/UpToDate/0 ausstehend/20, Laufzeitabdruck unverändert, alle drei warten und lassen sich abschließen |
 | 2 Schemasprung 016 → aktuell | Fixture in eine mit 01 vorbereitete Datenbank einspielen (als Migrationsrolle, danach 02), `migrate`/`api` mit dem aktuellen Image | Fixture 16/16; `migrate` meldet 4 angewendete Migrationen **17, 18, 19, 20**, Historie danach 20/20, Formularbindungs-Upgrade läuft (0 ergänzt: 016 bindet schon beim Deployment), `/health/ready` UpToDate, Laufzeitabdruck unverändert, alle drei warten und lassen sich abschließen |
-| 3 Negative Migration und Rückweg | Fixture einspielen, Stand 016 starten (Instanzen warten), `api` stoppen, Kollisionstabelle anlegen, `migrate`/`api` mit dem aktuellen Image, danach wieder das Image des Stands 016 | `docker compose up` endet mit Fehler; `migrate` endet nicht mit 0 und nennt `42703: column "trigger_key" does not exist`, meldet keine angewendete Migration; der `api`-Container des aktuellen Images ist angelegt, aber **nie gestartet**; `schema_migrations` (1–16), Schemaabdruck und Laufzeitabdruck unverändert, keines der Objekte aus 017–020 vorhanden. Rückweg: `migrate` des Stands 016 Exit 0, 0 angewendet, `/health/ready` Healthy, alle drei warten und lassen sich abschließen – **ohne Restore** |
+| 3 Negative Migration und Rückweg | Fixture einspielen, Stand 016 starten (Instanzen warten), `api` stoppen, Kollisionstabelle anlegen, `migrate`/`api` mit dem aktuellen Image, danach wieder das Image des Stands 016 | `docker compose up` endet mit Fehler; `migrate` endet **von selbst mit Exit 1** (seit #366; vorher nur „nicht 0“), ohne unbehandelte Ausnahme, und nennt in einer Fehlerzeile `PostgreSQL migration 019_inbound_triggers (version 19) failed`, `Npgsql.PostgresException (SqlState 42703)` und `42703: column "trigger_key" does not exist`, meldet keine angewendete Migration; der `api`-Container des aktuellen Images ist angelegt, aber **nie gestartet**; `schema_migrations` (1–16), Schemaabdruck und Laufzeitabdruck unverändert, keines der Objekte aus 017–020 vorhanden. Rückweg: `migrate` des Stands 016 Exit 0, 0 angewendet, `/health/ready` Healthy, alle drei warten und lassen sich abschließen – **ohne Restore** |
 | 4 Restore in eine zweite Datenbank | Quelle aus Fall 1 mit dem aktuellen Image: drei weitere Instanzen (warten), `api` stoppen, `backup.sh` (mit Dateiablage und Keyring), zweite Datenbank mit 01, `restore.sh --runtime-role --files --files-root`, `api` gegen den Klon | `backup.sh` Exit 0, `.meta` mit `database=flowzer`, `schema_migrations_max=20`, `app_version`; `restore.sh` Exit 0, erkennt das vorbereitete Ziel als leer, liest als Laufzeitrolle; Dateien unter `--files-root` identisch; Migrationsstand und Zeilenzahlen aller 34 Tabellen wie in der Quelle; `migrate` 0 angewendet, `/health/ready` UpToDate; **Instanzliste und Zustände identisch** (6 Instanzen, 3 abgeschlossen, 3 wartend); die wartenden laufen im Klon zu Ende, in der Quelle warten dieselben drei unberührt weiter |
 | 4b Sicherung eines älteren Stands | Fixture 016 in eine eigene Datenbank, `backup.sh --no-files`, Restore in eine weitere Datenbank, `migrate`/`api` mit dem aktuellen Image | `.meta` `schema_migrations_max=16`; Klon nach Restore 16/16; `migrate` wendet 17–20 an; `/health/ready` UpToDate; Laufzeitabdruck wie in der gesicherten Ablage; alle drei warten |
 | Abschluss | alle Ausgabedateien durchsuchen | keines der drei Passwörter in einer Ausgabe |
@@ -137,6 +138,11 @@ Container des Rigs mehr. Die Läufe 1 bis 5 liefen auf Zwischenständen des Rigs
 beziehungsweise bevor der Laufzeitabdruck Deployments und Formulare umfasste); maßgeblich sind
 die Läufe 6 und 7 auf dem Endstand.
 
+**Nachlauf #366 (2026-09-26, arm64, `run.sh --build-current` auf `main` e93e66c zuzüglich
+#366):** 6 Fälle, 131 Prüfungen bestanden, **0 Befunde**, 140 s. Fall 3 dauerte 27 s statt
+62 s: `migrate` endete von selbst mit Exit 1 und der Fehlerzeile zu `019_inbound_triggers`
+(`Npgsql.PostgresException`, SqlState 42703), ohne Eingreifen des Watchdogs.
+
 **PostgreSQL 18 (Fall 5, optional):** Alle Fälle laufen auch mit `postgres:18-alpine` (18.6),
 einschließlich Einspielen des mit `pg_dump` 17 erzeugten Fixtures sowie `backup.sh`/`restore.sh`
 mit den Werkzeugen aus dem 18er-Image. Produktion läuft auf 17; die CI prüft nur 17.
@@ -146,27 +152,39 @@ fehlende Typumwandlung von `relkind` in SQL), keinen im Produkt.
 
 ## Befunde
 
-1. **Scheiternder `--migrate` endet auf arm64 nicht (PID 1).** Nach der unbehandelten
-   Ausnahme bleibt der Prozess im Container mit voller CPU-Last stehen; `docker compose up
-   --wait` wartet dann unbegrenzt, `api` startet nie. Ursache: Die .NET-Laufzeit bricht per
-   `abort()` ab, und `SIGABRT` wird für PID 1 ohne eigenen Handler ignoriert. Auf amd64 endet
-   derselbe Prozess mit Exit 139 (beobachtet mit dem amd64-Vorgängerimage unter Emulation;
-   der native amd64-Wert kommt aus dem ersten CI-Lauf). Mit `docker run --init` endet er auf
-   arm64 nach 0,4 s mit Exit 134. Nachstellen:
+1. **Scheiternder `--migrate` endet auf arm64 nicht (PID 1) – behoben mit #366.** Nach der
+   unbehandelten Ausnahme bleibt der Prozess im Container mit voller CPU-Last stehen; `docker
+   compose up --wait` wartet dann unbegrenzt, `api` startet nie. Ursache: Die .NET-Laufzeit
+   bricht per `abort()` ab, und `SIGABRT` wird für PID 1 ohne eigenen Handler ignoriert. Auf
+   amd64 endet derselbe Prozess mit Exit 139 (beobachtet mit dem amd64-Vorgängerimage unter
+   Emulation; der native amd64-Wert kommt aus dem ersten CI-Lauf). Mit `docker run --init`
+   endet er auf arm64 nach 0,4 s mit Exit 134. Nachstellen mit einem festen Image vor #366
+   (Release #344, nur `linux/amd64`; auf arm64-Hosts emuliert, dort ebenfalls Exit 139):
 
    ```bash
-   docker run --rm -e Storage__Provider=PostgreSql \
+   docker run --rm --platform linux/amd64 -e Storage__Provider=PostgreSql \
      -e 'Storage__PostgreSql__ConnectionString=Host=127.0.0.1;Port=1;Database=x;Username=y;Password=z;Timeout=3' \
-     ghcr.io/flowzer-io/flowzer-api:latest --migrate   # arm64: haengt; mit --init: Exit 134
+     ghcr.io/flowzer-io/flowzer-api:sha-5a2d9b38eec4 --migrate   # Exit 139; mit --init: Exit 134
    ```
 
-   Der Rig beendet einen solchen Prozess nach 30 s selbst und führt das als „BEFUND“, nicht als
-   Fehler; die Zusicherungen von Fall 3 (nicht erfolgreich, Rollback, `api` nie gestartet)
-   gelten trotzdem. Behoben ist das nicht (Nicht-Ziel dieses Pakets). Vorschlag:
-   `init: true` für `migrate` und `api` in `compose.coolify.yaml`, oder die Ausnahme im
-   Migrationspfad fangen und mit Exit 1 und einer klaren Logzeile enden. Betroffen sind
-   arm64-Hosts (etwa lokale Entwicklungsrechner); auf amd64 endet der Prozess, wenn auch als
-   Absturz (139) statt mit einem regulären Fehlercode.
+   Das Hängen auf arm64 zeigt nur ein natives arm64-Image eines Stands vor #366.
+
+   Genauer untersucht in #366 (Ubuntu 24.04, glibc 2.39, .NET 10.0.12): Nach dem verworfenen
+   `SIGABRT` greift in `abort()` die architekturabhängige Abbruchinstruktion. Auf amd64 ist das
+   `hlt`, das als erzwungenes `SIGSEGV` auch PID 1 beendet (Exit 139). Auf arm64 ist es
+   `brk #0x3e8`; das daraus folgende `SIGTRAP` fängt die .NET-Laufzeit selbst ab und kehrt zur
+   selben Instruktion zurück – eine Endlosschleife (mit `gdb` belegt: Programmzähler auf
+   `abort+432`, dazwischen `pthread_sigmask` aus `libcoreclr`). Logger, Host und V8 sind nicht
+   beteiligt; ClearScript ist im `--migrate`-Prozess nicht einmal geladen.
+
+   Behoben auf zwei Wegen: `RunMigrationsAsync` fängt jeden Fehler, protokolliert ihn als
+   Fehlerzeile (Migration und Version, Ausnahmetyp, SQLSTATE) und liefert Exit 1; der Migrator
+   benennt die gescheiterte Migration über `SchemaMigrationFailedException`, ohne die
+   Transaktionssemantik zu ändern. Zusätzlich laufen `migrate` und `api` mit `init: true`.
+   Nachgeprüft ohne Init-Prozess, also als PID 1: Exit 1 nach 1–3 s auf arm64 und auf amd64
+   (emuliert), ebenso mit `--init`. Fall 3 verlangt seither genau Exit 1 ohne Eingreifen des
+   Rigs; hängt `migrate` wieder oder endet es anders, bricht der Rig mit Fehler ab (kein
+   „BEFUND“ mehr).
 2. **Compose erzeugt `api` neu, bevor `migrate` läuft.** Wechselt das Image, legt
    `docker compose up` beide Container in der Erzeugungsphase neu an und entfernt dabei den
    laufenden alten `api`-Container; gestartet wird `api` erst nach erfolgreichem `migrate`. In
