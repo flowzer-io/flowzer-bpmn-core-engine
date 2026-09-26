@@ -317,7 +317,12 @@ dotnet WebApiEngine.dll --check-config   # „Migrationen OK aktuell“, Ablage 
 
 Der Ablauf ist als Skripttest automatisiert (`scripts/runtime/tests/backup-restore.test.sh`,
 CI-Job `backup_restore_scripts`); Ergebnis und Grenzen stehen in
-[docs/acceptance/restore.md](acceptance/restore.md).
+[docs/acceptance/restore.md](acceptance/restore.md). Mit echten Images und laufender API
+belegt der Upgrade-/Restore-Rig (`tests/upgrade-restore/run.sh`, CI-Job
+`upgrade_restore_rig`) zusätzlich den Klon einer Installation mit wartenden Instanzen in eine
+zweite Datenbank (Instanzliste, Zustände und Zeilenzahlen gleich, die Instanzen laufen im Klon
+weiter) und den Weg „Sicherung eines älteren Stands (016), Restore, `--migrate` des neuen
+Pakets“; siehe [docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 **Aufbewahrung.** Die Skripte legen nur ab und löschen nichts. Wie lange Sicherungen liegen
 bleiben, entscheidet die Aufbewahrungsregel der Installation (#325). Wichtig dabei: Eine
@@ -348,7 +353,12 @@ lassen wartende Aufgaben, Aufträge und Timer stehen. Belegt ist das durch
 (`src/WebApiEngine.Tests/PostgreSqlStorageIntegrationTest.UpgradeWithRunningInstances.cs`):
 Instanzen, die auf dem Schemastand 012 oder 019 mit allen drei Wartezuständen gespeichert
 wurden, laufen nach dem vollständigen `--migrate`-Schritt (Migrationen und
-Formularbindungs-Upgrade) unverändert weiter.
+Formularbindungs-Upgrade) unverändert weiter. Mit echten Images im Compose-Stack belegt das
+zusätzlich der Upgrade-/Restore-Rig `tests/upgrade-restore/run.sh` (CI-Job
+`upgrade_restore_rig`): Image-Wechsel vom Release #344 auf den aktuellen Stand ohne Migration,
+Schemasprung 016 → aktuell über einen Fixture, scheiternde Migration samt Rückweg und Restore
+in eine zweite Datenbank; Ergebnis und Befunde in
+[docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 Reihenfolge – **erst Migration, dann Replikate**:
 
@@ -379,9 +389,20 @@ Quere, und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt d
 stoppt dabei zuerst alle alten Container; zur erwarteten Lücke und zum Vorab-Pull der Images
 siehe Abschnitt 6b.
 
-Scheitert das Update, ist der Rückweg der Restore der Sicherung aus Schritt 1 **mit dem
-bisherigen Paket** (Abschnitt „Backup und Restore“, Beispiel „Zurückspielen in die
-Originaldatenbank“). In die Produktionsdatenbank zurückzuspielen verlangt bei gestopptem Stack
+**Scheitert `migrate`**, rollt der Migrator den ganzen Lauf zurück – alle ausstehenden
+Migrationen laufen in einer Transaktion. Schema, `schema_migrations` und wartende Instanzen
+bleiben auf dem bisherigen Stand, und `api` startet wegen `service_completed_successfully`
+nicht. Der Rückweg ist dann das **bisherige Image** (`FLOWZER_IMAGE_TAG` zurücksetzen und neu
+ausrollen), **kein Restore**; genau das prüft Fall 3 des Rigs. Zwei Beobachtungen dazu: Compose
+erzeugt `api` beim Image-Wechsel neu, bevor `migrate` läuft – während der Migration und nach
+einem Fehlschlag läuft also keine API, bis das bisherige Image wieder gesetzt ist. Und auf
+arm64-Hosts endet ein scheiternder `migrate`-Container nicht von selbst (PID 1, siehe Befund 1
+im Abnahmeprotokoll); dann `docker compose kill migrate` und das bisherige Image setzen.
+
+**Scheitert das Update nach erfolgreichem `migrate`** (die neue Version läuft fachlich nicht),
+ist der Rückweg der Restore der Sicherung aus Schritt 1 **mit dem bisherigen Paket**
+(Abschnitt „Backup und Restore“, Beispiel „Zurückspielen in die Originaldatenbank“). Ein
+bisheriges Image auf dem bereits migrierten Schema ist nicht geprüft. In die Produktionsdatenbank zurückzuspielen verlangt bei gestopptem Stack
 `--allow-same-database` und – weil das Schema belegt ist – `--force`; dazu `--runtime-role`,
 damit die Rechte der Laufzeitrolle gleich neu vergeben werden (sonst nur eine Warnung mit dem
 Nachholbefehl), und bei Dateien `--files … --overwrite-files`, weil Ablage und Keyring an

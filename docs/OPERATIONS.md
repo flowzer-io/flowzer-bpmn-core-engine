@@ -1517,6 +1517,18 @@ Auftrag und wartendem Timer ab – von Schemastand 012 (mit Deployments ohne For
 Schema dieselben Tabellen, Spalten, Indizes, Constraints, Sequenzen, Typen, Routinen, Trigger,
 Rechte, Kommentare und `schema_migrations`-Einträge hat wie ein frisch angelegtes.
 
+Mit echten Images im Compose-Stack (`db`, `migrate`, `api` mit
+`service_completed_successfully`) belegt der Upgrade-/Restore-Rig
+`tests/upgrade-restore/run.sh` (CI-Job `upgrade_restore_rig`, kein Pflicht-Check) denselben
+Weg: Image-Wechsel von Release #344 auf den aktuellen Stand (0 Migrationen, wartende Aufgabe,
+Auftrag und Timer laufen weiter), Schemasprung 016 → aktuell über einen Klartext-Fixture
+(Migrationen 17 bis 20, Laufzeitzustand unverändert) und eine an einer Kollision scheiternde
+Migration: Historie, Schema und Instanzen bleiben unverändert, `api` startet nicht, und das
+bisherige Image läuft ohne Restore weiter. Dabei aufgefallen: Auf arm64-Hosts endet ein
+scheiternder `--migrate`-Prozess als PID 1 im Container nicht von selbst (auf amd64 Exit 139);
+`init: true` für den Dienst wäre die Abhilfe. Ergebnis und Befunde in
+[docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
+
 ## Konfigurationsprüfung: `--check-config`
 
 ```bash
@@ -1609,6 +1621,12 @@ ins vorbereitete Schema gibt über die Default-Privileges auch `schema_migration
 `INSERT/UPDATE/DELETE`. Belegt ist der Ablauf durch den Skripttest
 `scripts/runtime/tests/backup-restore.test.sh` (CI-Job `backup_restore_scripts`, kein
 Pflicht-Check); Ergebnis und Grenzen in [docs/acceptance/restore.md](acceptance/restore.md).
+Über Paketstände hinweg und mit laufender API belegt der Upgrade-/Restore-Rig
+(`tests/upgrade-restore/run.sh`, CI-Job `upgrade_restore_rig`) zusätzlich den Klon einer
+Installation mit wartenden Instanzen in eine zweite Datenbank – Instanzliste, Zustände und
+Zeilenzahlen aller Tabellen wie in der Quelle, `/health/ready` UpToDate, die Instanzen laufen im
+Klon weiter – sowie Sicherung eines Stands 016, Restore und `--migrate` des aktuellen Pakets;
+siehe [docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 ## Mehrprozessbetrieb
 
@@ -1761,9 +1779,16 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
   Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
   aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).
-- ein vollständiger Upgrade- und Restore-Nachweis über Paketstände hinweg (Sicherung eines
-  älteren Releases, Restore, `--migrate` des neuen Pakets, laufende Instanzen): folgt als R2b;
-  R2a belegt die Skripte auf einem einzigen Paketstand
+- Rückweg nach **erfolgreicher** Migration: Ob ein bisheriges Image auf dem bereits
+  migrierten Schema weiterläuft, ist nicht geprüft; dokumentierter Rückweg bleibt der Restore.
+  Den Upgrade- und Restore-Nachweis über Paketstände hinweg (Image-Wechsel, Schemasprung 016 →
+  aktuell, scheiternde Migration, Klon und Sicherung eines älteren Stands mit laufenden
+  Instanzen) liefert seit R2b der Rig in `tests/upgrade-restore/`
+  ([Abnahme](acceptance/upgrade-restore.md)); Verzeichnisse, Idempotenzeinträge und KI-Läufe
+  enthält sein Datenbestand nicht
+- ein `--migrate`-Container, der bei einer unbehandelten Ausnahme auch als PID 1 auf arm64
+  endet (`init: true` in `compose.coolify.yaml` oder Fehlercode statt Absturz im
+  Migrationspfad); Befund aus R2b
 
 ## Sinnvolle nächste Ausbauschritte
 

@@ -16,3 +16,5 @@ tests/ui-smoke/test-results
 tests/installation-auth/playwright-report
 tests/installation-auth/test-results
 tests/installation-auth/logs
+tests/upgrade-restore/logs
+tests/upgrade-restore/logs-fixture
