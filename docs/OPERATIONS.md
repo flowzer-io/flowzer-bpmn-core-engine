@@ -1216,6 +1216,24 @@ Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschriebe
 ./scripts/runtime/stop-runtime-stack.sh
 ```
 
+## Deployment über Coolify
+
+Staging (`main`) und Produktion (`release`) rollen über `coolify-deploy.yml` aus; Umgebungen,
+Workflows und Image-Tags stehen im README unter „Release und Deployment“, die
+Coolify-Variablen im Runbook (Abschnitt 6b).
+
+**Deploy-Lücke und Vorab-Pull (#367):** Coolify stoppt bei Compose-Anwendungen alle alten
+Container, bevor es die Images zieht und `migrate` startet. Je Deployment sind daher ohne Vorab-Pull 10–20 s (mit Vorab-Pull entsprechend kürzer)
+ohne API zu erwarten, kurzzeitig auch mit 503. Für die Produktion trägt jeder Stand auf
+`release` zusätzlich das mitlaufende Tag `prod-next` (dasselbe Manifest wie `sha-<12 Zeichen>`);
+der systemd-Timer `flowzer-prepull.timer` auf dem Produktionshost zieht `flowzer-api:prod-next` und
+`flowzer-console:prod-next` minütlich ohne Neustart (Host-Teil in der internen Serverkonfiguration per Ansible),
+und der Deploy-Job wartet vor dem Coolify-Aufruf 120 s (`prepull_wait_seconds`). Damit entfällt
+die Pull-Zeit (beim Release am 24.09.2026 etwa 7 s) aus der Lücke. Ein fehlender oder verspäteter
+Vorab-Pull bringt nur die alte Lücke zurück, kein Funktionsrisiko. Ein Rollback auf ein älteres
+`sha-…`-Tag wird nicht vorab gezogen und bezahlt die Pull-Zeit weiter, sobald Coolify das Image
+bei seiner täglichen Bereinigung um 00:00 entfernt hat.
+
 ## Storage- und Dateipfade
 
 Der Compose- und Local-Run-Pfad nutzt bewusst denselben Storage-Ort:
