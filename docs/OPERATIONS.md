@@ -1513,8 +1513,12 @@ Migration und Version, Ausnahmetyp und SQLSTATE, etwa `PostgreSQL migration
 Lauf ist dann zurückgerollt, `api` startet nicht (`service_completed_successfully`), und der
 Rückweg ist das bisherige Image. Andere Fehler (Konfiguration, Verbindung,
 Formularbindungs-Upgrade) meldet `Migration step failed: …`; was davor gelang, steht in den
-Zeilen davor. Belegt durch `PostgreSqlStorageIntegrationTest.MigrationFailure.cs` und
-`MigrationCommandTest.cs`.
+Zeilen davor. Ein **Abbruch** ist kein Fehler: SIGTERM (etwa `docker stop`) oder SIGINT während
+des Laufs bricht den Migrator ab, seine Transaktion wird verworfen, und `--migrate` endet mit
+**Exit 130** und der Warnung `Migration run cancelled; the transaction was rolled back.`
+Kurz: Exit 0 = Erfolg, 1 = Fehler, 130 = Abbruch. Das Formularbindungs-Upgrade nach dem Commit
+der Migrationen beachtet den Abbruch nicht und läuft zu Ende. Belegt durch
+`PostgreSqlStorageIntegrationTest.MigrationFailure.cs` und `MigrationCommandTest.cs`.
 
 Nach den SQL-Migrationen führt `--migrate` (`FlowzerStorageExtensions.RunMigrationsAsync`) in
 einer eigenen Transaktion das Formularbindungs-Upgrade aus (siehe „Update-Kompatibilität von
@@ -1535,8 +1539,9 @@ Auftrag und Timer laufen weiter), Schemasprung 016 → aktuell über einen Klart
 (Migrationen 17 bis 20, Laufzeitzustand unverändert) und eine an einer Kollision scheiternde
 Migration: Historie, Schema und Instanzen bleiben unverändert, `api` startet nicht, und das
 bisherige Image läuft ohne Restore weiter; `migrate` endet dabei von selbst mit Exit 1.
-`migrate` und `api` laufen in `compose.coolify.yaml` mit `init: true`: Ein Init-Prozess ist
-PID 1, leitet Signale weiter und räumt Zombies ab. Bis #366 endete ein scheiterndes
+`migrate` und `api` laufen in `compose.coolify.yaml` mit `init: true`, ebenso `api` in
+`compose.runtime.yml` (dort ohne `migrate`-Dienst): Ein Init-Prozess ist PID 1, leitet Signale
+weiter und räumt Zombies ab. Bis #366 endete ein scheiterndes
 `--migrate` als PID 1 mit einer unbehandelten Ausnahme, auf amd64 mit Exit 139, auf arm64 gar
 nicht. Ergebnis und Befunde in
 [docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).

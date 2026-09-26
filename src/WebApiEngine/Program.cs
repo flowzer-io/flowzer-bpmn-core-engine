@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using StorageSystem;
 using WebApiEngine;
 using WebApiEngine.Auth;
@@ -20,13 +21,31 @@ var builder = WebApplication.CreateBuilder(args);
 // faengt jeden Fehler selbst und liefert dann 1; hier darf keine Ausnahme mehr heraus, sonst
 // endet der Prozess als PID 1 im Container nicht sauber (#366). Das Entsorgen der LoggerFactory
 // vor dem Return schreibt die gepufferte Konsolenausgabe, bevor der Prozess endet.
+// SIGTERM (docker stop) und SIGINT brechen den Lauf ueber ein Token ab: Der Migrator verwirft
+// seine Transaktion, und der Prozess endet mit 130 statt hart. Ein zweites Signal beendet ihn
+// sofort (Standardverhalten der Laufzeit).
 if (FlowzerStorageExtensions.IsMigrationRun(args))
 {
+    using var migrationCancellation = new CancellationTokenSource();
+    void CancelMigration(PosixSignalContext context)
+    {
+        if (migrationCancellation.IsCancellationRequested)
+        {
+            return;
+        }
+
+        context.Cancel = true;
+        migrationCancellation.Cancel();
+    }
+
+    using var sigterm = PosixSignalRegistration.Create(PosixSignal.SIGTERM, CancelMigration);
+    using var sigint = PosixSignalRegistration.Create(PosixSignal.SIGINT, CancelMigration);
+
     int migrationExitCode;
     using (var migrationLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole()))
     {
         migrationExitCode = await FlowzerStorageExtensions.RunMigrationsAsync(
-            builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"));
+            builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"), migrationCancellation.Token);
     }
 
     return migrationExitCode;

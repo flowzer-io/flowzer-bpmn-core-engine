@@ -47,7 +47,7 @@ Compose `migrate` und `api` neu erzeugen, genau wie ein Image-Wechsel in der Ins
 | Rolle | Image |
 |---|---|
 | Vorgänger (Fall 1) | `ghcr.io/flowzer-io/flowzer-api:sha-5a2d9b38eec4` (Release #344, Schema 020; nur `linux/amd64`, auf arm64 emuliert) |
-| Aktuell | `ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}`; mit `--build-current` aus diesem Stand gebaut (so in der CI) |
+| Aktuell | `ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}`; mit `--build-current` aus diesem Stand gebaut (so in der CI). Ohne `--build-current` prüft der Rig das `latest` aus GHCR: Bis ein Release #366 enthält, scheitert Fall 3 dann erwartungsgemäß (kein Exit 1) |
 | Stand 016 (Fall 3) | aus Commit `92d8557` (Release #320) gebaut: `git archive` in ein Temp-Verzeichnis, `docker build` mit dessen `Dockerfile.api` |
 | PostgreSQL | `FLOWZER_TEST_PG_IMAGE`, Standard `postgres:17-alpine` |
 
@@ -158,13 +158,16 @@ fehlende Typumwandlung von `relkind` in SQL), keinen im Produkt.
    bricht per `abort()` ab, und `SIGABRT` wird für PID 1 ohne eigenen Handler ignoriert. Auf
    amd64 endet derselbe Prozess mit Exit 139 (beobachtet mit dem amd64-Vorgängerimage unter
    Emulation; der native amd64-Wert kommt aus dem ersten CI-Lauf). Mit `docker run --init`
-   endet er auf arm64 nach 0,4 s mit Exit 134. Nachstellen (Stand vor #366):
+   endet er auf arm64 nach 0,4 s mit Exit 134. Nachstellen mit einem festen Image vor #366
+   (Release #344, nur `linux/amd64`; auf arm64-Hosts emuliert, dort ebenfalls Exit 139):
 
    ```bash
-   docker run --rm -e Storage__Provider=PostgreSql \
+   docker run --rm --platform linux/amd64 -e Storage__Provider=PostgreSql \
      -e 'Storage__PostgreSql__ConnectionString=Host=127.0.0.1;Port=1;Database=x;Username=y;Password=z;Timeout=3' \
-     ghcr.io/flowzer-io/flowzer-api:latest --migrate   # arm64: haengt; mit --init: Exit 134
+     ghcr.io/flowzer-io/flowzer-api:sha-5a2d9b38eec4 --migrate   # Exit 139; mit --init: Exit 134
    ```
+
+   Das Hängen auf arm64 zeigt nur ein natives arm64-Image eines Stands vor #366.
 
    Genauer untersucht in #366 (Ubuntu 24.04, glibc 2.39, .NET 10.0.12): Nach dem verworfenen
    `SIGABRT` greift in `abort()` die architekturabhängige Abbruchinstruktion. Auf amd64 ist das
