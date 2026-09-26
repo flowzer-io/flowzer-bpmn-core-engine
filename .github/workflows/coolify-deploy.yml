@@ -23,7 +23,7 @@ on:
       prepull_wait_seconds:
         description: >-
           Wartezeit in Sekunden vor dem Deployment, damit ein Vorab-Pull auf dem Zielhost die
-          Images schon geladen hat (0 = nicht warten; Produktion 120, #367).
+          Images schon geladen hat (0 = nicht warten, hoechstens 300; Produktion 120, #367).
         type: number
         default: 0
 
@@ -69,8 +69,10 @@ jobs:
           case "$PREPULL_WAIT_SECONDS" in
             ''|*[!0-9]*) echo "prepull_wait_seconds muss eine ganze Zahl sein, nicht '$PREPULL_WAIT_SECONDS'." >&2; exit 2 ;;
           esac
-          if [ "$PREPULL_WAIT_SECONDS" -gt 600 ]; then
-            echo "prepull_wait_seconds=$PREPULL_WAIT_SECONDS ist unplausibel hoch (hoechstens 600)." >&2
+          # Hoechstens 300 s (drei Stellen), damit Warten, Deployment-Polling und Readiness-
+          # Pruefung zusammen unter dem Job-Timeout bleiben.
+          if [ "${#PREPULL_WAIT_SECONDS}" -gt 3 ] || [ "$PREPULL_WAIT_SECONDS" -gt 300 ]; then
+            echo "prepull_wait_seconds=$PREPULL_WAIT_SECONDS ist unplausibel hoch (hoechstens 300)." >&2
             exit 2
           fi
           echo "Warte ${PREPULL_WAIT_SECONDS} s vor dem Deployment von $IMAGE_TAG: Der Vorab-Pull auf dem Zielhost"

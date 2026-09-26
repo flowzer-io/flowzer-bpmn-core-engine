@@ -400,7 +400,7 @@ ist kein Deployment.
 
 **Lücke beim Deploy und Vorab-Pull (#367).** Coolify stoppt bei Compose-Anwendungen zuerst alle
 alten Container und zieht erst danach die Images; anschließend laufen `migrate` und `api` an.
-Zu erwarten sind deshalb 10–20 s ohne API, in denen Anfragen kurz mit 503 enden können
+Zu erwarten sind deshalb ohne Vorab-Pull 10–20 s ohne API (mit Vorab-Pull entsprechend kürzer, 10–20 s bleiben die Obergrenze), in denen Anfragen kurz mit 503 enden können
 (Release am 24.09.2026: 12,6 s ohne API, 18,6 s bis `Healthy`, davon etwa 7 s Image-Pull).
 Damit der Pull nicht in diese Lücke fällt, veröffentlicht der Release-Workflow jeden Stand auf
 `release` zusätzlich unter dem mitlaufenden Tag `prod-next`, das auf dasselbe Manifest zeigt

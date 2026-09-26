@@ -1223,7 +1223,7 @@ Workflows und Image-Tags stehen im README unter „Release und Deployment“, di
 Coolify-Variablen im Runbook (Abschnitt 6b).
 
 **Deploy-Lücke und Vorab-Pull (#367):** Coolify stoppt bei Compose-Anwendungen alle alten
-Container, bevor es die Images zieht und `migrate` startet. Je Deployment sind daher 10–20 s
+Container, bevor es die Images zieht und `migrate` startet. Je Deployment sind daher ohne Vorab-Pull 10–20 s (mit Vorab-Pull entsprechend kürzer)
 ohne API zu erwarten, kurzzeitig auch mit 503. Für die Produktion trägt jeder Stand auf
 `release` zusätzlich das mitlaufende Tag `prod-next` (dasselbe Manifest wie `sha-<12 Zeichen>`);
 der systemd-Timer `flowzer-prepull.timer` auf dem Produktionshost zieht `flowzer-api:prod-next` und

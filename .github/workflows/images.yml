@@ -64,24 +64,30 @@ jobs:
         run: |
           short_sha="$(git rev-parse --short=12 HEAD)"
           echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
-          # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
+          # `latest` folgt ausschliesslich main; Versions-Tags (v*) bekommen zusaetzlich ihren
+          # Tagnamen. Andere Git-Tags erzeugen kein Registry-Tag, damit ein manueller Lauf auf
+          # einen beliebigen Git-Tag weder `latest`, `prod-next` noch fremde `sha-`-Tags umhaengt.
           extra_tags=""
           if [ "$PUBLISH_LATEST" = "true" ]; then
             extra_tags="latest"
-          elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
-            extra_tags="${GITHUB_REF#refs/tags/}"
-          fi
-          # Mitlaufende Tags des Aufrufers: nur gueltige Docker-Tags, keine `sha-`-Tags (die
-          # gehoeren genau einer Revision) und jeder Tag nur einmal. Ohne Globbing, damit ein
-          # `*` nicht zu Dateinamen des Checkouts wird.
-          set -f
-          for tag in $EXTRA_TAGS; do
-            if ! printf '%s\n' "$tag" | grep -Eqx '[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}'; then
-              echo "Ungueltiger zusaetzlicher Tag: $tag" >&2
+          elif [ "${GITHUB_REF#refs/tags/v}" != "$GITHUB_REF" ]; then
+            version_tag="${GITHUB_REF#refs/tags/}"
+            if ! printf '%s\n' "$version_tag" | grep -Eqx 'v[0-9][A-Za-z0-9_.-]{0,126}'; then
+              echo "Versions-Tag ist kein gueltiger Image-Tag: $version_tag" >&2
               exit 2
             fi
-            case "$tag" in
-              sha-*) echo "Zusaetzlicher Tag darf nicht mit sha- beginnen: $tag" >&2; exit 2 ;;
+            extra_tags="$version_tag"
+          fi
+          # Mitlaufende Tags des Aufrufers: nur die ausdruecklich erlaubten beweglichen Tags
+          # (Positivliste), damit ein Aufrufer weder `latest` noch Versions- oder `sha-`-Tags
+          # auf ein anderes Manifest umhaengen kann. Jeder Tag nur einmal; ohne Globbing, damit
+          # ein `*` nicht zu Dateinamen des Checkouts wird.
+          allowed_extra_tags=" prod-next prod-prev "
+          set -f
+          for tag in $EXTRA_TAGS; do
+            case "$allowed_extra_tags" in
+              *" $tag "*) ;;
+              *) echo "Zusaetzlicher Tag nicht erlaubt (erlaubt:${allowed_extra_tags}): $tag" >&2; exit 2 ;;
             esac
             case " $extra_tags " in
               *" $tag "*) ;;
