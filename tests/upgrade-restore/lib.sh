@@ -259,8 +259,10 @@ ur_migrate_log_file() {
 # anlegen und `docker compose up --wait api` ausfuehren. Compose startet api nur, wenn migrate
 # mit Exit 0 endet (service_completed_successfully).
 #
-# Ein Watchdog beendet einen migrate-Prozess, der nach einer unbehandelten Ausnahme nicht
-# endet (setzt UR_MIGRATE_HUNG=1). Ergebnis: UR_COMPOSE_STATUS, UR_MIGRATE_EXIT; die Ausgabe
+# Seit #366 endet ein scheiterndes migrate von selbst mit Exit 1. Ein Watchdog faengt einen
+# Rueckfall ab: Laeuft migrate 30 s nach einer Fehlerzeile (`fail: Migrations`) oder einer
+# unbehandelten Ausnahme noch, beendet er den Prozess und setzt UR_MIGRATE_HUNG=1, statt
+# Compose 600 s warten zu lassen. Ergebnis: UR_COMPOSE_STATUS, UR_MIGRATE_EXIT; die Ausgabe
 # von migrate liegt danach in <label>-migrate.log. Rueckgabe 0 nur, wenn Compose Erfolg meldet.
 ur_deploy() {
   local label="$1" database="$2" image="$3" timers="${4:-false}"
@@ -285,7 +287,7 @@ ur_deploy() {
     if [[ -n "$migrate_container" ]]; then
       state="$(docker inspect --format '{{.State.Status}}' "$migrate_container" 2>/dev/null || true)"
       docker logs "$migrate_container" >"${UR_WORK_DIR}/migrate-watch.log" 2>&1 || true
-      if [[ "$state" == running ]] && grep -q 'Unhandled exception' "${UR_WORK_DIR}/migrate-watch.log"; then
+      if [[ "$state" == running ]] && grep -Eq '^fail: Migrations|Unhandled exception' "${UR_WORK_DIR}/migrate-watch.log"; then
         [[ "$hung_since" -gt 0 ]] || hung_since=$waited
         if [[ $((waited - hung_since)) -ge 30 ]]; then
           UR_MIGRATE_HUNG=1

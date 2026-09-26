@@ -16,11 +16,20 @@ using WebApiEngine.InboundTriggers;
 var builder = WebApplication.CreateBuilder(args);
 
 // Getrennter Migrationsschritt (Compose-Dienst `migrate` bzw. manuell): keine Host-Pipeline,
-// nur die Datenbank auf den Stand der eingebetteten Migrationen bringen.
+// nur die Datenbank auf den Stand der eingebetteten Migrationen bringen. RunMigrationsAsync
+// faengt jeden Fehler selbst und liefert dann 1; hier darf keine Ausnahme mehr heraus, sonst
+// endet der Prozess als PID 1 im Container nicht sauber (#366). Das Entsorgen der LoggerFactory
+// vor dem Return schreibt die gepufferte Konsolenausgabe, bevor der Prozess endet.
 if (FlowzerStorageExtensions.IsMigrationRun(args))
 {
-    using var migrationLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole());
-    return await FlowzerStorageExtensions.RunMigrationsAsync(builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"));
+    int migrationExitCode;
+    using (var migrationLoggerFactory = LoggerFactory.Create(logging => logging.AddConsole()))
+    {
+        migrationExitCode = await FlowzerStorageExtensions.RunMigrationsAsync(
+            builder.Configuration, migrationLoggerFactory.CreateLogger("Migrations"));
+    }
+
+    return migrationExitCode;
 }
 
 // Konfigurationspruefung (`--check-config`): Ablage- und Authentifizierungsoptionen validieren

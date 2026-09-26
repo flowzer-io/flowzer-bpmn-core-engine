@@ -391,11 +391,13 @@ Quere, und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt d
 Migrationen laufen in einer Transaktion. Schema, `schema_migrations` und wartende Instanzen
 bleiben auf dem bisherigen Stand, und `api` startet wegen `service_completed_successfully`
 nicht. Der Rückweg ist dann das **bisherige Image** (`FLOWZER_IMAGE_TAG` zurücksetzen und neu
-ausrollen), **kein Restore**; genau das prüft Fall 3 des Rigs. Zwei Beobachtungen dazu: Compose
-erzeugt `api` beim Image-Wechsel neu, bevor `migrate` läuft – während der Migration und nach
-einem Fehlschlag läuft also keine API, bis das bisherige Image wieder gesetzt ist. Und auf
-arm64-Hosts endet ein scheiternder `migrate`-Container nicht von selbst (PID 1, siehe Befund 1
-im Abnahmeprotokoll); dann `docker compose kill migrate` und das bisherige Image setzen.
+ausrollen), **kein Restore**; genau das prüft Fall 3 des Rigs. `migrate` (ebenso
+`dotnet WebApiEngine.dll --migrate`) endet in diesem Fall von selbst mit **Exit 1** und nennt
+in einer Fehlerzeile die gescheiterte Migration, Ausnahmetyp und SQLSTATE, etwa
+`PostgreSQL migration 019_inbound_triggers (version 19) failed; … (SqlState 42703): …`. Eine
+Beobachtung dazu: Compose erzeugt `api` beim Image-Wechsel neu, bevor `migrate` läuft – während
+der Migration und nach einem Fehlschlag läuft also keine API, bis das bisherige Image wieder
+gesetzt ist.
 
 **Scheitert das Update nach erfolgreichem `migrate`** (die neue Version läuft fachlich nicht),
 ist der Rückweg der Restore der Sicherung aus Schritt 1 **mit dem bisherigen Paket**

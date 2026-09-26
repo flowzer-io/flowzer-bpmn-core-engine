@@ -16,6 +16,11 @@ x-flowzer-secret-isolation: &flowzer-secret-isolation
 services:
   migrate:
     image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
+    # Ein Init-Prozess (tini) ist PID 1 und startet dotnet als Kind: Er leitet Signale weiter,
+    # raeumt Zombies ab und reicht den Exit-Code durch. Ohne ihn ist dotnet selbst PID 1, und
+    # der Kernel verwirft dort Signale ohne eigenen Handler; ein Abbruch der Laufzeit endete
+    # so mit Exit 139 (amd64) oder gar nicht (arm64), siehe #366.
+    init: true
     restart: "no"
     exclude_from_hc: true
     command: ["--migrate"]
@@ -29,6 +34,8 @@ services:
 
   api:
     image: ghcr.io/flowzer-io/flowzer-api:${FLOWZER_IMAGE_TAG:-latest}
+    # Wie migrate: tini als PID 1 fuer Signale, Zombies und saubere Exit-Codes (#366).
+    init: true
     restart: unless-stopped
     depends_on:
       migrate:

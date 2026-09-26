@@ -30,6 +30,8 @@ services:
   migrate:
     image: ${FLOWZER_UPGRADE_API_IMAGE:?API-Image fehlt}
     command: ["--migrate"]
+    # Wie in compose.coolify.yaml: tini als PID 1 (Signale, Zombies, Exit-Code; #366).
+    init: true
     restart: "no"
     depends_on:
       db:
@@ -45,6 +47,7 @@ services:
   # compose.coolify.yaml. Ohne Identity Provider (Authentication__Scheme=None).
   api:
     image: ${FLOWZER_UPGRADE_API_IMAGE}
+    init: true
     restart: "no"
     depends_on:
       migrate:

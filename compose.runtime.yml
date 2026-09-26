@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+    # Ein Init-Prozess (tini) ist PID 1 und startet dotnet als Kind: Signale kommen an, Zombies
+    # werden abgeraeumt, und ein Abbruch der Laufzeit endet mit regulaerem Exit-Code statt mit
+    # 139 oder gar nicht (dotnet als PID 1, siehe #366). Einen migrate-Dienst gibt es hier nicht.
+    init: true
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       FLOWZER_STORAGE_ROOT: /data/flowzer-storage

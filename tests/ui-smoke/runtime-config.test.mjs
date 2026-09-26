@@ -142,6 +142,18 @@ for (const file of ['compose.runtime.yml', 'compose.coolify.yaml']) {
   });
 }
 
+// Testzweck: migrate und api laufen mit einem Init-Prozess als PID 1 (`init: true`). Ohne ihn
+// ist dotnet selbst PID 1, und ein Abbruch der Laufzeit endet nicht sauber (amd64 Exit 139,
+// arm64 hängt; #366). compose.runtime.yml hat keinen migrate-Dienst.
+test('Compose-Vorlagen: migrate und api laufen mit init', () => {
+  const coolify = configuration('compose.coolify.yaml');
+  assert.equal(coolify.migrate.init, true, 'compose.coolify.yaml: migrate');
+  assert.equal(coolify.api.init, true, 'compose.coolify.yaml: api');
+  const runtime = configuration('compose.runtime.yml');
+  assert.equal(runtime.migrate, undefined, 'compose.runtime.yml: kein migrate-Dienst');
+  assert.equal(runtime.api.init, true, 'compose.runtime.yml: api');
+});
+
 // Testzweck: Coolifys Parser plus gemeinsame env_file dürfen keine rohen Secrets in
 // fachfremde Dienste tragen; explizite Konfigurationszuordnungen müssen weiterhin funktionieren.
 test('compose.coolify.yaml: gemeinsame env_file wahrt die Secret-Grenzen aller Dienste', () => {
