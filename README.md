@@ -241,7 +241,7 @@ Beide Wege bauen dieselben Images und deployen über dieselben wiederverwendbare
 | Staging | `main` | `staging.yml` | https://staging.flowzer.de | `securesteps-staging` |
 | Produktion | `release` | `release.yml` | https://flowzer.maass.it | `maassit-production` |
 
-`images.yml` baut `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console` und veröffentlicht sie unter `sha-<12 Zeichen>`; `latest` folgt `main`. `coolify-deploy.yml` pinnt den Tag als `FLOWZER_IMAGE_TAG` in der Coolify-Anwendung, löst das Deployment aus, wartet es ab und prüft danach `/health/ready` der öffentlichen Adresse. Beide Umgebungen fahren dieselbe `compose.coolify.yaml`; sie unterscheiden sich nur in ihren Coolify-Variablen. Jeder Merge nach `main` erneuert damit Staging, ohne die Produktion zu berühren.
+`images.yml` baut `ghcr.io/flowzer-io/flowzer-api` und `ghcr.io/flowzer-io/flowzer-console` und veröffentlicht sie unter `sha-<12 Zeichen>`; `latest` folgt `main`, `prod-next` folgt `release` und wird auf dem Produktionshost vorab gezogen (#367, siehe [RUNBOOK-PILOT.md](docs/RUNBOOK-PILOT.md) Abschnitt 6b). `coolify-deploy.yml` pinnt den Tag als `FLOWZER_IMAGE_TAG` in der Coolify-Anwendung, löst das Deployment aus (in der Produktion nach 120 s Wartezeit für den Vorab-Pull), wartet es ab und prüft danach `/health/ready` der öffentlichen Adresse. Beide Umgebungen fahren dieselbe `compose.coolify.yaml`; sie unterscheiden sich nur in ihren Coolify-Variablen. Jeder Merge nach `main` erneuert damit Staging, ohne die Produktion zu berühren.
 
 ## Dokumentation
 

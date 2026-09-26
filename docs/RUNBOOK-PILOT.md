@@ -385,7 +385,9 @@ Schritt 5 zeigt `GET /health/ready` denselben Stand unter `details.migrationStat
 Migrationsschritt nimmt für den ganzen Lauf einen Advisory-Lock und wendet alle ausstehenden
 Migrationen in einer Transaktion an; zwei gleichzeitige Läufe kommen sich also nicht in die
 Quere, und ein zweiter Lauf wendet nichts erneut an. Im Coolify-Stack erledigt das der Dienst
-`migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`).
+`migrate`, der vor `api` laufen muss (`condition: service_completed_successfully`). Coolify
+stoppt dabei zuerst alle alten Container; zur erwarteten Lücke und zum Vorab-Pull der Images
+siehe Abschnitt 6b.
 
 **Scheitert `migrate`**, rollt der Migrator den ganzen Lauf zurück – alle ausstehenden
 Migrationen laufen in einer Transaktion. Schema, `schema_migrations` und wartende Instanzen
@@ -418,6 +420,23 @@ ausschließlich an `api` gemountetes Volume `flowzer-bff-data-protection`. Der
 Release-Workflow baut Images bei einem Push auf `release`, pinnt
 `FLOWZER_IMAGE_TAG` und löst anschließend das Deployment aus. Ein Feature-PR allein
 ist kein Deployment.
+
+**Lücke beim Deploy und Vorab-Pull (#367).** Coolify stoppt bei Compose-Anwendungen zuerst alle
+alten Container und zieht erst danach die Images; anschließend laufen `migrate` und `api` an.
+Zu erwarten sind deshalb ohne Vorab-Pull 10–20 s ohne API (mit Vorab-Pull entsprechend kürzer, 10–20 s bleiben die Obergrenze), in denen Anfragen kurz mit 503 enden können
+(Release am 24.09.2026: 12,6 s ohne API, 18,6 s bis `Healthy`, davon etwa 7 s Image-Pull).
+Damit der Pull nicht in diese Lücke fällt, veröffentlicht der Release-Workflow jeden Stand auf
+`release` zusätzlich unter dem mitlaufenden Tag `prod-next`, das auf dasselbe Manifest zeigt
+wie `sha-<12 Zeichen>`. Auf dem Produktionshost zieht der systemd-Timer `flowzer-prepull.timer` minütlich
+`ghcr.io/flowzer-io/flowzer-api:prod-next` und `ghcr.io/flowzer-io/flowzer-console:prod-next`,
+ohne etwas neu zu starten (Host-Teil: Ansible-Rolle der internen Serverkonfiguration). Der
+Deploy-Job wartet vor dem Coolify-Aufruf 120 s (`prepull_wait_seconds` in `release.yml`), damit
+`compose up` für das `sha-…`-Tag alle Layer lokal vorfindet; Staging wartet nicht und hat keinen
+Vorab-Pull. Fällt der Timer aus oder kommt er zu spät, zieht Coolify wie bisher selbst: Das bringt
+nur die alte, längere Lücke zurück, kein Funktionsrisiko. Rückweg: Ein Rollback auf ein älteres
+`sha-…`-Tag (`FLOWZER_IMAGE_TAG` in Coolify setzen und neu deployen) wird nicht vorab gezogen und
+bezahlt die Pull-Zeit weiter, sobald das Image nicht mehr lokal liegt – Coolify räumt ungenutzte
+Images täglich um 00:00 weg.
 
 Coolify benötigt mindestens `STORAGE_CONNECTION_STRING`,
 `STORAGE_MIGRATION_CONNECTION_STRING`, `FLOWZER_AUTH_AUTHORITY`,
