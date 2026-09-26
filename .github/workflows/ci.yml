@@ -518,3 +518,56 @@ jobs:
           name: backup-restore-test-logs
           path: ${{ runner.temp }}/backup-restore-test
           if-no-files-found: ignore
+
+  # Upgrade-/Restore-Rig (R2b): echte Images im Compose-Stack ohne Identity Provider. Fall 1
+  # hebt drei wartende Instanzen vom Vorgaengerimage (GHCR, sha-5a2d9b38eec4) auf das hier
+  # gebaute Image, Fall 2 migriert den Klartext-Fixture des Stands 016, Fall 3 prueft eine
+  # scheiternde Migration samt Rueckweg mit dem aus 92d8557 gebauten Image, Fall 4 spielt eine
+  # Sicherung mit backup.sh/restore.sh in eine zweite Datenbank und laesst die API dagegen
+  # laufen. Nicht als Pflicht-Check eingetragen. Die Ausgaben enthalten keine Dumps und keine
+  # Passwoerter und liegen immer als Artefakt bereit.
+  upgrade_restore_rig:
+    name: Upgrade- und Restore-Rig (echte Images)
+    runs-on: ubuntu-latest
+    needs:
+      - dotnet
+    timeout-minutes: 45
+    # packages: read fuer den Pull des Vorgaengerimages aus GHCR mit Anmeldung (wie images.yml);
+    # das Paket ist oeffentlich, die Anmeldung schuetzt vor dem anonymen Rate-Limit.
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Bei GHCR anmelden
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Skripte mit shellcheck pruefen
+        run: |
+          shellcheck --version
+          shellcheck -x tests/upgrade-restore/run.sh tests/upgrade-restore/lib.sh \
+            tests/upgrade-restore/fixtures/make-schema-016.sh
+
+      # Baut das aktuelle API-Image aus diesem Stand (Dockerfile.api, wie der Job
+      # installation_auth), zieht das Vorgaengerimage aus GHCR und baut das Image des Stands 016;
+      # den Commit laedt das Skript im flachen Klon selbst nach. `exec`, damit ein Abbruch des
+      # Runners die EXIT-Falle erreicht, die den Compose-Stack samt Volumes abraeumt.
+      - name: Rig ausfuehren
+        timeout-minutes: 40
+        env:
+          FLOWZER_UPGRADE_RESTORE_LOG_DIR: ${{ runner.temp }}/upgrade-restore
+        run: exec tests/upgrade-restore/run.sh --build-current
+
+      - name: Ausgaben hochladen
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-restore-logs
+          path: ${{ runner.temp }}/upgrade-restore
+          if-no-files-found: ignore
