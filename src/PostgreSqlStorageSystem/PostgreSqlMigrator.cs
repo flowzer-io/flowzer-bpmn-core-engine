@@ -7,6 +7,9 @@ namespace PostgreSqlStorageSystem;
 /// Fuehrt die eingebetteten SQL-Migrationen (<c>Migrations/NNN_name.sql</c>) genau einmal aus
 /// und protokolliert sie in <c>{schema}.schema_migrations</c>. Ein Advisory-Lock verhindert,
 /// dass zwei Migrationslaeufe gleichzeitig arbeiten. Das Schema wird angelegt, falls es fehlt.
+/// Scheitert eine Migration, wirft <see cref="ApplyAsync"/> eine
+/// <see cref="SchemaMigrationFailedException"/> mit Version und Namen; der Lauf ist dann
+/// vollstaendig zurueckgerollt.
 /// </summary>
 public static class PostgreSqlMigrator
 {
@@ -44,11 +47,21 @@ public static class PostgreSqlMigrator
                 continue;
             }
 
-            await ExecuteAsync(connection, transaction, sql.Replace("{schema}", Quote(schema), StringComparison.Ordinal), cancellationToken);
-            await using var insert = new NpgsqlCommand($"INSERT INTO {Quote(schema)}.schema_migrations (version, name) VALUES (@version, @name)", connection, transaction);
-            insert.Parameters.AddWithValue("version", version);
-            insert.Parameters.AddWithValue("name", name);
-            await insert.ExecuteNonQueryAsync(cancellationToken);
+            try
+            {
+                await ExecuteAsync(connection, transaction, sql.Replace("{schema}", Quote(schema), StringComparison.Ordinal), cancellationToken);
+                await using var insert = new NpgsqlCommand($"INSERT INTO {Quote(schema)}.schema_migrations (version, name) VALUES (@version, @name)", connection, transaction);
+                insert.Parameters.AddWithValue("version", version);
+                insert.Parameters.AddWithValue("name", name);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Nur benennen, nicht behandeln: Die Ausnahme verlaesst die Methode wie bisher,
+                // und das `await using` der Transaktion verwirft den ganzen Lauf.
+                throw new SchemaMigrationFailedException(version, name, exception);
+            }
+
             applied.Add(version);
         }
 

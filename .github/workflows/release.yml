@@ -3,6 +3,11 @@ name: Release
 # Produktion (flowzer.maass.it): baut die Images aus dem Branch `release` und rollt sie ueber
 # Coolify aus. Beide Schritte liegen in wiederverwendbaren Workflows, damit Staging exakt
 # denselben Weg nimmt. Deploy-Zugangsdaten liegen im GitHub-Environment `maassit-production`.
+#
+# Vorab-Pull (#367): Coolify stoppt die alten Container, bevor es die neuen Images zieht. Damit
+# die Pull-Zeit nicht in diese Luecke faellt, bekommt ein Stand auf `release` zusaetzlich das
+# mitlaufende Tag `prod-next`; der Timer `flowzer-prepull.timer` auf dem Produktionshost zieht es minuetlich
+# vorab, und der Deploy-Job wartet vor dem Coolify-Aufruf lange genug darauf.
 
 on:
   push:
@@ -23,6 +28,10 @@ concurrency:
 jobs:
   images:
     uses: ./.github/workflows/images.yml
+    with:
+      # `prod-next` nur fuer den Stand, der gleich ausgerollt wird: nicht fuer v*-Tags und nicht
+      # fuer manuelle Laeufe anderer Branches (die deployen auch nicht, siehe unten).
+      extra_tags: ${{ github.ref == 'refs/heads/release' && 'prod-next' || '' }}
     permissions:
       contents: read
       packages: write
@@ -36,4 +45,6 @@ jobs:
       environment: maassit-production
       concurrency_group: coolify-flowzer-maass-it
       image_tag: ${{ needs.images.outputs.image_tag }}
+      # Minuetlicher Timer plus Pull-Zeit: Nach 120 s liegen die Layer von `prod-next` auf dem Produktionshost.
+      prepull_wait_seconds: 120
     secrets: inherit

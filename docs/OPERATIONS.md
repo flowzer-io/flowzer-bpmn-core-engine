@@ -1216,6 +1216,24 @@ Bei Portkonflikten kann der Host-Port über `FLOWZER_RUNTIME_PORT` überschriebe
 ./scripts/runtime/stop-runtime-stack.sh
 ```
 
+## Deployment über Coolify
+
+Staging (`main`) und Produktion (`release`) rollen über `coolify-deploy.yml` aus; Umgebungen,
+Workflows und Image-Tags stehen im README unter „Release und Deployment“, die
+Coolify-Variablen im Runbook (Abschnitt 6b).
+
+**Deploy-Lücke und Vorab-Pull (#367):** Coolify stoppt bei Compose-Anwendungen alle alten
+Container, bevor es die Images zieht und `migrate` startet. Je Deployment sind daher ohne Vorab-Pull 10–20 s (mit Vorab-Pull entsprechend kürzer)
+ohne API zu erwarten, kurzzeitig auch mit 503. Für die Produktion trägt jeder Stand auf
+`release` zusätzlich das mitlaufende Tag `prod-next` (dasselbe Manifest wie `sha-<12 Zeichen>`);
+der systemd-Timer `flowzer-prepull.timer` auf dem Produktionshost zieht `flowzer-api:prod-next` und
+`flowzer-console:prod-next` minütlich ohne Neustart (Host-Teil in der internen Serverkonfiguration per Ansible),
+und der Deploy-Job wartet vor dem Coolify-Aufruf 120 s (`prepull_wait_seconds`). Damit entfällt
+die Pull-Zeit (beim Release am 24.09.2026 etwa 7 s) aus der Lücke. Ein fehlender oder verspäteter
+Vorab-Pull bringt nur die alte Lücke zurück, kein Funktionsrisiko. Ein Rollback auf ein älteres
+`sha-…`-Tag wird nicht vorab gezogen und bezahlt die Pull-Zeit weiter, sobald Coolify das Image
+bei seiner täglichen Bereinigung um 00:00 entfernt hat.
+
 ## Storage- und Dateipfade
 
 Der Compose- und Local-Run-Pfad nutzt bewusst denselben Storage-Ort:
@@ -1488,6 +1506,20 @@ Formularbindungen; diese nimmt keinen Advisory-Lock, sondern sperrt `definitions
 `definition_binaries`, `forms` und `form_metadata` kurz im Modus `SHARE ROW EXCLUSIVE`
 (Leser bleiben zugelassen, andere Schreiber warten).
 
+**Scheitert `--migrate`**, endet der Prozess mit **Exit 1** und einer Fehlerzeile
+(`fail: Migrations`) statt mit einer unbehandelten Ausnahme. Bei einer SQL-Migration nennt sie
+Migration und Version, Ausnahmetyp und SQLSTATE, etwa `PostgreSQL migration
+019_inbound_triggers (version 19) failed; … Npgsql.PostgresException (SqlState 42703): …`; der
+Lauf ist dann zurückgerollt, `api` startet nicht (`service_completed_successfully`), und der
+Rückweg ist das bisherige Image. Andere Fehler (Konfiguration, Verbindung,
+Formularbindungs-Upgrade) meldet `Migration step failed: …`; was davor gelang, steht in den
+Zeilen davor. Ein **Abbruch** ist kein Fehler: SIGTERM (etwa `docker stop`) oder SIGINT während
+des Laufs bricht den Migrator ab, seine Transaktion wird verworfen, und `--migrate` endet mit
+**Exit 130** und der Warnung `Migration run cancelled; the transaction was rolled back.`
+Kurz: Exit 0 = Erfolg, 1 = Fehler, 130 = Abbruch. Das Formularbindungs-Upgrade nach dem Commit
+der Migrationen beachtet den Abbruch nicht und läuft zu Ende. Belegt durch
+`PostgreSqlStorageIntegrationTest.MigrationFailure.cs` und `MigrationCommandTest.cs`.
+
 Nach den SQL-Migrationen führt `--migrate` (`FlowzerStorageExtensions.RunMigrationsAsync`) in
 einer eigenen Transaktion das Formularbindungs-Upgrade aus (siehe „Update-Kompatibilität von
 Formularen und Workflows“). Genau diesen Weg deckt der In-Process-Upgrade-Test
@@ -1498,6 +1530,21 @@ Auftrag und wartendem Timer ab – von Schemastand 012 (mit Deployments ohne For
 (`PostgreSqlStorageIntegrationTest.SchemaDrift.cs`) belegt, dass ein von 012 aktualisiertes
 Schema dieselben Tabellen, Spalten, Indizes, Constraints, Sequenzen, Typen, Routinen, Trigger,
 Rechte, Kommentare und `schema_migrations`-Einträge hat wie ein frisch angelegtes.
+
+Mit echten Images im Compose-Stack (`db`, `migrate`, `api` mit
+`service_completed_successfully`) belegt der Upgrade-/Restore-Rig
+`tests/upgrade-restore/run.sh` (CI-Job `upgrade_restore_rig`, kein Pflicht-Check) denselben
+Weg: Image-Wechsel von Release #344 auf den aktuellen Stand (0 Migrationen, wartende Aufgabe,
+Auftrag und Timer laufen weiter), Schemasprung 016 → aktuell über einen Klartext-Fixture
+(Migrationen 17 bis 20, Laufzeitzustand unverändert) und eine an einer Kollision scheiternde
+Migration: Historie, Schema und Instanzen bleiben unverändert, `api` startet nicht, und das
+bisherige Image läuft ohne Restore weiter; `migrate` endet dabei von selbst mit Exit 1.
+`migrate` und `api` laufen in `compose.coolify.yaml` mit `init: true`, ebenso `api` in
+`compose.runtime.yml` (dort ohne `migrate`-Dienst): Ein Init-Prozess ist PID 1, leitet Signale
+weiter und räumt Zombies ab. Bis #366 endete ein scheiterndes
+`--migrate` als PID 1 mit einer unbehandelten Ausnahme, auf amd64 mit Exit 139, auf arm64 gar
+nicht. Ergebnis und Befunde in
+[docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 ## Konfigurationsprüfung: `--check-config`
 
@@ -1591,6 +1638,12 @@ ins vorbereitete Schema gibt über die Default-Privileges auch `schema_migration
 `INSERT/UPDATE/DELETE`. Belegt ist der Ablauf durch den Skripttest
 `scripts/runtime/tests/backup-restore.test.sh` (CI-Job `backup_restore_scripts`, kein
 Pflicht-Check); Ergebnis und Grenzen in [docs/acceptance/restore.md](acceptance/restore.md).
+Über Paketstände hinweg und mit laufender API belegt der Upgrade-/Restore-Rig
+(`tests/upgrade-restore/run.sh`, CI-Job `upgrade_restore_rig`) zusätzlich den Klon einer
+Installation mit wartenden Instanzen in eine zweite Datenbank – Instanzliste, Zustände und
+Zeilenzahlen aller Tabellen wie in der Quelle, `/health/ready` UpToDate, die Instanzen laufen im
+Klon weiter – sowie Sicherung eines Stands 016, Restore und `--migrate` des aktuellen Pakets;
+siehe [docs/acceptance/upgrade-restore.md](acceptance/upgrade-restore.md).
 
 ## Mehrprozessbetrieb
 
@@ -1743,9 +1796,13 @@ Folgende Betriebsaspekte sind mit diesem Paket **noch nicht abgeschlossen**:
 - Point-in-Time-Recovery sowie automatisierte Aufbewahrung und Vernichtung von
   Sicherungen: `scripts/runtime/backup.sh` erzeugt Momentaufnahmen, plant und räumt
   aber nichts. Zeitplan und Frist bleiben beim Datenbankbetrieb der Installation (#325).
-- ein vollständiger Upgrade- und Restore-Nachweis über Paketstände hinweg (Sicherung eines
-  älteren Releases, Restore, `--migrate` des neuen Pakets, laufende Instanzen): folgt als R2b;
-  R2a belegt die Skripte auf einem einzigen Paketstand
+- Rückweg nach **erfolgreicher** Migration: Ob ein bisheriges Image auf dem bereits
+  migrierten Schema weiterläuft, ist nicht geprüft; dokumentierter Rückweg bleibt der Restore.
+  Den Upgrade- und Restore-Nachweis über Paketstände hinweg (Image-Wechsel, Schemasprung 016 →
+  aktuell, scheiternde Migration, Klon und Sicherung eines älteren Stands mit laufenden
+  Instanzen) liefert seit R2b der Rig in `tests/upgrade-restore/`
+  ([Abnahme](acceptance/upgrade-restore.md)); Verzeichnisse, Idempotenzeinträge und KI-Läufe
+  enthält sein Datenbestand nicht
 
 ## Sinnvolle nächste Ausbauschritte
 

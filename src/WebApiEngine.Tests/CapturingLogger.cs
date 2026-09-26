@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 
 namespace WebApiEngine.Tests;
 
-/// <summary>Ein kleiner Logger-Testdoppel, der die formatierte Lognachricht festhält.</summary>
+/// <summary>Ein kleiner Logger-Testdoppel, der die formatierte Lognachricht und die angehängte Ausnahme festhält.</summary>
 internal sealed class CapturingLogger<T> : ILogger<T>
 {
     public List<CapturedLogEntry> Entries { get; } = [];
@@ -18,10 +18,11 @@ internal sealed class CapturingLogger<T> : ILogger<T>
         Exception? exception,
         Func<TState, Exception?, string> formatter)
     {
-        Entries.Add(new CapturedLogEntry(logLevel, formatter(state, exception)));
+        Entries.Add(new CapturedLogEntry(logLevel, formatter(state, exception), exception));
     }
 
-    internal sealed record CapturedLogEntry(LogLevel Level, string Message);
+    /// <summary>Formatierte Nachricht; die angehaengte Ausnahme, falls der Aufrufer eine mitgab.</summary>
+    internal sealed record CapturedLogEntry(LogLevel Level, string Message, Exception? Exception = null);
 
     private sealed class NoopScope : IDisposable
     {

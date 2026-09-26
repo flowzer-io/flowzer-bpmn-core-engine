@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Upgrade-/Restore-Rig: wartender Zwischen-Timer. Die kurze Frist ist Absicht: Der Rig laesst
+     den Timer-Scheduler zunaechst aus, der Timer wartet also, obwohl er bereits faellig ist, und
+     feuert beim ersten Start mit eingeschaltetem Scheduler. -->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  id="Upgrade_Timer" targetNamespace="http://bpmn.io/schema/bpmn">
+  <bpmn:process id="Process_UpgradeTimer" name="Upgrade Frist" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1"><bpmn:outgoing>Flow_1</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="TimerCatch_1" />
+    <bpmn:intermediateCatchEvent id="TimerCatch_1" name="Frist">
+      <bpmn:incoming>Flow_1</bpmn:incoming><bpmn:outgoing>Flow_2</bpmn:outgoing>
+      <bpmn:timerEventDefinition id="TimerDefinition_1">
+        <bpmn:timeDuration>PT2S</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="TimerCatch_1" targetRef="EndEvent_1" />
+    <bpmn:endEvent id="EndEvent_1"><bpmn:incoming>Flow_2</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+</bpmn:definitions>

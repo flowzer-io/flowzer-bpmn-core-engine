@@ -1,0 +1,78 @@
+# Upgrade-/Restore-Rig (R2b): PostgreSQL, Migrationsschritt und API wie im Produktions-Stack
+# (compose.coolify.yaml), aber ohne Identity Provider und ohne Konsole.
+#
+# Ausschliesslich fuer run.sh und fixtures/make-schema-016.sh. Alle Werte kommen aus der
+# Umgebung des aufrufenden Skripts; die Passwoerter erzeugt es je Lauf zufaellig. Welche
+# Datenbank und welches API-Image gerade gelten, stellt das Skript vor jedem Aufruf ueber
+# FLOWZER_UPGRADE_DATABASE und FLOWZER_UPGRADE_API_IMAGE ein. Aendert sich eines davon,
+# erzeugt Compose migrate und api neu - genau wie ein Image-Wechsel in der Installation.
+#
+# Aufruf nie direkt, sondern mit eindeutigem Projektnamen ueber die Skripte.
+
+services:
+  # Eine Datenbankinstanz fuer alle Faelle; jede Ausgangslage bekommt ihre eigene Datenbank,
+  # angelegt mit dem ausgelieferten Rollenskript deploy/postgresql/01-datenbank-und-rollen.sql.
+  db:
+    image: ${FLOWZER_TEST_PG_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_PASSWORD: ${FLOWZER_UPGRADE_SUPERUSER_PASSWORD:?Superuser-Passwort fehlt}
+    volumes:
+      - ../../deploy/postgresql:/flowzer-sql:ro
+      - ./fixtures:/flowzer-fixtures:ro
+    healthcheck:
+      # Ueber TCP pruefen: Waehrend der Initialisierung lauscht der temporaere Server nur lokal.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres || exit 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  # Getrennter Migrationsschritt mit der Migrationsrolle, wie im Produktions-Stack.
+  migrate:
+    image: ${FLOWZER_UPGRADE_API_IMAGE:?API-Image fehlt}
+    command: ["--migrate"]
+    # Wie in compose.coolify.yaml: tini als PID 1 (Signale, Zombies, Exit-Code; #366).
+    init: true
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__Schema: flowzer
+      Storage__PostgreSql__ConnectionString: "Host=db;Port=5432;Database=${FLOWZER_UPGRADE_DATABASE:?Datenbank fehlt};Username=flowzer_migration;Password=${FLOWZER_UPGRADE_MIGRATION_PASSWORD:?Migrationspasswort fehlt}"
+      Storage__PostgreSql__MigrationConnectionString: "Host=db;Port=5432;Database=${FLOWZER_UPGRADE_DATABASE};Username=flowzer_migration;Password=${FLOWZER_UPGRADE_MIGRATION_PASSWORD}"
+
+  # Die API startet erst, wenn migrate mit Exit 0 geendet hat - dieselbe Bedingung wie in
+  # compose.coolify.yaml. Ohne Identity Provider (Authentication__Scheme=None).
+  api:
+    image: ${FLOWZER_UPGRADE_API_IMAGE}
+    init: true
+    restart: "no"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      # Zufaelliger Hostport nur auf der Loopback-Schnittstelle; run.sh fragt ihn ab.
+      - "127.0.0.1::8080"
+    environment:
+      # Ohne Identity Provider verlangen schreibende Aufrufe trotzdem einen aufgeloesten
+      # Benutzer. Den technischen Kopf X-Flowzer-UserId wertet die API nur im
+      # Development-Modus aus; Ablage, Migrationsstand und Engine sind davon unberuehrt.
+      ASPNETCORE_ENVIRONMENT: Development
+      Storage__Provider: PostgreSql
+      Storage__PostgreSql__Schema: flowzer
+      Storage__PostgreSql__ConnectionString: "Host=db;Port=5432;Database=${FLOWZER_UPGRADE_DATABASE};Username=flowzer_runtime;Password=${FLOWZER_UPGRADE_RUNTIME_PASSWORD:?Laufzeitpasswort fehlt}"
+      Authentication__Scheme: None
+      ServiceTaskWebhooks__Enabled: "false"
+      # Der Timer-Scheduler ist zunaechst aus, damit wartende Timer beobachtbar bleiben.
+      # run.sh schaltet ihn fuer den Abschluss ein (Produktionseinstellung); die API holt
+      # faellige Timer dann schon beim Start nach.
+      TimerScheduler__Enabled: ${FLOWZER_UPGRADE_TIMERS:-false}
+      TimerScheduler__PollIntervalSeconds: "1"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 90
+      start_period: 10s

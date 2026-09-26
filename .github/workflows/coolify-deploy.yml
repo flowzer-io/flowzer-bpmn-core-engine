@@ -2,7 +2,8 @@ name: Coolify-Deployment
 
 # Pinnt den gebauten Image-Tag in einer Coolify-Anwendung, loest das Deployment aus und
 # prueft danach die oeffentliche Adresse. Die Zugangsdaten liegen ausschliesslich im
-# aufrufenden GitHub-Environment; dieser Workflow kennt nur dessen Namen.
+# aufrufenden GitHub-Environment; dieser Workflow kennt nur dessen Namen. Auf Wunsch wartet er
+# vorher, bis ein Vorab-Pull auf dem Zielhost die neuen Images geladen hat (#367).
 
 on:
   workflow_call:
@@ -19,6 +20,12 @@ on:
         description: Der zu veroeffentlichende Image-Tag, Form `sha-<12 Zeichen>`.
         type: string
         required: true
+      prepull_wait_seconds:
+        description: >-
+          Wartezeit in Sekunden vor dem Deployment, damit ein Vorab-Pull auf dem Zielhost die
+          Images schon geladen hat (0 = nicht warten, hoechstens 300; Produktion 120, #367).
+        type: number
+        default: 0
 
 permissions:
   contents: read
@@ -48,6 +55,30 @@ jobs:
             https://*/api/v1) ;;
             *) echo "COOLIFY_API_BASE hat nicht das erwartete Format https://host/api/v1." >&2; exit 2 ;;
           esac
+
+      # Coolify stoppt bei Compose-Anwendungen alle alten Container, bevor es die Images zieht und
+      # `migrate` startet; jede Sekunde Pull verlaengert die Luecke ohne API. Ein Timer auf dem
+      # Zielhost zieht deshalb das mitlaufende Tag vorab (Produktion: `prod-next`). Die Wartezeit
+      # liegt vor dem Pinnen, damit ein Abbruch waehrend des Wartens Coolify unveraendert laesst.
+      # Kommt der Vorab-Pull nicht rechtzeitig, zieht Coolify wie bisher selbst.
+      - name: Vorab-Pull auf dem Zielhost abwarten
+        if: inputs.prepull_wait_seconds > 0
+        env:
+          PREPULL_WAIT_SECONDS: ${{ inputs.prepull_wait_seconds }}
+        run: |
+          case "$PREPULL_WAIT_SECONDS" in
+            ''|*[!0-9]*) echo "prepull_wait_seconds muss eine ganze Zahl sein, nicht '$PREPULL_WAIT_SECONDS'." >&2; exit 2 ;;
+          esac
+          # Hoechstens 300 s (drei Stellen), damit Warten, Deployment-Polling und Readiness-
+          # Pruefung zusammen unter dem Job-Timeout bleiben.
+          if [ "${#PREPULL_WAIT_SECONDS}" -gt 3 ] || [ "$PREPULL_WAIT_SECONDS" -gt 300 ]; then
+            echo "prepull_wait_seconds=$PREPULL_WAIT_SECONDS ist unplausibel hoch (hoechstens 300)." >&2
+            exit 2
+          fi
+          echo "Warte ${PREPULL_WAIT_SECONDS} s vor dem Deployment von $IMAGE_TAG: Der Vorab-Pull auf dem Zielhost"
+          echo "soll die Images schon geladen haben, weil Coolify die alten Container vor dem Pull stoppt (#367)."
+          sleep "$PREPULL_WAIT_SECONDS"
+          echo "Wartezeit abgelaufen, Deployment folgt."
 
       - name: Image-Tag in Coolify pinnen
         run: |

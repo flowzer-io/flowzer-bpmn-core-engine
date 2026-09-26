@@ -9,6 +9,12 @@ name: Images
 # .NET- und den Node-Build unzumutbar langsam, native Laeufer sind fuer oeffentliche
 # Repositories kostenlos. Die beiden Teilbilder werden danach zu einem Manifest vereint,
 # sodass jeder Server unter demselben Tag sein passendes Image zieht.
+#
+# Tags: Jedes Manifest heisst `sha-<12 Zeichen>`. Zusaetzliche Tags zeigen auf dasselbe
+# Manifest: `latest` fuer main (`publish_latest`), der Tagname bei v*-Tags und die vom
+# Aufrufer in `extra_tags` genannten mitlaufenden Tags. `release.yml` setzt dort `prod-next`,
+# das ein Timer auf dem Produktionshost vorab zieht, damit Coolify beim Deploy keine Layer
+# mehr laden muss (#367).
 
 on:
   workflow_call:
@@ -17,6 +23,13 @@ on:
         description: Zusaetzlich als `latest` veroeffentlichen (nur fuer main).
         type: boolean
         default: false
+      extra_tags:
+        description: >-
+          Weitere mitlaufende Tags, durch Leerzeichen getrennt, die auf dasselbe Manifest wie
+          `sha-<12 Zeichen>` zeigen (Produktion: `prod-next` fuer den Vorab-Pull, #367).
+          Leer laesst das bisherige Verhalten unveraendert.
+        type: string
+        default: ''
     outputs:
       image_tag:
         description: Der gebaute Tag, Form `sha-<12 Zeichen>`.
@@ -38,24 +51,52 @@ jobs:
     timeout-minutes: 5
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
-      extra_tag: ${{ steps.meta.outputs.extra_tag }}
+      extra_tags: ${{ steps.meta.outputs.extra_tags }}
     steps:
       - name: Repository auschecken
         uses: actions/checkout@v4
 
-      - name: Tag ableiten
+      - name: Tags ableiten
         id: meta
+        env:
+          PUBLISH_LATEST: ${{ inputs.publish_latest }}
+          EXTRA_TAGS: ${{ inputs.extra_tags }}
         run: |
           short_sha="$(git rev-parse --short=12 HEAD)"
           echo "image_tag=sha-${short_sha}" >> "$GITHUB_OUTPUT"
-          # `latest` folgt ausschliesslich main; Release-Tags bekommen zusaetzlich ihren Tagnamen.
-          extra_tag=""
-          if [ "${{ inputs.publish_latest }}" = "true" ]; then
-            extra_tag="latest"
-          elif [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
-            extra_tag="${GITHUB_REF#refs/tags/}"
+          # `latest` folgt ausschliesslich main; Versions-Tags (v*) bekommen zusaetzlich ihren
+          # Tagnamen. Andere Git-Tags erzeugen kein Registry-Tag, damit ein manueller Lauf auf
+          # einen beliebigen Git-Tag weder `latest`, `prod-next` noch fremde `sha-`-Tags umhaengt.
+          extra_tags=""
+          if [ "$PUBLISH_LATEST" = "true" ]; then
+            extra_tags="latest"
+          elif [ "${GITHUB_REF#refs/tags/v}" != "$GITHUB_REF" ]; then
+            version_tag="${GITHUB_REF#refs/tags/}"
+            if ! printf '%s\n' "$version_tag" | grep -Eqx 'v[0-9][A-Za-z0-9_.-]{0,126}'; then
+              echo "Versions-Tag ist kein gueltiger Image-Tag: $version_tag" >&2
+              exit 2
+            fi
+            extra_tags="$version_tag"
           fi
-          echo "extra_tag=$extra_tag" >> "$GITHUB_OUTPUT"
+          # Mitlaufende Tags des Aufrufers: nur die ausdruecklich erlaubten beweglichen Tags
+          # (Positivliste), damit ein Aufrufer weder `latest` noch Versions- oder `sha-`-Tags
+          # auf ein anderes Manifest umhaengen kann. Jeder Tag nur einmal; ohne Globbing, damit
+          # ein `*` nicht zu Dateinamen des Checkouts wird.
+          allowed_extra_tags=" prod-next prod-prev "
+          set -f
+          for tag in $EXTRA_TAGS; do
+            case "$allowed_extra_tags" in
+              *" $tag "*) ;;
+              *) echo "Zusaetzlicher Tag nicht erlaubt (erlaubt:${allowed_extra_tags}): $tag" >&2; exit 2 ;;
+            esac
+            case " $extra_tags " in
+              *" $tag "*) ;;
+              *) extra_tags="${extra_tags:+$extra_tags }$tag" ;;
+            esac
+          done
+          set +f
+          echo "extra_tags=$extra_tags" >> "$GITHUB_OUTPUT"
+          echo "Image-Tag sha-${short_sha}, zusaetzliche Tags: ${extra_tags:-keine}"
 
   build:
     name: ${{ matrix.image }} auf ${{ matrix.platform }}
@@ -148,15 +189,19 @@ jobs:
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/flowzer-${{ matrix.image }}
           IMAGE_TAG: ${{ needs.tag.outputs.image_tag }}
-          EXTRA_TAG: ${{ needs.tag.outputs.extra_tag }}
+          EXTRA_TAGS: ${{ needs.tag.outputs.extra_tags }}
         run: |
           digests=""
           for file in /tmp/digests/*; do
             digests="$digests $IMAGE@$(cat "$file")"
           done
           test -n "$digests" || { echo "Keine Digests gefunden." >&2; exit 1; }
+          # Ein Aufruf, ein Manifest: Alle Tags zeigen danach auf denselben Digest.
           tags="--tag $IMAGE:$IMAGE_TAG"
-          [ -n "$EXTRA_TAG" ] && tags="$tags --tag $IMAGE:$EXTRA_TAG"
+          for extra_tag in $EXTRA_TAGS; do
+            tags="$tags --tag $IMAGE:$extra_tag"
+          done
+          echo "Veroeffentliche $IMAGE unter: $IMAGE_TAG${EXTRA_TAGS:+ $EXTRA_TAGS}"
           # shellcheck disable=SC2086
           docker buildx imagetools create $tags $digests
           docker buildx imagetools inspect "$IMAGE:$IMAGE_TAG" --format '{{json .Manifest}}' \
