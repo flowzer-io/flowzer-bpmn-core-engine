@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog';
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 
 import { cn } from '@/lib/cn';
 
@@ -16,6 +16,40 @@ interface ModalProps {
   children?: ReactNode;
   footer?: ReactNode;
   className?: string;
+}
+
+/** Der Ausschnitt einer flatpickr-Instanz, den das Schließen per Escape braucht. */
+interface FlatpickrHandle {
+  isOpen: boolean;
+  close: () => void;
+  _input?: HTMLElement;
+  calendarContainer?: HTMLElement;
+}
+
+/**
+ * Klappt einen offenen Datumskalender im Dialog zu und meldet, ob einer offen war.
+ *
+ * Der Kalender eines Datumsfeldes (flatpickr, siehe `forms/dialogCalendarWidget.ts`) liegt wie
+ * ein Aufklappmenü über dem Dialog. Escape soll zuerst ihn schließen, nicht den ganzen Dialog
+ * samt Eingaben. flatpickr selbst sieht die Taste zu spät: Radix wertet sie schon in der
+ * Capture-Phase am Dokument aus. Die Instanz hängt flatpickr — dokumentiert — als `_flatpickr`
+ * an sein Eingabefeld.
+ */
+function closeOpenCalendar(dialog: HTMLElement | null): boolean {
+  if (!dialog?.querySelector('.flatpickr-calendar.open')) return false;
+
+  let closed = false;
+  for (const input of dialog.querySelectorAll('input')) {
+    const picker = (input as HTMLInputElement & { _flatpickr?: FlatpickrHandle })._flatpickr;
+    if (!picker?.isOpen) continue;
+    // Stand der Fokus im Kalender (etwa in der Uhrzeit), kehrt er ins Feld zurück — sonst
+    // verlöre ihn der zugeklappte Kalender an den Dialog.
+    const focusInCalendar = picker.calendarContainer?.contains(document.activeElement) ?? false;
+    picker.close();
+    if (focusInCalendar) picker._input?.focus();
+    closed = true;
+  }
+  return closed;
 }
 
 /**
@@ -35,11 +69,20 @@ export function Modal({
   footer,
   className,
 }: ModalProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[70] bg-black/45 backdrop-blur-[2px]" />
         <Dialog.Content
+          ref={contentRef}
+          // Kennzeichen für Form.io-Datumsfelder: Nur in diesem Dialog hängen sie ihren Kalender
+          // an eine eigene Ebene statt ans <body> (forms/dialogCalendarWidget.ts).
+          data-flowzer-modal=""
+          onEscapeKeyDown={(event) => {
+            if (closeOpenCalendar(contentRef.current)) event.preventDefault();
+          }}
           // Radix verknuepft Titel und Beschreibung selbst und warnt, wenn eine Beschreibung
           // fehlt. Gibt es keine, wird die Verknuepfung hier ausdruecklich entfernt — ein
           // leerer Wert waere eine Verknuepfung ins Nichts.

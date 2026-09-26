@@ -9,6 +9,7 @@ import {
   registerFlowzerSubjectComponent,
 } from './FlowzerSubjectComponent';
 import { FormDecisionActionsEditor } from './FormDecisionActionsEditor';
+import { FORM_RENDERER_TEXTS_DE } from './formioLanguage';
 import { registerFormSectionComponent } from './FormSectionComponent';
 import { registerFormLibraryComponent } from './FormLibraryComponent';
 
@@ -135,8 +136,10 @@ export const FormBuilder = forwardRef<FormBuilderHandle, FormBuilderProps>(funct
         const builder = (await Formio.builder(host, parsed, {
           noDefaultSubmitButton: true,
           keyboardBuilder: true,
+          // Der Editor bleibt fest deutsch, wie die übrige Konsole — anders als der Renderer, der
+          // der Browsersprache folgt (formioLanguage.ts). Die eigenen Editortexte gibt es nur deutsch.
           language: 'de',
-          i18n: { de: { searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
+          i18n: { de: { ...FORM_RENDERER_TEXTS_DE, searchFields: 'Komponenten suchen', dragAndDropComponent: 'Komponente hierher ziehen oder in der Palette anklicken',
             Basic: 'Felder', Advanced: 'Weitere Felder', Layout: 'Bereiche & Layout', Data: 'Daten', Premium: 'Weitere Komponenten',
             'Text Field': 'Textfeld', 'Text Area': 'Mehrzeiliger Text', Number: 'Zahl', Password: 'Passwort', Checkbox: 'Ja / Nein',
             'Select Boxes': 'Mehrfachauswahl', Select: 'Auswahlliste', Radio: 'Einfachauswahl', Button: 'Schaltfläche',

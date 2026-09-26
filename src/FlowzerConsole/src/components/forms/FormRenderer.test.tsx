@@ -108,3 +108,25 @@ it('ignoriert verspätete Änderungen abgebauter Renderer', async () => {
   act(() => listeners[1]?.());
   expect(onChange).toHaveBeenCalledOnce();
 });
+
+// Testzweck: Der Renderer spricht die Sprache des Browsers — Deutsch bei de-DE, Englisch bei
+// en-US. Form.io leitet daraus Prüfmeldungen und die Sprache des Kalenders ab (Issue #368).
+it('übergibt die Browsersprache an Form.io', async () => {
+  createForm.mockReset();
+  createForm.mockResolvedValue({ on: vi.fn(), destroy: vi.fn() });
+  const languages = vi.spyOn(navigator, 'languages', 'get').mockReturnValue(['de-DE', 'en-US']);
+
+  const german = render(<FormRenderer schema='{"components":[]}' />);
+  await waitFor(() => expect(createForm).toHaveBeenCalledOnce());
+  expect(createForm.mock.calls[0]?.[2]).toMatchObject({
+    language: 'de',
+    i18n: { de: { addAnother: 'Weiteren Eintrag hinzufügen' } },
+  });
+  german.unmount();
+
+  languages.mockReturnValue(['en-US']);
+  render(<FormRenderer schema='{"components":[]}' />);
+  await waitFor(() => expect(createForm).toHaveBeenCalledTimes(2));
+  expect(createForm.mock.calls[1]?.[2]).toMatchObject({ language: 'en' });
+  languages.mockRestore();
+});
