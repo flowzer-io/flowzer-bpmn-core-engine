@@ -50,6 +50,10 @@ test('Existing renderer must work under opaque sandbox and strict CSP', async ({
     // CDN-Skripte/-CSS aufgebaut und bedienbar sein, sonst fehlt der Urlaubsfall.
     await frame.getByLabel('Datum', { exact: false }).click();
     await expect(frame.locator('.flatpickr-calendar.open')).toBeVisible();
+    await frame.getByLabel('Antwort', { exact: false }).click();
+    await expect(frame.locator('.flatpickr-calendar.open')).toHaveCount(0);
+    await frame.getByRole('button', { name: 'Assetgrenze prüfen' }).click();
+    await expect(frame.locator('html')).toHaveAttribute('data-asset-denied', 'true');
     expect(errors).toEqual([]);
     expect(blockedResources).toEqual([]);
     expect(await page.frames()[1].evaluate(() => self.__flowzerCspViolations)).toEqual([]);

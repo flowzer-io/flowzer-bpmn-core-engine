@@ -50,11 +50,18 @@ API-Prozessen, Aufgabenlöschung entfernt Freigaben per indiziertem FK. Erst die
 Aufgabe, dann die Freigabe werden gesperrt; ein PostgreSQL-Service-Test erzwingt
 einen parallelen Abschluss. Eine sperrfreie Hash-Vorprüfung hält zufällige anonyme
 Anfragen aus der globalen Engine-Sperre heraus. Der Einlösepfad hat zusätzlich ein
-eigenes API-prozessweites Kontingent (60 POSTs/Minute, keine Warteschlange), auch bei
-deaktiviertem allgemeinem Limiter. Dies ist kein verteiltes Gateway-Ratenlimit.
+eigene Endpoint-gebundene, geordnete Kontingente (standardmäßig zuerst 60 POSTs je
+IPv4-Adresse bzw. IPv6-/64 und Minute, danach 600 je API-Prozess, keine Warteschlange),
+auch bei deaktiviertem allgemeinem Limiter. Beide Limits sind über
+`RedeemPerCallerPermitLimit`/`RedeemGlobalPermitLimit` konfigurierbar. Eine bereits
+gedrosselte Quelle verbraucht das Globalbudget nicht weiter; Routingvarianten wie
+`/redeem/` haben dieselben Metadaten. Dies ist kein verteiltes Gateway-Ratenlimit.
 
 Höchstens vier noch nicht eingelöste Links bleiben je Aufgabe bestehen; weitere
 Ausgaben verdrängen die ältesten Links, niemals ein bereits geöffnetes Formular.
+Diese Begrenzung ist bewusst aufgabenweit, nicht persönlich; zwischen Übergabe und
+Einlösung kann deshalb ein späterer berechtigter Besitzer einen alten Link verdrängen.
+Der Host muss zuerst atomar übernehmen und erst danach den persönlichen Link anfordern.
 Abgelaufene Personenbindungen werden minütlich in begrenzten Batches sowie vor
 neuen Ausgaben außerhalb aller Engine-/Aufgabensperren bereinigt. Die Dateiablage
 bleibt Einzelprozess-Entwicklung mit atomarer Entnahme und kollisionsfreiem
@@ -81,11 +88,20 @@ unnötigen Form.io-Cookie-/Storage-Identitätsleser, deaktiviert Skriptauswertun
 bündelt die bereits verwendeten Kalender-/Zeitzonenversionen lokal. Die normale
 Console bleibt unverändert. Das öffentliche statische Probe-Stylesheet erlaubt
 `Origin: null` ohne Credentials für CSSOM; keine API- oder Session-CORS-Lockerung.
+Textarea-Editoren/WYSIWYG und Kalender-Shortcut-Plugins sind im Embed-Profil derzeit
+geschlossen: Die API erstellt für solche Formulare keinen Link. Der isolierte
+SDK-Nachlader weist alle nicht gebündelten Libraries sofort zurück statt endlos zu
+pollen. Die normale Console und der allgemeine Formularvertrag werden nicht beschränkt.
 
 `node tests/form-embedding/run-sandbox-probe.cjs` baut immer frisch und läuft auch
 in der CI. Der Browser prüft Text/Datum, editierbaren lokalen Zwischenstand, echten
 Kalender, geladene Styles und fehlende CSP-/Konsolenfehler sowie tatsächlich
 gesperrte Cookies/Storage. Directory-Auswahl, Formularabschnitte, Hostkanal und
 Actions sind noch **kein** Bestandteil dieser Renderer-Probe und bleiben offen.
+Das Probe-Bundle ist ein klassisches Einzeldatei-IIFE mit bewusstem statischem
+CSS-CORS. Der normale Console-Auslieferungspfad besitzt diese Bedingungen noch
+nicht; `/embed.html` würde dort derzeit im nicht einbettbaren SPA-Fallback landen.
+Ein späterer separater Embed-Build und seine HTTPS-/CSP-/Asset-Auslieferung müssen
+genau gegen das reale Containerartefakt abgenommen werden, bevor das Opt-in öffnet.
 Ein fehlgeschlagener Probe darf nicht durch eine lockere Sandbox repariert werden.
 Kein Demo- oder Produktivdeployment ohne abgeschlossene Folge-Gates.

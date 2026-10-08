@@ -113,7 +113,7 @@ public sealed class FormEmbedLinkService(
         if (form?.FormData is null) return null;
         // Auch historische Bindungen müssen den geschlossenen Formularvertrag erfüllen.
         _ = FormContractCompiler.Compile(form.FormData);
-        return form;
+        return FormEmbeddingSchemaSupport.IsSupported(form.FormData) ? form : null;
     }
 
     private static async Task<(ExtendedUserTaskSubscription Task, UserTaskAccess Access)?> FindTask(

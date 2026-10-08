@@ -88,6 +88,8 @@ public sealed class FormEmbedGrantStorageTest
             files.Should().HaveCount(4);
             var corrupt = Path.Combine(Path.GetDirectoryName(files[0])!, new string('F', 64) + "-corrupt.json");
             await File.WriteAllTextAsync(corrupt, "{");
+            await storage.FormEmbedGrantStorage.Create(Create(now.AddMinutes(7), new string('7', 64), taskId), now);
+            (await storage.FormEmbedGrantStorage.Find(new string('7', 64), now)).Should().NotBeNull();
             await storage.FormEmbedGrantStorage.CleanupExpired(now);
             File.Exists(corrupt).Should().BeFalse();
             (await storage.FormEmbedGrantStorage.Find(new string('A', 64), now)).Should().BeNull();

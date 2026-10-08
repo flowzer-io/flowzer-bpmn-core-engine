@@ -10,7 +10,7 @@ it('entfernt SDK-Identitätszugriffe nur im opaque Frame', () => {
   const getUser = vi.fn(() => { throw new Error('Cookiezugriff'); });
   const getToken = vi.fn(() => { throw new Error('Storagezugriff'); });
   const runtime = { Evaluator: { noeval: false }, getUser, getToken,
-    libraries: {} as Record<string, { ready: Promise<unknown> }> };
+    libraries: {} as Record<string, { ready: Promise<unknown> }>, requireLibrary: vi.fn() };
   initializeOpaqueFormioRuntime(runtime);
   expect(runtime.getUser()).toBeNull();
   expect(runtime.getToken()).toBe('');
@@ -26,9 +26,20 @@ it('entfernt SDK-Identitätszugriffe nur im opaque Frame', () => {
 // darf dessen Identitäts- und Auswertungsverhalten nicht verändern.
 it('lehnt nicht isolierte Dokumente ohne SDK-Änderung ab', () => {
   vi.stubGlobal('origin', 'https://console.example');
-  const runtime = { Evaluator: { noeval: false }, getUser: vi.fn(), getToken: vi.fn(), libraries: {} };
+  const runtime = { Evaluator: { noeval: false }, getUser: vi.fn(), getToken: vi.fn(), libraries: {}, requireLibrary: vi.fn() };
   expect(() => initializeOpaqueFormioRuntime(runtime)).toThrow('isolierte Sandbox');
   expect(runtime.Evaluator.noeval).toBe(false);
   expect(vi.isMockFunction(runtime.getUser)).toBe(true);
   expect(vi.isMockFunction(runtime.getToken)).toBe(true);
+});
+
+// Testzweck: Nicht gebündelte Libraries dürfen weder ein CDN-Skript anfordern noch
+// endlos pollen. Der separate Offline-Vertrag weist sie deterministisch zurück.
+it('weist unbekannte Nachlader ohne Netzwerk-Fallback zurück', async () => {
+  vi.stubGlobal('origin', 'null');
+  const networkLoader = vi.fn();
+  const runtime = { Evaluator: { noeval: false }, getUser: vi.fn(), getToken: vi.fn(), libraries: {}, requireLibrary: networkLoader };
+  initializeOpaqueFormioRuntime(runtime);
+  await expect(runtime.requireLibrary('ckeditor')).rejects.toThrow('nicht gebündelt');
+  expect(networkLoader).not.toHaveBeenCalled();
 });

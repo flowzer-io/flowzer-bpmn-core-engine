@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using WebApiEngine.FormEmbedding;
 using WebApiEngine.Shared;
+using Microsoft.AspNetCore.RateLimiting;
+using WebApiEngine.Limits;
 
 namespace WebApiEngine.Controller;
 
@@ -24,6 +26,7 @@ public sealed class FormEmbedController(FormEmbedLinkService links) : Controller
     [HttpPost("redeem")]
     [AllowAnonymous]
     [EnableCors("FlowzerFormEmbedRead")]
+    [EnableRateLimiting(FlowzerLimitsExtensions.FormEmbedReadPolicy)]
     [RequestSizeLimit(1024)]
     [ProducesResponseType<ApiStatusResult<FormEmbedSnapshotDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]

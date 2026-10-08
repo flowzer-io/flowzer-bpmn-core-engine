@@ -13,6 +13,8 @@ function Probe() {
   const form = useRef<FormRendererHandle>(null);
   return <><FormRenderer schema={schema} ref={form} initialData={{ answer: 'Zwischenstand' }}
     onReadyChange={ready => { if (ready) document.documentElement.dataset.ready = 'true'; }} />
-    <button onClick={() => { document.documentElement.dataset.saved = String(form.current?.getData().answer); }}>Zwischenstand lesen</button></>;
+    <button onClick={() => { document.documentElement.dataset.saved = String(form.current?.getData().answer); }}>Zwischenstand lesen</button>
+    <button onClick={() => { void (Formio as unknown as OpaqueFormioRuntime).requireLibrary('ckeditor')
+      .catch(() => { document.documentElement.dataset.assetDenied = 'true'; }); }}>Assetgrenze prüfen</button></>;
 }
 createRoot(document.getElementById('root')!).render(<Probe />);

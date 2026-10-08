@@ -9,6 +9,7 @@ export interface OpaqueFormioRuntime {
   getUser: (options?: unknown) => unknown;
   getToken: (options?: unknown) => unknown;
   libraries: Record<string, { ready: Promise<unknown> }>;
+  requireLibrary: (name: string, ...arguments_: unknown[]) => Promise<unknown>;
 }
 
 /**
@@ -34,6 +35,10 @@ export function initializeOpaqueFormioRuntime(runtime: OpaqueFormioRuntime): voi
   runtime.libraries.flatpickr = { ready: Promise.resolve(flatpickr) };
   runtime.libraries['flatpickr-css'] = { ready: Promise.resolve() };
   runtime.libraries['flatpickr-de'] = { ready: Promise.resolve(German) };
+  const bundled = new Set(['flatpickr', 'flatpickr-css', 'flatpickr-de']);
+  runtime.requireLibrary = (name: string) => bundled.has(name)
+    ? runtime.libraries[name]!.ready
+    : Promise.reject(new Error('Die angeforderte Formularbibliothek ist nicht gebündelt.'));
   // Der vollständige gepinnte Datensatz steckt schon im lokalen Moment-Bundle.
   // Form.io kennt diesen Ladezustand sonst nicht und fetchte trotz vorhandenem
   // Datensatz vom CDN. Keine entfernte "latest"-Zeitzonendatei im Frame.

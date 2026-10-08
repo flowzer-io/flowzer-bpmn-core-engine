@@ -118,16 +118,55 @@ public sealed class FormEmbedLinkIntegrationTest
 
     // Testzweck: Auch bei deaktiviertem allgemeinen Limiter wird anonymer Linkverkehr
     // API-prozessweit begrenzt, ohne das Kontingent angemeldeter Aufgabenoperationen zu teilen.
-    [Test]
-    public async Task Redemption_ShouldBoundAnonymousTrafficWithoutBlockingAuthenticatedWork()
+    [TestCase("/form-embed/redeem")]
+    [TestCase("/form-embed/redeem/")]
+    public async Task Redemption_ShouldBoundAnonymousTrafficWithoutBlockingAuthenticatedWork(string path)
     {
         using var context = new AuthenticatedWorkflowTestContext(Settings);
         using var frame = context.CreateAnonymousClient();
         for (var i = 0; i < 60; i++)
-            (await Redeem(frame, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        (await Redeem(frame, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+            (await frame.PostAsJsonAsync(path, new { secret = new string('A', 43) })).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await frame.PostAsJsonAsync(path, new { secret = new string('A', 43) })).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         using var actor = context.CreateClient();
         (await actor.GetAsync("/usertask")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Ein bereits gedrosselter Absender darf das globale Kontingent nicht
+    // weiter verbrauchen; ein anderer Absender kann danach seinen echten Link einlösen.
+    [TestCase("192.0.2.1", "192.0.2.2")]
+    [TestCase("2001:db8:1::1", "2001:db8:2::1")]
+    public async Task Redemption_ShouldNotStarveOtherCallers(string floodingAddress, string otherAddress)
+    {
+        var configured = new Dictionary<string, string>(Settings)
+        { ["FormEmbedding:RedeemPerCallerPermitLimit"] = "1", ["FormEmbedding:RedeemGlobalPermitLimit"] = "2" };
+        using var context = new AuthenticatedWorkflowTestContext(configured, useSyntheticRemoteAddresses: true);
+        var task = await StartDirectoryTask(context);
+        using var actor = context.CreateClient();
+        var secret = await Issue(actor, task.Id);
+        using var flood = context.CreateAnonymousClient();
+        flood.DefaultRequestHeaders.Add("X-Test-Remote-IP", floodingAddress);
+        (await Redeem(flood, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        for (var i = 0; i < 10; i++)
+            (await Redeem(flood, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
+        using var other = context.CreateAnonymousClient();
+        other.DefaultRequestHeaders.Add("X-Test-Remote-IP", otherAddress);
+        (await Redeem(other, secret)).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Innerhalb eines IPv6-/64 darf Adressrotation das anonyme Kontingent
+    // nicht umgehen; eine benachbarte /64 bleibt davon unabhängig.
+    [Test]
+    public async Task Redemption_ShouldShareTheIpv6SubnetBudget()
+    {
+        var configured = new Dictionary<string, string>(Settings)
+        { ["FormEmbedding:RedeemPerCallerPermitLimit"] = "1", ["FormEmbedding:RedeemGlobalPermitLimit"] = "10" };
+        using var context = new AuthenticatedWorkflowTestContext(configured, useSyntheticRemoteAddresses: true);
+        using var first = context.CreateAnonymousClient();
+        first.DefaultRequestHeaders.Add("X-Test-Remote-IP", "2001:db8:1::1");
+        using var next = context.CreateAnonymousClient();
+        next.DefaultRequestHeaders.Add("X-Test-Remote-IP", "2001:db8:1::2");
+        (await Redeem(first, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await Redeem(next, new string('A', 43))).StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
     }
 
     // Testzweck: Ein korrekt formatiertes, aber unbekanntes anonymes Secret wird vor
@@ -167,6 +206,21 @@ public sealed class FormEmbedLinkIntegrationTest
             .StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
+    // Testzweck: Die normale Form.io-Konsole darf erweiterte Editoren verwenden;
+    // persönliche Embed-Links dürfen dagegen keine noch nicht gebündelten Nachlader öffnen.
+    [TestCase("""{"type":"textarea","key":"answer","editor":"quill"}""")]
+    [TestCase("""{"type":"textarea","key":"answer","wysiwyg":true}""")]
+    [TestCase("""{"type":"datetime","key":"answer","shortcutButtons":[{"label":"Heute","onClick":"today"}]}""")]
+    public async Task Issue_ShouldRejectUnbundledWidgets(string component)
+    {
+        using var context = new AuthenticatedWorkflowTestContext(Settings);
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", "{\"components\":[" + component + "]}");
+        var task = await StartDirectoryTask(context);
+        using var actor = context.CreateClient();
+        (await actor.PostAsJsonAsync($"/usertask/{task.Id}/form-link", new { hostOrigin = "https://host.test" }))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
     // Testzweck: Eine nach Ausgabe veränderte Definition oder Lifecycle-Revision darf
     // den alten persönlichen Bootstrap nicht wieder auf eine andere Bindung anwenden.
     [TestCase(true)]
@@ -180,8 +234,17 @@ public sealed class FormEmbedLinkIntegrationTest
         var secret = await Issue(actor, task.Id);
         if (definitionChanged)
         {
-            task.DefinitionId = Guid.NewGuid();
+            var target = await context.Storage.DefinitionStorage.GetDefinitionById(task.DefinitionId);
+            target.Id = Guid.NewGuid();
+            target.Version = new Model.Version(2, 0);
+            await context.Storage.DefinitionStorage.StoreDefinition(target);
+            task.DefinitionId = target.Id;
             await context.Storage.SubscriptionStorage.AddUserTaskSubscription(task);
+            // Wie eine Migration beide aktiven Laufzeitbindungen umhängen: die
+            // Instanzprüfung bleibt gültig, ausschließlich der alte Grant ist stale.
+            var instance = await context.Storage.InstanceStorage.GetProcessInstance(task.ProcessInstanceId!.Value);
+            instance.DefinitionId = task.DefinitionId;
+            await context.Storage.InstanceStorage.AddOrUpdateInstance(instance);
         }
         else
         {
@@ -196,9 +259,8 @@ public sealed class FormEmbedLinkIntegrationTest
                 .Should().Be(StorageSystem.UserTaskLifecycleWriteStatus.Written);
         }
         (await Redeem(frame, secret)).StatusCode.Should().Be(HttpStatusCode.NotFound);
-        if (!definitionChanged)
-            (await Redeem(frame, await Issue(actor, task.Id))).StatusCode.Should().Be(HttpStatusCode.OK,
-                "the same actor is still authorized, only the old lifecycle revision is stale");
+        (await Redeem(frame, await Issue(actor, task.Id))).StatusCode.Should().Be(HttpStatusCode.OK,
+            "the same actor is still authorized, only the old grant binding is stale");
     }
 
     // Testzweck: Rechteentzug oder Prozessabbruch nach Linkausgabe muss die Einlösung

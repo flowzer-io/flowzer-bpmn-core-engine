@@ -5,11 +5,14 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.RateLimiting;
 using WebApiEngine.InboundTriggers;
 using WebApiEngine.Shared;
+using WebApiEngine.FormEmbedding;
 
 namespace WebApiEngine.Limits;
 
 public static class FlowzerLimitsExtensions
 {
+    /// <summary>Endpoint-Metadatum für den anonymen, gesondert begrenzten Read-only-Einstieg.</summary>
+    public const string FormEmbedReadPolicy = "FlowzerFormEmbedReadLimit";
     /// <summary>Pfade, die auch unter Last erreichbar bleiben muessen.</summary>
     private static readonly string[] ExemptPathPrefixes = ["/health"];
 
@@ -24,6 +27,9 @@ public static class FlowzerLimitsExtensions
                           ?? new FlowzerUploadLimitOptions();
         uploadLimit.Validate();
         services.AddSingleton(uploadLimit);
+
+        var formEmbedding = configuration.GetSection(FormEmbeddingOptions.SectionName).Get<FormEmbeddingOptions>() ?? new();
+        if (!formEmbedding.IsValid()) throw new InvalidOperationException("Invalid form embedding configuration.");
 
         var inboundTriggers = configuration.GetSection(InboundTriggerOptions.SectionName).Get<InboundTriggerOptions>()
                               ?? new InboundTriggerOptions();
@@ -69,19 +75,31 @@ public static class FlowzerLimitsExtensions
                 });
             });
 
-            // Eine API-prozessweite anonyme Grenze statt nur IP-Partitionen. Auch
-            // bei deaktiviertem allgemeinen Limiter dürfen unbekannte Secrets nicht
-            // beliebig viele Lookup-Anfragen erzeugen; angemeldete Arbeit bleibt getrennt.
-            var byFormEmbed = PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                string.Equals(context.Request.Path.Value, "/form-embed/redeem", StringComparison.OrdinalIgnoreCase)
-                && HttpMethods.IsPost(context.Request.Method)
-                    ? RateLimitPartition.GetFixedWindowLimiter("form-embed-read", _ => new FixedWindowRateLimiterOptions
+            // Metadaten statt Pfadvergleich: auch Routingvarianten (z. B. /redeem/)
+            // haben dieselbe Grenze. Alle Limits sind absichtlich in der geordneten
+            // globalen Kette: Ein bereits gedrosselter Absender darf das nachfolgende
+            // Prozesskontingent nicht weiter verbrauchen. Die benannte Endpoint-Policy
+            // markiert nur die Auswahl und fügt keinen zweiten, anders geordneten Zähler an.
+            limiter.AddPolicy(FormEmbedReadPolicy, _ => RateLimitPartition.GetNoLimiter("embed-limits-in-ordered-chain"));
+            var byFormCaller = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                IsFormEmbedRead(context)
+                    ? RateLimitPartition.GetFixedWindowLimiter(FormCallerKey(context), _ => new FixedWindowRateLimiterOptions
                     {
-                        PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+                        PermitLimit = formEmbedding.RedeemPerCallerPermitLimit,
+                        Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
                         QueueProcessingOrder = QueueProcessingOrder.OldestFirst
                     })
                     : RateLimitPartition.GetNoLimiter("not-form-embed-read"));
-            limiter.GlobalLimiter = PartitionedRateLimiter.CreateChained(byCaller, byTriggerKey, byFormEmbed);
+            var byFormEmbed = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                IsFormEmbedRead(context)
+                    ? RateLimitPartition.GetFixedWindowLimiter("form-embed-read", _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = formEmbedding.RedeemGlobalPermitLimit,
+                        Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    })
+                    : RateLimitPartition.GetNoLimiter("not-form-embed-read"));
+            limiter.GlobalLimiter = PartitionedRateLimiter.CreateChained(byCaller, byTriggerKey, byFormCaller, byFormEmbed);
 
             limiter.OnRejected = async (context, cancellationToken) =>
             {
@@ -154,6 +172,21 @@ public static class FlowzerLimitsExtensions
 
     private static bool IsExempt(HttpContext context) =>
         ExemptPathPrefixes.Any(prefix => context.Request.Path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase));
+
+    private static bool IsFormEmbedRead(HttpContext context) =>
+        context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName == FormEmbedReadPolicy;
+
+    private static string FormCallerKey(HttpContext context)
+    {
+        // Forwarded-Header-Vertrauen wird ausschließlich durch die bestehende Middleware
+        // hergestellt; hier niemals beliebige X-Forwarded-For-Header selbst auswerten.
+        var address = context.Connection.RemoteIpAddress;
+        if (address is null) return "form-embed:unknown";
+        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
+        var bytes = address.GetAddressBytes();
+        return bytes.Length == 16 ? "form-embed:v6:" + Convert.ToHexString(bytes.AsSpan(0, 8))
+            : "form-embed:v4:" + address;
+    }
 
     /// <summary>
     /// Der Schluessel aus <c>/trigger/{key}</c>, oder <c>null</c> fuer jede andere Anfrage.

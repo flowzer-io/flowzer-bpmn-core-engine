@@ -34,7 +34,8 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "flowzer-completion-test", Guid.NewGuid().ToString("N"));
     private readonly WebApplicationFactory<Program> _factory;
 
-    internal AuthenticatedWorkflowTestContext(IReadOnlyDictionary<string, string>? settings = null, TimeProvider? clock = null)
+    internal AuthenticatedWorkflowTestContext(IReadOnlyDictionary<string, string>? settings = null, TimeProvider? clock = null,
+        bool useSyntheticRemoteAddresses = false)
     {
         Environment.SetEnvironmentVariable(Storage.StorageRootEnvironmentVariableName, _root);
         Storage = new Storage();
@@ -55,6 +56,8 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             if (settings is not null)
                 foreach (var setting in settings) builder.UseSetting(setting.Key, setting.Value);
             if (clock is not null) builder.ConfigureServices(services => services.AddSingleton(clock));
+            if (useSyntheticRemoteAddresses)
+                builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, SyntheticRemoteAddressFilter>());
             builder.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(
                 JwtBearerDefaults.AuthenticationScheme, options =>
                 {
@@ -67,6 +70,21 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
 
     internal Storage Storage { get; }
     internal IServiceProvider Services => _factory.Services;
+
+    /// <summary>Nur der ausdrücklich isolierte Testserver nutzt diesen synthetischen Netzadapter.</summary>
+    private sealed class SyntheticRemoteAddressFilter : IStartupFilter
+    {
+        public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) => app =>
+        {
+            app.Use(nextRequest => http =>
+            {
+                if (System.Net.IPAddress.TryParse(http.Request.Headers["X-Test-Remote-IP"].ToString(), out var address))
+                    http.Connection.RemoteIpAddress = address;
+                return nextRequest(http);
+            });
+            next(app);
+        };
+    }
 
     internal HttpClient CreateClient(bool isOperator = false, Guid? userId = null, string username = "bert", bool isModeler = false, string? issuer = null)
     {

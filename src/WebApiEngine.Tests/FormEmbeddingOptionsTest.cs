@@ -34,4 +34,17 @@ public sealed class FormEmbeddingOptionsTest
         options.Allows("https://host.test.evil.test").Should().BeFalse();
         options.Allows("https://host.test").Should().BeTrue();
     }
+
+    // Testzweck: Die besondere anonyme Sicherheitsgrenze darf weder null/negativ noch
+    // kleiner als ihr Absenderbudget konfiguriert werden, auch bei geschlossenem Opt-in.
+    [TestCase(0, 600)]
+    [TestCase(-1, 600)]
+    [TestCase(60, 1)]
+    [TestCase(10001, 100000)]
+    [TestCase(60, 100001)]
+    public void AnonymousLimits_ShouldRequireBoundedOrderedBudgets(int caller, int global)
+    {
+        new FormEmbeddingOptions { RedeemPerCallerPermitLimit = caller, RedeemGlobalPermitLimit = global }
+            .IsValid().Should().BeFalse();
+    }
 }
