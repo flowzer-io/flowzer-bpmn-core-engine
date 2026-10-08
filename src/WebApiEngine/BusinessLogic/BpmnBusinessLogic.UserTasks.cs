@@ -139,6 +139,7 @@ public partial class BpmnBusinessLogic
                         Action = "complete",
                         ActorOwnerKey = UserTaskDraftOwnerKey.Create(currentUser),
                         ActorUserId = userId,
+                        AuthenticatedActor = currentUser.ToAuthenticatedActor(),
                         ActorDisplayName = currentUser.Names.FirstOrDefault(name => !Guid.TryParse(name, out _)),
                         PreviousDirectoryAssigneeUserId = currentState?.DirectoryAssigneeUserId,
                         PreviousAssigneeUserId = currentState?.AssigneeUserId,
@@ -157,6 +158,9 @@ public partial class BpmnBusinessLogic
                 {
                     // Externe Legacy-Adapter bleiben bis zu ihrer Lifecycle-Erweiterung kompatibel.
                 }
+                // Der bereits autorisierte aktive Token trägt die tatsächliche Person
+                // samt vermittelndem Client; Formulardaten können diesen Audit nicht setzen.
+                activeTokens[0].CompletedByActor = currentUser.ToAuthenticatedActor();
                 instance.HandleTaskResult(result.TokenId, validated, userId);
                 // SaveInstance schreibt bei der Dateiablage mehrere dauerhafte Dokumente.
                 // Scheitert danach der Ergebnisdatensatz, bleibt der Ausgang absichtlich

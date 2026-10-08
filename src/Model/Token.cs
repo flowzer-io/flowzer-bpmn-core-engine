@@ -55,6 +55,9 @@ public class Token
     /// </summary>
     public Guid? CompletedByUserId { get; set; }
 
+    /// <summary>Interner verifizierter Akteur des Human-Task-Abschlusses, nicht Teil gewöhnlicher Token-DTOs.</summary>
+    public AuthenticatedActor? CompletedByActor { get; set; }
+
     /// <summary>
     /// Nur am Master-Token: verifizierter Initiator des direkten Starts. Bleibt mit dem
     /// Tokenbestand bei jedem Speichern/Neuladen erhalten, ohne Variablen umzudeuten.

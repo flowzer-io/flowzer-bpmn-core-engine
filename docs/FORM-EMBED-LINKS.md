@@ -61,6 +61,33 @@ partieller Dateipersistenz. Zwei zusätzliche PostgreSQL-Fälle müssen in der C
 gegen den echten Container laufen; lokale HTTP-/Dateitests ersetzen sie nicht.
 TT-Endpunkt, TT-Vorgang und Vermittler-Audit sind damit noch nicht gebaut.
 
+### Persönlicher Vermittler-Audit
+
+Übernahme, Freigabe, Zuweisung, Delegation und Abschluss tragen jetzt optional
+`AuthenticatedActor`: verifizierten Issuer/Subject, tatsächliche Benutzer-GUID
+und den authentisierten OIDC-`azp` des vermittelnden Clients. Der Abschlusstoken
+bewahrt denselben Akteur zusammen mit dem bereits fachlich validierten Ergebnis;
+der persönliche Rückzug bewahrt den ersten Client im Audit auch bei Retry aus
+einem anderen Client. Diese Werte kommen niemals aus Headern, Formular-JSON,
+Directory-Anzeigenamen oder einem Link-Secret. Client-ID ist weder Secret noch
+Besitz-/Autorisierungsrecht; der persönliche Besitz bleibt Issuer/Subject.
+
+Bearer und BFF verwenden dieselbe reine Claimprüfung. Im Cookie wird ausschließlich
+Access-Token-`azp` nach Signatur-/Issuer-/API-Audience-Prüfung und vor Claim-Dedup
+übernommen. ID-Token-`azp` ist kein Ersatz; Refresh erneuert den Wert aus dem neuen
+geprüften Access Token. Mehrdeutige, leere, überlange oder Steuer-/Leerzeichenwerte
+werden abgewiesen, fehlender `azp` bleibt für historische Provider/Dev kompatibel.
+TT muss zusätzlich sein tatsächliches Exchangeclient-Binding belegen; generische
+Flowzer-Auditmetadaten allein beweisen noch keinen konkreten TT-Livepfad.
+
+Die neuen Actorfelder bleiben intern und nullable. Normale History-/Token-/
+Instanzprojektionen übernehmen weder Subject/Issuer noch Clientmetadaten.
+Die vorhandenen JSON-Audit-/Tokendokumente speichern sie additiv, ohne zusätzliche
+PostgreSQL-Spalten oder Schemaänderung. Tatsächlich feldloses Legacy-Event-JSON
+und ein vollständiger polymorpher alter Tasktoken bleiben lesbar. Datei-/HTTP-
+Tests prüfen beide Gruppenmodelle; der zusätzliche PostgreSQL-Roundtrip ist
+weiterhin durch den verpflichtenden echten CI-Pfad nachzuweisen.
+
 ### Persönlicher Human-Task-Einstieg
 
 - `POST /usertask/{id}/form-link`: authentifizierter, persönlich berechtigter

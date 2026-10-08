@@ -87,13 +87,14 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
         };
     }
 
-    internal HttpClient CreateClient(bool isOperator = false, Guid? userId = null, string username = "bert", bool isModeler = false, string? issuer = null)
+    internal HttpClient CreateClient(bool isOperator = false, Guid? userId = null, string username = "bert", bool isModeler = false, string? issuer = null, string? authorizedClientId = null)
     {
         var claims = new List<Claim>
         {
             new("sub", (userId ?? UserId).ToString()), new("preferred_username", username),
             new("groups", "/team/review"), new("roles", "access")
         };
+        if (authorizedClientId is not null) claims.Add(new Claim("azp", authorizedClientId));
         if (isOperator) claims.Add(new Claim("roles", "operator"));
         if (isModeler) claims.Add(new Claim("roles", "modeler"));
         var jwt = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor

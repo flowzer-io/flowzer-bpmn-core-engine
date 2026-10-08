@@ -30,7 +30,8 @@ public sealed class HttpContextCurrentUserContextAccessor(
         {
             return claimBasedUser with
             {
-                Names = CollectNames(user), Groups = CollectGroups(user), Identity = ResolveIdentity(user)
+                Names = CollectNames(user), Groups = CollectGroups(user), Identity = ResolveIdentity(user),
+                AuthorizedClientId = AuthorizedClientClaims.Read(user)
             };
         }
 

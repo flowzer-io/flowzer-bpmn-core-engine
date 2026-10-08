@@ -89,14 +89,17 @@ public class InitiatorWithdrawalIntegrationTest
     public async Task RenamedOwnerAndConcurrentRepeat_ShouldReturnSameTerminalResultAndKeepFirstAudit()
     {
         using var context = new AuthenticatedWorkflowTestContext();
-        using var owner = context.CreateClient();
+        using var owner = context.CreateClient(authorizedClientId: "first-verified-client");
         var id = await StartOwnAsync(context, owner);
-        using var renamed = context.CreateClient(username: "renamed");
+        using var renamed = context.CreateClient(username: "renamed", authorizedClientId: "other-verified-client");
         var responses = await Task.WhenAll(owner.PostAsync($"/instance/{id}/withdraw", null),
             renamed.PostAsync($"/instance/{id}/withdraw", null));
         foreach (var response in responses) { response.StatusCode.Should().Be(HttpStatusCode.OK); response.Dispose(); }
-        var firstAudit = WithdrawalAudit(await context.Storage.InstanceStorage.GetProcessInstance(id)).GetRawText();
-        using var again = await renamed.PostAsync($"/instance/{id}/withdraw", null);
+        var savedAudit = WithdrawalAudit(await context.Storage.InstanceStorage.GetProcessInstance(id));
+        savedAudit.GetProperty("ActorClientId").GetString().Should().BeOneOf("first-verified-client", "other-verified-client");
+        var firstAudit = savedAudit.GetRawText();
+        var otherClient = savedAudit.GetProperty("ActorClientId").GetString() == "first-verified-client" ? renamed : owner;
+        using var again = await otherClient.PostAsync($"/instance/{id}/withdraw", null);
         again.StatusCode.Should().Be(HttpStatusCode.OK);
         WithdrawalAudit(await context.Storage.InstanceStorage.GetProcessInstance(id)).GetRawText().Should().Be(firstAudit);
     }

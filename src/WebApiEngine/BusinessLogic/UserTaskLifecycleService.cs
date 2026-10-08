@@ -108,6 +108,7 @@ public sealed class UserTaskLifecycleService(
                 Action = action,
                 ActorOwnerKey = UserTaskDraftOwnerKey.Create(currentUser),
                 ActorUserId = currentUser.UserId,
+                AuthenticatedActor = currentUser.ToAuthenticatedActor(),
                 ActorDisplayName = DisplayName(currentUser),
                 PreviousDirectoryAssigneeUserId = access.State?.DirectoryAssigneeUserId,
                 NextDirectoryAssigneeUserId = next.DirectoryAssigneeUserId,

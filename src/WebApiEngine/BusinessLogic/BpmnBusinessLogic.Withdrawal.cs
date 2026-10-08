@@ -61,7 +61,8 @@ public partial class BpmnBusinessLogic
             instance.Cancel();
             if (master is not null)
                 master.Withdrawal = new ProcessWithdrawal(withdrawingUser!.Identity!,
-                    withdrawingUser.UserId, DateTimeOffset.UtcNow);
+                    withdrawingUser.UserId, DateTimeOffset.UtcNow)
+                    { ActorClientId = withdrawingUser.AuthorizedClientId };
 
             await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId,
                 processInstance.DefinitionId, processInstance.ProcessId);
