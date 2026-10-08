@@ -6,7 +6,7 @@
   "description": "Flowzer Console — React/TypeScript UI für die Flowzer BPMN Engine (API-first)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --config vite.embed.config.ts",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",

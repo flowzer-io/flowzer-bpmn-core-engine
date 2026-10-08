@@ -1,0 +1,9 @@
+/* Nur der schlanke Formularrahmen. Sämtliche Felder/Picker bleiben der vorhandene Flowzer-Renderer. */
+:root { --text: #243047; --muted: #64748b; --faint: #94a3b8; --surface: #fff; --surface-2: #f8fafc; --border: #dce2e9; --accent: #4f46e5; --fail: #b91c1c; --font-ui: system-ui, sans-serif; --r-sm: 4px; --r: 6px; --r-lg: 8px; }
+body { margin: 0; padding: 16px; font-family: var(--font-ui); color: var(--text); background: var(--surface); }
+.flowzer-embed-form footer { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 16px; }
+.flowzer-embed-form footer button { padding: 8px 12px; margin: 4px 8px 4px 0; border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; }
+.flowzer-embed-form footer button:disabled { opacity: .6; cursor: default; }
+[role=alert] { color: var(--fail); }
+
+.flowzer-embed-fields { border: 0; margin: 0; padding: 0; min-width: 0; }

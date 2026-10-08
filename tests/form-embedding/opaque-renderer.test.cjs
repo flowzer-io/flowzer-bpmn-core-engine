@@ -9,6 +9,7 @@ const { resolve } = require('node:path');
 for (const locale of ['de-DE', 'en-US']) {
 test.describe(locale, () => {
 test.use({ locale });
+// Testzweck: Echter Renderer und Kalender unter unveränderter opaque Sandbox/CSP.
 test('Existing renderer must work under opaque sandbox and strict CSP', async ({ page }) => {
   const root = resolve(__dirname, '.probe-dist');
   const server = createServer((req, res) => {

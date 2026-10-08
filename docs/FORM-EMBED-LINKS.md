@@ -1,9 +1,11 @@
-# Persönlicher Read-only-Formulareinstieg — erster Integrations-Slice
+# Persönlicher Read-only-Formulareinstieg und isolierte Formularansicht
 
-Status: **API-Grundlage, keine fertige oder ausgerollte Einbettungsoberfläche.**
-Die Renderer-/Sandbox-Abnahme, der gebundene Nachrichtenkanal und die echte
-HTTPS-/Identity-Abnahme sind zwingende Folge-Gates. Das Installations-Opt-in
-bleibt standardmäßig geschlossen und wird noch nicht in Compose aktiviert.
+Status: **API und separater Produktionsrenderer vorhanden; noch nicht in TT
+angebunden oder ausgerollt.** Der persönliche Hostkanal wird mit synthetischen
+Backend-Antworten geprüft. Echte Container-/HTTPS-/Keycloak-Abnahme einschließlich
+realer Token-Erneuerung und mindestens 45 Minuten Bearbeitung bleiben zwingende
+Folge-Gates. Das Installations-Opt-in bleibt standardmäßig geschlossen und wird
+noch nicht in Compose aktiviert.
 
 ## Vertrag
 
@@ -102,15 +104,80 @@ geschlossen: Die API erstellt für solche Formulare keinen Link. Der isolierte
 SDK-Nachlader weist alle nicht gebündelten Libraries sofort zurück statt endlos zu
 pollen. Die normale Console und der allgemeine Formularvertrag werden nicht beschränkt.
 
-`node tests/form-embedding/run-sandbox-probe.cjs` baut immer frisch und läuft auch
-in der CI. Der Browser prüft Text/Datum, editierbaren lokalen Zwischenstand, echten
-Kalender, geladene Styles und fehlende CSP-/Konsolenfehler sowie tatsächlich
-gesperrte Cookies/Storage. Directory-Auswahl, Formularabschnitte, Hostkanal und
-Actions sind noch **kein** Bestandteil dieser Renderer-Probe und bleiben offen.
-Das Probe-Bundle ist ein klassisches Einzeldatei-IIFE mit bewusstem statischem
-CSS-CORS. Der normale Console-Auslieferungspfad besitzt diese Bedingungen noch
-nicht; `/embed.html` würde dort derzeit im nicht einbettbaren SPA-Fallback landen.
-Ein späterer separater Embed-Build und seine HTTPS-/CSP-/Asset-Auslieferung müssen
-genau gegen das reale Containerartefakt abgenommen werden, bevor das Opt-in öffnet.
-Ein fehlgeschlagener Probe darf nicht durch eine lockere Sandbox repariert werden.
+`node tests/form-embedding/run-sandbox-probe.cjs` baut die isolierte Renderer-Probe
+immer frisch. Sie prüft auch weiterhin den Offline-Library-Nachlader. Der neue
+`node tests/form-embedding/run-production-embedding.cjs` baut dagegen den echten
+normalen Console-Auslieferungspfad einschließlich `/embed.html` und eines eigenen
+klassischen Einzeldatei-IIFE in `/embed-assets/`. Die vorhandenen Formularfelder,
+Directory-Picker und globalen Flowzer-Stile werden wiederverwendet; der normale
+Console-Einstieg bekommt keine Cookie-/Evaluator-Änderungen. Console-/BFF-Transporte
+sind im separaten Bundle durch explizit geschlossene Adapter ersetzt.
+
+Der Produktions-Browsertest verwendet die tatsächlich erzeugte Gateway-CSP mit
+synthetischen HTTPS-Routen und Backend-Antworten. Er prüft persönliche Einlösung
+nur einmal ohne Cookies/Authheader/Referrer, entfernten URL-Secret ohne Remount,
+Text/Datum und echten Kalender auf Deutsch/Englisch, gebundene Directory-Auswahl,
+unvollständigen Save, CAS-Konflikt mit erhaltenen Eingaben, Abschlussvalidierung,
+langsame/unklare Abschlussbestätigung und nicht freigegebene Einbettungsseiten.
+Virtuelle 46 Minuten sind ausdrücklich kein echter Keycloak-/45-Minuten-Nachweis.
+Formularabschnitte werden nur als bereits serverseitig expandierter Snapshot
+verwendet; deren spezieller Browser-Durchstich bleibt ein Folgeprüfpunkt.
+Ein fehlgeschlagener Test darf nie durch eine lockere Sandbox repariert werden.
 Kein Demo- oder Produktivdeployment ohne abgeschlossene Folge-Gates.
+
+## Produktionsauslieferung und Opt-in
+
+Die nginx-Console liefert `/embed.html` und `/embed-assets/` standardmäßig als
+**404**, niemals als SPA-/Login-Fallback. Die separate Gateway-Aktivierung benötigt:
+
+- `FLOWZER_EMBED_API_ORIGIN`: exakte öffentliche HTTPS-Origin der Installation.
+- `FLOWZER_EMBED_HOST_ORIGINS`: höchstens acht exakte freigegebene HTTPS-Origins,
+  getrennt durch ASCII-Leerzeichen; keine Wildcards, Pfade oder Steuerzeichen.
+
+Beide Werte müssen mit den oben genannten API-Optionen `PublicOrigin` und
+`AllowedHostOrigins` übereinstimmen. Teilkonfiguration oder unsichere Werte stoppen
+den Container vor nginx. `embedding-policy.sh` erzeugt die vollständigen
+Location-Header. Nur `/embed.html` ersetzt das geerbte `X-Frame-Options: DENY` durch
+exakte CSP-`frame-ancestors` plus **`sandbox allow-scripts`**. Alle sonstigen
+Console-Routen behalten ihren bisherigen Schutz. Das Dokument darf weder Formulare
+selbst abschicken noch fremde Skripte, Links, Objektinhalte oder Cookies/Storage
+verwenden. `connect-src` nennt ausschließlich den Read-only-Einlöseendpunkt.
+Statische Embed-Assets erlauben `Origin: null` ohne Credentials für Kalender-CSSOM.
+Form.io benötigt Inline-Stile, aber kein `unsafe-eval` oder `allow-same-origin`.
+
+## Gebundener Nachrichtenkanal
+
+1. Nach erfolgreicher Einlösung meldet der Frame `flowzer.embed.ready`, Version 1,
+   mit frischer `sessionId` ausschließlich an die servergeprüfte Host-Origin.
+2. Der Host muss Quelle `iframe.contentWindow`, opaque `event.origin === 'null'`
+   und Sitzung binden. Seine Antwort `flowzer.embed.connect` richtet er an genau
+   dieses Window (opaque Ziele erfordern `targetOrigin: '*'`); keine freien Ports.
+3. Der Frame akzeptiert nur seinen tatsächlichen Parent, exakte Host-Origin und
+   dieselbe Nonce. Er erzeugt ein frisches `MessageChannel` und überträgt genau
+   einen Port mit `flowzer.embed.connected`. Danach gibt es keine globale
+   Window-Mutationsschnittstelle mehr.
+4. Private Requests enthalten `kind: request`, `sessionId`, UUID-`id`, `operation`
+   und `payload`. Nur `draft.save`, `task.complete`, `directory.search` und
+   `directory.resolve` sind vorgesehen. Aufgabe und tatsächlicher Benutzer werden
+   immer durch den authentifizierten TT-Host gebunden, nicht durch den Payload.
+5. Antworten korrelieren `kind: response`, Sitzung und ID und enthalten entweder
+   `result` oder einen objektförmigen sicheren Fehler mit `code` und optional
+   explizit sicheren `fieldMessages`. Malforme Antworten sind kein Erfolg.
+   `task.complete` benötigt zusätzlich **`result: { completed: true }`**.
+
+Jeder einzelne RPC hat 30 Sekunden Transportbudget; der Kanal selbst hat keine
+Bearbeitungsfrist. Es gibt keine Tokens, Refresh-Tokens oder Secrets im Kanal.
+TT erneuert seine Anmeldung unabhängig und vermittelt jede Aktion erneut mit dem
+aktuellen Akteur. Das Backend bleibt die einzige Mutationsautorisierung.
+
+Manuelles Speichern übermittelt `expectedRevision`, `expectedTaskRevision` und
+`data`, ohne Pflichtfeld-/Entscheidungsvalidierung. Der Renderer wird nicht ersetzt;
+Edits während eines Saves bleiben anschließend als ungespeichert markiert.
+Ein Revisionskonflikt überschreibt nichts und lässt den lokalen Inhalt erhalten.
+Der Abschluss dagegen friert Aktion, Daten, Aufgabenrevision und Idempotenzschlüssel
+als einen Auftrag ein. Sein vorhandener Feldbaum ist während Abschluss und
+unklarem Ausgang `disabled`/`inert`; keine spätere Eingabe kann beim Erfolg verloren
+gehen. Unklare Ausgänge werden nur identisch wiederholt, keine neue Entscheidung
+mit demselben Schlüssel oder einem vorschnell neuen Schlüssel. Ausschließlich
+bekannte Fachfehler geben eine korrigierte neue Übermittlung frei. Diese UI-Regel
+ersetzt weder serverseitige Idempotenz noch die laufende Aufgaben-/Rechteprüfung.

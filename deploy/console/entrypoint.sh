@@ -39,6 +39,10 @@ add_header X-Content-Type-Options nosniff always;
 add_header Referrer-Policy strict-origin-when-cross-origin always;
 HEADERS
 
+# Die gesonderte Formularansicht ist ohne vollständiges Installations-Opt-in ein 404.
+# Fehlerhafte Allowlist-Werte stoppen den Container vor dem nginx-Start.
+/embedding-policy.sh > /etc/nginx/flowzer-embed-locations.conf
+
 API_UPSTREAM="${FLOWZER_API_UPSTREAM:-}"
 if [ -n "$API_UPSTREAM" ]; then
   # Nur host:port zulassen; alles andere koennte die nginx-Konfiguration erweitern.
@@ -78,6 +82,7 @@ server {
   client_max_body_size 8m;
 
   include /etc/nginx/flowzer-security-headers.conf;
+  include /etc/nginx/flowzer-embed-locations.conf;
 
   # Diese Liste muss alle API-Routen enthalten. Fehlt eine, beantwortet die Konsole sie
   # mit ihrer eigenen Startseite: Der Aufruf bekommt 200 und niemals die erwartete Antwort.
@@ -137,6 +142,7 @@ server {
   index index.html;
 
   include /etc/nginx/flowzer-security-headers.conf;
+  include /etc/nginx/flowzer-embed-locations.conf;
 
   location /assets/ {
     include /etc/nginx/flowzer-security-headers.conf;
