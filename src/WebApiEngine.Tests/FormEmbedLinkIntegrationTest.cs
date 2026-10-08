@@ -211,6 +211,8 @@ public sealed class FormEmbedLinkIntegrationTest
     [TestCase("""{"type":"textarea","key":"answer","editor":"quill"}""")]
     [TestCase("""{"type":"textarea","key":"answer","wysiwyg":true}""")]
     [TestCase("""{"type":"datetime","key":"answer","shortcutButtons":[{"label":"Heute","onClick":"today"}]}""")]
+    // Testzweck: Das geschlossene Shortcut-Plugin gilt auch für Kalender an anderen Feldtypen.
+    [TestCase("""{"type":"textfield","key":"answer","widget":"calendar","shortcutButtons":[{"label":"Heute","onClick":"today"}]}""")]
     public async Task Issue_ShouldRejectUnbundledWidgets(string component)
     {
         using var context = new AuthenticatedWorkflowTestContext(Settings);

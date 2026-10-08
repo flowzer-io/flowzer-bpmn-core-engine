@@ -18,7 +18,8 @@ public static class FormEmbeddingSchemaSupport
         if (node.ValueKind != JsonValueKind.Object) return true;
         var type = node.TryGetProperty("type", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
         if (type == "textarea" && (Active(node, "editor") || Active(node, "wysiwyg"))) return false;
-        if (type == "datetime" && Active(node, "shortcutButtons")) return false;
+        // Kalenderwidgets sind auch an Textfeldern möglich: Plugins stets schließen.
+        if (Active(node, "shortcutButtons")) return false;
         return node.EnumerateObject().All(property => Check(property.Value));
     }
 

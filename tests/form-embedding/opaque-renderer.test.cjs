@@ -6,6 +6,9 @@ const { resolve } = require('node:path');
 // Testzweck: Das echte Produktionsbundle des vorhandenen Renderers muss im opaque-origin
 // Frame mit eigenem Offline-Setup ohne unsafe-eval, Storage oder Cookie funktionieren
 // und Eingaben behalten. Das ist noch kein vollständiger Host-/Directory-Durchstich.
+for (const locale of ['de-DE', 'en-US']) {
+test.describe(locale, () => {
+test.use({ locale });
 test('Existing renderer must work under opaque sandbox and strict CSP', async ({ page }) => {
   const root = resolve(__dirname, '.probe-dist');
   const server = createServer((req, res) => {
@@ -50,6 +53,7 @@ test('Existing renderer must work under opaque sandbox and strict CSP', async ({
     // CDN-Skripte/-CSS aufgebaut und bedienbar sein, sonst fehlt der Urlaubsfall.
     await frame.getByLabel('Datum', { exact: false }).click();
     await expect(frame.locator('.flatpickr-calendar.open')).toBeVisible();
+    await expect(frame.locator('.flatpickr-weekday').first()).toHaveText(locale === 'de-DE' ? 'Mo' : 'Sun');
     await frame.getByLabel('Antwort', { exact: false }).click();
     await expect(frame.locator('.flatpickr-calendar.open')).toHaveCount(0);
     await frame.getByRole('button', { name: 'Assetgrenze prüfen' }).click();
@@ -66,3 +70,5 @@ test('Existing renderer must work under opaque sandbox and strict CSP', async ({
     expect(restrictions).toEqual({ storageDenied: true, cookieDenied: true, origin: 'null' });
   } finally { server.closeAllConnections(); await new Promise(r => server.close(r)); }
 });
+});
+}

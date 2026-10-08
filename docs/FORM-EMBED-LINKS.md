@@ -49,13 +49,22 @@ oder Formularinhalt. `DELETE RETURNING` entscheidet die Einlösung zwischen
 API-Prozessen, Aufgabenlöschung entfernt Freigaben per indiziertem FK. Erst die
 Aufgabe, dann die Freigabe werden gesperrt; ein PostgreSQL-Service-Test erzwingt
 einen parallelen Abschluss. Eine sperrfreie Hash-Vorprüfung hält zufällige anonyme
-Anfragen aus der globalen Engine-Sperre heraus. Der Einlösepfad hat zusätzlich ein
+Anfragen aus der globalen Engine-Sperre heraus. Der Einlösepfad hat zusätzlich
 eigene Endpoint-gebundene, geordnete Kontingente (standardmäßig zuerst 60 POSTs je
 IPv4-Adresse bzw. IPv6-/64 und Minute, danach 600 je API-Prozess, keine Warteschlange),
 auch bei deaktiviertem allgemeinem Limiter. Beide Limits sind über
 `RedeemPerCallerPermitLimit`/`RedeemGlobalPermitLimit` konfigurierbar. Eine bereits
 gedrosselte Quelle verbraucht das Globalbudget nicht weiter; Routingvarianten wie
 `/redeem/` haben dieselben Metadaten. Dies ist kein verteiltes Gateway-Ratenlimit.
+Hinter Proxys müssen `ForwardedHeaders:KnownNetworks`/`KnownProxies` sowie
+`ForwardLimit` für die konkrete vertrauenswürdige Kette gesetzt sein; beliebige
+Forwarded-Header sind niemals vertrauenswürdig. Ohne diesen Nachweis teilen alle
+Quellen die Proxyadresse. Auch Firmen-NAT teilt eine IPv4-Partition; die Grenzen
+sind für die erwartete Nutzung bewusst zu dimensionieren und im echten Gateway
+zu prüfen. Ein verteiltes Botnetz oder eine große IPv6-Zuteilung mit mehreren
+/64-Netzen kann das Globalbudget weiterhin erschöpfen. Dieses Restrisiko bleibt
+ohne zusätzliche Gateway-Abwehr ausdrücklich bestehen; kein zweiter verteilter
+Limiter wird für den Demo-Durchstich gebaut.
 
 Höchstens vier noch nicht eingelöste Links bleiben je Aufgabe bestehen; weitere
 Ausgaben verdrängen die ältesten Links, niemals ein bereits geöffnetes Formular.
