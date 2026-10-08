@@ -34,6 +34,21 @@ public static class ApiExceptionHandlingExtensions
                 }
 
                 context.Response.StatusCode = MapStatusCode(exception);
+                if (exception is WorkflowVersionConflictException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The displayed workflow version has changed.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "workflow.definition_changed";
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (exception is IdempotencyConflictException)
                 {
                     var problem = new ApiProblemDetails
@@ -271,7 +286,7 @@ public static class ApiExceptionHandlingExtensions
         return exception switch
         {
             BadHttpRequestException badHttpRequest => badHttpRequest.StatusCode,
-            DefinitionStorageConflictException or IdempotencyConflictException or UserTaskDraftConflictException
+            DefinitionStorageConflictException or IdempotencyConflictException or WorkflowVersionConflictException or UserTaskDraftConflictException
                 or FormAuthoringConflictException
                 or FormSectionAuthoringConflictException
                 or AiConnectionConflictException

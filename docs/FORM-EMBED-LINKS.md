@@ -9,6 +9,28 @@ noch nicht in Compose aktiviert.
 
 ## Vertrag
 
+### Versionsbindung beim Workflowstart
+
+Der Host verwendet die tatsächlich angezeigte `deployedId` des Katalogs als
+`expectedDefinitionId`: beim Startformularabruf als Queryparameter und beim
+`POST /definition/meta/{id}/instance` im Body. Eine Abweichung liefert vor
+Fachmutationen `409` mit `workflow.definition_changed`; das Formular muss
+ausdrücklich neu geöffnet werden. Identische persönliche Idempotenz-Replays
+geben dagegen die bereits gestartete Instanz in ihrer ursprünglichen Version
+zurück, auch nach einem Deployment. Eine andere Versionskennung mit demselben
+Schlüssel ist anderer Requestinhalt und wird abgewiesen.
+Der neue Hashinhalt ist außerhalb des frei belegbaren JSON domänensepariert;
+Legacy-Variablen können ihn nicht imitieren. Der persönliche Schlüssel-Scope
+bleibt gemeinsam, damit ein Vertragswechsel keine zweite Instanz erzeugt.
+
+Die Bindung bleibt für bestehende Aufrufer optional; der neue TT-Host muss sie
+immer senden. Ohne Versionsbindung bleiben auch bestehende Requesthashes gleich.
+Die TT-seitige 24-Stunden-Grenze für unklare Starts ist damit noch nicht gebaut.
+Der vorhandene generische Flowzer-Idempotenzspeicher behält seine Aufbewahrung.
+Das Startformular selbst hat weiterhin keinen persistenten Benutzerentwurf.
+
+### Persönlicher Human-Task-Einstieg
+
 - `POST /usertask/{id}/form-link`: authentifizierter, persönlich berechtigter
   Bearbeiter, Body `{ "hostOrigin": "https://host.example" }`.
 - Antwort `url` hat einen zufälligen 256-Bit-Einstieg ausschließlich im Fragment

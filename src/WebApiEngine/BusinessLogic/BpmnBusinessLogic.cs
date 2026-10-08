@@ -1004,12 +1004,13 @@ public partial class BpmnBusinessLogic(
     /// Bewusst derselbe Weg wie beim Start (Katalog, deployte Version, Prozessauflösung): Was
     /// die Konsole hier zu sehen bekommt, muss zu dem passen, was der Start gleich erwartet.
     /// </summary>
-    public async Task<StartFormReference> GetStartFormReference(string relatedDefinitionId, string? processId = null)
+    public async Task<StartFormReference> GetStartFormReference(string relatedDefinitionId, string? processId = null,
+        Guid? expectedDefinitionId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
         using var storageSystem = storageProvider.GetTransactionalStorage();
-        var directStart = await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+        var directStart = await ResolveDirectStart(storageSystem, relatedDefinitionId, processId, expectedDefinitionId);
 
         return new StartFormReference(directStart.Definition.Id, RequireStartFormKey(directStart.Process));
     }
@@ -1019,7 +1020,8 @@ public partial class BpmnBusinessLogic(
         Variables? variables = null,
         string? processId = null,
         AuthenticatedSubject? initiator = null,
-        IdempotencyRequest? idempotency = null)
+        IdempotencyRequest? idempotency = null,
+        Guid? expectedDefinitionId = null)
     {
         await _engineMutationLock.WaitAsync();
         try
@@ -1028,6 +1030,8 @@ public partial class BpmnBusinessLogic(
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
             var acquisition = await IdempotencyExecution.Acquire(storageSystem, idempotency);
+            // Ein bereits erfolgreicher identischer Replay bleibt in seiner alten
+            // Fassung gültig; die neue Versionsprüfung gilt erst für einen neuen Start.
             if (acquisition.IsReplay)
             {
                 var replayId = acquisition.Record?.ProcessInstanceId
@@ -1038,7 +1042,7 @@ public partial class BpmnBusinessLogic(
             try
             {
                 var (deployedDefinition, process) =
-                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId, expectedDefinitionId);
 
                 // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
                 // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
@@ -1104,7 +1108,8 @@ public partial class BpmnBusinessLogic(
     private static async Task<DirectStartProcess> ResolveDirectStart(
         ITransactionalStorage storageSystem,
         string relatedDefinitionId,
-        string? processId)
+        string? processId,
+        Guid? expectedDefinitionId)
     {
         // Der Katalogeintrag entscheidet, ob es den Workflow gibt. Ohne diese Pruefung liesse
         // sich eine Version starten, die nach dem Loeschen des Workflows noch liegt — etwa
@@ -1119,6 +1124,10 @@ public partial class BpmnBusinessLogic(
         var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
             ?? throw new InvalidOperationException(
                 $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
+        // Ein gültiger Versionswechsel zu reinem Message-/Timerstart soll ebenfalls
+        // den expliziten Formular-Versionskonflikt liefern, nicht erst einen Parser-
+        // oder Startbarkeitsfehler der anderen Fassung.
+        RequireDisplayedDefinition(deployedDefinition.Id, expectedDefinitionId);
 
         var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
         var model = ModelParser.ParseModel(xmlData);
@@ -1126,6 +1135,12 @@ public partial class BpmnBusinessLogic(
         return new DirectStartProcess(
             deployedDefinition,
             ResolveDirectStartProcess(model, deployedDefinition, processId));
+    }
+
+    private static void RequireDisplayedDefinition(Guid deployedId, Guid? expectedId)
+    {
+        if (expectedId.HasValue && expectedId.Value != deployedId)
+            throw new WorkflowVersionConflictException();
     }
 
     /// <summary>

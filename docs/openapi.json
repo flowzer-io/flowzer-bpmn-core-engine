@@ -1568,6 +1568,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "expectedDefinitionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -1630,6 +1638,16 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FormDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
                 }
               }
             }
@@ -14022,6 +14040,11 @@
       "StartInstanceDto": {
         "type": "object",
         "properties": {
+          "expectedDefinitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
           "variables": {
             "type": "object",
             "additionalProperties": {},

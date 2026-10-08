@@ -17,6 +17,27 @@ public class OpenApiContractTest
 {
     private const string SnapshotPath = "docs/openapi.json";
 
+    // Testzweck: Generierte Clients erkennen die optionale Versionsbindung und
+    // den fachlichen 409 sowohl beim Formularabruf als auch beim tatsächlichen Start.
+    [Test]
+    public async Task DirectStart_ShouldDescribeExpectedDefinitionAndConflict()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var start = root.GetProperty("components").GetProperty("schemas").GetProperty("StartInstanceDto");
+        start.GetProperty("properties").GetProperty("expectedDefinitionId").GetProperty("format")
+            .GetString().Should().Be("uuid");
+        start.TryGetProperty("required", out var required).Should().BeFalse("alte Aufrufer bleiben kompatibel");
+        var paths = root.GetProperty("paths");
+        var form = paths.GetProperty("/Definition/meta/{id}/start-form").GetProperty("get");
+        form.GetProperty("parameters").EnumerateArray().Should().Contain(parameter =>
+            parameter.GetProperty("name").GetString() == "expectedDefinitionId"
+            && parameter.GetProperty("in").GetString() == "query");
+        form.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        paths.GetProperty("/Definition/meta/{id}/instance").GetProperty("post")
+            .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+    }
+
     // Testzweck: Die erzeugte OpenAPI-Beschreibung entspricht dem eingecheckten Schnappschuss.
     [Test]
     public async Task GeneratedOpenApiDocument_ShouldMatchTheCommittedSnapshot()

@@ -13,6 +13,13 @@ namespace WebApiEngine.Shared;
 public class StartInstanceDto
 {
     /// <summary>
+    /// Kennung der im Katalog angezeigten deployten Fassung. Bei Abweichung erfolgt
+    /// vor jeder Fachmutation ein 409; ein identischer persönlicher Replay bleibt
+    /// an die ursprünglich gestartete Fassung gebunden. Null erhält alte Aufrufer.
+    /// </summary>
+    public Guid? ExpectedDefinitionId { get; init; }
+
+    /// <summary>
     /// Die Startvariablen der Instanz. <c>null</c> heisst „keine Angabe gemacht" und ist etwas
     /// anderes als ein leeres Objekt: Bei einem Workflow mit Startformular wird der Start ohne
     /// Angabe abgelehnt, ein leeres Objekt dagegen angenommen.

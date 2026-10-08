@@ -1315,7 +1315,9 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedDefinitionId?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -1362,6 +1364,15 @@ export interface paths {
                         "text/plain": components["schemas"]["FormDtoApiStatusResult"];
                         "application/json": components["schemas"]["FormDtoApiStatusResult"];
                         "text/json": components["schemas"]["FormDtoApiStatusResult"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
                     };
                 };
             };
@@ -8660,6 +8671,8 @@ export interface components {
             result?: components["schemas"]["SignalSubscriptionDto"][] | null;
         };
         StartInstanceDto: {
+            /** Format: uuid */
+            expectedDefinitionId?: string | null;
             variables?: {
                 [key: string]: unknown;
             } | null;
