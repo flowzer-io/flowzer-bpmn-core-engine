@@ -435,3 +435,7 @@ package-lock.json
 
 # Laufzeitkonfiguration des Compose-Stacks (Vorlage: .env.example)
 .env
+
+# Isolierter Sandbox-Probe des vorhandenen Renderers
+tests/form-embedding/.probe-dist/
+tests/form-embedding/test-results/

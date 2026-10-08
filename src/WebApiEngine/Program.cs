@@ -86,6 +86,12 @@ builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddScoped<UserTaskCompletionService>();
 builder.Services.AddScoped<UserTaskDraftService>();
+builder.Services.AddScoped<WebApiEngine.FormEmbedding.FormEmbedLinkService>();
+builder.Services.AddHostedService<WebApiEngine.FormEmbedding.FormEmbedGrantCleanupService>();
+builder.Services.AddOptions<WebApiEngine.FormEmbedding.FormEmbeddingOptions>()
+    .Bind(builder.Configuration.GetSection(WebApiEngine.FormEmbedding.FormEmbeddingOptions.SectionName))
+    .Validate(options => options.IsValid(), "Form embedding configuration is invalid.")
+    .ValidateOnStart();
 builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();

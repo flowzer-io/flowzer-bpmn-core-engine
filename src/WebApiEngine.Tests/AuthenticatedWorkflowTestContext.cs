@@ -34,7 +34,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "flowzer-completion-test", Guid.NewGuid().ToString("N"));
     private readonly WebApplicationFactory<Program> _factory;
 
-    internal AuthenticatedWorkflowTestContext()
+    internal AuthenticatedWorkflowTestContext(IReadOnlyDictionary<string, string>? settings = null, TimeProvider? clock = null)
     {
         Environment.SetEnvironmentVariable(Storage.StorageRootEnvironmentVariableName, _root);
         Storage = new Storage();
@@ -52,6 +52,9 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
             builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
             builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
+            if (settings is not null)
+                foreach (var setting in settings) builder.UseSetting(setting.Key, setting.Value);
+            if (clock is not null) builder.ConfigureServices(services => services.AddSingleton(clock));
             builder.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(
                 JwtBearerDefaults.AuthenticationScheme, options =>
                 {

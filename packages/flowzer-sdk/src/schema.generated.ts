@@ -3137,6 +3137,116 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/usertask/{taskId}/form-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    taskId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["CreateFormEmbedLinkRequestDto"];
+                    "text/json": components["schemas"]["CreateFormEmbedLinkRequestDto"];
+                    "application/*+json": components["schemas"]["CreateFormEmbedLinkRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormEmbedLinkDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormEmbedLinkDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormEmbedLinkDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/form-embed/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["RedeemFormEmbedLinkRequestDto"];
+                    "text/json": components["schemas"]["RedeemFormEmbedLinkRequestDto"];
+                    "application/*+json": components["schemas"]["RedeemFormEmbedLinkRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FormEmbedSnapshotDtoApiStatusResult"];
+                        "application/json": components["schemas"]["FormEmbedSnapshotDtoApiStatusResult"];
+                        "text/json": components["schemas"]["FormEmbedSnapshotDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/form/{formId}/versions": {
         parameters: {
             query?: never;
@@ -7299,6 +7409,9 @@ export interface components {
             secretReference: string | null;
             allowedTools?: components["schemas"]["AiToolPermissionDto"][] | null;
         };
+        CreateFormEmbedLinkRequestDto: {
+            hostOrigin: string | null;
+        };
         CreateFormSectionRequestDto: {
             name: string | null;
         };
@@ -7607,6 +7720,33 @@ export interface components {
             successful?: boolean;
             errorMessage?: string | null;
             result?: components["schemas"]["FormDto"];
+        };
+        FormEmbedLinkDto: {
+            url: string | null;
+            /** Format: date-time */
+            redeemBeforeUtc: string;
+        };
+        FormEmbedLinkDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormEmbedLinkDto"];
+        };
+        FormEmbedSnapshotDto: {
+            /** Format: uuid */
+            userTaskId: string;
+            hostOrigin: string | null;
+            /** Format: int64 */
+            taskRevision: number;
+            form: components["schemas"]["FormDto"];
+            context: {
+                [key: string]: unknown;
+            } | null;
+            draft: components["schemas"]["UserTaskDraftDto"];
+        };
+        FormEmbedSnapshotDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["FormEmbedSnapshotDto"];
         };
         FormFolderDto: {
             /** Format: uuid */
@@ -8350,6 +8490,9 @@ export interface components {
         PublishFormSectionAuthoringDraftRequestDto: {
             /** Format: int64 */
             expectedRevision: number;
+        };
+        RedeemFormEmbedLinkRequestDto: {
+            secret: string | null;
         };
         RenameFormSectionRequestDto: {
             name: string | null;

@@ -79,3 +79,10 @@ maschinenlesbar; lokale Formulardaten werden bei Hintergrund-Refetches nicht ers
 - keine Paketveröffentlichung aus diesem Slice
 - keine allgemeine Produktionsfreigabe ohne reale Identity-, HTTPS- und
   Einbettungsabnahme
+
+## Persönlicher Read-only-Einstieg (API-Slice)
+
+Der einmalige, fünf Minuten einlösbare Formulareinstieg ist unter
+[FORM-EMBED-LINKS.md](FORM-EMBED-LINKS.md) dokumentiert. Er verleiht keinerlei
+Mutationsrecht. Renderer, Nachrichtenkanal und reale HTTPS-/Identity-Abnahme
+sind noch nicht vollständig umgesetzt; das neue Installations-Opt-in bleibt geschlossen.

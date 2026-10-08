@@ -32,6 +32,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
         DecisionStorage = new PostgreSqlDecisionStorage(_session);
+        FormEmbedGrantStorage = new PostgreSqlFormEmbedGrantStorage(_session);
         InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
@@ -54,6 +55,7 @@ public sealed class PostgreSqlStorage : IStorageSystem, IDisposable
     public IAiRunStorage AiRunStorage { get; }
     public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
+    public IFormEmbedGrantStorage FormEmbedGrantStorage { get; }
 
     public void Dispose() => _session.Dispose();
 }
@@ -87,6 +89,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
         AiConnectionStorage = new PostgreSqlAiConnectionStorage(_session);
         AiRunStorage = new PostgreSqlAiRunStorage(_session);
         DecisionStorage = new PostgreSqlDecisionStorage(_session);
+        FormEmbedGrantStorage = new PostgreSqlFormEmbedGrantStorage(_session);
         InboundTriggerStorage = new PostgreSqlInboundTriggerStorage(_session);
     }
 
@@ -109,6 +112,7 @@ public sealed class PostgreSqlTransactionalStorage : ITransactionalStorage
     public IAiRunStorage AiRunStorage { get; }
     public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
+    public IFormEmbedGrantStorage FormEmbedGrantStorage { get; }
 
     /// <summary>
     /// Kurze exklusive Schreibphase für die Formular-Bestandsübernahme beim Deployment.

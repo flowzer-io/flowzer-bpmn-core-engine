@@ -25,11 +25,6 @@ public static class FlowzerLimitsExtensions
         uploadLimit.Validate();
         services.AddSingleton(uploadLimit);
 
-        if (!rateLimiting.Enabled)
-        {
-            return services;
-        }
-
         var inboundTriggers = configuration.GetSection(InboundTriggerOptions.SectionName).Get<InboundTriggerOptions>()
                               ?? new InboundTriggerOptions();
 
@@ -39,7 +34,7 @@ public static class FlowzerLimitsExtensions
 
             var byCaller = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
-                if (IsExempt(context))
+                if (!rateLimiting.Enabled || IsExempt(context))
                 {
                     return RateLimitPartition.GetNoLimiter("health");
                 }
@@ -60,7 +55,7 @@ public static class FlowzerLimitsExtensions
             var byTriggerKey = PartitionedRateLimiter.Create<HttpContext, string>(context =>
             {
                 var key = TriggerKeyOf(context);
-                if (key is null)
+                if (!rateLimiting.Enabled || key is null)
                 {
                     return RateLimitPartition.GetNoLimiter("not-a-trigger");
                 }
@@ -74,7 +69,19 @@ public static class FlowzerLimitsExtensions
                 });
             });
 
-            limiter.GlobalLimiter = PartitionedRateLimiter.CreateChained(byCaller, byTriggerKey);
+            // Eine API-prozessweite anonyme Grenze statt nur IP-Partitionen. Auch
+            // bei deaktiviertem allgemeinen Limiter dürfen unbekannte Secrets nicht
+            // beliebig viele Lookup-Anfragen erzeugen; angemeldete Arbeit bleibt getrennt.
+            var byFormEmbed = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                string.Equals(context.Request.Path.Value, "/form-embed/redeem", StringComparison.OrdinalIgnoreCase)
+                && HttpMethods.IsPost(context.Request.Method)
+                    ? RateLimitPartition.GetFixedWindowLimiter("form-embed-read", _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60, Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
+                        QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+                    })
+                    : RateLimitPartition.GetNoLimiter("not-form-embed-read"));
+            limiter.GlobalLimiter = PartitionedRateLimiter.CreateChained(byCaller, byTriggerKey, byFormEmbed);
 
             limiter.OnRejected = async (context, cancellationToken) =>
             {
@@ -140,11 +147,7 @@ public static class FlowzerLimitsExtensions
     /// </summary>
     public static IApplicationBuilder UseFlowzerRateLimiting(this IApplicationBuilder app)
     {
-        var rateLimiting = app.ApplicationServices.GetRequiredService<FlowzerRateLimitingOptions>();
-        if (rateLimiting.Enabled)
-        {
-            app.UseRateLimiter();
-        }
+        app.UseRateLimiter();
 
         return app;
     }
