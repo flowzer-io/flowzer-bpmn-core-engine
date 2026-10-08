@@ -8,6 +8,7 @@ using StorageSystem;
 using WebApiEngine.Auth;
 using WebApiEngine.BusinessLogic;
 using WebApiEngine.Forms;
+using WebApiEngine.IdentityDirectory;
 using WebApiEngine.Shared;
 
 namespace WebApiEngine.FormEmbedding;
@@ -21,7 +22,8 @@ public sealed class FormEmbedLinkService(
     IStorageSystem readStorage,
     ICurrentUserContextAccessor currentUser,
     IOptions<FormEmbeddingOptions> options,
-    TimeProvider clock)
+    TimeProvider clock,
+    IOptions<KeycloakDirectoryOptions>? directoryOptions = null)
 {
     /// <summary>Erstellt nur für eine persönlich berechtigte Directory-Identität einen Einstieg.</summary>
     public async Task<FormEmbedLinkDto?> IssueAsync(Guid taskId, string hostOrigin, CancellationToken cancellationToken = default)
@@ -116,7 +118,7 @@ public sealed class FormEmbedLinkService(
         return FormEmbeddingSchemaSupport.IsSupported(form.FormData) ? form : null;
     }
 
-    private static async Task<(ExtendedUserTaskSubscription Task, UserTaskAccess Access)?> FindTask(
+    private async Task<(ExtendedUserTaskSubscription Task, UserTaskAccess Access)?> FindTask(
         IStorageSystem storage, Guid taskId, CurrentUserContext actor)
     {
         if (!await storage.UserTaskLifecycleStorage.LockTask(taskId)) return null;
@@ -128,6 +130,12 @@ public sealed class FormEmbedLinkService(
         // Anders als bestehende Legacy-APIs benötigt er stets aktuelle stabile Identitäten.
         if (task.AssignmentMode != BPMN.HumanInteraction.UserTaskAssignmentMode.Directory) return null;
         var snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot();
+        var directory = directoryOptions?.Value;
+        // Ein alter Grant umgeht als anonymer Einstieg die JWT-Scope-Policy.
+        // Deshalb gilt die aktuelle Installationsgrenze auch hier erneut.
+        if (!string.IsNullOrEmpty(directory?.RootGroupId)
+            && (actor.Identity is null || !DirectoryGroupScope.AllowsIdentity(snapshot, directory.Issuer,
+                directory.RootGroupId, actor.Identity.Issuer, actor.Identity.Subject))) return null;
         if (DirectoryIdentityAccess.Resolve(actor, snapshot) is null) return null;
         var access = await UserTaskWorkAuthorization.EvaluateAsync(storage, task, actor, canOperate: false, snapshot);
         if (!access.CanWork) return null;

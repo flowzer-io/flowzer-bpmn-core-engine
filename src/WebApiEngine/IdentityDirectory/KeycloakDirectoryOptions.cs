@@ -30,6 +30,14 @@ public sealed class KeycloakDirectoryOptions
     /// <summary>Vertrauliches Client-Secret; ausschließlich zur Laufzeit aus einem Secret-Store.</summary>
     public string? ClientSecret { get; set; }
 
+    /// <summary>
+    /// Optionale stabile Keycloak-Gruppen-ID als Installationsgrenze. Mit Wert
+    /// werden nur diese Gruppe, ihre Nachfahren und deren Mitglieder gelesen;
+    /// Namen, Pfadpräfixe und Token-Gruppen sind kein Identitätsersatz.
+    /// Leer erhält den bestehenden ausdrücklich realmweiten Abgleich.
+    /// </summary>
+    public string RootGroupId { get; set; } = string.Empty;
+
     /// <summary>Größe jeder Keycloak-Seite; der Wert wird zusätzlich defensiv begrenzt.</summary>
     public int PageSize { get; set; } = 100;
 
@@ -63,12 +71,13 @@ public sealed class KeycloakDirectoryOptions
     /// <summary>Prueft nur Struktur und Grenzen; geheime Werte werden nie in die Meldung aufgenommen.</summary>
     public bool IsValid()
     {
-        if (!Enabled) return true;
+        if (!Enabled) return string.IsNullOrEmpty(RootGroupId);
         return IsSafeHttpsUri(ServerUrl)
                && IsSafeHttpsUri(Issuer)
                && !string.IsNullOrWhiteSpace(Realm)
                && !string.IsNullOrWhiteSpace(ClientId)
                && !string.IsNullOrWhiteSpace(ClientSecret)
+               && (string.IsNullOrEmpty(RootGroupId) || IsSafeRootGroupId(RootGroupId))
                && PageSize is >= 1 and <= 1_000
                && MaxPages is >= 1 and <= 100_000
                && MaxRetries is >= 0 and <= 5
@@ -79,6 +88,37 @@ public sealed class KeycloakDirectoryOptions
                && MaxResponseBytes is >= 1_024 and <= 32 * 1024 * 1024
                && TokenRefreshSkewSeconds is >= 0 and <= 300
                && SyncIntervalSeconds is >= 10 and <= 86_400;
+    }
+
+    // Stabile Provider-IDs werden als genau ein URL-Segment verwendet, nie als
+    // Anzeigename oder Pfad. Kein Trimmen, Dekodieren oder toleranter Fallback.
+    private static bool IsSafeRootGroupId(string value) => value.Length is >= 1 and <= 256
+        && value.All(character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
+
+    /// <summary>
+    /// Opaque User-Storage-IDs dürfen etwa f:provider:externalId, Unicode oder
+    /// längere externe Kennungen enthalten. Nur mehrdeutige URL-Segmente schließen;
+    /// keine UUID-Form erzwingen, kein Trimmen und keine Unicode-Normalisierung.
+    /// HTTP-Body-, Seiten- und Importlimits bleiben unabhängig davon wirksam.
+    /// </summary>
+    internal static bool IsSafeProviderId(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value is "." or "..") return false;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (char.IsWhiteSpace(character) || char.IsControl(character) || character is '/' or '\\' or '%' or '?' or '#')
+                return false;
+            // EscapeDataString ersetzt ungepaarte Surrogates; dann wäre der
+            // angefragte Provider-Schlüssel nicht mehr der gelesene Schlüssel.
+            if (char.IsHighSurrogate(character))
+            {
+                if (index + 1 >= value.Length || !char.IsLowSurrogate(value[index + 1])) return false;
+                index++;
+            }
+            else if (char.IsLowSurrogate(character)) return false;
+        }
+        return true;
     }
 
     private static bool IsSafeHttpsUri(string value) =>

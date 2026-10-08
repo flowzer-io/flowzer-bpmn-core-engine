@@ -5,8 +5,10 @@ using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.Time.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Model;
 using StorageSystem;
+using WebApiEngine.IdentityDirectory;
 
 
 namespace WebApiEngine.Tests;
@@ -339,6 +341,24 @@ public sealed class FormEmbedLinkIntegrationTest
         foreach (var value in new[] { "", "../escape", new string('a', 42), new string('a', 44) })
             (await Redeem(frame, value)).StatusCode.Should().Be(HttpStatusCode.NotFound);
         (await frame.GetAsync("/form-embed/redeem?secret=unused" )).StatusCode.Should().NotBe(HttpStatusCode.OK);
+    }
+
+    // Testzweck: Ein vor der Scope-Einrichtung erstellter persönlicher Link darf
+    // die anonyme Policy nicht nutzen, um den alten realmweiten Snapshot wieder zu öffnen.
+    [Test]
+    public async Task Redemption_ShouldRecheckNewInstallationScopeWithoutAuthenticatedPolicy()
+    {
+        using var context = new AuthenticatedWorkflowTestContext(Settings);
+        var task = await StartDirectoryTask(context);
+        using var actor = context.CreateClient();
+        using var frame = context.CreateAnonymousClient();
+        var secret = await Issue(actor, task.Id);
+        // Nur im synthetischen Test: derselbe persistente Grant/Directory-Stand nach
+        // Umstellung der Installation. Die anonyme Route hat keine JWT-Scope-Policy.
+        var directory = context.Services.GetRequiredService<IOptions<KeycloakDirectoryOptions>>().Value;
+        directory.RootGroupId = KeycloakDirectoryScopeTest.RootId;
+        directory.Issuer = AuthenticatedWorkflowTestContext.Issuer;
+        (await Redeem(frame, secret)).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     private static async Task<string> Issue(HttpClient client, Guid taskId)

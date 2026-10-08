@@ -84,5 +84,12 @@ maschinenlesbar; lokale Formulardaten werden bei Hintergrund-Refetches nicht ers
 
 Der einmalige, fünf Minuten einlösbare Formulareinstieg ist unter
 [FORM-EMBED-LINKS.md](FORM-EMBED-LINKS.md) dokumentiert. Er verleiht keinerlei
-Mutationsrecht. Renderer, Nachrichtenkanal und reale HTTPS-/Identity-Abnahme
-sind noch nicht vollständig umgesetzt; das neue Installations-Opt-in bleibt geschlossen.
+Mutationsrecht. Der vorhandene Renderer und der gebundene Nachrichtenkanal sind
+implementiert und synthetisch geprüft; die tatsächliche TT-Anbindung sowie reale
+HTTPS-/Identity-Abnahme bleiben offen. Das Installations-Opt-in bleibt geschlossen.
+
+Ein Host teilt keine Realm-Gruppen allein durch Token-Claims mit. Eine auf einen
+Teilbaum begrenzte Installation kann `IdentityDirectory__RootGroupId` verwenden
+([Betriebsvertrag](OPERATIONS.md#optionaler-gruppen-scope-einer-installation));
+Flowzer prüft dann aktuelle stabile Directory-Mitgliedschaften zusätzlich zu Rollen
+und Objektberechtigungen. Der Host erteilt dadurch keine eigenen Gruppenrechte.

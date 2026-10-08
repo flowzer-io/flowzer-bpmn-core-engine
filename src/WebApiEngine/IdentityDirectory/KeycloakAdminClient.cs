@@ -10,7 +10,7 @@ namespace WebApiEngine.IdentityDirectory;
 /// Liest das Keycloak-Admin-API mit Client-Credentials. Der Client kennt nur die für das
 /// Verzeichnis benötigten Felder und führt keine schreibenden HTTP-Operationen aus.
 /// </summary>
-public sealed class KeycloakAdminClient : IKeycloakAdminClient
+public sealed partial class KeycloakAdminClient : IKeycloakAdminClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpClient _httpClient;
@@ -31,6 +31,10 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     {
         var configuration = ValidateConfiguration();
         var accessToken = new AccessTokenLease(this, configuration);
+        if (!string.IsNullOrEmpty(_options.RootGroupId))
+        {
+            return await GetScopedSnapshotAsync(configuration, accessToken, cancellationToken);
+        }
         var users = await GetPagedAsync<KeycloakUserRepresentation>(
             configuration.AdminEndpoint("users"), user => user.Id, "user", accessToken, cancellationToken);
         var rootGroups = await GetPagedAsync<KeycloakGroupRepresentation>(
@@ -187,6 +191,19 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
         string? parentId = null)
     {
         var groupId = RequireId(group.Id, "group");
+        if (!string.IsNullOrEmpty(_options.RootGroupId) && parentId is not null)
+        {
+            var parentPath = groups[parentId].Path;
+            // Keycloak erlaubt Slashes im einzelnen Gruppennamen, je Modus roh
+            // oder als ~/. Die Child-Route/IDs sind Autorität; der exakte Pfad
+            // ist nur die zusätzliche Driftprüfung, kein Hierarchieparser.
+            if (string.IsNullOrWhiteSpace(parentPath) || string.IsNullOrWhiteSpace(group.Name)
+                || (!string.Equals(group.Path, parentPath + "/" + group.Name, StringComparison.Ordinal)
+                    && !string.Equals(group.Path, parentPath + "/" + group.Name.Replace("/", "~/", StringComparison.Ordinal), StringComparison.Ordinal)))
+            {
+                throw InvalidResponse("Keycloak returned a child outside its requested group path.");
+            }
+        }
         AddGroup(groups, group, parentId);
         if (!loadedGroupTrees.Add(groupId)) return;
 
@@ -301,7 +318,8 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
 
     private ValidatedConfiguration ValidateConfiguration()
     {
-        if (!Uri.TryCreate(_options.ServerUrl, UriKind.Absolute, out var serverUrl)
+        if ((!string.IsNullOrEmpty(_options.RootGroupId) && !_options.IsValid())
+            || !Uri.TryCreate(_options.ServerUrl, UriKind.Absolute, out var serverUrl)
             || serverUrl.Scheme != Uri.UriSchemeHttps
             || !string.IsNullOrEmpty(serverUrl.UserInfo)
             || !string.IsNullOrEmpty(serverUrl.Query)
@@ -341,9 +359,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     }
 
     private static string RequireId(string? id, string entity) =>
-        !string.IsNullOrWhiteSpace(id)
+        !string.IsNullOrWhiteSpace(id) && KeycloakDirectoryOptions.IsSafeProviderId(id)
             ? id
-            : throw InvalidResponse($"Keycloak returned a {entity} without a stable identifier.");
+            : throw InvalidResponse($"Keycloak returned a {entity} without a safe stable identifier.");
 
     private static KeycloakAdminClientException InvalidResponse(string message) =>
         new(KeycloakAdminClientFailureKind.InvalidResponse, message);
@@ -363,6 +381,9 @@ public sealed class KeycloakAdminClient : IKeycloakAdminClient
     private sealed record ValidatedConfiguration(string ServerUrl, string Realm, string ClientId, string ClientSecret, int PageSize)
     {
         public Uri TokenEndpoint => new($"{ServerUrl}/realms/{Realm}/protocol/openid-connect/token", UriKind.Absolute);
+
+        public Uri AdminResourceEndpoint(string resource) =>
+            new($"{ServerUrl}/admin/realms/{Realm}/{resource}", UriKind.Absolute);
 
         public Func<int, Uri> AdminEndpoint(string resource) => first =>
             new Uri($"{ServerUrl}/admin/realms/{Realm}/{resource}?first={first}&max={PageSize}&briefRepresentation=true", UriKind.Absolute);
