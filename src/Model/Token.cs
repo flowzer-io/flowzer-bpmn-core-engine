@@ -62,6 +62,9 @@ public class Token
     /// </summary>
     public AuthenticatedSubject? Initiator { get; set; }
 
+    /// <summary>Nur am Master: auditierter persönlicher Rückzug; null bei Altbestand/Betriebsabbruch.</summary>
+    public ProcessWithdrawal? Withdrawal { get; set; }
+
     public Guid? ParentTokenId { get; init; }
 
     /// <summary>

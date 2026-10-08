@@ -4600,6 +4600,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/Instance/{instanceId}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ProcessInstanceInfoDtoApiStatusResult"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Instance/{instanceId}/cancel": {
         parameters: {
             query?: never;
@@ -8370,6 +8427,7 @@ export interface components {
             /** Format: int32 */
             serviceSubscriptionCount?: number;
             state?: components["schemas"]["ProcessInstanceStateDto"];
+            wasWithdrawn?: boolean;
             tokens?: components["schemas"]["TokenDto"][] | null;
             canInspect?: boolean;
             failureReason?: string | null;

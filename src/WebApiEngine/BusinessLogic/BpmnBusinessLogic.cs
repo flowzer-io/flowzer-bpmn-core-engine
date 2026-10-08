@@ -905,40 +905,8 @@ public partial class BpmnBusinessLogic(
     /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
     /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
     /// </summary>
-    public async Task<ProcessInstanceInfo> CancelInstance(Guid instanceId)
-    {
-        await _engineMutationLock.WaitAsync();
-        try
-        {
-            using var storageSystem = storageProvider.GetTransactionalStorage();
-            await storageSystem.InstanceStorage.LockForMutation(instanceId);
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
-            if (processInstance.IsFinished)
-            {
-                throw new InvalidOperationException(
-                    $"Process instance \"{instanceId}\" is already finished and cannot be cancelled.");
-            }
-
-            var instance = new InstanceEngine(processInstance.Tokens)
-            {
-                InstanceId = processInstance.InstanceId
-            };
-            instance.Cancel();
-
-            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-            // Erst danach: Der Abbruch dieser Instanz steht damit schon in der Ablage, wenn ein
-            // Kind sein Ende melden will und seinen Aufrufer nicht mehr wartend vorfindet.
-            await CancelCalledInstances(storageSystem, instanceId);
-            storageSystem.CommitChanges();
-
-            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
-                processInstance.ProcessId, instance, processInstance.Migrations, processInstance.Modifications);
-        }
-        finally
-        {
-            _engineMutationLock.Release();
-        }
-    }
+    public Task<ProcessInstanceInfo> CancelInstance(Guid instanceId) =>
+        CancelInstanceCore(instanceId, withdrawingUser: null);
 
     /// <summary>
     /// Loescht eine beendete Instanz samt allem, was an ihr haengt — von Hand ausgeloest ueber

@@ -35,7 +35,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     private readonly WebApplicationFactory<Program> _factory;
 
     internal AuthenticatedWorkflowTestContext(IReadOnlyDictionary<string, string>? settings = null, TimeProvider? clock = null,
-        bool useSyntheticRemoteAddresses = false)
+        bool useSyntheticRemoteAddresses = false, Action<IServiceCollection>? configureServices = null)
     {
         Environment.SetEnvironmentVariable(Storage.StorageRootEnvironmentVariableName, _root);
         Storage = new Storage();
@@ -58,6 +58,7 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             if (clock is not null) builder.ConfigureServices(services => services.AddSingleton(clock));
             if (useSyntheticRemoteAddresses)
                 builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, SyntheticRemoteAddressFilter>());
+            if (configureServices is not null) builder.ConfigureServices(configureServices);
             builder.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(
                 JwtBearerDefaults.AuthenticationScheme, options =>
                 {

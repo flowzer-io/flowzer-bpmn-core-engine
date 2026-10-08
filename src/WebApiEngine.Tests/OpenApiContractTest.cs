@@ -38,6 +38,24 @@ public class OpenApiContractTest
             .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
     }
 
+    // Testzweck: Persönlicher Rückzug ist eine authentisierte Mutation ohne frei
+    // mitgegebenen Akteur; Clients sehen nur den sicheren Rückzugsstatus und Konflikte.
+    [Test]
+    public async Task Withdrawal_ShouldDescribePersonalMutationAndSafeProjection()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = root.GetProperty("paths").GetProperty("/Instance/{instanceId}/withdraw").GetProperty("post");
+        operation.TryGetProperty("requestBody", out _).Should().BeFalse();
+        var responses = operation.GetProperty("responses");
+        foreach (var status in new[] { "200", "404", "409" })
+            responses.TryGetProperty(status, out _).Should().BeTrue();
+        var properties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("ProcessInstanceInfoDto").GetProperty("properties");
+        properties.GetProperty("wasWithdrawn").GetProperty("type").GetString().Should().Be("boolean");
+        properties.TryGetProperty("withdrawal", out _).Should().BeFalse("Auditidentitäten bleiben intern");
+    }
+
     // Testzweck: Die erzeugte OpenAPI-Beschreibung entspricht dem eingecheckten Schnappschuss.
     [Test]
     public async Task GeneratedOpenApiDocument_ShouldMatchTheCommittedSnapshot()

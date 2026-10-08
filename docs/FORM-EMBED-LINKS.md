@@ -29,6 +29,38 @@ Die TT-seitige 24-Stunden-Grenze für unklare Starts ist damit noch nicht gebaut
 Der vorhandene generische Flowzer-Idempotenzspeicher behält seine Aufbewahrung.
 Das Startformular selbst hat weiterhin keinen persistenten Benutzerentwurf.
 
+### Persönliches Zurückziehen
+
+`POST /instance/{id}/withdraw` beendet nur den eigenen direkten Start. Der
+verifizierte Initiator wird unter Engine-/Instanzsperre ordinal an Issuer und
+Subject gebunden; Namen, gleichlautende technische GUIDs aus anderem Issuer und
+Betriebsrechte sind kein Ersatz. Intern aufgerufene Kindinstanzen sind keine
+persönlichen direkten Starts und werden identisch zu fremden/fehlenden Vorgängen
+mit 404 abgewiesen. Der Rückzug des gesamten Elternvorgangs beendet seine Kinder.
+
+Der erste tatsächliche Akteur, seine Benutzer-GUID und UTC-Zeit bleiben intern
+am Master-Token auditiert. Öffentlich liefert `wasWithdrawn` nur den Status;
+der Mutationsweg enthält auch für Operatoren keine Tokens, Variablen oder
+Auditidentität. Wiederholung bestätigt denselben Auditfakt; fachlicher Abschluss
+oder Betriebsabbruch ist ein expliziter 409. Technische Engine-/Ablagefehler
+bleiben technische Fehler und werden nicht als definitiver Fachkonflikt maskiert.
+Bereits ausgeführte Außenwirkungen werden nicht zurückgerollt.
+
+PostgreSQL bindet Zustand und Kindabbruch an dieselbe Transaktion. Die nur für
+Einzelprozessentwicklung geeignete Dateiablage kann mitten im Abbruch scheitern:
+Ein persönlicher Retry repariert deshalb vorhandene terminale Persistenz,
+Anmeldungen, deduplizierte Laufzeitereignisse und den Kindbaum idempotent, statt
+nur einen gespeicherten Eltern-Audit als vollständigen Erfolg zu bestätigen.
+Auch beendete Zwischenknoten werden für ihre Nachkommen besucht. Ein nach dem
+Datenbanklock frisch gelesener, schon fachlich abgeschlossener Kindprozess wird
+nicht nachträglich terminiert. Weder Kompensation noch automatische HTTP-Retries.
+
+HTTP-Tests prüfen tatsächliche Identität, Umbenennung, Fremd-/Issuer-/Operatorfälle,
+Wiederholung, Fachabschluss, technischen Fehler und echte Call Activities samt
+partieller Dateipersistenz. Zwei zusätzliche PostgreSQL-Fälle müssen in der CI
+gegen den echten Container laufen; lokale HTTP-/Dateitests ersetzen sie nicht.
+TT-Endpunkt, TT-Vorgang und Vermittler-Audit sind damit noch nicht gebaut.
+
 ### Persönlicher Human-Task-Einstieg
 
 - `POST /usertask/{id}/form-link`: authentifizierter, persönlich berechtigter
