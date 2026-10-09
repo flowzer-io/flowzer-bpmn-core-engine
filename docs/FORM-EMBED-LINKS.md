@@ -350,3 +350,14 @@ Warnungen. Zwei unabhängige eigene Quellenreviews begleiteten den Slice;
 Pflichtversion, explizite Nullability, sticky Start-Ungewissheit und sichere
 Repeat-Feldfehler wurden mit roten Tests nachgewiesen und korrigiert.
 Diese Nachweise öffnen weder Installations-Opt-in noch Merge-/Live-Gates.
+
+
+Der erste Start-Slice-CI-Lauf (`81e0957`) stoppt im Gateway-Routenlistentest,
+nach bereits grüner Typprüfung, Lint, Tests und Build. Der bestehende Test
+vergleicht den Controller-Routenpräfix wörtlich mit der Proxy-Alternativenliste
+und behandelt `form-embed/start` als eigenen Präfix. Lokal wurde derselbe
+Fehler rot reproduziert. Der Controller verwendet deshalb den bestehenden
+Präfix `form-embed` plus Aktionspfad `start/redeem`: Der tatsächliche
+HTTP-/OpenAPI-Pfad bleibt exakt gleich. Gateway, CSP, Autorisierung und
+Prüfscript wurden nicht erweitert oder gelockert. Erst eine neue vollständig
+grüne CI attestiert diese enge Nacharbeit.

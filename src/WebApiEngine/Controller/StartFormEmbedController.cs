@@ -9,7 +9,9 @@ using WebApiEngine.Shared;
 namespace WebApiEngine.Controller;
 
 /// <summary>Separater Startformular-Anzeigevertrag ohne Human-Task- oder Instanzattrappen.</summary>
-[ApiController, Route("form-embed/start")]
+// Derselbe bestehende Gateway-Routenpräfix; der getrennte Startzweck bleibt
+// im Aktionspfad. Keine neue Proxy-/CSP-Freigabe oder Umgehung der Routenkontrolle.
+[ApiController, Route("form-embed")]
 public sealed class StartFormEmbedController(StartFormEmbedLinkService links) : ControllerBase
 {
     /// <summary>Persönlichen Einmaleinstieg an eine konkrete angezeigte Version binden.</summary>
@@ -29,7 +31,7 @@ public sealed class StartFormEmbedController(StartFormEmbedLinkService links) : 
     }
 
     /// <summary>Secret einmalig und ausschließlich zur anonymen Formularanzeige einlösen.</summary>
-    [HttpPost("redeem"), AllowAnonymous, EnableCors("FlowzerFormEmbedRead")]
+    [HttpPost("start/redeem"), AllowAnonymous, EnableCors("FlowzerFormEmbedRead")]
     [EnableRateLimiting(FlowzerLimitsExtensions.FormEmbedReadPolicy), RequestSizeLimit(1024)]
     [ProducesResponseType<ApiStatusResult<StartFormEmbedSnapshotDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
