@@ -174,7 +174,11 @@ public partial class InstanceEngine
 
         mapping.InputMappings?.ForEach(ioMapping =>
         {
-            var variablesToken = GetCorrectVariablesToken(token, ioMapping.Source);
+            // Ein expliziter Subprozess-Eingang liest vor seiner Scope-Erzeugung
+            // aus dem Parent, niemals aus dem eben initialisierten leeren eigenen Scope.
+            var variablesToken = GetMappedSubProcessScope(token)
+                ?? GetCorrectVariablesToken(token, ioMapping.Source,
+                    includeCurrentToken: token.CurrentFlowNode is not SubProcess);
             if (variablesToken.Variables == null)
                 throw new FlowzerRuntimeException($"Variable {ioMapping.Source} not found in any parent token");
             
@@ -248,7 +252,11 @@ public partial class InstanceEngine
         if (mapping.OutputMappings?.Count > 0)
             mapping.OutputMappings?.ForEach(ioMapping =>
             {
-                var variablesToken = GetCorrectVariablesToken(token, ioMapping.Target);
+                // Stimmen einer explizit gemappten Prüfrunde bleiben in dieser Runde.
+                // Historische Tasks ohne solchen Scope behalten den bisherigen Schreibpfad.
+                var variablesToken = GetMappedSubProcessScope(token)
+                    ?? GetCorrectVariablesToken(token, ioMapping.Target,
+                        includeCurrentToken: token.CurrentFlowNode is not SubProcess { InputMappings.Count: > 0 });
                 variablesToken.Variables ??= new Variables();
                 var value = FlowzerConfig.ExpressionHandler.GetValue(token.OutputData as dynamic, ioMapping.Source);
                 ExpandoHelper.SetValue(variablesToken.Variables, ioMapping.Target, value);
@@ -257,7 +265,12 @@ public partial class InstanceEngine
         {
             foreach (var (key, value) in token.OutputData!)
             {
-                var variablesToken = GetCorrectVariablesToken(token, key);
+                // Ungemappte Subprozesse tragen historisch den vollständigen Root als
+                // OutputData. Dieser Alias darf keinen geschlossenen Parent-Scope erweitern.
+                var variablesToken = (token.CurrentFlowNode is SubProcess and not { InputMappings.Count: > 0 }
+                        ? null : GetMappedSubProcessScope(token))
+                    ?? GetCorrectVariablesToken(token, key,
+                        includeCurrentToken: token.CurrentFlowNode is not SubProcess { InputMappings.Count: > 0 });
                 variablesToken.Variables ??= new Variables();
                 variablesToken.Variables.SetValue(key, value);
             }

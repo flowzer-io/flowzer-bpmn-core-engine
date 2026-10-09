@@ -23,6 +23,7 @@ import {
   messageHolder,
   multiInstanceOf,
   readElementProperties,
+  isDirectoryAssigneeSource,
   startFormAppliesTo,
   timerOf,
   type Assignment,
@@ -362,19 +363,34 @@ export function createBpmnEditor(modeler: ModelerLike) {
 
       writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
         mode: 'text',
+        assigneeSource: undefined,
         assigneeId: undefined,
         candidateUserIds: undefined,
         candidateGroupIds: undefined,
       });
     },
 
-    /** Schreibt ausschließlich stabile IDs; Anzeigenamen gehören nie in den BPMN-Vertrag. */
+    /** Schreibt stabile IDs oder eine exklusive Bearbeiterquelle; Anzeigenamen sind kein Vertrag. */
     setDirectoryAssignment(elementId: string, patch: Partial<DirectoryAssignment>): void {
       const element = registry().get(elementId);
       if (!element) return;
 
       const current = extension(element.businessObject, 'flowzer:TaskAssignment');
       const currentDirectory = text(current, 'mode') === 'directory' ? current : undefined;
+      const changesStaticReferences = patch.assigneeId !== undefined
+        || patch.candidateUserIds !== undefined || patch.candidateGroupIds !== undefined;
+      const source = patch.assigneeSource ?? (changesStaticReferences ? '' : text(currentDirectory, 'assigneeSource'));
+      if (source) {
+        if (!isDirectoryAssigneeSource(source)) return;
+        // Eine Quelle ist ein vollständiger, exklusiver Vertrag. Niemals feste IDs,
+        // Kandidaten oder Freitext als zweite implizite Berechtigung behalten.
+        writeExtension(element, element.businessObject, 'zeebe:AssignmentDefinition', null);
+        writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
+          mode: 'directory', assigneeSource: source,
+          assigneeId: undefined, candidateUserIds: undefined, candidateGroupIds: undefined,
+        });
+        return;
+      }
       const assigneeId = normalizeId(patch.assigneeId ?? text(currentDirectory, 'assigneeId'));
       const candidateUserIds = normalizeIds(
         patch.candidateUserIds ?? commaSeparatedIds(text(currentDirectory, 'candidateUserIds')),
@@ -391,6 +407,7 @@ export function createBpmnEditor(modeler: ModelerLike) {
 
       writeExtension(element, element.businessObject, 'flowzer:TaskAssignment', {
         mode: 'directory',
+        assigneeSource: undefined,
         assigneeId: assigneeId || undefined,
         candidateUserIds: candidateUserIds.length > 0 ? candidateUserIds.join(',') : undefined,
         candidateGroupIds: candidateGroupIds.length > 0 ? candidateGroupIds.join(',') : undefined,
@@ -969,7 +986,8 @@ function normalizeIds(values: string[]): string[] {
 
 function hasDirectoryReference(assignment: ModdleElement | undefined): boolean {
   return Boolean(
-    normalizeId(text(assignment, 'assigneeId'))
+    isDirectoryAssigneeSource(text(assignment, 'assigneeSource'))
+      || normalizeId(text(assignment, 'assigneeId'))
       || commaSeparatedIds(text(assignment, 'candidateUserIds')).length > 0
       || commaSeparatedIds(text(assignment, 'candidateGroupIds')).length > 0,
   );

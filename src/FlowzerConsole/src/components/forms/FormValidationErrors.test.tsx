@@ -8,6 +8,15 @@ import { FormValidationErrors } from './FormValidationErrors';
 const schema = JSON.stringify({ components: [{ type: 'textfield', key: 'reason', label: 'Begründung' }] });
 
 describe('Serverseitige Formularfehler', () => {
+  // Testzweck: Sichere übersetzte Feldmeldungen des authentifizierten Hosts bleiben
+  // neben Feldlabels sichtbar und werden als Text, niemals als HTML, dargestellt.
+  it('zeigt explizite sichere Hostfeldmeldungen ohne Code-Rückübersetzung', () => {
+    render(<FormValidationErrors error={null} schema={schema} safeFieldMessages={{ reason: ['Bitte begründen.', '<img src=x onerror=alert(1)>'] }} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Begründung: Bitte begründen.');
+    expect(screen.getByRole('alert')).toHaveTextContent('<img src=x onerror=alert(1)>');
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
   // Testzweck: Die serverseitige Ablehnung nennt das betroffene Feld verständlich und
   // ist per Screenreader/Fokus erreichbar; Eingaben werden nicht erneut gerendert.
   it('zeigt Feldlabel und übersetzten Fehlercode als fokussierte Meldung', () => {

@@ -358,6 +358,15 @@ jobs:
         working-directory: tests/ui-smoke
         run: npm run test:production
 
+      - name: Fail-closed Einbettungskonfiguration prüfen
+        run: node --test tests/form-embedding/embed-gateway-policy.test.cjs
+
+      - name: Persönliches Produktionsformular ohne Zweitlogin prüfen
+        run: node tests/form-embedding/run-production-embedding.cjs
+
+      - name: Opaque Formular-Sandbox mit frischem Bundle prüfen
+        run: node tests/form-embedding/run-sandbox-probe.cjs
+
       - name: Playwright-Artefakte hochladen
         if: always()
         uses: actions/upload-artifact@v4
@@ -368,6 +377,7 @@ jobs:
             tests/ui-smoke/test-results
             tests/ui-smoke/playwright-report-production
             tests/ui-smoke/test-results-production
+            tests/form-embedding/test-results
           if-no-files-found: ignore
 
       - name: CI-Zusammenfassung schreiben

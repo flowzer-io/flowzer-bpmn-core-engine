@@ -54,6 +54,35 @@ Interaktive Requests bleiben immer an den tatsächlichen Benutzer gebunden:
 Flowzer prüft Audience, Issuer, Subject, Rollen und Objektberechtigungen selbst. Ein
 Host darf UI-Aktionen ausblenden, erweitert damit aber niemals die Serverrechte.
 
+## Optionale Herkunftsreferenz beim Start
+
+Der direkte Start akzeptiert optional `externalReference`: eine nicht geheime,
+maximal 128 Zeichen lange Herkunftskennung des Hosts. Sie bleibt intern am
+Master-Token, überlebt Storage-Roundtrips und Instanzumzüge und wird weder zur
+Formularvariable noch Bestandteil gewöhnlicher Instanz-/Tokenantworten. Keine
+URL-Auflösung, automatische Fachdatensuche oder Berechtigung ist daran gebunden.
+Der Host hält seine verbindliche Fachobjektzuordnung und prüft deren Zugriff
+weiterhin selbst; eine frei mitgegebene Referenz ist dafür kein Nachweis.
+
+Version, Referenz und Eingaben gehören zum Inhalt desselben persönlichen
+Startschlüssels. Ändern oder Entfernen der Referenz liefert beim Replay 409,
+nicht eine weitere Instanz. Referenzstarts nutzen einen eigenen Inhaltsdomain,
+aber keinen neuen Schlüssel-Scope. Ohne Referenz bleibt der bisherige
+versionsgebundene beziehungsweise Legacy-Hash unverändert. Auch erfolgreiche
+Referenz-Replays behalten die ursprüngliche Version nach einem neuen Deployment.
+Leere, überlange oder steuerzeichenhaltige Werte werden vor Reservierung und
+Mutation abgewiesen. Die API/SDK-Beschreibung entsteht aus dem echten Swagger.
+
+Test-first wurden fehlende Speicherung und Replaybindung mit **7/8 echten
+HTTP-Fällen rot** sowie Metadatenverlust beim Umzug mit **1/1 rot** reproduziert.
+Nach Umsetzung bestehen **37/37** HTTP-/Swaggerverträge, **373/373** automatisierte
+Enginefälle (ohne den ausdrücklich manuellen Fixture-Regenerator) und SDK
+**33/33** mit Typprüfung/Build. Die finale lokale API-Hermetik besteht
+**1492/1492**, ohne Skips; beide echten PostgreSQL-/Mehrprozessklassen sind
+explizit außerhalb dieser lokalen Auswahl. Der neue PostgreSQL-Roundtrip prüft auch
+den Erhalt nach persönlichem Rückzug; die tatsächliche Ausführung ist erst im
+verbindlichen PostgreSQL-CI-Pfad bestätigt, nicht durch seinen Quellcode.
+
 ## Cache- und Mutationssicherheit
 
 Der React-Provider verlangt zwei nicht geheime Werte:
@@ -70,6 +99,81 @@ aktuelle Task-Revision sowie einen vom Host erzeugten, über bewusste Wiederholu
 stabilen Idempotenzschlüssel. `409`, `422` und weitere Problem Details bleiben
 maschinenlesbar; lokale Formulardaten werden bei Hintergrund-Refetches nicht ersetzt.
 
+## Atomar gebundener Aufgabenabschluss
+
+Ein Host kann die ursprünglich angezeigte Aufgabe zusätzlich mit
+`expectedUserTaskId` und `expectedDefinitionId` binden. Die zweite Kennung ist die
+unveränderliche Definition-Version (GUID), nicht die Katalogkennung. Ein späterer
+Instanzumzug kann Task, Token, Knoten und Claimrevision erhalten; deshalb genügt
+ein vorangehender Aufgabenabruf nicht als Abschlussprüfung.
+
+`requireAssignedToCurrentUser: true` verlangt für eine **neue** Entscheidung die
+tatsächliche persönliche Zuweisung. Kandidaten- und Betriebsrechte ersetzen sie
+nicht. Ein solcher Host übernimmt die Aufgabe vorher über den bestehenden
+revisionsgebundenen Claim. Die bestehenden allgemeinen Konsumenten bleiben ohne
+diese optionalen Bedingungen kompatibel.
+
+Beide Abschlussrouten prüfen die Bedingungen unter der vorhandenen Instanz- und
+Aufgabensperre, bevor sie Formularvalidierung oder Effekte ausführen. Eine fremde
+Taskkennung oder fehlende persönliche Zuweisung liefert wie andere nicht erlaubte
+Aufgaben `404`; ein Versionswechsel einer autorisierten Aufgabe liefert
+`409 user_task.binding_conflict`, ohne interne Zielkennungen. Der Host darf diesen
+Konflikt nicht durch stilles Ersetzen der angezeigten Version umgehen.
+
+Alle Bedingungen gehören zum ursprünglichen Idempotenzinhalt. Ein erfolgreicher
+persönlicher Replay wird **vor** den aktuellen Task-/Claim-/Versionsprüfungen
+beantwortet, auch nach Abschluss oder Umzug. Bei unklarem Ausgang bleiben daher
+Schlüssel, Bindung, Entscheidung und Eingaben unverändert. Es entstehen keine
+neuen TT-Daten, Entwurfstabellen oder Link-Secrets für Wiederholungen.
+
+## Atomare Bindung weiterer Aufgabenaktionen
+
+Auch Claim, Release, privater Entwurfsabruf/-speichern/-löschen, Linkausgabe und
+feldgebundene Directorysuche/-auflösung akzeptieren die optionalen Querybedingungen
+`expectedProcessInstanceId`, `expectedDefinitionId` und
+`requireAssignedToCurrentUser`. Sie **beschränken** bestehende Rechte; sie liefern
+weder Identität noch Berechtigung. Der Host leitet Instanz/Version aus seiner
+serverseitig registrierten Vorgangsbindung ab und sendet die persönliche
+Übernahmebedingung fest für Daten-/Link-/Freigabeaktionen. Claim verwendet sie
+bewusst nicht: Er übernimmt die bislang freie Aufgabe atomar.
+
+Flowzer prüft aktuelle Identität, aktive Task-/Instanz-/Tokenbindung und diese
+Bedingungen im selben vorhandenen Tasklock und derselben Storage-Transaktion wie
+die eigentliche Aktion. Bei Dateiablage serialisiert zusätzlich die bestehende
+Engine-Sperre; PostgreSQL verwendet den bestehenden Lifecyclelock pro Aufgabe.
+Die Read-only-Projektion von Directorywerten bleibt bis zur fertigen Antwort in
+dieser geschützten Sicht. Es gibt keinen neuen Taskcache, keine Hostsession und
+keine zusätzliche Persistenz. Bestehende Konsolenaufrufe ohne Bedingungen bleiben
+kompatibel; der Host darf fehlende Bedingungen niemals als Fallback verwenden.
+
+Rechteentzug oder verlorener Claim bleibt `404`, auch für Operatoren mit
+`requireAssignedToCurrentUser=true`. Ein Instanz-/Versionskonflikt einer sonst
+berechtigten Aufgabe ist `409 user_task.binding_conflict` ohne Zielkennungen.
+Ein nach Freigabe erneut gültiges Kandidatenrecht ist kein persönliches
+Bearbeitungsrecht. Linkeinlösung bindet weiterhin die gespeicherte Taskrevision
+und Definitionsversion; Freigabe oder Migration nach Ausgabe entwerten den Grant.
+Die Einlösefrist begrenzt weiterhin nur den Einstieg, nicht die Bearbeitung.
+
+Die echten HTTP-Regressionen reproduzierten vor dem Fix **17/23 rot**, anschließend
+besteht der kombinierte fokussierte Alt-/Neuvertrag **88/88**, ohne Skips.
+Zusätzliche PostgreSQL-Zwei-Host-Tests prüfen jeweils 20 Migration-/Claim-,
+Migration-/Release- und Migration-/Save-Rennen: kein V1-Auftrag darf unter V2
+Audit oder Entwurf erzeugen. Dieser echte Mehrprozessnachweis läuft getrennt in
+der verbindlichen PostgreSQL-CI; ein hermetischer Grünlauf ersetzt ihn nicht.
+Der lokale API-Hermetiklauf besteht **1466/1466**, Engine **372/372**, echter
+OpenAPI-Vertrag **16/16** und SDK **33/33** samt Typprüfung/Build, ohne Skips.
+Die generierten Queryparameter stammen aus dem tatsächlich gemounteten Swagger;
+kein manuell parallel gepflegtes Schema. Das ist keine Demo-/HTTPS-Abnahme.
+
+Der erste PostgreSQL-CI-Lauf des Nichtabschluss-Slices (`a1c1132`) ist mit
+**1/1605 Fehlern, 1604 bestanden, 0 Skips** gescheitert: Die neue Save-Rennfixture
+sendete `answer` an das leere Standardformular und erhielt folgerichtig 422 für
+ein nicht deklariertes Feld. Beide Rennversionen erhalten jetzt ausdrücklich
+dasselbe beschreibbare Feld; nur der geänderte Form-Key verwirft V1-Entwürfe.
+Ein zusätzlicher hermetischer Fixturetest reproduziert diesen Fehler tatsächlich
+rot. Die 200/409-, Audit- und Entwurfsassertions bleiben unverändert. Erst der
+erneute echte PostgreSQL-CI-Lauf des korrigierten SHA ist der Konkurrenznachweis.
+
 ## Bewusste Grenzen des ersten Pakets
 
 - keine fertigen sichtbaren Komponenten oder Form.io-Bündelung
@@ -79,3 +183,45 @@ maschinenlesbar; lokale Formulardaten werden bei Hintergrund-Refetches nicht ers
 - keine Paketveröffentlichung aus diesem Slice
 - keine allgemeine Produktionsfreigabe ohne reale Identity-, HTTPS- und
   Einbettungsabnahme
+
+## Persönlicher Read-only-Einstieg (API-Slice)
+
+Der einmalige, fünf Minuten einlösbare Formulareinstieg ist unter
+[FORM-EMBED-LINKS.md](FORM-EMBED-LINKS.md) dokumentiert. Er verleiht keinerlei
+Mutationsrecht. Der vorhandene Renderer und der gebundene Nachrichtenkanal sind
+implementiert und synthetisch geprüft; die tatsächliche TT-Anbindung sowie reale
+HTTPS-/Identity-Abnahme bleiben offen. Das Installations-Opt-in bleibt geschlossen.
+
+Ein Host teilt keine Realm-Gruppen allein durch Token-Claims mit. Eine auf einen
+Teilbaum begrenzte Installation kann `IdentityDirectory__RootGroupId` verwenden
+([Betriebsvertrag](OPERATIONS.md#optionaler-gruppen-scope-einer-installation));
+Flowzer prüft dann aktuelle stabile Directory-Mitgliedschaften zusätzlich zu Rollen
+und Objektberechtigungen. Der Host erteilt dadurch keine eigenen Gruppenrechte.
+
+
+## Getrennter persönlicher Startformular-Einstieg
+
+Der neue Startbootstrap verwendet keinen Human-Task-Ersatz und startet vor
+Absenden keine Instanz. Persönliche Read-only-Links sind an die angezeigte
+Definitionsversion gebunden; der explizite Nullzweig kennzeichnet Workflows ohne
+Startformular. Verzeichnisaktionen behalten dieselbe Version. Der bestehende
+opaque Renderer/Port wird mit einem getrennten Startprofil wiederverwendet,
+kein neuer Renderer, Host oder Token-/Draftspeicher. Siehe den genauen
+[Startformular-Vertrag](FORM-EMBED-LINKS.md#persönlicher-startformular-einstieg).
+
+Ein unklarer Originalstart darf weder nach weiteren Vorprüfungsfehlern noch durch
+Schließen/Navigation/Reload still einen neuen Schlüssel erhalten. Der Renderer
+hält den lokalen Auftrag fest; die entsprechende echte Host-Lebenszyklus- und
+Wiederaufnahmegrenze bleibt Teil des nächsten TT-Slices. Der aktuelle Durchstich
+ist deshalb noch keine vollständige Host- oder Demo-Abnahme.
+
+## Jobgebundener aktueller Initiatorzugang
+
+TT-Ticket-Service-Tasks erhalten einen getrennten read-only Nachweis des aktuellen
+Initiatorzugangs: eigene aktive Joblease und Engine-Koordinaten vor und nach dem
+Live-Lesen von Konto, Root-Teilbaum und effektiver API-Clientrolle. Weder Worker-
+Stellvertretung noch Directory-/Token-Caches ersetzen die Person. Technische
+Unklarheit und bestätigter Entzug bleiben getrennt. Siehe
+[TICKYTASK-INITIATOR-ACCESS.md](TICKYTASK-INITIATOR-ACCESS.md).
+Der ausführende TT-Worker sowie dauerhafte Pause/auditierte Wiederfreigabe sind
+weiterhin offen; keine Demo-/Keycloak- oder Produktionsfreigabe aus diesem Slice.

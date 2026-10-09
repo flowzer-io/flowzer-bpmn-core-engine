@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using WebApiEngine.Middleware;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.Auth;
 
@@ -21,6 +22,18 @@ public static class FlowzerAuthenticationExtensions
                       ?? new FlowzerAuthenticationOptions();
         options.Validate();
         services.AddSingleton(options);
+        var directory = configuration.GetSection(KeycloakDirectoryOptions.SectionName).Get<KeycloakDirectoryOptions>()
+                        ?? new KeycloakDirectoryOptions();
+        DirectoryScopeRequirement? directoryScope = null;
+        // Ein Scope ist zusätzliche Installationsautorisierung. Ohne Opt-in
+        // bleiben bestehende Rollenpolicies und Directory-unabhängige Hosts gleich.
+        if (!string.IsNullOrEmpty(directory.RootGroupId))
+        {
+            if (!options.IsAuthenticationEnabled || !directory.IsValid())
+                throw new InvalidOperationException("Directory group scope requires authentication and valid synchronization configuration.");
+            directoryScope = new DirectoryScopeRequirement(directory.Issuer, directory.RootGroupId);
+            services.AddSingleton<IAuthorizationHandler, DirectoryScopeAuthorizationHandler>();
+        }
 
         // Der Controller bleibt in allen Betriebsarten registriert und liefert ohne BFF 404.
         // Seine Abhaengigkeit muss deshalb auch im reinen Bearer-/None-Modus aufloesbar sein;
@@ -129,12 +142,12 @@ public static class FlowzerAuthenticationExtensions
         }
 
         var authorization = services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(BuildBasePolicy(options).Build())
+            .SetFallbackPolicy(BuildBasePolicy(options, directoryScope).Build())
             .AddPolicy(FlowzerPolicies.Session, policy => policy.RequireAuthenticatedUser())
-            .AddPolicy(FlowzerPolicies.Access, policy => policy.Combine(BuildBasePolicy(options).Build()));
-        AddApplicationRolePolicies(authorization, options);
-        AddStrictIdentityDirectoryPolicy(authorization, options);
-        AddStrictAiConnectionPolicies(authorization, options);
+            .AddPolicy(FlowzerPolicies.Access, policy => policy.Combine(BuildBasePolicy(options, directoryScope).Build()));
+        AddApplicationRolePolicies(authorization, options, directoryScope);
+        AddStrictIdentityDirectoryPolicy(authorization, options, directoryScope);
+        AddStrictAiConnectionPolicies(authorization, options, directoryScope);
 
         services.AddSingleton<IAuthorizationMiddlewareResultHandler, FlowzerAuthorizationResultHandler>();
 
@@ -160,10 +173,12 @@ public static class FlowzerAuthenticationExtensions
     /// Die Grundanforderung an jede Anfrage: angemeldet sein und, falls konfiguriert, die
     /// Zugangsrolle tragen. Ein Realm mit Selbstregistrierung stellt jedem ein gueltiges Token
     /// aus; erst die Pflichtrolle macht daraus einen Zugang zur Anwendung.
+    /// Ein konfigurierter Gruppen-Scope wird zusätzlich in jeder Base-Policy geprüft.
     /// </summary>
-    private static AuthorizationPolicyBuilder BuildBasePolicy(FlowzerAuthenticationOptions options)
+    private static AuthorizationPolicyBuilder BuildBasePolicy(FlowzerAuthenticationOptions options, DirectoryScopeRequirement? scope)
     {
         var policy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser();
+        if (scope is not null) policy.AddRequirements(scope);
 
         if (!string.IsNullOrWhiteSpace(options.JwtBearer.RequiredRole))
         {
@@ -185,7 +200,7 @@ public static class FlowzerAuthenticationExtensions
     /// mit <see cref="FlowzerAuthenticationOptions.JwtBearerSettings.LegacyPermissiveRoles"/>
     /// erreichbar; ohne den Schalter lehnt <c>Validate()</c> leere Namen beim Start ab.
     /// </summary>
-    private static void AddApplicationRolePolicies(AuthorizationBuilder authorization, FlowzerAuthenticationOptions options)
+    private static void AddApplicationRolePolicies(AuthorizationBuilder authorization, FlowzerAuthenticationOptions options, DirectoryScopeRequirement? scope)
     {
         var audience = options.JwtBearer.Audience;
 
@@ -199,7 +214,7 @@ public static class FlowzerAuthenticationExtensions
             var capabilityRole = roleName;
             authorization.AddPolicy(policyName, policy =>
             {
-                var basePolicy = BuildBasePolicy(options).Build();
+                var basePolicy = BuildBasePolicy(options, scope).Build();
                 policy.Combine(basePolicy);
 
                 if (!string.IsNullOrWhiteSpace(capabilityRole))
@@ -212,13 +227,14 @@ public static class FlowzerAuthenticationExtensions
 
     private static void AddStrictIdentityDirectoryPolicy(
         AuthorizationBuilder authorization,
-        FlowzerAuthenticationOptions options)
+        FlowzerAuthenticationOptions options,
+        DirectoryScopeRequirement? scope)
     {
         var audience = options.JwtBearer.Audience;
         var operatorRole = options.JwtBearer.Roles.Operator;
         authorization.AddPolicy(FlowzerPolicies.IdentityDirectoryOperator, policy =>
         {
-            policy.Combine(BuildBasePolicy(options).Build());
+            policy.Combine(BuildBasePolicy(options, scope).Build());
             // Anders als historische Endpunkte gibt es fuer den neuen administrativen Vertrag
             // keine rollenlose Kompatibilitaetsfreigabe. Fehlende Konfiguration verweigert alles.
             policy.RequireAssertion(context =>
@@ -233,7 +249,8 @@ public static class FlowzerAuthenticationExtensions
     /// </summary>
     private static void AddStrictAiConnectionPolicies(
         AuthorizationBuilder authorization,
-        FlowzerAuthenticationOptions options)
+        FlowzerAuthenticationOptions options,
+        DirectoryScopeRequirement? scope)
     {
         var audience = options.JwtBearer.Audience;
         var userRole = options.JwtBearer.Roles.AiConnectionUser;
@@ -241,7 +258,7 @@ public static class FlowzerAuthenticationExtensions
 
         authorization.AddPolicy(FlowzerPolicies.AiConnectionUse, policy =>
         {
-            policy.Combine(BuildBasePolicy(options).Build());
+            policy.Combine(BuildBasePolicy(options, scope).Build());
             policy.RequireAssertion(context =>
                 (!string.IsNullOrWhiteSpace(managerRole)
                  && TokenRoles.HasRole(context.User, audience, managerRole))
@@ -250,7 +267,7 @@ public static class FlowzerAuthenticationExtensions
         });
         authorization.AddPolicy(FlowzerPolicies.AiConnectionManage, policy =>
         {
-            policy.Combine(BuildBasePolicy(options).Build());
+            policy.Combine(BuildBasePolicy(options, scope).Build());
             policy.RequireAssertion(context =>
                 !string.IsNullOrWhiteSpace(managerRole)
                 && TokenRoles.HasRole(context.User, audience, managerRole));

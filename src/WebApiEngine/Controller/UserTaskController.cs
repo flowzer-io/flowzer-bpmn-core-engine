@@ -122,11 +122,12 @@ public class UserTaskController(
 
     /// <summary>Liefert den privaten Entwurf des aktuellen Bearbeiters; Revision 0 bedeutet leer.</summary>
     [HttpGet("{userTaskId:guid}/draft")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<UserTaskDraftDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> GetDraft([FromRoute] Guid userTaskId)
+    public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> GetDraft([FromRoute] Guid userTaskId, [FromQuery] UserTaskAccessCondition condition)
     {
-        var draft = await draftService.GetAsync(userTaskId);
+        var draft = await draftService.GetAsync(userTaskId, condition);
         return draft is null
             ? HiddenDraft()
             : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
@@ -141,9 +142,9 @@ public class UserTaskController(
     [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status413PayloadTooLarge, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<UserTaskDraftDto>>> SaveDraft(
         [FromRoute] Guid userTaskId,
-        [FromBody] SaveUserTaskDraftRequestDto request)
+        [FromBody] SaveUserTaskDraftRequestDto request, [FromQuery] UserTaskAccessCondition condition)
     {
-        var draft = await draftService.SaveAsync(userTaskId, request);
+        var draft = await draftService.SaveAsync(userTaskId, request, condition);
         return draft is null
             ? HiddenDraft()
             : Ok(new ApiStatusResult<UserTaskDraftDto>(draft));
@@ -157,9 +158,9 @@ public class UserTaskController(
     public async Task<ActionResult<ApiStatusResult>> DeleteDraft(
         [FromRoute] Guid userTaskId,
         [FromQuery] long expectedRevision,
-        [FromQuery] long? expectedTaskRevision = null)
+        [FromQuery] long? expectedTaskRevision = null, [FromQuery] UserTaskAccessCondition? condition = null)
     {
-        return await draftService.DeleteAsync(userTaskId, expectedRevision, expectedTaskRevision)
+        return await draftService.DeleteAsync(userTaskId, expectedRevision, expectedTaskRevision, condition)
             ? Ok(new ApiStatusResult { Successful = true })
             : HiddenDraft();
     }
@@ -186,8 +187,8 @@ public class UserTaskController(
     [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status404NotFound)]
     [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Claim(
-        Guid userTaskId, [FromBody] UserTaskClaimRequestDto request) =>
-        Lifecycle(await lifecycleService.ClaimAsync(userTaskId, request.ExpectedRevision));
+        Guid userTaskId, [FromBody] UserTaskClaimRequestDto request, [FromQuery] UserTaskAccessCondition condition) =>
+        Lifecycle(await lifecycleService.ClaimAsync(userTaskId, request.ExpectedRevision, condition));
 
     [HttpPost("{userTaskId:guid}/release")]
     [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]
@@ -195,8 +196,8 @@ public class UserTaskController(
     [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<WebApiEngine.Middleware.ApiValidationProblem>(StatusCodes.Status422UnprocessableEntity, "application/problem+json")]
     public async Task<ActionResult<ApiStatusResult<UserTaskWorkStateDto>>> Release(
-        Guid userTaskId, [FromBody] UserTaskReleaseRequestDto request) =>
-        Lifecycle(await lifecycleService.ReleaseAsync(userTaskId, request.ExpectedRevision, request.Reason));
+        Guid userTaskId, [FromBody] UserTaskReleaseRequestDto request, [FromQuery] UserTaskAccessCondition condition) =>
+        Lifecycle(await lifecycleService.ReleaseAsync(userTaskId, request.ExpectedRevision, request.Reason, condition));
 
     [HttpPost("{userTaskId:guid}/assign")]
     [ProducesResponseType<ApiStatusResult<UserTaskWorkStateDto>>(StatusCodes.Status200OK)]

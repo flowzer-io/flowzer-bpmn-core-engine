@@ -48,4 +48,12 @@ public class StableUserTaskIdentityTest
         using var context = new AuthenticatedWorkflowTestContext();
         await StableUserTaskScenarios.DirectoryProgressAsync(new FileSystemTransactionalStorageProvider());
     }
+    // Testzweck: Eine neue dynamische Aufgabenrunde liest den aktuellen Wert, während die
+    // offene parallele Aufgabe ihren einmal festgehaltenen Bearbeiter über Neustarts behält.
+    [Test]
+    public async Task DynamicDirectoryAssignment_ShouldFreezeExistingAndResolveNewTasksOnFilesystem()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        await StableUserTaskScenarios.DirectoryProgressAsync(new FileSystemTransactionalStorageProvider(), dynamicAssignment: true);
+    }
 }

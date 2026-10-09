@@ -78,6 +78,19 @@ public class InstanceMigrationTest
         migratedInstance.GetActiveUserTasks().Single().CurrentFlowNode!.Id.Should().Be("UserTask_Approve");
     }
 
+    // Testzweck: Ein Instanzumzug darf die ausdrücklich gespeicherte externe
+    // Herkunft nicht verlieren oder zu fachlichen Variablen umdeuten.
+    [Test]
+    public async Task Migration_ShouldPreserveExternalReferenceOnMaster()
+    {
+        var instance = await StartReviewInstance();
+        instance.MasterToken.ExternalReference = "case:1234567";
+        var target = await LoadProcess("MigrationReview_v2.bpmn");
+        var migrated = InstanceMigration.Apply(InstanceMigration.Plan(instance.Tokens, target), Helper.TestFlowzerConfig);
+        migrated.Single(token => token.ParentTokenId is null).ExternalReference.Should().Be("case:1234567");
+        instance.MasterToken.ExternalReference.Should().Be("case:1234567");
+    }
+
     // Testzweck: Prüft, dass ein im Zielmodell fehlender FlowNode den Umzug verhindert.
     [Test]
     public async Task ReportsMissingFlowNode()

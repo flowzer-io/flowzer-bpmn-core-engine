@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+  id="tickytask-demo-urlaub-vorgesetzter" name="Demo-Vorgesetzten ermitteln" namespace="https://flowzer.io/examples/tickytask">
+  <!-- Nur die bei der Demo-Abnahme verifizierte stabile Flowzer-Directory-ID von m2 einsetzen.
+       Kein Benutzername, Token oder frei vom Browser mitgeliefertes Genehmigerfeld. -->
+  <decision id="ttDemoSupervisor" name="Fester Demo-Vorgesetzter m2">
+    <decisionTable id="SupervisorTable" hitPolicy="UNIQUE">
+      <output id="SubjectKind" name="kind" typeRef="string" />
+      <output id="SubjectId" name="id" typeRef="string" />
+      <rule id="FixedSupervisor">
+        <outputEntry id="KindValue"><text>"user"</text></outputEntry>
+        <outputEntry id="IdValue"><text>"__DEMO_SUPERVISOR_USER_ID__"</text></outputEntry>
+      </rule>
+    </decisionTable>
+  </decision>
+</definitions>

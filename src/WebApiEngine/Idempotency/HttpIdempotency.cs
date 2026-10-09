@@ -13,8 +13,13 @@ public static class HttpIdempotency
     public const string HeaderName = "Idempotency-Key";
     public static readonly TimeSpan Retention = TimeSpan.FromDays(7);
 
+    /// <summary>Bindet denselben persönlichen Schlüssel an exakt einen kanonischen Inhalt.</summary>
+    /// <param name="contentDomain">
+    /// Optionaler fester serverseitiger Vertragsname zur Hash-Domain-Separation;
+    /// niemals aus Headern/Formulardaten übernehmen. Null erhält historische Hashes.
+    /// </param>
     public static IdempotencyRequest? Create(HttpRequest request, CurrentUserContext actor,
-        string operation, string resource, object? payload)
+        string operation, string resource, object? payload, string? contentDomain = null)
     {
         if (!request.Headers.TryGetValue(HeaderName, out var values)) return null;
         if (values.Count != 1) throw new BadHttpRequestException("Exactly one Idempotency-Key header is required.");
@@ -27,7 +32,13 @@ public static class HttpIdempotency
             ?? throw new UnauthorizedAccessException("A stable issuer and subject are required for idempotent HTTP requests.");
         var subject = $"{identity.Issuer}\0{identity.Subject}";
         var scope = Hash($"{operation}\0{resource}\0{subject}\0{key}");
-        return new IdempotencyRequest(scope, Hash(CanonicalJson(payload)), operation);
+        var content = CanonicalJson(payload);
+        // Die Versionsbindung erhält einen vom frei belegbaren JSON getrennten
+        // Hash-Namensraum, aber denselben Schlüssel-Scope. Ein Legacy-Objekt kann
+        // diesen Präfix mit rohem NUL nicht imitieren; alte Hashes bleiben identisch.
+        // contentDomain ist ausschließlich ein fester serverseitiger Vertragsname.
+        return new IdempotencyRequest(scope,
+            Hash(contentDomain is null ? content : $"contract:{contentDomain}\0{content}"), operation);
     }
 
     private static string CanonicalJson(object? payload)

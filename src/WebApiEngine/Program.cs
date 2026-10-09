@@ -70,7 +70,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options => options.SchemaFilter<WebApiEngine.FormEmbedding.StartFormEmbedSchemaFilter>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddFlowzerStorage(builder.Configuration);
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
@@ -86,6 +86,13 @@ builder.Services.AddSingleton<FolderBusinessLogic>();
 builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddScoped<UserTaskCompletionService>();
 builder.Services.AddScoped<UserTaskDraftService>();
+builder.Services.AddScoped<WebApiEngine.FormEmbedding.FormEmbedLinkService>();
+builder.Services.AddScoped<WebApiEngine.FormEmbedding.StartFormEmbedLinkService>();
+builder.Services.AddHostedService<WebApiEngine.FormEmbedding.FormEmbedGrantCleanupService>();
+builder.Services.AddOptions<WebApiEngine.FormEmbedding.FormEmbeddingOptions>()
+    .Bind(builder.Configuration.GetSection(WebApiEngine.FormEmbedding.FormEmbeddingOptions.SectionName))
+    .Validate(options => options.IsValid(), "Form embedding configuration is invalid.")
+    .ValidateOnStart();
 builder.Services.AddScoped<UserTaskLifecycleService>();
 builder.Services.AddScoped<UserTaskNotificationService>();
 builder.Services.AddSingleton<UserTaskDeadlineService>();
@@ -167,11 +174,22 @@ builder.Services.AddOptions<KeycloakDirectoryOptions>()
 builder.Services.AddSingleton<IIdentityDirectoryStorage>(serviceProvider =>
     serviceProvider.GetRequiredService<IStorageSystem>().IdentityDirectoryStorage);
 builder.Services.AddHttpClient("flowzer-keycloak-directory", client => client.Timeout = Timeout.InfiniteTimeSpan)
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+    .RemoveAllLoggers();
+builder.Services.AddSingleton<KeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
     serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-keycloak-directory"),
     serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakDirectoryOptions>>(),
     serviceProvider.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
+builder.Services.AddSingleton<IKeycloakSubjectAccessReader>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
+// Fehlende TT-Bindung schließt nur TT-Ticketnachweise mit 503; normale
+// Flowzer-Installationen werden nicht zu einer TT-Einrichtung gezwungen.
+builder.Services.AddSingleton(builder.Configuration.GetSection(TickyTaskTicketActionsOptions.SectionName)
+    .Get<TickyTaskTicketActionsOptions>() ?? new TickyTaskTicketActionsOptions());
+builder.Services.AddSingleton<ServiceTaskInitiatorAccessService>();
+// Rein lesender persönlicher Betriebsnachweis: kein Resume, kein Workerstart.
+// Fehlende TT-/Directory-/Rollenkonfiguration schließt den Vertrag mit 503.
+builder.Services.AddSingleton<TicketActionOperatorAccessService>();
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
 builder.Services.AddSingleton<DirectorySubjectSelectionService>();

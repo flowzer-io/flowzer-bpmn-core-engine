@@ -125,11 +125,17 @@ export interface Assignment {
 
 export type AssignmentMode = 'text' | 'directory' | 'invalid';
 
-/** Stabile lokale Verzeichnis-IDs einer Directory-Zuweisung. */
+/** Stabile Verzeichnis-IDs oder eine exklusive, serverseitig geprüfte Bearbeiterquelle. */
 export interface DirectoryAssignment {
+  assigneeSource?: string;
   assigneeId: string;
   candidateUserIds: string[];
   candidateGroupIds: string[];
+}
+
+/** Gleiche begrenzte Grammatik wie DirectoryAssigneeSource im serverseitigen BPMN-Modell. */
+export function isDirectoryAssigneeSource(source: string): boolean {
+  return source === 'initiator' || /^variable:[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(source);
 }
 
 export interface Schedule {
@@ -628,6 +634,7 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     candidateUsers: text(assignment, 'candidateUsers'),
     assignmentMode,
     directoryAssignment: {
+      ...(text(flowzerAssignment, 'assigneeSource') ? { assigneeSource: text(flowzerAssignment, 'assigneeSource') } : {}),
       assigneeId: text(flowzerAssignment, 'assigneeId'),
       candidateUserIds: commaSeparated(text(flowzerAssignment, 'candidateUserIds')),
       candidateGroupIds: commaSeparated(text(flowzerAssignment, 'candidateGroupIds')),
@@ -635,7 +642,9 @@ export function readElementProperties(element: DiagramElement): ElementPropertie
     assignmentContractWarning:
       assignmentMode === 'invalid'
         ? `Der Zuweisungsmodus „${text(flowzerAssignment, 'mode') || '(leer)'}“ wird nicht unterstützt.`
-        : null,
+        : text(flowzerAssignment, 'assigneeSource') && !isDirectoryAssigneeSource(text(flowzerAssignment, 'assigneeSource'))
+          ? 'Die Bearbeiterquelle wird nicht unterstützt. Erlaubt sind der Antragsteller oder ein einfacher Variablenname.'
+          : null,
     dueDate: text(schedule, 'dueDate'),
     followUpDate: text(schedule, 'followUpDate'),
 

@@ -905,40 +905,8 @@ public partial class BpmnBusinessLogic(
     /// Subscriptions entfernt. Bereits beendete Instanzen sind ein Zustandskonflikt.
     /// Eine BPMN-Kompensation bereits ausgefuehrter Aktivitaeten findet nicht statt.
     /// </summary>
-    public async Task<ProcessInstanceInfo> CancelInstance(Guid instanceId)
-    {
-        await _engineMutationLock.WaitAsync();
-        try
-        {
-            using var storageSystem = storageProvider.GetTransactionalStorage();
-            await storageSystem.InstanceStorage.LockForMutation(instanceId);
-            var processInstance = await storageSystem.InstanceStorage.GetProcessInstance(instanceId);
-            if (processInstance.IsFinished)
-            {
-                throw new InvalidOperationException(
-                    $"Process instance \"{instanceId}\" is already finished and cannot be cancelled.");
-            }
-
-            var instance = new InstanceEngine(processInstance.Tokens)
-            {
-                InstanceId = processInstance.InstanceId
-            };
-            instance.Cancel();
-
-            await SaveInstance(storageSystem, instance, processInstance.metaDefinitionId, processInstance.DefinitionId, processInstance.ProcessId);
-            // Erst danach: Der Abbruch dieser Instanz steht damit schon in der Ablage, wenn ein
-            // Kind sein Ende melden will und seinen Aufrufer nicht mehr wartend vorfindet.
-            await CancelCalledInstances(storageSystem, instanceId);
-            storageSystem.CommitChanges();
-
-            return CreateProcessInstanceInfo(processInstance.DefinitionId, processInstance.metaDefinitionId,
-                processInstance.ProcessId, instance, processInstance.Migrations, processInstance.Modifications);
-        }
-        finally
-        {
-            _engineMutationLock.Release();
-        }
-    }
+    public Task<ProcessInstanceInfo> CancelInstance(Guid instanceId) =>
+        CancelInstanceCore(instanceId, withdrawingUser: null);
 
     /// <summary>
     /// Loescht eine beendete Instanz samt allem, was an ihr haengt — von Hand ausgeloest ueber
@@ -1004,23 +972,34 @@ public partial class BpmnBusinessLogic(
     /// Bewusst derselbe Weg wie beim Start (Katalog, deployte Version, Prozessauflösung): Was
     /// die Konsole hier zu sehen bekommt, muss zu dem passen, was der Start gleich erwartet.
     /// </summary>
-    public async Task<StartFormReference> GetStartFormReference(string relatedDefinitionId, string? processId = null)
+    public async Task<StartFormReference> GetStartFormReference(string relatedDefinitionId, string? processId = null,
+        Guid? expectedDefinitionId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relatedDefinitionId);
 
         using var storageSystem = storageProvider.GetTransactionalStorage();
-        var directStart = await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+        var directStart = await ResolveDirectStart(storageSystem, relatedDefinitionId, processId, expectedDefinitionId);
 
         return new StartFormReference(directStart.Definition.Id, RequireStartFormKey(directStart.Process));
     }
 
+    /// <summary>
+    /// Startet die gebundene deployte Fassung mit persönlich inhaltsgebundenem
+    /// Replay. Optionale externe Herkunft ist ausschließlich interne Metainformation;
+    /// sie erweitert keine Benutzerrechte und wird nicht zur Formularvariable.
+    /// </summary>
     public async Task<ProcessInstanceInfo> StartProcessInstance(
         string relatedDefinitionId,
         Variables? variables = null,
         string? processId = null,
         AuthenticatedSubject? initiator = null,
-        IdempotencyRequest? idempotency = null)
+        IdempotencyRequest? idempotency = null,
+        Guid? expectedDefinitionId = null,
+        string? externalReference = null)
     {
+        // Auch interne Aufrufer haben denselben begrenzten Metadatenvertrag.
+        // Vor Sperre/Idempotenzreservierung prüfen und niemals den Wert ausgeben.
+        RequireExternalReference(externalReference);
         await _engineMutationLock.WaitAsync();
         try
         {
@@ -1028,6 +1007,8 @@ public partial class BpmnBusinessLogic(
 
             using var storageSystem = storageProvider.GetTransactionalStorage();
             var acquisition = await IdempotencyExecution.Acquire(storageSystem, idempotency);
+            // Ein bereits erfolgreicher identischer Replay bleibt in seiner alten
+            // Fassung gültig; die neue Versionsprüfung gilt erst für einen neuen Start.
             if (acquisition.IsReplay)
             {
                 var replayId = acquisition.Record?.ProcessInstanceId
@@ -1038,7 +1019,7 @@ public partial class BpmnBusinessLogic(
             try
             {
                 var (deployedDefinition, process) =
-                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId);
+                    await ResolveDirectStart(storageSystem, relatedDefinitionId, processId, expectedDefinitionId);
 
                 // Vor jeder Zustandsänderung anhand des gebundenen Vertrags prüfen. Ein
                 // direkter API-Aufruf besitzt keine geringeren Regeln als das Browserformular.
@@ -1056,6 +1037,7 @@ public partial class BpmnBusinessLogic(
                 // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
                 // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
                 instance.MasterToken.Initiator = initiator;
+                instance.MasterToken.ExternalReference = externalReference;
                 var processInstanceInfo = CreateProcessInstanceInfo(
                     deployedDefinition.Id,
                     relatedDefinitionId,
@@ -1096,6 +1078,21 @@ public partial class BpmnBusinessLogic(
         }
     }
 
+    /// <summary>Eine Herkunft ist nur begrenzte Metainformation, nie frei ausführbarer Inhalt oder Zugangsrecht.</summary>
+    private static void RequireExternalReference(string? reference)
+    {
+        if (reference is null) return;
+        if (string.IsNullOrWhiteSpace(reference) || reference.Length > 128)
+            throw new ArgumentException("Invalid external reference.");
+        for (var i = 0; i < reference.Length; i++)
+        {
+            var value = reference[i];
+            if (char.IsControl(value) || char.IsLowSurrogate(value)
+                || char.IsHighSurrogate(value) && (++i >= reference.Length || !char.IsLowSurrogate(reference[i])))
+                throw new ArgumentException("Invalid external reference.");
+        }
+    }
+
     /// <summary>
     /// Sucht den von Hand startbaren Prozess eines Workflows: Katalogeintrag, deployte Version,
     /// Modell, Prozess. Start und Startformular-Abruf teilen sich den Weg, damit beide dieselbe
@@ -1104,7 +1101,8 @@ public partial class BpmnBusinessLogic(
     private static async Task<DirectStartProcess> ResolveDirectStart(
         ITransactionalStorage storageSystem,
         string relatedDefinitionId,
-        string? processId)
+        string? processId,
+        Guid? expectedDefinitionId)
     {
         // Der Katalogeintrag entscheidet, ob es den Workflow gibt. Ohne diese Pruefung liesse
         // sich eine Version starten, die nach dem Loeschen des Workflows noch liegt — etwa
@@ -1119,6 +1117,10 @@ public partial class BpmnBusinessLogic(
         var deployedDefinition = await storageSystem.DefinitionStorage.GetDeployedDefinition(relatedDefinitionId)
             ?? throw new InvalidOperationException(
                 $"No deployed definition is available for workflow \"{relatedDefinitionId}\".");
+        // Ein gültiger Versionswechsel zu reinem Message-/Timerstart soll ebenfalls
+        // den expliziten Formular-Versionskonflikt liefern, nicht erst einen Parser-
+        // oder Startbarkeitsfehler der anderen Fassung.
+        RequireDisplayedDefinition(deployedDefinition.Id, expectedDefinitionId);
 
         var xmlData = await storageSystem.DefinitionStorage.GetBinary(deployedDefinition.Id);
         var model = ModelParser.ParseModel(xmlData);
@@ -1126,6 +1128,12 @@ public partial class BpmnBusinessLogic(
         return new DirectStartProcess(
             deployedDefinition,
             ResolveDirectStartProcess(model, deployedDefinition, processId));
+    }
+
+    private static void RequireDisplayedDefinition(Guid deployedId, Guid? expectedId)
+    {
+        if (expectedId.HasValue && expectedId.Value != deployedId)
+            throw new WorkflowVersionConflictException();
     }
 
     /// <summary>

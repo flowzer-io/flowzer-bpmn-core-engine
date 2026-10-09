@@ -122,7 +122,9 @@ public sealed class DirectoryFormSubjectController(
         return ResolutionResult(result);
     }
 
+    /// <summary>Startfeldsuche in der optional fest gebundenen angezeigten Definition, ohne Wechsel auf eine neuere Fassung.</summary>
     [HttpGet("start-forms/{definitionId}/fields/{fieldKey}/subjects")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -132,12 +134,12 @@ public sealed class DirectoryFormSubjectController(
         string fieldKey,
         [FromQuery] string? query,
         [FromQuery] string kind = "all",
-        [FromQuery] int limit = 20)
+        [FromQuery] int limit = 20, [FromQuery] Guid? expectedDefinitionId = null)
     {
         FormKeyResolver.Result resolved;
         try
         {
-            var reference = await businessLogic.GetStartFormReference(definitionId);
+            var reference = await businessLogic.GetStartFormReference(definitionId, expectedDefinitionId: expectedDefinitionId);
             if (reference.FormKey is null) return HiddenNotFound();
             resolved = await forms.ResolveAsync(reference.FormKey, reference.DefinitionId);
         }
@@ -151,8 +153,9 @@ public sealed class DirectoryFormSubjectController(
         return await SearchBoundField(resolved.Form, fieldKey, query, kind, limit);
     }
 
-    /// <summary>Historische Anzeigeauflösung im gebundenen Startformularfeld.</summary>
+    /// <summary>Historische Anzeigeauflösung im gebundenen Startfeld; eine Host-Versionsbindung bleibt auch bei diesem POST erhalten.</summary>
     [HttpPost("start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectResolutionResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -160,12 +163,12 @@ public sealed class DirectoryFormSubjectController(
     public async Task<ActionResult<ApiStatusResult<DirectorySubjectResolutionResultDto>>> ResolveStartForm(
         string definitionId,
         string fieldKey,
-        [FromBody] DirectorySubjectResolutionRequestDto request)
+        [FromBody] DirectorySubjectResolutionRequestDto request, [FromQuery] Guid? expectedDefinitionId = null)
     {
         FormKeyResolver.Result resolved;
         try
         {
-            var reference = await businessLogic.GetStartFormReference(definitionId);
+            var reference = await businessLogic.GetStartFormReference(definitionId, expectedDefinitionId: expectedDefinitionId);
             if (reference.FormKey is null) return HiddenNotFound();
             resolved = await forms.ResolveAsync(reference.FormKey, reference.DefinitionId);
         }
@@ -180,80 +183,66 @@ public sealed class DirectoryFormSubjectController(
     }
 
     [HttpGet("user-tasks/{taskId:guid}/fields/{fieldKey}/subjects")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult<DirectorySubjectSearchResultDto>>> SearchTaskForm(
-        Guid taskId,
-        string fieldKey,
-        [FromQuery] string? query,
-        [FromQuery] string kind = "all",
-        [FromQuery] int limit = 20)
-    {
-        var currentUser = currentUserAccessor.GetCurrentUser();
-        currentUser.RequireResolvedUserId("searching directory subjects for a user task");
-        var task = await storage.SubscriptionStorage.GetUserTaskExtended(taskId);
-        if (task is null) return HiddenNotFound();
-
-        var canOperate = (await authorization.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
-        StorageSystem.DirectorySnapshot? snapshot;
-        try { snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
-        catch (NotSupportedException) { snapshot = null; }
-        var access = await UserTaskWorkAuthorization.EvaluateAsync(
-            storage, task, currentUser, canOperate, snapshot);
-        if (!access.CanWork)
-            return HiddenNotFound();
-
-        FormKeyResolver.Result resolved;
-        try
-        {
-            var key = (task.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
-            resolved = await forms.ResolveAsync(key, task.DefinitionId);
-        }
-        catch (Exception exception) when (exception is FileNotFoundException or InvalidOperationException)
-        {
-            return HiddenNotFound();
-        }
-        return await SearchBoundField(resolved.Form, fieldKey, query, kind, limit, snapshot);
-    }
+    public Task<ActionResult<ApiStatusResult<DirectorySubjectSearchResultDto>>> SearchTaskForm(
+        Guid taskId, string fieldKey, [FromQuery] string? query, [FromQuery] string kind = "all",
+        [FromQuery] int limit = 20, [FromQuery] UserTaskAccessCondition? condition = null) =>
+        WithTaskForm(taskId, condition, (_, snapshot, form, tx) =>
+            SearchBoundField(form, fieldKey, query, kind, limit, snapshot, tx));
 
     /// <summary>Historische Anzeigeauflösung im sichtbaren, gebundenen Aufgabenformularfeld.</summary>
     [HttpPost("user-tasks/{taskId:guid}/fields/{fieldKey}/subjects/resolve")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectResolutionResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status503ServiceUnavailable, "application/problem+json")]
-    public async Task<ActionResult<ApiStatusResult<DirectorySubjectResolutionResultDto>>> ResolveTaskForm(
-        Guid taskId,
-        string fieldKey,
-        [FromBody] DirectorySubjectResolutionRequestDto request)
+    public Task<ActionResult<ApiStatusResult<DirectorySubjectResolutionResultDto>>> ResolveTaskForm(
+        Guid taskId, string fieldKey, [FromBody] DirectorySubjectResolutionRequestDto request,
+        [FromQuery] UserTaskAccessCondition condition) =>
+        WithTaskForm(taskId, condition, async (task, snapshot, form, tx) =>
+        {
+            var contextSubjects = await new DirectorySubjectResolutionContext(tx).LoadTaskFormSubjects(task, fieldKey);
+            return await ResolveBoundField(form, fieldKey, request, snapshot, contextSubjects, tx);
+        });
+
+    /// <summary>
+    /// Feldbindung, persönliche Übernahme, aktuelle Instanz und Directorysnapshot gelten in
+    /// derselben Engine-/Task-Transaktion wie die Projektion. Kein erneuter Host-GET kann
+    /// diese atomare Grenze ersetzen; ungebundene Konsolenaufrufe bleiben rückwärtskompatibel.
+    /// </summary>
+    private async Task<ActionResult<ApiStatusResult<T>>> WithTaskForm<T>(Guid taskId,
+        UserTaskAccessCondition? condition,
+        Func<Model.ExtendedUserTaskSubscription, DirectorySnapshot?, FormDto?, IStorageSystem,
+            Task<ActionResult<ApiStatusResult<T>>>> project)
     {
         var currentUser = currentUserAccessor.GetCurrentUser();
-        currentUser.RequireResolvedUserId("resolving directory subjects for a user task");
-        var task = await storage.SubscriptionStorage.GetUserTaskExtended(taskId);
-        if (task is null) return HiddenNotFound();
-
+        currentUser.RequireResolvedUserId("reading directory subjects for a user task");
         var canOperate = (await authorization.AuthorizeAsync(User, FlowzerPolicies.Operator)).Succeeded;
-        DirectorySnapshot? snapshot;
-        try { snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
-        catch (NotSupportedException) { snapshot = null; }
-        var access = await UserTaskWorkAuthorization.EvaluateAsync(
-            storage, task, currentUser, canOperate, snapshot);
-        if (!access.CanWork) return HiddenNotFound();
-
-        FormKeyResolver.Result resolved;
-        try
+        return await businessLogic.ExecuteUserTaskMutationAsync<ActionResult<ApiStatusResult<T>>>(async tx =>
         {
-            var key = (task.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
-            resolved = await forms.ResolveAsync(key, task.DefinitionId);
-        }
-        catch (Exception exception) when (exception is FileNotFoundException or InvalidOperationException)
-        {
-            return HiddenNotFound();
-        }
-        var contextSubjects = await resolutionContext.LoadTaskFormSubjects(task, fieldKey);
-        return await ResolveBoundField(resolved.Form, fieldKey, request, snapshot, contextSubjects);
+            var task = await UserTaskAccessGuard.LoadCurrentAsync(tx, taskId);
+            if (task is null) return HiddenNotFound();
+            DirectorySnapshot? snapshot;
+            try { snapshot = await tx.IdentityDirectoryStorage.GetActiveSnapshot(); }
+            catch (NotSupportedException) { snapshot = null; }
+            var access = await UserTaskWorkAuthorization.EvaluateAsync(tx, task, currentUser, canOperate, snapshot);
+            if (!access.CanWork || condition is not null && !condition.Allows(access)) return HiddenNotFound();
+            condition?.EnsureBinding(task);
+            FormKeyResolver.Result resolved;
+            try
+            {
+                var key = (task.Token.CurrentFlowNode as BPMN.HumanInteraction.UserTask)?.Implementation;
+                resolved = await new FormKeyResolver(tx).ResolveAsync(key, task.DefinitionId);
+            }
+            catch (Exception exception) when (exception is FileNotFoundException or InvalidOperationException)
+            { return HiddenNotFound(); }
+            return await project(task, snapshot, resolved.Form, tx);
+        }, HttpContext.RequestAborted);
     }
 
     private async Task<ActionResult<ApiStatusResult<DirectorySubjectSearchResultDto>>> SearchBoundField(
@@ -262,7 +251,7 @@ public sealed class DirectoryFormSubjectController(
         string? query,
         string kind,
         int limit,
-        StorageSystem.DirectorySnapshot? snapshot = null)
+        StorageSystem.DirectorySnapshot? snapshot = null, IStorageSystem? boundStorage = null)
     {
         if (!TryGetBoundField(form, fieldKey, out var field)) return HiddenNotFound();
         var policy = field.SubjectSelection!;
@@ -274,7 +263,7 @@ public sealed class DirectoryFormSubjectController(
         if (limit is < 1 or > 50)
             return InvalidSearch("The limit must be between 1 and 50.");
 
-        try { snapshot ??= await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
+        try { snapshot ??= await (boundStorage ?? storage).IdentityDirectoryStorage.GetActiveSnapshot(); }
         catch (NotSupportedException) { snapshot = null; }
         if (snapshot is null)
         {
@@ -295,13 +284,13 @@ public sealed class DirectoryFormSubjectController(
         string fieldKey,
         DirectorySubjectResolutionRequestDto request,
         DirectorySnapshot? snapshot = null,
-        IReadOnlySet<SubjectRef>? contextSubjects = null)
+        IReadOnlySet<SubjectRef>? contextSubjects = null, IStorageSystem? boundStorage = null)
     {
         if (!TryGetBoundField(form, fieldKey, out var field)) return HiddenNotFound();
         if (!IdentityDirectorySubjectController.TryParseSubjects(request, out var subjects, out var error))
             return InvalidResolution(error);
 
-        try { snapshot ??= await storage.IdentityDirectoryStorage.GetActiveSnapshot(); }
+        try { snapshot ??= await (boundStorage ?? storage).IdentityDirectoryStorage.GetActiveSnapshot(); }
         catch (NotSupportedException) { snapshot = null; }
         if (snapshot is null) return DirectoryUnavailable();
 

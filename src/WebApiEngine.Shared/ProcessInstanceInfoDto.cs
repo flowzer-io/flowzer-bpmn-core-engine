@@ -20,6 +20,9 @@ public class ProcessInstanceInfoDto
     public int ServiceSubscriptionCount { get; set; }
     
     public ProcessInstanceStateDto State { get; set; }
+
+    /// <summary>Persönlich zurückgezogen, nicht nur durch den Betrieb oder BPMN beendet; ohne Akteursdaten.</summary>
+    public bool WasWithdrawn { get; set; }
     public List<TokenDto> Tokens { get; set; } = [];
 
     /// <summary>Nur bei expliziter Diagnoseberechtigung sind Tokens und technische Routen verfügbar.</summary>

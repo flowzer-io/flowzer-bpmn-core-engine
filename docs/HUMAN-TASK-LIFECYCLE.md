@@ -7,7 +7,64 @@ tatsächlichen Bearbeiter einer laufenden Aufgabe. Modelle dürfen weiterhin bew
 zwischen freien Textwerten und stabilen Directory-Benutzer-/Gruppenreferenzen wählen.
 Eine Gruppe ist eine Kandidatenmenge, aber niemals selbst tatsächlicher Bearbeiter.
 
+## Exklusive Bearbeiterquellen (TT-Demo-Durchstich, #378)
+
+Zusätzlich zu festen Directory-IDs unterstützt die eigene Flowzer-1.0-Erweiterung einen
+**einmalig beim Erzeugen der Aufgabe aufgelösten** direkten Bearbeiter:
+
+```xml
+<flowzer:taskAssignment mode="directory" assigneeSource="initiator" />
+<flowzer:taskAssignment mode="directory" assigneeSource="variable:vertretung" />
+```
+
+- `initiator` verwendet ausschließlich die beim direkten Start verifizierten
+  Issuer-/Subject-Metadaten. Eine Prozess-/Formularvariable gleichen Namens ist irrelevant.
+  Intern aufgerufene Prozesse erben diese Metadaten, nicht eine aus Eingaben erratene Person.
+- `variable:<name>` liest genau einen ASCII-Schlüssel (Buchstabe oder `_` am Anfang,
+  danach Buchstaben/Ziffern/`_`, höchstens 128 Zeichen). Ein expliziter Task-Eingang hat
+  Vorrang; fehlt dort der Schlüssel, gilt der **eigene Instanz-Root**. Keine freie
+  Suche durch eingebettete Subprozessscopes, keine Pfade, Skripte oder Ausdrücke.
+- Der Wert ist genau `{ "kind": "user", "id": "<stabile lokale UUID>" }`, z. B. aus dem
+  [Directory-Formularfeld](FORM-DIRECTORY-FIELD.md). Gruppen, Namen, Arrays und zusätzliche
+  Felder werden nicht zu einem Benutzer umgedeutet. Fehlender Initiator oder ungültiger
+  Wert stoppt den Fortschritt, statt eine unzugewiesene Aufgabe zu veröffentlichen.
+- Ziel muss im aktuellen vollständig veröffentlichten Snapshot aktiv, Keycloak-basiert
+  und eindeutig nach ID sowie Issuer/Subject sein. Derselbe veröffentlichte Snapshot
+  wird für alle neuen Aufgaben eines Speicherschritts verwendet.
+- Die Quelle ist exklusiv zu `assigneeId`, Kandidaten-IDs und Zeebe-Freitext. Parser und
+  Deployment prüfen den Vertrag; ohne veröffentlichtes Directory kein Deployment.
+- Die aufgelöste lokale ID wird in der vorhandenen Subscription gespeichert. Spätere
+  Variablenänderungen und Neustarts hängen **bestehende** Aufgaben nicht um. Erst neue
+  Aufgaben lesen den neuen Wert. Aktuelle Bearbeitungsrechte/Deaktivierungen werden
+  weiterhin bei jeder Aktion geprüft; Einfrieren ist keine dauerhafte Rechtefreigabe.
+
+Die Konsole zeigt Antragsteller, Formularvariable und feste Auswahl getrennt. Öffnen,
+leere Variablenfelder oder ein noch leerer Wechsel zur festen Auswahl überschreiben
+keinen gültigen Vertrag. Ein vollständiger bewusster Wechsel entfernt die andere
+Zuweisungsart. Modell-/Paket-Roundtrips erhalten die Quelle ohne Benutzer-IDs zu exportieren.
+Dynamische Prozessdaten werden in beiden Ablagen als JSON-Daten geschrieben. Der
+auf `ExpandoObject` begrenzte `StorageVariableDataConverter` verhindert neue CLR-`$type`-
+Metadaten in verschachtelten Formularwerten. Die übrigen polymorphen Token-/BPMN-Modelle
+und ihre sicheren Typbinder bleiben unverändert. Die bestehende Expando-Lesesemantik
+bleibt erhalten: Ein bereits vorhandenes oder eingereichtes `$type` wird **nicht**
+weggefiltert oder instanziiert; als zusätzliches SubjectRef-Feld bleibt es ungültig.
+Keine Datenwanderung und keine Reparatur historisch ungültiger Referenzen durch Raten.
+
+Diese optionale **proprietäre** Erweiterung ist keine zusätzliche OMG-Elementart und
+ändert weder den v9-Elementfähigkeitsvertrag noch die vorhandenen Speicherschemata.
+Ältere Flowzer-Parser erkennen `assigneeSource` nicht: Solche Definitionen erst auf einer
+Version mit diesem Slice veröffentlichen; laufende ältere Definitionen bleiben unverändert.
+
+Die isolierten Datei-/HTTP-Tests belegen Parser, Identität, Eingangsbindung, Einfrieren
+und Rechteentzug. Das zusätzliche gemeinsame Szenario wird in CI gegen echtes PostgreSQL
+geprüft. Das ersetzt keine echte Demo-Realm-/HTTPS- oder 45-Minuten-Formularabnahme.
+
 ## Öffentlicher Vertrag
+
+Der separate [TT-Demo-Urlaubsantrag](../examples/tickytask-urlaub/README.md) kombiniert
+diese Identitäts-/Entwurfsregeln mit einer eingebetteten parallelen Prüfrunde, expliziten
+Entscheidungsaktionen und initiatorgebundener Korrektur. Es ist kein Worker-/Urlaubsbuchungs-
+oder Timerbeispiel; reale Demo-/Realm-Abnahme bleibt ein eigenes Gate.
 
 Jede Aufgabe liefert unter `workState` die monotone Lifecycle-Revision, den tatsächlichen
 Directory-Bearbeiter (soweit vorhanden), dessen Anzeigenamen sowie serverseitig berechnete

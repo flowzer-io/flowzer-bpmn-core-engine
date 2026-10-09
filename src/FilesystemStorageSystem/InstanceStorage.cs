@@ -16,6 +16,7 @@ public class InstanceStorage : IInstanceStorage
         _newtonSoftDefaultSettings = new JsonSerializerSettings
         {
             TypeNameHandling = TypeNameHandling.Auto,
+            Converters = [new StorageSystem.StorageVariableDataConverter()],
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
             SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented,

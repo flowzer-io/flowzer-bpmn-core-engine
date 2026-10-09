@@ -18,6 +18,7 @@ CS_TEST_DIRECTORIES = [
 JS_TEST_DIRECTORIES = [
     ROOT / 'tests' / 'ui-smoke' / 'tests',
     ROOT / 'tests' / 'installation-auth' / 'specs',
+    ROOT / 'tests' / 'form-embedding',
     ROOT / 'src' / 'FlowzerConsole' / 'scripts',
     ROOT / 'packages' / 'flowzer-sdk' / 'src',
     ROOT / 'packages' / 'flowzer-react' / 'src',
@@ -116,7 +117,7 @@ def check_csharp_tests() -> list[Finding]:
 def check_js_tests() -> list[Finding]:
     findings: list[Finding] = []
 
-    for path in iter_files(JS_TEST_DIRECTORIES, ('.js', '.mjs', '.ts')):
+    for path in iter_files(JS_TEST_DIRECTORIES, ('.js', '.mjs', '.ts', '.cjs')):
         lines = path.read_text(encoding='utf-8').splitlines()
         for index, line in enumerate(lines):
             if JS_TEST_CALL.match(line) and not has_purpose_comment_before_js_test(lines, index):

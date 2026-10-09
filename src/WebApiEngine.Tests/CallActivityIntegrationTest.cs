@@ -287,6 +287,66 @@ public sealed class CallActivityIntegrationTest
         }
     }
 
+    // Testzweck: Vererbte Initiatoridentität macht eine interne Kindinstanz nicht zu
+    // einem direkten Start; persönlicher Rückzug beendet nur den gesamten eigenen Vorgang.
+    [Test]
+    public async Task InitiatorWithdrawal_ShouldRejectInternalChildAndAllowWholeParent()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var engine = context.Services.GetRequiredService<BpmnBusinessLogic>();
+        await DeployAsync(context.Storage, engine, CalledDefinitionId, CalledXml());
+        await DeployAsync(context.Storage, engine, CallerDefinitionId, CallerXml());
+        using var initiator = context.CreateClient();
+        using var started = await initiator.PostAsJsonAsync(
+            $"/definition/meta/{CallerDefinitionId}/instance", new { variables = new { antragsnummer = "4711" } });
+        started.EnsureSuccessStatusCode();
+        var parentId = (await started.Content.ReadFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>())!.Result!.InstanceId;
+        var child = (await context.Storage.InstanceStorage.GetAllInstances()).Single(instance => instance.ParentInstanceId == parentId);
+        using var denied = await initiator.PostAsync($"/instance/{child.InstanceId}/withdraw", null);
+        denied.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await context.Storage.InstanceStorage.GetProcessInstance(child.InstanceId)).IsFinished.Should().BeFalse();
+        (await context.Storage.InstanceStorage.GetProcessInstance(parentId)).IsFinished.Should().BeFalse();
+        using var withdrawn = await initiator.PostAsync($"/instance/{parentId}/withdraw", null);
+        withdrawn.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await context.Storage.InstanceStorage.GetProcessInstance(parentId)).State.Should().Be(ProcessInstanceState.Terminated);
+        (await context.Storage.InstanceStorage.GetProcessInstance(child.InstanceId)).State.Should().Be(ProcessInstanceState.Terminated);
+        (await context.Storage.InstanceStorage.GetProcessInstance(child.InstanceId)).Tokens
+            .Single(token => token.ParentTokenId is null).Withdrawal.Should().BeNull("nur der persönliche Gesamtvorgang wird auditiert");
+    }
+
+    // Testzweck: Die nichttransaktionale Entwicklungsablage kann nach gespeichertem
+    // Elternabbruch scheitern. Ein Retry muss Restarbeit schließen, statt lebende Kinder zu bestätigen.
+    [Test]
+    public async Task WithdrawalRetry_ShouldFinishChildrenAfterPartiallyPersistedFileMutation()
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var engine = context.Services.GetRequiredService<BpmnBusinessLogic>();
+        await DeployAsync(context.Storage, engine, CalledDefinitionId, CalledXml());
+        await DeployAsync(context.Storage, engine, CallerDefinitionId, CallerXml());
+        using var initiator = context.CreateClient();
+        using var started = await initiator.PostAsJsonAsync(
+            $"/definition/meta/{CallerDefinitionId}/instance", new { variables = new { antragsnummer = "4711" } });
+        started.EnsureSuccessStatusCode();
+        var parentId = (await started.Content.ReadFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>())!.Result!.InstanceId;
+        var child = (await context.Storage.InstanceStorage.GetAllInstances()).Single(instance => instance.ParentInstanceId == parentId);
+        // Der konkrete Dateistore liest beim Kindabbruch den Gesamtbestand. Ein einziges
+        // beschädigtes Testdokument erzwingt den Fehler erst nach dem Parent-Persistieren.
+        var damagedFile = Path.Combine(context.Storage.GetBasePath("FileStorage/Instances"), "synthetic-fault.json");
+        await File.WriteAllTextAsync(damagedFile, "not-json");
+        using var failed = await initiator.PostAsync($"/instance/{parentId}/withdraw", null);
+        failed.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        var firstAudit = (await context.Storage.InstanceStorage.GetProcessInstance(parentId)).Tokens
+            .Single(token => token.ParentTokenId is null).Withdrawal;
+        firstAudit.Should().NotBeNull();
+        (await context.Storage.InstanceStorage.GetProcessInstance(child.InstanceId)).IsFinished.Should().BeFalse();
+        File.Delete(damagedFile);
+        using var retry = await initiator.PostAsync($"/instance/{parentId}/withdraw", null);
+        retry.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await context.Storage.InstanceStorage.GetProcessInstance(child.InstanceId)).State.Should().Be(ProcessInstanceState.Terminated);
+        (await context.Storage.InstanceStorage.GetProcessInstance(parentId)).Tokens
+            .Single(token => token.ParentTokenId is null).Withdrawal.Should().Be(firstAudit);
+    }
+
     // Testzweck: Wer den aufrufenden Vorgang angestoßen hat, sieht auch den aufgerufenen — sonst
     // bräche die Sicht auf den eigenen Vorgang genau an der Call Activity ab.
     [Test]

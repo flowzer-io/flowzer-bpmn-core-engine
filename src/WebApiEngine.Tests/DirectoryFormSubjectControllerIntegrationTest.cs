@@ -34,6 +34,28 @@ public sealed class DirectoryFormSubjectControllerIntegrationTest
         items[0].GetProperty("subject").GetProperty("id").GetGuid().Should().Be(seeded.MemberId);
     }
 
+    // Testzweck: Der Host bindet Suche und historische Anzeige an die geöffnete
+    // Definitionsversion. Eine fremde Version darf nicht still die aktuelle Fassung lesen.
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task StartFormDirectory_ShouldHonorTheDisplayedVersion(bool resolve)
+    {
+        using var context = new AuthenticatedWorkflowTestContext();
+        var seeded = await SeedDirectoryAsync(context);
+        await FormTestSeed.StoreAsync(context.Storage, "Approval", Schema(seeded.GroupId));
+        var definition = await context.DeployAsync("", startFormKey: "Approval");
+        using var client = context.CreateClient();
+        async Task<HttpResponseMessage> Request(Guid version)
+        {
+            var route = "/identity-directory/start-forms/Definitions_Completion/fields/representative/subjects"
+                + (resolve ? "/resolve" : "") + $"?expectedDefinitionId={version}";
+            return resolve ? await client.PostAsJsonAsync(route, new { subjects = new[] { new { kind = "user", id = seeded.MemberId } } })
+                : await client.GetAsync(route + "&query=anna&kind=user");
+        }
+        (await Request(definition.Id)).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await Request(Guid.NewGuid())).StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
     // Testzweck: Eine fremde oder unbekannte Aufgabe und ein unbekanntes Feld bleiben ueber
     // denselben 404-Vertrag verborgen; es gibt keinen allgemeinen Directory-Fallback.
     [Test]

@@ -60,18 +60,24 @@ expect_status() {
 check_variant() {
   local variant="$1"; shift
   local html="$work/$variant"
-  mkdir -p "$html/assets"
+  mkdir -p "$html/assets" "$html/embed-assets"
   printf '<!doctype html><title>Flowzer</title>' >"$html/index.html"
+  printf '<!doctype html><title>Flowzer Formular</title>' >"$html/embed.html"
   printf 'console.log(1)' >"$html/assets/index-abc123.js"
+  printf 'console.log(2)' >"$html/embed-assets/embed.js"
 
   local container
   container="$(docker run -d --network "$network" -p 127.0.0.1::8080 "$@" \
     -v "$repo_root/deploy/console/entrypoint.sh:/entrypoint.sh:ro" \
+    -v "$repo_root/deploy/console/embedding-policy.sh:/embedding-policy.sh:ro" \
     -v "$html:/usr/share/nginx/html" \
     --entrypoint /bin/sh "$image" /entrypoint.sh)"
   containers+=("$container")
   local port
-  port="$(docker port "$container" 8080/tcp | head -n1 | sed 's/.*://')"
+  port="$(docker port "$container" 8080/tcp | head -n1 | sed 's/.*://')" || {
+    fail "$variant: nginx endet vor Portfreigabe: $(docker logs "$container" 2>&1 | tail -n5)"
+    return
+  }
 
   local ready=false
   for _ in $(seq 1 50); do
@@ -103,10 +109,41 @@ check_variant() {
     expect_header "$variant" "$port" "$path" 'x-content-type-options: nosniff'
     expect_header "$variant" "$port" "$path" 'referrer-policy: strict-origin-when-cross-origin'
   done
+
+  # Testzweck: Der komplette Entrypoint sperrt die Einbettung ohne Opt-in und
+  # liefert bei Aktivierung ausschließlich deren isolierte vollständige Header.
+  # Die normale Console behält in beiden Fällen DENY; nichts wird global gelockert.
+  if [[ "$variant" == eingebettet-* ]]; then
+    expect_status "$variant" "$port" /embed.html 200
+    expect_header "$variant" "$port" /embed.html 'cache-control: no-store'
+    expect_header "$variant" "$port" /embed.html 'referrer-policy: no-referrer'
+    expect_header "$variant" "$port" /embed.html 'x-content-type-options: nosniff'
+    expect_no_header "$variant" "$port" /embed.html 'x-frame-options'
+    local policy
+    policy="$(FLOWZER_EMBED_API_ORIGIN=https://flowzer.example.test \
+      FLOWZER_EMBED_HOST_ORIGINS=https://host.example.test \
+      sh "$repo_root/deploy/console/embedding-policy.sh" \
+      | sed -n 's/.*Content-Security-Policy "\([^"]*\)".*/\1/p')"
+    expect_header "$variant" "$port" /embed.html "content-security-policy: $policy"
+    expect_status "$variant" "$port" /embed-assets/embed.js 200
+    expect_header "$variant" "$port" /embed-assets/embed.js 'access-control-allow-origin: null'
+    expect_header "$variant" "$port" /embed-assets/embed.js 'cache-control: no-cache'
+    expect_no_header "$variant" "$port" /embed-assets/embed.js 'access-control-allow-credentials'
+    expect_status "$variant" "$port" /embed-assets/missing.js 404
+  else
+    expect_status "$variant" "$port" /embed.html 404
+    expect_status "$variant" "$port" /embed-assets/embed.js 404
+  fi
 }
 
 check_variant ohne-weiterleitung
 check_variant mit-weiterleitung -e FLOWZER_API_UPSTREAM=api:8080
+check_variant eingebettet-ohne-weiterleitung \
+  -e FLOWZER_EMBED_API_ORIGIN=https://flowzer.example.test \
+  -e FLOWZER_EMBED_HOST_ORIGINS=https://host.example.test
+check_variant eingebettet-mit-weiterleitung -e FLOWZER_API_UPSTREAM=api:8080 \
+  -e FLOWZER_EMBED_API_ORIGIN=https://flowzer.example.test \
+  -e FLOWZER_EMBED_HOST_ORIGINS=https://host.example.test
 
 # Die Weiterleitung selbst muss die Sicherheitskopfzeilen ebenfalls tragen; die API ist hier
 # nicht erreichbar, nginx antwortet deshalb mit einem Fehler, der sie trotzdem enthaelt.

@@ -61,6 +61,14 @@ public sealed class IdentityDirectorySynchronizer(
             timeout.CancelAfter(synchronizationTimeout);
             var keycloakSnapshot = await client.GetSnapshotAsync(timeout.Token);
             var snapshot = MapSnapshot(keycloakSnapshot, issuer, generationId, timeProvider.GetUtcNow().UtcDateTime);
+            if (!string.IsNullOrEmpty(_options.RootGroupId)
+                && !DirectoryGroupScope.IsValidSnapshot(snapshot, issuer, _options.RootGroupId))
+            {
+                // Auch ein alternativer Admin-Adapter darf niemals einen breiteren
+                // oder unvollständigen Stand hinter dem Installations-Scope publizieren.
+                throw new KeycloakAdminClientException(KeycloakAdminClientFailureKind.InvalidResponse,
+                    "Keycloak returned a snapshot outside the configured group scope.");
+            }
             await storage.PublishSnapshot(snapshot);
             logger.LogInformation("Keycloak directory snapshot published with {UserCount} users and {GroupCount} groups.",
                 snapshot.Users.Count, snapshot.Groups.Count);
