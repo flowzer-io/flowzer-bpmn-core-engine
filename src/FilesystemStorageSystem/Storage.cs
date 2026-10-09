@@ -61,6 +61,7 @@ public class Storage : IStorageSystem
         new()
         {
             TypeNameHandling = TypeNameHandling.Auto,
+            Converters = [new StorageSystem.StorageVariableDataConverter()],
             TypeNameAssemblyFormatHandling = TypeNameAssemblyFormatHandling.Simple,
             SerializationBinder = new KnownStorageAssembliesBinder(),
             Formatting = Formatting.Indented
