@@ -143,7 +143,7 @@ public partial class PostgreSqlStorageIntegrationTest
             .MigrateInstances([instance.InstanceId], target.Id, user.UserId);
         await taskLocked.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
-        var drafts = CreateDraftService(provider, user);
+        var drafts = CreateDraftService(engine, user);
         var save = drafts.SaveAsync(task.Id, new SaveUserTaskDraftRequestDto
         {
             ExpectedRevision = draftExists ? 1 : 0,
@@ -197,9 +197,9 @@ public partial class PostgreSqlStorageIntegrationTest
     /// stammen aus dem Testkontext statt aus einem HTTP-Request.
     /// </summary>
     private static UserTaskDraftService CreateDraftService(
-        ITransactionalStorageProvider provider,
+        BpmnBusinessLogic engine,
         CurrentUserContext user) => new(
-        provider,
+        engine,
         new FixedCurrentUserContextAccessor(user),
         new HttpContextAccessor { HttpContext = new DefaultHttpContext() },
         new AlwaysAuthorizedService(),

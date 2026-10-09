@@ -4,6 +4,7 @@ using WebApiEngine.FormEmbedding;
 using WebApiEngine.Shared;
 using Microsoft.AspNetCore.RateLimiting;
 using WebApiEngine.Limits;
+using WebApiEngine.Auth;
 
 namespace WebApiEngine.Controller;
 
@@ -13,12 +14,13 @@ public sealed class FormEmbedController(FormEmbedLinkService links) : Controller
 {
     /// <summary>Persönlichen Einmaleinstieg vom authentifizierten Backend aus anfordern.</summary>
     [HttpPost("/usertask/{taskId:guid}/form-link")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<FormEmbedLinkDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiStatusResult<FormEmbedLinkDto>>> Issue(Guid taskId, CreateFormEmbedLinkRequestDto request)
+    public async Task<ActionResult<ApiStatusResult<FormEmbedLinkDto>>> Issue(Guid taskId, CreateFormEmbedLinkRequestDto request, [FromQuery] UserTaskAccessCondition condition)
     {
         NoStore();
-        var link = await links.IssueAsync(taskId, request.HostOrigin, HttpContext.RequestAborted);
+        var link = await links.IssueAsync(taskId, request.HostOrigin, HttpContext.RequestAborted, condition);
         return link is null ? Unavailable() : Ok(new ApiStatusResult<FormEmbedLinkDto>(link));
     }
 

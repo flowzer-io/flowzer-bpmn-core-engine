@@ -7,6 +7,12 @@ realer Token-Erneuerung und mindestens 45 Minuten Bearbeitung bleiben zwingende
 Folge-Gates. Das Installations-Opt-in bleibt standardmäßig geschlossen und wird
 noch nicht in Compose aktiviert.
 
+Der Host kann die Linkausgabe und alle persönlichen Datenaktionen zusätzlich
+atomar an seine registrierte Instanz-/Versionsbindung und tatsächliche Übernahme
+binden; siehe [Hostvertrag](HOST-INTEGRATION.md#atomare-bindung-weiterer-aufgabenaktionen).
+Ein vorangehender Taskabruf allein ist keine Absicherung gegen Freigabe/Migration.
+Bestehende Ablauf-, Sandbox-, CSP- und Read-only-Grenzen bleiben unverändert.
+
 ## Vertrag
 
 ### Versionsbindung beim Workflowstart

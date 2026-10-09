@@ -97,6 +97,45 @@ beantwortet, auch nach Abschluss oder Umzug. Bei unklarem Ausgang bleiben daher
 Schlüssel, Bindung, Entscheidung und Eingaben unverändert. Es entstehen keine
 neuen TT-Daten, Entwurfstabellen oder Link-Secrets für Wiederholungen.
 
+## Atomare Bindung weiterer Aufgabenaktionen
+
+Auch Claim, Release, privater Entwurfsabruf/-speichern/-löschen, Linkausgabe und
+feldgebundene Directorysuche/-auflösung akzeptieren die optionalen Querybedingungen
+`expectedProcessInstanceId`, `expectedDefinitionId` und
+`requireAssignedToCurrentUser`. Sie **beschränken** bestehende Rechte; sie liefern
+weder Identität noch Berechtigung. Der Host leitet Instanz/Version aus seiner
+serverseitig registrierten Vorgangsbindung ab und sendet die persönliche
+Übernahmebedingung fest für Daten-/Link-/Freigabeaktionen. Claim verwendet sie
+bewusst nicht: Er übernimmt die bislang freie Aufgabe atomar.
+
+Flowzer prüft aktuelle Identität, aktive Task-/Instanz-/Tokenbindung und diese
+Bedingungen im selben vorhandenen Tasklock und derselben Storage-Transaktion wie
+die eigentliche Aktion. Bei Dateiablage serialisiert zusätzlich die bestehende
+Engine-Sperre; PostgreSQL verwendet den bestehenden Lifecyclelock pro Aufgabe.
+Die Read-only-Projektion von Directorywerten bleibt bis zur fertigen Antwort in
+dieser geschützten Sicht. Es gibt keinen neuen Taskcache, keine Hostsession und
+keine zusätzliche Persistenz. Bestehende Konsolenaufrufe ohne Bedingungen bleiben
+kompatibel; der Host darf fehlende Bedingungen niemals als Fallback verwenden.
+
+Rechteentzug oder verlorener Claim bleibt `404`, auch für Operatoren mit
+`requireAssignedToCurrentUser=true`. Ein Instanz-/Versionskonflikt einer sonst
+berechtigten Aufgabe ist `409 user_task.binding_conflict` ohne Zielkennungen.
+Ein nach Freigabe erneut gültiges Kandidatenrecht ist kein persönliches
+Bearbeitungsrecht. Linkeinlösung bindet weiterhin die gespeicherte Taskrevision
+und Definitionsversion; Freigabe oder Migration nach Ausgabe entwerten den Grant.
+Die Einlösefrist begrenzt weiterhin nur den Einstieg, nicht die Bearbeitung.
+
+Die echten HTTP-Regressionen reproduzierten vor dem Fix **17/23 rot**, anschließend
+besteht der kombinierte fokussierte Alt-/Neuvertrag **88/88**, ohne Skips.
+Zusätzliche PostgreSQL-Zwei-Host-Tests prüfen jeweils 20 Migration-/Claim-,
+Migration-/Release- und Migration-/Save-Rennen: kein V1-Auftrag darf unter V2
+Audit oder Entwurf erzeugen. Dieser echte Mehrprozessnachweis läuft getrennt in
+der verbindlichen PostgreSQL-CI; ein hermetischer Grünlauf ersetzt ihn nicht.
+Der lokale API-Hermetiklauf besteht **1466/1466**, Engine **372/372**, echter
+OpenAPI-Vertrag **16/16** und SDK **33/33** samt Typprüfung/Build, ohne Skips.
+Die generierten Queryparameter stammen aus dem tatsächlich gemounteten Swagger;
+kein manuell parallel gepflegtes Schema. Das ist keine Demo-/HTTPS-Abnahme.
+
 ## Bewusste Grenzen des ersten Pakets
 
 - keine fertigen sichtbaren Komponenten oder Form.io-Bündelung

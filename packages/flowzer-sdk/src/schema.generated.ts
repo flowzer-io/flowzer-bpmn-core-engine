@@ -2239,6 +2239,9 @@ export interface paths {
                     query?: string;
                     kind?: string;
                     limit?: number;
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
                 };
                 header?: never;
                 path: {
@@ -2278,6 +2281,15 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
                 /** @description Service Unavailable */
                 503: {
                     headers: {
@@ -2308,7 +2320,11 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     taskId: string;
@@ -2351,6 +2367,15 @@ export interface paths {
                     };
                     content: {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -3159,7 +3184,11 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     taskId: string;
@@ -3194,6 +3223,15 @@ export interface paths {
                         "text/plain": components["schemas"]["ProblemDetails"];
                         "application/json": components["schemas"]["ProblemDetails"];
                         "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
                     };
                 };
             };
@@ -6800,7 +6838,11 @@ export interface paths {
         };
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     userTaskId: string;
@@ -6829,11 +6871,24 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ApiProblemDetails"];
+                    };
+                };
             };
         };
         put: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     userTaskId: string;
@@ -6903,6 +6958,9 @@ export interface paths {
                 query?: {
                     expectedRevision?: number;
                     expectedTaskRevision?: number;
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
                 };
                 header?: never;
                 path: {
@@ -6959,7 +7017,11 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     userTaskId: string;
@@ -7024,7 +7086,11 @@ export interface paths {
         put?: never;
         post: {
             parameters: {
-                query?: never;
+                query?: {
+                    expectedProcessInstanceId?: string;
+                    expectedDefinitionId?: string;
+                    requireAssignedToCurrentUser?: boolean;
+                };
                 header?: never;
                 path: {
                     userTaskId: string;

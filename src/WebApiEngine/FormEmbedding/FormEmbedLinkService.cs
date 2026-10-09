@@ -26,7 +26,7 @@ public sealed class FormEmbedLinkService(
     IOptions<KeycloakDirectoryOptions>? directoryOptions = null)
 {
     /// <summary>Erstellt nur für eine persönlich berechtigte Directory-Identität einen Einstieg.</summary>
-    public async Task<FormEmbedLinkDto?> IssueAsync(Guid taskId, string hostOrigin, CancellationToken cancellationToken = default)
+    public async Task<FormEmbedLinkDto?> IssueAsync(Guid taskId, string hostOrigin, CancellationToken cancellationToken = default, UserTaskAccessCondition? condition = null)
     {
         if (!options.Value.Allows(hostOrigin)) return null;
         var actor = currentUser.GetCurrentUser();
@@ -36,7 +36,7 @@ public sealed class FormEmbedLinkService(
         await readStorage.FormEmbedGrantStorage.CleanupExpired(clock.GetUtcNow(), cancellationToken);
         return await engine.ExecuteUserTaskMutationAsync<FormEmbedLinkDto?>(async storage =>
         {
-            var authorized = await FindTask(storage, taskId, actor);
+            var authorized = await FindTask(storage, taskId, actor, condition);
             if (authorized is null) return null;
             var task = authorized.Value.Task;
             if (await ResolveForm(storage, task) is null) return null;
@@ -119,7 +119,7 @@ public sealed class FormEmbedLinkService(
     }
 
     private async Task<(ExtendedUserTaskSubscription Task, UserTaskAccess Access)?> FindTask(
-        IStorageSystem storage, Guid taskId, CurrentUserContext actor)
+        IStorageSystem storage, Guid taskId, CurrentUserContext actor, UserTaskAccessCondition? condition = null)
     {
         if (!await storage.UserTaskLifecycleStorage.LockTask(taskId)) return null;
         var task = await storage.SubscriptionStorage.GetUserTaskExtended(taskId);
@@ -138,7 +138,8 @@ public sealed class FormEmbedLinkService(
                 directory.RootGroupId, actor.Identity.Issuer, actor.Identity.Subject))) return null;
         if (DirectoryIdentityAccess.Resolve(actor, snapshot) is null) return null;
         var access = await UserTaskWorkAuthorization.EvaluateAsync(storage, task, actor, canOperate: false, snapshot);
-        if (!access.CanWork) return null;
+        if (!access.CanWork || condition is not null && !condition.Allows(access)) return null;
+        condition?.EnsureBinding(task);
         ProcessInstanceInfo instance;
         try { instance = await storage.InstanceStorage.GetProcessInstance(instanceId); }
         catch (FileNotFoundException) { return null; }

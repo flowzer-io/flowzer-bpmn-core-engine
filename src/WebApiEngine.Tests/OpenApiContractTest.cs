@@ -61,6 +61,32 @@ public class OpenApiContractTest
                 .TryGetProperty("409", out _).Should().BeTrue();
     }
 
+    // Testzweck: Auch lesende und nicht abschließende Hostaktionen binden Instanz/Version/Claim atomar;
+    // alle drei Querybedingungen bleiben optional und 409 ist für generierte Clients sichtbar.
+    [Test]
+    public async Task UserTaskSideOperations_ShouldDescribeOptionalAtomicBinding()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var paths = document.RootElement.GetProperty("paths");
+        foreach (var (path, verb) in new[] {
+            ("/UserTask/{userTaskId}/claim", "post"), ("/UserTask/{userTaskId}/release", "post"),
+            ("/UserTask/{userTaskId}/draft", "get"), ("/UserTask/{userTaskId}/draft", "put"),
+            ("/UserTask/{userTaskId}/draft", "delete"), ("/usertask/{taskId}/form-link", "post"),
+            ("/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects", "get"),
+            ("/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve", "post") })
+        {
+            var operation = paths.GetProperty(path).GetProperty(verb);
+            foreach (var name in new[] { "expectedProcessInstanceId", "expectedDefinitionId", "requireAssignedToCurrentUser" })
+            {
+                var parameter = operation.GetProperty("parameters").EnumerateArray()
+                    .Should().ContainSingle(item => item.GetProperty("name").GetString() == name).Subject;
+                parameter.GetProperty("in").GetString().Should().Be("query");
+                (parameter.TryGetProperty("required", out var required) && required.GetBoolean()).Should().BeFalse();
+            }
+            operation.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        }
+    }
+
     // Testzweck: Persönlicher Rückzug ist eine authentisierte Mutation ohne frei
     // mitgegebenen Akteur; Clients sehen nur den sicheren Rückzugsstatus und Konflikte.
     [Test]
