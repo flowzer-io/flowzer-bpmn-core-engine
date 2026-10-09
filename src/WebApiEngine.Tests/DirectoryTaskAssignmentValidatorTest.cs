@@ -83,6 +83,42 @@ public sealed class DirectoryTaskAssignmentValidatorTest
         action.Should().Throw<InvalidOperationException>().WithMessage("*Task_Approval*");
     }
 
+    // Testzweck: Die exklusive Quelle wird ohne vorzeitiges Erraten des späteren Werts
+    // veröffentlicht, verlangt aber weiterhin einen vollständigen Directory-Snapshot.
+    [TestCase("initiator")]
+    [TestCase("variable:vertretung")]
+    public void Validate_ShouldAcceptExclusiveSourcesOnlyWithSnapshot(string source)
+    {
+        var task = CreateTask(UserTaskAssignmentMode.Directory) with { FlowzerDirectoryAssigneeSource = source };
+        var withoutSnapshot = () => DirectoryTaskAssignmentValidator.Validate([task], null);
+        withoutSnapshot.Should().Throw<InvalidOperationException>();
+        var withSnapshot = () => DirectoryTaskAssignmentValidator.Validate([task], CreateSnapshot());
+        withSnapshot.Should().NotThrow();
+    }
+
+    // Testzweck: Auch direkt konstruierte Modelle dürfen die Parser-Grenze nicht umgehen
+    // und dynamische Quelle, Freitext oder feste Referenzen zu einem Mischvertrag machen.
+    [TestCase("text")]
+    [TestCase("fixed")]
+    [TestCase("candidates")]
+    [TestCase("legacy")]
+    [TestCase("invalid")]
+    public void Validate_ShouldRejectMixedSourcesInInternalModels(string scenario)
+    {
+        var task = CreateTask(UserTaskAssignmentMode.Directory) with { FlowzerDirectoryAssigneeSource = "initiator" };
+        task = scenario switch
+        {
+            "text" => task with { FlowzerAssignmentMode = UserTaskAssignmentMode.Text },
+            "fixed" => task with { FlowzerDirectoryAssigneeUserId = AnnaId },
+            "candidates" => task with { FlowzerDirectoryCandidateGroupIds = [FinanceId] },
+            "legacy" => task with { FlowzerAssignee = "untrusted" },
+            "invalid" => task with { FlowzerDirectoryAssigneeSource = "variable:person.id" },
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
+        var action = () => DirectoryTaskAssignmentValidator.Validate([task], CreateSnapshot());
+        action.Should().Throw<InvalidOperationException>().WithMessage("*directory assignment*");
+    }
+
     private static UserTask CreateTask(UserTaskAssignmentMode mode) => new()
     {
         Id = "Task_Approval",

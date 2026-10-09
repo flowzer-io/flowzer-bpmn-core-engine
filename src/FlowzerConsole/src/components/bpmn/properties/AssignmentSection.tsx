@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Segmented } from '@/components/ui/Segmented';
 
 import type { BpmnEditor, DirectoryAssignment, ElementProperties } from '../bpmnEditor';
+import { isDirectoryAssigneeSource } from '../elementProperties';
 import {
   DirectorySubjectPicker,
   type DirectorySubjectSelection,
@@ -13,6 +14,13 @@ const ASSIGNMENT_MODE_OPTIONS = [
   { value: 'text' as const, label: 'Freitext' },
   { value: 'directory' as const, label: 'Bekannte Benutzer/Gruppen' },
 ];
+
+const DIRECTORY_SOURCE_OPTIONS = [
+  { value: 'static' as const, label: 'Feste Auswahl' },
+  { value: 'initiator' as const, label: 'Antragsteller' },
+  { value: 'variable' as const, label: 'Formularvariable' },
+];
+type SourceMode = 'static' | 'initiator' | 'variable';
 
 interface AssignmentSectionProps {
   definitionId: string;
@@ -42,7 +50,15 @@ export function AssignmentSection({
   const [candidateGroups, setCandidateGroups] = useState<DirectorySubjectSelection[]>(() =>
     selections('group', properties.directoryAssignment.candidateGroupIds),
   );
+  const modelSource = properties.directoryAssignment.assigneeSource ?? '';
+  const [sourceMode, setSourceMode] = useState<SourceMode>(() => sourceModeOf(modelSource));
+  const [variableName, setVariableName] = useState(() => variableNameOf(modelSource));
   const directorySignature = JSON.stringify(properties.directoryAssignment);
+
+  useEffect(() => {
+    setSourceMode(sourceModeOf(modelSource));
+    setVariableName(variableNameOf(modelSource));
+  }, [properties.id, modelSource]);
 
   useEffect(() => {
     setMode(modelMode);
@@ -66,11 +82,27 @@ export function AssignmentSection({
   function changeMode(next: 'text' | 'directory') {
     setMode(next);
     if (next === 'text') {
+      setSourceMode('static');
+      setVariableName('');
       setAssignee([]);
       setCandidateUsers([]);
       setCandidateGroups([]);
       editor?.setAssignmentMode(properties.id, 'text');
     }
+  }
+
+  function changeSourceMode(next: SourceMode) {
+    setSourceMode(next);
+    if (next === 'initiator') editor?.setDirectoryAssignment(properties.id, { assigneeSource: 'initiator' });
+    // Die Wahl eines leeren Variablenfelds oder einer noch leeren festen Auswahl
+    // darf eine bisher gültige Zuweisung nicht zu einer ungebundenen Aufgabe öffnen.
+    if (next === 'variable') setVariableName(variableNameOf(modelSource));
+  }
+
+  function commitVariableName(value: string) {
+    const name = value.trim(); setVariableName(name);
+    if (isDirectoryAssigneeSource(`variable:${name}`))
+      editor?.setDirectoryAssignment(properties.id, { assigneeSource: `variable:${name}` });
   }
 
   function changeAssignee(next: DirectorySubjectSelection[]) {
@@ -96,7 +128,7 @@ export function AssignmentSection({
     <Section
       icon="person"
       title="Zuweisung"
-      hint="Freitext bleibt für externe oder dynamische Kennungen erhalten. Bekannte Identitäten werden mit stabilen IDs gespeichert."
+      hint="Freitext bleibt kompatibel. Directory-Zuweisungen verwenden feste Identitäten, den Antragsteller oder einen typisierten Benutzerwert."
     >
       <Segmented
         options={ASSIGNMENT_MODE_OPTIONS}
@@ -140,6 +172,16 @@ export function AssignmentSection({
 
       {mode === 'directory' && (
         <>
+          <Segmented options={DIRECTORY_SOURCE_OPTIONS} value={sourceMode} disabled={readOnly}
+            onChange={changeSourceMode} aria-label="Quelle des Bearbeiters" />
+          {sourceMode === 'initiator' && <Notice>Die beim Start authentifizierte Person erhält die Aufgabe. Formularfelder können diese Identität nicht überschreiben.</Notice>}
+          {sourceMode === 'variable' && <>
+            <TextRow label="Benutzervariable" value={variableName} disabled={readOnly}
+              placeholder="vertretung" onCommit={commitVariableName}
+              hint="Ein einzelner Benutzerwert aus dem Directory-Feld. Keine Gruppen, Pfade oder Ausdrücke." />
+            {!isDirectoryAssigneeSource(`variable:${variableName}`) && <Notice tone="warn">Gib einen einfachen Variablennamen ein. Bis dahin bleibt die bisherige Zuweisung unverändert.</Notice>}
+          </>}
+          {sourceMode === 'static' && <>
           <DirectorySubjectPicker
             definitionId={definitionId}
             kind="user"
@@ -173,6 +215,7 @@ export function AssignmentSection({
               eine vorhandene Freitextzuweisung im BPMN.
             </Notice>
           )}
+          </>}
         </>
       )}
     </Section>
@@ -203,4 +246,11 @@ function mergeSelections(
           candidate.subject.kind === entry.subject.kind && candidate.subject.id === entry.subject.id,
       ) ?? entry,
   );
+}
+
+function sourceModeOf(source: string): SourceMode {
+  return source === 'initiator' ? 'initiator' : source.startsWith('variable:') ? 'variable' : 'static';
+}
+function variableNameOf(source: string): string {
+  return source.startsWith('variable:') ? source.slice('variable:'.length) : '';
 }

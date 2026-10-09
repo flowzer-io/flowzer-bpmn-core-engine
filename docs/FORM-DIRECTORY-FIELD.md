@@ -104,6 +104,11 @@ explizite Filterreferenzen beschriften; beim Aufgabenformular kommen tatsächlic
 persistierte Werte des aktiven Task-Kontexts hinzu. Details und Lifecycle-Grenzen stehen
 unter [Historische Identitätsreferenzen](HISTORICAL-IDENTITY-RESOLUTION.md).
 
+Ein einzelner Benutzerwert kann außerdem über die exklusive BPMN-Bearbeiterquelle
+`assigneeSource="variable:vertretung"` zur **neuen** Human Task gebunden werden.
+Auflösung, Einfrieren und Rechteprüfungen beschreibt
+[Human-Task-Lifecycle](HUMAN-TASK-LIFECYCLE.md#exklusive-bearbeiterquellen-tt-demo-durchstich-378).
+
 ## Veröffentlichung und Historie
 
 Beim Workflow-Deployment werden Formularinhalt, Profil und Filterreferenzen fest an

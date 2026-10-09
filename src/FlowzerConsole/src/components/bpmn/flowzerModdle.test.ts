@@ -69,10 +69,26 @@ describe('Flowzer-Moddle-Vertrag', () => {
     });
     expect(assignment?.properties.map((property) => property.name)).toEqual([
       'mode',
+      'assigneeSource',
       'assigneeId',
       'candidateUserIds',
       'candidateGroupIds',
     ]);
+  });
+
+  // Testzweck: Dynamische Quellen werden typisiert gelesen und beim echten XML-Roundtrip
+  // erhalten; fremde/unknown XML-Attribute sind kein ausreichender Modellvertrag.
+  it.each(['initiator', 'variable:vertretung'])('erhält die Directory-Quelle %s im Roundtrip', async (source) => {
+    const moddle = new BpmnModdle({ zeebe: zeebeModdle, flowzer: FLOWZER_MODDLE });
+    const xml = DIRECTORY_XML.replace(/<flowzer:taskAssignment[\s\S]*?\/>/, `<flowzer:taskAssignment mode="directory" assigneeSource="${source}" />`);
+    const parsed = await moddle.fromXML(xml);
+    const values = (parsed.rootElement as unknown as ParsedDefinitions).rootElements?.[0]?.flowElements?.[0]?.extensionElements?.values ?? [];
+    expect(values.find(value => value.$type === 'flowzer:TaskAssignment')?.assigneeSource).toBe(source);
+    const serialized = await moddle.toXML(parsed.rootElement, { format: true });
+    expect(serialized.xml).toContain(`assigneeSource="${source}"`);
+    const again = await moddle.fromXML(serialized.xml);
+    const reread = (again.rootElement as unknown as ParsedDefinitions).rootElements?.[0]?.flowElements?.[0]?.extensionElements?.values ?? [];
+    expect(reread.find(value => value.$type === 'flowzer:TaskAssignment')?.assigneeSource).toBe(source);
   });
 
   it('liest und schreibt den KI-Vertrag samt Prompt und Ergebnisschema semantisch unverändert', async () => {

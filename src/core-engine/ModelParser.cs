@@ -960,6 +960,7 @@ public static class ModelParser
             FlowzerCandidateUsers = assignmentDefinition?.Attribute("candidateUsers")?.Value,
             FlowzerAssignmentMode = assignment.Mode,
             FlowzerDirectoryAssigneeUserId = assignment.AssigneeUserId,
+            FlowzerDirectoryAssigneeSource = assignment.AssigneeSource,
             FlowzerDirectoryCandidateUserIds = assignment.CandidateUserIds.ToFlowzerList(),
             FlowzerDirectoryCandidateGroupIds = assignment.CandidateGroupIds.ToFlowzerList(),
             FlowzerDueDate = taskSchedule?.Attribute("dueDate")?.Value,
@@ -1000,7 +1001,7 @@ public static class ModelParser
         var element = assignmentElements[0];
         var supportedAttributes = new HashSet<string>(StringComparer.Ordinal)
         {
-            "mode", "assigneeId", "candidateUserIds", "candidateGroupIds"
+            "mode", "assigneeSource", "assigneeId", "candidateUserIds", "candidateGroupIds"
         };
         if (element.Attributes().Any(attribute =>
                 !attribute.IsNamespaceDeclaration
@@ -1013,7 +1014,8 @@ public static class ModelParser
         var mode = element.Attribute("mode")?.Value;
         if (string.Equals(mode, "text", StringComparison.Ordinal))
         {
-            if (element.Attribute("assigneeId") is not null
+            if (element.Attribute("assigneeSource") is not null
+                || element.Attribute("assigneeId") is not null
                 || element.Attribute("candidateUserIds") is not null
                 || element.Attribute("candidateGroupIds") is not null)
             {
@@ -1031,6 +1033,17 @@ public static class ModelParser
         if (HasLegacyAssignmentValues(legacyAssignment))
         {
             throw AssignmentError(taskId, "directory mode cannot be combined with Zeebe text assignments");
+        }
+
+        var sourceAttribute = element.Attribute("assigneeSource");
+        if (sourceAttribute is not null)
+        {
+            if (!DirectoryAssigneeSource.IsValid(sourceAttribute.Value)
+                || element.Attribute("assigneeId") is not null
+                || element.Attribute("candidateUserIds") is not null
+                || element.Attribute("candidateGroupIds") is not null)
+                throw AssignmentError(taskId, "assigneeSource must be a supported, exclusive source");
+            return new ParsedUserTaskAssignment(UserTaskAssignmentMode.Directory, null, [], [], sourceAttribute.Value);
         }
 
         var assignee = ParseOptionalDirectoryId(element.Attribute("assigneeId"), taskId, "assigneeId");
@@ -1104,7 +1117,8 @@ public static class ModelParser
         UserTaskAssignmentMode Mode,
         Guid? AssigneeUserId,
         IReadOnlyList<Guid> CandidateUserIds,
-        IReadOnlyList<Guid> CandidateGroupIds)
+        IReadOnlyList<Guid> CandidateGroupIds,
+        string? AssigneeSource = null)
     {
         public static ParsedUserTaskAssignment Text { get; } =
             new(UserTaskAssignmentMode.Text, null, [], []);

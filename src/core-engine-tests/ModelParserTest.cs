@@ -699,6 +699,32 @@ public class ModelParserTest
         }
     }
 
+    // Testzweck: Laufzeitquellen sind ein expliziter Directory-Vertrag, keine Namen
+    // oder frei ausführbaren Ausdrücke; ihre syntaxgültige Quelle bleibt parsebar.
+    [TestCase("initiator")]
+    [TestCase("variable:vertretung")]
+    public void ParseModel_ShouldAcceptExplicitDirectoryAssigneeSources(string source)
+    {
+        var action = () => ParseAssignedUserTask($"<flowzer:taskAssignment mode=\"directory\" assigneeSource=\"{source}\" />");
+        action.Should().NotThrow();
+        action().FlowzerDirectoryAssigneeSource.Should().Be(source);
+    }
+
+    // Testzweck: Neue Quellen dürfen weder Freitext/feste IDs/Kandidaten mischen
+    // noch Pfade, Ausdrücke, leere Namen oder unbekannte Quellen aktivieren.
+    [TestCase("text", "initiator", "")]
+    [TestCase("directory", "variable:", "")]
+    [TestCase("directory", "variable:person.id", "")]
+    [TestCase("directory", "variable:=vertretung", "")]
+    [TestCase("directory", "latest-user", "")]
+    [TestCase("directory", "initiator", "assigneeId='10000000-0000-0000-0000-000000000001'")]
+    [TestCase("directory", "initiator", "candidateGroupIds='20000000-0000-0000-0000-000000000001'")]
+    public void ParseModel_ShouldRejectMixedOrInvalidAssigneeSources(string mode, string source, string other)
+    {
+        var action = () => ParseAssignedUserTask($"<flowzer:taskAssignment mode=\"{mode}\" assigneeSource=\"{source}\" {other} />");
+        action.Should().Throw<ModelValidationException>();
+    }
+
     // Testzweck: Ungültige, leere, doppelte oder mit Freitext vermischte Verzeichnisverträge
     // werden bereits beim Parsen verständlich abgelehnt und erreichen die Laufzeit nie.
     [TestCaseSource(nameof(InvalidDirectoryAssignments))]
