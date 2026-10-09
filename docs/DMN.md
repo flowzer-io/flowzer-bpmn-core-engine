@@ -207,6 +207,10 @@ des Testbestands ab, ist aber kein FEEL.
 
 ## Der Entscheidungskatalog
 
+Der [TT-Demo-Urlaubsantrag](../examples/tickytask-urlaub/README.md) benutzt eine lokale
+konstante Entscheidung für den verifizierten Demo-Vorgesetzten. Das ist kein Worker
+und ändert die nachfolgend beschriebene Bindung an die jüngste Decision-Version nicht.
+
 Eine *Entscheidungsdatei* ist ein DMN-Dokument. Sie liegt unter einer Katalogkennung
 (`DecisionDefinitionId`) und trägt fortlaufend nummerierte Versionen; jede Version hält das
 XML, den Zeitpunkt, die Person und die Liste der enthaltenen `decisionId`s samt Namen fest.

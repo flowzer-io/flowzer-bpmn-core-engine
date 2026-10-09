@@ -61,6 +61,11 @@ geprüft. Das ersetzt keine echte Demo-Realm-/HTTPS- oder 45-Minuten-Formularabn
 
 ## Öffentlicher Vertrag
 
+Der separate [TT-Demo-Urlaubsantrag](../examples/tickytask-urlaub/README.md) kombiniert
+diese Identitäts-/Entwurfsregeln mit einer eingebetteten parallelen Prüfrunde, expliziten
+Entscheidungsaktionen und initiatorgebundener Korrektur. Es ist kein Worker-/Urlaubsbuchungs-
+oder Timerbeispiel; reale Demo-/Realm-Abnahme bleibt ein eigenes Gate.
+
 Jede Aufgabe liefert unter `workState` die monotone Lifecycle-Revision, den tatsächlichen
 Directory-Bearbeiter (soweit vorhanden), dessen Anzeigenamen sowie serverseitig berechnete
 Fähigkeiten `canWork`, `canClaim`, `canRelease`, `canAssign` und `canDelegate`.
