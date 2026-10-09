@@ -126,4 +126,15 @@ describe('Separates eingebettetes Startformular', () => {
     await screen.findByText('Workflow gestartet.'); expect(request.mock.calls[2]).toEqual(request.mock.calls[0]);
   });
 
+  // Testzweck: Fachliche sichere Feldmeldungen bleiben auch bei Unknown sichtbar;
+  // sie sind kein Nein-Beleg und geben weder Originalwerte noch Originalkey frei.
+  it('zeigt sichere Feldmeldungen trotz weiterhin unklarem Start', async () => {
+    const request = vi.fn().mockRejectedValue(new EmbedActionError('flowzer.connection_failed', { answer: ['Bitte Zeitraum prüfen.'] }));
+    render(<EmbeddedStartForm snapshot={snapshot} channel={{ request } as unknown as EmbedActionChannel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Workflow starten' }));
+    await screen.findByText(/Bitte Zeitraum prüfen\./);
+    expect(screen.getByLabelText('Antwort')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' })).toBeEnabled();
+  });
+
 });

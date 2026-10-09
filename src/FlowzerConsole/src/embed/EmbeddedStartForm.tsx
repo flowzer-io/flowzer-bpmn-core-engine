@@ -52,7 +52,7 @@ export function EmbeddedStartForm({ snapshot, channel }: { snapshot: EmbedStartS
       setUncertain(unknown);
       // Im sticky-Unknown keine spätere Neuauswahl-/Korrekturanweisung zeigen:
       // ihr Nein-Beleg fehlt für den früheren Versand weiterhin.
-      setError(unknown ? new EmbedActionError('flowzer.connection_failed') : failure);
+      setError(unknown ? new EmbedActionError('flowzer.connection_failed', failure.fieldMessages) : failure);
     } finally { busy.current = false; setPending(false); }
   }
   if (started) return <p role="status">Workflow gestartet.</p>;

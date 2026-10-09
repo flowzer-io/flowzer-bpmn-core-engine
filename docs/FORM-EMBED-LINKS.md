@@ -387,3 +387,19 @@ Der anschließende vollständige Console-Lauf enthält **811/811** bestandene
 Tests in 115 Dateien; der frische Produktionsbuild einschließlich separatem
 Embed-Bundle ist ebenfalls grün. Beide eigenen unabhängigen Quellenreviews
 sehen im finalen eng begrenzten Renderer-/Kanal-Diff keinen Restbefund.
+
+
+Sichere zentrale Feldmeldungen bleiben auch bei einem weiterhin unklaren Start
+sichtbar. Sie sind ausdrücklich kein Nein-Beleg: Originalwerte/-key bleiben
+unverändert gesperrt und nur derselbe Auftrag ist wiederholbar. Ungeprüfte
+Remote-Texte, URLs und Traces werden weiterhin nicht angezeigt. Der zusätzliche
+Feldmeldungsfall wurde zuerst tatsächlich 1/9 rot getestet; die anschließende
+fokussierte Embed-Suite ist **27/27** grün, einschließlich sticky Unknown mit
+sichtbarem Feldfehler. Typprüfung ist ebenfalls grün. Dies ist weiterhin kein
+Live-, HTTPS-, Sandbox- oder Keycloak-Abnahmebeleg.
+
+Der frische vollständige Console-Lauf nach dieser Feldmeldungs-Ergänzung besteht
+mit **812/812** Tests in 115 Dateien; Lint hat weiterhin elf vorhandene Warnungen
+und keine Fehler. Frischer Produktionsbuild einschließlich separatem Embed-Bundle
+ist grün. Beide eigenen unabhängigen Quellen-Nachreviews sehen keinen konkreten
+Restbefund in dieser engen Ergänzung. Die tatsächliche Demoabnahme bleibt offen.
