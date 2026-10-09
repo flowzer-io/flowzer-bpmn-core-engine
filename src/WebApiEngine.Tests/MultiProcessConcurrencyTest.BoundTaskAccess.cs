@@ -13,6 +13,10 @@ public sealed partial class MultiProcessConcurrencyTest
     [TestCase("claim")][TestCase("release")][TestCase("save")]
     public async Task BoundMigrationAgainstTaskAction_ShouldNeverApplyTheOldBindingToTheTarget(string operation)
     {
+        // Beide Versionen erlauben denselben Save. Ausschließlich der geänderte Form-Key
+        // verwirft V1-Entwürfe bei Migration; keine 422-Validierung darf das Rennen verdecken.
+        await FormTestSeed.StoreAsync(First.Storage, "Approval", MultiProcessWorkflows.BoundDraftForm);
+        await FormTestSeed.StoreAsync(First.Storage, "ApprovalV2", MultiProcessWorkflows.BoundDraftForm);
         var source = await DeployAsync(First, MultiProcessWorkflows.UserTaskDefinitionId, MultiProcessWorkflows.UserTask());
         var tasks = new List<UserTaskSubscription>();
         for (var round = 0; round < Rounds; round++)

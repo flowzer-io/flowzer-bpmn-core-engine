@@ -136,6 +136,15 @@ OpenAPI-Vertrag **16/16** und SDK **33/33** samt Typprüfung/Build, ohne Skips.
 Die generierten Queryparameter stammen aus dem tatsächlich gemounteten Swagger;
 kein manuell parallel gepflegtes Schema. Das ist keine Demo-/HTTPS-Abnahme.
 
+Der erste PostgreSQL-CI-Lauf des Nichtabschluss-Slices (`a1c1132`) ist mit
+**1/1605 Fehlern, 1604 bestanden, 0 Skips** gescheitert: Die neue Save-Rennfixture
+sendete `answer` an das leere Standardformular und erhielt folgerichtig 422 für
+ein nicht deklariertes Feld. Beide Rennversionen erhalten jetzt ausdrücklich
+dasselbe beschreibbare Feld; nur der geänderte Form-Key verwirft V1-Entwürfe.
+Ein zusätzlicher hermetischer Fixturetest reproduziert diesen Fehler tatsächlich
+rot. Die 200/409-, Audit- und Entwurfsassertions bleiben unverändert. Erst der
+erneute echte PostgreSQL-CI-Lauf des korrigierten SHA ist der Konkurrenznachweis.
+
 ## Bewusste Grenzen des ersten Pakets
 
 - keine fertigen sichtbaren Komponenten oder Form.io-Bündelung

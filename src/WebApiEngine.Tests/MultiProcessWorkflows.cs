@@ -18,6 +18,11 @@ internal static class MultiProcessWorkflows
     internal const string CatchCorrelationKey = "mp-correlation";
     internal const string StartMessageName = "MpStart";
 
+    /// <summary>Der Migrations-/Save-Renntest benötigt ein tatsächlich beschreibbares Feld.</summary>
+    internal const string BoundDraftForm = """
+        {"components":[{"type":"textfield","key":"answer","validate":{"required":true}}]}
+        """;
+
     /// <summary>Start → menschliche Aufgabe → Ende. <paramref name="taskScheduleXml"/> bindet Termine.</summary>
     internal static string UserTask(string? taskScheduleXml = null) => $$"""
         <?xml version="1.0" encoding="UTF-8"?>
