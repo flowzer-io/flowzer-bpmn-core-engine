@@ -70,6 +70,33 @@ aktuelle Task-Revision sowie einen vom Host erzeugten, über bewusste Wiederholu
 stabilen Idempotenzschlüssel. `409`, `422` und weitere Problem Details bleiben
 maschinenlesbar; lokale Formulardaten werden bei Hintergrund-Refetches nicht ersetzt.
 
+## Atomar gebundener Aufgabenabschluss
+
+Ein Host kann die ursprünglich angezeigte Aufgabe zusätzlich mit
+`expectedUserTaskId` und `expectedDefinitionId` binden. Die zweite Kennung ist die
+unveränderliche Definition-Version (GUID), nicht die Katalogkennung. Ein späterer
+Instanzumzug kann Task, Token, Knoten und Claimrevision erhalten; deshalb genügt
+ein vorangehender Aufgabenabruf nicht als Abschlussprüfung.
+
+`requireAssignedToCurrentUser: true` verlangt für eine **neue** Entscheidung die
+tatsächliche persönliche Zuweisung. Kandidaten- und Betriebsrechte ersetzen sie
+nicht. Ein solcher Host übernimmt die Aufgabe vorher über den bestehenden
+revisionsgebundenen Claim. Die bestehenden allgemeinen Konsumenten bleiben ohne
+diese optionalen Bedingungen kompatibel.
+
+Beide Abschlussrouten prüfen die Bedingungen unter der vorhandenen Instanz- und
+Aufgabensperre, bevor sie Formularvalidierung oder Effekte ausführen. Eine fremde
+Taskkennung oder fehlende persönliche Zuweisung liefert wie andere nicht erlaubte
+Aufgaben `404`; ein Versionswechsel einer autorisierten Aufgabe liefert
+`409 user_task.binding_conflict`, ohne interne Zielkennungen. Der Host darf diesen
+Konflikt nicht durch stilles Ersetzen der angezeigten Version umgehen.
+
+Alle Bedingungen gehören zum ursprünglichen Idempotenzinhalt. Ein erfolgreicher
+persönlicher Replay wird **vor** den aktuellen Task-/Claim-/Versionsprüfungen
+beantwortet, auch nach Abschluss oder Umzug. Bei unklarem Ausgang bleiben daher
+Schlüssel, Bindung, Entscheidung und Eingaben unverändert. Es entstehen keine
+neuen TT-Daten, Entwurfstabellen oder Link-Secrets für Wiederholungen.
+
 ## Bewusste Grenzen des ersten Pakets
 
 - keine fertigen sichtbaren Komponenten oder Form.io-Bündelung

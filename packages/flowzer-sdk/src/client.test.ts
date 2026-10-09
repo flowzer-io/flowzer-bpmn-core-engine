@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FlowzerApiError, FlowzerClient } from './index.js';
+import { FlowzerApiError, FlowzerClient, type CompleteUserTaskCommand } from './index.js';
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -116,6 +116,22 @@ describe('FlowzerClient', () => {
     const [, init] = fetch.mock.calls[0]!;
     expect(new Headers(init?.headers).get('Idempotency-Key')).toBe('host-command-42');
     expect(JSON.parse(String(init?.body))).toMatchObject({ actionId: 'approve', data: { comment: 'ok' } });
+  });
+
+  // Testzweck: Ein Host bindet die angezeigte Subscription und Version und verlangt
+  // persönliche Zuweisung; der SDK überträgt genau diese Bedingungen ohne Token-/Akteurparameter.
+  it('übermittelt den atomar gebundenen Hostabschluss unverändert', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(jsonResponse({ successful: true }));
+    const client = new FlowzerClient({ baseUrl: '/api', fetch });
+    const command: CompleteUserTaskCommand = {
+      flowNodeId: 'review', tokenId: 'token', processInstanceId: 'instance', expectedTaskRevision: 1,
+      expectedUserTaskId: 'task', expectedDefinitionId: 'definition-version', requireAssignedToCurrentUser: true,
+      data: { answer: 'yes' },
+    };
+    await client.userTasks.complete(command, { idempotencyKey: 'original-bound-attempt' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetch.mock.calls[0]![1]?.body))).toEqual(command);
+    expect(new Headers(fetch.mock.calls[0]![1]?.headers).get('Idempotency-Key')).toBe('original-bound-attempt');
   });
 
   // Testzweck: Private Entwürfe verwenden im SDK denselben revisionsgebundenen

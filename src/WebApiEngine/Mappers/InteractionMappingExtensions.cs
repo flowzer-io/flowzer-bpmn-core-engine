@@ -20,6 +20,9 @@ public static class InteractionMappingExtensions
             TokenId = userTaskResultDto.TokenId,
             ProcessInstanceId = userTaskResultDto.ProcessInstanceId,
             ExpectedTaskRevision = userTaskResultDto.ExpectedTaskRevision,
+            ExpectedUserTaskId = userTaskResultDto.ExpectedUserTaskId,
+            ExpectedDefinitionId = userTaskResultDto.ExpectedDefinitionId,
+            RequireAssignedToCurrentUser = userTaskResultDto.RequireAssignedToCurrentUser,
             ActionId = userTaskResultDto.ActionId,
             Data = userTaskResultDto.Data
         };

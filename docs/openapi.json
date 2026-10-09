@@ -14608,6 +14608,19 @@
             "format": "int64",
             "nullable": true
           },
+          "expectedUserTaskId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "expectedDefinitionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "requireAssignedToCurrentUser": {
+            "type": "boolean"
+          },
           "actionId": {
             "type": "string",
             "nullable": true

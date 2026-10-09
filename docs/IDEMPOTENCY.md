@@ -31,6 +31,21 @@ Netzwerkaufruf wiederholt, muss denselben Schlüssel bereits beim **ersten** Ver
 Konflikte verwenden Problem Details und enthalten vorläufig zusätzlich die kompatiblen
 Felder `successful: false` und `errorMessage`.
 
+## Optionale Abschlussbedingungen
+
+`expectedUserTaskId`, `expectedDefinitionId` und ein aktiviertes
+`requireAssignedToCurrentUser` gehören beim Aufgabenabschluss zum festen
+Vertragsnamensraum `bound-user-task-completion:v1`. Scope, persönliche Identität
+und die gemeinsame Behandlung beider Abschlussrouten bleiben unverändert.
+Geänderte Bedingungen mit demselben bereits erfolgreichen Schlüssel ergeben `409`,
+auch wenn es die ursprüngliche Aufgabe nicht mehr gibt.
+
+Ohne gesetzte neue Bedingung bleibt der historische kanonische Inhalt exakt
+erhalten: Neue null-/false-Modellfelder werden bei der Hashserialisierung nicht
+ausgegeben. Bereits persistierte Altbelege benötigen weder eine Migration noch
+eine Neuerzeugung. Erfolgreiche Replays bleiben vor den aktuellen atomaren
+Bedingungsprüfungen; sie führen keinen zweiten Effekt aus.
+
 ## Persistenz und Konkurrenz
 
 Persistiert werden ausschließlich SHA-256-Hashes von Scope und kanonischem Inhalt,

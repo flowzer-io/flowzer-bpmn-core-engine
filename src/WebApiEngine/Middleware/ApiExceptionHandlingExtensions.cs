@@ -49,6 +49,21 @@ public static class ApiExceptionHandlingExtensions
                     await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
                     return;
                 }
+                if (exception is UserTaskBindingConflictException)
+                {
+                    var problem = new ApiProblemDetails
+                    {
+                        Status = StatusCodes.Status409Conflict,
+                        Title = "The displayed user-task definition has changed.",
+                        Detail = exception.Message,
+                        Type = "about:blank",
+                        Instance = context.Request.Path
+                    };
+                    problem.Extensions["code"] = "user_task.binding_conflict";
+                    problem.Extensions["traceId"] = context.TraceIdentifier;
+                    await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+                    return;
+                }
                 if (exception is IdempotencyConflictException)
                 {
                     var problem = new ApiProblemDetails
@@ -290,7 +305,8 @@ public static class ApiExceptionHandlingExtensions
                 or FormAuthoringConflictException
                 or FormSectionAuthoringConflictException
                 or AiConnectionConflictException
-                or UserTaskLifecycleConflictException => StatusCodes.Status409Conflict,
+                or UserTaskLifecycleConflictException
+                or UserTaskBindingConflictException => StatusCodes.Status409Conflict,
             UserTaskDraftPayloadTooLargeException => StatusCodes.Status413PayloadTooLarge,
             UserTaskNotificationUnavailableException or BffSessionUnavailableException => StatusCodes.Status503ServiceUnavailable,
             FileNotFoundException or KeyNotFoundException => StatusCodes.Status404NotFound,

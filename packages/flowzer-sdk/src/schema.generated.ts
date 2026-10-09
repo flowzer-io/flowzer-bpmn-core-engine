@@ -8898,6 +8898,11 @@ export interface components {
             processInstanceId?: string | null;
             /** Format: int64 */
             expectedTaskRevision?: number | null;
+            /** Format: uuid */
+            expectedUserTaskId?: string | null;
+            /** Format: uuid */
+            expectedDefinitionId?: string | null;
+            requireAssignedToCurrentUser?: boolean;
             actionId?: string | null;
             data?: {
                 [key: string]: unknown;

@@ -38,6 +38,29 @@ public class OpenApiContractTest
             .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
     }
 
+    // Testzweck: Generierte Hostclients können Task, Definitionsversion und persönliche
+    // Übernahme atomar binden; beide Abschlussrouten dokumentieren denselben 409-Vertrag.
+    [Test]
+    public async Task UserTaskCompletion_ShouldDescribeOptionalAtomicBinding()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var schema = root.GetProperty("components").GetProperty("schemas").GetProperty("UserTaskResultDto");
+        var properties = schema.GetProperty("properties");
+        foreach (var name in new[] { "expectedUserTaskId", "expectedDefinitionId" })
+        {
+            properties.GetProperty(name).GetProperty("format").GetString().Should().Be("uuid");
+            properties.GetProperty(name).GetProperty("nullable").GetBoolean().Should().BeTrue();
+        }
+        properties.GetProperty("requireAssignedToCurrentUser").GetProperty("type").GetString().Should().Be("boolean");
+        var required = schema.GetProperty("required").EnumerateArray().Select(item => item.GetString());
+        required.Should().NotContain("expectedUserTaskId").And.NotContain("expectedDefinitionId")
+            .And.NotContain("requireAssignedToCurrentUser", "bestehende Aufrufer bleiben kompatibel");
+        foreach (var route in new[] { "/UserTask", "/Form/result" })
+            root.GetProperty("paths").GetProperty(route).GetProperty("post").GetProperty("responses")
+                .TryGetProperty("409", out _).Should().BeTrue();
+    }
+
     // Testzweck: Persönlicher Rückzug ist eine authentisierte Mutation ohne frei
     // mitgegebenen Akteur; Clients sehen nur den sicheren Rückzugsstatus und Konflikte.
     [Test]
