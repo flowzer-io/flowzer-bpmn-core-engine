@@ -65,11 +65,15 @@ public class AuthenticationAndCorsIntegrationTest
     [TestCase("anonymous", HttpStatusCode.Unauthorized)]
     [TestCase("access-only", HttpStatusCode.Forbidden)]
     [TestCase("spoofed-subject", HttpStatusCode.BadRequest)]
+    [TestCase("spoofed-client", HttpStatusCode.BadRequest)]
+    [TestCase("spoofed-role", HttpStatusCode.BadRequest)]
     [TestCase("empty-worker", HttpStatusCode.BadRequest)]
     [TestCase("unknown-job", HttpStatusCode.NotFound)]
+    [TestCase("host-not-configured", HttpStatusCode.ServiceUnavailable)]
     public async Task JobInitiatorAccess_ShouldEnforceWorkerPolicyAndClosedRequest(string variant, HttpStatusCode expected)
     {
-        await using var factory = CreateJwtFactory(new TestStorage(), requiredRole: "access");
+        await using var factory = CreateJwtFactory(new TestStorage(), requiredRole: "access",
+            ticketApiClient: variant == "host-not-configured" ? "" : "tt-api");
         using var client = factory.CreateClient();
         if (variant != "anonymous")
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
@@ -80,6 +84,8 @@ public class AuthenticationAndCorsIntegrationTest
                     : """{"flowzer-api":{"roles":["access","worker"]}}""", JsonClaimValueTypes.Json)
             ]));
         var body = variant == "spoofed-subject" ? """{"workerId":"worker-a","subject":"someone-else"}"""
+            : variant == "spoofed-client" ? """{"workerId":"worker-a","apiClientId":"flowzer-api"}"""
+            : variant == "spoofed-role" ? """{"workerId":"worker-a","requiredRole":"modeler"}"""
             : variant == "empty-worker" ? """{"workerId":""}""" : """{"workerId":"worker-a"}""";
         using var content = new StringContent(body, Encoding.UTF8, "application/json");
         var response = await client.PostAsync($"/job/{Guid.NewGuid()}/initiator-access", content);
@@ -749,7 +755,8 @@ public class AuthenticationAndCorsIntegrationTest
         (await client.SendAsync(request)).StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
-    private static TestWebApplicationFactory CreateJwtFactory(TestStorage storage, string environmentName = "Production", string? requiredRole = null)
+    private static TestWebApplicationFactory CreateJwtFactory(TestStorage storage, string environmentName = "Production",
+        string? requiredRole = null, string ticketApiClient = "")
     {
         var settings = new Dictionary<string, string?>
         {
@@ -760,6 +767,7 @@ public class AuthenticationAndCorsIntegrationTest
             ["Authentication:JwtBearer:Roles:Operator"] = "operator",
             ["Authentication:JwtBearer:Roles:Worker"] = "worker"
         };
+        settings["TickyTaskTicketActions:ApiClientId"] = ticketApiClient;
         if (requiredRole is not null)
         {
             settings["Authentication:JwtBearer:RequiredRole"] = requiredRole;

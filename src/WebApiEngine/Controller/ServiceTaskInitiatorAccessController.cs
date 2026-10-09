@@ -13,7 +13,7 @@ public sealed class ServiceTaskInitiatorAccessController(ServiceTaskInitiatorAcc
     ICurrentUserContextAccessor currentUser) : ControllerBase
 {
     /// <summary>
-    /// Liefert den aktuellen Zugang des gespeicherten Initiators. False ist ein bestätigter
+    /// Liefert den aktuellen Flowzer- UND TT-Zugang des gespeicherten Initiators. False ist ein bestätigter
     /// Entzug, 503 eine technische Unklarheit. Kein Jobabschluss, Retry oder Rechteersatz.
     /// </summary>
     [HttpPost("{jobId:guid}/initiator-access")]

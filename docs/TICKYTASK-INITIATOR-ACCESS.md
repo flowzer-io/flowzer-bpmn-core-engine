@@ -3,7 +3,7 @@
 ## Abgegrenzter Baustein
 
 `POST /job/{jobId}/initiator-access` ist ein **read-only Worker-Endpunkt**.
-Er prüft den aktuellen Flowzer-Zugang des serverseitig am Master-Token
+Er prüft den aktuellen **Flowzer- und TT-API-Zugang** des serverseitig am Master-Token
 persistierten Initiators. Er schließt keinen Auftrag ab, ändert keine Retries
 und führt keine Ticketaktion aus. Ein positiver Stand ersetzt **weder** den
 registrierten TT-Workflow-Vorgang **noch** aktuelle TT-/Ticketrechte.
@@ -34,7 +34,7 @@ Kein periodischer Directory-Snapshot, alter JWT-Rollenclaim oder Workeraccount
 ersetzt das aktuelle Konto. Gruppenpfade dienen nur der Driftprüfung;
 ausschließlich geladene Root-/Child-IDs verleihen Mitgliedschaft.
 
-Der API-Client wird exakt über seinen konfigurierten `clientId` gesucht. Die
+Beide API-Clients werden exakt über ihren konfigurierten `clientId` gesucht. Die
 Rollenroute erhält seine **interne** ID. Keycloaks `/composite`-Route berücksichtigt
 zusammengesetzte und gruppengeerbte Rollen; Realmrollen oder Rollen eines anderen
 Clients gelten hier nicht. Grundlage: [Keycloak-REST-Vertrag](https://www.keycloak.org/docs-api/latest/rest-api/index.html)
@@ -51,8 +51,33 @@ bei der echten Installation zu prüfen, nicht durch allgemeine Administrator-
 oder Impersonationsrechte zu ersetzen. Secrets kommen ausschließlich zur
 Laufzeit aus dem freigegebenen Secretstore.
 
+Zusätzlich verlangt die TT-Route `TickyTaskTicketActions:ApiClientId`: den
+**exakten TT-API-Clientwert aus TT `Oidc:Audience`** desselben Realms. Die dort
+verbindliche Clientrolle ist fest `access`, nicht vom Workflow oder Worker
+wählbar. Ein Flowzer-Zugang allein oder eine aktive lokale TT-Membership genügen
+nicht: auch ein ausschließlich an der TT-API entzogenes `access` muss sperren.
+Die beiden Clientnamen und internen Provider-IDs müssen verschieden sein.
+Leerer, unsicherer oder als Flowzer-Client getarnter Wert schließt mit 503 vor
+Storage-/Provider-I/O. Normale Flowzer-Installationen können den sicheren leeren
+Default behalten; sie müssen für andere Funktionen keine TT-Integration einrichten.
+
+Beispiel ausschließlich mit **synthetischen** Installationswerten:
+
+```json
+"TickyTaskTicketActions": { "ApiClientId": "synthetic-tt-api" }
+```
+
+Vor Workeraktivierung müssen die echte TT-Audience und diese Hostbindung
+unabhängig übereinstimmend zurückgelesen sowie die eingesetzten TT-/Flowzer-
+Images an die reviewten SHAs/Digests gebunden sein. Der unveränderte minimale
+Elf-Felder-HTTP-Vertrag ersetzt keine Installationsattestation. Keine Zugänge,
+Gruppen, Secrets oder Runtime-Konfigurationen werden durch diesen Quellbaustein
+angelegt oder geöffnet.
+
 Die Prüfung hat ein Gesamtbudget von **zehn Sekunden**, einschließlich Token-
-und Antwortbody-I/O; es passt in den bestehenden 15-Sekunden-TT-Transport.
+und Antwortbody-I/O **beider** Clients; es passt in den bestehenden 15-Sekunden-TT-Transport.
+Konto, Gruppenbaum und Mitgliedschaft werden nur einmal frisch gelesen. Es
+gibt keine zwei sequenziellen Zehn-Sekunden-Prüfungen oder einen Rollencache.
 Antwortgrenzen zählen tatsächliche Bytes auch ohne beziehungsweise mit zu
 kleiner `Content-Length`. Strikte Antworten verlangen JSON, begrenzte Tiefe und
 rekursiv eindeutige Schlüssel, einschließlich case-insensitiver Duplikate.
@@ -63,9 +88,9 @@ Token, Secret oder ursprüngliche InnerException. Caller-Abbruch bleibt Abbruch.
 ## Ergebnis und Fehler
 
 - **200 / `allowed: true`**: aktuelles aktives Konto, aktuelle Scope-Mitgliedschaft
-  und effektive Pflichtrolle des aktiven API-Clients sind belegt.
+  und effektive Pflichtrollen beider aktiven API-Clients sind belegt.
 - **200 / `allowed: false`**: bestätigte Deaktivierung/Löschung des Einzelkontos,
-  fehlende Scope-Mitgliedschaft, fehlende Pflichtrolle oder deaktivierter API-Client.
+  fehlende Scope-Mitgliedschaft, fehlende Pflichtrolle oder ein deaktivierter API-Client.
   Nur 404 am exakten Benutzerprofil bedeutet „gelöscht“; insbesondere ein fehlender
   Token-, Root- oder Rollenendpunkt ist kein persönlicher Löschbeweis.
 - **400**: ungültiger beziehungsweise nicht geschlossener Request.
@@ -83,9 +108,10 @@ unmittelbarer Stand, **kein** persistierbarer oder übertragbarer Grant.
 ## Noch offene Integration und Abnahme
 
 Dieser Baustein aktiviert keinen ausführenden TT-Worker. Der TT-Verbraucher mit
-frischer persönlicher TT-Verknüpfung, dauerhafter Vorgangspause bei Rechteentzug
-und auditierter Einzelfreigabe (TT-Administration **plus** nachgewiesenes Flowzer-
-Betriebsrecht) bleibt als nächster Lieferabschnitt offen. Provider-Unklarheit darf
+frischer persönlicher TT-Verknüpfung ist als kalter Adapter bereits vorhanden;
+seine konkrete Installationsbindung und Aktivierung, die dauerhafte Vorgangspause bei Rechteentzug
+und auditierte Einzelfreigabe (TT-Administration **plus** nachgewiesenes Flowzer-
+Betriebsrecht) bleiben offen. Provider-Unklarheit darf
 nicht als bestätigter Entzug gespeichert werden; ein späteres Ja darf einen
 pausierten Vorgang nicht automatisch reaktivieren. Bereits ausgeführte
 Ticketänderungen werden bei Prozessabbruch nicht zurückgerollt.
@@ -96,7 +122,7 @@ oder 45-Minuten-Abnahme. Demo-Gruppenzuordnung, Secret-/Client-Einrichtung,
 Onlineinstallation und koordinierter Demo-Rollout sind nicht Teil dieses lokalen
 Nachweises. Keine Timerimplementierung, Mail, Kalender oder KI-Outboundeffekte.
 
-### Lokaler Nachweis dieses Lieferabschnitts
+### Historischer lokaler Nachweis des ursprünglichen Einzelclient-Lieferabschnitts
 
 - Initial **41/41 tatsächlich rot**, weiterer Job-/HTTP-/Fehlerlauf **39 rot,
   24 bestanden**. Der Review-Pflichtvertrag war ebenfalls tatsächlich rot;
@@ -118,3 +144,27 @@ Nachweises. Keine Timerimplementierung, Mail, Kalender oder KI-Outboundeffekte.
 
 Diese lokale Liste ist ausdrücklich kein CI-, Merge-, PostgreSQL-Konkurrenz-
 oder Runtime-/Demo-Nachweis; diese Zustände werden SHA-gebunden separat geführt.
+
+### Erweiterung um den getrennten TT-API-Zugang
+
+Der Nachweis bleibt read-only und jobgebunden. Die Tests prüfen insbesondere
+TT-only-Rollenentzug bei weiterhin aktivem Flowzer-Konto/-Scope/-Zugang,
+mehrdeutige oder fremde Hostclient-/Rollenantworten, Alias-IDs, fehlende
+Installationsbindung, geschlossene HTTP-Requests sowie das gemeinsame Budget
+einschließlich eines hängenden zweiten Antwortbodys. Initiale TDD-Stufe:
+**38/38 tatsächlich rot** (ausgeführte Assertions beziehungsweise fehlende
+Implementierung, kein Compiler-/Testhostabbruch). Der Review ergänzte sechs
+Retry-/Backofffälle (503, Transport- und Body-I/O-Fehler, jeweils Deadline und
+Caller-Abbruch). Eine temporäre Tokenentkoppelung ergab **3/3 echte Review-Red**;
+die unveränderte Produktquelle wurde danach bytegenau restauriert.
+
+Final **1.712/1.712 hermetische API-Tests** erfolgreich, keine Skips: alle 1.662
+Baseline-IDs/-Outcomes erhalten, 50 additive Fälle. **395 Core-Verhaltenstests**
+erfolgreich, der vorhandene manuelle Explicit-Generator zusätzlich
+`NotExecuted`; Resultmultiset unverändert. Echter OpenAPI-Export und zweimalige
+SDK-Generierung byteidentisch zum vorherigen Vertrag; SDK-Typecheck, **33 Tests**
+und Build erfolgreich. Zwei unabhängige native Gesamtdiff-Quellenreviews ohne
+Restbefund; Reviewer haben keine eigenen Tests oder Livezugriffe ausgeführt.
+PostgreSQL-/Mehrprozess-Containerklassen bleiben aus dem lokalen API-Nachweis
+ausgeschlossen. Frische CI und tatsächliche Runtime-Abnahme werden weiterhin
+getrennt am konkreten SHA geführt.

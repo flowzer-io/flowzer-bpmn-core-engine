@@ -182,6 +182,10 @@ builder.Services.AddSingleton<KeycloakAdminClient>(serviceProvider => new Keyclo
     serviceProvider.GetRequiredService<TimeProvider>()));
 builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
 builder.Services.AddSingleton<IKeycloakSubjectAccessReader>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
+// Fehlende TT-Bindung schließt nur TT-Ticketnachweise mit 503; normale
+// Flowzer-Installationen werden nicht zu einer TT-Einrichtung gezwungen.
+builder.Services.AddSingleton(builder.Configuration.GetSection(TickyTaskTicketActionsOptions.SectionName)
+    .Get<TickyTaskTicketActionsOptions>() ?? new TickyTaskTicketActionsOptions());
 builder.Services.AddSingleton<ServiceTaskInitiatorAccessService>();
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();

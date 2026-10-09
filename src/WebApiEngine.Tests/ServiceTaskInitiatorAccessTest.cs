@@ -10,7 +10,7 @@ using WebApiEngine.Jobs;
 namespace WebApiEngine.Tests;
 
 /// <summary>Eigener Job und echte Engine-Koordinaten, aber hermetisches Provider-/Storage-I/O.</summary>
-public sealed class ServiceTaskInitiatorAccessTest
+public sealed partial class ServiceTaskInitiatorAccessTest
 {
     private const string Issuer = "https://issuer.test/realms/flowzer";
     private static readonly Guid Worker = Guid.Parse("A1B2C3D4-0000-4000-8000-000000000001");
@@ -134,6 +134,7 @@ public sealed class ServiceTaskInitiatorAccessTest
         public ProcessInstanceInfo Instance { get; }
         public Provider Provider { get; }
         public ServiceTaskInitiatorAccessService Service { get; }
+        public TickyTaskTicketActionsOptions TicketActions { get; } = new() { ApiClientId = "tt-api" };
         public Context(string type = "tt.ticket.read")
         {
             var instanceId = Guid.NewGuid(); var masterId = Guid.NewGuid();
@@ -148,7 +149,7 @@ public sealed class ServiceTaskInitiatorAccessTest
                 MetaDefinitionId = Instance.metaDefinitionId, DefinitionId = Instance.DefinitionId, ProcessId = "process",
                 LockedBy = ServiceTaskJobService.BuildLockOwner(Worker, "worker-a"), LockedUntil = Time.GetUtcNow().UtcDateTime.AddMinutes(5), Retries = 3 };
             Jobs.SaveJob(Job).GetAwaiter().GetResult();
-            Provider = new(Jobs, Instance); Service = new(Provider, Reader, Authentication, Time);
+            Provider = new(Jobs, Instance); Service = new(Provider, Reader, Authentication, Time, TicketActions);
         }
         public void Change(string variant)
         {
@@ -178,6 +179,7 @@ public sealed class ServiceTaskInitiatorAccessTest
     private sealed class Reader : IKeycloakSubjectAccessReader
     {
         public List<(AuthenticatedSubject Identity, string Client, string Role)> Requests { get; } = [];
+        public List<string> HostClients { get; } = [];
         public bool Allowed { get; set; } = true;
         public Action? DuringRead { get; set; }
         public Exception? Error { get; set; }
@@ -185,6 +187,12 @@ public sealed class ServiceTaskInitiatorAccessTest
         {
             Requests.Add((identity, clientId, requiredRole)); DuringRead?.Invoke(); cancellationToken.ThrowIfCancellationRequested();
             if (Error is not null) throw Error; return Task.FromResult(Allowed);
+        }
+        public Task<bool> HasCurrentTicketActionAccessAsync(AuthenticatedSubject identity, string flowzerClientId,
+            string flowzerRequiredRole, string tickyTaskClientId, CancellationToken cancellationToken)
+        {
+            HostClients.Add(tickyTaskClientId);
+            return HasCurrentAccessAsync(identity, flowzerClientId, flowzerRequiredRole, cancellationToken);
         }
     }
     private sealed class Provider(InMemoryServiceTaskStorage jobs, ProcessInstanceInfo instance) : ITransactionalStorageProvider

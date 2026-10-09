@@ -12,7 +12,7 @@ public sealed class ServiceTaskInitiatorAccessRequestDto
 }
 
 /// <summary>
-/// Frischer Zugangsstand des gespeicherten Initiators, gebunden an einen eigenen aktiven
+/// Frischer Flowzer- UND TT-API-Zugangsstand des gespeicherten Initiators, gebunden an einen eigenen aktiven
 /// Auftrag. Kein übertragbarer Grant, keine Formular-/Profilinhalte und kein Token.
 /// </summary>
 public sealed record ServiceTaskInitiatorAccessDto(

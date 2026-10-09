@@ -8,10 +8,11 @@ using WebApiEngine.IdentityDirectory;
 namespace WebApiEngine.Tests;
 
 /// <summary>Live-Lesevertrag mit ausschließlich synthetischen Keycloak-HTTP-Antworten.</summary>
-public sealed class KeycloakSubjectAccessTest
+public sealed partial class KeycloakSubjectAccessTest
 {
     private const string Issuer = "https://issuer.test/realms/flowzer";
     private const string ClientId = "flowzer-api", ClientUuid = "client-internal-uuid";
+    private const string HostClientId = "tt-api", HostClientUuid = "tt-client-internal-uuid";
     private static readonly AuthenticatedSubject Identity = new(Issuer, "user-a");
 
     // Testzweck: Aktuelles Einzelprofil, echte Child-IDs und effektive Clientrollen sind
@@ -150,12 +151,19 @@ public sealed class KeycloakSubjectAccessTest
     private sealed class Handler(string variant, string subject = "user-a") : HttpMessageHandler
     {
         public string Variant { get; set; } = variant;
+        public string HostVariant { get; set; } = "root";
+        public Action<string>? DuringRequest { get; set; }
+        public TaskCompletionSource? HangingHostRole { get; set; }
+        public TaskCompletionSource? HangingHostRoleBody { get; set; }
+        public TaskCompletionSource? HostRetryEntered { get; set; }
+        public string? HostRetryFailure { get; set; }
         public List<string> Requests { get; } = [];
         public int TokenRequests { get; private set; }
         public AccessStream? LastStream { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var path = request.RequestUri!.AbsolutePath; Requests.Add(request.RequestUri.PathAndQuery);
+            DuringRequest?.Invoke(path);
             var body = "{}"; var status = HttpStatusCode.OK;
             if (path.EndsWith("/token", StringComparison.Ordinal))
             {
@@ -194,19 +202,47 @@ public sealed class KeycloakSubjectAccessTest
                 }
                 else if (path.EndsWith("/clients", StringComparison.Ordinal))
                 {
-                    request.RequestUri.Query.Should().Contain("clientId=flowzer-api");
-                    var client = $"{{\"id\":\"{ClientUuid}\",\"clientId\":\"{(Variant == "wrong-client" ? "foreign" : ClientId)}\",\"enabled\":{(Variant == "disabled-client" ? "false" : "true")}}}";
-                    body = Variant == "missing-client" ? "[]" : "[" + client + (Variant == "duplicate-client" ? "," + client : "") + "]";
+                    var isHost = request.RequestUri.Query.Contains("clientId=tt-api", StringComparison.Ordinal);
+                    request.RequestUri.Query.Should().Contain(isHost ? "clientId=tt-api" : "clientId=flowzer-api");
+                    var v = isHost ? HostVariant : Variant;
+                    var client = $"{{\"id\":\"{(isHost && v != "aliased-client" ? HostClientUuid : ClientUuid)}\",\"clientId\":\"{(v == "wrong-client" ? "foreign" : isHost ? HostClientId : ClientId)}\",\"enabled\":{(v == "disabled-client" ? "false" : "true")}}}";
+                    body = v == "missing-client" ? "[]" : "[" + client + (v == "duplicate-client" ? "," + client : "") + "]";
+                    if (isHost && v == "unavailable") status = HttpStatusCode.ServiceUnavailable;
                 }
                 else if (path.EndsWith($"/role-mappings/clients/{ClientUuid}/composite", StringComparison.Ordinal))
                 {
                     var role = $"{{\"id\":\"role-1\",\"name\":\"access\",\"clientRole\":{(Variant == "realm-role" ? "false" : "true")},\"containerId\":\"{(Variant == "foreign-role" ? "foreign" : ClientUuid)}\"}}";
                     body = Variant == "no-role" ? "[]" : "[" + role + (Variant == "duplicate-role" ? "," + role : "") + "]";
                 }
+                else if (path.EndsWith($"/role-mappings/clients/{HostClientUuid}/composite", StringComparison.Ordinal))
+                {
+                    if (HostRetryFailure is not null)
+                    {
+                        HostRetryEntered!.TrySetResult();
+                        if (HostRetryFailure == "request") throw new HttpRequestException("PRIVATE_HTTP_INPUT");
+                    }
+                    if (HangingHostRole is not null) return HangAsync(HangingHostRole, cancellationToken);
+                    var role = $"{{\"id\":\"host-role-1\",\"name\":\"access\",\"clientRole\":{(HostVariant == "realm-role" ? "false" : "true")},\"containerId\":\"{(HostVariant == "foreign-role" ? ClientUuid : HostClientUuid)}\"}}";
+                    body = HostVariant == "no-role" ? "[]" : "[" + role + (HostVariant == "duplicate-role" ? "," + role : "") + "]";
+                    status = HostRetryFailure == "status" ? HttpStatusCode.ServiceUnavailable : HostVariant switch { "missing-roles" => HttpStatusCode.NotFound,
+                        "forbidden" => HttpStatusCode.Forbidden, _ => status };
+                }
                 else throw new AssertionException("Unexpected synthetic HTTP route.");
             }
             var response = new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8,
                 Variant == "wrong-content-type" ? "text/html" : "application/json") };
+            if (HangingHostRoleBody is not null && path.EndsWith($"/clients/{HostClientUuid}/composite", StringComparison.Ordinal))
+            {
+                response.Content.Dispose();
+                response.Content = new StreamContent(new AccessStream([], HangingHostRoleBody));
+                response.Content.Headers.ContentType = new("application/json");
+            }
+            if (HostRetryFailure == "body" && path.EndsWith($"/clients/{HostClientUuid}/composite", StringComparison.Ordinal))
+            {
+                response.Content.Dispose();
+                response.Content = new StreamContent(new FailingAccessStream());
+                response.Content.Headers.ContentType = new("application/json");
+            }
             if ((Variant is "chunked-oversize" or "underreported-oversize") && path.EndsWith($"/users/{Uri.EscapeDataString(subject)}", StringComparison.Ordinal))
             {
                 LastStream = new AccessStream(Encoding.UTF8.GetBytes($"{{\"id\":\"{subject}\",\"enabled\":true,\"padding\":\"{new string('a', 2048)}\"}}"));
@@ -218,6 +254,26 @@ public sealed class KeycloakSubjectAccessTest
             return Task.FromResult(response);
         }
         private static string Group(string id, string name, string path) => $"{{\"id\":\"{id}\",\"name\":\"{name}\",\"path\":\"{path}\"}}";
+        private static async Task<HttpResponseMessage> HangAsync(TaskCompletionSource entered, CancellationToken cancellationToken)
+        {
+            entered.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException();
+        }
+    }
+    private sealed class FailingAccessStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(new IOException("PRIVATE_HTTP_INPUT"));
+        public override int Read(byte[] buffer, int offset, int count) => throw new IOException("PRIVATE_HTTP_INPUT");
+        public override void Flush() => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
     private sealed class HangingHandler(bool bodyHangs) : HttpMessageHandler
     {

@@ -15,4 +15,14 @@ public interface IKeycloakSubjectAccessReader
     /// </summary>
     Task<bool> HasCurrentAccessAsync(AuthenticatedSubject identity, string clientId, string requiredRole,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Prüft Flowzer- und TT-API-Zugang derselben Person in einem gemeinsamen
+    /// Gesamtbudget. Profil und Scope werden einmal gelesen; beide effektiven
+    /// Clientrollen müssen aktuell gelten (TT: feste Rolle <c>access</c>). Die Clients sind verschieden und
+    /// installationsgebunden; es gibt keinen Worker-/JWT-/Directory-Fallback.
+    /// </summary>
+    Task<bool> HasCurrentTicketActionAccessAsync(AuthenticatedSubject identity,
+        string flowzerClientId, string flowzerRequiredRole, string tickyTaskClientId,
+        CancellationToken cancellationToken);
 }

@@ -1,21 +1,37 @@
 using Model;
 using System.Text.Json;
+using WebApiEngine.Jobs;
 
 namespace WebApiEngine.IdentityDirectory;
 
 public sealed partial class KeycloakAdminClient : IKeycloakSubjectAccessReader
 {
     /// <inheritdoc />
-    public async Task<bool> HasCurrentAccessAsync(AuthenticatedSubject identity, string clientId, string requiredRole,
+    public Task<bool> HasCurrentTicketActionAccessAsync(AuthenticatedSubject identity,
+        string flowzerClientId, string flowzerRequiredRole, string tickyTaskClientId,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.Equals(flowzerClientId, tickyTaskClientId, StringComparison.Ordinal))
+            throw AccessFailure(KeycloakAdminClientFailureKind.Configuration);
+        return ReadCurrentAccessAsync(identity,
+            [(flowzerClientId, flowzerRequiredRole), (tickyTaskClientId, TickyTaskTicketActionsOptions.RequiredRole)], cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public Task<bool> HasCurrentAccessAsync(AuthenticatedSubject identity, string clientId, string requiredRole,
+        CancellationToken cancellationToken) => ReadCurrentAccessAsync(identity, [(clientId, requiredRole)], cancellationToken);
+
+    private async Task<bool> ReadCurrentAccessAsync(AuthenticatedSubject identity,
+        IReadOnlyList<(string ClientId, string RequiredRole)> requirements, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         // Der realmweite Legacy-Abgleich ist hier ausdrücklich kein Zugangsbeweis.
         // Opaque/federierte Subjects bleiben unverändert; nur eindeutige URL-Segmente zulassen.
         if (!_options.Enabled || !_options.IsValid() || string.IsNullOrEmpty(_options.RootGroupId)
             || identity is null || !string.Equals(identity.Issuer, _options.Issuer, StringComparison.Ordinal)
             || !KeycloakDirectoryOptions.IsSafeProviderId(identity.Subject)
-            || string.IsNullOrEmpty(clientId) || clientId.Length > 256 || !KeycloakDirectoryOptions.IsSafeProviderId(clientId)
-            || string.IsNullOrWhiteSpace(requiredRole) || requiredRole.Length > 256 || requiredRole.Any(char.IsControl))
+            || requirements.Any(requirement => !IsValidClientRole(requirement.ClientId, requirement.RequiredRole)))
             throw AccessFailure(KeycloakAdminClientFailureKind.Configuration);
 
         using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(10), _timeProvider);
@@ -26,7 +42,7 @@ public sealed partial class KeycloakAdminClient : IKeycloakSubjectAccessReader
             // Frisches Token je Prüfung, kein Zugangs-/Directory-/Rollencache. Auch Token-
             // und Gruppenantworten müssen eindeutiges JSON sein, nicht nur das Profil.
             var token = new AccessTokenLease(this, configuration, strictResponse: true);
-            return await ReadSubjectAccessAsync(identity.Subject, clientId, requiredRole, configuration, token, linked.Token);
+            return await ReadSubjectAccessAsync(identity.Subject, requirements, configuration, token, linked.Token);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -37,7 +53,12 @@ public sealed partial class KeycloakAdminClient : IKeycloakSubjectAccessReader
         catch (KeycloakAdminClientException error) { throw AccessFailure(error.Kind); }
     }
 
-    private async Task<bool> ReadSubjectAccessAsync(string subject, string clientId, string requiredRole,
+    private static bool IsValidClientRole(string clientId, string requiredRole) =>
+        !string.IsNullOrEmpty(clientId) && clientId.Length <= 256 && KeycloakDirectoryOptions.IsSafeProviderId(clientId)
+        && !string.IsNullOrWhiteSpace(requiredRole) && requiredRole.Length <= 256 && !requiredRole.Any(char.IsControl);
+
+    private async Task<bool> ReadSubjectAccessAsync(string subject,
+        IReadOnlyList<(string ClientId, string RequiredRole)> requirements,
         ValidatedConfiguration configuration, AccessTokenLease token, CancellationToken cancellationToken)
     {
         var userPath = $"users/{Uri.EscapeDataString(subject)}";
@@ -77,6 +98,20 @@ public sealed partial class KeycloakAdminClient : IKeycloakSubjectAccessReader
         }
         if (!hasMembership) return false;
 
+        // Ein Konto-/Scope-Lauf und ein Gesamtbudget für beide API-Zugänge.
+        // Ein sicherer Entzug an einer Grenze reicht zum Nein. Alias-IDs in
+        // ansonsten verschiedenen Clientantworten sind dagegen Quellunklarheit.
+        var internalClients = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var requirement in requirements)
+            if (!await ReadClientRoleAsync(userPath, requirement.ClientId, requirement.RequiredRole,
+                internalClients, configuration, token, cancellationToken)) return false;
+        return true;
+    }
+
+    private async Task<bool> ReadClientRoleAsync(string userPath, string clientId, string requiredRole,
+        HashSet<string> internalClients, ValidatedConfiguration configuration, AccessTokenLease token,
+        CancellationToken cancellationToken)
+    {
         // Keycloak erwartet hier seine interne Client-ID, NICHT den Audience-Text.
         // Exakte Suche mit maximal zwei Ergebnissen: Mehrdeutigkeit ist kein Fallback.
         var clients = await GetResourceAsync<List<AccessClientRepresentation>>(
@@ -84,6 +119,7 @@ public sealed partial class KeycloakAdminClient : IKeycloakSubjectAccessReader
         if (clients.Count != 1 || clients[0] is not { } client || client.ClientId != clientId || client.Enabled is null)
             throw InvalidResponse("Keycloak returned an ambiguous access client.");
         var internalClientId = RequireId(client.Id, "access client");
+        if (!internalClients.Add(internalClientId)) throw InvalidResponse("Keycloak returned an aliased access client.");
         if (client.Enabled != true) return false;
         var roles = await GetResourceAsync<List<AccessRoleRepresentation>>(
             configuration.AdminResourceEndpoint(userPath + $"/role-mappings/clients/{Uri.EscapeDataString(internalClientId)}/composite"), token, cancellationToken);

@@ -6,9 +6,10 @@ using WebApiEngine.Shared;
 
 namespace WebApiEngine.Jobs;
 
-/// <summary>Jobgebundener Live-Zugang des Initiators; weder Ticketwirkung noch Jobmutation.</summary>
+/// <summary>Jobgebundener Live-Zugang des Initiators zu Flowzer UND TT; weder Ticketwirkung noch Jobmutation.</summary>
 public sealed class ServiceTaskInitiatorAccessService(ITransactionalStorageProvider storageProvider,
-    IKeycloakSubjectAccessReader reader, FlowzerAuthenticationOptions authentication, TimeProvider timeProvider)
+    IKeycloakSubjectAccessReader reader, FlowzerAuthenticationOptions authentication, TimeProvider timeProvider,
+    TickyTaskTicketActionsOptions ticketActions)
 {
     /// <summary>
     /// Prüft eigenen laufenden Auftrag vor und nach der externen Zugangsabfrage. Kein
@@ -19,24 +20,30 @@ public sealed class ServiceTaskInitiatorAccessService(ITransactionalStorageProvi
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var auth = authentication;
-        if (!auth.IsAuthenticationEnabled || string.IsNullOrWhiteSpace(auth.JwtBearer.RequiredRole)
-            || string.IsNullOrWhiteSpace(auth.JwtBearer.Audience) || string.IsNullOrWhiteSpace(auth.JwtBearer.Authority))
+        // Installationswerte einmal kopieren: auch ein geteilter Options-Gegenstand
+        // darf die geprüfte Grenze während des externen I/O nicht umdeuten.
+        var issuer = authentication.JwtBearer.Authority;
+        var flowzerClientId = authentication.JwtBearer.Audience;
+        var flowzerRole = authentication.JwtBearer.RequiredRole;
+        var hostClientId = ticketActions.ApiClientId;
+        if (!authentication.IsAuthenticationEnabled || string.IsNullOrWhiteSpace(flowzerRole)
+            || string.IsNullOrWhiteSpace(flowzerClientId) || string.IsNullOrWhiteSpace(issuer)
+            || !TickyTaskTicketActionsOptions.IsValidApiClientId(hostClientId, flowzerClientId))
             return Failed(ServiceTaskInitiatorAccessStatus.Unavailable);
         if (jobId == Guid.Empty || workerUserId == Guid.Empty || !IsValidWorkerId(workerId))
             return Failed(ServiceTaskInitiatorAccessStatus.InvalidContext);
         var owner = ServiceTaskJobService.BuildLockOwner(workerUserId, workerId);
-        var (before, status) = await ReadContextAsync(jobId, owner, auth.JwtBearer.Authority, cancellationToken);
+        var (before, status) = await ReadContextAsync(jobId, owner, issuer, cancellationToken);
         if (before is null) return Failed(status);
         bool allowed;
         try
         {
-            allowed = await reader.HasCurrentAccessAsync(before.Identity, auth.JwtBearer.Audience,
-                auth.JwtBearer.RequiredRole, cancellationToken);
+            allowed = await reader.HasCurrentTicketActionAccessAsync(before.Identity, flowzerClientId,
+                flowzerRole, hostClientId, cancellationToken);
         }
         catch (KeycloakAdminClientException) { return Failed(ServiceTaskInitiatorAccessStatus.Unavailable); }
         cancellationToken.ThrowIfCancellationRequested();
-        var (after, afterStatus) = await ReadContextAsync(jobId, owner, auth.JwtBearer.Authority, cancellationToken);
+        var (after, afterStatus) = await ReadContextAsync(jobId, owner, issuer, cancellationToken);
         if (after is null) return Failed(afterStatus);
         if (after != before) return Failed(ServiceTaskInitiatorAccessStatus.InvalidContext);
         return new(ServiceTaskInitiatorAccessStatus.Ok, new(
