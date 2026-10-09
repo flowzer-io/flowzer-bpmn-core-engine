@@ -690,6 +690,7 @@ public static class ModelParser
                 Id = errorEndId,
                 Name = xmlFlowNode.Attribute("name")?.Value ?? "",
                 Error = ResolveErrorRef(definition, rootElements, errorEndId),
+                InputMappings = inputMappings,
             };
         }
 

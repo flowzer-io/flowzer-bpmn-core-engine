@@ -14,6 +14,10 @@ public class ErrorEndEventHandler : DefaultFlowNodeHandler
         // Erst abschliessen, dann werfen: So zieht das Unterbrechen des Scopes dieses Token
         // nicht mit zurueck, und der Knoten bleibt im Laufzeitverlauf als erreicht sichtbar.
         token.State = FlowNodeState.Completed;
-        processInstance.RaiseBpmnError(token, errorEndEvent.Error?.ErrorCode, null, catchAtOriginActivity: false);
+        // Nur deklarierte Eingänge dürfen den unterbrochenen Scope verlassen. Ohne
+        // Mapping bleibt der bisherige datenlose Fehler unverändert; kein Root-/Scope-Dump.
+        var errorData = errorEndEvent.InputMappings is { Count: > 0 } ? token.Variables : null;
+        processInstance.RaiseBpmnError(token, errorEndEvent.Error?.ErrorCode, null,
+            catchAtOriginActivity: false, errorData);
     }
 }
