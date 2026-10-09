@@ -201,6 +201,7 @@ public sealed partial class ServiceTaskInitiatorAccessTest
         public int Openings { get; private set; }
         public int Commits { get; private set; }
         public bool MissingInstance { get; set; }
+        public Action? BeforeInstanceRead { get; set; }
         public ITransactionalStorage GetTransactionalStorage() { OpenContexts++; Openings++; return new Storage(this, jobs, instance); }
         private sealed class Storage(Provider owner, InMemoryServiceTaskStorage jobs, ProcessInstanceInfo instance) : ITransactionalStorage
         {
@@ -216,8 +217,11 @@ public sealed partial class ServiceTaskInitiatorAccessTest
         }
         private sealed class Instances(Provider owner, ProcessInstanceInfo instance) : IInstanceStorage
         {
-            public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId) => owner.MissingInstance
-                ? throw new FileNotFoundException() : Task.FromResult(instance);
+            public Task<ProcessInstanceInfo> GetProcessInstance(Guid processInstanceId)
+            {
+                owner.BeforeInstanceRead?.Invoke();
+                return owner.MissingInstance ? throw new FileNotFoundException() : Task.FromResult(instance);
+            }
             public Task AddOrUpdateInstance(ProcessInstanceInfo value) => throw new NotSupportedException();
             public Task<IEnumerable<ProcessInstanceInfo>> GetAllActiveInstances() => throw new NotSupportedException();
             public Task<IEnumerable<ProcessInstanceInfo>> GetAllInstances() => throw new NotSupportedException();

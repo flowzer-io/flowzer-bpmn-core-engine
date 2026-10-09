@@ -187,6 +187,9 @@ builder.Services.AddSingleton<IKeycloakSubjectAccessReader>(serviceProvider => s
 builder.Services.AddSingleton(builder.Configuration.GetSection(TickyTaskTicketActionsOptions.SectionName)
     .Get<TickyTaskTicketActionsOptions>() ?? new TickyTaskTicketActionsOptions());
 builder.Services.AddSingleton<ServiceTaskInitiatorAccessService>();
+// Rein lesender persönlicher Betriebsnachweis: kein Resume, kein Workerstart.
+// Fehlende TT-/Directory-/Rollenkonfiguration schließt den Vertrag mit 503.
+builder.Services.AddSingleton<TicketActionOperatorAccessService>();
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
 builder.Services.AddSingleton<DirectorySubjectSelectionService>();

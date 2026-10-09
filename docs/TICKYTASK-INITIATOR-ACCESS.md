@@ -109,9 +109,11 @@ unmittelbarer Stand, **kein** persistierbarer oder übertragbarer Grant.
 
 Dieser Baustein aktiviert keinen ausführenden TT-Worker. Der TT-Verbraucher mit
 frischer persönlicher TT-Verknüpfung ist als kalter Adapter bereits vorhanden;
-seine konkrete Installationsbindung und Aktivierung, die dauerhafte Vorgangspause bei Rechteentzug
-und auditierte Einzelfreigabe (TT-Administration **plus** nachgewiesenes Flowzer-
-Betriebsrecht) bleiben offen. Provider-Unklarheit darf
+die dauerhafte Vorgangssperre bei Rechteentzug oder technisch unklarer Prüfung
+ist im getrennten TT-Arbeitsbranch vorbereitet, aber nicht ausgerollt. Seine
+konkrete Installationsbindung und Aktivierung sowie die auditierte Einzelfreigabe
+(TT-Administration **plus** nachgewiesenes Flowzer-Betriebsrecht) bleiben offen.
+Provider-Unklarheit darf
 nicht als bestätigter Entzug gespeichert werden; ein späteres Ja darf einen
 pausierten Vorgang nicht automatisch reaktivieren. Bereits ausgeführte
 Ticketänderungen werden bei Prozessabbruch nicht zurückgerollt.
@@ -121,6 +123,38 @@ Sie ersetzen keine echte Keycloak-/HTTPS-, PostgreSQL-Konkurrenz-, Einbettungs-
 oder 45-Minuten-Abnahme. Demo-Gruppenzuordnung, Secret-/Client-Einrichtung,
 Onlineinstallation und koordinierter Demo-Rollout sind nicht Teil dieses lokalen
 Nachweises. Keine Timerimplementierung, Mail, Kalender oder KI-Outboundeffekte.
+
+## Persönlicher Betriebsnachweis für die ausdrückliche Wiederfreigabe
+
+`GET /instance/{instanceId}/ticket-action-operator-access` ist ein separater,
+persönlich authentifizierter **Read-only-Endpunkt** mit bestehender Operator-
+Policy und `Cache-Control: no-store`. Er akzeptiert weder Link-Secrets noch
+Workerrechte oder einen Body mit frei gewählter Person/Rolle. Die Identität und
+`azp` stammen ausschließlich aus dem verifizierten aktuellen Benutzerkontext.
+
+Für genau diese Person werden Flowzer-Zugang, TT-API-Zugang und konfigurierte
+Flowzer-Betriebsrolle frisch unter **einem gemeinsamen Zehnsekundenbudget**
+geprüft. Eine zweite Anmeldung ist hier kein Ersatz für den persönlichen
+serverseitigen Token-Exchange aus TT. Leere Client-/Rollenbindungen, anonyme
+Fallbackidentitäten oder unklare Providerantworten bleiben geschlossen.
+
+Vor und nach Provider-I/O werden aktive Instanz, logische Definition,
+Definitionsversion, Prozess und eindeutiger Master mit Initiator als Werte
+gelesen; es bleibt dabei kein Storagekontext offen. Ein Abbruch oder Wechsel
+dieser Bindungen entwertet den Nachweis. Der minimale, vollständig erforderliche
+Neun-Felder-Vertrag liefert nur Instanz-/Definitionskoordinaten,
+Initiator-Issuer/-Subject, Akteur-Issuer/-Subject, tatsächliches `azp` und den
+externen UTC-Prüfzeitpunkt. Keine Formulare, Profilnamen, Rollenliste oder Tokens.
+
+200 bedeutet nur diesen aktuellen Betriebsstand; 403 verweigert den
+Betriebsnachweis (JWT-Policy oder bestätigte Live-Ablehnung), 409 ist ein nicht
+mehr gültiger Kontext und 503 technisch unklarer Stand. Insbesondere belegt
+ein früher Policy-403 allein keinen frisch bestätigten persönlichen Entzug. Der
+Nachweis ist **kein persistierbarer Grant**. Er schließt keine Sperrperiode,
+ändert keinen Initiator, startet keinen Worker und verändert weder Joblease
+noch Retries. TT muss dieselbe Person zusätzlich frisch als TT-Administrator
+autorisieren und genau die konkrete Sperrperiode mit Grund atomar auditieren.
+Ein späteres positives Prüfungsergebnis darf niemals automatisch reaktivieren.
 
 ### Historischer lokaler Nachweis des ursprünglichen Einzelclient-Lieferabschnitts
 
@@ -168,3 +202,28 @@ Restbefund; Reviewer haben keine eigenen Tests oder Livezugriffe ausgeführt.
 PostgreSQL-/Mehrprozess-Containerklassen bleiben aus dem lokalen API-Nachweis
 ausgeschlossen. Frische CI und tatsächliche Runtime-Abnahme werden weiterhin
 getrennt am konkreten SHA geführt.
+
+### Lieferabschnitt persönlicher Operatornachweis
+
+Vor Implementierung erreichten **25 echte Assertions Rot, sechs Fälle bestanden**;
+vor der HTTP-Route waren zwei Rollen-/HTTP-Assertions rot, die anonyme 401-
+Grenze bestand bereits. Nach dem additiven Endpunkt war der echte OpenAPI-
+Snapshotvertrag zunächst rot und wurde über seinen ausdrücklichen Exportpfad
+erneuert. SDK danach zweimal byteidentisch generiert, Typecheck, **33 Tests**
+und Build erfolgreich. Die bisherigen **118 Pfade und 233 Schemas** bleiben
+semantisch unverändert; additiv eine Route und zwei Schemas.
+
+Final **1.749/1.749 hermetische API-Tests** bestanden, alle 1.712 vorherigen
+Test-IDs/-Namen/-Outcomes erhalten, **37 neue Fälle**. Beide echten Container-
+klassen bleiben ausdrücklich ausgeschlossen. Core: **395 erfolgreiche
+Ausführungen und ein vorhandener Explicit-Generator nicht ausgeführt**;
+das vollständige Resultmultiset bleibt gleich. Eine vorhandene gleich benannte
+Parametrisierung tritt zweimal auf: 394 verschiedene bestandene Core-
+Ergebnisse, keine verschluckte Wiederholung. Zwei unabhängige native
+Gesamtdiff-Quellenreviews, ein P2-Dokuhinweis zur frühen Policy-403 fachlich
+geschlossen, kein Restbefund. Keine eigenen Reviewer-Tests oder Livezugriffe.
+Zwei VSTest-Sandbox-Socketabbrüche sind Umgebungsabbrüche, keine Produkt-TDD-Rots.
+
+Dieser lokale Nachweis aktiviert keine Wiederfreigabe, keinen Worker und
+keinen Onlinebetrieb. Aktuelle CI, Merge und reale Abnahme werden getrennt
+am gelieferten SHA zurückgelesen.

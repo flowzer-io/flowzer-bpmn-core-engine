@@ -41,8 +41,11 @@ Der lokale Pflicht-OpenAPI-, Stream-/Timeout- und Identity-Vertrag wird hermetis
 geprüft. Details: [TT-Initiatorzugang](TICKYTASK-INITIATOR-ACCESS.md).
 
 Dieser Abschnitt behauptet keinen Merge, Onlinebetrieb oder Gesamtabschluss:
-TT-Accessadapter, ausführender Worker, dauerhafte Pause/auditierte Wiederfreigabe
-und echte Keycloak-/HTTPS-/45-Minuten-/Demo-Abnahme bleiben offen. Die konkrete
+Der kalte TT-Accessadapter und die dauerhafte Vorgangssperre sind im getrennten
+TT-Arbeitsbranch vorbereitet. Der persönliche Read-only-Betriebsnachweis für die
+gezielte Wiederfreigabe wird hier ergänzt; er ersetzt weder frische TT-Administration
+noch deren atomaren Audit. Ausführender Worker, auditierte Wiederfreigabe und
+echte Keycloak-/HTTPS-/45-Minuten-/Demo-Abnahme bleiben offen. Die konkrete
 Demo-Gruppenzuordnung und der koordinierte Rollout sind separate Gates.
 
 ## Historische Einordnung vom 10. September 2026

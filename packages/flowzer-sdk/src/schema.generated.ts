@@ -6727,6 +6727,99 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/instance/{instanceId}/ticket-action-operator-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    instanceId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["TicketActionOperatorAccessDtoApiStatusResult"];
+                        "application/json": components["schemas"]["TicketActionOperatorAccessDtoApiStatusResult"];
+                        "text/json": components["schemas"]["TicketActionOperatorAccessDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/Timer": {
         parameters: {
             query?: never;
@@ -9095,6 +9188,25 @@ export interface components {
             variables?: {
                 [key: string]: unknown;
             } | null;
+        };
+        TicketActionOperatorAccessDto: {
+            /** Format: uuid */
+            processInstanceId: string;
+            metaDefinitionId: string;
+            /** Format: uuid */
+            definitionId: string;
+            initiatorIssuer: string;
+            initiatorSubject: string;
+            actorIssuer: string;
+            actorSubject: string;
+            actorAuthorizedClientId: string;
+            /** Format: date-time */
+            checkedAtUtc: string;
+        };
+        TicketActionOperatorAccessDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["TicketActionOperatorAccessDto"];
         };
         TimerSchedulerDiagnosticsDto: {
             enabled: boolean;

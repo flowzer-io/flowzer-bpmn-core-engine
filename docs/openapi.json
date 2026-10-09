@@ -8251,6 +8251,106 @@
         }
       }
     },
+    "/instance/{instanceId}/ticket-action-operator-access": {
+      "get": {
+        "tags": [
+          "TicketActionOperatorAccess"
+        ],
+        "parameters": [
+          {
+            "name": "instanceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketActionOperatorAccessDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketActionOperatorAccessDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TicketActionOperatorAccessDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/Timer": {
       "get": {
         "tags": [
@@ -14873,6 +14973,75 @@
         },
         "additionalProperties": false
       },
+      "TicketActionOperatorAccessDto": {
+        "required": [
+          "actorAuthorizedClientId",
+          "actorIssuer",
+          "actorSubject",
+          "checkedAtUtc",
+          "definitionId",
+          "initiatorIssuer",
+          "initiatorSubject",
+          "metaDefinitionId",
+          "processInstanceId"
+        ],
+        "type": "object",
+        "properties": {
+          "processInstanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metaDefinitionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "initiatorIssuer": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "initiatorSubject": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "actorIssuer": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "actorSubject": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "actorAuthorizedClientId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "checkedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TicketActionOperatorAccessDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/TicketActionOperatorAccessDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "TimerSchedulerDiagnosticsDto": {
         "required": [
           "enabled",
@@ -15760,6 +15929,9 @@
     },
     {
       "name": "StartFormEmbed"
+    },
+    {
+      "name": "TicketActionOperatorAccess"
     },
     {
       "name": "Timer"
