@@ -403,3 +403,39 @@ mit **812/812** Tests in 115 Dateien; Lint hat weiterhin elf vorhandene Warnunge
 und keine Fehler. Frischer Produktionsbuild einschließlich separatem Embed-Bundle
 ist grün. Beide eigenen unabhängigen Quellen-Nachreviews sehen keinen konkreten
 Restbefund in dieser engen Ergänzung. Die tatsächliche Demoabnahme bleibt offen.
+
+### Eng begrenzte Sicherheitsaktualisierung der Console-Abhängigkeiten
+
+Vor der Demoauslieferung werden die zwei tatsächlich im Console-Lockbaum
+vorhandenen betroffenen Auflösungen aktualisiert: DOMPurify von 3.4.14 auf
+3.4.16 ([GHSA-p98j-92pf-mc4p](https://github.com/advisories/GHSA-p98j-92pf-mc4p))
+und Moment von 2.30.1 auf 2.31.0
+([GHSA-4p3w-j4w9-5jqw](https://github.com/advisories/GHSA-4p3w-j4w9-5jqw)).
+Der Lockdiff enthält ausschließlich Version, Bezugs-URL und Integrität dieser
+beiden Pakete. Vorhandene Versionsbereiche bleiben kompatibel; Manifest,
+Overrides, Lizenzen, Produktcode, Berechtigungen, CSP und Sandbox bleiben
+unverändert. Das ist keine Aussage, dass alle Abhängigkeiten sicher sind.
+
+Vier dokumentierte Regressionen sichern Mindestversionen aller passenden
+Lockeinträge sowie die konkreten Bibliotheksgrenzen ab. Der DOMPurify-Fall prüft
+nur ein Eventattribut an einem durch einen After-Hook abgetrennten lebenden
+Teilbaum, ohne Events oder Skripte auszuführen. Der Moment-Fall prüft, dass
+eine vom Aufrufer gelieferte `match`-Funktion nicht zur Modulnamensprüfung
+verwendet wird. Die vorherige Normalisierung zu einem String ist gemäß dem
+[Upstream-Patch](https://github.com/moment/moment/commit/5f7d983) ausdrücklich
+erlaubt; eine anfänglich zu strenge Testannahme wurde entsprechend korrigiert.
+Die Mindestversions- und DOM-Regressionsfälle waren vor der Aktualisierung rot.
+Die korrigierte Moment-Fixture wurde zusätzlich unverändert gegen das isolierte
+veröffentlichte Paket 2.30.1 wirklich rot reproduziert. Sie verwendet das bereits
+geladene `en` und lädt kein fremdes Modul. Diese Pakettests beweisen keinen
+konkreten ausnutzbaren Angriffspfad im produktiven Flowzer.
+
+Nach frischer Lockinstallation bestehen **816/816** Console-Tests in 116 Dateien,
+darunter **4/4** Sicherheitsfälle und **27/27** Embed-Fälle. Typprüfung, frischer
+Produktionsbuild samt separatem Embed-Bundle und Testzweckprüfung sind grün;
+Lint hat weiterhin elf vorhandene Warnungen und keine Fehler. Der erneut aus
+dem frischen Produktionsbundle gestartete isolierte Browserpfad besteht mit
+**7/7**, Offline-Sandbox mit **2/2** und Gateway-Policy mit **5/5** Fällen.
+HTTPS-Routen und API-Antworten dieses Harness bleiben synthetisch; virtuelle
+46 Minuten ersetzen keine reale 45-Minuten-, Keycloak- oder Demoabnahme.
+Die Prüfung öffnet weder Installations-Opt-in noch Staging oder Production.
