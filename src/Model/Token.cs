@@ -65,6 +65,14 @@ public class Token
     /// </summary>
     public AuthenticatedSubject? Initiator { get; set; }
 
+    /// <summary>
+    /// Nur am Master: optionale, nicht autorisierende externe Herkunftsreferenz
+    /// des direkten Starts. Nicht Teil der Formularvariablen oder gewöhnlichen DTOs.
+    /// Null bei historischem Bestand und Starts ohne ausdrücklich mitgegebenen Bezug.
+    /// </summary>
+    [Newtonsoft.Json.JsonProperty(NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+    public string? ExternalReference { get; set; }
+
     /// <summary>Nur am Master: auditierter persönlicher Rückzug; null bei Altbestand/Betriebsabbruch.</summary>
     public ProcessWithdrawal? Withdrawal { get; set; }
 

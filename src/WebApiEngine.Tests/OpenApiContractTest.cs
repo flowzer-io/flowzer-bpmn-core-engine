@@ -38,6 +38,23 @@ public class OpenApiContractTest
             .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
     }
 
+    // Testzweck: Hostneutrale Referenzen sind begrenzte optionale Startmetadaten,
+    // nicht Teil von normalen Instanz-/Tokenantworten oder einer neuen Berechtigungsroute.
+    [Test]
+    public async Task DirectStart_ShouldDescribeOptionalBoundedExternalReferenceOnlyOnInput()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var start = schemas.GetProperty("StartInstanceDto");
+        var reference = start.GetProperty("properties").GetProperty("externalReference");
+        reference.GetProperty("type").GetString().Should().Be("string");
+        reference.GetProperty("maxLength").GetInt32().Should().Be(128);
+        reference.GetProperty("minLength").GetInt32().Should().Be(1);
+        reference.GetProperty("nullable").GetBoolean().Should().BeTrue();
+        foreach (var name in new[] { "TokenDto", "ProcessInstanceInfoDto" })
+            schemas.GetProperty(name).GetProperty("properties").TryGetProperty("externalReference", out _).Should().BeFalse();
+    }
+
     // Testzweck: Generierte Hostclients können Task, Definitionsversion und persönliche
     // Übernahme atomar binden; beide Abschlussrouten dokumentieren denselben 409-Vertrag.
     [Test]

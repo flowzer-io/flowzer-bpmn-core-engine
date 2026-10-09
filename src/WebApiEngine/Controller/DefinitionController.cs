@@ -200,15 +200,21 @@ public class DefinitionController(
             var (currentUser, canInspect) = await instanceAccess.GetPermissionsAsync();
             // Alte Aufrufer behalten ihren bestehenden Requesthash. Neue gebundene
             // Starts nehmen die Version ausdrücklich in den Idempotenzinhalt auf.
-            object? payload = body?.ExpectedDefinitionId is { } expected
-                ? new { expectedDefinitionId = expected, variables = body.Variables }
-                : body?.Variables;
+            // Die optionale Herkunft braucht einen eigenen Inhaltsdomain, damit ein
+            // Legacy-Variablenobjekt sie nicht imitieren kann. Scope/Benutzer bleiben
+            // gleich: Entfernen oder Ändern eines Bezugs ist KEIN neuer Startkey.
+            object? payload = body?.ExternalReference is not null
+                ? new { expectedDefinitionId = body.ExpectedDefinitionId, externalReference = body.ExternalReference, variables = body.Variables }
+                : body?.ExpectedDefinitionId is { } expected
+                    ? new { expectedDefinitionId = expected, variables = body.Variables }
+                    : body?.Variables;
             var idempotency = HttpIdempotency.Create(Request, currentUser,
                 "workflow-start", id, payload,
-                contentDomain: body?.ExpectedDefinitionId.HasValue == true ? "version-bound-start:v1" : null);
+                contentDomain: body?.ExternalReference is not null ? "external-reference-start:v1"
+                    : body?.ExpectedDefinitionId.HasValue == true ? "version-bound-start:v1" : null);
             var processInstance = await bpmnBusinessLogic.StartProcessInstance(id, body?.Variables,
                 initiator: currentUser.Identity, idempotency: idempotency,
-                expectedDefinitionId: body?.ExpectedDefinitionId);
+                expectedDefinitionId: body?.ExpectedDefinitionId, externalReference: body?.ExternalReference);
             var processInstanceDto = await processInstance.ToDtoAsync(storageSystem.DefinitionStorage, canInspect);
             return Ok(new ApiStatusResult<ProcessInstanceInfoDto>(processInstanceDto));
         }

@@ -66,14 +66,17 @@ public class VersionBoundStartIntegrationTest
 
     // Testzweck: Ein bereits erfolgter Start wird persönlich identisch wiedergegeben,
     // auch wenn inzwischen eine andere Fassung deployt wurde; kein zweiter Vorgang.
-    [Test]
-    public async Task IdenticalReplay_ShouldReturnOriginalInstanceAfterRedeployment()
+    [TestCase(false)]
+    [TestCase(true)]
+    public async Task IdenticalReplay_ShouldReturnOriginalInstanceAfterRedeployment(bool withReference)
     {
         using var context = new AuthenticatedWorkflowTestContext();
         var original = await context.DeployAsync("assignee=\"bert\"");
         using var client = context.CreateClient();
         client.DefaultRequestHeaders.Add("Idempotency-Key", "bound-once");
-        var body = new { expectedDefinitionId = original.Id };
+        object body = withReference
+            ? new { expectedDefinitionId = original.Id, externalReference = "case:1234567" }
+            : new { expectedDefinitionId = original.Id };
         using var first = await client.PostAsJsonAsync(Path(original.DefinitionId), body);
         var started = await first.Content.ReadFromJsonAsync<ApiStatusResult<ProcessInstanceInfoDto>>();
         var latest = await RedeployAsync(context, original);

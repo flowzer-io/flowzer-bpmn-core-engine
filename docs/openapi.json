@@ -14332,6 +14332,12 @@
             "format": "uuid",
             "nullable": true
           },
+          "externalReference": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
           "variables": {
             "type": "object",
             "additionalProperties": {},

@@ -8797,6 +8797,7 @@ export interface components {
         StartInstanceDto: {
             /** Format: uuid */
             expectedDefinitionId?: string | null;
+            externalReference?: string | null;
             variables?: {
                 [key: string]: unknown;
             } | null;

@@ -54,6 +54,35 @@ Interaktive Requests bleiben immer an den tatsächlichen Benutzer gebunden:
 Flowzer prüft Audience, Issuer, Subject, Rollen und Objektberechtigungen selbst. Ein
 Host darf UI-Aktionen ausblenden, erweitert damit aber niemals die Serverrechte.
 
+## Optionale Herkunftsreferenz beim Start
+
+Der direkte Start akzeptiert optional `externalReference`: eine nicht geheime,
+maximal 128 Zeichen lange Herkunftskennung des Hosts. Sie bleibt intern am
+Master-Token, überlebt Storage-Roundtrips und Instanzumzüge und wird weder zur
+Formularvariable noch Bestandteil gewöhnlicher Instanz-/Tokenantworten. Keine
+URL-Auflösung, automatische Fachdatensuche oder Berechtigung ist daran gebunden.
+Der Host hält seine verbindliche Fachobjektzuordnung und prüft deren Zugriff
+weiterhin selbst; eine frei mitgegebene Referenz ist dafür kein Nachweis.
+
+Version, Referenz und Eingaben gehören zum Inhalt desselben persönlichen
+Startschlüssels. Ändern oder Entfernen der Referenz liefert beim Replay 409,
+nicht eine weitere Instanz. Referenzstarts nutzen einen eigenen Inhaltsdomain,
+aber keinen neuen Schlüssel-Scope. Ohne Referenz bleibt der bisherige
+versionsgebundene beziehungsweise Legacy-Hash unverändert. Auch erfolgreiche
+Referenz-Replays behalten die ursprüngliche Version nach einem neuen Deployment.
+Leere, überlange oder steuerzeichenhaltige Werte werden vor Reservierung und
+Mutation abgewiesen. Die API/SDK-Beschreibung entsteht aus dem echten Swagger.
+
+Test-first wurden fehlende Speicherung und Replaybindung mit **7/8 echten
+HTTP-Fällen rot** sowie Metadatenverlust beim Umzug mit **1/1 rot** reproduziert.
+Nach Umsetzung bestehen **37/37** HTTP-/Swaggerverträge, **373/373** automatisierte
+Enginefälle (ohne den ausdrücklich manuellen Fixture-Regenerator) und SDK
+**33/33** mit Typprüfung/Build. Die finale lokale API-Hermetik besteht
+**1492/1492**, ohne Skips; beide echten PostgreSQL-/Mehrprozessklassen sind
+explizit außerhalb dieser lokalen Auswahl. Der neue PostgreSQL-Roundtrip prüft auch
+den Erhalt nach persönlichem Rückzug; die tatsächliche Ausführung ist erst im
+verbindlichen PostgreSQL-CI-Pfad bestätigt, nicht durch seinen Quellcode.
+
 ## Cache- und Mutationssicherheit
 
 Der React-Provider verlangt zwei nicht geheime Werte:

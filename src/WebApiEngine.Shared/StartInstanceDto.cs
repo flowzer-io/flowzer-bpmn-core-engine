@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Dynamic;
 using System.Text.Json.Serialization;
 
@@ -18,6 +19,14 @@ public class StartInstanceDto
     /// an die ursprünglich gestartete Fassung gebunden. Null erhält alte Aufrufer.
     /// </summary>
     public Guid? ExpectedDefinitionId { get; init; }
+
+    /// <summary>
+    /// Optionale, nicht geheime Herkunftsreferenz eines Hosts. Keine URL, kein
+    /// Berechtigungsnachweis und keine Formularvariable; nur interne Mastermetadaten.
+    /// Null bewahrt bestehende Start-/Idempotenzverträge unverändert.
+    /// </summary>
+    [StringLength(128, MinimumLength = 1)]
+    public string? ExternalReference { get; init; }
 
     /// <summary>
     /// Die Startvariablen der Instanz. <c>null</c> heisst „keine Angabe gemacht" und ist etwas

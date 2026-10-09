@@ -983,14 +983,23 @@ public partial class BpmnBusinessLogic(
         return new StartFormReference(directStart.Definition.Id, RequireStartFormKey(directStart.Process));
     }
 
+    /// <summary>
+    /// Startet die gebundene deployte Fassung mit persönlich inhaltsgebundenem
+    /// Replay. Optionale externe Herkunft ist ausschließlich interne Metainformation;
+    /// sie erweitert keine Benutzerrechte und wird nicht zur Formularvariable.
+    /// </summary>
     public async Task<ProcessInstanceInfo> StartProcessInstance(
         string relatedDefinitionId,
         Variables? variables = null,
         string? processId = null,
         AuthenticatedSubject? initiator = null,
         IdempotencyRequest? idempotency = null,
-        Guid? expectedDefinitionId = null)
+        Guid? expectedDefinitionId = null,
+        string? externalReference = null)
     {
+        // Auch interne Aufrufer haben denselben begrenzten Metadatenvertrag.
+        // Vor Sperre/Idempotenzreservierung prüfen und niemals den Wert ausgeben.
+        RequireExternalReference(externalReference);
         await _engineMutationLock.WaitAsync();
         try
         {
@@ -1028,6 +1037,7 @@ public partial class BpmnBusinessLogic(
                 // Metadaten gehören nicht in den Prozessvariablenscope. Der Master bleibt
                 // bei allen folgenden Mutationen und Storage-Roundtrips erhalten.
                 instance.MasterToken.Initiator = initiator;
+                instance.MasterToken.ExternalReference = externalReference;
                 var processInstanceInfo = CreateProcessInstanceInfo(
                     deployedDefinition.Id,
                     relatedDefinitionId,
@@ -1065,6 +1075,21 @@ public partial class BpmnBusinessLogic(
         finally
         {
             _engineMutationLock.Release();
+        }
+    }
+
+    /// <summary>Eine Herkunft ist nur begrenzte Metainformation, nie frei ausführbarer Inhalt oder Zugangsrecht.</summary>
+    private static void RequireExternalReference(string? reference)
+    {
+        if (reference is null) return;
+        if (string.IsNullOrWhiteSpace(reference) || reference.Length > 128)
+            throw new ArgumentException("Invalid external reference.");
+        for (var i = 0; i < reference.Length; i++)
+        {
+            var value = reference[i];
+            if (char.IsControl(value) || char.IsLowSurrogate(value)
+                || char.IsHighSurrogate(value) && (++i >= reference.Length || !char.IsLowSurrogate(reference[i])))
+                throw new ArgumentException("Invalid external reference.");
         }
     }
 

@@ -54,8 +54,32 @@ public partial class PostgreSqlStorageIntegrationTest
         (await reader.SubscriptionStorage.GetAllUserTasks(instance.InstanceId)).Should().ContainSingle();
     }
 
+    // Testzweck: Die neue hostneutrale Referenz überlebt echte getrennte PostgreSQL-
+    // Sessions und eine Mutation, ohne in Variablen oder Benutzeridentität zu wandern.
+    [Test]
+    public async Task ExternalReference_ShouldSurvivePostgreSqlRoundTripAndWithdrawal()
+    {
+        var provider = new PostgreSqlTransactionalStorageProvider(_dataSource!, Schema);
+        var actor = new CurrentUserContext(Guid.NewGuid(), "synthetic:test", false)
+        {
+            Identity = new AuthenticatedSubject("https://synthetic.test/realms/demo", "synthetic-initiator")
+        };
+        var instance = await StartWithdrawalFixture(provider, actor, "case:1234567");
+        using (var reader = new PostgreSqlStorage(_dataSource!, Schema))
+        {
+            var master = (await reader.InstanceStorage.GetProcessInstance(instance.InstanceId)).Tokens.Single(t => t.ParentTokenId is null);
+            master.ExternalReference.Should().Be("case:1234567");
+            master.Initiator.Should().Be(actor.Identity);
+        }
+        await new BpmnBusinessLogic(provider).WithdrawInstance(instance.InstanceId, actor);
+        using var after = new PostgreSqlStorage(_dataSource!, Schema);
+        var stored = (await after.InstanceStorage.GetProcessInstance(instance.InstanceId)).Tokens.Single(t => t.ParentTokenId is null);
+        stored.ExternalReference.Should().Be("case:1234567");
+        stored.Withdrawal.Should().NotBeNull();
+    }
+
     private static async Task<ProcessInstanceInfo> StartWithdrawalFixture(
-        PostgreSqlTransactionalStorageProvider provider, CurrentUserContext actor)
+        PostgreSqlTransactionalStorageProvider provider, CurrentUserContext actor, string? externalReference = null)
     {
         var definition = CreateDefinition("Definitions_Withdrawal", 1, 0, isActive: false);
         using (var storage = provider.GetTransactionalStorage())
@@ -70,6 +94,6 @@ public partial class PostgreSqlStorageIntegrationTest
         var engine = new BpmnBusinessLogic(provider);
         await engine.DeployDefinition(definition);
         return await engine.StartProcessInstance(definition.DefinitionId,
-            initiator: actor.Identity, expectedDefinitionId: definition.Id);
+            initiator: actor.Identity, expectedDefinitionId: definition.Id, externalReference: externalReference);
     }
 }
