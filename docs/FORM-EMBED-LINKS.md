@@ -361,3 +361,29 @@ Präfix `form-embed` plus Aktionspfad `start/redeem`: Der tatsächliche
 HTTP-/OpenAPI-Pfad bleibt exakt gleich. Gateway, CSP, Autorisierung und
 Prüfscript wurden nicht erweitert oder gelockert. Erst eine neue vollständig
 grüne CI attestiert diese enge Nacharbeit.
+
+
+### Nachweislich veraltete Startfassung gegenüber unklarem Start
+
+Der private Hostkanal akzeptiert für eine Startaktion zusätzlich den exakt
+bekannten Code `flowzer.definition_changed`. Ein erstmaliger definitiver
+Vor-Anlage-Versionskonflikt stoppt den angezeigten Startsnapshot: Eingaben bleiben
+sichtbar, aber diese Fassung wird nicht mit neuem Schlüssel gestartet. Erst eine
+bewusste neue Auswahl darf die aktuelle Fassung laden. Ein unbekannter Fehler
+oder ein früherer unklarer Versand bleibt dagegen an Originalwerte und
+Originalkey gebunden. Auch eine spätere Versions-/Validierungs-/Zugangsantwort
+zeigt in diesem Zustand keine Neuauswahl- oder Korrekturanweisung.
+
+Test-first: Versionsfall zunächst 1/8 rot, nach Umsetzung mit Kanaltests 16/16
+grün. Der eigene unabhängige Quellenreview fand eine widersprüchliche
+Neuauswahl-Anweisung nach Unknown; die ergänzte tatsächliche Regression war
+1/8 rot. Nach enger Korrektur sind alle 26/26 Embed-Regressionsfälle, Typecheck
+und Lint grün (11 bestehende Lintwarnungen, keine Fehler). Quellen-Nachreview
+bestätigt Originalbindung und die korrigierte Handlungsanweisung. Dies ist
+keine echte Browser-/HTTPS-/Keycloak-/45-Minuten-Abnahme und keine Freigabe
+für Staging- oder Productionänderungen.
+
+Der anschließende vollständige Console-Lauf enthält **811/811** bestandene
+Tests in 115 Dateien; der frische Produktionsbuild einschließlich separatem
+Embed-Bundle ist ebenfalls grün. Beide eigenen unabhängigen Quellenreviews
+sehen im finalen eng begrenzten Renderer-/Kanal-Diff keinen Restbefund.

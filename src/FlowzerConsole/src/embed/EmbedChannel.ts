@@ -13,6 +13,7 @@ export class EmbedActionError extends Error {
       'flowzer.access_denied': 'Die Aufgabe wurde beendet oder du darfst sie nicht mehr bearbeiten.',
       'flowzer.validation_failed': 'Bitte prüfe die Formulareingaben und die markierten Felder.',
       'flowzer.request_too_large': 'Der Formularinhalt ist zu groß.',
+      'flowzer.definition_changed': 'Die angezeigte Workflowfassung ist nicht mehr aktuell. Schließe das Formular und wähle die neue Fassung bewusst aus.',
     };
     super((Object.hasOwn(messages, code) ? messages[code] : undefined) ?? 'Die Formularverbindung ist derzeit nicht verfügbar. Deine Eingaben bleiben erhalten.');
     this.name = 'EmbedActionError'; this.code = Object.hasOwn(messages, code) ? code : 'flowzer.connection_failed';

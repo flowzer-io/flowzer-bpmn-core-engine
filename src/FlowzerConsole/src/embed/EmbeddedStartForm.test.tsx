@@ -97,4 +97,33 @@ describe('Separates eingebettetes Startformular', () => {
     await screen.findByRole('alert'); expect(screen.queryByText('Workflow gestartet.')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Antwort')).toBeDisabled();
   });
+  // Testzweck: Definitiver Versionskonflikt ist kein Timeout. Der alte Snapshot
+  // wird nicht erneut gestartet; Eingaben bleiben bis zum bewussten Schließen sichtbar.
+  it('stoppt eine nachweislich veraltete Startfassung ohne Unknown-Retry', async () => {
+    const request = vi.fn().mockRejectedValue(new EmbedActionError('flowzer.definition_changed'));
+    render(<EmbeddedStartForm snapshot={snapshot} channel={{ request } as unknown as EmbedActionChannel} />);
+    fireEvent.change(screen.getByLabelText('Antwort'), { target: { value: 'bleibt sichtbar' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Workflow starten' }));
+    await screen.findByRole('alert');
+    expect(screen.getByRole('alert')).toHaveTextContent('Workflowfassung');
+    expect(screen.queryByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Workflow starten' })).toBeDisabled();
+    expect(screen.getByLabelText('Antwort')).toHaveValue('bleibt sichtbar'); expect(request).toHaveBeenCalledOnce();
+  });
+  // Testzweck: Ein späterer Versionsfehler löst einen vorher unklaren Start nicht
+  // auf; Originaldaten und ursprünglicher Key dürfen dadurch nicht ersetzt werden.
+  it('behält Unknown bei einem erst später auftretenden Versionskonflikt', async () => {
+    const request = vi.fn().mockRejectedValueOnce(new Error('Timeout'))
+      .mockRejectedValueOnce(new EmbedActionError('flowzer.definition_changed')).mockResolvedValueOnce({ started: true });
+    render(<EmbeddedStartForm snapshot={snapshot} channel={{ request } as unknown as EmbedActionChannel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Workflow starten' })); await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' }));
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' })).not.toBeDisabled());
+    expect(screen.getByRole('alert')).not.toHaveTextContent('wähle die neue Fassung');
+    expect(screen.getByLabelText('Antwort')).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' }));
+    await screen.findByText('Workflow gestartet.'); expect(request.mock.calls[2]).toEqual(request.mock.calls[0]);
+  });
+
 });

@@ -18,7 +18,7 @@ export function EmbeddedStartForm({ snapshot, channel }: { snapshot: EmbedStartS
   const attempt = useRef<{ data: ProcessVariables; idempotencyKey: string } | null>(null);
   const [initialData] = useState<ProcessVariables>({});
   const [ready, setReady] = useState(false); const [pending, setPending] = useState(false);
-  const [uncertain, setUncertain] = useState(false); const [started, setStarted] = useState(false);
+  const [uncertain, setUncertain] = useState(false); const [obsolete, setObsolete] = useState(false); const [started, setStarted] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const directory = useMemo<BoundDirectorySubjectAdapter>(() => ({
     cacheKey: ['embed-start', snapshot.relatedDefinitionId, snapshot.definitionId],
@@ -27,7 +27,7 @@ export function EmbeddedStartForm({ snapshot, channel }: { snapshot: EmbedStartS
   }), [channel, snapshot.relatedDefinitionId, snapshot.definitionId]);
 
   async function start() {
-    if (busy.current || !readyRef.current || started) return;
+    if (busy.current || !readyRef.current || started || obsolete) return;
     busy.current = true; setPending(true); setError(null);
     try {
       if (!attempt.current) {
@@ -46,12 +46,18 @@ export function EmbeddedStartForm({ snapshot, channel }: { snapshot: EmbedStartS
       // unklaren Start aus. Diese Ungewissheit endet nur mit gebundenem Erfolg.
       const unknown = uncertain || failure.code === 'flowzer.connection_failed';
       if (!unknown) attempt.current = null;
-      setUncertain(unknown); setError(failure);
+      // Nur ein erstmaliger nachweislicher Vor-Anlage-Versionskonflikt
+      // stoppt diese veraltete Fassung. Ein früherer Unknown bleibt gebunden.
+      setObsolete(!unknown && failure.code === 'flowzer.definition_changed');
+      setUncertain(unknown);
+      // Im sticky-Unknown keine spätere Neuauswahl-/Korrekturanweisung zeigen:
+      // ihr Nein-Beleg fehlt für den früheren Versand weiterhin.
+      setError(unknown ? new EmbedActionError('flowzer.connection_failed') : failure);
     } finally { busy.current = false; setPending(false); }
   }
   if (started) return <p role="status">Workflow gestartet.</p>;
   return <main className="flowzer-embed-form">
-    <fieldset className="flowzer-embed-fields" disabled={pending || uncertain} inert={pending || uncertain}>
+    <fieldset className="flowzer-embed-fields" disabled={pending || uncertain || obsolete} inert={pending || uncertain || obsolete}>
       <FormRenderer ref={renderer} schema={snapshot.form.formData ?? undefined} initialData={initialData} directoryAdapter={directory}
         onReadyChange={value => { readyRef.current = value; setReady(value); }} />
     </fieldset>
@@ -60,7 +66,7 @@ export function EmbeddedStartForm({ snapshot, channel }: { snapshot: EmbedStartS
     <footer>
       {uncertain && <p role="note">Der Start ist noch unklar. Bestätige ausschließlich den ursprünglichen Auftrag; deine Eingaben bleiben bis zur Klärung erhalten.</p>}
       {pending && <InlineSpinner label="Start wird verarbeitet …" />}
-      <button type="button" disabled={!ready || pending} onClick={() => void start()}>
+      <button type="button" disabled={!ready || pending || obsolete} onClick={() => void start()}>
         {uncertain ? 'Ursprünglichen Start erneut bestätigen' : 'Workflow starten'}
       </button>
     </footer>
