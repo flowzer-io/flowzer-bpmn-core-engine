@@ -70,7 +70,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options => options.SchemaFilter<WebApiEngine.FormEmbedding.StartFormEmbedSchemaFilter>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddFlowzerStorage(builder.Configuration);
 builder.Services.AddSingleton<ICurrentUserContextAccessor, HttpContextCurrentUserContextAccessor>();
@@ -87,6 +87,7 @@ builder.Services.AddSingleton<BpmnBusinessLogic>();
 builder.Services.AddScoped<UserTaskCompletionService>();
 builder.Services.AddScoped<UserTaskDraftService>();
 builder.Services.AddScoped<WebApiEngine.FormEmbedding.FormEmbedLinkService>();
+builder.Services.AddScoped<WebApiEngine.FormEmbedding.StartFormEmbedLinkService>();
 builder.Services.AddHostedService<WebApiEngine.FormEmbedding.FormEmbedGrantCleanupService>();
 builder.Services.AddOptions<WebApiEngine.FormEmbedding.FormEmbeddingOptions>()
     .Bind(builder.Configuration.GetSection(WebApiEngine.FormEmbedding.FormEmbeddingOptions.SectionName))

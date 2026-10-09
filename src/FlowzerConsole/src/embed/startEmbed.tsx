@@ -3,33 +3,25 @@ import { Formio } from '@formio/js';
 import { InlineSpinner } from '@/components/ui/States';
 import { initializeOpaqueFormioRuntime, type OpaqueFormioRuntime } from '@/components/forms/opaqueFormioRuntime';
 import { EmbeddedTaskForm, type EmbedSnapshot } from './EmbeddedTaskForm';
+import { EmbeddedStartForm, type EmbedStartSnapshot } from './EmbeddedStartForm';
+import { parseEmbedEntry, validStartSnapshot, validTaskSnapshot } from './EmbedSnapshot';
 import { EmbedActionChannel, isHostHandshake } from './EmbedChannel';
 import '@/styles/app.css';
 import './embed.css';
 
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
-function validSnapshot(value: unknown): value is EmbedSnapshot {
-  if (!object(value) || typeof value.userTaskId !== 'string' || typeof value.hostOrigin !== 'string'
-      || !/^https:\/\/[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(value.hostOrigin)
-      || !Number.isSafeInteger(value.taskRevision) || Number(value.taskRevision) < 0
-      || !object(value.form) || typeof value.form.formData !== 'string'
-      || !object(value.context) || !object(value.draft) || value.draft.userTaskId !== value.userTaskId
-      || !Number.isSafeInteger(value.draft.revision) || Number(value.draft.revision) < 0 || !object(value.draft.data)) return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.userTaskId);
-}
-
 /** Ein einziger anonymer Read-only-Abruf. Keine Cookies, Authheader, Retry oder freie Ziel-URL. */
-async function redeem(): Promise<EmbedSnapshot> {
-  let secret = location.hash.slice(1);
-  if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) throw new Error('link');
+async function redeem(): Promise<{ purpose: 'task'; snapshot: EmbedSnapshot } | { purpose: 'start'; snapshot: EmbedStartSnapshot }> {
+  let entry = parseEmbedEntry(location.hash.slice(1));
+  const purpose = entry.purpose;
   // Fragmentnavigation bleibt im selben Dokument und nimmt den Secret-Einstieg
   // sofort aus der sichtbaren URL/History, bevor irgendwelche Eingaben entstehen.
   location.replace('#');
-  const request = fetch(new URL('/form-embed/redeem', location.href), {
+  const request = fetch(new URL(purpose === 'start' ? '/form-embed/start/redeem' : '/form-embed/redeem', location.href), {
     method: 'POST', credentials: 'omit', redirect: 'error', cache: 'no-store', referrerPolicy: 'no-referrer',
-    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret }), signal: AbortSignal.timeout(15_000),
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ secret: entry.secret }), signal: AbortSignal.timeout(15_000),
   });
-  secret = '';
+  entry = { purpose, secret: '' };
   const response = await request;
   if (!response.ok || !response.body) throw new Error('redeem');
   const reader = response.body.getReader(); const decoder = new TextDecoder(); let text = ''; let bytes = 0;
@@ -42,12 +34,14 @@ async function redeem(): Promise<EmbedSnapshot> {
     text += decoder.decode();
   } finally { await reader.cancel(); reader.releaseLock(); }
   const body: unknown = JSON.parse(text);
-  if (!object(body) || body.successful !== true || !validSnapshot(body.result)) throw new Error('snapshot');
-  return body.result;
+  if (!object(body) || body.successful !== true) throw new Error('snapshot');
+  if (purpose === 'start' && validStartSnapshot(body.result)) return { purpose, snapshot: body.result };
+  if (purpose === 'task' && validTaskSnapshot(body.result)) return { purpose, snapshot: body.result };
+  throw new Error('snapshot');
 }
 
 /** Nur der erwartete Parent darf genau einen frischen privaten Port erhalten. */
-function connect(snapshot: EmbedSnapshot): Promise<EmbedActionChannel> {
+function connect(snapshot: { hostOrigin: string }): Promise<EmbedActionChannel> {
   const sessionId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
     const cleanup = () => { clearTimeout(timer); window.removeEventListener('message', receive); };
@@ -71,12 +65,13 @@ async function start() {
     if (parent === window) throw new Error('parent');
     initializeOpaqueFormioRuntime(Formio as unknown as OpaqueFormioRuntime);
     root.render(<InlineSpinner label="Formular wird geladen …" />);
-    const snapshot = await redeem(); const channel = await connect(snapshot);
+    const entry = await redeem(); const channel = await connect(entry.snapshot);
     window.addEventListener('pagehide', () => channel.close(), { once: true });
-    root.render(<EmbeddedTaskForm snapshot={snapshot} channel={channel} />);
+    root.render(entry.purpose === 'start' ? <EmbeddedStartForm snapshot={entry.snapshot} channel={channel} />
+      : <EmbeddedTaskForm snapshot={entry.snapshot} channel={channel} />);
   } catch {
     // Keine Secret-/Response-/Token-/URL-Inhalte im sichtbaren Fehler oder Log.
-    root.render(<p role="alert">Das Formular konnte nicht sicher geöffnet werden. Bitte öffne es erneut über TickyTask.</p>);
+    root.render(<p role="alert">Das Formular konnte nicht sicher geöffnet werden. Bitte öffne es erneut über die Hostanwendung.</p>);
   }
 }
 void start();

@@ -94,6 +94,46 @@ und ein vollständiger polymorpher alter Tasktoken bleiben lesbar. Datei-/HTTP-
 Tests prüfen beide Gruppenmodelle; der zusätzliche PostgreSQL-Roundtrip ist
 weiterhin durch den verpflichtenden echten CI-Pfad nachzuweisen.
 
+### Persönlicher Startformular-Einstieg
+
+- `POST /definition/meta/{definitionId}/start-form-link?expectedDefinitionId=<deployedId>`
+  ist authentifiziert und verlangt die tatsächlich angezeigte, nicht leere Version.
+  Body ist dieselbe exakte `hostOrigin` wie beim Human Task. Stale Versionen liefern
+  `409 workflow.definition_changed`, fehlende/leere Versionen `400`.
+- Antwort ist `{ definitionId, formLink }`: Ohne Startformular ist `formLink`
+  **ausdrücklich `null`**; andernfalls enthält sie `url` und `redeemBeforeUtc`.
+  OpenAPI und generiertes SDK bilden sowohl Pflichtversion als auch Nullzweig ab.
+- Der Einstieg lautet `/embed.html#start.<secret>`; allein der geschlossene Präfix
+  wählt `POST /form-embed/start/redeem`. Freie Pfade/Zieladressen sind nicht möglich.
+  Der historische Aufgabenfragmentvertrag bleibt unverändert.
+- Einlösung liefert ausschließlich `definitionId`, `relatedDefinitionId`,
+  `hostOrigin` und das erneut kompilierte, versionsgebundene `form`. Es gibt keine
+  künstliche Aufgabe/Instanz, keinen Prozesskontext und keinen Startentwurf.
+- Identität, aktuelle Directory-Mitgliedschaft, Installations-Wurzelgruppe,
+  Hostfreigabe und Definitionsversion werden erneut geprüft. Anonyme Einlösung
+  hat dieselbe isolierte Origin-null-CORS- und geordnete Ratenlimitgrenze wie Tasks.
+- Die Directory-Routen `start-forms/{definitionId}/fields/{fieldKey}/subjects`
+  und deren `/resolve` akzeptieren optional `expectedDefinitionId`. Bestehende
+  Konsolenaufrufe bleiben kompatibel; ein neuer Host muss die angezeigte Version
+  bei **jeder** Directory-Aktion fest binden, nicht nur beim Formularöffnen.
+
+`EmbeddedStartForm` verwendet denselben `FormRenderer` und privaten Port wie die
+Aufgabenansicht. Es bietet vollständige Startvalidierung und keinen Draft-Button.
+`workflow.start` transportiert nur geklonte `data` und den persönlichen
+`idempotencyKey`. Definition, Version, Benutzer und optionaler Ticketbezug werden
+im authentifizierten Host aus dessen serverseitiger Bindung abgeleitet, nicht aus
+Frame-Daten. Ausschließlich `result: { started: true }` bestätigt den Start.
+Ein unklarer Ausgang friert Originaldaten und Schlüssel fest. Auch ein späterer
+Zugangs-/Vorprüfungsfehler beweist **nicht**, dass ein früherer Start fehlgeschlagen
+ist: Die Ungewissheit bleibt bis zur gebundenen Erfolgsbestätigung bestehen.
+Erneuerung des Hosttokens benötigt weder neuen Link noch Renderer-Reload.
+
+**Noch offen im nachfolgenden TT-Slice:** echter Katalog/Startdialog, persönlicher
+Backend-Link-/Directory-Proxy und Schutz des unklaren Originalstarts bei
+Schließen/Navigation/Reload. Der reine Flowzer-Port und dessen lokaler Retry
+ersetzen diese Host-Lebenszyklusgrenze nicht. Keine persistenten Start-Drafts,
+keine versteckten Tickets und keine browserseitige Secretpersistenz ergänzen.
+
 ### Persönlicher Human-Task-Einstieg
 
 - `POST /usertask/{id}/form-link`: authentifizierter, persönlich berechtigter
@@ -131,6 +171,15 @@ Keine neue Entwurfsablage, kein Autosave und keine Startformular-Entwürfe.
 `FormEmbedding:Enabled=false` ist der Default. Für die spätere geprüfte Aktivierung
 werden `PublicOrigin` und `AllowedHostOrigins` als exakte HTTPS-Origins benötigt
 (keine Pfade, Wildcards, Queries oder Credentials).
+
+Migration `022_start_form_embed_grants.sql` ergänzt getrennt eine leere
+Startgrant-Tabelle ohne Task-Fremdschlüssel. Die Obergrenze von vier Links je
+stabiler Person/Definitionsversion wird über API-Prozesse hinweg unter einer
+kurzen transaktionsgebundenen Advisory-Sperre gehalten; Verbrauch bleibt
+`DELETE RETURNING`. Die Dateiablage serialisiert nur ihren Einzelprozess.
+Beide Speichertypen enthalten ausschließlich Hash und stabile Metadaten,
+keine Eingaben, Drafts, Zugriffstokens oder Rohsecrets. Bereits offene Formulare
+werden durch Verdrängung alter Einstiege nicht verändert.
 
 Migration `021_form_embed_grants.sql` ergänzt eine leere PostgreSQL-Tabelle.
 Persistiert werden nur SHA-256-Hash und stabile persönliche Bindung, kein Secret
@@ -228,7 +277,8 @@ Location-Header. Nur `/embed.html` ersetzt das geerbte `X-Frame-Options: DENY` d
 exakte CSP-`frame-ancestors` plus **`sandbox allow-scripts`**. Alle sonstigen
 Console-Routen behalten ihren bisherigen Schutz. Das Dokument darf weder Formulare
 selbst abschicken noch fremde Skripte, Links, Objektinhalte oder Cookies/Storage
-verwenden. `connect-src` nennt ausschließlich den Read-only-Einlöseendpunkt.
+verwenden. `connect-src` nennt ausschließlich die zwei exakten Read-only-Einlösepfade
+`/form-embed/redeem` und `/form-embed/start/redeem`, niemals die gesamte API.
 Statische Embed-Assets erlauben `Origin: null` ohne Credentials für Kalender-CSSOM.
 Form.io benötigt Inline-Stile, aber kein `unsafe-eval` oder `allow-same-origin`.
 
@@ -245,7 +295,7 @@ Form.io benötigt Inline-Stile, aber kein `unsafe-eval` oder `allow-same-origin`
    Window-Mutationsschnittstelle mehr.
 4. Private Requests enthalten `kind: request`, `sessionId`, UUID-`id`, `operation`
    und `payload`. Nur `draft.save`, `task.complete`, `directory.search` und
-   `directory.resolve` sind vorgesehen. Aufgabe und tatsächlicher Benutzer werden
+   `directory.resolve` sowie separat `workflow.start` sind vorgesehen. Aufgabe und tatsächlicher Benutzer werden
    immer durch den authentifizierten TT-Host gebunden, nicht durch den Payload.
 5. Antworten korrelieren `kind: response`, Sitzung und ID und enthalten entweder
    `result` oder einen objektförmigen sicheren Fehler mit `code` und optional
@@ -268,3 +318,35 @@ gehen. Unklare Ausgänge werden nur identisch wiederholt, keine neue Entscheidun
 mit demselben Schlüssel oder einem vorschnell neuen Schlüssel. Ausschließlich
 bekannte Fachfehler geben eine korrigierte neue Übermittlung frei. Diese UI-Regel
 ersetzt weder serverseitige Idempotenz noch die laufende Aufgaben-/Rechteprüfung.
+
+
+## Zusätzlicher Startformular-Nachweis
+
+Die neue HTTP-Suite wurde vor Implementierung mit **10/12 rot** reproduziert;
+beide bereits geschlossenen Opt-in-Fälle waren unverändert grün. Feste
+Start-Directory-Versionen wurden gesondert rot reproduziert. Zusätzliche Fälle
+prüfen echten Redeploy, nachträglichen Installationsscope/Hostentzug, exakte
+Ablaufgrenze, anonymes Mutationsverbot, persönlichen Einmalverbrauch und
+Obergrenze. Der neue explizite Nullzweig wurde im tatsächlich gemounteten Swagger
+zunächst rot reproduziert und lokal ohne Änderung historischer Schemas korrigiert.
+
+Renderer-TDD reproduziert unbekannte Starts, spätere Vorprüfungsfehler und
+wiederholte Feldfehlerpfade. Die echte frisch gebaute Produktions-IIFE-Suite
+prüft auch den separaten Startpfad unter unverändertem opaque Sandbox-/CSP-Schutz.
+Die Test-HTTPS-Routen und Portantworten sind synthetisch; virtuelle 46 Minuten
+sind **keine** echte Token-Erneuerung oder 45-Minuten-Betriebsabnahme. Die neuen
+PostgreSQL-Zwei-Session-/Rollback-/gleichzeitigen Vierergrenztests müssen im
+verpflichtenden echten CI-Pfad bestehen; lokale Hermetik ersetzt sie nicht.
+Installations-Opt-in, Staging und Production wurden dadurch nicht geöffnet.
+
+
+Finaler lokaler Stand dieses Start-Slices: **68/68** fokussierte echte HTTP-/
+Swagger-Vertragsfälle, **1514/1514** API-Hermetikfälle (PostgreSQL- und
+Mehrprozessklassen ausdrücklich ausgeschlossen), **809/809** Consolefälle,
+**24/24** fokussierte Embed-Fälle und **33/33** SDK-Fälle samt Typprüfung/Build.
+Frisches Produktions-IIFE/CSP: **7/7** Browserfälle; Offline-Sandbox **2/2**;
+Gateway-Policy **5/5**. Gesamt-Lint besitzt keine Fehler und die elf vorhandenen
+Warnungen. Zwei unabhängige eigene Quellenreviews begleiteten den Slice;
+Pflichtversion, explizite Nullability, sticky Start-Ungewissheit und sichere
+Repeat-Feldfehler wurden mit roten Tests nachgewiesen und korrigiert.
+Diese Nachweise öffnen weder Installations-Opt-in noch Merge-/Live-Gates.

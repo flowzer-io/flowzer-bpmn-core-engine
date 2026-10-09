@@ -2559,9 +2559,27 @@
               "format": "int32",
               "default": 20
             }
+          },
+          {
+            "name": "expectedDefinitionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -2636,6 +2654,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "expectedDefinitionId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "requestBody": {
@@ -2658,6 +2684,16 @@
           }
         },
         "responses": {
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          },
           "200": {
             "description": "OK",
             "content": {
@@ -7953,6 +7989,161 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProcessPackageImportResultDtoApiStatusResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/definition/meta/{definitionId}/start-form-link": {
+      "post": {
+        "tags": [
+          "StartFormEmbed"
+        ],
+        "parameters": [
+          {
+            "name": "definitionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "expectedDefinitionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormEmbedLinkRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormEmbedLinkRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormEmbedLinkRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedLinkDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedLinkDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedLinkDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/form-embed/start/redeem": {
+      "post": {
+        "tags": [
+          "StartFormEmbed"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemFormEmbedLinkRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemFormEmbedLinkRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemFormEmbedLinkRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedSnapshotDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedSnapshotDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartFormEmbedSnapshotDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -14324,6 +14515,88 @@
         },
         "additionalProperties": false
       },
+      "StartFormEmbedLinkDto": {
+        "required": [
+          "definitionId",
+          "formLink"
+        ],
+        "type": "object",
+        "properties": {
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "formLink": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FormEmbedLinkDto"
+              }
+            ],
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "StartFormEmbedLinkDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/StartFormEmbedLinkDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StartFormEmbedSnapshotDto": {
+        "required": [
+          "definitionId",
+          "form",
+          "hostOrigin",
+          "relatedDefinitionId"
+        ],
+        "type": "object",
+        "properties": {
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "relatedDefinitionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "hostOrigin": {
+            "type": "string",
+            "nullable": true
+          },
+          "form": {
+            "$ref": "#/components/schemas/FormDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "StartFormEmbedSnapshotDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/StartFormEmbedSnapshotDto"
+          }
+        },
+        "additionalProperties": false
+      },
       "StartInstanceDto": {
         "type": "object",
         "properties": {
@@ -15289,6 +15562,9 @@
     },
     {
       "name": "ProcessPackage"
+    },
+    {
+      "name": "StartFormEmbed"
     },
     {
       "name": "Timer"

@@ -20,6 +20,18 @@ describe('Opaque Formular-Hostkanal', () => {
       expect(error.message).toContain('derzeit nicht verfügbar');
     }
   });
+  // Testzweck: Sichere wiederholte Feldpfade dürfen nicht verloren gehen; nur
+  // einfache Kennungen bzw. deklarierte Zeilen-/Kindpfade gelangen zur Fehleranzeige.
+  it('erhält sichere Zeilenfeldmeldungen und verwirft freie Pfade', () => {
+    const error = new EmbedActionError('flowzer.validation_failed', {
+      answer: ['Bitte ausfüllen.'], 'requests[0].answer': ['Diese Zeile benötigt eine Antwort.'],
+      'requests[1]': ['Diese Zeile ist ungültig.'], 'requests[0].answer.secret': ['nicht zulässig'],
+      'requests[-1].answer': ['nicht zulässig'], 'requests[no].answer': ['nicht zulässig'],
+      '../answer': ['nicht zulässig'], 'requests[0]\\answer': ['nicht zulässig'],
+    });
+    expect(Object.keys(error.fieldMessages)).toEqual(['answer', 'requests[0].answer', 'requests[1]']);
+    expect(error.fieldMessages['requests[0].answer']).toEqual(['Diese Zeile benötigt eine Antwort.']);
+  });
   // Testzweck: Ein korrelierter, aber unvollständiger oder malformer Envelope
   // darf niemals als erfolgreicher Save oder Abschluss gelten.
   it('weist Antworten ohne bestätigten Ergebnisvertrag zurück', async () => {

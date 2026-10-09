@@ -8,11 +8,11 @@ function run(values) { return spawnSync('sh', [script], { encoding: 'utf8', env:
 test('embedding without complete opt-in is closed', () => {
   const result = run({}); assert.equal(result.status, 0); assert.match(result.stdout, /location = \/embed\.html/); assert.match(result.stdout, /return 404/);
 });
-// Testzweck: Exakte Host-Allowlist, CSP-Sandbox und einziger Read-only-Connectpfad; keine Same-Origin-/Eval-Ausnahme.
+// Testzweck: Exakte Host-Allowlist, CSP-Sandbox und nur die zwei exakten Read-only-Connectpfade; keine Same-Origin-/Eval-Ausnahme.
 test('complete opt-in emits isolated exact-host policy', () => {
   const result = run({ FLOWZER_EMBED_API_ORIGIN: 'https://flowzer.example.test', FLOWZER_EMBED_HOST_ORIGINS: 'https://host.example.test https://second.example.test:8443' });
   assert.equal(result.status, 0); assert.match(result.stdout, /frame-ancestors https:\/\/host\.example\.test https:\/\/second\.example\.test:8443;/);
-  assert.match(result.stdout, /sandbox allow-scripts;/); assert.match(result.stdout, /connect-src https:\/\/flowzer\.example\.test\/form-embed\/redeem;/);
+  assert.match(result.stdout, /sandbox allow-scripts;/); assert.match(result.stdout, /connect-src https:\/\/flowzer\.example\.test\/form-embed\/redeem https:\/\/flowzer\.example\.test\/form-embed\/start\/redeem;/);
   assert.match(result.stdout, /Access-Control-Allow-Origin "null"/); assert.doesNotMatch(result.stdout, /allow-same-origin|unsafe-eval|Allow-Credentials/);
 });
 // Testzweck: Unvollständige oder einschleusbare Runtimewerte dürfen niemals nginx-Konfiguration erzeugen.

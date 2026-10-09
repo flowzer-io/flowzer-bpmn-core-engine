@@ -38,6 +38,36 @@ public class OpenApiContractTest
             .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
     }
 
+    // Testzweck: Ein persönlicher Startlink verlangt die angezeigte Version auch
+    // im generierten Vertrag. Startsnapshots enthalten keine künstliche Aufgabe/Draft.
+    [Test]
+    public async Task StartFormEmbedding_ShouldDescribeRequiredVersionAndSeparateSnapshot()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+        var issue = paths.GetProperty("/definition/meta/{definitionId}/start-form-link").GetProperty("post");
+        var version = issue.GetProperty("parameters").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "expectedDefinitionId");
+        version.GetProperty("required").GetBoolean().Should().BeTrue();
+        issue.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        foreach (var (path, verb) in new[] {
+            ("/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects", "get"),
+            ("/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve", "post") })
+        {
+            var operation = paths.GetProperty(path).GetProperty(verb);
+            operation.GetProperty("parameters").EnumerateArray().Should().Contain(item => item.GetProperty("name").GetString() == "expectedDefinitionId");
+            operation.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        }
+        var link = root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedLinkDto").GetProperty("properties").GetProperty("formLink");
+        link.GetProperty("nullable").GetBoolean().Should().BeTrue("ein Workflow ohne Startformular liefert ausdrücklich null");
+        root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedLinkDto").GetProperty("required")
+            .EnumerateArray().Select(item => item.GetString()).Should().Contain("formLink");
+        var properties = root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedSnapshotDto").GetProperty("properties");
+        properties.EnumerateObject().Select(item => item.Name).Should().BeEquivalentTo("definitionId", "relatedDefinitionId", "hostOrigin", "form");
+        paths.GetProperty("/form-embed/start/redeem").GetProperty("post").GetProperty("responses").TryGetProperty("200", out _).Should().BeTrue();
+    }
+
     // Testzweck: Hostneutrale Referenzen sind begrenzte optionale Startmetadaten,
     // nicht Teil von normalen Instanz-/Tokenantworten oder einer neuen Berechtigungsroute.
     [Test]

@@ -31,6 +31,7 @@ public class Storage : IStorageSystem
         AiRunStorage = new AiRunStorage(this);
         DecisionStorage = new DecisionStorage(this);
         FormEmbedGrantStorage = new FormEmbedGrantStorage(this);
+        StartFormEmbedGrantStorage = new StartFormEmbedGrantStorage(this);
         InboundTriggerStorage = new InboundTriggerStorage(this);
     }
 
@@ -52,6 +53,7 @@ public class Storage : IStorageSystem
     public IDecisionStorage DecisionStorage { get; }
     public IInboundTriggerStorage InboundTriggerStorage { get; }
     public IFormEmbedGrantStorage FormEmbedGrantStorage { get; }
+    public IStartFormEmbedGrantStorage StartFormEmbedGrantStorage { get; }
     public IDefinitionStorage DefinitionStorage { get; set; }
     public IFolderStorage FolderStorage { get; }
 

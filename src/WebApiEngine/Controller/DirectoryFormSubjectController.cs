@@ -122,7 +122,9 @@ public sealed class DirectoryFormSubjectController(
         return ResolutionResult(result);
     }
 
+    /// <summary>Startfeldsuche in der optional fest gebundenen angezeigten Definition, ohne Wechsel auf eine neuere Fassung.</summary>
     [HttpGet("start-forms/{definitionId}/fields/{fieldKey}/subjects")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectSearchResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -132,12 +134,12 @@ public sealed class DirectoryFormSubjectController(
         string fieldKey,
         [FromQuery] string? query,
         [FromQuery] string kind = "all",
-        [FromQuery] int limit = 20)
+        [FromQuery] int limit = 20, [FromQuery] Guid? expectedDefinitionId = null)
     {
         FormKeyResolver.Result resolved;
         try
         {
-            var reference = await businessLogic.GetStartFormReference(definitionId);
+            var reference = await businessLogic.GetStartFormReference(definitionId, expectedDefinitionId: expectedDefinitionId);
             if (reference.FormKey is null) return HiddenNotFound();
             resolved = await forms.ResolveAsync(reference.FormKey, reference.DefinitionId);
         }
@@ -151,8 +153,9 @@ public sealed class DirectoryFormSubjectController(
         return await SearchBoundField(resolved.Form, fieldKey, query, kind, limit);
     }
 
-    /// <summary>Historische Anzeigeauflösung im gebundenen Startformularfeld.</summary>
+    /// <summary>Historische Anzeigeauflösung im gebundenen Startfeld; eine Host-Versionsbindung bleibt auch bei diesem POST erhalten.</summary>
     [HttpPost("start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve")]
+    [ProducesResponseType<WebApiEngine.Middleware.ApiProblemDetails>(StatusCodes.Status409Conflict, "application/problem+json")]
     [ProducesResponseType<ApiStatusResult<DirectorySubjectResolutionResultDto>>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, "application/problem+json")]
@@ -160,12 +163,12 @@ public sealed class DirectoryFormSubjectController(
     public async Task<ActionResult<ApiStatusResult<DirectorySubjectResolutionResultDto>>> ResolveStartForm(
         string definitionId,
         string fieldKey,
-        [FromBody] DirectorySubjectResolutionRequestDto request)
+        [FromBody] DirectorySubjectResolutionRequestDto request, [FromQuery] Guid? expectedDefinitionId = null)
     {
         FormKeyResolver.Result resolved;
         try
         {
-            var reference = await businessLogic.GetStartFormReference(definitionId);
+            var reference = await businessLogic.GetStartFormReference(definitionId, expectedDefinitionId: expectedDefinitionId);
             if (reference.FormKey is null) return HiddenNotFound();
             resolved = await forms.ResolveAsync(reference.FormKey, reference.DefinitionId);
         }

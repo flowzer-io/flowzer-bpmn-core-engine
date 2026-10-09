@@ -23,7 +23,7 @@ if (!csp) throw new Error('Produktions-CSP fehlt.');
 /** Statisches unverändertes Produktionsbundle plus synthetische Backend-Antworten.
  * HTTPS-Routing verändert keine Browser-Sicherheitsflags, Sandbox, CSP oder TLS-Optionen.
  * Echte Keycloak-/Deployment-/45-Minuten-Abnahme bleibt ein separates Gate. */
-async function setup(page, { rejectedLink = false, host = hostOrigin } = {}) {
+async function setup(page, { rejectedLink = false, host = hostOrigin, startForm = false } = {}) {
   const errors = [], violations = [], redemptions = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') violations.push(message.text()); });
@@ -55,6 +55,7 @@ async function setup(page, { rejectedLink = false, host = hostOrigin } = {}) {
               else result = { userTaskId: '${taskId}', revision: ++window.draftRevision, data: request.payload.data };
             } else if (request.operation === 'directory.search') result = { generationId: 'synthetic-generation', items: [${JSON.stringify(subject)}] };
             else if (request.operation === 'directory.resolve') result = [${JSON.stringify(subject)}];
+            else if (request.operation === 'workflow.start') result = window.completeMode === 'malformed' ? {} : { started: true };
             else if (request.operation === 'task.complete') result = window.completeMode === 'malformed' ? {} : { completed: true };
             else error = { code: 'flowzer.access_denied' };
             const response = { kind: 'response', sessionId: request.sessionId, id: request.id, result, error };
@@ -63,16 +64,16 @@ async function setup(page, { rejectedLink = false, host = hostOrigin } = {}) {
           };
         }
       });
-      </script><iframe title="Workflowformular" sandbox="allow-scripts" src="${apiOrigin}/embed.html#${'A'.repeat(43)}"></iframe>` });
+      </script><iframe title="Workflowformular" sandbox="allow-scripts" src="${apiOrigin}/embed.html#${startForm ? 'start.' : ''}${'A'.repeat(43)}"></iframe>` });
     if (url.origin !== apiOrigin) return route.abort();
-    if (url.pathname === '/form-embed/redeem') {
+    if (url.pathname === (startForm ? '/form-embed/start/redeem' : '/form-embed/redeem')) {
       if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: {
         'Access-Control-Allow-Origin': 'null', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'content-type',
       } });
       redemptions.push({ method: request.method(), headers: request.headers(), body: request.postDataJSON() });
       return route.fulfill({ status: rejectedLink ? 403 : 200, contentType: 'application/json', headers: {
         'Access-Control-Allow-Origin': 'null', 'Cache-Control': 'no-store',
-      }, body: JSON.stringify(rejectedLink ? { successful: false } : { successful: true, result: snapshot }) });
+      }, body: JSON.stringify(rejectedLink ? { successful: false } : { successful: true, result: startForm ? { definitionId: taskId, relatedDefinitionId: 'synthetic-workflow', hostOrigin, form: snapshot.form } : snapshot }) });
     }
     if (url.pathname === '/embed.html') return route.fulfill({ contentType: 'text/html', headers: {
       'Content-Security-Policy': csp, 'Referrer-Policy': 'no-referrer', 'Cache-Control': 'no-store',
@@ -154,7 +155,7 @@ for (const locale of ['de-DE', 'en-US']) {
 // Retry oder Erzeugung eines Mutationskanals; Secrets erscheinen nicht in der Meldung.
 test('abgewiesener Einstieg startet weder Login noch Hostaktionen', async ({ page }) => {
   const { frame, redemptions } = await setup(page, { rejectedLink: true });
-  await expect(frame.getByRole('alert')).toHaveText('Das Formular konnte nicht sicher geöffnet werden. Bitte öffne es erneut über TickyTask.');
+  await expect(frame.getByRole('alert')).toHaveText('Das Formular konnte nicht sicher geöffnet werden. Bitte öffne es erneut über die Hostanwendung.');
   expect(redemptions).toHaveLength(1);
   expect(await page.evaluate(() => window.calls)).toEqual([]);
   expect(await page.evaluate(() => window.embedSession)).toBeUndefined();
@@ -203,4 +204,37 @@ test('frame-ancestors blockiert nicht freigegebene Einbettungsseiten', async ({ 
   await expect.poll(() => violations.filter(value => value.includes('frame-ancestors')).length).toBeGreaterThan(0);
   expect(redemptions).toHaveLength(0);
   expect(await page.evaluate(() => window.calls)).toEqual([]);
+});
+
+// Testzweck: Der echte ausgelieferte Renderer öffnet den getrennten Startsnapshot
+// ohne Aufgabe/Draft, Login oder Credentials. Ein unklarer Start bleibt genau an
+// Originaldaten und Schlüssel gebunden, auch nach virtueller langer Bearbeitung.
+test('Startformular bleibt ohne Taskattrappe im Produktions-CSP bearbeitbar', async ({ page }) => {
+  const { frame, redemptions, errors, violations } = await setup(page, { startForm: true });
+  const answer = frame.getByLabel('Antwort', { exact: false });
+  await expect(answer).toHaveValue('', { timeout: 25000 });
+  const child = page.frames().find(item => item !== page.mainFrame());
+  expect(new URL(child.url()).hash).toBe('');
+  await expect(frame.getByRole('button', { name: 'Zwischenstand speichern' })).toHaveCount(0);
+  await frame.getByRole('button', { name: 'Workflow starten' }).click();
+  expect(await page.evaluate(() => window.calls.filter(item => item.operation === 'workflow.start').length)).toBe(0);
+  await answer.fill('Ursprünglicher Antrag');
+  await page.clock.install(); await page.clock.fastForward(46 * 60 * 1000); await page.clock.resume();
+  await expect(answer).toHaveValue('Ursprünglicher Antrag');
+  await page.evaluate(() => { window.completeMode = 'malformed'; });
+  await frame.getByRole('button', { name: 'Workflow starten' }).click();
+  await expect(frame.getByRole('alert')).toContainText('derzeit nicht verfügbar');
+  await expect(answer).toBeDisabled();
+  await page.evaluate(() => { window.completeMode = 'normal'; });
+  await frame.getByRole('button', { name: 'Ursprünglichen Start erneut bestätigen' }).click();
+  await expect(frame.getByRole('status')).toHaveText('Workflow gestartet.');
+  const attempts = await page.evaluate(() => window.calls.filter(item => item.operation === 'workflow.start'));
+  expect(attempts).toHaveLength(2); expect(attempts[1].payload).toEqual(attempts[0].payload);
+  expect(attempts[0].payload.data.answer).toBe('Ursprünglicher Antrag');
+  expect(Object.keys(attempts[0].payload).sort()).toEqual(['data', 'idempotencyKey']);
+  expect(redemptions).toHaveLength(1);
+  expect(redemptions[0].headers.origin).toBe('null');
+  for (const header of ['cookie', 'authorization', 'referer']) expect(redemptions[0].headers[header]).toBeUndefined();
+  expect(errors).toEqual([]); expect(violations).toEqual([]);
+  expect(await child.evaluate(() => self.__cspViolations)).toEqual([]);
 });

@@ -197,3 +197,20 @@ Teilbaum begrenzte Installation kann `IdentityDirectory__RootGroupId` verwenden
 ([Betriebsvertrag](OPERATIONS.md#optionaler-gruppen-scope-einer-installation));
 Flowzer prüft dann aktuelle stabile Directory-Mitgliedschaften zusätzlich zu Rollen
 und Objektberechtigungen. Der Host erteilt dadurch keine eigenen Gruppenrechte.
+
+
+## Getrennter persönlicher Startformular-Einstieg
+
+Der neue Startbootstrap verwendet keinen Human-Task-Ersatz und startet vor
+Absenden keine Instanz. Persönliche Read-only-Links sind an die angezeigte
+Definitionsversion gebunden; der explizite Nullzweig kennzeichnet Workflows ohne
+Startformular. Verzeichnisaktionen behalten dieselbe Version. Der bestehende
+opaque Renderer/Port wird mit einem getrennten Startprofil wiederverwendet,
+kein neuer Renderer, Host oder Token-/Draftspeicher. Siehe den genauen
+[Startformular-Vertrag](FORM-EMBED-LINKS.md#persönlicher-startformular-einstieg).
+
+Ein unklarer Originalstart darf weder nach weiteren Vorprüfungsfehlern noch durch
+Schließen/Navigation/Reload still einen neuen Schlüssel erhalten. Der Renderer
+hält den lokalen Auftrag fest; die entsprechende echte Host-Lebenszyklus- und
+Wiederaufnahmegrenze bleibt Teil des nächsten TT-Slices. Der aktuelle Durchstich
+ist deshalb noch keine vollständige Host- oder Demo-Abnahme.

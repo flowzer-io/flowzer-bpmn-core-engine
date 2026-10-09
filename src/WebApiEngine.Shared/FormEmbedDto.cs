@@ -34,3 +34,20 @@ public sealed class FormEmbedSnapshotDto
     public required ExpandoObject Context { get; init; }
     public required UserTaskDraftDto Draft { get; init; }
 }
+
+/// <summary>Versionsgebundener Einstieg; ein Workflow ohne Startformular benötigt keinen Link.</summary>
+public sealed class StartFormEmbedLinkDto
+{
+    public required Guid DefinitionId { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
+    public required FormEmbedLinkDto? FormLink { get; init; }
+}
+
+/// <summary>Startformular ohne Aufgabe, Entwurf, Instanz oder künstlichen Prozesskontext.</summary>
+public sealed class StartFormEmbedSnapshotDto
+{
+    public required Guid DefinitionId { get; init; }
+    public required string RelatedDefinitionId { get; init; }
+    public required string HostOrigin { get; init; }
+    public required FormDto Form { get; init; }
+}

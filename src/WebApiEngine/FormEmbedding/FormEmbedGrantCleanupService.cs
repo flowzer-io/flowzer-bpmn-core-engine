@@ -16,7 +16,11 @@ public sealed class FormEmbedGrantCleanupService(
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1), clock);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            try { await storage.FormEmbedGrantStorage.CleanupExpired(clock.GetUtcNow(), stoppingToken); }
+            try
+            {
+                await storage.FormEmbedGrantStorage.CleanupExpired(clock.GetUtcNow(), stoppingToken);
+                await storage.StartFormEmbedGrantStorage.CleanupExpired(clock.GetUtcNow(), stoppingToken);
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception exception)
             {

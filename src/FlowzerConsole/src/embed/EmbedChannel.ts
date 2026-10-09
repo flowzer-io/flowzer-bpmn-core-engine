@@ -1,5 +1,5 @@
 /** Der Hostkanal transportiert nur Formularaktionen, niemals Tokens oder Berechtigungen. */
-export type EmbedOperation = 'draft.save' | 'task.complete' | 'directory.search' | 'directory.resolve';
+export type EmbedOperation = 'draft.save' | 'task.complete' | 'workflow.start' | 'directory.search' | 'directory.resolve';
 interface PendingCall { resolve: (value: unknown) => void; reject: (reason: unknown) => void; timer: ReturnType<typeof setTimeout>; cleanup: () => void; }
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 
@@ -20,7 +20,7 @@ export class EmbedActionError extends Error {
     // sind dessen expliziter sicherer API-Vertrag, niemals freie Remote-detail-Texte.
     this.fieldMessages = Object.create(null) as Record<string, string[]>;
     if (object(fields)) for (const [field, values] of Object.entries(fields).slice(0, 100)) {
-      if (field.length <= 128 && /^[A-Za-z][A-Za-z0-9_]*$/.test(field) && Array.isArray(values))
+      if (field.length <= 128 && /^[A-Za-z][A-Za-z0-9_]*(?:\[(?:0|[1-9][0-9]{0,5})](?:\.[A-Za-z][A-Za-z0-9_]*)?)?$/.test(field) && Array.isArray(values))
         this.fieldMessages[field] = values.filter((value): value is string => typeof value === 'string' && value.length <= 256).slice(0, 8);
     }
   }

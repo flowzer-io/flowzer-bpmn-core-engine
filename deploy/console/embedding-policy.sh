@@ -45,7 +45,7 @@ location = /embed.html {
   add_header X-Content-Type-Options nosniff always;
   add_header Referrer-Policy no-referrer always;
   add_header Cache-Control "no-store" always;
-  add_header Content-Security-Policy "default-src 'none'; script-src ${API_ORIGIN}/embed-assets/; style-src ${API_ORIGIN}/embed-assets/ 'unsafe-inline'; font-src ${API_ORIGIN}/embed-assets/ data:; img-src data:; connect-src ${API_ORIGIN}/form-embed/redeem; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${HOST_ORIGINS}; sandbox allow-scripts;" always;
+  add_header Content-Security-Policy "default-src 'none'; script-src ${API_ORIGIN}/embed-assets/; style-src ${API_ORIGIN}/embed-assets/ 'unsafe-inline'; font-src ${API_ORIGIN}/embed-assets/ data:; img-src data:; connect-src ${API_ORIGIN}/form-embed/redeem ${API_ORIGIN}/form-embed/start/redeem; form-action 'none'; base-uri 'none'; object-src 'none'; frame-ancestors ${HOST_ORIGINS}; sandbox allow-scripts;" always;
   try_files \$uri =404;
 }
 location ^~ /embed-assets/ {
