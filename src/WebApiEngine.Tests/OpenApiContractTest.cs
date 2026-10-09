@@ -17,6 +17,27 @@ public class OpenApiContractTest
 {
     private const string SnapshotPath = "docs/openapi.json";
 
+    // Testzweck: Generierte TT-Workerclients müssen den Body und sämtliche verbindlichen
+    // Job-/Identitäts-/Entscheidungskoordinaten verlangen, nicht bool/Guid-Defaults erfinden.
+    [Test]
+    public async Task InitiatorJobAccess_ShouldRequireBodyAndEveryProofCoordinate()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = root.GetProperty("paths").GetProperty("/job/{jobId}/initiator-access").GetProperty("post");
+        operation.GetProperty("requestBody").GetProperty("required").GetBoolean().Should().BeTrue();
+        foreach (var status in new[] { "200", "400", "404", "409", "503" })
+            operation.GetProperty("responses").TryGetProperty(status, out _).Should().BeTrue();
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        schemas.GetProperty("ServiceTaskInitiatorAccessRequestDto").GetProperty("required")
+            .EnumerateArray().Select(item => item.GetString()).Should().Contain("workerId");
+        var proof = schemas.GetProperty("ServiceTaskInitiatorAccessDto");
+        proof.GetProperty("required").EnumerateArray().Select(item => item.GetString()).Should().BeEquivalentTo(
+            "jobId", "processInstanceId", "metaDefinitionId", "definitionId", "tokenId", "flowNodeId", "type",
+            "initiatorIssuer", "initiatorSubject", "allowed", "checkedAtUtc");
+        proof.GetProperty("properties").GetProperty("checkedAtUtc").GetProperty("format").GetString().Should().Be("date-time");
+    }
+
     // Testzweck: Generierte Clients erkennen die optionale Versionsbindung und
     // den fachlichen 409 sowohl beim Formularabruf als auch beim tatsächlichen Start.
     [Test]

@@ -214,3 +214,14 @@ Schließen/Navigation/Reload still einen neuen Schlüssel erhalten. Der Renderer
 hält den lokalen Auftrag fest; die entsprechende echte Host-Lebenszyklus- und
 Wiederaufnahmegrenze bleibt Teil des nächsten TT-Slices. Der aktuelle Durchstich
 ist deshalb noch keine vollständige Host- oder Demo-Abnahme.
+
+## Jobgebundener aktueller Initiatorzugang
+
+TT-Ticket-Service-Tasks erhalten einen getrennten read-only Nachweis des aktuellen
+Initiatorzugangs: eigene aktive Joblease und Engine-Koordinaten vor und nach dem
+Live-Lesen von Konto, Root-Teilbaum und effektiver API-Clientrolle. Weder Worker-
+Stellvertretung noch Directory-/Token-Caches ersetzen die Person. Technische
+Unklarheit und bestätigter Entzug bleiben getrennt. Siehe
+[TICKYTASK-INITIATOR-ACCESS.md](TICKYTASK-INITIATOR-ACCESS.md).
+Der ausführende TT-Worker sowie dauerhafte Pause/auditierte Wiederfreigabe sind
+weiterhin offen; keine Demo-/Keycloak- oder Produktionsfreigabe aus diesem Slice.

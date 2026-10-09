@@ -174,11 +174,15 @@ builder.Services.AddOptions<KeycloakDirectoryOptions>()
 builder.Services.AddSingleton<IIdentityDirectoryStorage>(serviceProvider =>
     serviceProvider.GetRequiredService<IStorageSystem>().IdentityDirectoryStorage);
 builder.Services.AddHttpClient("flowzer-keycloak-directory", client => client.Timeout = Timeout.InfiniteTimeSpan)
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
-builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false })
+    .RemoveAllLoggers();
+builder.Services.AddSingleton<KeycloakAdminClient>(serviceProvider => new KeycloakAdminClient(
     serviceProvider.GetRequiredService<IHttpClientFactory>().CreateClient("flowzer-keycloak-directory"),
     serviceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KeycloakDirectoryOptions>>(),
     serviceProvider.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<IKeycloakAdminClient>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
+builder.Services.AddSingleton<IKeycloakSubjectAccessReader>(serviceProvider => serviceProvider.GetRequiredService<KeycloakAdminClient>());
+builder.Services.AddSingleton<ServiceTaskInitiatorAccessService>();
 builder.Services.AddSingleton<IdentityDirectorySynchronizer>();
 builder.Services.AddSingleton<IdentityDirectoryBackgroundService>();
 builder.Services.AddSingleton<DirectorySubjectSelectionService>();

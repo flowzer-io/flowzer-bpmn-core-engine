@@ -88,5 +88,5 @@ public sealed partial class KeycloakAdminClient
             var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await accessToken.GetValidTokenAsync(requestToken));
             return request;
-        }, "directory resource request", cancellationToken);
+        }, "directory resource request", cancellationToken, accessToken.StrictResponse);
 }

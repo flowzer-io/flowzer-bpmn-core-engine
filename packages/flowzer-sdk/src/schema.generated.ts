@@ -6520,6 +6520,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/job/{jobId}/initiator-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ServiceTaskInitiatorAccessRequestDto"];
+                    "text/json": components["schemas"]["ServiceTaskInitiatorAccessRequestDto"];
+                    "application/*+json": components["schemas"]["ServiceTaskInitiatorAccessRequestDto"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ServiceTaskInitiatorAccessDtoApiStatusResult"];
+                        "application/json": components["schemas"]["ServiceTaskInitiatorAccessDtoApiStatusResult"];
+                        "text/json": components["schemas"]["ServiceTaskInitiatorAccessDtoApiStatusResult"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/definition/meta/{definitionId}/start-form-link": {
         parameters: {
             query?: never;
@@ -8863,6 +8944,32 @@ export interface components {
             data?: {
                 [key: string]: unknown;
             } | null;
+        };
+        ServiceTaskInitiatorAccessDto: {
+            /** Format: uuid */
+            jobId: string;
+            /** Format: uuid */
+            processInstanceId: string;
+            metaDefinitionId: string;
+            /** Format: uuid */
+            definitionId: string;
+            /** Format: uuid */
+            tokenId: string;
+            flowNodeId: string;
+            type: string;
+            initiatorIssuer: string;
+            initiatorSubject: string;
+            allowed: boolean;
+            /** Format: date-time */
+            checkedAtUtc: string;
+        };
+        ServiceTaskInitiatorAccessDtoApiStatusResult: {
+            successful?: boolean;
+            errorMessage?: string | null;
+            result?: components["schemas"]["ServiceTaskInitiatorAccessDto"];
+        };
+        ServiceTaskInitiatorAccessRequestDto: {
+            workerId: string;
         };
         ServiceTaskJobDto: {
             /** Format: uuid */

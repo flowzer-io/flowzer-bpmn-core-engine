@@ -7996,6 +7996,106 @@
         }
       }
     },
+    "/job/{jobId}/initiator-access": {
+      "post": {
+        "tags": [
+          "ServiceTaskInitiatorAccess"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceTaskInitiatorAccessRequestDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceTaskInitiatorAccessRequestDto"
+              }
+            },
+            "application/*\u002Bjson": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceTaskInitiatorAccessRequestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceTaskInitiatorAccessDtoApiStatusResult"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceTaskInitiatorAccessDtoApiStatusResult"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceTaskInitiatorAccessDtoApiStatusResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem\u002Bjson": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/definition/meta/{definitionId}/start-form-link": {
       "post": {
         "tags": [
@@ -14257,6 +14357,98 @@
         },
         "additionalProperties": false
       },
+      "ServiceTaskInitiatorAccessDto": {
+        "required": [
+          "allowed",
+          "checkedAtUtc",
+          "definitionId",
+          "flowNodeId",
+          "initiatorIssuer",
+          "initiatorSubject",
+          "jobId",
+          "metaDefinitionId",
+          "processInstanceId",
+          "tokenId",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "processInstanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metaDefinitionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "definitionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tokenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flowNodeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "initiatorIssuer": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "initiatorSubject": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "checkedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ServiceTaskInitiatorAccessDtoApiStatusResult": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "$ref": "#/components/schemas/ServiceTaskInitiatorAccessDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ServiceTaskInitiatorAccessRequestDto": {
+        "required": [
+          "workerId"
+        ],
+        "type": "object",
+        "properties": {
+          "workerId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "ServiceTaskJobDto": {
         "required": [
           "definitionId",
@@ -15562,6 +15754,9 @@
     },
     {
       "name": "ProcessPackage"
+    },
+    {
+      "name": "ServiceTaskInitiatorAccess"
     },
     {
       "name": "StartFormEmbed"

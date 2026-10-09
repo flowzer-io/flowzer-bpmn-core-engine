@@ -29,6 +29,22 @@ Typecheck und Produktionsbuild erfolgreich. ESLint: keine Fehler, sieben bestehe
 Fast-Refresh-Warnungen. Auch 36 lokale Browser-Smokes und fünf Tests am Produktionsbundle sind erfolgreich.
 Der Rolloutnachweis wird im PR zu #297 festgehalten. Teststand ist keine Behauptung vollständiger BPMN-Unterstützung.
 
+## TT-Initiatorzugang – Arbeitsstand im Demo-Integrationsbranch, 9. Oktober 2026
+
+Der read-only Worker-Vertrag `POST /job/{jobId}/initiator-access` bindet den
+aktuellen Keycloak-Konto-/Gruppenscope-/API-Rollenstand an den gespeicherten
+Initiator eines eigenen aktiven TT-Ticket-Service-Auftrags. Joblease und Engine-
+Koordinaten werden vor und nach Provider-I/O geprüft, ohne offene Storage-
+Transaktion während der externen Abfrage. Echte Entzüge und technische
+Unklarheit bleiben getrennt; Requests erlauben keine frei gewählte Person/Rolle.
+Der lokale Pflicht-OpenAPI-, Stream-/Timeout- und Identity-Vertrag wird hermetisch
+geprüft. Details: [TT-Initiatorzugang](TICKYTASK-INITIATOR-ACCESS.md).
+
+Dieser Abschnitt behauptet keinen Merge, Onlinebetrieb oder Gesamtabschluss:
+TT-Accessadapter, ausführender Worker, dauerhafte Pause/auditierte Wiederfreigabe
+und echte Keycloak-/HTTPS-/45-Minuten-/Demo-Abnahme bleiben offen. Die konkrete
+Demo-Gruppenzuordnung und der koordinierte Rollout sind separate Gates.
+
 ## Historische Einordnung vom 10. September 2026
 
 ## Einordnung

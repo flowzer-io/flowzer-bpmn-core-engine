@@ -60,6 +60,33 @@ public class AuthenticationAndCorsIntegrationTest
         diagnostics.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
+    // Testzweck: Der jobgebundene Initiatorzugang bleibt ein Worker-Endpunkt: kein
+    // anonymer Zugriff, keine einfache Accessrolle und keine frei gewählte Identität im Body.
+    [TestCase("anonymous", HttpStatusCode.Unauthorized)]
+    [TestCase("access-only", HttpStatusCode.Forbidden)]
+    [TestCase("spoofed-subject", HttpStatusCode.BadRequest)]
+    [TestCase("empty-worker", HttpStatusCode.BadRequest)]
+    [TestCase("unknown-job", HttpStatusCode.NotFound)]
+    public async Task JobInitiatorAccess_ShouldEnforceWorkerPolicyAndClosedRequest(string variant, HttpStatusCode expected)
+    {
+        await using var factory = CreateJwtFactory(new TestStorage(), requiredRole: "access");
+        using var client = factory.CreateClient();
+        if (variant != "anonymous")
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", CreateToken(claims:
+            [
+                new Claim("sub", Guid.NewGuid().ToString()),
+                new Claim("resource_access", variant == "access-only"
+                    ? """{"flowzer-api":{"roles":["access"]}}"""
+                    : """{"flowzer-api":{"roles":["access","worker"]}}""", JsonClaimValueTypes.Json)
+            ]));
+        var body = variant == "spoofed-subject" ? """{"workerId":"worker-a","subject":"someone-else"}"""
+            : variant == "empty-worker" ? """{"workerId":""}""" : """{"workerId":"worker-a"}""";
+        using var content = new StringContent(body, Encoding.UTF8, "application/json");
+        var response = await client.PostAsync($"/job/{Guid.NewGuid()}/initiator-access", content);
+        response.StatusCode.Should().Be(expected);
+        (await response.Content.ReadAsStringAsync()).Should().NotContain("someone-else");
+    }
+
     // Testzweck: Health-Endpunkte muessen fuer Orchestrator-Probes ohne Token erreichbar bleiben.
     [Test]
     public async Task HealthEndpoints_ShouldStayAnonymous_WhenJwtBearerIsEnabled()
