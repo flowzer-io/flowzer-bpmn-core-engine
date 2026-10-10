@@ -19,6 +19,21 @@ CONTEXT=dict(repository='flowzer-io/flowzer-bpmn-core-engine',ref='refs/heads/co
 PROJECT='flowzer-runtime-123456-a1'
 CONFIGS={service:'sha256:'+'c'*64 for service in BUDGETS}
 
+# Unabhängige feste Projektion: nicht aus runner.COLUMNS ableiten, sonst könnte
+# ein fehlerhafter oder erweiterter Ausdruck gleichzeitig Test und Quelle ändern.
+EXPECTED_INSPECT_COLUMNS={
+    'id':'.Id',
+    'project':'index .Config.Labels "com.docker.compose.project"',
+    'owner':'index .Config.Labels "io.flowzer.runtime.owner"',
+    'service':'index .Config.Labels "com.docker.compose.service"',
+    'oneoff':'index .Config.Labels "com.docker.compose.oneoff"',
+    'image':'.Config.Image','image_id':'.Image','memory':'.HostConfig.Memory',
+    'swap':'.HostConfig.MemorySwap','nano_cpus':'.HostConfig.NanoCpus',
+    'oom':'.State.OOMKilled','running':'.State.Running',
+    'exit_code':'.State.ExitCode','restarts':'.RestartCount'}
+EXPECTED_INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}'
+    for key,expression in EXPECTED_INSPECT_COLUMNS.items())+'}'
+
 def container(service='api'):
     mib,cpu=BUDGETS[service]
     return {'id':'b'*64,'project':PROJECT,'owner':PROJECT,'service':service,'oneoff':'False',
@@ -27,6 +42,27 @@ def container(service='api'):
         'oom':False,'running':True,'exit_code':0,'restarts':0}
 
 class RunnerTests(unittest.TestCase):
+    def test_complete_inspect_format_groups_every_json_argument(self):
+        # Testzweck: Alle 14 Felder bleiben geschlossen; index-Aufrufe sind je EIN json-Argument.
+        # Dies ist ein Quellenvertrag, kein behaupteter echter Docker-/Go-Parserlauf.
+        self.assertEqual(EXPECTED_INSPECT_COLUMNS,runner.COLUMNS)
+        self.assertEqual(EXPECTED_INSPECT,runner.INSPECT)
+
+    def test_actual_inventory_sends_complete_grouped_inspect_format(self):
+        # Testzweck: Der echte Inventorypfad nutzt den gesamten festen Formatvertrag,
+        # nicht bloß einen separat korrigierten Labelstring oder einen Roh-Inspectdump.
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,{'RUNNER_TEMP':temp,'PATH':'/synthetic'},clear=True):
+            rig=runner.Rig(Path('/unused'),Path('/unused'),CONTEXT);rig.configs=CONFIGS
+            row=container();rig.command=Mock(side_effect=[row['id'],runner.json.dumps(row),'',''])
+            self.assertEqual([row],rig.inventory())
+            self.assertEqual([
+                ['docker','ps','-aq','--no-trunc','--filter','label=com.docker.compose.project='+PROJECT],
+                ['docker','inspect','--format',EXPECTED_INSPECT,row['id']],
+                ['docker','network','ls','--filter','label=com.docker.compose.project='+PROJECT,'--format','{{.ID}}'],
+                ['docker','volume','ls','--filter','label=com.docker.compose.project='+PROJECT,'--format','{{.Name}}']
+            ],[entry.args[0] for entry in rig.command.call_args_list])
+            self.assertEqual(0,rig.resource_count)
+
     def test_hard_context_and_transport_guards_before_runtime(self):
         # Testzweck: Fremdref/Retry und manipulierte Host-/Browser-/Proxyumgebung sind kein Runtimepfad.
         self.assertEqual(PROJECT,runner.environment_guard(CONTEXT,{}))

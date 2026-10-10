@@ -28,7 +28,10 @@ COLUMNS={'id':'.Id','project':'index .Config.Labels "com.docker.compose.project"
     'image':'.Config.Image','image_id':'.Image','memory':'.HostConfig.Memory',
     'swap':'.HostConfig.MemorySwap','nano_cpus':'.HostConfig.NanoCpus',
     'oom':'.State.OOMKilled','running':'.State.Running','exit_code':'.State.ExitCode','restarts':'.RestartCount'}
-INSPECT='{'+','.join('"'+key+'":{{json '+expression+'}}' for key,expression in COLUMNS.items())+'}'
+# Go-Templatefunktionen erhalten Ausdrücke als ein geklammertes Argument:
+# json (index ...) wertet das Label aus, statt index als niladisches Argument aufzurufen.
+# Dieselbe geschlossene Feldliste bleibt für Sampling UND Besitzprüfung vor Cleanup maßgeblich.
+INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in COLUMNS.items())+'}'
 
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',

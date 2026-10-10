@@ -1,5 +1,41 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Gruppierte Inspect-Ausdrücke – Quellenfix nach Run 38060250739
+
+Der tatsächliche neue Hosted-Erstlauf `38060250739/a1` auf
+`92beb45ed974ceee03668bf1556394055a4f1a31` bestand nun die reale
+Browsergegenkalibrierung, die geschlossene Egressprobe und beide Fixturetests.
+Image-Pull und Runtime-Startphase wurden erreicht. Danach endete er mit
+`sampling/process_exit/1` und `cleanup/process_exit/1`: **null Samples, kein
+bestätigtes Cleanup und kein Auth-/Ressourcen-/OOM-Erfolgsnachweis**.
+
+Im gemeinsamen Inventorypfad war die Containerprojektion als
+`{{json index .Config.Labels "..."}}` aufgebaut. Nach dem
+[Go-Templatevertrag für Argumente und Pipelines](https://pkg.go.dev/text/template#hdr-Arguments)
+ist ein verschachtelter Funktionsaufruf als Argument zu gruppieren;
+[Docker verwendet Go-Templates und seine JSON-Funktion](https://docs.docker.com/engine/cli/formatting/).
+Nun erhalten **alle 14 unveränderten Ausdrücke** genau eine solche Gruppe,
+also beispielsweise `{{json (index .Config.Labels "...")}}`.
+Felder, Eigentümer-/Digestprüfung, Limits und Reihenfolge bleiben identisch.
+Die bekannte falsche Funktionsargumentbindung ist ein Source-Vertragsbefund;
+welcher konkrete Laufbefehl die zwei beobachteten Exit1 verursachte, ist ohne
+einen entsprechenden tatsächlichen Nachweis weiterhin nicht eindeutig belegt.
+
+Zwei neue unabhängige Vertragstests über die vollständige Ausdrucksliste und
+den tatsächlich aus `inventory()` gesendeten Formatparameter belegten vor dem
+Fix **zwei echte Assertion-REDs**. Danach bestehen **63 Python- und 14
+Mock-Node-Tests ohne Skips**. Alle bisherigen 61 Pythonmethoden/Assertions und
+14 Nodefälle bleiben erhalten; es lief lokal kein echter Docker-/Go-Parser,
+Browser, Netzwerkzugriff oder Container. Ein bloßer Go-Parse würde zudem keinen
+korrekten Funktionsargumentvertrag zur Ausführungszeit beweisen.
+
+Der nächste reale Nachweis nutzt den vorhandenen nativen Docker-Templatepfad
+bei `inventory()` im isolierten Hosted-Erstlauf; ein zusätzlicher lokaler oder
+Hosted-Fixtureprozess wird nicht eingeführt. Auch Cleanup muss unverändert
+zuerst den eigenen Besitz beweisen und wird nicht zum Umgehen eines roten
+Inspectpfads gelockert. Vor erneutem Push/Dispatch bleiben neue Whole-Freeze,
+unabhängiger Gesamtreview und Root-Tree-Registrierung erforderlich.
+
 ## Synthetisches Zertifikat ohne Descriptor-Datei – Quellenfix nach Run38059398637
 
 Der tatsächliche folgende Erstlauf `38059398637/a1` auf
