@@ -1,5 +1,41 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Getrennter lokaler Diagnosekandidat (10. Oktober 2026)
+
+`codex/flowzer-runtime-diagnostics` startet vom frisch gelesenen Runtime-Stand
+`4725477244b2c948d3181b19721da127a586f704`. Der alte Stand, seine 40 Python-/8 Node-
+Belege und der fehlgeschlagene Pilot `38016986837/a1` bleiben unverändert. Dieser
+Kandidat gestattet **keinen** neuen Pilot, Dispatch, Retry, Publisher oder Deploy.
+Die unveränderte Workflow-Ref-Grenze lässt den neuen Kandidatenbranch nicht laufen.
+
+Diagnosen enthalten ausschließlich feste `phase`-/`error`-Werte und einen wirklich
+beobachteten POSIX-`exit_code`; `null` bedeutet ausdrücklich **unbekannt**, nicht 0.
+Auch eine tatsächlich unerwartete 0 und negative Signalwerte bleiben unverändert.
+Maximal drei Ursachen erhalten den ersten Fehler sowie zusätzliche Stop-/Cleanup-
+Fehler. Innere Messfehler werden beim Weiterreichen nicht zu Startfehlern umbenannt.
+Roh-Ausnahmen, Argumente, stdout/stderr, URLs, Umgebungswerte und Secrets erscheinen
+weder im Zusatzbericht noch in der Konsole. Zeitlimits, Prozessgruppen-Stoppfolge,
+Eigentümer-/Freshness-/Auth-/RAM-Grenzen und Originalspecs bleiben unverändert.
+
+Neue fünf Diagnose-Unitfälle hatten vor Umsetzung neun wirkliche Assertion-REDs.
+Die zwei unabhängigen Gesamtreviews fanden drei weitere Diagnosefehler: Gesamt-
+deadline wurde als Validierung gemeldet, ein Abschlussread konnte trotz Fehler
+`success=true` hinterlassen, und Bericht-I/O-Fehler konnten aus der Konsole fehlen.
+Drei zusätzliche Unitfälle belegten diese zuerst mit acht Assertion-REDs. Zwei
+weitere Assertion-REDs sichern ab, dass ein fehlgeschlagenes Rechte-Setzen noch
+keine Erfolgsbytes schreibt: Der ausschließlich eigene Bericht wird mit `xb`
+angelegt und erhält 0600 **vor** seinem ersten Byte. Docker-/Stop-Reihenfolge und
+alle Zeit-/Ressourcen-/Autorisierungsgrenzen bleiben unverändert.
+
+Jetzt bestehen insgesamt **48 Python-Tests** und **8 Node-Tests** ohne Skips;
+alle Prozesse, Docker-/Auth- und Netzwerkzugriffe der neuen Tests sind synthetisch
+gemockt. Das belegt weder die
+Ursache des alten Piloten noch Runtime-, Cleanup-, Ressourcen- oder Installationsreife.
+
+```sh
+python3 -B -m unittest discover -s scripts/demo-runtime -p 'test_*.py'
+```
+
 **Ausschließlich `codex/flowzer-demo-runtime-budget`, nicht nach Main, Release,
 PR379 oder Candidate-bca übernehmen.** Die registrierte `ci.yml` ist nur in diesem
 Wegwerfbranch durch einen manuellen Vorschlag ersetzt. Alle anderen Original-

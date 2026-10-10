@@ -5,7 +5,9 @@ Subprocess-Rohlogs werden verworfen. Docker liest nur Formatprojektionen, niemal
 Env/Config-Rohdumps. Jede Ressource muss vor Messung/Cleanup doppelt gebunden sein.
 """
 import argparse
+from contextlib import contextmanager
 from decimal import Decimal
+from functools import wraps
 import json
 import http.client
 import os
@@ -27,6 +29,43 @@ COLUMNS={'id':'.Id','project':'index .Config.Labels "com.docker.compose.project"
     'swap':'.HostConfig.MemorySwap','nano_cpus':'.HostConfig.NanoCpus',
     'oom':'.State.OOMKilled','running':'.State.Running','exit_code':'.State.ExitCode','restarts':'.RestartCount'}
 INSPECT='{'+','.join('"'+key+'":{{json '+expression+'}}' for key,expression in COLUMNS.items())+'}'
+
+# Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
+PHASES=frozenset({'preflight','freshness','prepare','browser_preflight','docker_preflight',
+    'pull','start','sampling','auth','verify','stop','cleanup'})
+
+
+class ProcessExitError(ValueError):
+    """Nur tatsächlich beobachteter POSIX-Exitstatus; fehlender Beleg bleibt null."""
+    def __init__(self,code):
+        super().__init__('Eigener Unterprozess endete unerwartet.')
+        self.exit_code=code if type(code) is int and -128<=code<=255 else None
+
+
+class DeadlineExceededError(ValueError):
+    """Unveränderte Gesamtzeitgrenze, aber als Timeout statt fachliche Validierung."""
+
+
+def failure_projection(phase,error):
+    """Geschlossener Fehlervertrag ohne str/repr, args, Rohdaten oder erfundene Null."""
+    require(phase in PHASES)
+    code=('process_exit' if isinstance(error,ProcessExitError) else
+        'timeout' if isinstance(error,(subprocess.TimeoutExpired,DeadlineExceededError)) else
+        'interrupted' if isinstance(error,(InterruptedError,KeyboardInterrupt)) else
+        'validation' if isinstance(error,ValueError) else
+        'io' if isinstance(error,OSError) else 'unknown')
+    return dict(phase=phase,error=code,exit_code=error.exit_code if isinstance(error,ProcessExitError) else None)
+
+
+def diagnosed(phase=None):
+    """Innere Sampling-/Stopfehler behalten ihre Phase beim Weiterreichen nach außen."""
+    def decorate(method):
+        @wraps(method)
+        def call(self,*args,**kwargs):
+            with self.phase(phase or self.current_phase):
+                return method(self,*args,**kwargs)
+        return call
+    return decorate
 
 
 def environment_guard(context,env):
@@ -124,23 +163,47 @@ class Rig:
             'sample_count':0,'samples_are_discrete':True,'container_reads_are_sequential':True,
             'oom_observed':False,'peak_memory_bytes_approx':0,'per_service':{},'disk':{}}
         self.owned=False
+        self.current_phase='preflight';self.failure_ids=set();self.report['failures']=[]
         # Childumgebung ist eine Whitelist: kein GH-/Cloud-/IdP-/Vaulttoken in Browser oder Containerstarts.
         self.env={key:os.environ[key] for key in ['PATH','LANG','LC_ALL'] if key in os.environ}
         self.env.update(HOME=str(self.root/'home'),DOCKER_CONFIG=str(self.root/'docker-config'),
             PLAYWRIGHT_BROWSERS_PATH=str(self.root/'browsers'),CI='true')
         self.compose=['docker','compose','-p',self.project,'-f',str(self.root/'rig/tests/installation-auth/compose.yml')]
 
+    def note_failure(self,phase,error):
+        """Erste Ursache plus höchstens Stop/Cleanup erhalten; nur Identitätsnummern im Speicher."""
+        self.report['success']=False
+        if id(error) not in self.failure_ids and len(self.report['failures'])<3:
+            self.failure_ids.add(id(error));self.report['failures'].append(failure_projection(phase,error))
+
+    @contextmanager
+    def phase(self,phase):
+        """Diagnose annotiert Fehler, verändert aber weder Reihenfolge noch Exception-/Cleanupvertrag."""
+        require(phase in PHASES);previous=self.current_phase;self.current_phase=phase
+        try:yield
+        except BaseException as error:
+            self.note_failure(phase,error);raise
+        finally:self.current_phase=previous
+
+    @diagnosed('stop')
+    def stop_process(self,process):
+        """Unverändert ausschließlich eigene Prozessgruppe: TERM, fünf Sekunden, dann KILL."""
+        os.killpg(process.pid,signal.SIGTERM)
+        try:process.wait(timeout=5)
+        except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)
+
+    @diagnosed()
     def command(self,args,timeout=30,capture=True,env=None,cwd=None,accepted=0):
         """Nur eigener POSIX-Prozessbaum; Timeout beendet ausschließlich diesen eigenen Baum."""
         process=subprocess.Popen(args,env=env or self.env,cwd=cwd,stdout=subprocess.PIPE if capture else subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,start_new_session=True)
         try:stdout,_=process.communicate(timeout=timeout)
-        except BaseException:
-            os.killpg(process.pid,signal.SIGTERM)
-            try:process.wait(timeout=5)
-            except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)
+        except BaseException as error:
+            self.note_failure(self.current_phase,error)
+            self.stop_process(process)
             raise
-        require(process.returncode==accepted and (not capture or len(stdout)<=1048576))
+        if process.returncode!=accepted:raise ProcessExitError(process.returncode)
+        require(not capture or len(stdout)<=1048576)
         return stdout.decode() if capture else ''
 
     def audited_container(self,row):
@@ -170,6 +233,7 @@ class Rig:
                 resource_row(row,self.project,kind)
         return rows
 
+    @diagnosed('sampling')
     def sample(self):
         rows=self.inventory();running={row['id']:row['service'] for row in rows if row['running']}
         # OOM ist ein echter Befund; nicht als geringer RAM-Bedarf oder erfolgreiche Nullprobe werten.
@@ -214,19 +278,24 @@ class Rig:
             peak=self.report['per_service'].setdefault(service,{})
             for key in values:peak[key]=max(peak.get(key,0),values[key])
 
+    @diagnosed()
     def measured_command(self,args,timeout,cwd=None):
         """Startup und echte Originalspecs gleichzeitig diskret messen; keine synthetischen RAMwerte."""
         process=subprocess.Popen(args,env=self.env,cwd=cwd,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
         try:
             deadline=time.monotonic()+timeout
             while process.poll() is None:
-                require(time.monotonic()<deadline);self.sample();time.sleep(1)
-            require(process.returncode==0);self.sample()
+                if not time.monotonic()<deadline:
+                    raise DeadlineExceededError('Eigene Gesamtzeitgrenze überschritten.')
+                with self.phase('sampling'):self.sample()
+                time.sleep(1)
+            if process.returncode!=0:raise ProcessExitError(process.returncode)
+            with self.phase('sampling'):self.sample()
+        except BaseException as error:
+            self.note_failure(self.current_phase,error);raise
         finally:
             if process.poll() is None:
-                os.killpg(process.pid,signal.SIGTERM)
-                try:process.wait(timeout=5)
-                except subprocess.TimeoutExpired:os.killpg(process.pid,signal.SIGKILL);process.wait(timeout=5)
+                self.stop_process(process)
 
     def disk(self,key):
         usage=shutil.disk_usage('/var/lib/docker')
@@ -253,6 +322,7 @@ class Rig:
             # Nur dieser nichtgeheime helper/config ist unser Besitz. Kein gespeicherter Login existiert.
             (config/'config.json').write_text('{}');path.unlink();helper.rmdir()
 
+    @diagnosed('browser_preflight')
     def browser_preflight(self,auth):
         """Echte Gegenkalibrierung + Netzgrenzen + tatsächliche Fixture vor jedem Containerstart."""
         cli=auth/'node_modules/playwright/cli.js';self.env['NODE_PATH']=str(auth/'node_modules')
@@ -282,48 +352,58 @@ class Rig:
         tree=self.command(['git','-C',str(self.source),'rev-parse','HEAD^{tree}']).strip()
         require(re.fullmatch('[0-9a-f]{40}',tree) is not None)
         # Frische Belege zuerst, noch vor Package-/Browser-/Dockerzugriffen.
-        attestation=proof.attest(self.context,self.publisher);self.configs=attestation['image_configs']
+        with self.phase('freshness'):
+            attestation=proof.attest(self.context,self.publisher);self.configs=attestation['image_configs']
         self.root.mkdir(mode=0o700);(self.root/'home').mkdir();(self.root/'report').mkdir()
         self.report.update(source_proof=attestation,workflow_tree=tree)
         try:
-            prepare(self.source,self.root/'rig',self.context)
+            with self.phase('prepare'):prepare(self.source,self.root/'rig',self.context)
             auth=self.root/'rig/tests/installation-auth'
             self.browser_preflight(auth)
-            require(self.command(['docker','context','inspect','--format','{{.Endpoints.docker.Host}}']).strip()=='unix:///var/run/docker.sock')
-            require(self.command(['docker','info','--format','{{.OSType}}\t{{.Architecture}}\t{{.DockerRootDir}}']).strip()
-                in ['linux\tx86_64\t/var/lib/docker','linux\tamd64\t/var/lib/docker'])
-            empty_inventory(self.inventory(),self.resource_count);self.owned=True
-            self.disk('before_pull');self.pull();self.disk('after_pull')
+            with self.phase('docker_preflight'):
+                require(self.command(['docker','context','inspect','--format','{{.Endpoints.docker.Host}}']).strip()=='unix:///var/run/docker.sock')
+                require(self.command(['docker','info','--format','{{.OSType}}\t{{.Architecture}}\t{{.DockerRootDir}}']).strip()
+                    in ['linux\tx86_64\t/var/lib/docker','linux\tamd64\t/var/lib/docker'])
+                empty_inventory(self.inventory(),self.resource_count);self.owned=True
+            with self.phase('pull'):
+                self.disk('before_pull');self.pull();self.disk('after_pull')
             self.report['runtime_started']=True
-            self.measured_command(self.compose+['up','-d','--no-build','--pull','never','--wait','--wait-timeout','600'],timeout=660)
-            rows=self.inventory();require(len(rows)==7 and {row['service'] for row in rows}==set(BUDGETS))
-            self.disk('after_start');self.env['FLOWZER_RUNTIME_REPORT']=str(self.root/'auth-result.json')
-            self.measured_command(['node',str(auth/'node_modules/playwright/cli.js'),'test','--config',str(auth/'playwright.config.js')],timeout=1500,cwd=auth)
-            self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
-            rows=self.inventory();db=next(row for row in rows if row['service']=='db' and row['oneoff']=='False')
-            raw=self.command(['docker','exec',db['id'],'du','-sk','/var/lib/postgresql/data']).strip()
-            self.report['database_directory_allocated_bytes_approx']=directory_bytes(raw);self.disk('after_tests')
-            states=[self.audited_container(row) for row in rows]
-            require(not any(row['oom'] for row in states) and all(row['exit_code']==0 for row in states))
-            self.report['final_states']=states;require(self.report['sample_count']>0);self.report['success']=True
+            with self.phase('start'):
+                self.measured_command(self.compose+['up','-d','--no-build','--pull','never','--wait','--wait-timeout','600'],timeout=660)
+                rows=self.inventory();require(len(rows)==7 and {row['service'] for row in rows}==set(BUDGETS))
+                self.disk('after_start');self.env['FLOWZER_RUNTIME_REPORT']=str(self.root/'auth-result.json')
+            with self.phase('auth'):
+                self.measured_command(['node',str(auth/'node_modules/playwright/cli.js'),'test','--config',str(auth/'playwright.config.js')],timeout=1500,cwd=auth)
+                self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
+            with self.phase('verify'):
+                rows=self.inventory();db=next(row for row in rows if row['service']=='db' and row['oneoff']=='False')
+                raw=self.command(['docker','exec',db['id'],'du','-sk','/var/lib/postgresql/data']).strip()
+                self.report['database_directory_allocated_bytes_approx']=directory_bytes(raw);self.disk('after_tests')
+                states=[self.audited_container(row) for row in rows]
+                require(not any(row['oom'] for row in states) and all(row['exit_code']==0 for row in states))
+                self.report['final_states']=states;require(self.report['sample_count']>0);self.report['success']=True
         finally:
             try:
-                if self.owned:
-                    # Prüfen, bevor down neu entstandene fremde Ressourcen gleichen Namens entfernen könnte.
-                    rows=self.inventory()
-                    # Nur zuvor vollständig gebundene eigene Check-config-Oneoffs, keine Namen-/Fremdsuche.
-                    oneoffs=[row['id'] for row in rows if row['oneoff']=='True']
-                    if oneoffs:self.command(['docker','rm','--force',*oneoffs],timeout=30,capture=False)
-                    self.command(self.compose+['down','--volumes','--remove-orphans'],timeout=120,capture=False)
-                    empty_inventory(self.inventory(),self.resource_count)
-                    self.report['cleanup_complete']=True;self.disk('after_cleanup')
+                with self.phase('cleanup'):
+                    if self.owned:
+                        # Prüfen, bevor down neu entstandene fremde Ressourcen gleichen Namens entfernen könnte.
+                        rows=self.inventory()
+                        # Nur zuvor vollständig gebundene eigene Check-config-Oneoffs, keine Namen-/Fremdsuche.
+                        oneoffs=[row['id'] for row in rows if row['oneoff']=='True']
+                        if oneoffs:self.command(['docker','rm','--force',*oneoffs],timeout=30,capture=False)
+                        self.command(self.compose+['down','--volumes','--remove-orphans'],timeout=120,capture=False)
+                        empty_inventory(self.inventory(),self.resource_count)
+                        self.report['cleanup_complete']=True;self.disk('after_cleanup')
             finally:
                 # Auch Cleanupfehler müssen als solche sichtbar bleiben, niemals still „success“ melden.
-                self.report['success']=self.report['success'] and self.report['cleanup_complete'] and not self.report['oom_observed']
-                output=self.root/'report/resource-result.json'
-                raw=json.dumps(self.report,sort_keys=True).encode();require(len(raw)<=65536)
-                with output.open('xb') as stream:stream.write(raw+b'\n')
-                output.chmod(0o600)
+                with self.phase('cleanup'):
+                    self.report['success']=self.report['success'] and self.report['cleanup_complete'] \
+                        and not self.report['oom_observed'] and not self.report['failures']
+                    output=self.root/'report/resource-result.json'
+                    raw=json.dumps(self.report,sort_keys=True).encode();require(len(raw)<=65536)
+                    with output.open('xb') as stream:
+                        # Kein Erfolgsartefakt, bevor der eigene Bericht sicher berechtigt ist.
+                        output.chmod(0o600);stream.write(raw+b'\n')
 
 
 
@@ -333,6 +413,7 @@ def main():
     names={'repository':'GITHUB_REPOSITORY','ref':'GITHUB_REF','event':'GITHUB_EVENT_NAME','attempt':'GITHUB_RUN_ATTEMPT',
         'run_id':'GITHUB_RUN_ID','sha':'GITHUB_SHA','confirmed_sha':'CONFIRMED_WORKFLOW_SHA',
         'runner_environment':'RUNNER_ENVIRONMENT','runner_os':'RUNNER_OS','runner_arch':'RUNNER_ARCH'}
+    rig=None
     try:
         context={key:os.environ[name] for key,name in names.items()}
         # Actions schickt SIGINT/SIGTERM beim Abbruch: finally muss noch ausschließlich eigenen Besitz schließen.
@@ -340,6 +421,10 @@ def main():
         signal.signal(signal.SIGTERM,interrupted);signal.signal(signal.SIGINT,interrupted)
         rig=Rig(args.source,args.publisher,context);rig.run();require(rig.report['success'])
         print('Isolierter Ressourcenpilot erfolgreich; keine Installation.')
-    except BaseException:parser.exit(1,'Isolierter Ressourcenpilot fehlgeschlagen; kein Installations-Go.\n')
+    except BaseException as error:
+        failures=rig.report['failures'] if rig is not None else []
+        if not failures:failures=[failure_projection('preflight',error)]
+        parser.exit(1,'Isolierter Ressourcenpilot fehlgeschlagen; kein Installations-Go.\n'
+            +json.dumps({'failures':failures},sort_keys=True)+'\n')
 
 if __name__=='__main__':main()
