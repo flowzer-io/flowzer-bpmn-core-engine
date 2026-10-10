@@ -1,0 +1,48 @@
+{
+  "observed_utc": "2026-10-10T01:10:56.542850+00:00",
+  "scope": "Public registry index/native-manifest metadata, no Config/pull/runtime proof",
+  "images": [
+    {
+      "name": "postgres",
+      "image": "postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+      "tag_observed": "17-alpine",
+      "index_digest": "sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24",
+      "linux_amd64_manifest": "sha256:aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+      "compressed_layer_bytes": 117190808
+    },
+    {
+      "name": "keycloak",
+      "image": "quay.io/keycloak/keycloak@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c",
+      "tag_observed": "26.7.4",
+      "index_digest": "sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c",
+      "linux_amd64_manifest": "sha256:3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf",
+      "compressed_layer_bytes": 267934327
+    },
+    {
+      "name": "caddy",
+      "image": "library/caddy@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772",
+      "tag_observed": "2",
+      "index_digest": "sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772",
+      "linux_amd64_manifest": "sha256:173b26306d711395accaeba8b67afcaad2a085ccb1e6bf26010bfe8c095a5229",
+      "compressed_layer_bytes": 24867969
+    },
+    {
+      "name": "openssl",
+      "image": "alpine/openssl@sha256:3f25da71f70eba788067daac3f3df03bd1de7a7c52ed89fa93b94ad2c92d986b",
+      "tag_observed": "3.5.8",
+      "index_digest": "sha256:3f25da71f70eba788067daac3f3df03bd1de7a7c52ed89fa93b94ad2c92d986b",
+      "linux_amd64_manifest": "sha256:26a1e2b15af7256c2506f586fa900d9b89ec64e3c3a69eed59a1d59700ef5c32",
+      "compressed_layer_bytes": 4209274
+    }
+  ],
+  "hashes": {
+    "keycloak-amd64.json": "3d911baa186f352563854039b95f21a7e2c01c76b527fdc64f24a0885b927bdf",
+    "postgres-amd64.json": "aa90e97ee862e558111d34cfb8b2c4bec768c2b039fb791341686928560263b3",
+    "caddy-index.json": "f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772",
+    "openssl-index.json": "3f25da71f70eba788067daac3f3df03bd1de7a7c52ed89fa93b94ad2c92d986b",
+    "caddy-amd64.json": "173b26306d711395accaeba8b67afcaad2a085ccb1e6bf26010bfe8c095a5229",
+    "openssl-amd64.json": "26a1e2b15af7256c2506f586fa900d9b89ec64e3c3a69eed59a1d59700ef5c32",
+    "keycloak-index.json": "82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c",
+    "postgres-index.json": "b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24"
+  }
+}
