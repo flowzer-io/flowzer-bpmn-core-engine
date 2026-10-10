@@ -19,7 +19,7 @@ jobs:
   resources:
     if: >-
       github.repository == 'flowzer-io/flowzer-bpmn-core-engine' &&
-      github.ref == 'refs/heads/codex/flowzer-demo-runtime-budget' &&
+      github.ref == 'refs/heads/codex/flowzer-runtime-pilot-diagnostics' &&
       github.event_name == 'workflow_dispatch' && github.run_attempt == 1 &&
       inputs.confirmed_workflow_sha == github.sha
     runs-on: ubuntu-24.04

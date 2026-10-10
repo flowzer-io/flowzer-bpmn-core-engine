@@ -1,12 +1,36 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
-## Getrennter lokaler Diagnosekandidat (10. Oktober 2026)
+## Neue feste Eigen-Ref – ausschließlich Quellenvorbereitung
+
+`codex/flowzer-runtime-pilot-diagnostics` beginnt im eigenen frischen Worktree vom
+frisch gefetchten Archiv-Commit `31ae808cd47107b6d295813d488816460491b45d`.
+Nur diese exakte Ref ist im Workflow, im Vor-I/O-Kontextguard und in der aktuellen
+GitHub-Run-Prüfung gebunden. Main, Release, fremde Refs, der alte Ressourcenbranch
+und der bloße Archivbranch bleiben in diesem Kandidaten ausgeschlossen. Keine
+Wildcard und keine zusätzliche alternative Ref. Alte positive Testfixtures ändern
+ausschließlich ihre feste Eigenidentität; keine Testfälle oder Erwartungen entfallen.
+
+Drei neue rein synthetische Ref-Tests belegten zunächst sieben echte Assertion-REDs.
+Sie prüfen auch die unabhängige aktuelle API-Run-Identität vor Publisher-I/O und
+die vollständige Workflow-Konjunktion statt nur passende Teilstrings. Alle bisherigen
+48 Python-/8 Node-Fälle bleiben erhalten; Schutzgrenzen, Publisherquellen, originale
+Authspecs und Ressourcenlimits sind unverändert. Die bisherigen Archiv-/Pilotbelege
+werden weder verändert noch als Nachweis eines neuen Laufs umgedeutet.
+Der vollständige synthetische Lauf besteht jetzt mit **51 Python-/8 Node-Tests**
+ohne Skips; das sind keine tatsächlichen Hosted- oder Authausführungen.
+
+**Bis zur Anmeldung und separaten Freigabe kein Push dieses Kandidaten. Kein
+Dispatch, Pilot, Retry, Publisher, SSH/Docker/Runtime, Install oder Produktmerge.**
+Ein tatsächlicher einzelner Hosted-Versuch bleibt separat freizugeben und zentral
+zu koordinieren. Quellentests sind keine Ressourcen-, Auth-, Cleanup- oder Liveabnahme.
+
+## Archivierter lokaler Diagnosekandidat (10. Oktober 2026)
 
 `codex/flowzer-runtime-diagnostics` startet vom frisch gelesenen Runtime-Stand
 `4725477244b2c948d3181b19721da127a586f704`. Der alte Stand, seine 40 Python-/8 Node-
 Belege und der fehlgeschlagene Pilot `38016986837/a1` bleiben unverändert. Dieser
 Kandidat gestattet **keinen** neuen Pilot, Dispatch, Retry, Publisher oder Deploy.
-Die unveränderte Workflow-Ref-Grenze lässt den neuen Kandidatenbranch nicht laufen.
+Seine unveränderte alte Workflow-Ref-Grenze ließ den bloßen Archivbranch nicht laufen.
 
 Diagnosen enthalten ausschließlich feste `phase`-/`error`-Werte und einen wirklich
 beobachteten POSIX-`exit_code`; `null` bedeutet ausdrücklich **unbekannt**, nicht 0.
@@ -36,7 +60,7 @@ Ursache des alten Piloten noch Runtime-, Cleanup-, Ressourcen- oder Installation
 python3 -B -m unittest discover -s scripts/demo-runtime -p 'test_*.py'
 ```
 
-**Ausschließlich `codex/flowzer-demo-runtime-budget`, nicht nach Main, Release,
+**Aktueller Kandidat ausschließlich `codex/flowzer-runtime-pilot-diagnostics`, nicht nach Main, Release,
 PR379 oder Candidate-bca übernehmen.** Die registrierte `ci.yml` ist nur in diesem
 Wegwerfbranch durch einen manuellen Vorschlag ersetzt. Alle anderen Original-
 Workflows sowie Produktquelle CF und Original-Harness bleiben bytegleich.

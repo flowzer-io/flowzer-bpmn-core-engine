@@ -12,7 +12,7 @@ from unittest.mock import patch
 import runner
 from prepare import BUDGETS,IMAGES
 
-CONTEXT=dict(repository='flowzer-io/flowzer-bpmn-core-engine',ref='refs/heads/codex/flowzer-demo-runtime-budget',
+CONTEXT=dict(repository='flowzer-io/flowzer-bpmn-core-engine',ref='refs/heads/codex/flowzer-runtime-pilot-diagnostics',
     event='workflow_dispatch',attempt='1',run_id='123456',sha='a'*40,confirmed_sha='a'*40,
     runner_environment='github-hosted',runner_os='Linux',runner_arch='X64')
 PROJECT='flowzer-runtime-123456-a1'

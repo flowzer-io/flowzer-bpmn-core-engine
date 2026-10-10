@@ -53,10 +53,10 @@ class ProofTests(unittest.TestCase):
         # Testzweck: Kein Spoof von Hosted-Env oder altem Publisherstatus; alle sieben Belege frisch lesen.
         binding=json.loads(Path(__file__).with_name('publish-bindings.json').read_text())
         plan=next(row['receipt'] for row in binding['receipts'] if row['name']=='tt-demo-source-proof')
-        context=dict(repository='flowzer-io/flowzer-bpmn-core-engine',ref='refs/heads/codex/flowzer-demo-runtime-budget',
+        context=dict(repository='flowzer-io/flowzer-bpmn-core-engine',ref='refs/heads/codex/flowzer-runtime-pilot-diagnostics',
             event='workflow_dispatch',attempt='1',run_id='123456',sha='a'*40,confirmed_sha='a'*40,
             runner_environment='github-hosted',runner_os='Linux',runner_arch='X64')
-        current=dict(id=123456,head_sha='a'*40,head_branch='codex/flowzer-demo-runtime-budget',run_attempt=1,
+        current=dict(id=123456,head_sha='a'*40,head_branch='codex/flowzer-runtime-pilot-diagnostics',run_attempt=1,
             event='workflow_dispatch',path='.github/workflows/ci.yml',status='in_progress')
         publish=dict(id=38009656496,head_sha=proof.PUBLISHER,run_attempt=1,status='completed',conclusion='success',
             event='workflow_dispatch',path='.github/workflows/ci.yml')

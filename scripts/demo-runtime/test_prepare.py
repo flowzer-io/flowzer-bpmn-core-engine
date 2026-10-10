@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class PreparationTests(unittest.TestCase):
     def context(self, **changes):
         return dict(repository='flowzer-io/flowzer-bpmn-core-engine',
-            ref='refs/heads/codex/flowzer-demo-runtime-budget', event='workflow_dispatch',
+            ref='refs/heads/codex/flowzer-runtime-pilot-diagnostics', event='workflow_dispatch',
             attempt='1', run_id='123456', sha='a'*40, confirmed_sha='a'*40,
             runner_environment='github-hosted', runner_os='Linux', runner_arch='X64', **changes)
 
