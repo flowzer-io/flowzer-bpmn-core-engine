@@ -31,7 +31,8 @@ COLUMNS={'id':'.Id','project':'index .Config.Labels "com.docker.compose.project"
 INSPECT='{'+','.join('"'+key+'":{{json '+expression+'}}' for key,expression in COLUMNS.items())+'}'
 
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
-PHASES=frozenset({'preflight','freshness','prepare','browser_preflight','docker_preflight',
+PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
+    'browser_calibration_process','browser_calibration_report','docker_preflight',
     'pull','start','sampling','auth','verify','stop','cleanup'})
 
 
@@ -331,11 +332,15 @@ class Rig:
         for name in ['calibration','egress','fixture']:(self.root/name).mkdir()
         # Kalibrierung muss am echten Markerassert scheitern, nie als Browser-/Setupfehler akzeptieren.
         calibration=self.root/'calibration/egress-result.json'
-        self.command(['node',str(self.source/'scripts/demo-runtime/egress-probe.js'),str(calibration),'--calibrate-local-only'],
-            timeout=60,capture=False,accepted=1)
-        value=proof.decode(calibration.read_bytes())
-        require(value['marker_assertion_red']==1 and value['marker_requests']==1
-            and value['positive_control_requests']==1 and value['allowed_page']==1 and not value['success'])
+        # Exit1 allein belegt keinen Marker-RED: Prozess-/CWD-I/O und fehlender Bericht bleiben unterscheidbar.
+        # Die Unterphasen ändern nur die geschlossene Diagnose, nie Statusannahme, Schutz oder Folgeaktionen.
+        with self.phase('browser_calibration_process'):
+            self.command(['node',str(self.source/'scripts/demo-runtime/egress-probe.js'),str(calibration),'--calibrate-local-only'],
+                timeout=60,capture=False,accepted=1)
+        with self.phase('browser_calibration_report'):
+            value=proof.decode(calibration.read_bytes())
+            require(value['marker_assertion_red']==1 and value['marker_requests']==1
+                and value['positive_control_requests']==1 and value['allowed_page']==1 and not value['success'])
         self.command(['node',str(self.source/'scripts/demo-runtime/egress-probe.js'),str(self.root/'egress/egress-result.json')],timeout=60,capture=False)
         value=proof.decode((self.root/'egress/egress-result.json').read_bytes())
         egress_result(value)

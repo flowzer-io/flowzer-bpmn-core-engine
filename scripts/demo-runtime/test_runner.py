@@ -1,5 +1,6 @@
 """Testzweck: Runnergrenzen prüfen ohne Docker/Images/Prozesse/Netz/Secrets."""
 import copy
+from contextlib import contextmanager
 import os
 import signal
 import subprocess
@@ -225,5 +226,133 @@ class RunnerTests(unittest.TestCase):
             raw=(rig.root/'report/resource-result.json').read_text();value=runner.json.loads(raw)
             self.assertIs(value['success'],False);self.assertIs(value['cleanup_complete'],False)
             self.assertNotIn('never-save-raw-error',raw)
+
+
+class BrowserPreflightTests(unittest.TestCase):
+    """Echte Vorabtest-Orchestrierung, aber niemals echte Kindprozesse oder Browser."""
+
+    @contextmanager
+    def preflight(self,calibration_exit=1,launch_error=None,calibration_change=None,missing_report=None):
+        """Nur eigene Zahlenfixtures; Popen wird an der tatsächlich verwendeten Grenze ersetzt."""
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,{'RUNNER_TEMP':temp,'PATH':'/synthetic'},clear=True):
+            source=Path(__file__).resolve().parents[2];rig=runner.Rig(source,source,CONTEXT)
+            auth=rig.root/'rig/tests/installation-auth';auth.mkdir(parents=True)
+            cli=auth/'node_modules/playwright/cli.js';probe=source/'scripts/demo-runtime/egress-probe.js'
+            expected=[(['npm','ci','--ignore-scripts','--no-audit','--no-fund'],300,auth),
+                (['node',str(cli),'install','--with-deps','chromium'],600,auth),
+                (['node',str(probe),str(rig.root/'calibration/egress-result.json'),'--calibrate-local-only'],60,None),
+                (['node',str(probe),str(rig.root/'egress/egress-result.json')],60,None),
+                (['node',str(cli),'test','--config',str(source/'scripts/demo-runtime/fixture-probe.config.js')],90,None)]
+            normal=dict(calibrated=False,positive_control_requests=1,allowed_page=1,redirect_ip_blocked=1,
+                redirect_host_blocked=1,direct_ip_blocked=1,websocket_blocked=1,serviceworker_blocked=1,
+                marker_requests=0,marker_assertion_red=0,success=True)
+            calibration=normal|dict(calibrated=True,redirect_ip_blocked=0,redirect_host_blocked=0,
+                direct_ip_blocked=0,websocket_blocked=0,serviceworker_blocked=0,marker_requests=1,
+                marker_assertion_red=1,success=False,failure_phase='redirect_ip_blocked',
+                assertion_failed=True,failure_source='closed_other')
+            calibration.update(calibration_change or {})
+            fixture=dict(total=2,passed=2,failed=0,skipped=0,interrupted=0,errors=0,success=True)
+            calls=[]
+
+            def spawn(args,**kwargs):
+                # Unbekannte oder umsortierte Aufrufe sind Assertionfehler, nie reale Prozesse.
+                index=len(calls);self.assertLess(index,len(expected));self.assertEqual(expected[index][0],args)
+                self.assertEqual(expected[index][2],kwargs['cwd'])
+                self.assertIs(kwargs['start_new_session'],True)
+                self.assertEqual(subprocess.DEVNULL,kwargs['stdout']);self.assertEqual(subprocess.DEVNULL,kwargs['stderr'])
+                observation=dict(args=list(args),cwd=kwargs['cwd'],env=dict(kwargs['env']));calls.append(observation)
+                if index==2 and launch_error is not None:raise launch_error
+                child=Mock(returncode=calibration_exit if index==2 else 0)
+
+                def communicate(timeout):
+                    observation['timeout']=timeout;self.assertEqual(expected[index][1],timeout)
+                    observation['observed_exit']=child.returncode
+                    report=None
+                    if index==2:report=('calibration',rig.root/'calibration/egress-result.json',calibration)
+                    elif index==3:report=('egress',rig.root/'egress/egress-result.json',normal)
+                    elif index==4:report=('fixture',Path(kwargs['env']['FLOWZER_RUNTIME_REPORT']),fixture)
+                    if report is not None and missing_report!=report[0]:
+                        report[1].write_text(runner.json.dumps(report[2]),encoding='utf-8')
+                    return None,None
+                child.communicate.side_effect=communicate;return child
+
+            # Zusätzliche Tripwires: selbst eine versehentliche Folgeaktion ist nur ein Mockfehler.
+            denied=AssertionError('Kein Runtime-/Netzschritt im hermetischen Vorabtest.')
+            rig.inventory=Mock(side_effect=denied);rig.pull=Mock(side_effect=denied);rig.measured_command=Mock(side_effect=denied)
+            with patch.object(runner.subprocess,'Popen',side_effect=spawn),\
+                patch.object(runner,'DockerSocket',side_effect=denied),patch.object(runner.proof,'attest',side_effect=denied):
+                yield rig,auth,calls,expected,normal,fixture
+                rig.inventory.assert_not_called();rig.pull.assert_not_called();rig.measured_command.assert_not_called()
+
+    def assert_failure(self,rig,calls,phase,error,exit_code=None,call_count=3):
+        """Geschlossene Einzeldiagnose und Abbruch vor Folgeprobe/Fixture/Runtime sichern."""
+        self.assertEqual([dict(phase=phase,error=error,exit_code=exit_code)],rig.report['failures'])
+        self.assertEqual(call_count,len(calls));self.assertEqual('preflight',rig.current_phase)
+        self.assertIs(rig.report['success'],False);self.assertIs(rig.report['runtime_started'],False)
+        self.assertEqual(0,rig.report['sample_count'])
+        for field in ['fixture','egress','calibration_marker_assertion_red']:self.assertNotIn(field,rig.report)
+
+    def test_calibration_launch_io_is_distinct_before_child_exit(self):
+        # Testzweck: Popen-/CWD-I/O ohne beobachteten Kindstatus darf nicht als fehlender Bericht erscheinen.
+        failure=FileNotFoundError('synthetic-private-launch-error')
+        with self.preflight(launch_error=failure) as (rig,auth,calls,*_):
+            with self.assertRaises(FileNotFoundError) as caught:rig.browser_preflight(auth)
+            self.assertIs(failure,caught.exception);self.assertNotIn('observed_exit',calls[-1])
+            self.assert_failure(rig,calls,'browser_calibration_process','io')
+
+    def test_calibration_exit_one_requires_report_in_separate_phase(self):
+        # Testzweck: Akzeptierter wirklicher Mock-Exit1 ersetzt nie den Markerbeleg; fehlende Datei bleibt I/O/null.
+        with self.preflight(missing_report='calibration') as (rig,auth,calls,*_):
+            with self.assertRaises(FileNotFoundError):rig.browser_preflight(auth)
+            self.assertEqual(1,calls[-1]['observed_exit'])
+            self.assert_failure(rig,calls,'browser_calibration_report','io')
+
+    def test_calibration_unexpected_exit_zero_stops_before_report(self):
+        # Testzweck: Unerwarteter Exit0 bleibt tatsächlicher Status0 und darf keinen scheinbaren Markererfolg liefern.
+        with self.preflight(calibration_exit=0) as (rig,auth,calls,*_):
+            with self.assertRaises(runner.ProcessExitError) as caught:rig.browser_preflight(auth)
+            self.assertEqual(0,caught.exception.exit_code);self.assertEqual(0,calls[-1]['observed_exit'])
+            self.assert_failure(rig,calls,'browser_calibration_process','process_exit',exit_code=0)
+
+    def test_calibration_setup_error_is_not_marker_red(self):
+        # Testzweck: Setup-/Browserfehler nach Exit1 bleibt ungültig, auch wenn ein sicherer Zahlenbericht existiert.
+        change=dict(marker_assertion_red=0,marker_requests=0,positive_control_requests=0,allowed_page=0,failure_phase='fixture')
+        with self.preflight(calibration_change=change) as (rig,auth,calls,*_):
+            with self.assertRaises(ValueError):rig.browser_preflight(auth)
+            self.assertEqual(1,calls[-1]['observed_exit'])
+            self.assert_failure(rig,calls,'browser_calibration_report','validation')
+
+    def test_calibration_inconsistent_markers_stop_before_followups(self):
+        # Testzweck: Jede bisher verlangte Kalibrierungszahl bleibt verbindlich; kein Exit1-Fallback zur Folgeprobe.
+        for change in [dict(marker_assertion_red=0),dict(marker_requests=0),dict(marker_requests=2),
+            dict(positive_control_requests=0),dict(allowed_page=0),dict(success=True)]:
+            with self.subTest(change=change),self.preflight(calibration_change=change) as (rig,auth,calls,*_):
+                with self.assertRaises(ValueError):rig.browser_preflight(auth)
+                self.assert_failure(rig,calls,'browser_calibration_report','validation')
+
+    def test_valid_calibration_preserves_complete_preflight_contract(self):
+        # Testzweck: Neue Diagnose verändert weder Befehle/Timeouts/Umgebungsgrenze noch den strengen gültigen Ablauf.
+        with self.preflight() as (rig,auth,calls,expected,normal,fixture):
+            rig.browser_preflight(auth)
+            self.assertEqual([row[0] for row in expected],[row['args'] for row in calls])
+            self.assertEqual([row[1] for row in expected],[row['timeout'] for row in calls])
+            self.assertEqual([0,0,1,0,0],[row['observed_exit'] for row in calls])
+            self.assertEqual([],rig.report['failures']);self.assertEqual('preflight',rig.current_phase)
+            self.assertEqual(normal,rig.report['egress']);self.assertEqual(fixture,rig.report['fixture'])
+            self.assertEqual(1,rig.report['calibration_marker_assertion_red'])
+            self.assertIs(rig.report['success'],False);self.assertIs(rig.report['runtime_started'],False)
+            self.assertEqual(0,rig.report['sample_count'])
+            for row in calls:
+                self.assertEqual(str(auth/'node_modules'),row['env']['NODE_PATH'])
+                self.assertEqual({'PATH','HOME','DOCKER_CONFIG','PLAYWRIGHT_BROWSERS_PATH','CI','NODE_PATH'}|
+                    ({'FLOWZER_RUNTIME_REPORT'} if row is calls[-1] else set()),set(row['env']))
+
+    def test_later_report_io_keeps_outer_browser_phase(self):
+        # Testzweck: Kalibrierungsunterphasen enden nach ihrer Operation und etikettieren spätere I/O nicht um.
+        for missing,count in [('egress',4),('fixture',5)]:
+            with self.subTest(missing=missing),self.preflight(missing_report=missing) as (rig,auth,calls,*_):
+                with self.assertRaises(FileNotFoundError):rig.browser_preflight(auth)
+                self.assertEqual(0,calls[-1]['observed_exit'])
+                self.assert_failure(rig,calls,'browser_preflight','io',call_count=count)
 
 if __name__=='__main__':unittest.main()

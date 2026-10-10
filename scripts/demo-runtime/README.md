@@ -1,6 +1,56 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
-## Neue feste Eigen-Ref – ausschließlich Quellenvorbereitung
+## Kalibrierungsdiagnose – ausschließlich Quellenstand, 10. Oktober 2026
+
+`codex/flowzer-browser-calibration-diagnostics` wurde im eigenen frischen Worktree
+vom frisch gefetchten Remote-HEAD `8a40c12398c360052abbb86272f26cf09f0ffcb5`
+angelegt. Der alte HEAD/Tree, seine Quellen-/Reviewbelege und der tatsächliche zweite
+Hosted-Pilot `38039728395/a1` bleiben unverändert. Dieser Pilot endete vor dem
+Containerstart mit `browser_preflight/io/null`: Die konkrete Ursache ist **unbekannt**;
+RAM, Auth, Netzgrenzen und Cleanup wurden dadurch nicht abgenommen.
+
+Der neue minimale Quellschritt ergänzt ausschließlich zwei geschlossene Diagnosephasen:
+
+- `browser_calibration_process`: der unveränderte Kalibrierungsaufruf einschließlich
+  Popen-/CWD-I/O und seines wirklich beobachteten Exitstatus;
+- `browser_calibration_report`: die unveränderte anschließende Datei-/JSON-/Markerprüfung.
+
+Exit1 alleine ist weiterhin kein Marker-RED. Ein fehlender Bericht bleibt I/O mit
+unbekanntem Exitstatus (`null`), nicht erfundene0 oder automatisch unterstellter
+Browserfehler. Ein tatsächlich unerwarteter Exit0 bleibt dagegen `process_exit/0`.
+Die Unterphasen enden nach ihrer Operation; spätere Egress-/Fixturefehler behalten
+`browser_preflight`. Maximal drei Diagnosen, Statusannahmen, Befehlsreihenfolge,
+Argumente, Zeitlimits und alle Netz-/Ownership-/Freshness-/Ressourcengrenzen bleiben
+identisch. Sichere spätere Berichtleser müssen die zwei festen Enumwerte kennen;
+Rohlogs oder zusätzliche freie Fehlerfelder sind kein Ersatz.
+
+Sieben neue Unitmethoden rufen die **echte** `browser_preflight`-Orchestrierung auf,
+ersetzen aber jeden Popen und Socket. Sie prüfen Launch-I/O vor einem Kindstatus,
+fehlenden Bericht nach beobachtetem Mock-Exit1, unerwarteten Exit0, Setupfehler,
+sechs widersprüchliche Markerfälle sowie den gültigen Ablauf und spätere Bericht-I/O.
+Vor der Umsetzung gab es **zehn wirkliche Assertion-REDs** in fünf Methoden
+(sechs davon einzelne Marker-Subfälle); keine Importfehler oder zuvor grünen
+Regressionen werden als RED gezählt. Nun bestehen **58 Python-/8 Node-Unitfälle**
+ohne Fehler oder Skips. Alle bisherigen51 Pythonmethoden und ihre Assertions
+bleiben unverändert. Die alten Quellentests lesen nur ihre bestehenden lokalen
+Gitblobs beziehungsweise Ruby-YAML-/Node-VM-Fixtures; sie führen keine Runtime aus.
+Ein zunächst zu pauschaler globaler Popen-Tripwire blockierte elf dieser alten
+Quellenleser. Dieser getrennte Umfangsversuch zählt weder als58GREEN noch als TDD-RED;
+der vollständige grüne Lauf verwendete die ausdrücklich präzisierte lokale Leserfreigabe.
+
+**Kein neuer Pilot, Retry, Publisher, Install oder Produktmerge.** Workflow, feste
+alte Ref und alle JS-Quellen bleiben bytegleich; der neue Topic ist daher absichtlich
+nicht dispatchfähig. Commit/Push benötigen die abschließende Registrierung bei Root.
+Ein späterer Runtimeversuch benötigt einen getrennten Source-Scope und eine **neue
+menschliche Einzelfreigabe**: Die bisherige Zustimmung wurde durch den zweiten
+fehlgeschlagenen Piloten verbraucht. Quellentests reparieren oder beweisen dessen
+unbekannte Ursache nicht. Demo, Realm/Gruppen, Zugänge, Host und SQL bleiben unverändert.
+
+Die folgenden Abschnitte sind archivierte Entwicklungsgeschichte. Ihre damaligen
+„noch kein Lauf“-Aussagen beziehen sich auf die jeweiligen Quellenvorbereitungen,
+nicht auf den oben ausdrücklich eingeordneten tatsächlichen zweiten Piloten.
+
+## Historische feste Eigen-Ref – Quellenvorbereitung des Standes8a40
 
 `codex/flowzer-runtime-pilot-diagnostics` beginnt im eigenen frischen Worktree vom
 frisch gefetchten Archiv-Commit `31ae808cd47107b6d295813d488816460491b45d`.
