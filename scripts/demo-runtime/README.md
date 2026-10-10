@@ -1,5 +1,44 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Fehlgeschlagene Auth-Zähler erhalten – Diagnose nach Run 38061614856
+
+Der reale Erstlauf `38061614856/a1` auf
+`2901249a458d6d6ab83df176932f696e9b25aa55` erreichte erstmals die Original-Authtests,
+erhob **11 tatsächliche Samples** und bestätigte das eigene Cleanup. Er bleibt
+**FAILURE** mit `auth/process_exit/1`; eine vollständige Auth-/Ressourcenabnahme
+oder eine Langzeit-/Live-Abnahme folgt daraus nicht. Welche Tests scheiterten,
+ist bisher unbekannt: Der bestehende sichere Reporter schreibt nur Zähler, aber
+der Runner las sie bislang ausschließlich nach erfolgreichem Prozessende.
+
+Nach einem tatsächlich beobachteten Auth-ProcessExit bleiben vorhandene,
+streng geschlossene fehlgeschlagene Reporterzahlen jetzt separat als
+`auth_attempt` erhalten. Sie sind **keine** erfolgreiche `auth`-Abnahme.
+Keine Titel, Fehlertexte, Anhänge, URLs oder Secrets; maximal die sieben bisherigen
+Zahlen-/Boolfelder. Zähler sind echte Integer und begrenzt, Überzählung und ein
+widersprüchlicher Erfolg werden abgelehnt. Ein fehlender oder manipulierter Bericht
+erhält nur `auth_report` als feste Zusatzphase; die primäre tatsächliche Exitdiagnose
+bleibt zuerst. Nicht beendete Tests werden nicht als Erfolg oder als Null erfunden.
+
+Der unabhängige Gesamtreview bestätigte zunächst P2: Ein allgemeiner
+`ProcessExitError` kann auch aus Sampling stammen und beweist noch keinen Exit
+des Auth-Kindprozesses. Der tatsächliche `returncode` des eigenen gemessenen
+Kindprozesses erhält deshalb einen engen Untertyp. Nur diese Herkunft aktiviert
+`auth_attempt`; Sampling-/Stopfehler bleiben bei ihrer eigenen Phase und lesen
+keinen Authbericht. Weder Prozessstatusprüfung noch Fehlerprojektion ändern sich.
+Ein unveröffentlichter Snapshot des abgelehnten Zwischenstands bleibt erhalten.
+
+Vier echte Assertion-REDs in drei Methoden belegten zuerst den fehlenden Vertrag und
+die verlorenen Fehlversuchszähler; drei weitere echte Assertion-REDs belegten die
+Herkunftsgrenze. Die neuen Provenienztests durchlaufen den tatsächlichen gemockten
+`measured_command`-Pfad für Samplingfehler und eigenen Kindprozess-Exit.
+Final bestehen **68 Python- und 14 Mock-Node-Tests
+ohne Skips**; alle bisherigen 63 Pythonmethoden und sämtliche JS-Quellen bleiben
+unverändert. Es lief lokal kein echter Browser-, Docker- oder Authprozess.
+Originalspecs, Prozessstatusprüfung, 1500s-Authgrenze, maximal drei Fehler,
+Besitzprüfung, Cleanup und Ressourcen-/Netzgates ändern sich nicht. Dieser Zyklus
+verbessert zunächst nur die Diagnose; ein neuer serieller Hosted-Erstlauf bleibt
+an Freeze, unabhängigen Gesamtreview, exakten SHA/Tree/Parent und frische Proofs gebunden.
+
 ## Gruppierte Inspect-Ausdrücke – Quellenfix nach Run 38060250739
 
 Der tatsächliche neue Hosted-Erstlauf `38060250739/a1` auf

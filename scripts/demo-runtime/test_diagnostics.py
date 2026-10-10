@@ -18,6 +18,113 @@ MARKER = 'synthetic-private-error-must-not-escape'
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_actual_measured_auth_child_exit_has_distinct_provenance(self):
+        # Testzweck: Nur der wirklich gelesene returncode des eigenen gemessenen
+        # Auth-Kindprozesses aktiviert die Fehlversuchsprojektion, kein Sampling-Exit.
+        child_exit=getattr(runner,'MeasuredProcessExitError',None)
+        self.assertTrue(callable(child_exit),'Herkunft des gemessenen Kindprozess-Exits fehlt')
+        value=dict(total=16,passed=1,failed=1,skipped=14,interrupted=0,errors=0,success=False)
+        with self.synthetic_runtime() as rig:
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]!='node':return
+                (rig.root/'auth-result.json').write_text(json.dumps(value))
+                child=Mock(returncode=1);child.poll.side_effect=[1,1]
+                with patch.object(runner.subprocess,'Popen',return_value=child):
+                    runner.Rig.measured_command(rig,args,**kwargs)
+            rig.measured_command=Mock(side_effect=measured)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                [container(s) for s in BUDGETS],[]])
+            with self.assertRaises(child_exit) as raised:rig.run()
+            self.assertEqual(1,raised.exception.exit_code)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual(value,actual.get('auth_attempt'));self.assertNotIn('auth',actual)
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1)],actual['failures'])
+            self.assertFalse(actual['success']);self.assertTrue(actual['cleanup_complete'])
+
+    def test_actual_sampling_process_exit_is_not_an_auth_child_exit(self):
+        # Testzweck: Der echte measured_command→sample-Pfad kann einen Docker-Exit werfen,
+        # ohne den Auth-Kindprozessstatus beobachtet zu haben. Keine Auth-Zähler/-Reportphase erfinden.
+        for missing in (False,True):
+            with self.subTest(missing=missing),self.synthetic_runtime() as rig:
+                error=runner.ProcessExitError(29)
+                def measured(args,**kwargs):
+                    rig.report['sample_count']=1
+                    if args[0]!='node':return
+                    if missing:(rig.root/'auth-result.json').unlink()
+                    else:(rig.root/'auth-result.json').write_text(json.dumps(dict(
+                        total=16,passed=1,failed=1,skipped=14,interrupted=0,errors=0,success=False)))
+                    child=Mock();child.poll.side_effect=[None,0]
+                    rig.sample=Mock(side_effect=error)
+                    with patch.object(runner.subprocess,'Popen',return_value=child):
+                        runner.Rig.measured_command(rig,args,**kwargs)
+                rig.measured_command=Mock(side_effect=measured)
+                rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                    [container(s) for s in BUDGETS],[]])
+                with self.assertRaises(runner.ProcessExitError) as raised:rig.run()
+                self.assertIs(error,raised.exception)
+                actual=json.loads((rig.root/'report/resource-result.json').read_text())
+                self.assertNotIn('auth_attempt',actual);self.assertNotIn('auth',actual)
+                self.assertEqual([dict(phase='sampling',error='process_exit',exit_code=29)],actual['failures'])
+                self.assertFalse(actual['success']);self.assertTrue(actual['cleanup_complete'])
+
+    def test_failed_auth_attempt_accepts_only_closed_bounded_numbers(self):
+        # Testzweck: Fehlversuchszähler sind Diagnose, niemals eine erfolgreiche Authabnahme;
+        # freie Felder, Bool-Zähler, Überzählung und ein widersprüchlicher Erfolg bleiben geschlossen.
+        project=getattr(runner,'auth_attempt_result',None)
+        self.assertTrue(callable(project),'Geschlossene Auth-Fehlversuchsprojektion fehlt')
+        value=dict(total=16,passed=1,failed=1,skipped=14,interrupted=0,errors=0,success=False)
+        self.assertEqual(value,project(value,16))
+        self.assertEqual(value|{'passed':0,'failed':0,'skipped':0,'errors':1},
+            project(value|{'passed':0,'failed':0,'skipped':0,'errors':1},16))
+        for changed in [value|{'raw':MARKER},value|{'success':True},value|{'failed':True},
+            value|{'passed':17},value|{'failed':2},value|{'total':17},value|{'errors':10001}]:
+            with self.subTest(changed=list(changed)),self.assertRaises(ValueError):project(changed,16)
+
+    def test_actual_auth_exit_retains_failed_counts_and_still_cleans_up(self):
+        # Testzweck: Ein tatsächlicher Exit1 bleibt Fehler, während vorhandene sichere
+        # Reporterzahlen durch den echten Runpfad erhalten werden und Cleanup weiterläuft.
+        value=dict(total=16,passed=1,failed=1,skipped=14,interrupted=0,errors=0,success=False)
+        with self.synthetic_runtime() as rig:
+            error=runner.MeasuredProcessExitError(1)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    (rig.root/'auth-result.json').write_text(json.dumps(value));raise error
+            rig.measured_command=Mock(side_effect=measured)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                [container(s) for s in BUDGETS],[]])
+            with self.assertRaises(runner.ProcessExitError) as raised:rig.run()
+            self.assertIs(error,raised.exception)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual(value,actual.get('auth_attempt'))
+            self.assertNotIn('auth',actual)
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1)],actual['failures'])
+            self.assertFalse(actual['success']);self.assertTrue(actual['cleanup_complete'])
+
+    def test_failed_auth_report_problem_never_replaces_primary_or_leaks_raw(self):
+        # Testzweck: Fehlender/manipulierter Zahlenreport erhält nur seine feste Zusatzphase;
+        # der echte Exit und die unveränderte Besitzprüfung beim Cleanup bleiben zuerst.
+        for missing in (False,True):
+            with self.subTest(missing=missing),self.synthetic_runtime() as rig:
+                error=runner.MeasuredProcessExitError(1)
+                def measured(args,**kwargs):
+                    rig.report['sample_count']=1
+                    if args[0]=='node':
+                        if missing:(rig.root/'auth-result.json').unlink()
+                        else:(rig.root/'auth-result.json').write_text(json.dumps({'raw':MARKER}))
+                        raise error
+                rig.measured_command=Mock(side_effect=measured)
+                rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                    [container(s) for s in BUDGETS],[]])
+                with self.assertRaises(runner.ProcessExitError) as raised:rig.run()
+                self.assertIs(error,raised.exception)
+                raw=(rig.root/'report/resource-result.json').read_text();actual=json.loads(raw)
+                self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                    dict(phase='auth_report',error='io' if missing else 'validation',exit_code=None)],actual['failures'])
+                self.assertNotIn('auth_attempt',actual);self.assertNotIn('auth',actual)
+                self.assertNotIn(MARKER,raw);self.assertTrue(actual['cleanup_complete'])
+
     @contextlib.contextmanager
     def synthetic_runtime(self, start_error=False):
         """Nur eigene Tempdateien und Mocks; kein Docker-, Auth-, Git- oder Netzprozess."""

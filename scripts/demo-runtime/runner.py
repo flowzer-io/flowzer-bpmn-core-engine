@@ -36,7 +36,7 @@ INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','verify','stop','cleanup'} |
+    'pull','start','sampling','auth','auth_report','verify','stop','cleanup'} |
     {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
         'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
         'context_close','browser_close','proxy_close','allowed_close','marker_close']})
@@ -47,6 +47,14 @@ class ProcessExitError(ValueError):
     def __init__(self,code):
         super().__init__('Eigener Unterprozess endete unerwartet.')
         self.exit_code=code if type(code) is int and -128<=code<=255 else None
+
+
+class MeasuredProcessExitError(ProcessExitError):
+    """Nur der beobachtete returncode des eigenen measured_command-Kindprozesses.
+
+    Sampling-/Stop-Kommandos werfen weiterhin ProcessExitError ohne diese Herkunft.
+    Exitprojektion und Statusprüfung sind identisch; der Typ trennt nur Diagnosebesitz.
+    """
 
 
 class BrowserProbeError(ValueError):
@@ -125,6 +133,22 @@ def auth_result(value,expected=None):
         and value['success'] and value['total']>0 and value['passed']==value['total']
         and all(value[key]==0 for key in ['failed','skipped','interrupted','errors'])
         and (expected is None or value['total']==expected));return value
+
+
+def auth_attempt_result(value,expected):
+    """Geschlossene Zahlen eines gescheiterten Authversuchs, ausdrücklich KEINE Abnahme.
+
+    Bei globalem Setupfehler können noch nicht alle Tests ein Endereignis haben.
+    Solche fehlenden Ergebnisse werden nicht als bestanden, übersprungen oder null erfunden.
+    """
+    keys={'total','passed','failed','skipped','interrupted','errors','success'}
+    counts=keys-{'success','errors'}
+    require(type(expected) is int and 1<=expected<=10000
+        and type(value) is dict and set(value)==keys and value['success'] is False
+        and all(type(value[key]) is int and 0<=value[key]<=expected for key in counts)
+        and type(value['errors']) is int and 0<=value['errors']<=10000
+        and sum(value[key] for key in counts-{'total'})<=value['total'])
+    return value
 
 
 def egress_result(value):
@@ -329,7 +353,7 @@ class Rig:
                     raise DeadlineExceededError('Eigene Gesamtzeitgrenze überschritten.')
                 with self.phase('sampling'):self.sample()
                 time.sleep(1)
-            if process.returncode!=0:raise ProcessExitError(process.returncode)
+            if process.returncode!=0:raise MeasuredProcessExitError(process.returncode)
             with self.phase('sampling'):self.sample()
         except BaseException as error:
             self.note_failure(self.current_phase,error);raise
@@ -392,6 +416,30 @@ class Rig:
         self.report['fixture']=auth_result(proof.decode((self.root/'fixture/auth-result.json').read_bytes()),2)
         self.report['egress']=value;self.report['calibration_marker_assertion_red']=1
 
+    @diagnosed('auth')
+    def run_auth(self,auth):
+        """Originaltests unverändert; Exitfehler bleiben rot, sichere vorhandene Zähler erhalten.
+
+        Der optionale Fehlversuchsbericht darf weder den primären Exit ersetzen
+        noch Auth akzeptieren. Fehlender/manipulierter Report bleibt eine eigene
+        geschlossene Diagnose, Cleanup läuft im unveränderten äußeren finally.
+        """
+        try:
+            self.measured_command(['node',str(auth/'node_modules/playwright/cli.js'),'test',
+                '--config',str(auth/'playwright.config.js')],timeout=1500,cwd=auth)
+        except MeasuredProcessExitError as primary:
+            self.note_failure('auth',primary)
+            try:
+                output=self.root/'auth-result.json'
+                require(not output.is_symlink())
+                with output.open('rb') as stream:raw=stream.read(65537)
+                require(len(raw)<=65536)
+                self.report['auth_attempt']=auth_attempt_result(proof.decode(raw),16)
+            except Exception as diagnostic:
+                self.note_failure('auth_report',diagnostic)
+            raise
+        self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
+
     def run(self):
         """Ein beschränkter Authpilot; weder Backup/Restore noch Demo-/45min-Abnahme werden behauptet."""
         require(os.name=='posix' and os.uname().sysname=='Linux' and os.uname().machine=='x86_64')
@@ -421,8 +469,7 @@ class Rig:
                 rows=self.inventory();require(len(rows)==7 and {row['service'] for row in rows}==set(BUDGETS))
                 self.disk('after_start');self.env['FLOWZER_RUNTIME_REPORT']=str(self.root/'auth-result.json')
             with self.phase('auth'):
-                self.measured_command(['node',str(auth/'node_modules/playwright/cli.js'),'test','--config',str(auth/'playwright.config.js')],timeout=1500,cwd=auth)
-                self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
+                self.run_auth(auth)
             with self.phase('verify'):
                 rows=self.inventory();db=next(row for row in rows if row['service']=='db' and row['oneoff']=='False')
                 raw=self.command(['docker','exec',db['id'],'du','-sk','/var/lib/postgresql/data']).strip()
