@@ -33,7 +33,10 @@ INSPECT='{'+','.join('"'+key+'":{{json '+expression+'}}' for key,expression in C
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','verify','stop','cleanup'})
+    'pull','start','sampling','auth','verify','stop','cleanup'} |
+    {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
+        'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
+        'context_close','browser_close','proxy_close','allowed_close','marker_close']})
 
 
 class ProcessExitError(ValueError):
@@ -43,6 +46,12 @@ class ProcessExitError(ValueError):
         self.exit_code=code if type(code) is int and -128<=code<=255 else None
 
 
+class BrowserProbeError(ValueError):
+    """Nur bereits validierte eigene Stage-/Fehler-/Exitwerte, niemals fremde Roh-Ausnahmen."""
+    def __init__(self,code,exit_code):
+        super().__init__('Eigene Browserprobe fehlgeschlagen.');self.code=code;self.exit_code=exit_code
+
+
 class DeadlineExceededError(ValueError):
     """Unveränderte Gesamtzeitgrenze, aber als Timeout statt fachliche Validierung."""
 
@@ -50,12 +59,13 @@ class DeadlineExceededError(ValueError):
 def failure_projection(phase,error):
     """Geschlossener Fehlervertrag ohne str/repr, args, Rohdaten oder erfundene Null."""
     require(phase in PHASES)
-    code=('process_exit' if isinstance(error,ProcessExitError) else
+    code=(error.code if isinstance(error,BrowserProbeError) else
+        'process_exit' if isinstance(error,ProcessExitError) else
         'timeout' if isinstance(error,(subprocess.TimeoutExpired,DeadlineExceededError)) else
         'interrupted' if isinstance(error,(InterruptedError,KeyboardInterrupt)) else
         'validation' if isinstance(error,ValueError) else
         'io' if isinstance(error,OSError) else 'unknown')
-    return dict(phase=phase,error=code,exit_code=error.exit_code if isinstance(error,ProcessExitError) else None)
+    return dict(phase=phase,error=code,exit_code=error.exit_code if isinstance(error,(ProcessExitError,BrowserProbeError)) else None)
 
 
 def diagnosed(phase=None):
@@ -123,6 +133,32 @@ def egress_result(value):
         and value['calibrated'] is False and value['success'] is True
         and all(type(value[key]) is int and value[key]==1 for key in ones)
         and all(type(value[key]) is int and value[key]==0 for key in zeros));return value
+
+
+def calibration_probe_failures(value):
+    """Eigene optionale JS-Diagnosen strikt schließen; erwarteter Marker-Assert ist allein kein Fehler.
+
+    Ältere synthetische Quellenfixtures ohne die neue optionale Diagnose bleiben
+    kompatibel. Alle bisher verlangten Markerzahlen werden anschließend unverändert geprüft.
+    """
+    if 'failures' not in value:return []
+    rows=value['failures'];require(type(rows) is list and 1<=len(rows)<=3)
+    projected=[]
+    for row in rows:
+        require(type(row) is dict and set(row)=={'phase','error','exit_code'})
+        phase='browser_probe_'+row['phase'] if type(row['phase']) is str else ''
+        code=row['error'];status=row['exit_code']
+        require(phase in PHASES and phase.startswith('browser_probe_')
+            and code in ('process_exit','timeout','validation','io','unknown'))
+        require((code=='process_exit' and type(status) is int and -128<=status<=255)
+            or (code!='process_exit' and status is None))
+        projected.append((phase,BrowserProbeError(code,status)))
+    expected=dict(phase='redirect_ip_blocked',error='validation',exit_code=None)
+    # Absichtlicher echter Marker-RED ist genau der erste bekannte Assert; zusätzliche Closes bleiben Fehler.
+    if (rows[0]==expected and value['marker_assertion_red']==1 and value['marker_requests']==1
+            and value['positive_control_requests']==1 and value['allowed_page']==1 and not value['success']):
+        projected=projected[1:]
+    return projected
 
 
 def completed_container(row):
@@ -339,6 +375,10 @@ class Rig:
                 timeout=60,capture=False,accepted=1)
         with self.phase('browser_calibration_report'):
             value=proof.decode(calibration.read_bytes())
+            failures=calibration_probe_failures(value)
+            if failures:
+                for phase,error in failures:self.note_failure(phase,error)
+                raise failures[0][1]
             require(value['marker_assertion_red']==1 and value['marker_requests']==1
                 and value['positive_control_requests']==1 and value['allowed_page']==1 and not value['success'])
         self.command(['node',str(self.source/'scripts/demo-runtime/egress-probe.js'),str(self.root/'egress/egress-result.json')],timeout=60,capture=False)

@@ -1,5 +1,38 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Kalibrierungsinterner Zahlenbericht – Quellenfortsetzung nach Run38057493900
+
+Der tatsächlich neu ausgeführte Hosted-Erstlauf `38057493900/a1` auf
+`ca42f6bc9e484feefb00cd368f65b455407ee9f0` endete vor Runtime/Containern mit
+`browser_calibration_report/io/null`, null Samples und nicht bestätigtem Cleanup.
+Die Kalibrierung hatte einen tatsächlich beobachteten akzeptierten Exit1, danach
+fehlte der Bericht. Die konkrete JS-Ursache bleibt **unbekannt**; dieser Sourcefix
+ist zunächst nur ein gezielter Beobachtbarkeits-/Cleanupfix, kein Runtime-Erfolg.
+
+Die eigentlichen Probeimporte, der gepinnte Vertragscheck, synthetisches TLS und
+alle eigenen Closeversuche liegen nun innerhalb eines gemeinsamen geschützten
+Zahlenreportpfads. Jede eigene Ressource erhält auch nach einem anderen Closefehler
+ihren bisherigen Schließversuch. Primärursache bleibt zuerst; maximal drei feste
+Stage-/Fehler-/wirkliche Exitwerte, niemals Exceptiontexte oder TLSmaterial.
+Ein nicht beobachteter Zertifikatprozessstatus bleibt unknown/null. Der Marker-RED
+allein genügt nicht, wenn danach Cleanup scheitert. Die Python-Grenze akzeptiert
+nur feste eigene Stage-/Fehlerkategorien und weist freie Felder, unbekannte Phasen,
+Bool-Exitwerte, erfundene Status und übergroße Fehlerlisten geschlossen zurück.
+
+Vor Umsetzung belegten vier echte Node-Assertions und vier Python-Subfall-Assertions
+den fehlenden Bericht beziehungsweise die falsche Stufenprojektion; das sind
+acht eindeutige REDs, keine Roh-Importfehler oder doppelt gezählte Wiederholungen.
+Final bestehen **61 Python- und13 Mock-Node-Tests ohne Skips**; alle bisherigen
+58 Pythonmethoden/Assertions und acht Nodefälle bleiben unverändert erhalten.
+Zusätzliche Close-Regressionsfälle laufen nur gegen synthetische JS-Objekte, keine
+wirklichen Listener, Browser, Prozesse, Zertifikate oder Netzwerkziele.
+
+Workflow/Refguard, Publisher-/Produkt-/Original-Authquellen, Befehlsargumente und
+Zeit-/Ressourcen-/Netzgrenzen bleiben unverändert. Vor weiterem Push benötigt dieser
+Delta erneut unabhängigen Review und Root-Tree-Registrierung; der nächste Pilot
+ist ein neuer serieller Erstlauf auf seinem exakt bestätigten Source-SHA, kein
+Replay oder Rerun des fehlgeschlagenen ca42-Laufs.
+
 ## Serielle Pilotfortsetzung – 10. Oktober 2026
 
 Christian hat die Fortsetzung des isolierten GitHub-Hosted-Piloten bis zum

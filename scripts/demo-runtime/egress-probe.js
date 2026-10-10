@@ -7,9 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const { spawnSync } = require('node:child_process');
-const { chromium } = require('playwright');
 const { openProxy } = require('./loopback-proxy');
-const { installNetworkGuards } = require('./restricted-test');
 const BASE = 'https://flowzer.test:8443';
 
 function certificate() {
@@ -17,7 +15,11 @@ function certificate() {
   const result = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
     '-subj', '/CN=flowzer.test', '-keyout', '/dev/stdout', '-out', '/dev/stdout'],
   { encoding: 'utf8', timeout: 15000, maxBuffer: 65536, stdio: ['ignore', 'pipe', 'ignore'] });
-  assert.equal(result.status, 0, 'Synthetisches TLS-Fixture nicht verfügbar');
+  if (result.status !== 0) {
+    const error = new Error('Synthetisches TLS-Fixture nicht verfügbar');
+    error.numericExitCode = Number.isInteger(result.status) && result.status >= -128 && result.status <= 255 ? result.status : null;
+    error.probeProcessExit = true;throw error;
+  }
   const key = result.stdout.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA )?PRIVATE KEY-----/);
   const cert = result.stdout.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/);
   assert.ok(key && cert, 'Synthetisches TLS-Fixture unvollständig');
@@ -56,19 +58,37 @@ function calibratedLocalProxy(authority, port) {
   vm.runInNewContext(source, sandbox);
   return sandbox.module.exports.openProxy;
 }
+const FAILURE_PHASES = new Set(['modules','contract','certificate','fixture','browser','allowed',
+  'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
+  'context_close','browser_close','proxy_close','allowed_close','marker_close']);
+
+/** Geschlossene Ursachen; keine Exceptiontexte, Stacktraces, Argumente oder Zertifikatbytes. */
+function noteFailure(result, phase, error) {
+  assert.ok(FAILURE_PHASES.has(phase));result.success = false;
+  const code = error?.probeProcessExit === true && Number.isInteger(error.numericExitCode) ? 'process_exit' :
+    error?.code === 'ERR_ASSERTION' ? 'validation' : error?.name === 'TimeoutError' ? 'timeout' :
+    ['MODULE_NOT_FOUND','ENOENT','EACCES','EPERM','EADDRINUSE'].includes(error?.code) ? 'io' : 'unknown';
+  const exitCode = code === 'process_exit' && Number.isInteger(error.numericExitCode)
+    && error.numericExitCode >= -128 && error.numericExitCode <= 255 ? error.numericExitCode : null;
+  (result.failures ||= []).length < 3 && result.failures.push({ phase, error: code, exit_code: exitCode });
+}
 async function main() {
-  assert.equal(require('playwright/package.json').version,'1.59.1','Gepinnter Browservertrag fehlt');
-  for (const key of ['PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK','PW_TEST_CONNECT_WS_ENDPOINT',
-    'PW_TEST_CONNECT_HEADERS','PW_TEST_REUSE_CONTEXT','NODE_OPTIONS']) assert.ok(!process.env[key], 'Fremder Browsertransport nicht erlaubt');
   const output = path.resolve(process.argv[2] || '');
   assert.equal(path.basename(output),'egress-result.json','Geschlossener Reportpfad fehlt');
   assert.ok(!fs.existsSync(output),'Kein Reportoverwrite');
   const calibrate = process.argv[3] === '--calibrate-local-only';
   assert.ok(process.argv.length === 3 || (process.argv.length === 4 && calibrate), 'Unbekannter Probenmodus');
-  const tls = certificate();let markerRequests=0;let workerRequests=0;let marker;let allowed;let proxy;let browser;let phase='fixture';
+  let markerRequests=0;let workerRequests=0;let marker;let allowed;let proxy;let browser;let phase='modules';let primaryError;
   const result = { calibrated:calibrate, positive_control_requests:0, allowed_page:0, redirect_ip_blocked:0,
     redirect_host_blocked:0,direct_ip_blocked:0,websocket_blocked:0,serviceworker_blocked:0,marker_requests:0,marker_assertion_red:0,success:false };
   try {
+    // Auch Imports/Versionsvertrag/Zertifikat liegen im Berichtpfad: Exit1 alleine ist kein Marker-RED.
+    const { chromium } = require('playwright');
+    const { installNetworkGuards } = require('./restricted-test');
+    phase='contract';assert.equal(require('playwright/package.json').version,'1.59.1','Gepinnter Browservertrag fehlt');
+    for (const key of ['PLAYWRIGHT_DISABLE_FORCED_CHROMIUM_PROXIED_LOOPBACK','PW_TEST_CONNECT_WS_ENDPOINT',
+      'PW_TEST_CONNECT_HEADERS','PW_TEST_REUSE_CONTEXT','NODE_OPTIONS']) assert.ok(!process.env[key], 'Fremder Browsertransport nicht erlaubt');
+    phase='certificate';const tls = certificate();phase='fixture';
     marker = await listener(tls,0,(_request,response)=> { markerRequests+=1;response.writeHead(200);response.end('owned-marker'); });
     await ownMarkerControl(marker.port);assert.equal(markerRequests,1,'Marker kontrolliert erreichbar');
     result.positive_control_requests=markerRequests;markerRequests=0;
@@ -83,7 +103,7 @@ async function main() {
     const open = calibrate ? calibratedLocalProxy(`127.0.0.1:${marker.port}`,marker.port) : openProxy;
     proxy = await open();
     const proxyOptions = {server:proxy.server,bypass:proxy.bypass};
-    browser = await chromium.launch({headless:true,proxy:proxyOptions,args:['--disable-background-networking',
+    phase='browser';browser = await chromium.launch({headless:true,proxy:proxyOptions,args:['--disable-background-networking',
       '--disable-component-update','--disable-quic','--force-webrtc-ip-handling-policy=disable_non_proxied_udp']});
     const context = await browser.newContext({proxy:proxyOptions,ignoreHTTPSErrors:true,serviceWorkers:'block'});
     const blocked = await installNetworkGuards(context);let page=await context.newPage();
@@ -109,21 +129,23 @@ async function main() {
     phase='serviceworker';const sw=await page.evaluate(async()=> { const registration=await navigator.serviceWorker.register('/worker.js');
       return { registered:registration!==undefined, existing:(await navigator.serviceWorker.getRegistrations()).length }; });
     assert.deepEqual(sw,{registered:false,existing:0});assert.equal(workerRequests,0);assert.equal(markerRequests,0);result.serviceworker_blocked=1;
-    await context.close();result.success=true;
+    phase='context_close';await context.close();result.success=true;
   } catch (error) {
-    result.failure_phase=phase;result.assertion_failed=error.code==='ERR_ASSERTION';
-    result.failure_source=error.message.startsWith('page.evaluate:')?'evaluation':(error.message.startsWith('page.goto:')?'navigation':'closed_other');
+    noteFailure(result,phase,error);primaryError=error;
     // Nur der konkrete numerische Marker-Assert zählt als rote Negativkalibrierung.
     if (error.code === 'ERR_ASSERTION' && error.actual > 0 && error.expected === 0
       && error.message.startsWith('Verbotener eigener Marker erhielt einen Request')) result.marker_assertion_red=1;
-    throw error;
   } finally {
-    if (browser) await browser.close();if (proxy) await proxy.close();
-    if (allowed) await allowed.close();if (marker) await marker.close();
+    // Jeder eigene Besitz erhält seinen Schließversuch; ein Closefehler verhindert weder weitere Closes noch den Beleg.
+    for (const [owned, closePhase] of [[browser,'browser_close'],[proxy,'proxy_close'],
+      [allowed,'allowed_close'],[marker,'marker_close']]) {
+      if (owned) { try { await owned.close(); } catch (error) { noteFailure(result,closePhase,error);primaryError ||= error; } }
+    }
     result.marker_requests=markerRequests;
-    // Endlicher, eigener Zahlenreport, auch bei Fehlern. Keine Browserexceptions/URLs/TLSmaterial persistieren.
+    // Endlicher eigener Zahlenreport, auch bei Vorstufen-/Closefehlern; keine Roh- oder TLSmaterialien.
     fs.writeFileSync(output,JSON.stringify(result)+'\n',{flag:'wx',mode:0o600});
   }
+  if (primaryError) throw primaryError;
 }
 module.exports = { certificate, listener };
 if (require.main === module) main().then(()=>process.stdout.write('Hermetische Chromium-Grenzprobe erfolgreich.\n')).catch(()=> {

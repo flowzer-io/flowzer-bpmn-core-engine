@@ -347,6 +347,36 @@ class BrowserPreflightTests(unittest.TestCase):
                 self.assertEqual({'PATH','HOME','DOCKER_CONFIG','PLAYWRIGHT_BROWSERS_PATH','CI','NODE_PATH'}|
                     ({'FLOWZER_RUNTIME_REPORT'} if row is calls[-1] else set()),set(row['env']))
 
+    def test_calibration_closed_substage_failures_are_projected(self):
+        # Testzweck: Akzeptierter Exit1 erhält nur geschlossene echte JS-Vorstufen, nie Rohfehler oder Marker-RED.
+        cases=[('modules','io',None),('contract','validation',None),('certificate','process_exit',2)]
+        for phase,error,exit_code in cases:
+            with self.subTest(phase=phase),self.preflight(calibration_change=dict(marker_assertion_red=0,
+                    marker_requests=0,positive_control_requests=0,allowed_page=0,
+                    failures=[dict(phase=phase,error=error,exit_code=exit_code)])) as (rig,auth,calls,*_):
+                with self.assertRaises(ValueError):rig.browser_preflight(auth)
+                self.assert_failure(rig,calls,'browser_probe_'+phase,error,exit_code)
+
+    def test_calibration_marker_red_never_hides_cleanup_failure(self):
+        # Testzweck: Erwarteter Marker-Assert ist kein Cleanup-Go; zusätzlicher Schließfehler bleibt echte Ursache.
+        failures=[dict(phase='redirect_ip_blocked',error='validation',exit_code=None),
+            dict(phase='browser_close',error='io',exit_code=None)]
+        with self.preflight(calibration_change=dict(failures=failures)) as (rig,auth,calls,*_):
+            with self.assertRaises(ValueError):rig.browser_preflight(auth)
+            self.assert_failure(rig,calls,'browser_probe_browser_close','io')
+
+    def test_probe_failure_fields_remain_closed_and_bounded(self):
+        # Testzweck: Freie Phasen, Texte, Bool-/erfundene Exitwerte und mehr als drei Fehler öffnen keine Folgeprobe.
+        valid=dict(phase='modules',error='io',exit_code=None)
+        for failures in [[valid|dict(phase='never-save-private')],[valid|dict(error='never-save-private')],
+                [valid|dict(raw='never-save-private')],[valid|dict(exit_code=True)],
+                [valid|dict(error='process_exit',exit_code=None)],[valid]*4]:
+            with self.subTest(failures=failures),self.preflight(calibration_change=dict(marker_assertion_red=0,
+                    marker_requests=0,failures=failures)) as (rig,auth,calls,*_):
+                with self.assertRaises(ValueError):rig.browser_preflight(auth)
+                self.assert_failure(rig,calls,'browser_calibration_report','validation')
+                self.assertNotIn('never-save-private',runner.json.dumps(rig.report))
+
     def test_later_report_io_keeps_outer_browser_phase(self):
         # Testzweck: Kalibrierungsunterphasen enden nach ihrer Operation und etikettieren spätere I/O nicht um.
         for missing,count in [('egress',4),('fixture',5)]:
