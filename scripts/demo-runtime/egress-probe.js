@@ -11,9 +11,11 @@ const { openProxy } = require('./loopback-proxy');
 const BASE = 'https://flowzer.test:8443';
 
 function certificate() {
+  // Node-Spawn-Pipes sind keine per /dev/stdout wieder öffnungsfähigen Unixdateien.
+  // OpenSSLs Sentinel "-" verwendet den bestehenden stdout-Stream direkt; kein Dateipfad/Fallback.
   // stdout wird nicht protokolliert: Schlüssel und Zertifikat liegen nur in diesem Prozess.
   const result = spawnSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-    '-subj', '/CN=flowzer.test', '-keyout', '/dev/stdout', '-out', '/dev/stdout'],
+    '-subj', '/CN=flowzer.test', '-keyout', '-', '-out', '-'],
   { encoding: 'utf8', timeout: 15000, maxBuffer: 65536, stdio: ['ignore', 'pipe', 'ignore'] });
   if (result.status !== 0) {
     const error = new Error('Synthetisches TLS-Fixture nicht verfügbar');

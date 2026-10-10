@@ -123,3 +123,26 @@ test('Marker-RED verbirgt keine Closefehler und jeder eigene Besitz erhält sein
       ...errors.slice(0,2).map(name=>({phase:name+'_close',error:'io',exit_code:null}))]);
   }
 });
+
+test('Synthetisches TLS-Fixture schreibt nur über den OpenSSL-Stdout-Sentinel in den RAM-Pipe', () => {
+  // Testzweck: Kein echter Prozess/Schlüssel; /dev/stdout darf bei Node-Pipes niemals als Datei wieder geöffnet werden.
+  const material='-----BEGIN PRIVATE KEY-----\nsynthetic-not-a-key\n-----END PRIVATE KEY-----\n'
+    +'-----BEGIN CERTIFICATE-----\nsynthetic-not-a-certificate\n-----END CERTIFICATE-----';
+  const seen=[];
+  const sandbox={process:{env:{},argv:[]},module:{exports:{}},Set,Promise,Error,require:name=>{
+    if(name==='node:assert/strict')return assert;
+    if(name==='node:path')return path;
+    if(name==='node:child_process')return {spawnSync:(command,args,options)=>{
+      seen.push({command,args:JSON.parse(JSON.stringify(args)),options:JSON.parse(JSON.stringify(options))});
+      return {status:0,stdout:material};
+    }};
+    if(name==='node:fs'||name==='node:https'||name==='node:vm')return {};
+    if(name==='./loopback-proxy')return {openProxy:()=>assert.fail('Kein Listener')};
+    assert.fail('Kein Package-/Browserimport bei reiner Zertifikat-Unit');
+  }};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'egress-probe.js'),'utf8'),sandbox);
+  const result=sandbox.module.exports.certificate();assert.ok(result.key&&result.cert);
+  assert.deepEqual(seen,[{command:'openssl',args:['req','-x509','-newkey','rsa:2048','-nodes','-days','1',
+    '-subj','/CN=flowzer.test','-keyout','-','-out','-'],options:{encoding:'utf8',timeout:15000,
+    maxBuffer:65536,stdio:['ignore','pipe','ignore']}}]);
+});

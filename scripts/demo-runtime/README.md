@@ -1,5 +1,31 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Synthetisches Zertifikat ohne Descriptor-Datei – Quellenfix nach Run38059398637
+
+Der tatsächliche folgende Erstlauf `38059398637/a1` auf
+`75cb951380d019071a9cc1b40bb315f9e7512373` endete nun mit der beobachteten
+Diagnose `browser_probe_certificate/process_exit/1`: Der synthetische
+OpenSSL-Zertifikatprozess lieferte Exit1. Runtime und Auth starteten nicht;
+null Samples und nicht bestätigtes Cleanup bleiben ein Fehlernachweis.
+
+Der bisherige Aufruf gab für Key und Zertifikat `/dev/stdout` als **Dateiname**
+an. Node dokumentiert ausdrücklich, dass seine Spawn-Pipes nicht über solche
+Descriptor-Dateien wieder geöffnet werden können ([Node stdio](https://nodejs.org/docs/latest-v22.x/api/child_process.html#optionsstdio)).
+Der feste OpenSSL-Sentinel `-` verwendet dagegen für beide Ausgaben den bereits
+geöffneten Stdout-Stream ([OpenSSL bio_open_owner/bio_open_default](https://github.com/openssl/openssl/blob/openssl-3.0.13/apps/lib/apps.c#L2842-L2942)).
+Nur diese zwei Argumentwerte ändern sich. Kein Dateifallback, keine privaten
+Schlüsseldateien, kein zusätzlicher Prozess, kein stderr-/Materiallog, keine
+Änderung an RSA2048, einem Tag Gültigkeit, Subject, Timeout15s oder Buffer64KiB.
+
+Eine neue Mock-Node-Unit belegte zuerst **ein echtes Assertion-RED** für die
+vollständige Spawnargument-/Optionsbindung. Final bestehen **61 Python- und14
+Mock-Node-Tests ohne Skips**; alle bisherigen Methoden/Assertions bleiben
+unverändert. Kein echter OpenSSL-, Browser-, Socket- oder Dockerlauf lokal.
+Der bekannte API-Vertragsfehler ist damit source-only korrigiert; ob er den
+beobachteten Exit1 vollständig erklärt und der neue Pilot weiterkommt, wird
+nicht vor seinem tatsächlichen neuen Hosted-Lauf behauptet. Neue Source-Freeze,
+unabhängiger Review und exakte Root-Registrierung bleiben vor Push/Dispatch nötig.
+
 ## Kalibrierungsinterner Zahlenbericht – Quellenfortsetzung nach Run38057493900
 
 Der tatsächlich neu ausgeführte Hosted-Erstlauf `38057493900/a1` auf
