@@ -525,7 +525,7 @@ python3 scripts/demo-runtime/test_workflow.py
 node --test scripts/demo-runtime/test_helpers.js scripts/demo-runtime/test_proxy.js
 ```
 
-Aktuell **40 Python- plus8 Node-Unitfälle**, echte YAML-Parsing-/JS-Syntaxprüfungen,
+Historische Ausgangsbelege: **40 Python- plus 8 Node-Unitfälle**, echte YAML-Parsing-/JS-Syntaxprüfungen,
 keine Skips. Test-first belegte Assertion-REDs für Limits/Eigentümerlabels,
 Browserflags, manuelle Workflowgrenzen, aktuelle Runbindung, RAM-/Leerprüfung und
 Egressreportprojektion. Frühe Proof-/Runner-Stubs hatten zusätzlich erwartete
@@ -542,8 +542,10 @@ ein später eigener OOM kann kein erfolgreiches Artefakt mehr ergeben.
 Separat tatsächlich lokal ausgeführt: echte Chromium-Positiv-/Mutation-/Negativ-
 Proben und zwei echte Fixturetests mit synthetischen eigenen Listenern. **Kein**
 Flowzer, PostgreSQL, Keycloak, realer TT/IdP, Imagepull, Docker oder Workflowdispatch.
-Die Registry-/GitHub-Freshnessfunktion und Runnerorchestrierung sind noch **nicht
-live ausgeführt**; ihre Offlinefälle mocken Metadaten beziehungsweise Docker.
+Diese Aussage betrifft die historischen Ausgangsbelege. Mittlerweile wurden
+Registry-/GitHub-Freshness und Runnerorchestrierung in getrennten SHA-gebundenen
+Hosted-Erstläufen tatsächlich ausgeführt; die lokalen Offlinefälle bleiben Mocks.
+Alle bisherigen Hosted-Erstläufe sind weiterhin FAILURE, keine Installation.
 
 API512MiB/PG256MiB/Console64MiB (832MiB) sind Schutzlimits, **kein Bedarf**.
 Migration512MiB, Test-Keycloak768MiB, Proxy64MiB, Init32MiB sowie der zusätzliche
@@ -555,3 +557,69 @@ Dieser Authpilot allein ersetzt weder Backup-/Restorepeak, TT-Spitzenlast,
 Abnahmegates vor einer Installation auf dem derzeit RAM-knappen dev01 oder einer
 menschlichen Ressourcenentscheidung. Schutzlimits werden bei roten Tests nicht
 still erhöht, Sandbox-/TLS-/Authschutz wird nicht gelockert.
+
+
+## Eng freigegebener transparenter Hosted-Relay (noch keine Runtime-Abnahme)
+
+Run `38093109275/a1` auf `1e4f9975791458fe67feacb4a326b3030d3473c8`
+belegt im geschlossenen Zahlenartefakt: eigener TLS-Container läuft ohne Neustart,
+konfigurierte Loopback-Portbindung 1, tatsächlich veröffentlichte Bindungen 0,
+genau ein eigenes internes Netz. Die vorhandene Discovery-Anfrage hatte
+`ECONNREFUSED` (fester Transportcode 3), keinen HTTP-Status; Auth-Exit 1 und
+Fehltestordinal 2 bleiben FAILURE. 10 tatsächliche diskrete Samples und eigenes
+vollständiges Cleanup sind belegt, nicht die übrigen 14 Testendresultate.
+
+Die ausdrücklich freigegebene Transportkorrektur behält `internal: true` und alle
+Original-Node-/Browser-/CA-/Issuer-/PKCE-/Redirect-/Egress-Assertions. Docker erlaubt
+Hostprozessen Zugriff auf eine normale interne Bridge; das ist nur die Grundlage
+für den Vorschlag, kein Erfolgsbeweis des neuen Relays:
+[Docker: interne Bridge und Hostzugriff](https://docs.docker.com/engine/network/port-publishing/).
+Der eng formatierte Netzwerk-Inspect folgt dem typisierten Docker-Inspect-Vertrag,
+[CLI-Quellcode](https://github.com/docker/cli/blob/v28.4.0/cli/command/inspect/inspector.go)
+und [Netzwerktypen](https://github.com/moby/moby/blob/v28.4.0/api/types/network/network.go).
+
+Der eigene einzelne `relay.py`-Kindprozess bindet nur `127.0.0.1:8443` und leitet
+opaque Bytes nach der frisch auditierten eigenen privaten TLS-CID-IP auf Port 8443.
+Vorher prüfen zwei enge Container-/Netz-Inspects erneut CID, beide Eigentümerlabels,
+Dienst/Oneoff, Image-/Config-Digest, RAM/CPU/Swap, Running/Exit/Restart/OOM,
+einziges Netz, interne Bridge, Netz-/Endpoint-ID und eigene IP/Subnetzzuordnung.
+Adressen und Identitäten bleiben ausschließlich im RAM; die Zieladresse kommt
+nur per eigener Pipe, nicht aus freien CLI-/Environment-Parametern. Kein DNS,
+Zusatznetz, Probe-Request, TLS-Terminieren, Payload-/Fehler-/Konfigurationslog,
+Docker-Daemon-/iptables-/Publisher-/Produktivsystemeingriff. Belegter Listenport
+ist ein Fehler, niemals eine Aktion gegen fremde Prozesse.
+
+Feste zusätzliche Grenzen: ein Selector, keine Threads/Forks, 8 Socketpaare,
+64 KiB Buffer je Richtung, 16 KiB Reads, 5 s Connect, 30 s Idle, 1500 s Gesamtleben.
+Das Kind hat 64 MiB Adressraum, 30 CPU-Sekunden, 32 FDs und deaktivierte Core-Dumps.
+Es wird vor Docker-Cleanup im eigenen TERM/5s/KILL-Lebenszyklus geschlossen; der
+vorhandene Auth-Timeout und Max3-Vertrag bleiben erhalten. Einzelne inaktive
+Keepalive-Verbindungen dürfen nur innerhalb der eigenen festen Grenze schließen.
+
+Tatsächlicher Relay-Peak-RSS und CPU-Millis werden in `relay` separat gespeichert.
+`peak_memory_with_relay_upper_bound_bytes` ist die Summe aus tatsächlichem diskretem
+Docker-cgroup-Peak und eigenem Relay-RSS-Peak: konservative verschiedenzeitige
+Peakaddition, keine synchrone kontinuierliche Gesamtmessung. Fehlender Relay-
+Read-back bleibt unbekannt und rot, niemals erfundene Null. Unveränderte
+Containerlimits allein wären ausdrücklich kein unveränderter Gesamtbedarf.
+
+Neue Vertragsfälle sind ausschließlich Mock-/synthetische Bytetests. Historische
+82 Pythonmethoden und 21 Mock-Nodefälle bleiben bytegleich; für deren bereits
+vollständig gemockte alte Run-Orchestrierung wird nur die neue Transportabhängigkeit
+im gebundenen lokalen Testreader gestubbt. Separate neue Fälle prüfen echten
+Session-/Run-/Ownership-/Timeout-/Closekontrollfluss und opaque Partialwrites,
+Backpressure/EOF, feste Ressourcen und Fail-closed. Ein nativer Relay-/TLS-/Auth-
+Erfolgsnachweis steht bis zum neuen unabhängig geprüften Hosted-Erstlauf offen.
+
+
+### Relay-Reviewnacharbeit (weiterhin Source-only)
+
+Der erste Relay-Whole-Freeze bleibt archiviert und wurde nie gepusht oder ausgeführt.
+Zwei bestätigte P2 sind mit tatsächlichen gemockten Kontrollfluss-REDs nachgearbeitet:
+Eine echte `relay_close`-Ursache erhält bei Max3 wie Stop/Cleanup ausschließlich
+einen sekundären optionalen Berichtsplatz; Index0 und echte Runtimeursachen bleiben.
+Ein Selector-Batch darf nach legitimer Reset-/BrokenPipe-Beendigung keine bereits
+gelieferten weiteren Keys dieses Paares verarbeiten. Drop ist idempotent, alle
+eigenen Socket-Closes werden auch bei erster Ausnahme versucht und andere Paare
+werden weiter bedient. Fehlerklassen, feste Ziele, Ressourcen-/Zeit-/TLS-/Auth-/
+Netz-/Cleanupgrenzen und Originalassertions bleiben unverändert.

@@ -13,6 +13,8 @@ import http.client
 import os
 from pathlib import Path
 import re
+import ipaddress
+import select
 import shutil
 import signal
 import socket
@@ -36,7 +38,7 @@ INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','auth_report','discovery_report','loopback_report','verify','stop','cleanup'} |
+    'pull','start','sampling','auth','auth_report','discovery_report','loopback_report','relay_start','relay_monitor','relay_close','verify','stop','cleanup'} |
     {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
         'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
         'context_close','browser_close','proxy_close','allowed_close','marker_close']})
@@ -123,6 +125,36 @@ def resource_row(row,project,kind):
     names=({'default'} if kind=='network' else {'ca-public','tls-material','db-data','keyring'})
     require(row['name'] in {project+'_'+name for name in names}
         and (kind!='network' or row['internal'] is True));return True
+
+
+def relay_container_inspect(project):
+    """Nur eigener eng formatierter TLS-Endpoint; Adressen ausschließlich im RAM."""
+    require(type(project) is str and re.fullmatch('flowzer-runtime-[1-9][0-9]{0,19}-a1',project) is not None)
+    endpoint='index .NetworkSettings.Networks "'+project+'_default"'
+    return INSPECT[:-1]+',"network_count":{{json (len .NetworkSettings.Networks)}}'+''.join(
+        ',"'+key+'":{{with ('+endpoint+')}}{{json .'+field+'}}{{else}}null{{end}}'
+        for key,field in [('network_id','NetworkID'),('network_ipv4','IPAddress'),('endpoint_id','EndpointID')])+'}'
+
+
+def relay_network_inspect(cid):
+    """Nur eigenes Netz und exakt dessen zuvor gebundener TLS-CID, kein Containerdump."""
+    require(type(cid) is str and re.fullmatch('[0-9a-f]{64}',cid) is not None)
+    columns={'name':'.Name','project':'index .Labels "com.docker.compose.project"',
+        'owner':'index .Labels "io.flowzer.runtime.owner"','internal':'.Internal',
+        'id':'.Id','driver':'.Driver'}
+    return '{'+','.join('"'+k+'":{{json ('+v+')}}' for k,v in columns.items())         + ',"subnet":{{if eq (len .IPAM.Config) 1}}{{json (index .IPAM.Config 0).Subnet}}{{else}}null{{end}}'         + ''.join(',"'+key+'":{{with (index .Containers "'+cid+'")}}{{json .'+field+'}}{{else}}null{{end}}'
+            for key,field in [('container_ipv4','IPv4Address'),('endpoint_id','EndpointID')])+'}'
+
+
+def relay_result(value):
+    """Eigene echte Relay-Ressourcen separat ausweisen; kein impliziter Null-/Containerbeleg."""
+    limits=dict(address_space_limit_bytes=64*1024**2,cpu_limit_seconds=30,fd_limit=32,
+        max_pairs=8,buffer_bytes_per_direction=65536,lifetime_seconds=1500)
+    require(type(value) is dict and set(value)==set(limits)|{'closed','peak_rss_bytes','cpu_millis'}
+        and value['closed'] is True and all(type(value[k]) is int and value[k]==v for k,v in limits.items())
+        and type(value['peak_rss_bytes']) is int and 0<value['peak_rss_bytes']<=limits['address_space_limit_bytes']
+        and type(value['cpu_millis']) is int and 0<=value['cpu_millis']<=30000)
+    return value
 
 
 def auth_result(value,expected=None):
@@ -286,7 +318,7 @@ class Rig:
         self.report={'success':False,'runtime_started':False,'cleanup_complete':False,
             'sample_count':0,'samples_are_discrete':True,'container_reads_are_sequential':True,
             'oom_observed':False,'peak_memory_bytes_approx':0,'per_service':{},'disk':{}}
-        self.owned=False;self.startup_tls_id=None
+        self.owned=False;self.startup_tls_id=None;self.relay_process=None
         self.current_phase='preflight';self.failure_ids=set();self.report['failures']=[]
         # Childumgebung ist eine Whitelist: kein GH-/Cloud-/IdP-/Vaulttoken in Browser oder Containerstarts.
         self.env={key:os.environ[key] for key in ['PATH','LANG','LC_ALL'] if key in os.environ}
@@ -298,7 +330,7 @@ class Rig:
         """Erste Ursache plus Stop/Cleanup innerhalb Max3; nur Identitätsnummern im Speicher.
 
         Optionale Zahlenberichtdiagnosen dürfen die spätere echte Stop-/Cleanup-
-        Ursache nicht verdrängen. Nur ein solcher Zusatzplatz (nie Index0 oder
+        oder eigene Relay-Closeursache nicht verdrängen. Nur ein solcher Zusatzplatz (nie Index0 oder
         eine echte Runtimeursache) wird bei Bedarf freigemacht; Aktionen, Exit-
         entscheidung und Reihenfolge der verbliebenen Ursachen bleiben gleich.
         """
@@ -306,7 +338,7 @@ class Rig:
         if id(error) in self.failure_ids:return
         rows=self.report['failures'];replace=None
         if len(rows)>=3:
-            if phase not in ('stop','cleanup'):return
+            if phase not in ('stop','cleanup','relay_close'):return
             replace=next((index for index in range(len(rows)-1,0,-1)
                 if rows[index]['phase'] in ('auth_report','discovery_report','loopback_report')),None)
             if replace is None:return
@@ -425,6 +457,10 @@ class Rig:
         try:
             deadline=time.monotonic()+timeout
             while process.poll() is None:
+                if self.relay_process is not None:
+                    with self.phase('relay_monitor'):
+                        code=self.relay_process.poll()
+                        if code is not None:raise ProcessExitError(code)
                 if not time.monotonic()<deadline:
                     raise DeadlineExceededError('Eigene Gesamtzeitgrenze überschritten.')
                 with self.phase('sampling'):self.sample()
@@ -491,6 +527,103 @@ class Rig:
         self.command(['node',str(cli),'test','--config',str(self.source/'scripts/demo-runtime/fixture-probe.config.js')],timeout=90,capture=False)
         self.report['fixture']=auth_result(proof.decode((self.root/'fixture/auth-result.json').read_bytes()),2)
         self.report['egress']=value;self.report['calibration_marker_assertion_red']=1
+
+    def relay_target(self):
+        """Frisch doppelt gebundene eigene private IP, kein freier Zielparameter oder DNS.
+
+        Container und Netz werden erneut vollständig an Labels/Digests/Limits,
+        laufenden unrestarteten TLS-CID und denselben einzelnen Endpoint gebunden.
+        Nur diese eigene IP verbleibt im RAM; kein Netz-/Konfigurationsdump im Report.
+        """
+        cid=self.startup_tls_id
+        require(type(cid) is str and re.fullmatch('[0-9a-f]{64}',cid) is not None)
+        raw=self.command(['docker','inspect','--type','container','--format',relay_container_inspect(self.project),cid])
+        require(len(raw.encode())<=4096);row=proof.decode(raw.encode())
+        require(type(row) is dict and set(row)==set(COLUMNS)|{'network_count','network_id','network_ipv4','endpoint_id'})
+        state=self.audited_container({key:row[key] for key in COLUMNS})
+        require(row['id']==cid and state['service']=='tls' and not state['oneoff']
+            and state['running'] and not state['oom'] and state['exit_code']==state['restarts']==0
+            and type(row['network_count']) is int and row['network_count']==1
+            and type(row['network_id']) is str and re.fullmatch('[0-9a-f]{64}',row['network_id']) is not None
+            and type(row['endpoint_id']) is str and re.fullmatch('[0-9a-f]{64}',row['endpoint_id']) is not None
+            and type(row['network_ipv4']) is str)
+        address=ipaddress.IPv4Address(row['network_ipv4'])
+        private=tuple(ipaddress.ip_network(x) for x in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16'))
+        require(str(address)==row['network_ipv4'] and any(address in network for network in private))
+        raw=self.command(['docker','network','inspect','--format',relay_network_inspect(cid),row['network_id']])
+        require(len(raw.encode())<=2048);net=proof.decode(raw.encode())
+        require(type(net) is dict and set(net)=={'name','project','owner','internal','id','driver','subnet','container_ipv4','endpoint_id'})
+        resource_row({k:net[k] for k in ('name','project','owner','internal')},self.project,'network')
+        require(net['id']==row['network_id'] and net['driver']=='bridge' and net['endpoint_id']==row['endpoint_id']
+            and type(net['subnet']) is str and type(net['container_ipv4']) is str)
+        network=ipaddress.IPv4Network(net['subnet']);endpoint=ipaddress.IPv4Interface(net['container_ipv4'])
+        require(any(network.subnet_of(allowed) for allowed in private) and address in network
+            and endpoint.ip==address and endpoint.network==network
+            and address not in (network.network_address,network.broadcast_address))
+        return str(address)
+
+    def relay_ready(self,process):
+        """Harte fünfsekündige eigene Pipegrenze auch bei partieller Readinesszeile."""
+        fd=process.stdout.fileno();data=bytearray();deadline=time.monotonic()+5
+        os.set_blocking(fd,False)
+        try:
+            while not data.endswith(b'\n'):
+                remaining=deadline-time.monotonic()
+                if remaining<=0:raise TimeoutError('Eigene Relay-Startgrenze.')
+                ready,_,_=select.select([process.stdout],[],[],remaining)
+                if not ready:raise TimeoutError('Eigene Relay-Startgrenze.')
+                try:part=os.read(fd,1025-len(data))
+                except BlockingIOError:continue
+                require(bool(part));data.extend(part);require(len(data)<=1024)
+            value=proof.decode(bytes(data))
+            require(type(value) is dict and set(value)=={'ready'} and value['ready'] is True)
+        finally:os.set_blocking(fd,True)
+
+    @contextmanager
+    def transport_session(self):
+        """Eigener Relay lebt nur um Auth, wird garantiert VOR Docker-Cleanup geschlossen.
+
+        Readiness ist allein der tatsächliche eigene bind(), keine zusätzliche
+        TCP-/HTTP-Probe. Ein belegter Port wird weder übernommen noch freigeschossen.
+        Relay-Ausgaben bleiben zwei streng geschlossene Zahlen-/Boolean-Pipezeilen.
+        """
+        process=None
+        try:
+            with self.phase('relay_start'):
+                address=self.relay_target()
+                process=subprocess.Popen(['python3','-I','-B',str(self.source/'scripts/demo-runtime/relay.py')],
+                    env=self.env,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,start_new_session=True)
+                self.relay_process=process
+                process.stdin.write(json.dumps({'address':address}).encode()+b'\n');process.stdin.close();process.stdin=None
+                self.relay_ready(process)
+                require(process.poll() is None)
+            yield
+        finally:
+            if process is not None:
+                # Einmalige eigene TERM/5s/KILL-Beendigung; nicht den fremden Listenport anfassen.
+                with self.phase('relay_close'):
+                    try:
+                        if process.poll() is None:
+                            os.killpg(process.pid,signal.SIGTERM)
+                        try:raw,_=process.communicate(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            self.stop_process(process);raise
+                        require(len(raw)<=1024)
+                        if process.returncode!=0:raise ProcessExitError(process.returncode)
+                        self.report['relay']=relay_result(proof.decode(raw))
+                        if 'peak_memory_bytes' in self.report:
+                            # Summe zweier verschiedenzeitiger echter Peaks: konservative
+                            # Ergänzung, ausdrücklich kein synchron beobachteter Gesamtpeak.
+                            self.report['peak_memory_with_relay_upper_bound_bytes']=self.report['peak_memory_bytes'] \
+                                + self.report['relay']['peak_rss_bytes']
+                    finally:
+                        # Auch Pipe-/Readinessfehler dürfen keinen eigenen Kindprozess hinterlassen.
+                        try:
+                            if process.poll() is None:self.stop_process(process)
+                        finally:
+                            for stream in (process.stdin,process.stdout):
+                                if stream is not None:stream.close()
+                            self.relay_process=None
 
     def tls_loopback_snapshot(self):
         """Genau ein Format-Inspect des beim Start gebundenen eigenen TLS-CIDs.
@@ -584,8 +717,9 @@ class Rig:
                 # Nur RAM-CID aus der bereits vollständig geprüften eigenen Startinventur.
                 self.startup_tls_id=next(row['id'] for row in rows if row['service']=='tls')
                 self.disk('after_start');self.env['FLOWZER_RUNTIME_REPORT']=str(self.root/'auth-result.json')
-            with self.phase('auth'):
-                self.run_auth(auth)
+            with self.transport_session():
+                with self.phase('auth'):
+                    self.run_auth(auth)
             with self.phase('verify'):
                 rows=self.inventory();db=next(row for row in rows if row['service']=='db' and row['oneoff']=='False')
                 raw=self.command(['docker','exec',db['id'],'du','-sk','/var/lib/postgresql/data']).strip()
