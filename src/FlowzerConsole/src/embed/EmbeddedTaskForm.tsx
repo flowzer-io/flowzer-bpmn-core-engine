@@ -70,11 +70,14 @@ export function EmbeddedTaskForm({ snapshot, channel }: { snapshot: EmbedSnapsho
       setCompleted(true); setCompletionUncertain(false);
     } catch (cause) {
       const failure = cause instanceof EmbedActionError ? cause : new EmbedActionError('flowzer.connection_failed');
-      const uncertain = failure.code === 'flowzer.connection_failed';
-      // Nur ein ausdrücklich bekannter fachlicher Fehler gibt einen neuen Auftrag
-      // frei. Bei unklarem Ausgang bleiben Eingaben und ursprünglicher Auftrag fest.
+      // Ein späterer Vorprüfungs-/Zugangsfehler ist kein Nein-Beleg für einen
+      // früheren unklaren Abschluss. Nur gebundener Erfolg löst diesen Zustand auf.
+      const uncertain = completionUncertain || failure.code === 'flowzer.connection_failed';
       if (!uncertain) completionAttempt.current = null;
-      setCompletionUncertain(uncertain); setError(failure);
+      setCompletionUncertain(uncertain);
+      // Keine Korrektur-/Neuladeanweisung bei Unknown; sichere Feldmeldungen
+      // bleiben sichtbar, geben aber weder Originaldaten noch Originalkey frei.
+      setError(uncertain ? new EmbedActionError('flowzer.connection_failed', failure.fieldMessages) : failure);
     } finally { busy.current = false; setPending(false); setCompleting(false); }
   }
   if (completed) return <p role="status">Aufgabe abgeschlossen.</p>;

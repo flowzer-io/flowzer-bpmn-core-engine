@@ -166,6 +166,17 @@ Manuelles Speichern nutzt den bestehenden privaten Human-Task-Entwurf mit Revisi
 Unvollständige Pflichtfelder sind dort zulässig; erst der Abschluss validiert sie.
 Keine neue Entwurfsablage, kein Autosave und keine Startformular-Entwürfe.
 
+Ein unklarer Human-Task-Abschluss bindet Originaldaten, Entscheidungsaktion,
+Aufgabenrevision und Idempotenzschlüssel bis zur ausdrücklichen Erfolgsbestätigung.
+Ein späterer Validierungs-, Zugangs- oder Revisionsfehler beweist nicht, dass der
+erste Versand erfolglos war. Der Renderer bleibt erhalten, Eingaben und Draft-Save
+bleiben gesperrt und ausschließlich derselbe Auftrag ist manuell wiederholbar.
+Sichere Feldmeldungen sind weiterhin sichtbar, ohne eine neue Entscheidung oder
+Neuladeanweisung freizugeben. Nur ein erster definitiver Fachfehler ohne früheren
+unklaren Versand erlaubt korrigierte Daten und einen neuen Schlüssel. Das ist keine
+Rechtefreigabe: Der authentifizierte Host setzt Aufgabenabbruch und Rechteentzug
+weiterhin durch und entfernt den Frame bei bestätigtem Aufgabenverlust.
+
 ## Konfiguration und Ablage
 
 `FormEmbedding:Enabled=false` ist der Default. Für die spätere geprüfte Aktivierung

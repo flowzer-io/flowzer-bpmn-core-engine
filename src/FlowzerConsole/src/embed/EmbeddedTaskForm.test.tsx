@@ -49,6 +49,64 @@ describe('Langlebige eingebettete Human Task', () => {
     expect(controls.validate).toHaveBeenCalledOnce();
   });
 
+  // Testzweck: Ein späterer Fachfehler ist kein Nein-Beleg für den ersten
+  // unklaren Abschluss. Nur derselbe Auftrag darf bis zum bestätigten Erfolg
+  // wiederholt werden; weder neue Entscheidung noch Draft-Save wird freigegeben.
+  it.each(['flowzer.validation_failed', 'flowzer.access_denied', 'flowzer.revision_conflict',
+    'flowzer.request_too_large', 'flowzer.definition_changed'])(
+    'behält den ursprünglichen Abschluss nach Timeout und anschließendem %s', async code => {
+      const request = vi.fn().mockRejectedValueOnce(new Error('Timeout'))
+        .mockRejectedValueOnce(new EmbedActionError(code, { answer: ['Bitte Zeitraum prüfen.'] }))
+        .mockResolvedValueOnce({ completed: true });
+      const decisionSnapshot: EmbedSnapshot = { ...snapshot, form: { formData: JSON.stringify({
+        components: [{ type: 'textfield', key: 'answer', input: true }, { type: 'hidden', key: 'decision', input: true }],
+        flowzer: { contractVersion: 4, actions: [
+          { id: 'approve', label: 'Genehmigen', variant: 'primary', set: [{ field: 'decision', value: 'approved' }] },
+          { id: 'decline', label: 'Ablehnen', variant: 'danger', set: [{ field: 'decision', value: 'declined' }] },
+        ] },
+      }) } };
+      controls.validate.mockClear(); const before = controls.mounts;
+      render(<EmbeddedTaskForm snapshot={decisionSnapshot} channel={{ request } as unknown as EmbedActionChannel} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Genehmigen' }));
+      await screen.findByRole('note');
+      expect(request.mock.calls[0]).toEqual(['task.complete', {
+        expectedTaskRevision: 7, actionId: 'approve', data: { answer: 'alter Zwischenstand' }, idempotencyKey: expect.any(String),
+      }]);
+      fireEvent.change(screen.getByLabelText('Antwort'), { target: { value: 'interne spätere Modeländerung' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Abschluss erneut bestätigen' }));
+      await screen.findByText(/Bitte Zeitraum prüfen\./);
+      expect(screen.getByLabelText('Antwort')).toBeDisabled();
+      expect(screen.getByLabelText('Antwort').closest('fieldset')).toHaveAttribute('inert');
+      expect(screen.getByRole('button', { name: 'Zwischenstand speichern' })).toBeDisabled();
+      expect(screen.queryByRole('button', { name: 'Genehmigen' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ablehnen' })).not.toBeInTheDocument();
+      expect(screen.getByText(/^Die Formularverbindung ist derzeit nicht verfügbar\./)).toHaveAttribute('role', 'alert');
+      fireEvent.click(screen.getByRole('button', { name: 'Zwischenstand speichern' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Abschluss erneut bestätigen' }));
+      await screen.findByText('Aufgabe abgeschlossen.');
+      expect(request).toHaveBeenCalledTimes(3);
+      expect(request.mock.calls[1]).toEqual(request.mock.calls[0]);
+      expect(request.mock.calls[2]).toEqual(request.mock.calls[0]);
+      expect(controls.validate).toHaveBeenCalledOnce(); expect(controls.mounts).toBe(before + 1);
+    });
+
+  // Testzweck: Ein erster definitiver Validierungsfehler bleibt korrigierbar.
+  // Neue Daten und neuer Schlüssel sind nur ohne vorangegangenen Unknown zulässig.
+  it('erlaubt nach erstem definitiven Fachfehler einen korrigierten neuen Abschluss', async () => {
+    const request = vi.fn().mockRejectedValueOnce(new EmbedActionError('flowzer.validation_failed'))
+      .mockResolvedValueOnce({ completed: true });
+    controls.validate.mockClear();
+    render(<EmbeddedTaskForm snapshot={snapshot} channel={{ request } as unknown as EmbedActionChannel} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Absenden' })); await screen.findByRole('alert');
+    expect(screen.getByLabelText('Antwort')).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Zwischenstand speichern' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Antwort'), { target: { value: 'korrigierter Inhalt' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Absenden' })); await screen.findByText('Aufgabe abgeschlossen.');
+    expect(request.mock.calls[1]?.[1]?.data).toEqual({ answer: 'korrigierter Inhalt' });
+    expect(request.mock.calls[1]?.[1]?.idempotencyKey).not.toBe(request.mock.calls[0]?.[1]?.idempotencyKey);
+    expect(controls.validate).toHaveBeenCalledTimes(2);
+  });
+
   // Testzweck: Ein langsamer Abschluss sperrt nur die weitere Eingabe, ohne den
   // bestehenden Renderer zu remounten; nach Fehler wird exakt derselbe Inhalt frei.
   it('verhindert verlorene Eingaben während eines laufenden Abschlusses', async () => {
