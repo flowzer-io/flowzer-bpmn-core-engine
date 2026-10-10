@@ -129,6 +129,18 @@ API-Prozesses, und sie bleibt deshalb auf einen API-Prozess begrenzt. Für Postg
 der Mehrprozessbetrieb inzwischen mit Konkurrenztests belegt und freigegeben:
 [Betrieb](OPERATIONS.md#mehrprozessbetrieb).
 
+## Separates TT-Ticketaktions-Beispiel (noch nicht bereitgestellt)
+
+Unter `examples/tickytask-ticketaktionen/` liegt das feste Originalmodell für
+Anlage, explizit projiziertes Lesen, Delegation und Abschluss. Genau vier bekannte
+TT-Jobtypen; keine freie Aktions-/Zielauswahl oder Übernahme von Startdaten.
+`TickyTaskTicketActionsExampleTest` prüft acht Fälle am Original über die wirkliche
+Kernengine mit ausdrücklich synthetischen Workerresultaten. Das beweist keine
+Ticket-/SQL-/HTTPS-/Keycloak-/Runtimewirkung. Die feste TT-Policy-Vorlage benötigt
+separat die tatsächliche Fassung sowie verifizierte Demo-Ziele; ungelöst bleibt sie
+geschlossen. Keine Aktivierung, Migration oder Timerimplementierung. Details:
+[Ticketaktionen](../examples/tickytask-ticketaktionen/README.md).
+
 ## Formularbindung – PR #181 (aufbauend auf #179)
 
 Externe und eingebettete Formulare erhalten beim Deployment einen festen Snapshot
