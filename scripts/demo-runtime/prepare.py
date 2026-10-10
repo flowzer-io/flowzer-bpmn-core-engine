@@ -88,8 +88,24 @@ def adapt_compose(text, project):
     # Startanker binden den Dienst, nicht zufällige image-Vorkommen in Kommentaren.
     for service, (mib, cpus) in BUDGETS.items():
         text = replace_once(text, '\n  ' + service + ':\n', '\n  ' + service + ':\n'
-            + f'    platform: linux/amd64\n    mem_limit: {mib}m\n    cpus: "{cpus}"\n')
-    return replace_once(text, 'networks:\n  default:\n', 'networks:\n  default:\n    internal: true\n')
+            + f'    platform: linux/amd64\n    mem_limit: {mib}m\n    memswap_limit: {mib}m\n    cpus: "{cpus}"\n'
+            + f'    labels:\n      io.flowzer.runtime.owner: "{project}"\n')
+    text = replace_once(text, 'networks:\n  default:\n', 'networks:\n  default:\n    internal: true\n'
+        + f'    labels:\n      io.flowzer.runtime.owner: "{project}"\n')
+    for volume in ['ca-public','tls-material','db-data','keyring']:
+        text = replace_once(text, f'  {volume}:\n', f'  {volume}:\n    labels:\n      io.flowzer.runtime.owner: "{project}"\n')
+    return text
+
+
+def adapt_compose_helper(text, project):
+    """Genau den Original-Check-config-Oneoff in der Kopie bis zum eigenen Exit-/OOM-Audit erhalten."""
+    text = replace_once(text, "const PROJECT_NAME = 'flowzer-installation-auth';", f"const PROJECT_NAME = '{project}';")
+    old = "  const result = spawnSync('docker', ['compose', '-p', PROJECT_NAME, '-f', COMPOSE_FILE, ...args], {"
+    new = "  // Nur dieser feste eigene Oneoff bleibt bis zum Ressourcen-/Exit-Audit erhalten.\n" \
+        + "  const budgetCheck = JSON.stringify(args) === '[\"run\",\"--rm\",\"--no-deps\",\"-T\",\"api\",\"--check-config\"]';\n" \
+        + "  const ownedArgs = budgetCheck ? args.filter(value => value !== '--rm') : args;\n" \
+        + "  const result = spawnSync('docker', ['compose', '-p', PROJECT_NAME, '-f', COMPOSE_FILE, ...ownedArgs], {"
+    return replace_once(text, old, new)
 
 
 def prepare(source, target, context):
@@ -123,8 +139,7 @@ def prepare(source, target, context):
         modes[name] = 0o755 if mode == '100755' else 0o644
     auth = 'tests/installation-auth/'
     contents[auth+'compose.yml'] = adapt_compose(contents[auth+'compose.yml'].decode(), project).encode()
-    contents[auth+'support/compose.js'] = replace_once(contents[auth+'support/compose.js'].decode(),
-        "const PROJECT_NAME = 'flowzer-installation-auth';", f"const PROJECT_NAME = '{project}';").encode()
+    contents[auth+'support/compose.js'] = adapt_compose_helper(contents[auth+'support/compose.js'].decode(),project).encode()
     config = contents[auth+'playwright.config.js'].decode()
     config = replace_once(config, "reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],",
         "reporter: [[require.resolve('./support/safe-reporter')]],")

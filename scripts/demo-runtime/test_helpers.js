@@ -80,7 +80,23 @@ test('Eigener CONNECT-Proxy wird als tatsächliche Contextoption eingebunden', a
   // Testzweck: Reine Originroute genügt nicht; Context muss zwingend den hopfesten Proxy verwenden.
   const bound = fixture();
   assert.equal(typeof bound.proxy, 'function', 'Contextproxy fehlt');
-  assert.equal(typeof bound._egress, 'function', 'Proxy-Lebenszeitfixture fehlt');
+  assert.ok(Array.isArray(bound._egress), 'Worker-Proxy-Lebenszeitfixture fehlt');
+  assert.equal(bound._egress[1].scope, 'worker');
   const options = await bound.proxy({ _egress: {server:'http://127.0.0.1:7777',bypass:'<-loopback>'} }, value => value);
   assert.equal(options.server, 'http://127.0.0.1:7777');assert.equal(options.bypass, '<-loopback>');
+});
+
+test('Auch der Browserprozess ist vor Contextstart an den lokalen Proxy gebunden', async () => {
+  // Testzweck: Browser-Hintergrundverkehr darf keinen ungesicherten direkten Netzwerkpfad haben.
+  const bound = fixture();
+  assert.ok(Array.isArray(bound.launchOptions), 'Browserprozess-Proxy fehlt');
+  assert.equal(bound.launchOptions[1].scope, 'worker');
+  let options;
+  await bound.launchOptions[0]({ _egress: {server:'http://127.0.0.1:7777',bypass:'<-loopback>'},
+    browserName:'chromium', launchOptions: {args:['--disable-background-networking']} }, value => { options=value; });
+  assert.equal(options.proxy.server,'http://127.0.0.1:7777');
+  assert.equal(options.proxy.bypass,'<-loopback>');
+  assert.equal(options.args[0],'--disable-background-networking');
+  assert.ok(options.args.includes('--disable-quic'));
+  assert.ok(options.args.includes('--force-webrtc-ip-handling-policy=disable_non_proxied_udp'));
 });

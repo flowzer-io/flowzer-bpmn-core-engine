@@ -40,6 +40,8 @@ class PreparationTests(unittest.TestCase):
             self.assertEqual(7,text.count('@sha256:'))
             self.assertIn('    internal: true',text)
             self.assertEqual(7,text.count('    mem_limit:'))
+            self.assertEqual(7,text.count('    memswap_limit:'))
+            self.assertEqual(12,text.count('io.flowzer.runtime.owner:'))
             self.assertEqual(7,text.count('    platform: linux/amd64'))
             self.assertIn("'flowzer-runtime-123456-a1'",(target/'tests/installation-auth/support/compose.js').read_text())
             self.assertEqual(original,(ROOT/'tests/installation-auth/compose.yml').read_bytes())
@@ -120,6 +122,23 @@ class PreparationTests(unittest.TestCase):
             self.assertEqual(0o755,(target/'tests/installation-auth/postgres/10-flowzer-init.sh').stat().st_mode & 0o777)
             self.assertEqual(0o755,(target/'tests/installation-auth/certs/generate.sh').stat().st_mode & 0o777)
             self.assertEqual(0o644,(target/'tests/installation-auth/support/loopback-proxy.js').stat().st_mode & 0o777)
+
+    def test_only_exact_owned_checkconfig_oneoff_is_kept_for_exit_audit(self):
+        # Testzweck: --rm darf den echten Check-config-CID nicht vor Stats/Exit/OOM löschen; andere Befehle unverändert.
+        with tempfile.TemporaryDirectory() as temp:
+            target=Path(temp)/'rig';rig.prepare(ROOT,target,self.context())
+            helper=target/'tests/installation-auth/support/compose.js'
+            code="""const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+              const seen=[];const sandbox={__dirname:path.dirname(process.argv[1]),module:{exports:{}},require:name=>{
+                if(name==='path')return path;if(name==='child_process')return {spawnSync:(_file,args)=>{
+                  seen.push(args);return {status:0,stdout:'',stderr:''};}};throw Error('closed');}};
+              vm.runInNewContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
+              sandbox.module.exports.compose(['run','--rm','--no-deps','-T','api','--check-config']);
+              sandbox.module.exports.compose(['run','--rm','--no-deps','-T','db','--check-config']);
+              process.stdout.write(JSON.stringify(seen));"""
+            seen=json.loads(rig.subprocess.check_output(['node','-e',code,str(helper)],stderr=rig.subprocess.DEVNULL,timeout=10))
+            self.assertNotIn('--rm',seen[0]);self.assertIn('--rm',seen[1])
+            self.assertIn('flowzer-runtime-123456-a1',seen[0])
 
     def test_no_untracked_fixture_runtime_or_secret_material_is_copied(self):
         # Testzweck: Nur die 25 versionierten Basisdateien plus drei geprüfte Helfer gelangen in die Kopie.

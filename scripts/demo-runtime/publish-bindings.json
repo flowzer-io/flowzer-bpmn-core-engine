@@ -1,0 +1,216 @@
+{
+  "publisher_sha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+  "publisher_run": 38009656496,
+  "publisher_attempt": 1,
+  "publisher_jobs": [
+    "build (api, linux/amd64, amd64, ubuntu-latest)",
+    "build (api, linux/arm64, arm64, ubuntu-24.04-arm)",
+    "build (console, linux/amd64, amd64, ubuntu-latest)",
+    "build (console, linux/arm64, arm64, ubuntu-24.04-arm)",
+    "manifest (api)",
+    "manifest (console)",
+    "proof"
+  ],
+  "receipts": [
+    {
+      "id": 11653111979,
+      "name": "tt-demo-digest-console-arm64",
+      "zipSha256": "sha256:004b19fb415bd1d6caa633f10697ee5881d40fd125baf4adc381ef657cfcb174",
+      "receipt": {
+        "plan": {
+          "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+          "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+          "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+          "ciRun": 37994630569,
+          "ciAttempt": 3,
+          "ciArtifact": 11651284331,
+          "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+          "buildRun": 38009656496,
+          "buildAttempt": 1,
+          "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "images": {
+            "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+            "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+          },
+          "installed": false
+        },
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-console",
+        "platform": "linux/arm64",
+        "digest": "sha256:859a6f853f682ca9c4e9620331677a1f81cfdad96a32c3f6ad3479c3ddb1b0a2"
+      }
+    },
+    {
+      "id": 11653082040,
+      "name": "tt-demo-manifest-api",
+      "zipSha256": "sha256:364605d75830d8e5549fb73984703e513c2705d4f8364dca4e6ac44c30b72ae7",
+      "receipt": {
+        "arguments": {
+          "plan": {
+            "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+            "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+            "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+            "ciRun": 37994630569,
+            "ciAttempt": 3,
+            "ciArtifact": 11651284331,
+            "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+            "buildRun": 38009656496,
+            "buildAttempt": 1,
+            "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+            "images": {
+              "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+              "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+            },
+            "installed": false
+          },
+          "image": "api",
+          "target": "ghcr.io/flowzer-io/flowzer-tt-demo-api:demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "sources": [
+            "ghcr.io/flowzer-io/flowzer-tt-demo-api@sha256:c96fc0ac84e90f876c5322033a1924289ebb7b9b609e660f1fffcff46ebabc7d",
+            "ghcr.io/flowzer-io/flowzer-tt-demo-api@sha256:942a2d945dfc1098e1bd4876abbb49a7b5ed0bd0471fa76ddd3792a6d9692652"
+          ]
+        },
+        "digest": "sha256:9eb9a8bdeb624d94352529a7af132bcafdddecdffd3dd1372195e2ee3d3130ad",
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-api@sha256:9eb9a8bdeb624d94352529a7af132bcafdddecdffd3dd1372195e2ee3d3130ad",
+        "installed": false
+      }
+    },
+    {
+      "id": 11653032199,
+      "name": "tt-demo-digest-api-amd64",
+      "zipSha256": "sha256:f32e656062cc2ffda18449b65ead8cc866d6b41e71e9896621bfd5cd3346786d",
+      "receipt": {
+        "plan": {
+          "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+          "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+          "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+          "ciRun": 37994630569,
+          "ciAttempt": 3,
+          "ciArtifact": 11651284331,
+          "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+          "buildRun": 38009656496,
+          "buildAttempt": 1,
+          "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "images": {
+            "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+            "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+          },
+          "installed": false
+        },
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+        "platform": "linux/amd64",
+        "digest": "sha256:c96fc0ac84e90f876c5322033a1924289ebb7b9b609e660f1fffcff46ebabc7d"
+      }
+    },
+    {
+      "id": 11652862512,
+      "name": "tt-demo-digest-api-arm64",
+      "zipSha256": "sha256:d58959724829297361f5eda4765d969f014921b66246f6b578176057a26697b8",
+      "receipt": {
+        "plan": {
+          "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+          "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+          "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+          "ciRun": 37994630569,
+          "ciAttempt": 3,
+          "ciArtifact": 11651284331,
+          "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+          "buildRun": 38009656496,
+          "buildAttempt": 1,
+          "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "images": {
+            "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+            "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+          },
+          "installed": false
+        },
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+        "platform": "linux/arm64",
+        "digest": "sha256:942a2d945dfc1098e1bd4876abbb49a7b5ed0bd0471fa76ddd3792a6d9692652"
+      }
+    },
+    {
+      "id": 11652458947,
+      "name": "tt-demo-source-proof",
+      "zipSha256": "sha256:49dea4af38efca14b986e03ca85271789595103ce6481851bfa31116d52fab36",
+      "receipt": {
+        "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+        "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+        "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+        "ciRun": 37994630569,
+        "ciAttempt": 3,
+        "ciArtifact": 11651284331,
+        "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+        "buildRun": 38009656496,
+        "buildAttempt": 1,
+        "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+        "images": {
+          "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+          "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+        },
+        "installed": false
+      }
+    },
+    {
+      "id": 11652439197,
+      "name": "tt-demo-manifest-console",
+      "zipSha256": "sha256:849987b9a38af3925bf877dca25b376a7cb054c6c440ec5f4f45b4563b0520dd",
+      "receipt": {
+        "arguments": {
+          "plan": {
+            "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+            "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+            "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+            "ciRun": 37994630569,
+            "ciAttempt": 3,
+            "ciArtifact": 11651284331,
+            "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+            "buildRun": 38009656496,
+            "buildAttempt": 1,
+            "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+            "images": {
+              "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+              "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+            },
+            "installed": false
+          },
+          "image": "console",
+          "target": "ghcr.io/flowzer-io/flowzer-tt-demo-console:demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "sources": [
+            "ghcr.io/flowzer-io/flowzer-tt-demo-console@sha256:8e1c970a53698f209b30c42ba95f0c9fd12a349fdcb3bf2170e291e198d15ab4",
+            "ghcr.io/flowzer-io/flowzer-tt-demo-console@sha256:859a6f853f682ca9c4e9620331677a1f81cfdad96a32c3f6ad3479c3ddb1b0a2"
+          ]
+        },
+        "digest": "sha256:e6b9f55a439212c4a99eec584672163af03f24e2bc52a4b59e11b50584e87467",
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-console@sha256:e6b9f55a439212c4a99eec584672163af03f24e2bc52a4b59e11b50584e87467",
+        "installed": false
+      }
+    },
+    {
+      "id": 11652169530,
+      "name": "tt-demo-digest-console-amd64",
+      "zipSha256": "sha256:6cf3bb6c94a85185516c24edefd2b2db6092cb5bc2f91125aaa361c122fa760b",
+      "receipt": {
+        "plan": {
+          "sourceSha": "cf082ccd9a165429774de9aab907d3583832279c",
+          "sourceTree": "38362a4d81f72ed1550c926883b5bb7f28ac50b5",
+          "ciCheckout": "399543b35af0d026c9e24fd39ddee61030d44b76",
+          "ciRun": 37994630569,
+          "ciAttempt": 3,
+          "ciArtifact": 11651284331,
+          "workflowSha": "bcaeef6438a4befbc3832d260883f3fd55ce6d8e",
+          "buildRun": 38009656496,
+          "buildAttempt": 1,
+          "tag": "demo-cf082ccd9a165429774de9aab907d3583832279c-r38009656496-a1",
+          "images": {
+            "api": "ghcr.io/flowzer-io/flowzer-tt-demo-api",
+            "console": "ghcr.io/flowzer-io/flowzer-tt-demo-console"
+          },
+          "installed": false
+        },
+        "image": "ghcr.io/flowzer-io/flowzer-tt-demo-console",
+        "platform": "linux/amd64",
+        "digest": "sha256:8e1c970a53698f209b30c42ba95f0c9fd12a349fdcb3bf2170e291e198d15ab4"
+      }
+    }
+  ]
+}
