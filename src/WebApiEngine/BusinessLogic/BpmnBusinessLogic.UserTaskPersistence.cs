@@ -1,5 +1,6 @@
 using BPMN.HumanInteraction;
 using WebApiEngine.Auth;
+using WebApiEngine.IdentityDirectory;
 
 namespace WebApiEngine.BusinessLogic;
 
@@ -28,6 +29,19 @@ public partial class BpmnBusinessLogic
         ValidateTaskIdentities(active, existing, metaDefinitionId, definitionId, processId, processInstanceId,
             movedTaskTokenIds);
         var byToken = existing.ToDictionary(task => task.Token.Id);
+        var dynamicTasks = active.Where(token => !byToken.ContainsKey(token.Id)
+            && ((UserTask)token.CurrentFlowNode!).FlowzerDirectoryAssigneeSource is not null).ToArray();
+        var resolvedAssignees = new Dictionary<Guid, Guid>();
+        if (dynamicTasks.Length > 0)
+        {
+            if (catchHandler is not InstanceEngine engine)
+                throw new InvalidOperationException("Dynamic directory assignments require an instance context.");
+            var snapshot = await storage.IdentityDirectoryStorage.GetActiveSnapshot();
+            // Alle neuen Zielidentitäten prüfen, BEVOR obsolete Aufgaben gelöscht oder
+            // neue Subscriptions geschrieben werden. Bestehende Aufgaben niemals neu binden.
+            foreach (var token in dynamicTasks)
+                resolvedAssignees[token.Id] = DirectoryTaskAssigneeResolver.Resolve((UserTask)token.CurrentFlowNode!, token, engine, snapshot);
+        }
         var activeIds = active.Select(token => token.Id).ToHashSet();
         foreach (var obsolete in existing.Where(task => !activeIds.Contains(task.Token.Id)))
             await storage.SubscriptionStorage.RemoveUserTaskSubscription(obsolete.Id);
@@ -58,7 +72,8 @@ public partial class BpmnBusinessLogic
                     CandidateGroups = model.FlowzerAssignmentMode == UserTaskAssignmentMode.Text
                         ? UserTaskAssignment.SplitList(model.FlowzerCandidateGroups)
                         : [],
-                    DirectoryAssigneeUserId = model.FlowzerDirectoryAssigneeUserId,
+                    DirectoryAssigneeUserId = resolvedAssignees.TryGetValue(token.Id, out var resolved)
+                        ? resolved : model.FlowzerDirectoryAssigneeUserId,
                     DirectoryCandidateUserIds = [.. model.FlowzerDirectoryCandidateUserIds],
                     DirectoryCandidateGroupIds = [.. model.FlowzerDirectoryCandidateGroupIds],
                     ProcessInstanceId = processInstanceId, DefinitionId = definitionId,

@@ -93,6 +93,30 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
+    /// Der nächste umschließende Subprozess mit ausdrücklich gemappten Eingängen
+    /// besitzt einen eigenen Variablenscope. Historische ungemappte Subprozesse
+    /// behalten dagegen ihren bisherigen Root-Pfad. Der aktuelle Token ist nie
+    /// seine eigene Eingangsquelle oder sein eigener übergeordneter Ausgabescope.
+    /// </summary>
+    /// <remarks>
+    /// Absichtlich getrennt von GetProcessToken: dessen Instanz-Root verwenden auch
+    /// Directory-Zuweisungen, DMN, Aufruf-Aktivitäten und externe Payloads. Eine lokale
+    /// Gateway-Stimme darf diese bestehenden Verträge nicht still umdefinieren.
+    /// </remarks>
+    internal Token? GetMappedSubProcessScope(Token token)
+    {
+        var current = token;
+        HashSet<Guid> seen = [token.Id];
+        while (current.ParentTokenId is { } parentId)
+        {
+            if (!seen.Add(parentId)) throw new FlowzerRuntimeException("Cyclic parent chain in mapped subprocess scope.");
+            current = Tokens.Single(candidate => candidate.Id == parentId);
+            if (current.CurrentBaseElement is SubProcess { InputMappings.Count: > 0 }) return current;
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Tokens, die auf einen externen Worker warten. Seit Fähigkeitsvertrag 6 sind das nicht
     /// mehr nur Service-Tasks: Ein Send-Task oder ein sendendes Nachrichtenereignis mit
     /// Auftragstyp wartet genauso. Ein sendendes Element ohne Auftragstyp korreliert die
@@ -295,7 +319,7 @@ public partial class InstanceEngine: ICatchHandler
     }
 
     /// <summary>
-    /// Gibt den aktuellen (Sub-)Prozess-Token zurück.
+    /// Gibt den Root-Token der aktuellen Instanz zurück (auch für Tokens in Subprozessen).
     /// </summary>
     /// <param name="token"></param>
     /// <returns></returns>

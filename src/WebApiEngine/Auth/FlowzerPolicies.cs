@@ -4,7 +4,8 @@ namespace WebApiEngine.Auth;
 public static class FlowzerPolicies
 {
     /// <summary>
-    /// Die Grundanforderung: angemeldet und, falls konfiguriert, mit der Zugangsrolle.
+    /// Die Grundanforderung: angemeldet und, falls konfiguriert, mit der Zugangsrolle
+    /// und aktueller stabiler Mitgliedschaft im Directory-Installations-Scope.
     /// Wird nicht an Endpunkten verwendet, sondern um eine Ablehnung einzuordnen.
     /// </summary>
     public const string Access = "flowzer:access";

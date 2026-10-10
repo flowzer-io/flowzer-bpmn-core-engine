@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="tickytask-demo-ticketaktionen" targetNamespace="https://flowzer.io/examples/tickytask">
+  <bpmn:process id="Process_TickyTaskTicketActions" name="TT Demo Ticketaktionen" isExecutable="true">
+    <bpmn:documentation>Separates Demo-Beispiel, kein Urlaubsantrag. Nur TT-registrierte Vorgänge unter exakt versions-/knotengebundener TT-Policy. Ein Startparameter verleiht keine Ticketrechte. Abbruch rollt bereits ausgeführte Ticketwirkungen nicht zurück. Keine Mail-, Kalender-, KI- oder Timeraktionen.</bpmn:documentation>
+    <bpmn:startEvent id="Start_TicketActions" name="Ticketaktionen starten">
+      <bpmn:outgoing>Flow_Start_Create</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:serviceTask id="Task_CreateTicket" name="Demo-Ticket anlegen">
+      <bpmn:documentation>Kunde, Betreff und Zuweisung ausschließlich aus der festen TT-Policy. Ergebnis ist eine opake Anlagequittung, keine Roh-Ticket-ID.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="tt.ticket.create" />
+        <zeebe:ioMapping>
+          <zeebe:input source='="execute"' target="operation" />
+          <zeebe:output source="=ticketReference" target="createdTicketReference" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_Create</bpmn:incoming>
+      <bpmn:outgoing>Flow_Create_Read</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_ReadTicket" name="Prüfziffer-ID und Status lesen">
+      <bpmn:documentation>TT-Policy gibt ausschließlich IdWithChecksum und State frei. Die Quittung muss zum selben Vorgang, derselben Fassung und Task_CreateTicket gehören.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="tt.ticket.read" />
+        <zeebe:ioMapping>
+          <zeebe:input source='="execute"' target="operation" />
+          <zeebe:input source="=createdTicketReference" target="ticketReference" />
+          <zeebe:output source="=idWithChecksum" target="demoTicketId" />
+          <zeebe:output source="=state" target="demoTicketState" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Create_Read</bpmn:incoming>
+      <bpmn:outgoing>Flow_Read_Delegate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_DelegateTicket" name="An feste Demo-Zuständigkeit delegieren">
+      <bpmn:documentation>Zielgruppe und optionaler TT-Kontakt ausschließlich aus reviewter Policy; kein Keycloak-Subject und kein Benutzerwert als TT-Zuständigkeit.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="tt.ticket.delegate" />
+        <zeebe:ioMapping>
+          <zeebe:input source='="execute"' target="operation" />
+          <zeebe:input source="=createdTicketReference" target="ticketReference" />
+          <zeebe:output source="=completed" target="demoTicketDelegated" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Read_Delegate</bpmn:incoming>
+      <bpmn:outgoing>Flow_Delegate_Close</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Task_CloseTicket" name="Demo-Ticket abschließen">
+      <bpmn:documentation>Dasselbe angelegte Ticket unter aktuellen Initiatorrechten und TT-Abschlussregeln. Kein automatisches Rückabwickeln früherer Schritte.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:taskDefinition type="tt.ticket.close" />
+        <zeebe:ioMapping>
+          <zeebe:input source='="execute"' target="operation" />
+          <zeebe:input source="=createdTicketReference" target="ticketReference" />
+          <zeebe:output source="=completed" target="demoTicketClosed" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Delegate_Close</bpmn:incoming>
+      <bpmn:outgoing>Flow_Close_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:endEvent id="End_TicketActions" name="Demo-Ticket abgeschlossen">
+      <bpmn:incoming>Flow_Close_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Create" sourceRef="Start_TicketActions" targetRef="Task_CreateTicket" />
+    <bpmn:sequenceFlow id="Flow_Create_Read" sourceRef="Task_CreateTicket" targetRef="Task_ReadTicket" />
+    <bpmn:sequenceFlow id="Flow_Read_Delegate" sourceRef="Task_ReadTicket" targetRef="Task_DelegateTicket" />
+    <bpmn:sequenceFlow id="Flow_Delegate_Close" sourceRef="Task_DelegateTicket" targetRef="Task_CloseTicket" />
+    <bpmn:sequenceFlow id="Flow_Close_End" sourceRef="Task_CloseTicket" targetRef="End_TicketActions" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_TicketActions">
+    <bpmndi:BPMNPlane id="Plane_TicketActions" bpmnElement="Process_TickyTaskTicketActions">
+      <bpmndi:BPMNShape id="Shape_Start" bpmnElement="Start_TicketActions"><dc:Bounds x="100" y="140" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Create" bpmnElement="Task_CreateTicket"><dc:Bounds x="190" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Read" bpmnElement="Task_ReadTicket"><dc:Bounds x="370" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Delegate" bpmnElement="Task_DelegateTicket"><dc:Bounds x="550" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Close" bpmnElement="Task_CloseTicket"><dc:Bounds x="730" y="118" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End" bpmnElement="End_TicketActions"><dc:Bounds x="904" y="140" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_Start" bpmnElement="Flow_Start_Create"><di:waypoint x="136" y="158" /><di:waypoint x="190" y="158" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Create" bpmnElement="Flow_Create_Read"><di:waypoint x="310" y="158" /><di:waypoint x="370" y="158" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Read" bpmnElement="Flow_Read_Delegate"><di:waypoint x="490" y="158" /><di:waypoint x="550" y="158" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Delegate" bpmnElement="Flow_Delegate_Close"><di:waypoint x="670" y="158" /><di:waypoint x="730" y="158" /></bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_End" bpmnElement="Flow_Close_End"><di:waypoint x="850" y="158" /><di:waypoint x="904" y="158" /></bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

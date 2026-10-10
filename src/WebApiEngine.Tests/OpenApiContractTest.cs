@@ -17,6 +17,162 @@ public class OpenApiContractTest
 {
     private const string SnapshotPath = "docs/openapi.json";
 
+    // Testzweck: Generierte TT-Workerclients müssen den Body und sämtliche verbindlichen
+    // Job-/Identitäts-/Entscheidungskoordinaten verlangen, nicht bool/Guid-Defaults erfinden.
+    [Test]
+    public async Task InitiatorJobAccess_ShouldRequireBodyAndEveryProofCoordinate()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = root.GetProperty("paths").GetProperty("/job/{jobId}/initiator-access").GetProperty("post");
+        operation.GetProperty("requestBody").GetProperty("required").GetBoolean().Should().BeTrue();
+        foreach (var status in new[] { "200", "400", "404", "409", "503" })
+            operation.GetProperty("responses").TryGetProperty(status, out _).Should().BeTrue();
+        var schemas = root.GetProperty("components").GetProperty("schemas");
+        schemas.GetProperty("ServiceTaskInitiatorAccessRequestDto").GetProperty("required")
+            .EnumerateArray().Select(item => item.GetString()).Should().Contain("workerId");
+        var proof = schemas.GetProperty("ServiceTaskInitiatorAccessDto");
+        proof.GetProperty("required").EnumerateArray().Select(item => item.GetString()).Should().BeEquivalentTo(
+            "jobId", "processInstanceId", "metaDefinitionId", "definitionId", "tokenId", "flowNodeId", "type",
+            "initiatorIssuer", "initiatorSubject", "allowed", "checkedAtUtc");
+        proof.GetProperty("properties").GetProperty("checkedAtUtc").GetProperty("format").GetString().Should().Be("date-time");
+    }
+
+    // Testzweck: Generierte Clients erkennen die optionale Versionsbindung und
+    // den fachlichen 409 sowohl beim Formularabruf als auch beim tatsächlichen Start.
+    [Test]
+    public async Task DirectStart_ShouldDescribeExpectedDefinitionAndConflict()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var start = root.GetProperty("components").GetProperty("schemas").GetProperty("StartInstanceDto");
+        start.GetProperty("properties").GetProperty("expectedDefinitionId").GetProperty("format")
+            .GetString().Should().Be("uuid");
+        start.TryGetProperty("required", out var required).Should().BeFalse("alte Aufrufer bleiben kompatibel");
+        var paths = root.GetProperty("paths");
+        var form = paths.GetProperty("/Definition/meta/{id}/start-form").GetProperty("get");
+        form.GetProperty("parameters").EnumerateArray().Should().Contain(parameter =>
+            parameter.GetProperty("name").GetString() == "expectedDefinitionId"
+            && parameter.GetProperty("in").GetString() == "query");
+        form.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        paths.GetProperty("/Definition/meta/{id}/instance").GetProperty("post")
+            .GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Ein persönlicher Startlink verlangt die angezeigte Version auch
+    // im generierten Vertrag. Startsnapshots enthalten keine künstliche Aufgabe/Draft.
+    [Test]
+    public async Task StartFormEmbedding_ShouldDescribeRequiredVersionAndSeparateSnapshot()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var paths = root.GetProperty("paths");
+        var issue = paths.GetProperty("/definition/meta/{definitionId}/start-form-link").GetProperty("post");
+        var version = issue.GetProperty("parameters").EnumerateArray()
+            .Single(item => item.GetProperty("name").GetString() == "expectedDefinitionId");
+        version.GetProperty("required").GetBoolean().Should().BeTrue();
+        issue.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        foreach (var (path, verb) in new[] {
+            ("/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects", "get"),
+            ("/identity-directory/start-forms/{definitionId}/fields/{fieldKey}/subjects/resolve", "post") })
+        {
+            var operation = paths.GetProperty(path).GetProperty(verb);
+            operation.GetProperty("parameters").EnumerateArray().Should().Contain(item => item.GetProperty("name").GetString() == "expectedDefinitionId");
+            operation.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        }
+        var link = root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedLinkDto").GetProperty("properties").GetProperty("formLink");
+        link.GetProperty("nullable").GetBoolean().Should().BeTrue("ein Workflow ohne Startformular liefert ausdrücklich null");
+        root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedLinkDto").GetProperty("required")
+            .EnumerateArray().Select(item => item.GetString()).Should().Contain("formLink");
+        var properties = root.GetProperty("components").GetProperty("schemas").GetProperty("StartFormEmbedSnapshotDto").GetProperty("properties");
+        properties.EnumerateObject().Select(item => item.Name).Should().BeEquivalentTo("definitionId", "relatedDefinitionId", "hostOrigin", "form");
+        paths.GetProperty("/form-embed/start/redeem").GetProperty("post").GetProperty("responses").TryGetProperty("200", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Hostneutrale Referenzen sind begrenzte optionale Startmetadaten,
+    // nicht Teil von normalen Instanz-/Tokenantworten oder einer neuen Berechtigungsroute.
+    [Test]
+    public async Task DirectStart_ShouldDescribeOptionalBoundedExternalReferenceOnlyOnInput()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
+        var start = schemas.GetProperty("StartInstanceDto");
+        var reference = start.GetProperty("properties").GetProperty("externalReference");
+        reference.GetProperty("type").GetString().Should().Be("string");
+        reference.GetProperty("maxLength").GetInt32().Should().Be(128);
+        reference.GetProperty("minLength").GetInt32().Should().Be(1);
+        reference.GetProperty("nullable").GetBoolean().Should().BeTrue();
+        foreach (var name in new[] { "TokenDto", "ProcessInstanceInfoDto" })
+            schemas.GetProperty(name).GetProperty("properties").TryGetProperty("externalReference", out _).Should().BeFalse();
+    }
+
+    // Testzweck: Generierte Hostclients können Task, Definitionsversion und persönliche
+    // Übernahme atomar binden; beide Abschlussrouten dokumentieren denselben 409-Vertrag.
+    [Test]
+    public async Task UserTaskCompletion_ShouldDescribeOptionalAtomicBinding()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var schema = root.GetProperty("components").GetProperty("schemas").GetProperty("UserTaskResultDto");
+        var properties = schema.GetProperty("properties");
+        foreach (var name in new[] { "expectedUserTaskId", "expectedDefinitionId" })
+        {
+            properties.GetProperty(name).GetProperty("format").GetString().Should().Be("uuid");
+            properties.GetProperty(name).GetProperty("nullable").GetBoolean().Should().BeTrue();
+        }
+        properties.GetProperty("requireAssignedToCurrentUser").GetProperty("type").GetString().Should().Be("boolean");
+        var required = schema.GetProperty("required").EnumerateArray().Select(item => item.GetString());
+        required.Should().NotContain("expectedUserTaskId").And.NotContain("expectedDefinitionId")
+            .And.NotContain("requireAssignedToCurrentUser", "bestehende Aufrufer bleiben kompatibel");
+        foreach (var route in new[] { "/UserTask", "/Form/result" })
+            root.GetProperty("paths").GetProperty(route).GetProperty("post").GetProperty("responses")
+                .TryGetProperty("409", out _).Should().BeTrue();
+    }
+
+    // Testzweck: Auch lesende und nicht abschließende Hostaktionen binden Instanz/Version/Claim atomar;
+    // alle drei Querybedingungen bleiben optional und 409 ist für generierte Clients sichtbar.
+    [Test]
+    public async Task UserTaskSideOperations_ShouldDescribeOptionalAtomicBinding()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var paths = document.RootElement.GetProperty("paths");
+        foreach (var (path, verb) in new[] {
+            ("/UserTask/{userTaskId}/claim", "post"), ("/UserTask/{userTaskId}/release", "post"),
+            ("/UserTask/{userTaskId}/draft", "get"), ("/UserTask/{userTaskId}/draft", "put"),
+            ("/UserTask/{userTaskId}/draft", "delete"), ("/usertask/{taskId}/form-link", "post"),
+            ("/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects", "get"),
+            ("/identity-directory/user-tasks/{taskId}/fields/{fieldKey}/subjects/resolve", "post") })
+        {
+            var operation = paths.GetProperty(path).GetProperty(verb);
+            foreach (var name in new[] { "expectedProcessInstanceId", "expectedDefinitionId", "requireAssignedToCurrentUser" })
+            {
+                var parameter = operation.GetProperty("parameters").EnumerateArray()
+                    .Should().ContainSingle(item => item.GetProperty("name").GetString() == name).Subject;
+                parameter.GetProperty("in").GetString().Should().Be("query");
+                (parameter.TryGetProperty("required", out var required) && required.GetBoolean()).Should().BeFalse();
+            }
+            operation.GetProperty("responses").TryGetProperty("409", out _).Should().BeTrue();
+        }
+    }
+
+    // Testzweck: Persönlicher Rückzug ist eine authentisierte Mutation ohne frei
+    // mitgegebenen Akteur; Clients sehen nur den sicheren Rückzugsstatus und Konflikte.
+    [Test]
+    public async Task Withdrawal_ShouldDescribePersonalMutationAndSafeProjection()
+    {
+        using var document = JsonDocument.Parse(await FetchDocument());
+        var root = document.RootElement;
+        var operation = root.GetProperty("paths").GetProperty("/Instance/{instanceId}/withdraw").GetProperty("post");
+        operation.TryGetProperty("requestBody", out _).Should().BeFalse();
+        var responses = operation.GetProperty("responses");
+        foreach (var status in new[] { "200", "404", "409" })
+            responses.TryGetProperty(status, out _).Should().BeTrue();
+        var properties = root.GetProperty("components").GetProperty("schemas")
+            .GetProperty("ProcessInstanceInfoDto").GetProperty("properties");
+        properties.GetProperty("wasWithdrawn").GetProperty("type").GetString().Should().Be("boolean");
+        properties.TryGetProperty("withdrawal", out _).Should().BeFalse("Auditidentitäten bleiben intern");
+    }
+
     // Testzweck: Die erzeugte OpenAPI-Beschreibung entspricht dem eingecheckten Schnappschuss.
     [Test]
     public async Task GeneratedOpenApiDocument_ShouldMatchTheCommittedSnapshot()

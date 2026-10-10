@@ -34,7 +34,8 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "flowzer-completion-test", Guid.NewGuid().ToString("N"));
     private readonly WebApplicationFactory<Program> _factory;
 
-    internal AuthenticatedWorkflowTestContext()
+    internal AuthenticatedWorkflowTestContext(IReadOnlyDictionary<string, string>? settings = null, TimeProvider? clock = null,
+        bool useSyntheticRemoteAddresses = false, Action<IServiceCollection>? configureServices = null)
     {
         Environment.SetEnvironmentVariable(Storage.StorageRootEnvironmentVariableName, _root);
         Storage = new Storage();
@@ -52,6 +53,12 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
             builder.UseSetting("Authentication:JwtBearer:Roles:Operator", "operator");
             builder.UseSetting("Authentication:JwtBearer:Roles:Modeler", "modeler");
             builder.UseSetting("Authentication:JwtBearer:Roles:Worker", "worker");
+            if (settings is not null)
+                foreach (var setting in settings) builder.UseSetting(setting.Key, setting.Value);
+            if (clock is not null) builder.ConfigureServices(services => services.AddSingleton(clock));
+            if (useSyntheticRemoteAddresses)
+                builder.ConfigureServices(services => services.AddSingleton<IStartupFilter, SyntheticRemoteAddressFilter>());
+            if (configureServices is not null) builder.ConfigureServices(configureServices);
             builder.ConfigureServices(services => services.PostConfigure<JwtBearerOptions>(
                 JwtBearerDefaults.AuthenticationScheme, options =>
                 {
@@ -65,13 +72,29 @@ internal sealed class AuthenticatedWorkflowTestContext : IDisposable
     internal Storage Storage { get; }
     internal IServiceProvider Services => _factory.Services;
 
-    internal HttpClient CreateClient(bool isOperator = false, Guid? userId = null, string username = "bert", bool isModeler = false, string? issuer = null)
+    /// <summary>Nur der ausdrücklich isolierte Testserver nutzt diesen synthetischen Netzadapter.</summary>
+    private sealed class SyntheticRemoteAddressFilter : IStartupFilter
+    {
+        public Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> Configure(Action<Microsoft.AspNetCore.Builder.IApplicationBuilder> next) => app =>
+        {
+            app.Use(nextRequest => http =>
+            {
+                if (System.Net.IPAddress.TryParse(http.Request.Headers["X-Test-Remote-IP"].ToString(), out var address))
+                    http.Connection.RemoteIpAddress = address;
+                return nextRequest(http);
+            });
+            next(app);
+        };
+    }
+
+    internal HttpClient CreateClient(bool isOperator = false, Guid? userId = null, string username = "bert", bool isModeler = false, string? issuer = null, string? authorizedClientId = null)
     {
         var claims = new List<Claim>
         {
             new("sub", (userId ?? UserId).ToString()), new("preferred_username", username),
             new("groups", "/team/review"), new("roles", "access")
         };
+        if (authorizedClientId is not null) claims.Add(new Claim("azp", authorizedClientId));
         if (isOperator) claims.Add(new Claim("roles", "operator"));
         if (isModeler) claims.Add(new Claim("roles", "modeler"));
         var jwt = new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor

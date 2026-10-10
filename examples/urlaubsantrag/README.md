@@ -1,5 +1,9 @@
 # Beispielprozess: Urlaubsantrag
 
+> Für den TT-Demo-Durchstich ohne Worker oder externe Effekte gibt es das separate
+> [Human-Task-Beispiel](../tickytask-urlaub/README.md) mit Rückgabe/Korrekturrunde.
+> Das hier beschriebene ältere Fachsystem-/Worker-Beispiel bleibt unverändert.
+
 Ein Demonstrationsprozess für Formulare, parallele Zweige,
 menschliche Entscheidungen, automatische Prüfungen und Anbindungen an andere Systeme.
 

@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:flowzer="https://flowzer.io/schema/bpmn/1.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="tickytask-demo-urlaub" targetNamespace="https://flowzer.io/examples/tickytask">
+  <bpmn:error id="Error_Reject" errorCode="TT_DEMO_REJECT" name="Demo-Antrag abgelehnt" />
+  <bpmn:error id="Error_Return" errorCode="TT_DEMO_RETURN" name="Demo-Antrag korrigieren" />
+  <bpmn:process id="Process_TickyTaskVacation" isExecutable="true" name="TT Demo Urlaubsantrag">
+    <bpmn:documentation>Demo: Nur Human Tasks und eine lokale konstante DMN-Entscheidung. Keine Worker, Mails, Kalender, Urlaubsbuchungen oder Timer. Selbstfreigabe ist eine Demo-Ausnahme.</bpmn:documentation>
+    <bpmn:startEvent id="Start_Application" name="Urlaubsantrag starten">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="TT Demo Urlaubsantrag" />
+      </bpmn:extensionElements>
+      <bpmn:outgoing>Flow_Start_Supervisor</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:businessRuleTask id="Task_FindSupervisor" name="Vorgesetzten ermitteln (Demo m2)">
+      <bpmn:extensionElements>
+        <zeebe:calledDecision decisionId="ttDemoSupervisor" resultVariable="demoSupervisor" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Start_Supervisor</bpmn:incoming>
+      <bpmn:outgoing>Flow_Supervisor_Round</bpmn:outgoing>
+      <bpmn:incoming>Flow_Correction_Round</bpmn:incoming>
+    </bpmn:businessRuleTask>
+    <bpmn:subProcess id="SubProcess_ReviewRound" name="Prüfrunde: drei frische Zustimmungen">
+      <bpmn:documentation>Jeder Eintritt erzeugt einen eigenen Scope mit neuen Task-IDs. Unterbrechende Error-Boundaries schließen die gesamte Runde. Alte Stimmen verbleiben nur in ihrer Token-/Aufgabenhistorie.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <zeebe:ioMapping>
+          <zeebe:input source="=von" target="von" />
+          <zeebe:input source="=bis" target="bis" />
+          <zeebe:input source="=arbeitstage" target="arbeitstage" />
+          <zeebe:input source="=vertretung" target="vertretung" />
+          <zeebe:input source="=bemerkung" target="bemerkung" />
+          <zeebe:input source="=demoSupervisor" target="demoSupervisor" />
+          <zeebe:output source='="genehmigt"' target="urlaubsentscheidung" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:startEvent id="Start_Review">
+        <bpmn:outgoing>Flow_Review_Start</bpmn:outgoing>
+      </bpmn:startEvent>
+      <bpmn:parallelGateway id="Gateway_Fork">
+        <bpmn:outgoing>Flow_Fork_Supervisor</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Fork_Personnel</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Fork_Substitute</bpmn:outgoing>
+        <bpmn:incoming>Flow_Review_Start</bpmn:incoming>
+      </bpmn:parallelGateway>
+      <bpmn:parallelGateway id="Gateway_Join" name="Drei Zustimmungen">
+        <bpmn:incoming>Flow_Supervisor_Approve</bpmn:incoming>
+        <bpmn:incoming>Flow_Personnel_Approve</bpmn:incoming>
+        <bpmn:incoming>Flow_Substitute_Approve</bpmn:incoming>
+        <bpmn:outgoing>Flow_Review_End</bpmn:outgoing>
+      </bpmn:parallelGateway>
+      <bpmn:endEvent id="End_ReviewApproved">
+        <bpmn:incoming>Flow_Review_End</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="End_ReviewRejected" name="Ablehnung">
+        <bpmn:errorEventDefinition errorRef="Error_Reject" />
+        <bpmn:incoming>Flow_Supervisor_Reject</bpmn:incoming>
+        <bpmn:incoming>Flow_Personnel_Reject</bpmn:incoming>
+        <bpmn:incoming>Flow_Substitute_Reject</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:endEvent id="End_ReviewReturned" name="Rückgabe">
+        <bpmn:extensionElements>
+          <zeebe:ioMapping>
+            <zeebe:input source='=if vorgesetztenEntscheidung = "zurueckgegeben" then supervisorBegruendung else if personalEntscheidung = "zurueckgegeben" then personnelBegruendung else substituteBegruendung' target="rueckfrage" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:errorEventDefinition errorRef="Error_Return" />
+        <bpmn:incoming>Flow_Supervisor_Return</bpmn:incoming>
+        <bpmn:incoming>Flow_Personnel_Return</bpmn:incoming>
+        <bpmn:incoming>Flow_Substitute_Return</bpmn:incoming>
+      </bpmn:endEvent>
+      <bpmn:userTask id="Task_Supervisor" name="Vorgesetzter prüft">
+        <bpmn:extensionElements>
+          <zeebe:formDefinition formKey="TT Demo Urlaubsentscheidung" />
+          <flowzer:taskAssignment mode="directory" assigneeSource="variable:demoSupervisor" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=von" target="von" />
+            <zeebe:input source="=bis" target="bis" />
+            <zeebe:input source="=arbeitstage" target="arbeitstage" />
+            <zeebe:input source="=vertretung" target="vertretung" />
+            <zeebe:input source="=bemerkung" target="bemerkung" />
+            <zeebe:output source="=entscheidung" target="vorgesetztenEntscheidung" />
+            <zeebe:output source="=begruendung" target="supervisorBegruendung" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Fork_Supervisor</bpmn:incoming>
+        <bpmn:outgoing>Flow_Supervisor_Decision</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:exclusiveGateway id="Gateway_Supervisor" default="Flow_Supervisor_Reject" name="Entscheidung">
+        <bpmn:incoming>Flow_Supervisor_Decision</bpmn:incoming>
+        <bpmn:outgoing>Flow_Supervisor_Approve</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Supervisor_Return</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Supervisor_Reject</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:sequenceFlow id="Flow_Fork_Supervisor" sourceRef="Gateway_Fork" targetRef="Task_Supervisor" />
+      <bpmn:sequenceFlow id="Flow_Supervisor_Decision" sourceRef="Task_Supervisor" targetRef="Gateway_Supervisor" />
+      <bpmn:sequenceFlow id="Flow_Supervisor_Approve" sourceRef="Gateway_Supervisor" targetRef="Gateway_Join" name="genehmigt">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=vorgesetztenEntscheidung = "genehmigt"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Supervisor_Return" sourceRef="Gateway_Supervisor" targetRef="End_ReviewReturned" name="zurückgeben">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=vorgesetztenEntscheidung = "zurueckgegeben"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Supervisor_Reject" sourceRef="Gateway_Supervisor" targetRef="End_ReviewRejected" name="ablehnen" />
+      <bpmn:userTask id="Task_Personnel" name="Personalgruppe prüft">
+        <bpmn:extensionElements>
+          <zeebe:formDefinition formKey="TT Demo Urlaubsentscheidung" />
+          <flowzer:taskAssignment mode="directory" candidateGroupIds="__DEMO_PERSONNEL_GROUP_ID__" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=von" target="von" />
+            <zeebe:input source="=bis" target="bis" />
+            <zeebe:input source="=arbeitstage" target="arbeitstage" />
+            <zeebe:input source="=vertretung" target="vertretung" />
+            <zeebe:input source="=bemerkung" target="bemerkung" />
+            <zeebe:output source="=entscheidung" target="personalEntscheidung" />
+            <zeebe:output source="=begruendung" target="personnelBegruendung" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Fork_Personnel</bpmn:incoming>
+        <bpmn:outgoing>Flow_Personnel_Decision</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:exclusiveGateway id="Gateway_Personnel" default="Flow_Personnel_Reject" name="Entscheidung">
+        <bpmn:incoming>Flow_Personnel_Decision</bpmn:incoming>
+        <bpmn:outgoing>Flow_Personnel_Approve</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Personnel_Return</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Personnel_Reject</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:sequenceFlow id="Flow_Fork_Personnel" sourceRef="Gateway_Fork" targetRef="Task_Personnel" />
+      <bpmn:sequenceFlow id="Flow_Personnel_Decision" sourceRef="Task_Personnel" targetRef="Gateway_Personnel" />
+      <bpmn:sequenceFlow id="Flow_Personnel_Approve" sourceRef="Gateway_Personnel" targetRef="Gateway_Join" name="genehmigt">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=personalEntscheidung = "genehmigt"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Personnel_Return" sourceRef="Gateway_Personnel" targetRef="End_ReviewReturned" name="zurückgeben">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=personalEntscheidung = "zurueckgegeben"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Personnel_Reject" sourceRef="Gateway_Personnel" targetRef="End_ReviewRejected" name="ablehnen" />
+      <bpmn:userTask id="Task_Substitute" name="Vertretung prüft">
+        <bpmn:extensionElements>
+          <zeebe:formDefinition formKey="TT Demo Urlaubsentscheidung" />
+          <flowzer:taskAssignment mode="directory" assigneeSource="variable:vertretung" />
+          <zeebe:ioMapping>
+            <zeebe:input source="=von" target="von" />
+            <zeebe:input source="=bis" target="bis" />
+            <zeebe:input source="=arbeitstage" target="arbeitstage" />
+            <zeebe:input source="=vertretung" target="vertretung" />
+            <zeebe:input source="=bemerkung" target="bemerkung" />
+            <zeebe:output source="=entscheidung" target="vertretungsEntscheidung" />
+            <zeebe:output source="=begruendung" target="substituteBegruendung" />
+          </zeebe:ioMapping>
+        </bpmn:extensionElements>
+        <bpmn:incoming>Flow_Fork_Substitute</bpmn:incoming>
+        <bpmn:outgoing>Flow_Substitute_Decision</bpmn:outgoing>
+      </bpmn:userTask>
+      <bpmn:exclusiveGateway id="Gateway_Substitute" default="Flow_Substitute_Reject" name="Entscheidung">
+        <bpmn:incoming>Flow_Substitute_Decision</bpmn:incoming>
+        <bpmn:outgoing>Flow_Substitute_Approve</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Substitute_Return</bpmn:outgoing>
+        <bpmn:outgoing>Flow_Substitute_Reject</bpmn:outgoing>
+      </bpmn:exclusiveGateway>
+      <bpmn:sequenceFlow id="Flow_Fork_Substitute" sourceRef="Gateway_Fork" targetRef="Task_Substitute" />
+      <bpmn:sequenceFlow id="Flow_Substitute_Decision" sourceRef="Task_Substitute" targetRef="Gateway_Substitute" />
+      <bpmn:sequenceFlow id="Flow_Substitute_Approve" sourceRef="Gateway_Substitute" targetRef="Gateway_Join" name="genehmigt">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=vertretungsEntscheidung = "genehmigt"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Substitute_Return" sourceRef="Gateway_Substitute" targetRef="End_ReviewReturned" name="zurückgeben">
+        <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">=vertretungsEntscheidung = "zurueckgegeben"</bpmn:conditionExpression>
+      </bpmn:sequenceFlow>
+      <bpmn:sequenceFlow id="Flow_Substitute_Reject" sourceRef="Gateway_Substitute" targetRef="End_ReviewRejected" name="ablehnen" />
+      <bpmn:sequenceFlow id="Flow_Review_Start" sourceRef="Start_Review" targetRef="Gateway_Fork" />
+      <bpmn:sequenceFlow id="Flow_Review_End" sourceRef="Gateway_Join" targetRef="End_ReviewApproved" />
+      <bpmn:incoming>Flow_Supervisor_Round</bpmn:incoming>
+      <bpmn:outgoing>Flow_Round_Approved</bpmn:outgoing>
+    </bpmn:subProcess>
+    <bpmn:boundaryEvent id="Boundary_Reject" attachedToRef="SubProcess_ReviewRound" cancelActivity="true" name="Abgelehnt">
+      <bpmn:errorEventDefinition errorRef="Error_Reject" />
+      <bpmn:outgoing>Flow_Reject_End</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+    <bpmn:boundaryEvent id="Boundary_Return" attachedToRef="SubProcess_ReviewRound" cancelActivity="true" name="Zur Korrektur">
+      <bpmn:errorEventDefinition errorRef="Error_Return" />
+      <bpmn:outgoing>Flow_Return_Correction</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="Task_Correction" name="Antrag korrigieren">
+      <bpmn:extensionElements>
+        <zeebe:formDefinition formKey="TT Demo Urlaubskorrektur" />
+        <flowzer:taskAssignment mode="directory" assigneeSource="initiator" />
+        <zeebe:ioMapping>
+          <zeebe:output source="=von" target="von" />
+          <zeebe:output source="=bis" target="bis" />
+          <zeebe:output source="=arbeitstage" target="arbeitstage" />
+          <zeebe:output source="=vertretung" target="vertretung" />
+          <zeebe:output source="=bemerkung" target="bemerkung" />
+        </zeebe:ioMapping>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Return_Correction</bpmn:incoming>
+      <bpmn:outgoing>Flow_Correction_Round</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_Approved" name="Urlaub genehmigt (Demo)">
+      <bpmn:incoming>Flow_Round_Approved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_Rejected" name="Urlaub abgelehnt (Demo)">
+      <bpmn:incoming>Flow_Reject_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start_Supervisor" sourceRef="Start_Application" targetRef="Task_FindSupervisor" />
+    <bpmn:sequenceFlow id="Flow_Supervisor_Round" sourceRef="Task_FindSupervisor" targetRef="SubProcess_ReviewRound" />
+    <bpmn:sequenceFlow id="Flow_Round_Approved" sourceRef="SubProcess_ReviewRound" targetRef="End_Approved" />
+    <bpmn:sequenceFlow id="Flow_Reject_End" sourceRef="Boundary_Reject" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_Return_Correction" sourceRef="Boundary_Return" targetRef="Task_Correction" />
+    <bpmn:sequenceFlow id="Flow_Correction_Round" sourceRef="Task_Correction" targetRef="Task_FindSupervisor" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_TickyTaskVacation">
+    <bpmndi:BPMNPlane id="Plane_TickyTaskVacation" bpmnElement="Process_TickyTaskVacation">
+      <bpmndi:BPMNShape id="Shape_Start_Application" bpmnElement="Start_Application">
+        <dc:Bounds x="20" y="335" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_FindSupervisor" bpmnElement="Task_FindSupervisor">
+        <dc:Bounds x="100" y="315" width="130" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_SubProcess_ReviewRound" bpmnElement="SubProcess_ReviewRound" isExpanded="true">
+        <dc:Bounds x="280" y="80" width="1200" height="580" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Start_Review" bpmnElement="Start_Review">
+        <dc:Bounds x="305" y="335" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Fork" bpmnElement="Gateway_Fork">
+        <dc:Bounds x="360" y="328" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Join" bpmnElement="Gateway_Join">
+        <dc:Bounds x="1220" y="328" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_ReviewApproved" bpmnElement="End_ReviewApproved">
+        <dc:Bounds x="1380" y="335" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_ReviewRejected" bpmnElement="End_ReviewRejected">
+        <dc:Bounds x="940" y="585" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_ReviewReturned" bpmnElement="End_ReviewReturned">
+        <dc:Bounds x="1140" y="585" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Supervisor" bpmnElement="Task_Supervisor">
+        <dc:Bounds x="470" y="140" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Supervisor" bpmnElement="Gateway_Supervisor">
+        <dc:Bounds x="690" y="155" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Personnel" bpmnElement="Task_Personnel">
+        <dc:Bounds x="470" y="310" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Personnel" bpmnElement="Gateway_Personnel">
+        <dc:Bounds x="690" y="325" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Substitute" bpmnElement="Task_Substitute">
+        <dc:Bounds x="470" y="480" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_Substitute" bpmnElement="Gateway_Substitute">
+        <dc:Bounds x="690" y="495" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Boundary_Reject" bpmnElement="Boundary_Reject">
+        <dc:Bounds x="330" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Boundary_Return" bpmnElement="Boundary_Return">
+        <dc:Bounds x="1250" y="642" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Task_Correction" bpmnElement="Task_Correction">
+        <dc:Bounds x="1195" y="760" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Approved" bpmnElement="End_Approved">
+        <dc:Bounds x="1570" y="335" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Rejected" bpmnElement="End_Rejected">
+        <dc:Bounds x="330" y="785" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_Flow_Fork_Supervisor" bpmnElement="Flow_Fork_Supervisor">
+        <di:waypoint x="385" y="353" />
+        <di:waypoint x="385" y="180" />
+        <di:waypoint x="470" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Supervisor_Decision" bpmnElement="Flow_Supervisor_Decision">
+        <di:waypoint x="615" y="180.0" />
+        <di:waypoint x="690" y="180.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Supervisor_Approve" bpmnElement="Flow_Supervisor_Approve">
+        <di:waypoint x="740" y="180" />
+        <di:waypoint x="1245" y="180" />
+        <di:waypoint x="1245" y="353" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Supervisor_Return" bpmnElement="Flow_Supervisor_Return">
+        <di:waypoint x="715" y="205" />
+        <di:waypoint x="850" y="205" />
+        <di:waypoint x="850" y="603" />
+        <di:waypoint x="1140" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Supervisor_Reject" bpmnElement="Flow_Supervisor_Reject">
+        <di:waypoint x="715" y="155" />
+        <di:waypoint x="810" y="155" />
+        <di:waypoint x="810" y="603" />
+        <di:waypoint x="940" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Fork_Personnel" bpmnElement="Flow_Fork_Personnel">
+        <di:waypoint x="385" y="353" />
+        <di:waypoint x="385" y="350" />
+        <di:waypoint x="470" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Personnel_Decision" bpmnElement="Flow_Personnel_Decision">
+        <di:waypoint x="615" y="350.0" />
+        <di:waypoint x="690" y="350.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Personnel_Approve" bpmnElement="Flow_Personnel_Approve">
+        <di:waypoint x="740" y="350" />
+        <di:waypoint x="1245" y="350" />
+        <di:waypoint x="1245" y="353" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Personnel_Return" bpmnElement="Flow_Personnel_Return">
+        <di:waypoint x="715" y="375" />
+        <di:waypoint x="850" y="375" />
+        <di:waypoint x="850" y="603" />
+        <di:waypoint x="1140" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Personnel_Reject" bpmnElement="Flow_Personnel_Reject">
+        <di:waypoint x="715" y="325" />
+        <di:waypoint x="810" y="325" />
+        <di:waypoint x="810" y="603" />
+        <di:waypoint x="940" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Fork_Substitute" bpmnElement="Flow_Fork_Substitute">
+        <di:waypoint x="385" y="353" />
+        <di:waypoint x="385" y="520" />
+        <di:waypoint x="470" y="520" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Substitute_Decision" bpmnElement="Flow_Substitute_Decision">
+        <di:waypoint x="615" y="520.0" />
+        <di:waypoint x="690" y="520.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Substitute_Approve" bpmnElement="Flow_Substitute_Approve">
+        <di:waypoint x="740" y="520" />
+        <di:waypoint x="1245" y="520" />
+        <di:waypoint x="1245" y="353" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Substitute_Return" bpmnElement="Flow_Substitute_Return">
+        <di:waypoint x="715" y="545" />
+        <di:waypoint x="850" y="545" />
+        <di:waypoint x="850" y="603" />
+        <di:waypoint x="1140" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Substitute_Reject" bpmnElement="Flow_Substitute_Reject">
+        <di:waypoint x="715" y="495" />
+        <di:waypoint x="810" y="495" />
+        <di:waypoint x="810" y="603" />
+        <di:waypoint x="940" y="603" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Review_Start" bpmnElement="Flow_Review_Start">
+        <di:waypoint x="341" y="353.0" />
+        <di:waypoint x="360" y="353.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Review_End" bpmnElement="Flow_Review_End">
+        <di:waypoint x="1270" y="353.0" />
+        <di:waypoint x="1380" y="353.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Start_Supervisor" bpmnElement="Flow_Start_Supervisor">
+        <di:waypoint x="56" y="353.0" />
+        <di:waypoint x="100" y="355.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Supervisor_Round" bpmnElement="Flow_Supervisor_Round">
+        <di:waypoint x="230" y="355.0" />
+        <di:waypoint x="280" y="370.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Round_Approved" bpmnElement="Flow_Round_Approved">
+        <di:waypoint x="1480" y="370.0" />
+        <di:waypoint x="1570" y="353.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Reject_End" bpmnElement="Flow_Reject_End">
+        <di:waypoint x="366" y="660.0" />
+        <di:waypoint x="330" y="803.0" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Return_Correction" bpmnElement="Flow_Return_Correction">
+        <di:waypoint x="1268" y="678" />
+        <di:waypoint x="1268" y="760" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_Correction_Round" bpmnElement="Flow_Correction_Round">
+        <di:waypoint x="1268" y="840" />
+        <di:waypoint x="1268" y="900" />
+        <di:waypoint x="165" y="900" />
+        <di:waypoint x="165" y="395" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

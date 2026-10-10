@@ -41,7 +41,9 @@ public class DefaultFlowNodeHandler : IFlowNodeHandler
         var sequenceFlowsWithConditionsPresent = outgoingSequenceFlows.Any(x => x.FlowzerCondition is not null);
         outgoingSequenceFlows = outgoingSequenceFlows.Where(x =>
             x.FlowzerCondition is null
-            || config.ExpressionHandler.MatchExpression(processInstance.GetProcessToken(token).Variables!, x.FlowzerCondition)
+            || config.ExpressionHandler.MatchExpression(
+                (processInstance.GetMappedSubProcessScope(token) ?? processInstance.GetProcessToken(token)).Variables!,
+                x.FlowzerCondition)
         ).ToArray();
 
         // 2.2 Der Standardfluss ist nur der Rückfallpfad: Er wird verworfen, sobald ein

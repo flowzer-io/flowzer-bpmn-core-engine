@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { readElementProperties } from './elementProperties';
+import { isDirectoryAssigneeSource, readElementProperties } from './elementProperties';
 import type { DiagramElement, ModdleElement } from './moddle';
 
 /** Baut ein Diagrammelement aus einem Moddle-Objekt, wie bpmn-js es liefert. */
@@ -442,5 +442,15 @@ describe('readElementProperties für ein Startereignis', () => {
     const properties = readElementProperties(element({ $type: 'bpmn:UserTask' }));
 
     expect(properties.startFormApplies).toBe(false);
+  });
+});
+
+// Testzweck: Negative Endzeichen-/Längenfälle sichern die strikte ASCII-Grammatik
+// gegen spätere Frontend-/Server-Vertragsdrift, ohne irgendeinen Ausdruck zu erlauben.
+describe('Bearbeiterquellen-Grammatik', () => {
+  it.each(['variable:vertretung\n', 'variable:vertretung\r', 'variable:vertretung\u2028', 'variable:vertretung\u2029', 'variable:person.id', 'variable:', 'variable:ä', 'variable:' + 'a'.repeat(129)])('weist die ungültige Quelle %s zurück', source => {
+    expect(isDirectoryAssigneeSource(source)).toBe(false);
+    const read = readElementProperties(element({ $type: 'bpmn:UserTask', extensionElements: extensions({ $type: 'flowzer:TaskAssignment', mode: 'directory', assigneeSource: source }) }));
+    expect(read.assignmentContractWarning).not.toBeNull();
   });
 });

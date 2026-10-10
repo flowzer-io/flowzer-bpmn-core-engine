@@ -363,7 +363,8 @@ public static class InstanceMigration
             Variables = sourceToken.Variables,
             OutputData = sourceToken.OutputData,
             CompletedByUserId = sourceToken.CompletedByUserId,
-            Initiator = sourceToken.Initiator
+            Initiator = sourceToken.Initiator,
+            ExternalReference = sourceToken.ExternalReference
         };
 
         // Der State-Setter schreibt LastStateChangeTime auf "jetzt"; der echte Zeitstempel muss

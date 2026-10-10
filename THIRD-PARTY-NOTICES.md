@@ -15,7 +15,7 @@ Drittanbieter-Code und daher ausgenommen.
 
 Ein ⚠️ markiert Pakete, deren Lizenz manuell geprüft werden sollte (nicht ohne
 Weiteres als unproblematisch für eine MPL-2.0-Nutzung eingestuft, unklar oder nicht
-automatisch ermittelbar). Aktuell 6 von 77
+automatisch ermittelbar). Aktuell 6 von 79
 Einträgen.
 
 ## .NET (NuGet)
@@ -96,9 +96,11 @@ Lizenz aus dem jeweils installierten `node_modules/<paket>/package.json`.
 | eslint | 9.39.5 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-hooks | 5.2.0 | MIT | `src/FlowzerConsole` |
 | eslint-plugin-react-refresh | 0.4.26 | MIT | `src/FlowzerConsole` |
+| flatpickr-formio | 4.6.13-formio.3 | MIT | `src/FlowzerConsole` |
 | globals | 16.5.0 | MIT | `src/FlowzerConsole` |
 | jsdom | 26.1.0 | MIT | `src/FlowzerConsole` |
 | jsdom | 27.4.0 | MIT | `packages/flowzer-react` |
+| moment-timezone | 0.5.48 | MIT | `src/FlowzerConsole` |
 | openapi-typescript | 7.13.0 | MIT | `packages/flowzer-sdk`, `src/FlowzerConsole` |
 | react | 19.2.8 | MIT | `packages/flowzer-react`, `src/FlowzerConsole` |
 | react-dom | 19.2.8 | MIT | `packages/flowzer-react`, `src/FlowzerConsole` |

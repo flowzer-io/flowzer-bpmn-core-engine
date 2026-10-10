@@ -245,17 +245,21 @@ public partial class BpmnBusinessLogic
         {
             foreach (var child in all.Where(candidate => candidate.ParentInstanceId == currentId))
             {
-                if (!cancelled.Add(child.InstanceId) || child.IsFinished)
-                {
-                    continue;
-                }
+                if (!cancelled.Add(child.InstanceId)) continue;
+                pending.Enqueue(child.InstanceId);
 
                 await storageSystem.InstanceStorage.LockForMutation(child.InstanceId);
-                var instance = new InstanceEngine(child.Tokens) { InstanceId = child.InstanceId };
-                instance.Cancel();
-                await PersistInstance(storageSystem, instance, child.metaDefinitionId, child.DefinitionId,
-                    child.ProcessId);
-                pending.Enqueue(child.InstanceId);
+                // Der Gesamtbestand ist nur die Beziehungsübersicht: Zustand nach dem
+                // Datenbanklock frisch lesen, damit paralleler Abschluss nicht rückgängig wird.
+                var current = await TryGetInstance(storageSystem, child.InstanceId);
+                if (current is null) continue;
+                if (current.IsFinished && current.State != ProcessInstanceState.Terminated) continue;
+                var instance = new InstanceEngine(current.Tokens) { InstanceId = current.InstanceId };
+                if (!current.IsFinished) instance.Cancel();
+                // Bereits terminierte Kinder werden nur idempotent repariert. Ihre
+                // Nachkommen trotzdem besuchen: Der Dateistore kann mitten im Baum scheitern.
+                await PersistInstance(storageSystem, instance, current.metaDefinitionId, current.DefinitionId,
+                    current.ProcessId);
             }
         }
     }

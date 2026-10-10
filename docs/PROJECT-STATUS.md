@@ -29,6 +29,25 @@ Typecheck und Produktionsbuild erfolgreich. ESLint: keine Fehler, sieben bestehe
 Fast-Refresh-Warnungen. Auch 36 lokale Browser-Smokes und fünf Tests am Produktionsbundle sind erfolgreich.
 Der Rolloutnachweis wird im PR zu #297 festgehalten. Teststand ist keine Behauptung vollständiger BPMN-Unterstützung.
 
+## TT-Initiatorzugang – Arbeitsstand im Demo-Integrationsbranch, 9. Oktober 2026
+
+Der read-only Worker-Vertrag `POST /job/{jobId}/initiator-access` bindet den
+aktuellen Keycloak-Konto-/Gruppenscope-/API-Rollenstand an den gespeicherten
+Initiator eines eigenen aktiven TT-Ticket-Service-Auftrags. Joblease und Engine-
+Koordinaten werden vor und nach Provider-I/O geprüft, ohne offene Storage-
+Transaktion während der externen Abfrage. Echte Entzüge und technische
+Unklarheit bleiben getrennt; Requests erlauben keine frei gewählte Person/Rolle.
+Der lokale Pflicht-OpenAPI-, Stream-/Timeout- und Identity-Vertrag wird hermetisch
+geprüft. Details: [TT-Initiatorzugang](TICKYTASK-INITIATOR-ACCESS.md).
+
+Dieser Abschnitt behauptet keinen Merge, Onlinebetrieb oder Gesamtabschluss:
+Der kalte TT-Accessadapter und die dauerhafte Vorgangssperre sind im getrennten
+TT-Arbeitsbranch vorbereitet. Der persönliche Read-only-Betriebsnachweis für die
+gezielte Wiederfreigabe wird hier ergänzt; er ersetzt weder frische TT-Administration
+noch deren atomaren Audit. Ausführender Worker, auditierte Wiederfreigabe und
+echte Keycloak-/HTTPS-/45-Minuten-/Demo-Abnahme bleiben offen. Die konkrete
+Demo-Gruppenzuordnung und der koordinierte Rollout sind separate Gates.
+
 ## Historische Einordnung vom 10. September 2026
 
 ## Einordnung
@@ -109,6 +128,18 @@ Dateiablage bietet weiterhin keinen Rollback; die Sperre gilt nur innerhalb eine
 API-Prozesses, und sie bleibt deshalb auf einen API-Prozess begrenzt. Für PostgreSQL ist
 der Mehrprozessbetrieb inzwischen mit Konkurrenztests belegt und freigegeben:
 [Betrieb](OPERATIONS.md#mehrprozessbetrieb).
+
+## Separates TT-Ticketaktions-Beispiel (noch nicht bereitgestellt)
+
+Unter `examples/tickytask-ticketaktionen/` liegt das feste Originalmodell für
+Anlage, explizit projiziertes Lesen, Delegation und Abschluss. Genau vier bekannte
+TT-Jobtypen; keine freie Aktions-/Zielauswahl oder Übernahme von Startdaten.
+`TickyTaskTicketActionsExampleTest` prüft acht Fälle am Original über die wirkliche
+Kernengine mit ausdrücklich synthetischen Workerresultaten. Das beweist keine
+Ticket-/SQL-/HTTPS-/Keycloak-/Runtimewirkung. Die feste TT-Policy-Vorlage benötigt
+separat die tatsächliche Fassung sowie verifizierte Demo-Ziele; ungelöst bleibt sie
+geschlossen. Keine Aktivierung, Migration oder Timerimplementierung. Details:
+[Ticketaktionen](../examples/tickytask-ticketaktionen/README.md).
 
 ## Formularbindung – PR #181 (aufbauend auf #179)
 

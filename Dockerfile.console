@@ -24,8 +24,9 @@ RUN npm run build --prefix src/FlowzerConsole
 FROM nginx:1.27-alpine AS runtime
 
 COPY deploy/console/entrypoint.sh /entrypoint.sh
+COPY deploy/console/embedding-policy.sh /embedding-policy.sh
 COPY --from=build /src/src/FlowzerConsole/dist /usr/share/nginx/html
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh /embedding-policy.sh
 
 # Nur nicht geheime Bereitstellungswerte stehen erst zur Laufzeit fest; das Bundle
 # soll nicht je Umgebung neu gebaut werden. OIDC-Clientdaten und Tokens bleiben im BFF.

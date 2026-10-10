@@ -1,0 +1,110 @@
+{
+  "display": "form",
+  "flowzer": {
+    "contractVersion": 4,
+    "actions": [
+      {
+        "id": "approve",
+        "label": "Genehmigen",
+        "variant": "primary",
+        "set": [
+          {
+            "field": "entscheidung",
+            "value": "genehmigt"
+          }
+        ]
+      },
+      {
+        "id": "reject",
+        "label": "Ablehnen",
+        "variant": "danger",
+        "set": [
+          {
+            "field": "entscheidung",
+            "value": "abgelehnt"
+          }
+        ]
+      },
+      {
+        "id": "return",
+        "label": "Zur Korrektur zurückgeben",
+        "variant": "secondary",
+        "set": [
+          {
+            "field": "entscheidung",
+            "value": "zurueckgegeben"
+          }
+        ]
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "datetime",
+      "key": "von",
+      "label": "Erster Urlaubstag",
+      "input": true,
+      "enableTime": false,
+      "format": "dd.MM.yyyy",
+      "disabled": true
+    },
+    {
+      "type": "datetime",
+      "key": "bis",
+      "label": "Letzter Urlaubstag",
+      "input": true,
+      "enableTime": false,
+      "format": "dd.MM.yyyy",
+      "disabled": true
+    },
+    {
+      "type": "number",
+      "key": "arbeitstage",
+      "label": "Beantragte Arbeitstage",
+      "input": true,
+      "description": "Ohne Wochenenden und Feiertage; keine echte Urlaubsbuchung.",
+      "disabled": true
+    },
+    {
+      "type": "flowzerSubject",
+      "key": "vertretung",
+      "label": "Vertretung",
+      "input": true,
+      "multiple": false,
+      "flowzer": {
+        "subjectSelection": {
+          "allowUsers": true,
+          "allowGroups": false,
+          "allowedUserIds": [],
+          "userMemberOfGroupIds": [],
+          "allowedGroupIds": [],
+          "includeSubgroups": false
+        }
+      },
+      "disabled": true
+    },
+    {
+      "type": "textarea",
+      "key": "bemerkung",
+      "label": "Bemerkung",
+      "input": true,
+      "rows": 3,
+      "disabled": true
+    },
+    {
+      "type": "textarea",
+      "key": "begruendung",
+      "label": "Begründung / Rückfrage",
+      "input": true,
+      "rows": 3
+    },
+    {
+      "type": "hidden",
+      "key": "entscheidung",
+      "input": true,
+      "validate": {
+        "required": true
+      }
+    }
+  ]
+}
