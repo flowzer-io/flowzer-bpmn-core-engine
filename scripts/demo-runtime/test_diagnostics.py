@@ -18,6 +18,169 @@ MARKER = 'synthetic-private-error-must-not-escape'
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_both_optional_report_errors_never_displace_actual_cleanup_failure(self):
+        # Testzweck: Der echte Runpfad bleibt auf maximal drei Diagnosen und hält
+        # den primären Auth-Exit sowie die spätere Ownership-/Cleanup-Ursache fest.
+        with self.synthetic_runtime() as rig:
+            error=runner.MeasuredProcessExitError(1)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    for name in ('auth-result.json','discovery-result.json'):
+                        (rig.root/name).write_text(json.dumps({'raw':MARKER}))
+                    raise error
+            rig.measured_command=Mock(side_effect=measured)
+            cleanup=ValueError(MARKER)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],cleanup])
+            with self.assertRaises(ValueError) as raised:rig.run()
+            self.assertIs(cleanup,raised.exception)
+            raw=(rig.root/'report/resource-result.json').read_text();actual=json.loads(raw)
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='auth_report',error='validation',exit_code=None),
+                dict(phase='cleanup',error='validation',exit_code=None)],actual['failures'])
+            self.assertEqual(3,len(actual['failures']));self.assertNotIn(MARKER,raw)
+            self.assertFalse(actual['success']);self.assertFalse(actual['cleanup_complete'])
+            self.assertFalse(any('down' in call.args[0] for call in rig.command.call_args_list))
+
+    def test_optional_reports_never_displace_actual_cleanup_timeout_and_stop_io(self):
+        # Testzweck: Auch der tatsächliche command→stop_process-Pfad beim Cleanup
+        # bekommt innerhalb Max3 seine beiden realen Ursachen, keine geänderte Abbruchaktion.
+        with self.synthetic_runtime() as rig:
+            error=runner.MeasuredProcessExitError(1)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    for name in ('auth-result.json','discovery-result.json'):
+                        (rig.root/name).write_text(json.dumps({'raw':MARKER}))
+                    raise error
+            rig.measured_command=Mock(side_effect=measured)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],[container(s) for s in BUDGETS]])
+            original=rig.command;timeout=subprocess.TimeoutExpired(['synthetic'],120);stop=OSError(MARKER)
+            child=Mock(pid=123);child.communicate.side_effect=timeout;child.wait.side_effect=stop
+            def command(args,**kwargs):
+                if 'down' in args:
+                    with patch.object(runner.subprocess,'Popen',return_value=child),patch.object(runner.os,'killpg') as kill:
+                        try:return runner.Rig.command(rig,args,**kwargs)
+                        finally:kill.assert_called_once_with(123,signal.SIGTERM);child.wait.assert_called_once_with(timeout=5)
+                return original(args,**kwargs)
+            rig.command=Mock(side_effect=command)
+            with self.assertRaises(OSError) as raised:rig.run()
+            self.assertIs(stop,raised.exception)
+            raw=(rig.root/'report/resource-result.json').read_text();actual=json.loads(raw)
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='cleanup',error='timeout',exit_code=None),
+                dict(phase='stop',error='io',exit_code=None)],actual['failures'])
+            self.assertEqual(3,len(actual['failures']));self.assertNotIn(MARKER,raw)
+            self.assertFalse(actual['success']);self.assertFalse(actual['cleanup_complete'])
+
+    def test_discovery_report_accepts_only_status_transport_and_nullable_booleans(self):
+        # Testzweck: Bestehende Anfrage liefert nur beobachtete Zahlen/Booleans;
+        # fehlende Informationen bleiben null, kein Rohtext und keine erfundene Null.
+        project=getattr(runner,'discovery_result',None)
+        self.assertTrue(callable(project),'Geschlossene Discovery-Projektion fehlt')
+        value=dict(status=200,transport_code=None,issuer_matches=True,pkce_s256=True)
+        for accepted in [value,value|{'status':503,'issuer_matches':None,'pkce_s256':None},
+            dict(status=None,transport_code=8,issuer_matches=None,pkce_s256=None),
+            dict(status=None,transport_code=None,issuer_matches=None,pkce_s256=None)]:
+            self.assertEqual(accepted,project(accepted))
+        for rejected in [value|{'raw':MARKER},value|{'status':True},value|{'status':99},
+            value|{'status':600},value|{'status':'200'},value|{'transport_code':1},
+            value|{'status':None,'transport_code':0},value|{'status':None,'transport_code':14},
+            value|{'status':None,'transport_code':True},value|{'issuer_matches':1},
+            value|{'pkce_s256':'true'},value|{'status':None}]:
+            with self.subTest(),self.assertRaises(ValueError):project(rejected)
+
+    def test_actual_auth_exit_retains_only_existing_safe_discovery_report(self):
+        # Testzweck: Tatsächlich eigener Auth-Exit behält eine vorhandene sichere
+        # Discovery-Beobachtung, bleibt rot und führt unverändert eigenes Cleanup aus.
+        observed=dict(status=None,transport_code=8,issuer_matches=None,pkce_s256=None)
+        with self.synthetic_runtime() as rig:
+            error=runner.MeasuredProcessExitError(1)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    (rig.root/'auth-result.json').write_text(json.dumps(dict(total=16,passed=1,
+                        failed=1,skipped=0,interrupted=0,errors=0,success=False,failed_test_indexes=[2])))
+                    (rig.root/'discovery-result.json').write_text(json.dumps(observed));raise error
+            rig.measured_command=Mock(side_effect=measured)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                [container(s) for s in BUDGETS],[]])
+            with self.assertRaises(runner.MeasuredProcessExitError) as raised:rig.run()
+            self.assertIs(error,raised.exception)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual(observed,actual.get('discovery'));self.assertNotIn('auth',actual)
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1)],actual['failures'])
+            self.assertFalse(actual['success']);self.assertTrue(actual['cleanup_complete'])
+
+    def test_discovery_report_problem_never_replaces_auth_exit_or_exports_raw(self):
+        # Testzweck: Manipulierte/überlange/Symlink-Beobachtung bleibt feste Zusatzphase;
+        # kein Rohtext, kein primärer Exitverlust und keine Abkürzung am Cleanup.
+        for kind in ('invalid','oversize','symlink'):
+            with self.subTest(kind=kind),self.synthetic_runtime() as rig:
+                error=runner.MeasuredProcessExitError(1)
+                def measured(args,**kwargs):
+                    rig.report['sample_count']=1
+                    if args[0]=='node':
+                        (rig.root/'auth-result.json').write_text(json.dumps(dict(total=16,passed=1,
+                            failed=1,skipped=0,interrupted=0,errors=0,success=False)))
+                        output=rig.root/'discovery-result.json'
+                        if kind=='symlink':output.symlink_to(rig.root/'auth-result.json')
+                        elif kind=='oversize':output.write_text(' ' * 1025)
+                        else:output.write_text(json.dumps({'raw':MARKER}))
+                        raise error
+                rig.measured_command=Mock(side_effect=measured)
+                rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                    [container(s) for s in BUDGETS],[]])
+                with self.assertRaises(runner.MeasuredProcessExitError) as raised:rig.run()
+                self.assertIs(error,raised.exception)
+                raw=(rig.root/'report/resource-result.json').read_text();actual=json.loads(raw)
+                self.assertNotIn('discovery',actual);self.assertNotIn(MARKER,raw)
+                self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                    dict(phase='discovery_report',error='validation',exit_code=None)],actual['failures'])
+                self.assertTrue(actual['cleanup_complete']);self.assertFalse(actual['success'])
+
+    def test_discovery_existence_io_never_replaces_actual_auth_exit(self):
+        # Testzweck: Auch ein Dateisystemfehler schon bei der Existenzprüfung bleibt
+        # Zusatzdiagnose, nicht Ersatz des tatsächlich beobachteten Auth-Kindprozess-Exits.
+        with self.synthetic_runtime() as rig:
+            rig.root.mkdir()
+            (rig.root/'auth-result.json').write_text(json.dumps(dict(total=16,passed=1,
+                failed=1,skipped=0,interrupted=0,errors=0,success=False)))
+            error=runner.MeasuredProcessExitError(1);rig.measured_command=Mock(side_effect=error)
+            original=Path.exists
+            def exists(path):
+                if path==rig.root/'discovery-result.json':raise OSError(MARKER)
+                return original(path)
+            with patch.object(Path,'exists',exists):
+                try:rig.run_auth(rig.root)
+                except Exception as actual:self.assertIs(error,actual)
+                else:self.fail('Tatsächlicher Auth-Exit wurde verschluckt')
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='discovery_report',error='io',exit_code=None)],rig.report['failures'])
+            self.assertNotIn('discovery',rig.report);self.assertNotIn(MARKER,json.dumps(rig.report))
+
+    def test_sampling_exit_never_opens_existing_discovery_observation(self):
+        # Testzweck: Der tatsächliche measured_command→sample-Fehler beweist keinen
+        # Auth-Kindprozess-Exit und darf auch eine vorhandene Discovery-Datei nicht öffnen.
+        with self.synthetic_runtime() as rig:
+            error=runner.ProcessExitError(29)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]!='node':return
+                (rig.root/'discovery-result.json').write_text(json.dumps({'raw':MARKER}))
+                child=Mock();child.poll.side_effect=[None,0];rig.sample=Mock(side_effect=error)
+                with patch.object(runner.subprocess,'Popen',return_value=child):
+                    runner.Rig.measured_command(rig,args,**kwargs)
+            rig.measured_command=Mock(side_effect=measured)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],
+                [container(s) for s in BUDGETS],[]])
+            with self.assertRaises(runner.ProcessExitError) as raised:rig.run()
+            self.assertIs(error,raised.exception)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertNotIn('discovery',actual);self.assertNotIn('auth_attempt',actual)
+            self.assertEqual([dict(phase='sampling',error='process_exit',exit_code=29)],actual['failures'])
+            self.assertTrue(actual['cleanup_complete'])
+
     def test_failed_auth_optional_ordinals_are_closed_unique_and_not_success(self):
         # Testzweck: Nur bekannte positive Suiteordinale eines echten Fehlversuchs,
         # niemals Titel/IDs, erfundene Null, Duplikate oder mehr Kennungen als Fehltests.

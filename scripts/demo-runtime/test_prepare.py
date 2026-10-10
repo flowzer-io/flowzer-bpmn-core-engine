@@ -18,6 +18,19 @@ class PreparationTests(unittest.TestCase):
             attempt='1', run_id='123456', sha='a'*40, confirmed_sha='a'*40,
             runner_environment='github-hosted', runner_os='Linux', runner_arch='X64', **changes)
 
+    def test_http_copy_observes_only_export_and_preserves_actual_request_source(self):
+        # Testzweck: Einziger exakter Exportadapter; keine neue Anfrage oder Änderung
+        # von TLS, CA, DNS, Timeout, Redirects, API-Aufrufen oder Originalspecs.
+        adapt=getattr(rig,'adapt_http_helper',None)
+        self.assertTrue(callable(adapt),'Enger Discovery-Exportadapter fehlt')
+        original=(ROOT/'tests/installation-auth/support/http.js').read_text()
+        old='module.exports = { apiRequest, decodeJwtPayload, httpRequest, testCaCertificate, waitFor };'
+        new="module.exports = { apiRequest, decodeJwtPayload, httpRequest: (...args) => " \
+            + "require('./safe-reporter').discoveryRequest(httpRequest, require('./constants').ISSUER, args), testCaCertificate, waitFor };"
+        self.assertEqual(original.replace(old,new),adapt(original))
+        for changed in [original.replace(old,''),original+old]:
+            with self.assertRaises(ValueError):adapt(changed)
+
     def test_context_binds_own_unique_project(self):
         # Testzweck: Nur der bestätigte manuelle Hosted-Erstlauf erhält eine eigene Namespace-Bindung.
         self.assertEqual('flowzer-runtime-123456-a1', rig.project_for(self.context()))

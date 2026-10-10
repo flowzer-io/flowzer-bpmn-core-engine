@@ -143,3 +143,89 @@ test('Unbekannte oder mehrdeutige Test-ID erhält keine erfundene Ordinalnull', 
     fs.rmSync(folder,{recursive:true});
   }
 });
+
+
+// Testzweck: Der Beobachter verwendet ausschließlich VM-/HTTP-/Dateimocks.
+// Keine echte Anfrage, kein Listener, kein zusätzlicher Runtimeprozess.
+function discoveryFixture(output, failWrite=false) {
+  if(arguments.length===0)output='/synthetic/auth-result.json';
+  const writes=[],attempts=[];
+  const sandbox={process:{env:{FLOWZER_RUNTIME_REPORT:output}},module:{exports:{}},require:name=>{
+    assert.equal(name,'fs');return {writeFileSync:(file,raw,options)=>{
+      attempts.push({file,flag:options.flag,mode:options.mode});
+      assert.equal(file,'/synthetic/discovery-result.json');assert.equal(options.flag,'wx');assert.equal(options.mode,0o600);
+      if(failWrite)throw new Error('synthetic-write-error-must-not-escape');
+      assert.equal(writes.length,0,'Keine Beobachtung überschreiben');writes.push(JSON.parse(raw));
+    }};
+  }};
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'safe-reporter.js'),'utf8'),sandbox);
+  const observe=sandbox.module.exports.discoveryRequest;
+  assert.equal(typeof observe,'function','Beobachter der bestehenden Discovery-Anfrage fehlt');
+  return {observe,writes,attempts};
+}
+
+const syntheticIssuer='https://synthetic.invalid/realms/synthetic';
+const discoveryUrl=syntheticIssuer+'/.well-known/openid-configuration';
+
+test('Discovery beobachtet dieselbe einzige Anfrage und gibt dieselbe Response unverändert zurück',async()=>{
+  // Status/Issuer/PKCE werden nur aus vorhandener Antwort berechnet; Rohmaterial bleibt ungelesen.
+  const {observe,writes}=discoveryFixture();const options={headers:{synthetic:'not-exported'}};
+  const response={status:200,text:JSON.stringify({issuer:syntheticIssuer,
+    code_challenge_methods_supported:['S256'],irrelevant:'synthetic-private-body'} )};
+  for(const key of ['headers','json'])Object.defineProperty(response,key,{get(){throw new Error('Rohgetter verboten');}});
+  let calls=0;
+  assert.equal(await observe((...args)=>{calls++;assert.equal(args[0],discoveryUrl);
+    assert.equal(args[1],options);return Promise.resolve(response);},syntheticIssuer,[discoveryUrl,options]),response);
+  assert.equal(calls,1);assert.deepEqual(writes,[{status:200,transport_code:null,issuer_matches:true,pkce_s256:true}]);
+  assert.ok(!JSON.stringify(writes).includes('synthetic'));
+});
+
+test('Alle Nicht-Discovery-Aufrufe bleiben exakt unangetastet und ohne Datei',async()=>{
+  // Token/Admin/API und abweichende Query/Credentials dürfen keine Beobachtung oder neuen HTTP-Aufruf auslösen.
+  for(const url of [syntheticIssuer+'/protocol/openid-connect/token',discoveryUrl+'?extra',
+    'https://other.invalid/.well-known/openid-configuration']) {
+    const {observe,writes}=discoveryFixture();const response={};const promise=Promise.resolve(response);let calls=0;
+    assert.equal(observe((...args)=>{calls++;assert.equal(args[0],url);return promise;},syntheticIssuer,[url]),promise);
+    assert.equal(calls,1);assert.equal(writes.length,0);assert.equal(await promise,response);
+  }
+});
+
+test('Native Transportcodes werden nur feste Zahlen, Originalfehler bleibt identisch',async()=>{
+  // Nie message/stack/address/cause lesen; unbekannter/fehlender Code ist null statt Erfolg oder Nullcode.
+  const codes=['ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','EPROTO',
+    'ERR_TLS_CERT_ALTNAME_INVALID','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN',
+    'DEPTH_ZERO_SELF_SIGNED_CERT','UNABLE_TO_GET_ISSUER_CERT_LOCALLY','CERT_HAS_EXPIRED','ERR_SSL_WRONG_VERSION_NUMBER'];
+  for(const [index,code] of [...codes,'synthetic-unknown-code',undefined].entries()) {
+    const {observe,writes}=discoveryFixture();const error={code};
+    for(const key of ['message','stack','address','cause'])Object.defineProperty(error,key,{get(){throw new Error('Rohfehler verboten');}});
+    let calls=0;await assert.rejects(observe(()=>{calls++;return Promise.reject(error);},syntheticIssuer,[discoveryUrl]),e=>e===error);
+    assert.equal(calls,1);assert.deepEqual(writes,[{status:null,transport_code:index<codes.length?index+1:null,
+      issuer_matches:null,pkce_s256:null}]);assert.ok(!JSON.stringify(writes).includes('synthetic'));
+  }
+});
+
+test('Nicht-JSON und unbekannter Status bleiben nullable, falsche Discovery-Felder bleiben false',async()=>{
+  // Keine erfundene erfolgreiche Antwort bei Transport-/Parsefehlern; normale 503 ist tatsächlich 503.
+  for(const [response,expected] of [
+    [{status:503,text:'synthetic-non-json'},{status:503,transport_code:null,issuer_matches:null,pkce_s256:null}],
+    [{status:200,text:'{}'},{status:200,transport_code:null,issuer_matches:false,pkce_s256:false}],
+    [{status:200,text:JSON.stringify({issuer:'other',code_challenge_methods_supported:['plain']})},
+      {status:200,transport_code:null,issuer_matches:false,pkce_s256:false}],
+    [{status:true,text:'{}'},{status:null,transport_code:null,issuer_matches:null,pkce_s256:null}]]) {
+    const {observe,writes}=discoveryFixture();assert.equal(await observe(()=>Promise.resolve(response),syntheticIssuer,[discoveryUrl]),response);
+    assert.deepEqual(writes,[expected]);
+  }
+});
+
+test('Beobachtungs-Dateifehler ersetzen weder Originalantwort noch Originalfehler und haben keinen Fallback',async()=>{
+  // wx/0600 und feste eigene Reportbindung; fehlende/böse Bindung führt zu keiner Datei/URL-/Rohfehlerausgabe.
+  const response={status:200,text:'{}'};const error={code:'ECONNREFUSED'};
+  for(const output of ['/synthetic/auth-result.json',undefined,'relative/auth-result.json','/synthetic/../auth-result.json','/synthetic/other.json']) {
+    const {observe,writes,attempts}=discoveryFixture(output,true);
+    assert.equal(await observe(()=>Promise.resolve(response),syntheticIssuer,[discoveryUrl]),response);
+    await assert.rejects(observe(()=>Promise.reject(error),syntheticIssuer,[discoveryUrl]),e=>e===error);
+    assert.equal(writes.length,0);
+    assert.equal(attempts.length,output==='/synthetic/auth-result.json'?2:0);
+    for(const row of attempts)assert.deepEqual(row,{file:'/synthetic/discovery-result.json',flag:'wx',mode:0o600});
+  }
+});

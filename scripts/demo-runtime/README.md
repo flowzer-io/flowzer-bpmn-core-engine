@@ -1,5 +1,69 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Bestehende Discovery-Anfrage beobachten – Diagnose nach Run 38064007895
+
+Der tatsächliche Erstlauf `38064007895/a1` auf
+`5393481635b99774a8f9034e68148ef6fae06353` bleibt **FAILURE** mit Auth-Exit1,
+zehn Samples und bestätigtem eigenen Cleanup. Die tatsächliche Fehltestposition
+`2` ist im unveränderten CF-Harness der zweite Check-config-Test: Discovery mit
+konfiguriertem Issuer und PKCE S256. Die übrigen 14 Endergebnisse sind unbekannt;
+HTTP-Status, Transportursache und Feldvergleiche waren bisher ebenfalls unbekannt.
+
+Der Exportadapter der **Kopie** beobachtet ausschließlich diesen vorhandenen
+Discovery-Aufruf. Kein weiterer HTTP-Aufruf, keine geänderten Argumente, keine
+Änderung von CA/TLS, DNS, Redirects oder Timeout. Antwort und Originalfehler werden
+identisch zurückgegeben; alle anderen HTTP-/Token-/Admin-/API-Aufrufe bleiben
+unangetastet. Originalspecs, ihre Assertions und die 28 kopierten Dateien bleiben
+unverändert. Der bereits vorhandene sichere Reporter trägt die Beobachtung,
+nicht eine vierte Hilfsdatei.
+
+Eine eigene `discovery-result.json` wird ausschließlich neben dem eigenen gebundenen
+`auth-result.json` mit `wx`/0600 angelegt. Sie enthält exakt `status` (tatsächlicher
+Integer 100–599 oder null), `transport_code` (feste Nummer 1–13 oder null),
+`issuer_matches` und `pkce_s256` (Boolean oder null). Nur dieselben bereits gelesenen
+Antwortbytes werden im RAM geparst. URLs, Header, Antworten, Error-Rohtext, Tokens
+und personenbezogene Inhalte werden niemals exportiert. Nicht-JSON/unbekannte
+Werte sind **null**, kein erfundener Erfolg/Nullcode. Fehlende oder unbeschreibbare
+Dateibindung ändert die originale HTTP-Entscheidung nicht und besitzt keinen Fallback.
+
+Die geschlossene Liste der tatsächlichen [Node-Fehlercodes](https://nodejs.org/docs/latest-v22.x/api/errors.html)
+und [TLS-Zertifikatcodes](https://nodejs.org/docs/latest-v22.x/api/tls.html) lautet:
+1 `ENOTFOUND`, 2 `EAI_AGAIN`, 3 `ECONNREFUSED`, 4 `ECONNRESET`, 5 `ETIMEDOUT`,
+6 `EPROTO`, 7 `ERR_TLS_CERT_ALTNAME_INVALID`, 8 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`,
+9 `SELF_SIGNED_CERT_IN_CHAIN`, 10 `DEPTH_ZERO_SELF_SIGNED_CERT`,
+11 `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, 12 `CERT_HAS_EXPIRED`,
+13 `ERR_SSL_WRONG_VERSION_NUMBER`. Andere oder fehlende Codes bleiben null.
+Diese Namen stehen nur in der geprüften Source-Liste, nicht im Runtimebericht.
+
+Ausschließlich nach einem **tatsächlichen Auth-Kindprozess-Exit** übernimmt der Runner
+eine vorhandene, streng validierte Beobachtung (maximal 1024 Bytes) als `discovery`.
+Fehlend bedeutet unbekannt; manipulierter Inhalt/Symlink/IO bekommt nur die feste
+Zusatzphase `discovery_report`, niemals Ersatz des primären Auth-Exits. Sampling-
+oder Stopfehler öffnen keine Discovery-Datei. Der erfolgreiche Authvertrag bleibt
+exakt unverändert; diese Beobachtung ist kein neues Erfolgs-/Akzeptanzgate.
+
+Neun Python- und fünf Mock-Node-Assertion-REDs belegten die fehlenden Verträge
+inklusive Existenzprüfungs-IO und Diagnosepriorität. Danach bestehen **77 Python/21 Mock-Node ohne Skips**
+mit derselben lokalen Leser-Allowlist (173 Git-, vier Ruby-YAML- und ein Node-VM-Read).
+Alle bisherigen 69 Pythonmethoden und 16 Mock-Nodefälle bleiben erhalten. Es lief
+lokal kein echter HTTP-/Browser-/Docker-/Authprozess. Maximal drei Diagnosen,
+1500s, Statusannahmen, Ressourcenlimits, Ownership/Cleanup und sämtliche Netz-
+und Authgrenzen bleiben unverändert.
+
+Der erste unabhängige Gesamtreview fand P2: Auth-Exit plus beide optionalen
+Berichtfehler konnten Max3 vor dem echten Cleanupfehler belegen. Ein unveränderlicher
+abgelehnter Snapshot bleibt erhalten. Zwei additive echte Runpfad-Mock-REDs
+belegten den Verlust für Ownership/Cleanup sowie für den tatsächlichen
+`command → stop_process`-Pfad mit Cleanup-Timeout und Stop-IO. Innerhalb unverändert
+Max3 dürfen jetzt ausschließlich spätere echte Stop-/Cleanup-Diagnosen einen
+optionalen `auth_report`/`discovery_report`-Platz verdrängen. Die primäre Ursache
+(Index0) und echte Runtimeursachen bleiben erhalten. Keine Cleanup-/Abbruchaktion,
+Fehlerakzeptanz oder Ressourcen-/Zeitgrenze ändert sich.
+
+Ein weiterer serieller Hosted-Erstlauf braucht
+aktuellen Whole-Freeze, unabhängigen Gesamtreview, exakten SHA/Tree/Parent und frische
+Source-CI/Publisher-/Registrybelege. Historische Fehlläufe werden nicht umetikettiert.
+
 ## Numerische Fehltestposition – Diagnose nach Run 38063115353
 
 Der neue reale Erstlauf `38063115353/a1` auf

@@ -108,6 +108,18 @@ def adapt_compose_helper(text, project):
     return replace_once(text, old, new)
 
 
+def adapt_http_helper(text):
+    """Nur der Export beobachtet dieselbe Discovery-Anfrage; originaler HTTP-/API-Code bleibt gleich.
+
+    Keine neue Hilfsdatei, keine zweite Anfrage: Der bestehende sichere Reporter
+    hält ausschließlich feste Zahlen/Booleans. Token-/Admin-/API-Aufrufe umgehen ihn.
+    """
+    old="module.exports = { apiRequest, decodeJwtPayload, httpRequest, testCaCertificate, waitFor };"
+    new="module.exports = { apiRequest, decodeJwtPayload, httpRequest: (...args) => " \
+        + "require('./safe-reporter').discoveryRequest(httpRequest, require('./constants').ISSUER, args), testCaCertificate, waitFor };"
+    return replace_once(text,old,new)
+
+
 def prepare(source, target, context):
     """Nur git-versionierte Fixtures in einen noch nicht existierenden, externen Ordner kopieren.
 
@@ -140,6 +152,7 @@ def prepare(source, target, context):
     auth = 'tests/installation-auth/'
     contents[auth+'compose.yml'] = adapt_compose(contents[auth+'compose.yml'].decode(), project).encode()
     contents[auth+'support/compose.js'] = adapt_compose_helper(contents[auth+'support/compose.js'].decode(),project).encode()
+    contents[auth+'support/http.js'] = adapt_http_helper(contents[auth+'support/http.js'].decode()).encode()
     config = contents[auth+'playwright.config.js'].decode()
     config = replace_once(config, "reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],",
         "reporter: [[require.resolve('./support/safe-reporter')]],")

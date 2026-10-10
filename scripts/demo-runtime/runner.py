@@ -36,7 +36,7 @@ INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','auth_report','verify','stop','cleanup'} |
+    'pull','start','sampling','auth','auth_report','discovery_report','verify','stop','cleanup'} |
     {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
         'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
         'context_close','browser_close','proxy_close','allowed_close','marker_close']})
@@ -156,6 +156,23 @@ def auth_attempt_result(value,expected):
     return value
 
 
+def discovery_result(value):
+    """Vorhandene Discovery-Beobachtung: nur Status/Code und nullable Feldvergleiche.
+
+    Kein Auth-Gate: null ist unbekannt, false bleibt false, Status wird nicht als
+    Erfolg interpretiert. Transportcode 1..13 ist eine feste dokumentierte Node-Liste.
+    """
+    keys={'status','transport_code','issuer_matches','pkce_s256'}
+    require(type(value) is dict and set(value)==keys)
+    status,code=value['status'],value['transport_code']
+    require((status is None or type(status) is int and 100<=status<=599)
+        and (code is None or type(code) is int and 1<=code<=13)
+        and (status is None or code is None)
+        and all(value[key] is None or type(value[key]) is bool for key in ['issuer_matches','pkce_s256'])
+        and (status is not None or value['issuer_matches'] is None and value['pkce_s256'] is None))
+    return value
+
+
 def egress_result(value):
     """Nur exakt die eigene erfolgreiche numerische Netzprobe, keine Roh-/Fehlerfelder uploaden."""
     ones={'positive_control_requests','allowed_page','redirect_ip_blocked','redirect_host_blocked',
@@ -240,10 +257,26 @@ class Rig:
         self.compose=['docker','compose','-p',self.project,'-f',str(self.root/'rig/tests/installation-auth/compose.yml')]
 
     def note_failure(self,phase,error):
-        """Erste Ursache plus höchstens Stop/Cleanup erhalten; nur Identitätsnummern im Speicher."""
+        """Erste Ursache plus Stop/Cleanup innerhalb Max3; nur Identitätsnummern im Speicher.
+
+        Optionale Zahlenberichtdiagnosen dürfen die spätere echte Stop-/Cleanup-
+        Ursache nicht verdrängen. Nur ein solcher Zusatzplatz (nie Index0 oder
+        eine echte Runtimeursache) wird bei Bedarf freigemacht; Aktionen, Exit-
+        entscheidung und Reihenfolge der verbliebenen Ursachen bleiben gleich.
+        """
         self.report['success']=False
-        if id(error) not in self.failure_ids and len(self.report['failures'])<3:
-            self.failure_ids.add(id(error));self.report['failures'].append(failure_projection(phase,error))
+        if id(error) in self.failure_ids:return
+        rows=self.report['failures'];replace=None
+        if len(rows)>=3:
+            if phase not in ('stop','cleanup'):return
+            replace=next((index for index in range(len(rows)-1,0,-1)
+                if rows[index]['phase'] in ('auth_report','discovery_report')),None)
+            if replace is None:return
+        value=failure_projection(phase,error)
+        if replace is not None:del rows[replace]
+        # Bereits gesehene Identitäten bleiben auch nach Verdrängung bekannt,
+        # damit äußere Rahmen denselben optionalen Fehler nicht wieder hinzufügen.
+        self.failure_ids.add(id(error));rows.append(value)
 
     @contextmanager
     def phase(self,phase):
@@ -442,6 +475,18 @@ class Rig:
                 self.report['auth_attempt']=auth_attempt_result(proof.decode(raw),16)
             except Exception as diagnostic:
                 self.note_failure('auth_report',diagnostic)
+            # Nur nach dem wirklichen Auth-Kindprozess-Exit und nur wenn dessen
+            # vorhandene Anfrage eine Datei erzeugt hat. Fehlend heißt unbekannt,
+            # Sampling-/Stopfehler erreichen diesen Pfad ausdrücklich nicht.
+            output=self.root/'discovery-result.json'
+            try:
+                if output.exists() or output.is_symlink():
+                    require(not output.is_symlink())
+                    with output.open('rb') as stream:raw=stream.read(1025)
+                    require(len(raw)<=1024)
+                    self.report['discovery']=discovery_result(proof.decode(raw))
+            except Exception as diagnostic:
+                self.note_failure('discovery_report',diagnostic)
             raise
         self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
 
