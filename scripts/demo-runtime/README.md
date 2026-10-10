@@ -1,5 +1,57 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Eigene TLS-Portbindung inspizieren – Diagnose nach Run 38073403466
+
+Der tatsächliche neue Erstlauf `38073403466/a1` auf
+`002e49ad52367d57e936cc0e94e747cc5063957f` bleibt **FAILURE** mit Auth-Exit 1
+und Fehltest 2. Discovery beobachtete ausschließlich Transportcode 3 (die feste
+Source-Kategorie `ECONNREFUSED`); HTTP-Status, Issuer-/PKCE-Felder sind null.
+Neun echte Samples und eigenes bestätigtes Cleanup sind keine vollständige
+Auth-/Ressourcenabnahme. Die übrigen 14 Testergebnisse bleiben unbekannt.
+
+Die Originalkopie erwartet TLS auf dem Loopback-Port 8443, während das einzige
+Container-Netz strikt `internal=true` bleibt. [Moby-Source](https://github.com/moby/moby/blob/v28.4.0/libnetwork/endpoint.go)
+überspringt externe Konnektivitätsprogrammierung für interne Netze. Das erklärt
+möglicherweise eine fehlende Host-Portveröffentlichung, ist bisher aber nur eine
+Source-Inferenz: Die tatsächliche Docker-Portbindung war noch nicht beobachtet.
+
+Ausschließlich nach **echtem Auth-Kindprozess-Exit** und vorhandenem Discovery-Code 3
+liest der Runner nun genau einen zusätzlichen Format-Inspect des beim Start
+gebundenen eigenen TLS-CIDs. Derselbe CID, beide Owner-/Projectlabels, Dienst,
+Oneoff, Image-/Configdigest sowie RAM/CPU/Swaplimits werden im Snapshot erneut
+geprüft. Die unveränderte Startinventur bindet den CID nur im RAM. Keine weitere
+HTTP-/TCP-Anfrage, keine neue Zieladresse und keine Veränderung des Netz-/TLSpfads.
+
+Nur `tls_loopback` mit tatsächlichen bool/numeric/null-Werten wird übernommen:
+konfigurierte und von Docker gemeldete veröffentlichte Bindungsanzahl für den
+festen Port; bei exakt einer Bindung deren exakter Loopback-Match, andernfalls
+null. Hinzu kommen Netzanzahl/Einzelbesitz sowie bereits erlaubter eigener
+TLS-Running-/OOM-/Exit-/Restartstatus. Keine IPs, Ports als freie Texte, URLs,
+Rohkonfigurationen oder Fehlertexte. [Docker dokumentiert](https://docs.docker.com/reference/cli/docker/inspect)
+die getrennten HostConfig-/NetworkSettings-Portprojektionen und Go-Templatefelder.
+Die native Formatantwort ist auf 4096 Bytes beschränkt; der sichere Terminalreader
+prüft denselben geschlossenen Vertrag. Eine gemeldete Veröffentlichung ist noch
+kein Verbindungs-/Listener-/HTTP-/TLS-/Authnachweis. Fehlende/fehlerhafte Beobachtung
+bleibt unbekannt plus feste optionale `loopback_report`-Diagnose.
+
+Max3 und die erste reale Ursache bleiben unverändert. Auch die neue optionale
+Inspectdiagnose besitzt keinen Vorrang vor tatsächlich späteren Stop-/Cleanup-
+Ursachen; ausschließlich diese dürfen einen sekundären optionalen Berichtplatz
+verdrängen. Kein Timeout, Exitstatus, Cleanup-/Stopkommando, Assertion, Budget,
+Outbound-, Auth- oder Isolationgate ändert sich. Kein `internal=false`, Zusatznetz,
+Imagepublish oder Änderung an externen Umgebungen folgt aus dieser Diagnose.
+
+Fünf echte Vertrags-Assertion-REDs und ein zusätzlicher tatsächlicher
+Prioritäts-Assertion-RED in denselben fünf Methoden belegen den fehlenden Hook.
+Der frühe temporäre Prioritätsmock wurde korrigiert, damit unterschiedliche
+Fehleridentitäten bis Testende lebendig bleiben; sein Befund wird nicht zusätzlich
+gezählt. Final bestehen **82 Python/21 Mock-Node ohne Skips**, mit exakt denselben
+173 Git-/4 Ruby-YAML-/1 Node-VM-Lesern. Alle 77 vorherigen Pythonmethoden und alle
+JS-Quellen bleiben bytegleich erhalten. Kein lokaler Docker-/Browser-/Auth-/
+Netzprozess wurde ausgeführt. Whole-Freeze, separater unabhängiger Review,
+exakter Commit-/Tree-/Parent-/Eigenref-Abgleich und frische sieben Publisher-/
+Registry-/CI-Belege bleiben vor genau einem neuen seriellen Hosted-Erstlauf Pflicht.
+
 ## Bestehende Discovery-Anfrage beobachten – Diagnose nach Run 38064007895
 
 Der tatsächliche Erstlauf `38064007895/a1` auf

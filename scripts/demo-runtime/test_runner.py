@@ -42,6 +42,64 @@ def container(service='api'):
         'oom':False,'running':True,'exit_code':0,'restarts':0}
 
 class RunnerTests(unittest.TestCase):
+    def test_tls_loopback_projection_accepts_only_closed_observed_fields(self):
+        # Testzweck: Anzahl ist echte Beobachtung, null-Match bei keiner/einer
+        # mehrdeutigen Bindung; weder Rohkonfiguration noch erfundener Erfolg.
+        project=getattr(runner,'tls_loopback_result',None)
+        self.assertTrue(callable(project),'Geschlossene TLS-Portprojektion fehlt')
+        value=dict(configured_binding_count=1,configured_loopback_match=True,
+            published_binding_count=0,published_loopback_match=None,network_count=1,
+            only_owned_network=True,tls_running=True,tls_oom=False,tls_exit_code=0,tls_restarts=0)
+        self.assertEqual(value,project(value))
+        for bad in [value|{'raw':'synthetic-private'},value|{'configured_binding_count':True},
+            value|{'configured_binding_count':17},value|{'published_binding_count':-1},
+            value|{'published_loopback_match':False},value|{'configured_loopback_match':None},
+            value|{'tls_running':1},value|{'tls_exit_code':256},value|{'only_owned_network':'true'}]:
+            with self.subTest(),self.assertRaises(ValueError):project(bad)
+
+    def test_tls_loopback_inspect_is_only_fixed_boolean_numeric_fields(self):
+        # Testzweck: Alle neuen Formatfelder sind reine count/match-Projektionen;
+        # unveränderte 14 Besitz-/Image-/Limitfelder bleiben gebunden, kein Rohdump.
+        format_for=getattr(runner,'tls_loopback_inspect',None)
+        self.assertTrue(callable(format_for),'Gebundener TLS-Formatvertrag fehlt')
+        configured='index .HostConfig.PortBindings "8443/tcp"'
+        published='index .NetworkSettings.Ports "8443/tcp"'
+        def count(expression):return '{{with '+expression+'}}{{json (len .)}}{{else}}0{{end}}'
+        def match(expression):return '{{with '+expression+'}}{{if eq (len .) 1}}' \
+            + '{{json (and (eq (index . 0).HostIp "127.0.0.1") (eq (index . 0).HostPort "8443"))}}' \
+            + '{{else}}null{{end}}{{else}}null{{end}}'
+        expected=EXPECTED_INSPECT[:-1]+','+','.join([
+            '"configured_binding_count":'+count(configured),'"configured_loopback_match":'+match(configured),
+            '"published_binding_count":'+count(published),'"published_loopback_match":'+match(published),
+            '"network_count":'+count('.NetworkSettings.Networks'),
+            '"only_owned_network":{{with .NetworkSettings.Networks}}{{json (and (eq (len .) 1) '
+            + '(ne (index . "'+PROJECT+'_default") nil))}}{{else}}false{{end}}'])+'}'
+        self.assertEqual(expected,format_for(PROJECT))
+        for foreign in ['foreign','flowzer-runtime-1-a2','flowzer-runtime-1-a1"}}raw']:
+            with self.assertRaises(ValueError):format_for(foreign)
+        for raw in ['.Config.Env','json .HostConfig','json .NetworkSettings','IPAddress','LogPath']:
+            self.assertNotIn(raw,expected)
+
+    def test_actual_tls_snapshot_rechecks_owner_image_limits_and_cached_cid(self):
+        # Testzweck: Nur eigener TLS-CID erhält den einen geschlossenen Inspect;
+        # nach dem Start umgebogene Besitz-/Image-/Servicebindung wird nicht exportiert.
+        snapshot=getattr(runner.Rig,'tls_loopback_snapshot',None)
+        self.assertTrue(callable(snapshot),'Gebundener TLS-Snapshot fehlt')
+        fields=dict(configured_binding_count=1,configured_loopback_match=True,
+            published_binding_count=0,published_loopback_match=None,network_count=1,only_owned_network=True)
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,{'RUNNER_TEMP':temp,'PATH':'/synthetic'},clear=True):
+            rig=runner.Rig(Path('/unused'),Path('/unused'),CONTEXT);rig.configs=CONFIGS;rig.startup_tls_id='b'*64
+            row=container('tls')|fields;rig.command=Mock(return_value=runner.json.dumps(row))
+            actual=snapshot(rig);self.assertEqual(fields|dict(tls_running=True,tls_oom=False,tls_exit_code=0,tls_restarts=0),actual)
+            rig.command.assert_called_once_with(['docker','inspect','--type','container','--format',runner.tls_loopback_inspect(PROJECT),'b'*64])
+            for changed in [row|{'owner':'foreign'},row|{'id':'c'*64},row|{'service':'api'},
+                row|{'image_id':'sha256:'+'d'*64},row|{'oneoff':'True'},row|{'raw':'synthetic-private'}]:
+                with self.subTest(),self.assertRaises(ValueError):
+                    rig.command=Mock(return_value=runner.json.dumps(changed));snapshot(rig)
+            rig.startup_tls_id=None;rig.command.reset_mock()
+            with self.assertRaises(ValueError):snapshot(rig)
+            rig.command.assert_not_called()
+
     def test_complete_inspect_format_groups_every_json_argument(self):
         # Testzweck: Alle 14 Felder bleiben geschlossen; index-Aufrufe sind je EIN json-Argument.
         # Dies ist ein Quellenvertrag, kein behaupteter echter Docker-/Go-Parserlauf.

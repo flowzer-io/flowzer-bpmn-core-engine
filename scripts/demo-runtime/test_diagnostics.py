@@ -18,6 +18,50 @@ MARKER = 'synthetic-private-error-must-not-escape'
 
 
 class DiagnosticsTests(unittest.TestCase):
+    def test_actual_connection_refused_auth_path_captures_only_own_tls_binding(self):
+        # Testzweck: Nur bestehende Discovery-Code3 nach echtem Auth-Kindprozess-Exit
+        # aktiviert genau einen formatgebundenen eigenen TLS-Inspect, keinen Netzrequest.
+        with self.synthetic_runtime() as rig:
+            error=runner.MeasuredProcessExitError(1)
+            def measured(args,**kwargs):
+                rig.report['sample_count']=1
+                if args[0]=='node':
+                    (rig.root/'auth-result.json').write_text(json.dumps(dict(total=16,passed=1,
+                        failed=1,skipped=0,interrupted=0,errors=0,success=False,failed_test_indexes=[2])))
+                    (rig.root/'discovery-result.json').write_text(json.dumps(dict(status=None,
+                        transport_code=3,issuer_matches=None,pkce_s256=None)));raise error
+            rig.measured_command=Mock(side_effect=measured)
+            original=rig.command;fields=dict(configured_binding_count=1,configured_loopback_match=True,
+                published_binding_count=0,published_loopback_match=None,network_count=1,only_owned_network=True)
+            def command(args,**kwargs):
+                if args[:3]==['docker','inspect','--type']:return json.dumps(container('tls')|fields)
+                return original(args,**kwargs)
+            rig.command=Mock(side_effect=command)
+            rig.inventory=Mock(side_effect=[[],[container(s) for s in BUDGETS],[container(s) for s in BUDGETS],[]])
+            with self.assertRaises(runner.MeasuredProcessExitError) as raised:rig.run()
+            self.assertIs(error,raised.exception)
+            actual=json.loads((rig.root/'report/resource-result.json').read_text())
+            self.assertEqual(fields|dict(tls_running=True,tls_oom=False,tls_exit_code=0,tls_restarts=0),actual.get('tls_loopback'))
+            self.assertEqual(1,sum(call.args[0][:3]==['docker','inspect','--type'] for call in rig.command.call_args_list))
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1)],actual['failures'])
+            self.assertFalse(actual['success']);self.assertTrue(actual['cleanup_complete'])
+
+    def test_optional_loopback_diagnosis_never_displaces_real_cleanup_and_stop(self):
+        # Testzweck: Neue rein optionale Inspectdiagnose besitzt keinen Vorrang
+        # vor echter Cleanup-/Stopursache; Max3 und erste reale Authursache bleiben.
+        with self.synthetic_runtime() as rig:
+            # Mocks halten die tatsächlich unterschiedlichen Fehleridentitäten
+            # bis zum Testende lebendig; keine CPython-id-Wiederverwendung vortäuschen.
+            errors=(runner.MeasuredProcessExitError(1),ValueError(MARKER),runner.ProcessExitError(29),
+                subprocess.TimeoutExpired(['synthetic'],120),OSError(MARKER))
+            rig.note_failure('auth',errors[0]);rig.note_failure('auth_report',errors[1])
+            try:rig.note_failure('loopback_report',errors[2])
+            except ValueError:self.fail('Geschlossene optionale Loopbackphase fehlt')
+            rig.note_failure('cleanup',errors[3]);rig.note_failure('stop',errors[4])
+            self.assertEqual([dict(phase='auth',error='process_exit',exit_code=1),
+                dict(phase='cleanup',error='timeout',exit_code=None),dict(phase='stop',error='io',exit_code=None)],rig.report['failures'])
+            self.assertEqual(3,len(rig.report['failures']));self.assertNotIn(MARKER,json.dumps(rig.report))
+
     def test_both_optional_report_errors_never_displace_actual_cleanup_failure(self):
         # Testzweck: Der echte Runpfad bleibt auf maximal drei Diagnosen und hält
         # den primären Auth-Exit sowie die spätere Ownership-/Cleanup-Ursache fest.

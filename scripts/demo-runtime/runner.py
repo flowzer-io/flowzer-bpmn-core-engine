@@ -36,7 +36,7 @@ INSPECT='{'+','.join('"'+key+'":{{json ('+expression+')}}' for key,expression in
 # Feste Diagnosewerte, niemals Befehle, Exceptiontexte oder fremde Antworten.
 PHASES=frozenset({'preflight','freshness','prepare','browser_preflight',
     'browser_calibration_process','browser_calibration_report','docker_preflight',
-    'pull','start','sampling','auth','auth_report','discovery_report','verify','stop','cleanup'} |
+    'pull','start','sampling','auth','auth_report','discovery_report','loopback_report','verify','stop','cleanup'} |
     {'browser_probe_'+value for value in ['modules','contract','certificate','fixture','browser','allowed',
         'redirect_ip_blocked','redirect_host_blocked','direct_ip','websocket','serviceworker',
         'context_close','browser_close','proxy_close','allowed_close','marker_close']})
@@ -173,6 +173,44 @@ def discovery_result(value):
     return value
 
 
+def tls_loopback_inspect(project):
+    """Fester eigener TLS-Inspect: nur Portanzahl/-vergleich und Netzanzahl/-besitz.
+
+    Die unveränderten 14 Containerfelder binden CID, doppelte Labels, Image und
+    Ressourcen erneut. Zusätzliche Felder exportieren niemals IPs/Ports als Text
+    oder Konfigurationsobjekte; die Go-Blöcke behandeln fehlende Bindungen explizit.
+    """
+    require(type(project) is str and re.fullmatch(r'flowzer-runtime-[1-9][0-9]{0,19}-a1',project) is not None)
+    def count(expression):return '{{with '+expression+'}}{{json (len .)}}{{else}}0{{end}}'
+    def match(expression):return '{{with '+expression+'}}{{if eq (len .) 1}}' \
+        + '{{json (and (eq (index . 0).HostIp "127.0.0.1") (eq (index . 0).HostPort "8443"))}}' \
+        + '{{else}}null{{end}}{{else}}null{{end}}'
+    configured='index .HostConfig.PortBindings "8443/tcp"'
+    published='index .NetworkSettings.Ports "8443/tcp"'
+    return INSPECT[:-1]+','+','.join([
+        '"configured_binding_count":'+count(configured),'"configured_loopback_match":'+match(configured),
+        '"published_binding_count":'+count(published),'"published_loopback_match":'+match(published),
+        '"network_count":'+count('.NetworkSettings.Networks'),
+        '"only_owned_network":{{with .NetworkSettings.Networks}}{{json (and (eq (len .) 1) '
+        + '(ne (index . "'+project+'_default") nil))}}{{else}}false{{end}}'])+'}'
+
+
+def tls_loopback_result(value):
+    """Nur bereits beobachtete feste Zahlen/Booleans, kein Verbindungs- oder Authnachweis."""
+    counts={'configured_binding_count','published_binding_count','network_count'}
+    flags={'only_owned_network','tls_running','tls_oom'}
+    matches={'configured_loopback_match','published_loopback_match'}
+    require(type(value) is dict and set(value)==counts|flags|matches|{'tls_exit_code','tls_restarts'}
+        and all(type(value[key]) is int and 0<=value[key]<=16 for key in counts)
+        and all(type(value[key]) is bool for key in flags)
+        and type(value['tls_exit_code']) is int and 0<=value['tls_exit_code']<=255
+        and type(value['tls_restarts']) is int and 0<=value['tls_restarts']<=100)
+    for prefix in ['configured','published']:
+        count=value[prefix+'_binding_count'];match=value[prefix+'_loopback_match']
+        require(type(match) is bool if count==1 else match is None)
+    return value
+
+
 def egress_result(value):
     """Nur exakt die eigene erfolgreiche numerische Netzprobe, keine Roh-/Fehlerfelder uploaden."""
     ones={'positive_control_requests','allowed_page','redirect_ip_blocked','redirect_host_blocked',
@@ -248,7 +286,7 @@ class Rig:
         self.report={'success':False,'runtime_started':False,'cleanup_complete':False,
             'sample_count':0,'samples_are_discrete':True,'container_reads_are_sequential':True,
             'oom_observed':False,'peak_memory_bytes_approx':0,'per_service':{},'disk':{}}
-        self.owned=False
+        self.owned=False;self.startup_tls_id=None
         self.current_phase='preflight';self.failure_ids=set();self.report['failures']=[]
         # Childumgebung ist eine Whitelist: kein GH-/Cloud-/IdP-/Vaulttoken in Browser oder Containerstarts.
         self.env={key:os.environ[key] for key in ['PATH','LANG','LC_ALL'] if key in os.environ}
@@ -270,7 +308,7 @@ class Rig:
         if len(rows)>=3:
             if phase not in ('stop','cleanup'):return
             replace=next((index for index in range(len(rows)-1,0,-1)
-                if rows[index]['phase'] in ('auth_report','discovery_report')),None)
+                if rows[index]['phase'] in ('auth_report','discovery_report','loopback_report')),None)
             if replace is None:return
         value=failure_projection(phase,error)
         if replace is not None:del rows[replace]
@@ -454,6 +492,26 @@ class Rig:
         self.report['fixture']=auth_result(proof.decode((self.root/'fixture/auth-result.json').read_bytes()),2)
         self.report['egress']=value;self.report['calibration_marker_assertion_red']=1
 
+    def tls_loopback_snapshot(self):
+        """Genau ein Format-Inspect des beim Start gebundenen eigenen TLS-CIDs.
+
+        Ausschließlich Diagnose nach bereits vorhandenem Discovery-Code3; kein
+        weiterer Netzrequest, keine Aufweichung von TLS/Netz/Auth oder Cleanup.
+        Vor Übernahme werden dieselben Eigentums-/Image-/Ressourcenfelder neu geprüft.
+        """
+        cid=self.startup_tls_id
+        require(type(cid) is str and re.fullmatch('[0-9a-f]{64}',cid) is not None)
+        raw=self.command(['docker','inspect','--type','container','--format',tls_loopback_inspect(self.project),cid])
+        require(len(raw.encode())<=4096)
+        row=proof.decode(raw.encode())
+        fields={'configured_binding_count','configured_loopback_match','published_binding_count',
+            'published_loopback_match','network_count','only_owned_network'}
+        require(type(row) is dict and set(row)==set(COLUMNS)|fields)
+        state=self.audited_container({key:row[key] for key in COLUMNS})
+        require(row['id']==cid and state['service']=='tls' and not state['oneoff'])
+        return tls_loopback_result({key:row[key] for key in fields}|dict(tls_running=state['running'],
+            tls_oom=state['oom'],tls_exit_code=state['exit_code'],tls_restarts=state['restarts']))
+
     @diagnosed('auth')
     def run_auth(self,auth):
         """Originaltests unverändert; Exitfehler bleiben rot, sichere vorhandene Zähler erhalten.
@@ -487,6 +545,12 @@ class Rig:
                     self.report['discovery']=discovery_result(proof.decode(raw))
             except Exception as diagnostic:
                 self.note_failure('discovery_report',diagnostic)
+            if self.report.get('discovery',{}).get('transport_code')==3:
+                try:
+                    with self.phase('loopback_report'):
+                        self.report['tls_loopback']=self.tls_loopback_snapshot()
+                except Exception as diagnostic:
+                    self.note_failure('loopback_report',diagnostic)
             raise
         self.report['auth']=auth_result(proof.decode((self.root/'auth-result.json').read_bytes()),16)
 
@@ -517,6 +581,8 @@ class Rig:
             with self.phase('start'):
                 self.measured_command(self.compose+['up','-d','--no-build','--pull','never','--wait','--wait-timeout','600'],timeout=660)
                 rows=self.inventory();require(len(rows)==7 and {row['service'] for row in rows}==set(BUDGETS))
+                # Nur RAM-CID aus der bereits vollständig geprüften eigenen Startinventur.
+                self.startup_tls_id=next(row['id'] for row in rows if row['service']=='tls')
                 self.disk('after_start');self.env['FLOWZER_RUNTIME_REPORT']=str(self.root/'auth-result.json')
             with self.phase('auth'):
                 self.run_auth(auth)
