@@ -1,5 +1,34 @@
 # Temporärer Ressourcenpilot — isolierter Abnahmevorschlag
 
+## Serielle Pilotfortsetzung – 10. Oktober 2026
+
+Christian hat die Fortsetzung des isolierten GitHub-Hosted-Piloten bis zum
+Erfolg ausdrücklich freigegeben. Der eigene Topic
+`codex/flowzer-runtime-calibration-pilot` beginnt am frisch gefetchten Archivstand
+`18dc2e7f64f212c711b708f976d7574eca5868a5`; dessen Archivbranch und alle älteren
+Belege bleiben unverändert. Nur genau diese neue Ref wird im Workflow,
+Vor-I/O-Guard und unabhängigen aktuellen Run-Read-back akzeptiert. Keine
+Wildcard, zusätzliche Alternative, Publisher-, Installations- oder reale Realmfreigabe.
+
+Sieben tatsächliche Assertion-REDs belegten vor dem Refwechsel die neue positive
+Eigenidentität und die Ablehnung des früheren Pilottopics. Die bisherigen
+58 Pythonmethoden/Assertions bleiben erhalten; positive synthetische Identitäten
+ändern nur die feste Eigenref, negative Archivfälle werden ergänzt. Die bestehende
+Browserkalibrierungsdiagnose sowie alle JS-Quellen, Prozess-/Ressourcenlimits,
+acceptedExit1, maximal drei Fehler und sämtliche Netz-/Authgrenzen bleiben gleich.
+
+Root registriert den geprüften Source-Head/Tree und danach jeden einzelnen neuen
+Erstlauf (`attempt=1`, voller bestätigter Workflow-SHA). Keine blinden unveränderten
+Wiederholungen und keine Wiederanläufe alter Runs. Aus einem roten Run werden
+nur geschlossene Phasen-/Fehler-/wirkliche Exitfelder übernommen. Quelltests sind
+kein Runtimebeleg; bisherige unbekannte Ursachen bleiben unbekannt. Keine Writes
+nach Main/Release/Production, keine Dev01-Installation oder Kostenerhöhung, keine
+neuen Publisherimages, keine bestehenden Realm-/n8n-/Produktionsänderungen.
+
+Die folgenden Abschnitte bleiben ausdrücklich historische Archivdokumentation.
+Ihre früheren Freigabegrenzen gelten für ihre damaligen Stände, nicht als
+Aufhebung der oben dokumentierten neuen seriellen menschlichen Freigabe.
+
 ## Kalibrierungsdiagnose – ausschließlich Quellenstand, 10. Oktober 2026
 
 `codex/flowzer-browser-calibration-diagnostics` wurde im eigenen frischen Worktree

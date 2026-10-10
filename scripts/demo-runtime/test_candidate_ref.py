@@ -7,10 +7,11 @@ import proof
 import runner
 import test_workflow
 
-OWN_BRANCH = 'codex/flowzer-runtime-pilot-diagnostics'
+OWN_BRANCH = 'codex/flowzer-runtime-calibration-pilot'
 OWN_REF = 'refs/heads/' + OWN_BRANCH
 DENIED_REFS = ('refs/heads/main', 'refs/heads/release', 'refs/heads/codex/foreign',
     'refs/heads/codex/flowzer-demo-runtime-budget', 'refs/heads/codex/flowzer-runtime-diagnostics',
+    'refs/heads/codex/flowzer-runtime-pilot-diagnostics', 'refs/heads/codex/flowzer-browser-calibration-diagnostics',
     OWN_REF + '-other', OWN_REF + '/child', 'refs/tags/' + OWN_BRANCH)
 CONTEXT = dict(repository='flowzer-io/flowzer-bpmn-core-engine', ref=OWN_REF,
     event='workflow_dispatch', attempt='1', run_id='123456', sha='a' * 40, confirmed_sha='a' * 40,
@@ -57,7 +58,8 @@ class CandidateRefTests(unittest.TestCase):
             with self.subTest(ref=ref):
                 self.assertEqual(ref == OWN_REF, self.reaches_publisher(ref, head_branch))
         for head_branch in ('main', 'release', 'codex/foreign', 'codex/flowzer-demo-runtime-budget',
-                'codex/flowzer-runtime-diagnostics', OWN_BRANCH + '-other'):
+                'codex/flowzer-runtime-diagnostics', 'codex/flowzer-runtime-pilot-diagnostics',
+                'codex/flowzer-browser-calibration-diagnostics', OWN_BRANCH + '-other'):
             with self.subTest(current_api_branch=head_branch):
                 self.assertFalse(self.reaches_publisher(OWN_REF, head_branch))
 
@@ -65,7 +67,7 @@ class CandidateRefTests(unittest.TestCase):
         # Testzweck: Nicht nur passende Teilstrings; keine Alternative oder weggefallene Schutzbedingung.
         expression = test_workflow.WorkflowTests().config()['jobs']['resources']['if']
         expected = ("github.repository == 'flowzer-io/flowzer-bpmn-core-engine' && "
-            "github.ref == 'refs/heads/codex/flowzer-runtime-pilot-diagnostics' && "
+            "github.ref == 'refs/heads/codex/flowzer-runtime-calibration-pilot' && "
             "github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && "
             'inputs.confirmed_workflow_sha == github.sha')
         self.assertEqual(expected, ' '.join(expression.split()))

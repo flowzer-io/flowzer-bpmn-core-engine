@@ -113,7 +113,7 @@ def source_proof(context,publisher):
     project_for(context)
     current=github('actions/runs/'+context['run_id'])
     require(current['id']==int(context['run_id']) and current['head_sha']==context['sha']
-        and current['head_branch']=='codex/flowzer-runtime-pilot-diagnostics' and current['run_attempt']==1
+        and current['head_branch']=='codex/flowzer-runtime-calibration-pilot' and current['run_attempt']==1
         and current['event']=='workflow_dispatch' and current['path']=='.github/workflows/ci.yml'
         and current['status']=='in_progress')
     library=publisher_library(publisher)

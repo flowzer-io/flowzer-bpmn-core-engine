@@ -1,7 +1,7 @@
 name: TT-Demo Ressourcenpilot (temporärer Abnahmevorschlag)
 
 # Ausschließlich auf dem eigenen temporären Runtimebranch. NIEMALS nach Main,
-# Release, PR379 oder in den Candidate-bca übernehmen. Noch kein Dispatch-Go.
+# Release, PR379 oder in den Candidate-bca übernehmen. Serielle Fortsetzung nach ausdrücklicher Freigabe; Root registriert jeden Head.
 "on":
   workflow_dispatch:
     inputs:
@@ -19,7 +19,7 @@ jobs:
   resources:
     if: >-
       github.repository == 'flowzer-io/flowzer-bpmn-core-engine' &&
-      github.ref == 'refs/heads/codex/flowzer-runtime-pilot-diagnostics' &&
+      github.ref == 'refs/heads/codex/flowzer-runtime-calibration-pilot' &&
       github.event_name == 'workflow_dispatch' && github.run_attempt == 1 &&
       inputs.confirmed_workflow_sha == github.sha
     runs-on: ubuntu-24.04

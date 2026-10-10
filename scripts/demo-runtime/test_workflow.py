@@ -25,7 +25,7 @@ class WorkflowTests(unittest.TestCase):
         for job in config['jobs'].values():
             self.assertEqual('ubuntu-24.04',job['runs-on'])
             for term in ["github.repository == 'flowzer-io/flowzer-bpmn-core-engine'",
-                "github.ref == 'refs/heads/codex/flowzer-runtime-pilot-diagnostics'",
+                "github.ref == 'refs/heads/codex/flowzer-runtime-calibration-pilot'",
                 "github.event_name == 'workflow_dispatch'",'github.run_attempt == 1','inputs.confirmed_workflow_sha == github.sha']:
                 self.assertIn(term,job['if'])
             self.assertEqual({'contents':'read','packages':'read','actions':'read'},job['permissions'])

@@ -36,7 +36,7 @@ def project_for(context):
         'run_id','sha','confirmed_sha','runner_environment','runner_os','runner_arch'}
         and all(type(value) is str for value in context.values()))
     require(context['repository'] == 'flowzer-io/flowzer-bpmn-core-engine'
-        and context['ref'] == 'refs/heads/codex/flowzer-runtime-pilot-diagnostics'
+        and context['ref'] == 'refs/heads/codex/flowzer-runtime-calibration-pilot'
         and context['event'] == 'workflow_dispatch' and context['attempt'] == '1'
         and context['runner_environment'] == 'github-hosted'
         and context['runner_os'] == 'Linux' and context['runner_arch'] == 'X64')
